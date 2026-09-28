@@ -6,27 +6,27 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 
-namespace Pegasus.Web.ProviderApi;
+namespace Pegasus.Web.PrincipalApi;
 
-internal sealed record ProviderSubmissionFileResponse(
+internal sealed record PrincipalSubmissionFileResponse(
     int Ordinal,
     string FileName,
     string Sha256,
     bool Duplicate);
 
-internal sealed record ProviderSubmissionReceiptResponse(
+internal sealed record PrincipalSubmissionReceiptResponse(
     Guid SubmissionId,
     DateTimeOffset ReceivedAtUtc,
-    string? ProviderReference,
+    string? PrincipalReference,
     bool Replayed,
-    IReadOnlyList<ProviderSubmissionFileResponse> Files);
+    IReadOnlyList<PrincipalSubmissionFileResponse> Files);
 
-internal sealed record ProviderSubmissionResultResponse(
+internal sealed record PrincipalSubmissionResultResponse(
     Guid SubmissionId,
     DateTimeOffset ReceivedAtUtc,
-    string? ProviderReference,
+    string? PrincipalReference,
     QueuedIntakeStatusKind Status,
     IntakeDecision? Decision,
     IntakeAllocationFailureKind? AllocationFailure,
@@ -34,70 +34,70 @@ internal sealed record ProviderSubmissionResultResponse(
     string? CaseReference);
 
 /// <summary>
-/// Composition for the configuration-gated Provider API. Nothing here is
-/// registered unless <c>Features:ProviderApi</c> enabled it at startup; the
+/// Composition for the configuration-gated Principal API. Nothing here is
+/// registered unless <c>Features:PrincipalApi</c> enabled it at startup; the
 /// application otherwise exposes no such surface and answers 404.
 /// </summary>
-public static class ProviderApiEndpoints
+public static class PrincipalApiEndpoints
 {
     private static readonly JsonSerializerOptions ResponseJson = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public static IServiceCollection AddPegasusProviderApi(this IServiceCollection services)
+    public static IServiceCollection AddPegasusPrincipalApi(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddAuthentication()
-            .AddScheme<AuthenticationSchemeOptions, ProviderApiAuthenticationHandler>(
-                ProviderApi.AuthenticationScheme,
-                displayName: "Pegasus Provider API",
+            .AddScheme<AuthenticationSchemeOptions, PrincipalApiAuthenticationHandler>(
+                PrincipalApi.AuthenticationScheme,
+                displayName: "Pegasus Principal API",
                 _ => { });
         services.AddAuthorizationBuilder()
-            .AddPolicy(ProviderApi.EndpointPolicy, policy =>
+            .AddPolicy(PrincipalApi.EndpointPolicy, policy =>
             {
-                policy.AddAuthenticationSchemes(ProviderApi.AuthenticationScheme);
+                policy.AddAuthenticationSchemes(PrincipalApi.AuthenticationScheme);
                 policy.RequireAuthenticatedUser();
-                policy.RequireClaim(ProviderApi.KeyIdClaim);
+                policy.RequireClaim(PrincipalApi.KeyIdClaim);
             });
         return services;
     }
 
     /// <summary>
-    /// Maps the bearer-only provider surface. The endpoint policy
-    /// authenticates exclusively with the provider scheme, so a staff cookie
+    /// Maps the bearer-only principal surface. The endpoint policy
+    /// authenticates exclusively with the principal scheme, so a staff cookie
     /// never reaches a handler; antiforgery is disabled because there is no
     /// cookie to forge.
     /// </summary>
-    public static void MapPegasusProviderApi(this WebApplication app)
+    public static void MapPegasusPrincipalApi(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
-        var group = app.MapGroup(ProviderApi.SubmissionsPath)
-            .RequireAuthorization(ProviderApi.EndpointPolicy)
-            .RequireRateLimiting(ProviderApi.RateLimitPolicy)
+        var group = app.MapGroup(PrincipalApi.SubmissionsPath)
+            .RequireAuthorization(PrincipalApi.EndpointPolicy)
+            .RequireRateLimiting(PrincipalApi.RateLimitPolicy)
             .DisableAntiforgery();
         group.MapPost(string.Empty, SubmitAsync)
             .WithMetadata(new RequestSizeLimitAttribute(
-                IntakeEnvelopeLimits.MaximumProviderApiRequestLength));
+                IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength));
         group.MapGet("/{id:guid}", GetAsync);
     }
 
     private static async Task<IResult> SubmitAsync(
         HttpContext context,
         ClaimsPrincipal user,
-        ISubmitProviderInstruction submit,
+        ISubmitPrincipalInstruction submit,
         ISecurityEventWriter securityEvents,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
-        var credential = ProviderApiAuthenticationHandler.ReadCredential(user);
+        var credential = PrincipalApiAuthenticationHandler.ReadCredential(user);
         if (credential is null)
         {
-            return Problem(StatusCodes.Status401Unauthorized, "The provider credential is missing or not valid.");
+            return Problem(StatusCodes.Status401Unauthorized, "The principal credential is missing or not valid.");
         }
 
         var request = context.Request;
-        if (request.ContentLength > IntakeEnvelopeLimits.MaximumProviderApiRequestLength)
+        if (request.ContentLength > IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength)
         {
             return Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit.");
         }
@@ -108,10 +108,10 @@ public static class ProviderApiEndpoints
 
         try
         {
-            ProviderSubmissionPolicy.RequireMaySubmit(credential);
+            PrincipalSubmissionPolicy.RequireMaySubmit(credential);
 
             // The body is retained exactly as it arrived, so the case's origin is
-            // the provider's own instruction rather than a rendering of it. It is
+            // the principal's own instruction rather than a rendering of it. It is
             // read once, bounded, and both parsed and retained from the same bytes.
             var body = await ReadBodyAsync(request, cancellationToken);
             if (body is null)
@@ -119,28 +119,28 @@ public static class ProviderApiEndpoints
                 return Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit.");
             }
 
-            var (instruction, files) = ProviderInstructionJson.Parse(body);
+            var (instruction, files) = PrincipalInstructionJson.Parse(body);
             var receipt = await submit.ExecuteAsync(
                 new(
                     credential,
-                    request.Headers[ProviderApi.IdempotencyKeyHeader].ToString(),
+                    request.Headers[PrincipalApi.IdempotencyKeyHeader].ToString(),
                     instruction,
                     files,
                     body,
                     context.TraceIdentifier),
                 cancellationToken);
-            var responseBody = new ProviderSubmissionReceiptResponse(
+            var responseBody = new PrincipalSubmissionReceiptResponse(
                 receipt.SubmissionId,
                 receipt.ReceivedAtUtc,
-                receipt.ProviderReference,
+                receipt.PrincipalReference,
                 receipt.Replayed,
                 receipt.Files
-                    .Select(file => new ProviderSubmissionFileResponse(
+                    .Select(file => new PrincipalSubmissionFileResponse(
                         file.Ordinal, file.FileName, file.Sha256, file.IsDuplicate))
                     .ToArray());
             if (!receipt.Replayed)
             {
-                context.Response.Headers.Location = $"{ProviderApi.SubmissionsPath}/{receipt.SubmissionId:D}";
+                context.Response.Headers.Location = $"{PrincipalApi.SubmissionsPath}/{receipt.SubmissionId:D}";
             }
 
             return Results.Json(
@@ -148,17 +148,17 @@ public static class ProviderApiEndpoints
                 ResponseJson,
                 statusCode: receipt.Replayed ? StatusCodes.Status200OK : StatusCodes.Status201Created);
         }
-        catch (ProviderInstructionValidationException exception)
+        catch (PrincipalInstructionValidationException exception)
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: exception.Message,
                 extensions: new Dictionary<string, object?> { ["field"] = exception.Field });
         }
-        catch (ProviderSubmissionException exception)
+        catch (PrincipalSubmissionException exception)
         {
-            if (exception.Error is ProviderSubmissionError.CredentialPaused
-                or ProviderSubmissionError.PrincipalMismatch)
+            if (exception.Error is PrincipalSubmissionError.CredentialPaused
+                or PrincipalSubmissionError.PrincipalMismatch)
             {
                 await securityEvents.AppendAsync(
                     new SecurityEvent(
@@ -168,25 +168,25 @@ public static class ProviderApiEndpoints
                         credential.KeyId,
                         timeProvider.GetUtcNow(),
                         context.TraceIdentifier,
-                        exception.Error == ProviderSubmissionError.CredentialPaused
-                            ? "provider_credential_paused"
-                            : "provider_principal_mismatch")
+                        exception.Error == PrincipalSubmissionError.CredentialPaused
+                            ? "principal_credential_paused"
+                            : "principal_mismatch")
                         // The credential is authenticated here, so the acting
                         // Principal is known even though the subject names the
                         // key that was presented (FRD-09).
-                        .By(ActionActor.Provider(credential.PrincipalId)),
+                        .By(ActionActor.Principal(credential.PrincipalId)),
                     cancellationToken);
             }
 
             return exception.Error switch
             {
-                ProviderSubmissionError.CredentialPaused =>
-                    Problem(StatusCodes.Status403Forbidden, "The provider credential is paused; submissions are refused until it is resumed."),
-                ProviderSubmissionError.PrincipalMismatch =>
+                PrincipalSubmissionError.CredentialPaused =>
+                    Problem(StatusCodes.Status403Forbidden, "The principal credential is paused; submissions are refused until it is resumed."),
+                PrincipalSubmissionError.PrincipalMismatch =>
                     Problem(StatusCodes.Status403Forbidden, "The submission names a principal other than the authenticated one."),
-                ProviderSubmissionError.EnvelopeExceeded =>
+                PrincipalSubmissionError.EnvelopeExceeded =>
                     Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit."),
-                ProviderSubmissionError.IdempotencyKeyConflict =>
+                PrincipalSubmissionError.IdempotencyKeyConflict =>
                     Problem(StatusCodes.Status409Conflict, "The idempotency key was already used with a different submission."),
                 _ => Problem(StatusCodes.Status409Conflict, "The submission conflicted with a concurrent request; retry.")
             };
@@ -197,7 +197,7 @@ public static class ProviderApiEndpoints
         }
         catch (StaffAuthorizationException)
         {
-            return Problem(StatusCodes.Status403Forbidden, "The provider credential may not perform this operation.");
+            return Problem(StatusCodes.Status403Forbidden, "The principal credential may not perform this operation.");
         }
         catch (IntakeArtifactRetentionException)
         {
@@ -207,7 +207,7 @@ public static class ProviderApiEndpoints
 
     private static bool IsJson(string? contentType) =>
         contentType is not null
-        && contentType.StartsWith(ProviderInstructionPolicy.SourceMediaType, StringComparison.OrdinalIgnoreCase);
+        && contentType.StartsWith(PrincipalInstructionPolicy.SourceMediaType, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The whole body, or null when it runs past the envelope bound. The bound
@@ -221,7 +221,7 @@ public static class ProviderApiEndpoints
         int read;
         while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
         {
-            if (buffer.Length + read > IntakeEnvelopeLimits.MaximumProviderApiRequestLength)
+            if (buffer.Length + read > IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength)
             {
                 return null;
             }
@@ -235,13 +235,13 @@ public static class ProviderApiEndpoints
     private static async Task<IResult> GetAsync(
         Guid id,
         ClaimsPrincipal user,
-        IGetProviderSubmissionResult getResult,
+        IGetPrincipalSubmissionResult getResult,
         CancellationToken cancellationToken)
     {
-        var credential = ProviderApiAuthenticationHandler.ReadCredential(user);
+        var credential = PrincipalApiAuthenticationHandler.ReadCredential(user);
         if (credential is null)
         {
-            return Problem(StatusCodes.Status401Unauthorized, "The provider credential is missing or not valid.");
+            return Problem(StatusCodes.Status401Unauthorized, "The principal credential is missing or not valid.");
         }
 
         var result = await getResult.ExecuteAsync(credential, id, cancellationToken);
@@ -251,10 +251,10 @@ public static class ProviderApiEndpoints
         }
 
         return Results.Json(
-            new ProviderSubmissionResultResponse(
+            new PrincipalSubmissionResultResponse(
                 result.SubmissionId,
                 result.ReceivedAtUtc,
-                result.ProviderReference,
+                result.PrincipalReference,
                 result.Status,
                 result.Decision,
                 result.AllocationFailure,

@@ -730,7 +730,7 @@ function Assert-FirstCutoverLegacyInventory {
 Assert-FirstCutoverLegacyInventory
 ```
 
-If Provider API credentials exist, tell each holder the new base address before
+If Principal API credentials exist, tell each holder the new base address before
 Container App containment. Confirm the update after the new Web App smoke in
 section 12.4.
 
@@ -814,7 +814,7 @@ not leave the old Container App serving while consumers are moved.
    usage. The superseded Graph subscriptions expire within six days on their own;
    the five-minute recovery poll carries intake throughout, so the webhook change
    affects immediacy, not delivery.
-4. **Provider API base address.** The Provider API is served at the new origin.
+4. **Principal API base address.** The Principal API is served at the new origin.
    For the destructive route, holders were notified before containment; after
    the new Web App smoke, confirm each holder has updated the base address.
    For the unchanged or additive route, notify and confirm before the old origin

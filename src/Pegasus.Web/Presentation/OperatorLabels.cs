@@ -47,7 +47,7 @@ public static class OperatorLabels
 
     /// <summary>
     /// The Triage's own permanent reference, distinct from the originating
-    /// provider claim number.
+    /// principal claim number.
     /// </summary>
     public const string TriageReference = "Triage reference";
 
@@ -162,7 +162,7 @@ public static class OperatorLabels
         CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => "With Engineer",
         CaseLifecycleState.PostReportComplete => "Completed",
         CaseLifecycleState.Query => "Query",
-        CaseLifecycleState.ProviderCancelled => "Closed · Cancelled",
+        CaseLifecycleState.PrincipalCancelled => "Closed · Cancelled",
         CaseLifecycleState.CollisionEngineersRejected => "Closed · Collision Engineers rejected",
         CaseLifecycleState.CreatedInError => "Closed · Created in error",
         CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
@@ -177,7 +177,7 @@ public static class OperatorLabels
     public static string CaseClosure(CaseClosureOutcome outcome) => outcome switch
     {
         CaseClosureOutcome.PostReportComplete => "Completed",
-        CaseClosureOutcome.ProviderCancelled => "Cancelled",
+        CaseClosureOutcome.PrincipalCancelled => "Cancelled",
         CaseClosureOutcome.CollisionEngineersRejected => "Collision Engineers rejected",
         CaseClosureOutcome.CreatedInError => "Created in error",
         CaseClosureOutcome.SourceEmailUnlinked => "E-mail unlinked",
@@ -375,12 +375,12 @@ public static class OperatorLabels
     /// <summary>
     /// A received-mail subtype in operator words. The two chasing subtypes are
     /// one category to the operator, "Update Request" (18 September 2026), and
-    /// "provider" never appears on the front end.
+    /// its slug never appears on the front end.
     /// </summary>
     private static string SubtypeWord(string subtype) => subtype switch
     {
-        "client-chasing-for-update" or "provider-chasing-for-update" => "Update Request",
-        _ => HumanizeSlug(subtype).Replace("Provider", "Principal", StringComparison.Ordinal)
+        "client-chasing-for-update" or "principal-chasing-for-update" => "Update Request",
+        _ => HumanizeSlug(subtype)
     };
 
     /// <summary>Release notes (FRD-12 What's new; FRD-17): the labels, statuses and acknowledgements.</summary>
@@ -858,7 +858,7 @@ public static class OperatorLabels
         {
             CaseArrival.Manual => "Manual",
             CaseArrival.Email => "E-mail",
-            CaseArrival.ProviderApi => "Provider API",
+            CaseArrival.PrincipalApi => "Principal API",
             CaseArrival.Automation => "Automation",
             _ => Humanise(arrival.ToString())
         };
@@ -866,7 +866,7 @@ public static class OperatorLabels
         public static string ArrivalTone(CaseArrival arrival) => arrival switch
         {
             CaseArrival.Automation => "blue",
-            CaseArrival.ProviderApi => "navy",
+            CaseArrival.PrincipalApi => "navy",
             _ => "neutral"
         };
 
@@ -1203,7 +1203,7 @@ public static class OperatorLabels
         "case_document_removed" => "File removed",
         "custody_confirmed" => "Document stored",
         "custody_failed" => "Document storage failed",
-        "provider_inspection_mode_applied" => "Inspection mode taken from the principal",
+        "principal_inspection_mode_applied" => "Inspection mode taken from the principal",
         "principal_guidance_applied" => "Principal guidance applied",
         "case_guidance_applied" => "Guidance applied",
         "claim_source_guidance_applied" => "Claim source guidance applied",
@@ -1336,7 +1336,7 @@ public static class OperatorLabels
             "with engineer" => "navy",
             "held" => "amber",
             "complete" or "completed" or "post report completion" => "green",
-            "cancelled" or "provider cancellation" or "archived" => "neutral",
+            "cancelled" or "principal cancellation" or "archived" => "neutral",
             "created in error" => "neutral",
             "reopened" or "open" => "navy",
 
@@ -1520,7 +1520,7 @@ public static class OperatorLabels
     /// The Action logs Actor type filter. One option per actor class an
     /// operator distinguishes, each carrying the recorded
     /// <see cref="ActorKind"/> name as its value so the filter needs no second
-    /// vocabulary. The Provider actor is deliberately absent: it is an
+    /// vocabulary. The Principal actor is deliberately absent: it is an
     /// attribution on an external caller, not a class of work an operator
     /// reviews here.
     /// </summary>
@@ -1553,7 +1553,7 @@ public static class OperatorLabels
         IntakeSourceChannel.ManualUpload => "Manual upload",
         IntakeSourceChannel.Mailbox => "E-mail",
         IntakeSourceChannel.Automation => "Automation",
-        IntakeSourceChannel.ProviderApi => ProviderSubmissionApi.Source,
+        IntakeSourceChannel.PrincipalApi => PrincipalSubmissionApi.Source,
         _ => throw new InvalidOperationException(
             $"Unknown intake source channel value '{(int)channel}'.")
     };
@@ -1564,7 +1564,7 @@ public static class OperatorLabels
         "manual_upload" => "Manual upload",
         "mailbox" => "E-mail",
         "automation" => "Automation",
-        "provider_api" => ProviderSubmissionApi.Source,
+        "principal_api" => PrincipalSubmissionApi.Source,
         _ => Humanise(code)
     };
 
@@ -1580,8 +1580,8 @@ public static class OperatorLabels
         CaseDataSourceKind.IntakeEvidence => SourceTagWord.Extracted,
         CaseDataSourceKind.MailRoute => SourceTagWord.Email,
         CaseDataSourceKind.VehicleLookup => SourceTagWord.Lookup,
-        CaseDataSourceKind.ProviderSetting => SourceTagWord.Principal,
-        CaseDataSourceKind.ProviderApi => SourceTagWord.ProviderApi,
+        CaseDataSourceKind.PrincipalSetting => SourceTagWord.Principal,
+        CaseDataSourceKind.PrincipalApi => SourceTagWord.PrincipalApi,
         CaseDataSourceKind.CaseAcceptance => SourceTagWord.Automatic,
         _ => null
     };
@@ -1608,7 +1608,7 @@ public static class OperatorLabels
         public static readonly SourceTagWord Email = new("E-mail", string.Empty);
         public static readonly SourceTagWord Lookup = new("Lookup", "lookup");
         public static readonly SourceTagWord Principal = new("Principal", string.Empty);
-        public static readonly SourceTagWord ProviderApi = new(ProviderSubmissionApi.Source, string.Empty);
+        public static readonly SourceTagWord PrincipalApi = new(PrincipalSubmissionApi.Source, string.Empty);
         public static readonly SourceTagWord Automatic = new("Automatic", string.Empty);
         public static readonly SourceTagWord Ai = new("AI", "ai");
 
@@ -1751,10 +1751,10 @@ public static class OperatorLabels
         };
     }
 
-    /// <summary>The provider-submission API's operator vocabulary — one list.</summary>
-    public static class ProviderSubmissionApi
+    /// <summary>The principal-submission API's operator vocabulary — one list.</summary>
+    public static class PrincipalSubmissionApi
     {
-        public const string Source = "Provider API";
+        public const string Source = "Principal API";
     }
 
     private static string HumanizeSlug(string slug)
@@ -1801,7 +1801,7 @@ public static class OperatorLabels
         public const string Code = "Principal code";
         public const string State = "State";
         public const string ReplaceCode = "Replace code";
-        public const string ProviderApi = "Provider API";
+        public const string PrincipalApi = "Principal API";
     }
 
     /// <summary>The Mail settings area labels and status values — one list.</summary>

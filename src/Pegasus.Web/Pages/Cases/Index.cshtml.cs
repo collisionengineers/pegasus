@@ -814,7 +814,7 @@ public sealed class IndexModel(
             ("Reference", item.Reference)
         };
         facts.Add(("Registration", item.NormalizedVehicleRegistration));
-        facts.Add(("Principal", item.Provider ?? "Not known"));
+        facts.Add(("Principal", item.PrincipalCode ?? "Not known"));
         facts.Add(("Assigned to", assignee ?? "Unassigned"));
         facts.Add(("Opened", OperatorLabels.OfficeDate(item.CreatedAtUtc)));
         return new QueueRow(
@@ -824,7 +824,7 @@ public sealed class IndexModel(
             [
                 new Cell(item.Reference, CellKind.Link),
                 new Cell(item.NormalizedVehicleRegistration, CellKind.Mono),
-                Cell.Of(item.Provider),
+                Cell.Of(item.PrincipalCode),
                 new Cell(OperatorLabels.OfficeDate(item.CreatedAtUtc), CellKind.Date),
                 Cell.Of(assignee),
                 new Cell(OperatorLabels.TriageState(item.State), CellKind.Chip)

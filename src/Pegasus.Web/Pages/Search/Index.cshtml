@@ -204,9 +204,9 @@ else if (listingImages)
                                         aria-selected="@(Model.SelectedId == row.Item.CaseId && Model.SelectedView == row.View ? "true" : "false")">
                                         <td>
                                             <a class="table-row-link" href="@row.DetailHref">@row.Reference</a>
-                                            @if (row.Item.ClaimNumber is { } providerReference)
+                                            @if (row.Item.ClaimNumber is { } principalReference)
                                             {
-                                                <span class="secondary">@providerReference</span>
+                                                <span class="secondary">@principalReference</span>
                                             }
                                         </td>
                                         <td>
