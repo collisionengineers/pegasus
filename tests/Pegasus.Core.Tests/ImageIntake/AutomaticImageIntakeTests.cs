@@ -20,7 +20,7 @@ public sealed class AutomaticImageIntakeTests
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.CaseCandidates.Candidates =
         [
-            new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE")
+            new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE", DateTimeOffset.UnixEpoch)
         ];
 
         await harness.ApplyAsync();
@@ -44,7 +44,7 @@ public sealed class AutomaticImageIntakeTests
     {
         var harness = new Harness();
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
-        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE")];
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE", DateTimeOffset.UnixEpoch)];
 
         await harness.ApplyAsync();
         await harness.ApplyAsync();
@@ -77,8 +77,8 @@ public sealed class AutomaticImageIntakeTests
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.CaseCandidates.Candidates =
         [
-            new(Guid.NewGuid(), "QDS26001", 1, "AB12CDE"),
-            new(Guid.NewGuid(), "QDS26002", 1, "AB12CDE")
+            new(Guid.NewGuid(), "QDS26001", 1, "AB12CDE", DateTimeOffset.UnixEpoch),
+            new(Guid.NewGuid(), "QDS26002", 1, "AB12CDE", DateTimeOffset.UnixEpoch)
         ];
 
         await harness.ApplyAsync();
@@ -157,7 +157,7 @@ public sealed class AutomaticImageIntakeTests
         harness.Engine.Enqueue(Suggested("BX69YL", 0.95));
         harness.CaseCandidates.Candidates =
         [
-            new(Guid.NewGuid(), "QDS26003", 2, "BX69YLM")
+            new(Guid.NewGuid(), "QDS26003", 2, "BX69YLM", DateTimeOffset.UnixEpoch)
         ];
 
         await harness.ApplyAsync();
@@ -179,8 +179,8 @@ public sealed class AutomaticImageIntakeTests
         var exactCaseId = Guid.NewGuid();
         harness.CaseCandidates.Candidates =
         [
-            new(exactCaseId, "QDS26004", 1, "BX69YLM"),
-            new(Guid.NewGuid(), "QDS26005", 1, "BX69YLMA")
+            new(exactCaseId, "QDS26004", 1, "BX69YLM", DateTimeOffset.UnixEpoch),
+            new(Guid.NewGuid(), "QDS26005", 1, "BX69YLMA", DateTimeOffset.UnixEpoch)
         ];
 
         await harness.ApplyAsync();
@@ -198,7 +198,7 @@ public sealed class AutomaticImageIntakeTests
         harness.Engine.Enqueue(Suggested("PK201YHR", 0.95));
         harness.CaseCandidates.Candidates =
         [
-            new(Guid.NewGuid(), "QDS26008", 2, "PK20YHR")
+            new(Guid.NewGuid(), "QDS26008", 2, "PK20YHR", DateTimeOffset.UnixEpoch)
         ];
 
         await harness.ApplyAsync();
@@ -216,8 +216,8 @@ public sealed class AutomaticImageIntakeTests
         harness.Engine.Enqueue(Suggested("BX69YL", 0.95));
         harness.CaseCandidates.Candidates =
         [
-            new(Guid.NewGuid(), "QDS26006", 1, "BX69YLM"),
-            new(Guid.NewGuid(), "QDS26007", 1, "BX69YLP")
+            new(Guid.NewGuid(), "QDS26006", 1, "BX69YLM", DateTimeOffset.UnixEpoch),
+            new(Guid.NewGuid(), "QDS26007", 1, "BX69YLP", DateTimeOffset.UnixEpoch)
         ];
 
         await harness.ApplyAsync();
@@ -374,7 +374,7 @@ public sealed class AutomaticImageIntakeTests
             null,
             null);
         var caseId = Guid.NewGuid();
-        harness.CaseCandidates.Candidates = [new(caseId, "QDS26013", 1, "AB12CDE")];
+        harness.CaseCandidates.Candidates = [new(caseId, "QDS26013", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
 
         await harness.ApplyAsync();
         await harness.ApplyAsync();
@@ -392,7 +392,7 @@ public sealed class AutomaticImageIntakeTests
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         var caseId = Guid.NewGuid();
-        harness.CaseCandidates.Candidates = [new(caseId, "QDS26013", 1, "AB12CDE")];
+        harness.CaseCandidates.Candidates = [new(caseId, "QDS26013", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
 
         await harness.ApplyAsync(triggerOrdinal: 1);
 
@@ -503,8 +503,8 @@ public sealed class AutomaticImageIntakeTests
         var exactCaseId = Guid.NewGuid();
         harness.CaseCandidates.Candidates =
         [
-            new(exactCaseId, "QDS26010", 1, "BX69YLM"),
-            new(Guid.NewGuid(), "QDS26011", 1, "BX69YLMA")
+            new(exactCaseId, "QDS26010", 1, "BX69YLM", DateTimeOffset.UnixEpoch),
+            new(Guid.NewGuid(), "QDS26011", 1, "BX69YLMA", DateTimeOffset.UnixEpoch)
         ];
 
         await harness.ApplyAsync(triggerOrdinal: 1);
@@ -558,8 +558,8 @@ public sealed class AutomaticImageIntakeTests
         var exactCaseId = Guid.NewGuid();
         harness.CaseCandidates.Candidates =
         [
-            new(exactCaseId, "QDS26014", 1, "BX69YLM"),
-            new(Guid.NewGuid(), "QDS26015", 1, "BX69YLMA")
+            new(exactCaseId, "QDS26014", 1, "BX69YLM", DateTimeOffset.UnixEpoch),
+            new(Guid.NewGuid(), "QDS26015", 1, "BX69YLMA", DateTimeOffset.UnixEpoch)
         ];
 
         await harness.ApplyAsync(triggerOrdinal: 0);
@@ -594,7 +594,7 @@ public sealed class AutomaticImageIntakeTests
             mediaTypeByOrdinal: new Dictionary<int, string> { [1] = "application/pdf" },
             sourceChannel: IntakeSourceChannel.Mailbox);
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
-        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26012", 1, "AB12CDE")];
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26012", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
 
         await harness.ApplyAsync(triggerOrdinal: 0);
 

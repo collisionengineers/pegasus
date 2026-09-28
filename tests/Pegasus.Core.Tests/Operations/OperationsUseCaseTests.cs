@@ -22,6 +22,14 @@ public sealed class OperationsUseCaseTests
     }
 
     [Fact]
+    public void PairedVehicleImagesAreNotWorkToTake()
+    {
+        Assert.False(NeedsAttentionPolicy.CanTake(
+            NeedsAttentionKind.VehicleImagesPaired,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])));
+    }
+
+    [Fact]
     public void NonHumanActorsCannotTakeUnassignedCaseAndTriageWork()
     {
         Assert.False(NeedsAttentionPolicy.CanTake(

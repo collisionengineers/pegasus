@@ -13,7 +13,8 @@
   Image-initiated Case, or one Unidentified item.
 - When exactly one eligible Case carries the registration, the images
   attach automatically. Manual uploads are the exception: staff must
-  confirm even a single match.
+  confirm even a single match among the Cases that existed when the images
+  registered. A Case created afterwards pairs automatically.
 - An Image-initiated Case merges into one formal Case, or staff close it
   with a reason. Nothing is deleted or reused.
 - It falls due for chasing after the same interval as a Not ready Case
@@ -111,16 +112,23 @@ expected membership, not the presence of a group identifier, tells the two
 apart.
 
 Manual-upload image material needs explicit staff confirmation even for one
-eligible match. Its Image reference may be registered automatically, but
-neither initial processing nor later reconciliation chooses its Case
-([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)).
+eligible match among the Cases that existed when it registered: those are the
+destinations the upload offered
+([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)). Its Image
+reference may be registered automatically. A Case created after it registered
+pairs with it under the automatic rules above, on the Case's acceptance, on
+the reconciliation timer and on replay (operator, 28 September 2026). A Case
+that existed and a later Case carrying the same registration are not a unique
+match. Once staff have linked or unlinked any member of a manual group, the
+group keeps their per-member decisions and gains no automatic link.
 
 Both arrival orders, a registered-receipt replay, and an acceptance replay
 resume the same pairing operation. The reconciliation timer retries the
 oldest eligible Awaiting instruction records, including linked-but-unmerged
-ones. Current non-matches neither consume that bounded batch nor become
-permanently excluded. Failures stay visible and do not stop unrelated
-pairings.
+ones. Current non-matches, including a manual record whose only match existed
+when it registered or whose staff decision is unfinished, neither consume
+that bounded batch nor become permanently excluded. Failures stay visible and
+do not stop unrelated pairings.
 
 Every current image member must be associated before a group merges, and a
 group merges once. Automatic writes recheck current identity and uniqueness
@@ -137,9 +145,9 @@ checks the current origin decision and its observed version, records the
 originating staff identity, reason, and version with SystemWorker completion
 attribution, and never overwrites or revives a sibling that has association
 history. Final merge refuses a changed origin decision even when the target
-Case is unchanged. Manual groups keep the confirmation's reviewed per-member
-decisions, and reconciliation may finish their merge only after every member
-is associated.
+Case is unchanged. Manual groups staff have started keep the confirmation's reviewed
+per-member decisions, and reconciliation may finish their merge only after
+every member is associated.
 
 ### Age and chase state
 
@@ -156,17 +164,17 @@ chase uses ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)
 Before that it is not due. There is no held or stopped state and no chaser
 draft for the image half; those exist only on a formal Case.
 
-Pairing completion is visible in two places: the derived `Associated with
-Case` label wherever the origin receipt's Case association is shown, and the
-merge event on the resulting Case's own history the moment it happens. There
-is no personal notification for pairing.
+Pairing completion is visible in three places: the derived `Associated with
+Case` label wherever the origin receipt's Case association is shown, the
+merge event on the resulting Case's timeline the moment it happens, and the
+Work Centre. There is no personal notification for pairing.
 
-**Wanted, not built (operator decision, 18 September 2026).** When early
-images are paired with their Case, the Work Centre should show it as a
-needs-attention item, so staff see the job is ready. It is a Work Centre item
-([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)), not a
-personal notification. Nothing raises it today. This is the unbuilt part of
-`INT-32`.
+When early images are paired with a pre-report Case, the Work Centre shows
+the Case as a **Vehicle images paired** Needs attention item, so staff see the
+job is ready (operator decisions, 18 and 28 September 2026). It is due at the
+pairing. It leaves when a member of staff next changes the Case; a note, a
+preview, a download or system work does not count
+([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)).
 
 ### Grouped image-intake routing
 
@@ -183,7 +191,9 @@ or an Unidentified outcome.
 For manual upload, staff confirmation replaces automatic attachment:
 matching supplies suggestions, usable image identity may register, and the
 group waits for one explicit staff destination even when exactly one Case
-matches. The precedence below applies to non-manual routes. Recognition,
+matches. Only a Case created after the group registered pairs with it
+automatically ([Pairing and merge](#pairing-and-merge)). The precedence below
+applies to non-manual routes. Recognition,
 complete membership, and fail-closed source-identity rules apply to both.
 
 - **PDF and mailbox photograph entry.** Otherwise-unrouted standalone PDFs
@@ -325,7 +335,13 @@ word "intake" appears only on the Administrator's Intake log tab
   Case, not attached.
 - Two different valid registrations in one group: one Unidentified item,
   reason Conflicting identification.
-- Manual upload with one matching Case: still waits for staff.
+- Manual upload with one matching Case that existed when it registered:
+  waits for staff.
+- Manual upload, then a Case created afterwards is its one match: pairs
+  automatically.
+- Manual upload with a Case that existed and a later Case both matching:
+  waits for staff.
+- A manual group staff have started: gains no automatic link.
 - Merge meets a live Case edit lease: yields and retries.
 - The fold meets a live Case edit lease: records nothing, leaves the lease,
   and retries after the editor finishes. Files it had already moved stay in
@@ -340,8 +356,10 @@ word "intake" appears only on the Administrator's Intake log tab
 
 Acceptance proves, through the real Worker and Web callers: one reference
 per group; the four precedence rows; the group-level fail-closed rule; the
-manual-upload confirmation exception; both arrival orders and replays
-resuming one pairing operation; merge and the fold each yielding to a live
+manual-upload confirmation exception, and a manual upload pairing with a Case
+created after it on acceptance and on the timer; both arrival orders and
+replays resuming one pairing operation; the merge on the Case timeline; the
+Vehicle images paired item appearing and leaving; merge and the fold each yielding to a live
 lease; a merged record's photographs as Case images with their crop and
 tags, on a Case and on a Triage Case; those photographs completing the
 Case's images; the derived chase-due read; and the three named states in

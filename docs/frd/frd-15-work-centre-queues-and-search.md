@@ -63,6 +63,7 @@ and has a due instant:
 | Held | A held Case awaiting its decision | The end of the hold's Review on date, else Held decision target after the hold was placed |
 | Review | A Case in Review | Review target after it entered Review |
 | Unassigned | A Case in Review with no Engineer | Review target after it entered Review |
+| Vehicle images paired | A pre-report Case its early vehicle images paired into, not changed by staff since ([FRD-19](frd-19-image-led-intake-and-pairing.md#age-and-chase-state)) | The pairing |
 | Unidentified | An open Unidentified item | Unidentified target after it was received |
 | Triage | A Triage Case without a finding | Triage target after it opened |
 | AI draft | An AI job in Draft ready, except Market research | AI draft target after the draft was written |
@@ -88,8 +89,8 @@ so where it is used ("Lookup failed", "Storage not ready").
 Mine switch and **Find in Needs attention**. Office is every item. Mine is
 the items the signed-in person owns plus unowned items of kinds they can
 take. Every staff role opens on Office, and the choice is remembered per
-browser. **Kind chips** (Case, Held, Review, Unassigned, Unidentified,
-Triage, AI draft) filter the list, several at once. Each chip shows its count
+browser. **Kind chips** (Case, Held, Review, Unassigned, Vehicle images
+paired, Unidentified, Triage, AI draft) filter the list, several at once. Each chip shows its count
 over the whole scope before any filter. Find narrows the scoped list by a
 case-insensitive match on the row's reference, title, detail (principal,
 sender or instruction) and owner, before paging; Enter applies it and the
@@ -112,8 +113,9 @@ kind, a chip only when Overdue (red, with how late) or Due today (amber), the
 title, its facts (reference, subject, principal or sender or instruction,
 owner, due, received) and a next action that does the action. Choosing the
 open task again closes it; nothing opens by itself. Assign Engineer opens the
-assignment dialog on the Work Centre. Review Case opens the Case. Open Triage
-opens the Triage Case page. An AI draft offers its per-kind action. **Assign
+assignment dialog on the Work Centre. Review Case opens the Case, and so
+does Open Case on a Vehicle images paired item. Open Triage opens the Triage
+Case page. An AI draft offers its per-kind action. **Assign
 to me** is offered to every enabled staff role on an Unassigned item and on
 a Triage item without an assignee, where Core would accept it.
 
