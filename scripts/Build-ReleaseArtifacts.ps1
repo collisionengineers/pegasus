@@ -12,6 +12,34 @@ $migrationBundle = Get-PegasusMigrationBundle
 $migrationRuntimeIdentifier = $migrationBundle.RuntimeIdentifier
 $migrationBundleName = $migrationBundle.Name
 
+# The assembly's informational version, read from its metadata without
+# loading it, so an image compiled for another platform can be checked.
+function Get-PegasusInformationalVersion {
+    param([Parameter(Mandatory)][string] $AssemblyPath)
+    $stream = [IO.File]::OpenRead($AssemblyPath)
+    try {
+        $image = [Reflection.PortableExecutable.PEReader]::new($stream)
+        try {
+            $metadata = [Reflection.Metadata.PEReaderExtensions]::GetMetadataReader($image)
+            foreach ($handle in $metadata.GetAssemblyDefinition().GetCustomAttributes()) {
+                $attribute = $metadata.GetCustomAttribute($handle)
+                if ($attribute.Constructor.Kind -ne [Reflection.Metadata.HandleKind]::MemberReference) { continue }
+                $constructor = $metadata.GetMemberReference([Reflection.Metadata.MemberReferenceHandle]$attribute.Constructor)
+                if ($constructor.Parent.Kind -ne [Reflection.Metadata.HandleKind]::TypeReference) { continue }
+                $type = $metadata.GetTypeReference([Reflection.Metadata.TypeReferenceHandle]$constructor.Parent)
+                if ($metadata.GetString($type.Namespace) -cne 'System.Reflection' -or
+                    $metadata.GetString($type.Name) -cne 'AssemblyInformationalVersionAttribute') { continue }
+                $value = $metadata.GetBlobReader($attribute.Value)
+                if ($value.ReadUInt16() -ne 1) { throw "$AssemblyPath has a malformed informational version attribute." }
+                return $value.ReadSerializedString()
+            }
+        }
+        finally { $image.Dispose() }
+    }
+    finally { $stream.Dispose() }
+    throw "$AssemblyPath carries no informational version."
+}
+
 Push-Location $repositoryRoot
 try {
     $head = (git rev-parse HEAD).Trim()
@@ -55,13 +83,13 @@ try {
     # compiled ReadyToRun, so a fresh instance does not JIT every first request.
     & dotnet publish ./src/Pegasus.Web/Pegasus.Web.csproj -c Release -r linux-x64 --self-contained false -p:PublishReadyToRun=true --no-restore -o $webPublish @buildProperties
     if ($LASTEXITCODE -ne 0) { throw 'Web publish failed.' }
-    $webBuildIdentity = & dotnet (Join-Path $webPublish 'Pegasus.Web.dll') --diagnostics-version | ConvertFrom-Json
-    if (
-        $LASTEXITCODE -ne 0 -or
-        $webBuildIdentity.schemaVersion -ne 1 -or
-        $webBuildIdentity.version -ne $Version -or
-        $webBuildIdentity.sourceSha -ne $SourceRevision
-    ) {
+    # The Web reports its identity from this attribute (Program.cs). A
+    # ReadyToRun image compiled for Linux cannot be loaded on a Windows
+    # workstation, so the attribute is read from the published metadata rather
+    # than by running the assembly. The live smoke proves what the running
+    # bytes report.
+    $webInformationalVersion = Get-PegasusInformationalVersion -AssemblyPath (Join-Path $webPublish 'Pegasus.Web.dll')
+    if ($webInformationalVersion -cne "$Version+$SourceRevision") {
         throw 'Web publish informational version does not match the exact release version and source revision.'
     }
     foreach ($requiredWebFile in @('Pegasus.Web.dll', 'Pegasus.Web.runtimeconfig.json')) {
