@@ -1167,7 +1167,11 @@ public sealed class EfImageIntakeStore(
             EfIntakeReceiptStore.Map(receipt, isDuplicate: false, acceptedCaseId: acceptedCaseId));
 
     private static ImageIntakeImage ToImage(Guid receiptId, IntakeAssetRecord asset) =>
-        new(receiptId, asset.FileName, asset.MediaType, asset.CustodyState) { AssetId = asset.Id };
+        new(receiptId, asset.FileName, asset.MediaType, asset.CustodyState)
+        {
+            AssetId = asset.Id,
+            ContentHash = asset.ContentHash
+        };
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(
         string normalizedVehicleRegistration,

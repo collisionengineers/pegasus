@@ -184,8 +184,9 @@ custody.
 
 ### Custody and staging distinctions
 
-Box is durable file custody. Azure processing bytes and the 24-hour idle
-cache are temporary. SQL keeps the arrival, idempotency and provenance
+Box is durable file custody. Azure processing bytes and the idle cache are
+temporary. A cached file is kept 24 hours after its last use. A plain
+gallery thumbnail is kept 30 days after its last use. SQL keeps the arrival, idempotency and provenance
 identities. Receipt, logical access and definitive association are three
 separate claims. A temporary file or a cache hit never establishes an
 accepted Case association.
@@ -236,6 +237,26 @@ logically removed, whatever its custody state, and offers the thumbnail,
 viewer link, tags and Crop only on Confirmed ones. The Documents tab lists
 the same set, each row stating its custody, and offers Preview and Save as
 only where the bytes are held.
+
+The Worker makes the plain gallery thumbnail of each newly filed image in the
+background, a few at a time on its existing sweep. The first view then reads
+a small cached rendering. Nothing the user sees changes. An image the
+background cannot render gets its thumbnail on first view, as before.
+
+Every read of a file from Box checks the file itself: which folder holds it
+and whether it is in the trash. A trashed file is refused. The check that
+the folder sits under the approved Box root is remembered for 10 minutes. So
+a folder moved out of the root, or trashed, in Box itself may be noticed up
+to 10 minutes late. Writes, moves, deletes and uploads check the whole path
+every time. A not-found, trashed or outside-root answer drops what was
+remembered.
+
+A browser may keep a private copy of an image or PDF preview for a week. It
+keeps one only when the address names the exact bytes. For a Case document
+that is the document version. For an intake image it is the image's content
+hash, and for its tile also the crop version and renderer. Any other address
+is sent with `private, no-store`, so a changed image is never shown from an
+old copy. A saved download is never kept.
 
 Unidentified and Vehicle images records likewise show selected photographs
 whatever the source file's media type: the photo count, thumbnails or

@@ -232,6 +232,9 @@ public sealed record ImageIntakeImage(
 {
     /// <summary>The retained image asset, which carries the image's pre-Case crop, tags and custody identity.</summary>
     public Guid? AssetId { get; init; }
+
+    /// <summary>The retained asset's content hash, which names its address.</summary>
+    public string? ContentHash { get; init; }
 }
 
 public interface IImageIntakeQueries
