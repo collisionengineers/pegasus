@@ -177,7 +177,7 @@ the step the Case record's aside names (a report blocker, Generate report,
 Prepare delivery and so on), never the chase schedule's state; beside it stand
 the Engineer and the due. A Case's due is one instant everywhere it shows, on
 the list, the quick detail and Search: its Case chase due instant from the
-table above, dated by the day it falls due (issue 896, 28 September 2026). For other
+table above, dated by the day it falls due (operator, 28 September 2026). For other
 kinds it is the definition list and the open action, with Add to an existing
 case on an Awaiting-instruction record. A Triage row's open action, **Open
 Triage**, opens the Triage Case page at `/Cases/{id}`.
