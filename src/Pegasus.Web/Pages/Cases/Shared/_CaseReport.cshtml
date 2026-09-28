@@ -37,6 +37,8 @@
     var offersHead = !Model.AssessmentIsReadOnly && Model.ReportDraftPreparation is not null;
     var reportArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
         artifact.Kind == CaseReportArtifactKind.AssessmentReport);
+    // Where the report's file stands, as Core reads it from the row.
+    var reportFiling = reportArtifact?.Filing ?? CaseReportArtifactFiling.NotProduced;
     var reportRetryArtifact = generation is not { State: CaseReportGenerationState.Stale }
         && reportArtifact?.Status != CaseReportArtifactStatus.Confirmed
         ? reportArtifact
@@ -322,7 +324,13 @@
                         }
                         else
                         {
-                            <span>@Words.Generated <b>@generatedAt</b> · @ReportLabels.GenerationState @generation.State</span>
+                            @* When it was generated and where its file stands.
+                               A report that was never drawn has no date to give. *@
+                            @if (reportFiling != CaseReportArtifactFiling.NotProduced)
+                            {
+                                <span>@Words.Generated <b>@generatedAt</b> · </span>
+                            }
+                            <span class="status status--plain @FilingTone(reportFiling)" data-report-filing>@ReportLabels.Filing(reportFiling)</span>
                         }
                     }
                 </div>
@@ -358,10 +366,6 @@
 
         @if (generation is not null)
         {
-            <dl class="detail-list" data-report-generation>
-                <div><dt>@ReportLabels.CurrentGeneration</dt><dd>@generatedAt</dd></div>
-                <div><dt>@ReportLabels.GenerationState</dt><dd>@generation.State</dd></div>
-            </dl>
             @if (isStale)
             {
                 <div class="notice notice--warning" role="status" data-dismissable data-report-stale>
@@ -588,6 +592,16 @@
 </section>
 
 @functions {
+    // The chip tone for where the report's file stands: green only once it is
+    // stored, amber while it is not there yet, red for a failure.
+    private static string FilingTone(CaseReportArtifactFiling filing) => filing switch
+    {
+        CaseReportArtifactFiling.Stored => "status--green",
+        CaseReportArtifactFiling.StorageFailed => "status--red",
+        CaseReportArtifactFiling.Unconfirmed => "status--neutral",
+        _ => "status--amber"
+    };
+
     // Which source a block's wording came from, as the chip states it.
     private static string WordingChip(ReportWordingBlock block) => block.Manual
         ? WordingLabels.ManualBlock

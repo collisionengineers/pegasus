@@ -2361,7 +2361,8 @@ public sealed partial class DetailsModel(
                         $"{reason.Requirement}: {reason.WhyOutstanding}")));
                 return RedirectToReport(id);
             case CaseReportGenerationOutcome.Pending:
-                TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationPending;
+                // Not yet stored is not success: the page says so in amber.
+                TempData["CaseWarning"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationPending;
                 return RedirectToReport(id);
             case CaseReportGenerationOutcome.Failed:
                 TempData["CaseError"] = NotGenerated(kind);

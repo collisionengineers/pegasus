@@ -1294,6 +1294,83 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
+    /// A report still on its way to Box is not a success. The Case says so in
+    /// the warning notice, never the green confirmation, and marks no report
+    /// to open.
+    /// </summary>
+    [Fact]
+    public async Task AReportStillBeingFiledIsAWarningNotAConfirmation()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var generator = new RecordingGenerateReport { Outcome = CaseReportGenerationOutcome.Pending };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+            ReadyReportPorts(services, store, generator));
+
+        var after = await GenerateReportAndReadTheCaseAsync(workspace);
+
+        var notices = Notices(after);
+        Assert.Contains(
+            "<div class=\"notice notice--warning mb-2\" role=\"status\" data-case-warning>",
+            notices,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span>{CaseWorkspaceLabels.ReportDelivery.GenerationPending}</span>",
+            notices,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("notice--success", notices, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-confirmation", notices, StringComparison.Ordinal);
+        Assert.DoesNotContain("notice--danger", notices, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-open-on-arrival", after, StringComparison.Ordinal);
+    }
+
+    /// <summary>A generated report is the green confirmation, and no warning stands beside it.</summary>
+    [Fact]
+    public async Task AGeneratedReportIsAConfirmationNotAWarning()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var generator = new RecordingGenerateReport { Outcome = CaseReportGenerationOutcome.Generated };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+            ReadyReportPorts(services, store, generator));
+
+        var after = await GenerateReportAndReadTheCaseAsync(workspace);
+
+        var notices = Notices(after);
+        Assert.Contains("data-confirmation", notices, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span>{CaseWorkspaceLabels.ReportDelivery.ReportGenerated}</span>",
+            notices,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-warning", notices, StringComparison.Ordinal);
+    }
+
+    /// <summary>Generate report pressed outside edit mode, and the Case as it reads afterwards.</summary>
+    private static async Task<string> GenerateReportAndReadTheCaseAsync(LeasedWorkspace workspace)
+    {
+        var store = workspace.Store;
+        var form = GenerateReportForm(await ReportSectionAsync(workspace));
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=GenerateReport&section=report",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+
+        AssertPrg(response, store.CaseId, "section=report");
+        return WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
+    }
+
+    /// <summary>The notices the record states above its card.</summary>
+    private static string Notices(string html)
+    {
+        var start = html.IndexOf("<div data-case-notices>", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Case must render its notices.");
+        var end = html.IndexOf("<article", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The record must follow its notices.");
+        return html[start..end];
+    }
+
+    /// <summary>
     /// In edit mode Generate report is a save-first action: its form carries
     /// the session's lease and <c>data-case-save-first</c>, so the script
     /// saves the Case's unsaved changes, keeps editing, and then posts the

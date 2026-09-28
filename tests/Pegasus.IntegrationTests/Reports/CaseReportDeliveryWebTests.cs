@@ -409,6 +409,57 @@ public sealed partial class AssessmentReportDraftWebTests
         }
     }
 
+    /// <summary>
+    /// The card says when the report was generated and where its file stands,
+    /// in the words Files uses for a file, on a chip whose colour is green only
+    /// once the file is stored. A report that was never drawn gives no date. No
+    /// state name from the code reaches the card.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseReportArtifactStatus.Confirmed, true, "Stored", "status--green", true)]
+    [InlineData(CaseReportArtifactStatus.Pending, true, "Storing", "status--amber", true)]
+    [InlineData(CaseReportArtifactStatus.Pending, false, "Not generated", "status--amber", false)]
+    [InlineData(CaseReportArtifactStatus.Failed, true, "Storage failed", "status--red", true)]
+    [InlineData(CaseReportArtifactStatus.Unknown, true, "Not confirmed", "status--neutral", true)]
+    public async Task TheReportCardSaysWhereTheReportStandsInPlainWords(
+        CaseReportArtifactStatus status, bool filed, string words, string tone, bool datesTheGeneration)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = WithCurrentGeneration(baseFactory, caseId, status, filed);
+        using var client = Client(factory);
+
+        var card = ReportCard(WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report")));
+
+        Assert.Contains(
+            $"<span class=\"status status--plain {tone}\" data-report-filing>{words}</span>",
+            card,
+            StringComparison.Ordinal);
+        var generated = Pegasus.Core.LondonCalendar.TimeAt(ReportFixtureAtUtc)
+            .ToString("d MMMM yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        var dated = $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.Report.Generated} <b>{generated}</b> · </span>";
+        if (datesTheGeneration)
+        {
+            Assert.Contains(dated, card, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain(Pegasus.Web.Presentation.CaseWorkspaceLabels.Report.Generated, card, StringComparison.Ordinal);
+        }
+
+        // The card holds both facts; no list below repeats them.
+        Assert.DoesNotContain("data-report-generation", card, StringComparison.Ordinal);
+        var read = CaseWebTestSupport.VisibleText(card);
+        Assert.DoesNotContain("State", read, StringComparison.Ordinal);
+        foreach (var name in Enum.GetNames<CaseReportArtifactStatus>()
+            .Concat(Enum.GetNames<CaseReportGenerationState>())
+            .Concat(Enum.GetNames<CaseReportArtifactFiling>())
+            .Where(name => name != words))
+        {
+            Assert.DoesNotContain(name, read, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public async Task ConfirmedFeeNoteDownloadIsLimitedToFeePane()
     {
@@ -614,6 +665,43 @@ public sealed partial class AssessmentReportDraftWebTests
         return editing;
     }
 
+    /// <summary>The Case page over one current generation whose report stands as given.</summary>
+    private static WebApplicationFactory<Program> WithCurrentGeneration(
+        IntakeWebApplicationFactory baseFactory,
+        Guid caseId,
+        CaseReportArtifactStatus status,
+        bool filed) =>
+        WithCurrentGeneration(
+            baseFactory,
+            caseId,
+            new FakeCurrentGeneration(caseId, includeFeeNote: false, reportStatus: status, reportFiled: filed));
+
+    private static WebApplicationFactory<Program> WithCurrentGeneration(
+        IntakeWebApplicationFactory baseFactory,
+        Guid caseId,
+        FakeCurrentGeneration generation) =>
+        Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(generation);
+            }));
+
+    /// <summary>The Report section's card: its title, its status line and Open report.</summary>
+    private static string ReportCard(string html)
+    {
+        var start = html.IndexOf("<div class=\"pv\" data-report-preview-card>", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Report section must render its card.");
+        var end = html.IndexOf("<div class=\"fg g4\">", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The report's fields must follow its card.");
+        return html[start..end];
+    }
+
     private static string InputValue(string html, string name)
     {
         var tag = System.Text.RegularExpressions.Regex.Match(
@@ -665,7 +753,8 @@ public sealed partial class AssessmentReportDraftWebTests
         CaseReportArtifactStatus? repairSpecStatus = null,
         string? repairSpecOperationKey = null,
         CaseReportArtifactStatus? imagePackStatus = null,
-        string? imagePackOperationKey = null)
+        string? imagePackOperationKey = null,
+        bool reportFiled = false)
         : ICaseReportGenerationStore
     {
         private readonly CaseReportGenerationRecord record = GenerationRecord(
@@ -678,7 +767,8 @@ public sealed partial class AssessmentReportDraftWebTests
             repairSpecStatus,
             repairSpecOperationKey,
             imagePackStatus,
-            imagePackOperationKey);
+            imagePackOperationKey,
+            reportFiled);
 
         public CaseReportGenerationRecord Record => record;
 
@@ -797,7 +887,8 @@ public sealed partial class AssessmentReportDraftWebTests
         CaseReportArtifactStatus? repairSpecStatus = null,
         string? repairSpecOperationKey = null,
         CaseReportArtifactStatus? imagePackStatus = null,
-        string? imagePackOperationKey = null)
+        string? imagePackOperationKey = null,
+        bool reportFiled = false)
     {
         reportOperationKey ??= "operation-1";
         var input = ReadyInput(caseId);
@@ -815,18 +906,22 @@ public sealed partial class AssessmentReportDraftWebTests
             CurrentEstimate = input.CurrentEstimate
         };
         var reportConfirmed = reportStatus == CaseReportArtifactStatus.Confirmed;
+        // A report that is not confirmed may still have a file: custody gave
+        // it a version, which carries the document's own facts.
+        var reportHasFile = reportConfirmed || reportFiled;
         List<CaseReportArtifactRecord> artifacts =
         [
             new(
                 Guid.NewGuid(), generationId, CaseReportArtifactKind.AssessmentReport,
                 reportStatus, reportOperationKey,
-                reportConfirmed ? Guid.NewGuid() : null,
-                reportConfirmed ? Guid.NewGuid() : null,
+                reportHasFile ? Guid.NewGuid() : null,
+                reportHasFile ? Guid.NewGuid() : null,
                 reportConfirmed ? new string('c', 64) : null,
-                reportConfirmed ? 3 : null,
-                reportConfirmed ? "CE_100_assessment.pdf" : null,
-                reportConfirmed ? "application/pdf" : null,
-                null, null, null,
+                reportHasFile ? 3 : null,
+                reportHasFile ? "CE_100_assessment.pdf" : null,
+                reportHasFile ? "application/pdf" : null,
+                null, null,
+                reportHasFile && !reportConfirmed ? "pending/ce-100-assessment" : null,
                 reportStatus == CaseReportArtifactStatus.Failed ? "transient_failure" : null),
         ];
         if (feeNoteStatus is { } status)
