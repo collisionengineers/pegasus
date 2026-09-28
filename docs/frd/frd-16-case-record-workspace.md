@@ -232,7 +232,9 @@ circumstances beside Notes from client.
 
 ### Claim
 
-The claimant's cells four across — name, contact, address, VAT status — and,
+The claimant's cells four across — name, contact, address, Claimant VAT
+status (the instruction's words, not the repairer's status the Repair Spec
+records; operator, 28 September 2026) — and,
 beside them, the Engineer's decision on the claimant's VAT registration,
 which the Decisions section no longer repeats.
 
@@ -585,7 +587,8 @@ spec** switches to another live spec. Each version's rate prices
 panel, paint and Specialist work-unit hours. The VAT rule is owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report);
 an unknown repairer VAT status never gates **Use repair spec** (P10), and it
-does block the report (operator, 27 September 2026). Lines an import brought
+does block the report (operator, 27 September 2026). VAT categories nobody
+chose by hand follow the Repairer VAT status as it changes (operator, 28 September 2026). Lines an import brought
 in read `imported · AX`, `GL`, `JSON` or `AI` on their
 Source chip (P18); a cell Core finds off-pattern reads amber and named
 Off-pattern, and the rollup carries the off-pattern amount as specialist
@@ -600,7 +603,9 @@ Type in the editor's words; a scaled spec's Target % of value bar stands in
 its place with the Scaled state; the tools (add and delete lines, the Target
 % of value controls, Reset to repairer status) are drawn only while the spec
 edits. The spec has no save of its own: the ribbon Save records it, and a
-spec left unchanged is not rewritten. Apply and Remove scaling save first and
+spec left unchanged is not rewritten. Moving the Target % of value slider
+previews the scaled spec in amber cells, the rollup and the readout, and
+records nothing (operator, 28 September 2026). Apply and Remove scaling save first and
 then scale the saved spec. The More menu holds New repair spec
 (editing, recorded by the Save and starting on the one enabled labour-rate
 card), **Print Repair Spec** for a saved spec with lines, and Compare,

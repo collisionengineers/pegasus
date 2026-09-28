@@ -300,6 +300,36 @@
         heading.setAttribute('tabindex', '-1');
         try { heading.focus({ preventScroll: true }); } catch (_) { heading.focus(); }
     }
+    // A report blocker's Edit (issue 898) lands on the control that clears
+    // it, once edit mode has drawn that control.
+    function focusControl(key, selector) {
+        var navigation;
+        function land(host) {
+            if (navigation !== navigationVersion) {
+                return;
+            }
+            var control = host.querySelector(selector);
+            if (!control) {
+                return;
+            }
+            control.scrollIntoView({ block: 'center' });
+            try { control.focus({ preventScroll: true }); } catch (_) { control.focus(); }
+        }
+        if (layout === 'tabs') {
+            selectTab(key);
+        }
+        // As jumpTo: a later navigation wins over a section still mounting.
+        navigation = ++navigationVersion;
+        var target = sectionFor(key);
+        if (!target) {
+            return;
+        }
+        if (target.hasAttribute('data-lazy')) {
+            mount(target, land);
+            return;
+        }
+        land(target);
+    }
     function jumpTo(key, focus) {
         var navigation = ++navigationVersion;
         if (layout === 'tabs') {
@@ -765,6 +795,7 @@
     function submitInPlace(form, submitter) {
         // A section-head Edit keeps its own section where it is on screen.
         var editKey = submitter ? submitter.getAttribute('data-section-edit') : null;
+        var editFocus = submitter ? submitter.getAttribute('data-edit-focus') : null;
         var editHost = editKey ? sectionFor(editKey) : null;
         var preferred = editHost ? { key: editKey, top: editHost.getBoundingClientRect().top } : null;
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
@@ -814,6 +845,7 @@
             if (!swap(html, command, preferred)) {
                 throw new Error('The server did not return the Case.');
             }
+            if (editKey && editFocus) { focusControl(editKey, editFocus); }
             if (form.hasAttribute('data-glass-close-form')) { return refreshGlassControls(); }
         }).catch(function (error) {
             // A failed save runs nothing after it.
@@ -2315,7 +2347,8 @@
 
     // Which VAT categories a repairer status charges by default — the same
     // table as EstimateVatPolicy.DefaultFor, read only to show the Overridden
-    // chip and to put the boxes back; Core still decides on Save.
+    // chip and to put the boxes back; Core still decides on Save
+    // (EstimateVatPolicy.Revised).
     var vatDefaults = {
         Registered: ['Labour', 'Parts', 'Materials', 'Specialist'],
         NotRegistered: ['Parts', 'Materials'],
@@ -2472,8 +2505,16 @@
     }
 
     // Target % of value (v28 P34): the browser carries only scaling intent.
-    // Core owns the Engineer's Value,
-    // floors and all monetary arithmetic when Apply is posted.
+    // Core owns the Engineer's Value, floors and all monetary arithmetic.
+    // Moving the slider previews (issue 897): Core scales and totals the spec
+    // as the editor holds it, and the changed cells show its figures in amber,
+    // read-only, with the rollup and the readout following. Any submit puts
+    // the cells back first, so a Save records the spec as edited; only Apply
+    // records a scaled spec.
+    var scalePreview = null;
+    document.addEventListener('submit', function () {
+        if (scalePreview) { scalePreview(); }
+    }, true);
     function bindScale(form) {
         var bar = form.querySelector('[data-estimate-scale]');
         if (!bar) {
@@ -2491,13 +2532,150 @@
         function reveal() {
             if (apply) { apply.hidden = false; }
         }
+        var section = form.closest('[data-estimate-section]') || form;
+        var url = bar.getAttribute('data-scale-preview-url');
+        var read = bar.querySelector('[data-scale-read]');
+        var chip = bar.querySelector('[data-scale-preview]');
+        var floors = [bar.querySelector('[data-scale-floor-rate]'), bar.querySelector('[data-scale-floor-price]')];
+        var timer = null;
+        var inFlight = null;
+        // What the preview changed, to put back: each cell's value and
+        // read-only state, and each rollup figure.
+        var shown = null;
+
+        function field(name) {
+            return Array.prototype.slice.call(section.querySelectorAll('input[name="' + name + '"][form="case-edit-form"]'));
+        }
+        function end() {
+            window.clearTimeout(timer);
+            if (inFlight) { inFlight.abort(); inFlight = null; }
+            if (shown) {
+                shown.cells.forEach(function (cell) {
+                    cell.input.value = cell.value;
+                    cell.input.readOnly = cell.readOnly;
+                    cell.input.classList.remove('is-previewed');
+                });
+                shown.figures.forEach(function (figure) { figure.node.textContent = figure.text; });
+                shown = null;
+            }
+            if (read) { read.textContent = ''; }
+            if (chip) { chip.hidden = true; }
+            if (scalePreview === end) { scalePreview = null; }
+        }
+        // The request carries the spec as edited, never as previewed.
+        function body() {
+            var caseForm = document.getElementById('case-edit-form');
+            var previewed = shown ? shown.cells.map(function (cell) {
+                var value = cell.input.value;
+                cell.input.value = cell.value;
+                return value;
+            }) : null;
+            var data = new FormData(caseForm);
+            if (previewed) {
+                shown.cells.forEach(function (cell, index) { cell.input.value = previewed[index]; });
+            }
+            data.set('targetPercent', percent.value);
+            data.set('floorRate', floors[0] ? floors[0].value : '');
+            data.set('floorPrice', floors[1] ? floors[1].value : '');
+            return data;
+        }
+        function paint(result) {
+            if (!shown) {
+                shown = { cells: [], figures: [] };
+                field('linePartPounds').concat(field('lineMaterials'), field('estimateLabourRate')).forEach(function (input) {
+                    shown.cells.push({ input: input, value: input.value, readOnly: input.readOnly });
+                    input.readOnly = true;
+                });
+                section.querySelectorAll('[data-rollup]').forEach(function (node) {
+                    shown.figures.push({ node: node, text: node.textContent });
+                });
+                scalePreview = end;
+            }
+            function set(input, value) {
+                if (!input) { return; }
+                var original = shown.cells.filter(function (cell) { return cell.input === input; })[0];
+                if (!original) {
+                    // A line typed in since the preview began.
+                    original = { input: input, value: input.value, readOnly: input.readOnly };
+                    shown.cells.push(original);
+                    input.readOnly = true;
+                }
+                input.value = value === null ? '' : value;
+                input.classList.toggle('is-previewed', Number(input.value) !== Number(original.value));
+            }
+            var prices = field('linePartPounds');
+            var materials = field('lineMaterials');
+            result.lines.forEach(function (line) {
+                set(prices[line.row], line.price);
+                set(materials[line.row], line.materials);
+            });
+            set(field('estimateLabourRate')[0], result.labourRate);
+            shown.figures.forEach(function (figure) {
+                var text = result.rollup[figure.node.getAttribute('data-rollup')];
+                if (typeof text === 'string') { figure.node.textContent = text; }
+            });
+            if (read) { read.textContent = result.readout; }
+            if (chip) { chip.hidden = false; }
+        }
+        function preview() {
+            var caseForm = document.getElementById('case-edit-form');
+            if (!url || !caseForm) {
+                return;
+            }
+            if (inFlight) { inFlight.abort(); }
+            var request = new AbortController();
+            inFlight = request;
+            fetch(url, {
+                method: 'POST',
+                body: body(),
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' },
+                signal: request.signal
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error('scale preview: ' + response.status);
+                }
+                return response.json();
+            }).then(function (result) {
+                if (inFlight !== request) { return; }
+                inFlight = null;
+                if (result.status === 'ok') { paint(result); } else { end(); }
+            }).catch(function () {
+                // A replaced request is the newer one's to settle; any other
+                // failure leaves the spec as edited, and Apply still asks Core.
+                if (inFlight !== request) { return; }
+                end();
+            });
+        }
+        function schedule() {
+            window.clearTimeout(timer);
+            // A submit from here on cancels the preview on its way.
+            scalePreview = end;
+            timer = window.setTimeout(preview, 250);
+        }
         range.addEventListener('input', function () {
             percent.value = range.value;
             reveal();
+            schedule();
         });
         percent.addEventListener('input', function () {
             range.value = percent.value;
             reveal();
+            schedule();
+        });
+        floors.forEach(function (input) {
+            if (input) {
+                input.addEventListener('input', function () { if (shown) { schedule(); } });
+            }
+        });
+        // A header change while previewing (VAT, discounts) is previewed too.
+        section.addEventListener('change', function (event) {
+            if (shown && !bar.contains(event.target)) { schedule(); }
+        });
+        // So is a line removed or put back: the grid announces it on the
+        // spec's own estimateId (renumber), which no change event carries.
+        form.addEventListener('input', function (event) {
+            if (shown && event.target.name === 'estimateId') { schedule(); }
         });
     }
 
@@ -2622,29 +2800,40 @@
         if (!status || !boxes.length) {
             return;
         }
-        function defaults() {
-            return vatDefaults[status.value] || [];
+        function defaults(value) {
+            return vatDefaults[value] || [];
         }
-        function overridden() {
-            var expected = defaults();
+        function overridden(value) {
+            var expected = defaults(value);
             return boxes.some(function (box) {
                 return box.checked !== (expected.indexOf(box.getAttribute('data-vat-category')) >= 0);
             });
         }
+        function tickDefaults() {
+            var expected = defaults(status.value);
+            boxes.forEach(function (box) {
+                box.checked = expected.indexOf(box.getAttribute('data-vat-category')) >= 0;
+            });
+        }
         function paint() {
-            var over = overridden();
+            var over = overridden(status.value);
             if (chip) { chip.hidden = !over; }
             if (reset) { reset.hidden = !over; }
         }
+        // Boxes the operator did not choose by hand follow the status: a new
+        // status ticks its own categories (issue 898).
+        var previous = status.value;
         boxes.forEach(function (box) { box.addEventListener('change', paint); });
-        status.addEventListener('change', paint);
+        status.addEventListener('change', function () {
+            if (status.value !== previous && !overridden(previous)) {
+                tickDefaults();
+            }
+            previous = status.value;
+            paint();
+        });
         if (reset) {
             reset.addEventListener('click', function () {
-                var expected = defaults();
-                boxes.forEach(function (box) {
-                    box.checked = expected.indexOf(box.getAttribute('data-vat-category')) >= 0;
-                });
-                paint();
+                tickDefaults();
                 status.dispatchEvent(new Event('change', { bubbles: true }));
             });
         }

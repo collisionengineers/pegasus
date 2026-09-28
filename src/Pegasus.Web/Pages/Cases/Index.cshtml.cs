@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
@@ -38,6 +40,10 @@ public sealed class IndexModel(
     IListTriage listTriage,
     ISearchCases searchCases,
     IGetCase getCase,
+    IGetAssessmentAccess getAssessmentAccess,
+    ICaseReportSnapshotSource reportSnapshotSource,
+    ICaseReportGenerationStore reportGenerations,
+    ICaseReportDeliveryPreparationStore deliveryPreparations,
     IDashboardQueries dashboardQueries,
     IUnidentifiedStore unidentifiedStore,
     IImageIntakeQueries imageIntakeQueries,
@@ -61,6 +67,14 @@ public sealed class IndexModel(
         searchCases ?? throw new ArgumentNullException(nameof(searchCases));
     private readonly IGetCase _getCase =
         getCase ?? throw new ArgumentNullException(nameof(getCase));
+    private readonly IGetAssessmentAccess _getAssessmentAccess =
+        getAssessmentAccess ?? throw new ArgumentNullException(nameof(getAssessmentAccess));
+    private readonly ICaseReportSnapshotSource _reportSnapshotSource =
+        reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
+    private readonly ICaseReportGenerationStore _reportGenerations =
+        reportGenerations ?? throw new ArgumentNullException(nameof(reportGenerations));
+    private readonly ICaseReportDeliveryPreparationStore _deliveryPreparations =
+        deliveryPreparations ?? throw new ArgumentNullException(nameof(deliveryPreparations));
     private readonly IDashboardQueries _dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
     private readonly IUnidentifiedStore _unidentifiedStore =
@@ -601,18 +615,37 @@ public sealed class IndexModel(
             ? OperatorLabels.CaseRequirements(missingRequirements)
             : [];
 
-        var work = new List<(string Label, string Value)>(3);
-        var dueWork = details.Workflow.DueWork;
-        // Current work is the first outstanding requirement's resolve text,
-        // else the due work's own state — never a sentence written here.
-        if (outstanding.Count > 0)
+        // Current work is the Case's Next action, the one the Case page's
+        // aside states (issue 896), read from the same facts: the first
+        // missing requirement, and once the report is the Case's concern its
+        // readiness while the assessment can open, the current report and its
+        // delivery preparation.
+        var caseId = details.Workflow.CaseId;
+        IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
+        CaseReportGenerationRecord? currentReport = null;
+        CaseReportDeliveryPreparationRecord? deliveryPreparation = null;
+        if (CaseNextAction.ReadsTheReport(details.Workflow))
         {
-            work.Add(("Current work", outstanding[0].Resolve));
+            var access = await _getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
+            if (access?.CanOpen == true
+                && await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, cancellationToken) is { } reportInputs)
+            {
+                reportBlockers = CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons;
+            }
+            currentReport = await _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
+            deliveryPreparation = currentReport is null
+                ? null
+                : await _deliveryPreparations.GetCurrentAsync(actor, caseId, cancellationToken);
         }
-        else if (dueWork is not null)
-        {
-            work.Add(("Current work", OperatorLabels.ChaseState(dueWork.State)));
-        }
+        var next = CaseNextAction.Of(
+            details.Workflow,
+            missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
+            reportBlockers,
+            _ => null,
+            currentReport,
+            deliveryPreparation);
+
+        var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
 
         var engineer = "Not assigned";
         if (details.Workflow.AssignedEngineerId is { } engineerId)
@@ -622,13 +655,9 @@ public sealed class IndexModel(
         }
         work.Add(("Engineer", engineer));
 
-        if (dueWork?.DueBy is { } dueBy)
+        if (details.Summary.DueAtUtc is { } due)
         {
-            work.Add(("Due", OperatorLabels.OfficeDate(dueBy.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))));
-        }
-        else if (details.Summary.NextChaseAtUtc is { } nextChase)
-        {
-            work.Add(("Due", OperatorLabels.OfficeDate(nextChase)));
+            work.Add(("Due", OperatorLabels.DueDate(due)));
         }
 
         var summary = details.Summary;
@@ -714,8 +743,8 @@ public sealed class IndexModel(
                 Cell.Of(item.Claimant),
                 Cell.Of(item.Principal),
                 new Cell(OperatorLabels.OfficeDate(item.ReceivedAtUtc), CellKind.Date),
-                item.NextChaseAtUtc is { } chase
-                    ? new Cell(OperatorLabels.OfficeDate(chase), chase < now ? CellKind.Late : CellKind.Date)
+                item.DueAtUtc is { } due
+                    ? new Cell(OperatorLabels.DueDate(due), due <= now ? CellKind.Late : CellKind.Date)
                     : Cell.Empty,
                 last,
                 // Who holds the Case's edit lease right now, so nobody opens a

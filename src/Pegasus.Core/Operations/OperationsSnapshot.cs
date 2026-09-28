@@ -517,8 +517,7 @@ public sealed class GetOperationsSnapshot(
         var items = new List<NeedsAttentionItem>();
         foreach (var work in inputs.DueWork)
         {
-            var due = work.NextChaseAtUtc
-                ?? (work.DueBy is { } dueBy ? WorkTargets.EndOfDay(dueBy) : null);
+            var due = CaseDuePolicy.DueAt(work.NextChaseAtUtc, work.DueBy);
             items.Add(new(
                 NeedsAttentionKind.CaseChase,
                 work.CaseId,

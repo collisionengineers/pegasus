@@ -1196,6 +1196,54 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Empty(store.SavedEstimates);
     }
 
+    /// <summary>
+    /// Issue 898: choosing Registered on a spec whose VAT status was Unknown,
+    /// with the VAT charged on boxes left as they were, records what a
+    /// registered repairer charges, so the report can word its VAT.
+    /// </summary>
+    [Fact]
+    public async Task ChoosingARepairerStatusWithTheBoxesLeftAloneChargesThatStatusesCategories()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        var draft = DraftSpecification(caseId);
+        var existing = draft with
+        {
+            Details = draft.Details with { Vat = EstimateVatPolicy.For(RepairerVatStatus.Unknown) },
+        };
+        store.WorkingEstimate = existing;
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={existing.SpecificationId:D}");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=Save&section=estimate",
+            new FormUrlEncodedContent(
+                NewEnumerable(
+                    ("__RequestVerificationToken", AntiforgeryValue(html)),
+                    ("id", caseId.ToString("D")),
+                    ("operationKey", NewOperationKey()),
+                    ("editLeaseToken", RecordingStores.HeldLeaseToken),
+                    ("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                    ("estimateId", existing.SpecificationId.ToString("D")),
+                    ("estimateName", "Estimate 1"),
+                    ("estimateVatPercent", "20"),
+                    ("lineId", existing.Lines[0].Id.ToString("D")),
+                    ("lineOperation", "Replace"),
+                    ("lineDescription", "FRONT BUMPER"),
+                    ("lineQuantity", "1"),
+                    ("linePartPounds", "620.20"))
+                    .Concat(HeaderFields(
+                        new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.None, false),
+                        EstimateDiscounts.None))));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var saved = Assert.Single(store.SavedEstimates);
+        Assert.Equal(EstimateVatPolicy.For(RepairerVatStatus.Registered), saved.Details.VatPolicy);
+        Assert.NotNull(Pegasus.Core.Reports.ReportRepairCosts.VatLabelOf(saved.Details.VatPolicy, saved.Details.VatPercent));
+    }
+
     [Fact]
     public async Task TheEditorSavesANamedEstimateWithTypedLines()
     {

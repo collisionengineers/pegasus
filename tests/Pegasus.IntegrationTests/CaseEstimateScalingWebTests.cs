@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Text.Json;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
@@ -164,6 +165,95 @@ public sealed class CaseEstimateScalingWebTests
         var afterRemoval = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
             client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
         Assert.Contains("data-scale-remove disabled=\"disabled\"", afterRemoval, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Issue 897: moving the slider previews what Apply would make of the spec
+    /// as the editor holds it. Core scales and totals it for the bar's
+    /// percentage and floors; each line comes back by the posted row it came
+    /// from, and nothing is written.
+    /// </summary>
+    [Fact]
+    public async Task ThePreviewScalesTheEditedSpecAndWritesNothing()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new AssessmentEstimateImportWebTests.RecordingStores(caseId, 1_000m)
+        {
+            WorkingEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
+            {
+                Details = new("Repairer", 80m, null, 20m,
+                    Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            },
+        };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = AssessmentEstimateImportWebTests.Compose(baseFactory, store);
+        using var client = AssessmentEstimateImportWebTests.CreateEngineerClient(factory);
+        var html = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={store.WorkingEstimate.SpecificationId:D}");
+        var previewUrl = $"/Cases/{caseId:D}?handler=PreviewEstimateScale";
+        Assert.Contains($"data-scale-preview-url=\"{previewUrl}\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-rollup=\"gross\"", html, StringComparison.Ordinal);
+        var draft = store.WorkingEstimate;
+
+        async Task<JsonElement> PreviewAsync(string percent, string partPounds = "620.20")
+        {
+            var fields = AssessmentEstimateImportWebTests.NewEnumerable(
+                ("__RequestVerificationToken", AssessmentEstimateImportWebTests.AntiforgeryValue(html)),
+                ("estimateId", draft!.SpecificationId.ToString("D")),
+                ("estimateName", "Repairer"),
+                ("estimateLabourRate", "80"),
+                ("estimateVatPercent", "20"),
+                ("estimateVatStatus", "Registered"),
+                ("estimateVatLabour", "true"), ("estimateVatLabour", "false"),
+                ("estimateVatParts", "true"), ("estimateVatParts", "false"),
+                ("estimateVatMaterials", "true"), ("estimateVatMaterials", "false"),
+                ("estimateVatSpecialist", "true"), ("estimateVatSpecialist", "false"),
+                // A blank row first: the line is the second row posted.
+                ("lineId", ""), ("lineOperation", "Replace"), ("lineDescription", ""), ("linePartNumber", ""),
+                ("lineQuantity", ""), ("linePartPounds", ""), ("lineLabourHours", ""), ("linePaintHours", ""),
+                ("lineMaterials", ""),
+                ("lineId", draft.Lines[0].Id.ToString("D")), ("lineOperation", "Replace"),
+                ("lineDescription", "FRONT BUMPER"), ("linePartNumber", ""), ("lineQuantity", "1"),
+                ("linePartPounds", partPounds), ("lineLabourHours", ""), ("linePaintHours", ""), ("lineMaterials", ""),
+                ("targetPercent", percent),
+                ("floorRate", "50"),
+                ("floorPrice", "65")).ToArray();
+            using var response = await client.PostAsync(previewUrl, new FormUrlEncodedContent(fields));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return document.RootElement.Clone();
+        }
+
+        // 45 % of £1,000 is below what the price floor allows: the part
+        // stops at 65 % of its price, and the readout says what it came to.
+        var preview = await PreviewAsync("45");
+        Assert.Equal("ok", preview.GetProperty("status").GetString());
+        var line = Assert.Single(preview.GetProperty("lines").EnumerateArray());
+        Assert.Equal(1, line.GetProperty("row").GetInt32());
+        Assert.Equal("403.13", line.GetProperty("price").GetString());
+        Assert.Equal("£403.13", preview.GetProperty("rollup").GetProperty("parts").GetString());
+        Assert.Equal("£483.76", preview.GetProperty("rollup").GetProperty("gross").GetString());
+        var readout = preview.GetProperty("readout").GetString();
+        Assert.StartsWith("£744.24 ", readout, StringComparison.Ordinal);
+        // The readout states the share asked for, as Apply records it, and
+        // that the labour rate stopped at its floor.
+        Assert.Contains("(45.0 % of value)", readout, StringComparison.Ordinal);
+        Assert.EndsWith(" · labour at floor", readout, StringComparison.Ordinal);
+
+        // The spec as edited, not as saved: a part typed at £500 totals
+        // £600.00 before scaling.
+        var edited = await PreviewAsync("45", "500.00");
+        Assert.Equal("ok", edited.GetProperty("status").GetString());
+        Assert.StartsWith("£600.00 ", edited.GetProperty("readout").GetString(), StringComparison.Ordinal);
+        // A line the save refuses is refused by the preview.
+        Assert.Equal("refused", (await PreviewAsync("45", "500.005")).GetProperty("status").GetString());
+
+        // A percentage Apply would refuse is refused here too.
+        Assert.Equal("refused", (await PreviewAsync("0.5")).GetProperty("status").GetString());
+
+        Assert.Empty(store.ScaleRequests);
+        Assert.Empty(store.SubmittedEstimates);
+        Assert.Equal(620.20m, store.WorkingEstimate!.Lines[0].Price);
     }
 
     [Fact]
