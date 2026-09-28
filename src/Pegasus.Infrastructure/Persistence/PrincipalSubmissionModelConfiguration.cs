@@ -1,16 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-internal static class ProviderSubmissionModelConfiguration
+internal static class PrincipalSubmissionModelConfiguration
 {
     public static void Configure(ModelBuilder builder)
     {
-        builder.Entity<ProviderSubmissionEntity>(entity =>
+        builder.Entity<PrincipalSubmissionEntity>(entity =>
         {
-            entity.ToTable("ProviderSubmissions");
+            entity.ToTable("PrincipalSubmissions");
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).ValueGeneratedNever();
             entity.HasOne(item => item.Principal)
@@ -22,14 +22,14 @@ internal static class ProviderSubmissionModelConfiguration
                 .IsFixedLength()
                 .IsRequired();
             entity.Property(item => item.IdempotencyKey)
-                .HasMaxLength(ProviderSubmissionPolicy.MaximumIdempotencyKeyLength)
+                .HasMaxLength(PrincipalSubmissionPolicy.MaximumIdempotencyKeyLength)
                 .IsRequired();
             entity.Property(item => item.BodySha256)
                 .HasMaxLength(64)
                 .IsFixedLength()
                 .IsRequired();
-            entity.Property(item => item.ProviderReference)
-                .HasMaxLength(ProviderSubmissionPolicy.MaximumProviderReferenceLength);
+            entity.Property(item => item.PrincipalReference)
+                .HasMaxLength(PrincipalSubmissionPolicy.MaximumPrincipalReferenceLength);
             entity.Property(item => item.DeclaredInstructionJson).IsRequired();
             entity.HasIndex(item => new { item.PrincipalId, item.IdempotencyKey }).IsUnique();
         });

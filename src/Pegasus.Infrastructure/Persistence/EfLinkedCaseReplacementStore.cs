@@ -14,7 +14,7 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfLinkedCaseReplacementStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider,
-    IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
+    IEnumerable<Pegasus.Core.Intake.IPrincipalCaseMatchPolicy>? caseMatchPolicies = null)
     : ILinkedCaseReplacementStore
 {
     public async Task<CaseAcceptanceOutcome> CreateAsync(
@@ -132,7 +132,7 @@ public sealed class EfLinkedCaseReplacementStore(
         context.Cases.Add(replacementCase);
         var replacementCaseData = CloneCaseDataSnapshot(originalCaseData, replacementCase);
         context.CaseDataSnapshots.Add(replacementCaseData);
-        ConfirmReplacementWorkProvider(replacementCaseData, request, now);
+        ConfirmReplacementPrincipal(replacementCaseData, request, now);
         // The replacement case must be matchable in its own right: the Created in error
         // original's index row stays (redirects resolve through it), and the replacement
         // gets its own row in this same transaction.
@@ -286,12 +286,12 @@ public sealed class EfLinkedCaseReplacementStore(
     /// The replacement Case's reference and sequence are allocated under
     /// <see cref="CreateLinkedReplacementRequest.ReplacementPrincipalCode"/>,
     /// but <see cref="CloneCaseDataSnapshot"/> above copies every field
-    /// verbatim, so without this the clone's work_provider_code — and the
+    /// verbatim, so without this the clone's principal_code — and the
     /// CaseMatchIndex row <see cref="CaseMatchIndexProjector.Project"/> derives
     /// from it — still named the old Principal, breaking image/mail matching
     /// and the EVA "Work Provider" export after a Wrong-Principal correction.
     /// Mirrors the upsert approach in
-    /// <see cref="CaseDataSnapshotFactory.AddStaffAllocatedProvider"/>: the
+    /// <see cref="CaseDataSnapshotFactory.AddStaffAllocatedPrincipal"/>: the
     /// staff actor who requested the correction is recorded as confirming the
     /// corrected Principal, using the same <c>staff_correction</c> provenance
     /// the acceptance path uses for a person's own corrected value. Any
@@ -299,30 +299,30 @@ public sealed class EfLinkedCaseReplacementStore(
     /// place as history — Confirmed only supersedes it for
     /// <see cref="CaseField{T}.Current"/>.
     /// </summary>
-    private static void ConfirmReplacementWorkProvider(
+    private static void ConfirmReplacementPrincipal(
         CaseDataSnapshotEntity replacementCaseData,
         CreateLinkedReplacementRequest request,
         DateTimeOffset now)
     {
         var value = request.ReplacementPrincipalCode.Trim();
         var underlying = replacementCaseData.Fields.SingleOrDefault(
-            item => item.FieldName == CaseDataFieldNames.WorkProviderCode
+            item => item.FieldName == CaseDataFieldNames.PrincipalCode
                 && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion
                 && string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase));
         replacementCaseData.Fields.RemoveAll(
-            item => item.FieldName == CaseDataFieldNames.WorkProviderCode
+            item => item.FieldName == CaseDataFieldNames.PrincipalCode
                 && item.ValueKind == CaseDataCodes.Confirmed);
         replacementCaseData.Fields.Add(new()
         {
             WorkId = replacementCaseData.WorkId,
             Snapshot = replacementCaseData,
-            FieldName = CaseDataFieldNames.WorkProviderCode,
+            FieldName = CaseDataFieldNames.PrincipalCode,
             ValueKind = CaseDataCodes.Confirmed,
             ValueType = CaseDataCodes.Text,
             Value = value,
             SourceKind = underlying?.SourceKind ?? CaseDataCodes.StaffCorrection,
             SourceIdentity = underlying?.SourceIdentity ?? request.CaseId.ToString("D"),
-            SourceLabel = underlying?.SourceLabel ?? "staff-corrected wrong-principal work provider",
+            SourceLabel = underlying?.SourceLabel ?? "staff-corrected wrong-principal principal",
             PolicyKey = underlying?.PolicyKey ?? replacementCaseData.CompletenessPolicyKey,
             PolicyVersion = underlying?.PolicyVersion ?? replacementCaseData.CompletenessPolicyVersion,
             ConfirmedByActor = request.Actor.SubjectId,
@@ -449,7 +449,7 @@ public sealed class EfLinkedCaseReplacementStore(
 
     private static bool IsTerminal(string state) => state is
         nameof(CaseLifecycleState.PostReportComplete) or
-        nameof(CaseLifecycleState.ProviderCancelled) or
+        nameof(CaseLifecycleState.PrincipalCancelled) or
         nameof(CaseLifecycleState.CollisionEngineersRejected) or
         nameof(CaseLifecycleState.CreatedInError);
 

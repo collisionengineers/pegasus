@@ -1379,7 +1379,7 @@ internal sealed class EfIntakeMutationStore(
             : new
             {
                 receipt.MailRouteDecision.Disposition,
-                receipt.MailRouteDecision.WorkProviderCode,
+                receipt.MailRouteDecision.PrincipalCode,
                 receipt.MailRouteDecision.PolicyKey,
                 receipt.MailRouteDecision.PolicyVersion,
                 receipt.MailRouteDecision.Reason

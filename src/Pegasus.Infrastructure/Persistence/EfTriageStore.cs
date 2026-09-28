@@ -16,10 +16,10 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfTriageStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    IEnumerable<IProviderCaseMatchPolicy> caseMatchPolicies,
+    IEnumerable<IPrincipalCaseMatchPolicy> caseMatchPolicies,
     TimeProvider? timeProvider = null) : ITriageStore, ITriagePrincipalGate
 {
-    private readonly IReadOnlyList<IProviderCaseMatchPolicy> _caseMatchPolicies = caseMatchPolicies.ToArray();
+    private readonly IReadOnlyList<IPrincipalCaseMatchPolicy> _caseMatchPolicies = caseMatchPolicies.ToArray();
     private const string AutomaticLinkEvent = "triage_case_linked";
 
     public async Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
@@ -157,7 +157,7 @@ public sealed class EfTriageStore(
         }
 
         var policy = _caseMatchPolicies.SingleOrDefault(item =>
-            string.Equals(item.WorkProviderCode, principal.Code, StringComparison.OrdinalIgnoreCase));
+            string.Equals(item.PrincipalCode, principal.Code, StringComparison.OrdinalIgnoreCase));
         if (policy is null)
         {
             return null;
@@ -971,7 +971,7 @@ public sealed class EfTriageStore(
         row.Item.CreatedAtUtc,
         row.Item.Version,
         row.Reference,
-        row.Provider,
+        row.PrincipalCode,
         row.ClaimNumber,
         row.PrincipalId);
 
@@ -979,7 +979,7 @@ public sealed class EfTriageStore(
         TriageEntity Item,
         string Reference,
         Guid PrincipalId,
-        string Provider,
+        string PrincipalCode,
         string? ClaimNumber);
 
     public async Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
@@ -1820,7 +1820,7 @@ public sealed class EfTriageStore(
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
         IntakeSourceChannel.Automation => "automation",
-        IntakeSourceChannel.ProviderApi => "provider_api",
+        IntakeSourceChannel.PrincipalApi => "principal_api",
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
 
@@ -1829,7 +1829,7 @@ public sealed class EfTriageStore(
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
         "automation" => IntakeSourceChannel.Automation,
-        "provider_api" => IntakeSourceChannel.ProviderApi,
+        "principal_api" => IntakeSourceChannel.PrincipalApi,
         _ => throw new InvalidDataException($"Unknown persisted intake source channel '{value}'.")
     };
 

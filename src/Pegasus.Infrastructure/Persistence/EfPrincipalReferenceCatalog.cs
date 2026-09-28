@@ -4,29 +4,29 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-internal sealed class EfProviderReferenceCatalog(
-    IDbContextFactory<PegasusDbContext> contextFactory) : IProviderReferenceCatalog
+internal sealed class EfPrincipalReferenceCatalog(
+    IDbContextFactory<PegasusDbContext> contextFactory) : IPrincipalReferenceCatalog
 {
-    public async ValueTask<ProviderDomainCandidates> FindCandidatesByDomainSuffixAsync(
-        ProviderDomainPackageVersion packageVersion,
+    public async ValueTask<PrincipalDomainCandidates> FindCandidatesByDomainSuffixAsync(
+        PrincipalDomainPackageVersion packageVersion,
         string domainSuffix,
         CancellationToken cancellationToken)
     {
         if (!ReferenceDataPolicy.IsValidPackageVersion(packageVersion))
         {
-            return Empty(ProviderDomainCandidateStatus.PackageRejected);
+            return Empty(PrincipalDomainCandidateStatus.PackageRejected);
         }
 
         if (!ReferenceDataPolicy.IsCanonicalDomainSuffix(domainSuffix))
         {
-            return Empty(ProviderDomainCandidateStatus.InvalidSuffix);
+            return Empty(PrincipalDomainCandidateStatus.InvalidSuffix);
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await (
-                from package in context.ProviderDomainPackages.AsNoTracking()
+                from package in context.PrincipalDomainPackages.AsNoTracking()
                 where package.Version == packageVersion.Version
-                join evidence in context.ProviderDomainEvidence.AsNoTracking()
+                join evidence in context.PrincipalDomainEvidence.AsNoTracking()
                         .Where(item => item.DomainSuffix == domainSuffix)
                     on package.Version equals evidence.Version into evidenceRows
                 from evidence in evidenceRows.DefaultIfEmpty()
@@ -35,33 +35,33 @@ internal sealed class EfProviderReferenceCatalog(
                 {
                     package.SchemaVersion,
                     package.PackageSha256,
-                    ProviderCode = evidence == null ? null : evidence.Code
+                    PrincipalCode = evidence == null ? null : evidence.Code
                 })
             .ToListAsync(cancellationToken);
         if (rows.Count == 0)
         {
-            return Empty(ProviderDomainCandidateStatus.PackageNotFound);
+            return Empty(PrincipalDomainCandidateStatus.PackageNotFound);
         }
 
         var storedPackage = rows[0];
         if (storedPackage.SchemaVersion != packageVersion.SchemaVersion ||
             !StringComparer.Ordinal.Equals(storedPackage.PackageSha256, packageVersion.PackageSha256))
         {
-            return Empty(ProviderDomainCandidateStatus.PackageRejected);
+            return Empty(PrincipalDomainCandidateStatus.PackageRejected);
         }
 
-        var providerCodes = ImmutableArray.CreateBuilder<string>(rows.Count);
+        var principalCodes = ImmutableArray.CreateBuilder<string>(rows.Count);
         foreach (var row in rows)
         {
-            if (row.ProviderCode is not null)
+            if (row.PrincipalCode is not null)
             {
-                providerCodes.Add(row.ProviderCode);
+                principalCodes.Add(row.PrincipalCode);
             }
         }
 
-        return ReferenceDataPolicy.CreateCandidates(domainSuffix, providerCodes.ToImmutable());
+        return ReferenceDataPolicy.CreateCandidates(domainSuffix, principalCodes.ToImmutable());
     }
 
-    private static ProviderDomainCandidates Empty(ProviderDomainCandidateStatus status) =>
+    private static PrincipalDomainCandidates Empty(PrincipalDomainCandidateStatus status) =>
         new(status, ImmutableArray<string>.Empty);
 }

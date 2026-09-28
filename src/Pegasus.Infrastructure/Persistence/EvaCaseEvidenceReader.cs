@@ -46,7 +46,7 @@ public static class EvaCaseEvidenceReader
             caseData.Completeness.Values.ImagesComplete
                 && caseData.Completeness.Evaluation.SatisfiesPolicy,
             FromCaseField(caseData.Claim.Number, static value => value),
-            FromCaseField(caseData.Provider.WorkProviderCode, static value => value),
+            FromCaseField(caseData.Principal.PrincipalCode, static value => value),
             Fallback(
                 FromVehicleField(acceptedVehicle?.Registration, static value => value),
                 caseData.Vehicle.Registration,

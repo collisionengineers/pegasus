@@ -1,44 +1,44 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// SQL-backed <see cref="IProviderSubmissionStore"/> and the
-/// <see cref="IProviderSubmissionBindings"/> the intake processor reads. The
+/// SQL-backed <see cref="IPrincipalSubmissionStore"/> and the
+/// <see cref="IPrincipalSubmissionBindings"/> the intake processor reads. The
 /// unique (PrincipalId, IdempotencyKey) index is the concurrency boundary:
 /// the loser of a same-key race is told so and re-reads, never overwrites.
 /// </summary>
-internal sealed class EfProviderSubmissionStore(
+internal sealed class EfPrincipalSubmissionStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
-    : IProviderSubmissionStore, IProviderSubmissionBindings
+    : IPrincipalSubmissionStore, IPrincipalSubmissionBindings
 {
     // The code the durable intake store writes into
     // IntakeStagedReceipts.SourceChannel for this channel. Its map is private
     // to that store and the accept path deliberately leaves it untouched, so
     // the agreement is held by the two SQL-level accept-recovery tests, which
     // find no candidate at all if these ever disagree.
-    internal const string ProviderApiSourceChannel = "provider_api";
+    internal const string PrincipalApiSourceChannel = "principal_api";
 
-    public async Task CreateAsync(ProviderSubmissionRecord record, CancellationToken cancellationToken)
+    public async Task CreateAsync(PrincipalSubmissionRecord record, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        context.ProviderSubmissions.Add(new ProviderSubmissionEntity
+        context.PrincipalSubmissions.Add(new PrincipalSubmissionEntity
         {
             Id = record.Id,
             PrincipalId = record.PrincipalId,
             KeyId = record.KeyId,
             IdempotencyKey = record.IdempotencyKey,
             BodySha256 = record.BodySha256,
-            ProviderReference = record.ProviderReference,
+            PrincipalReference = record.PrincipalReference,
             ReceivedAtUtc = record.ReceivedAtUtc,
-            DeclaredInstructionJson = ProviderInstructionJson.Serialize(
+            DeclaredInstructionJson = PrincipalInstructionJson.Serialize(
                 record.Instruction
                     ?? throw new ArgumentException(
-                        "A provider submission carries the instruction its Principal declared.",
+                        "A Principal submission carries the instruction its Principal declared.",
                         nameof(record)))
         });
         try
@@ -48,17 +48,17 @@ internal sealed class EfProviderSubmissionStore(
         catch (DbUpdateException exception)
             when (exception.GetBaseException() is SqlException { Number: 2601 or 2627 })
         {
-            throw new ProviderSubmissionException(ProviderSubmissionError.OperationConflict);
+            throw new PrincipalSubmissionException(PrincipalSubmissionError.OperationConflict);
         }
     }
 
-    public async Task<ProviderSubmissionRecord?> FindByIdempotencyKeyAsync(
+    public async Task<PrincipalSubmissionRecord?> FindByIdempotencyKeyAsync(
         Guid principalId,
         string idempotencyKey,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.ProviderSubmissions
+        var entity = await context.PrincipalSubmissions
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 item => item.PrincipalId == principalId && item.IdempotencyKey == idempotencyKey,
@@ -66,10 +66,10 @@ internal sealed class EfProviderSubmissionStore(
         return entity is null ? null : ToRecord(entity);
     }
 
-    public async Task<ProviderSubmissionRecord?> GetAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<PrincipalSubmissionRecord?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.ProviderSubmissions
+        var entity = await context.PrincipalSubmissions
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         return entity is null ? null : ToRecord(entity);
@@ -81,7 +81,7 @@ internal sealed class EfProviderSubmissionStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.ProviderSubmissions
+        var entity = await context.PrincipalSubmissions
             .SingleOrDefaultAsync(item => item.Id == submissionId, cancellationToken);
         if (entity is null || entity.StagedReceiptId == stagedReceiptId)
         {
@@ -92,7 +92,7 @@ internal sealed class EfProviderSubmissionStore(
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
+    public async Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
         int maximumItems,
         CancellationToken cancellationToken)
     {
@@ -115,19 +115,19 @@ internal sealed class EfProviderSubmissionStore(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<ProviderSubmissionBinding?> FindAsync(
+    public async Task<PrincipalSubmissionBinding?> FindAsync(
         IntakeSourceIdentity sourceIdentity,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sourceIdentity);
-        if (sourceIdentity.Channel != IntakeSourceChannel.ProviderApi
+        if (sourceIdentity.Channel != IntakeSourceChannel.PrincipalApi
             || !Guid.TryParseExact(sourceIdentity.ExternalReceiptToken, "N", out var id))
         {
             return null;
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var row = await context.ProviderSubmissions
+        var row = await context.PrincipalSubmissions
             .AsNoTracking()
             .Where(item => item.Id == id)
             .Select(item => new
@@ -151,20 +151,20 @@ internal sealed class EfProviderSubmissionStore(
     /// that recovers it, the binding intake resolves and the declared verdict
     /// Case acceptance keeps.
     /// </summary>
-    internal static ProviderInstruction ReadDeclaration(Guid submissionId, string? declaredInstructionJson) =>
-        ProviderInstructionJson.Deserialize(declaredInstructionJson)
+    internal static PrincipalInstruction ReadDeclaration(Guid submissionId, string? declaredInstructionJson) =>
+        PrincipalInstructionJson.Deserialize(declaredInstructionJson)
             ?? throw new InvalidDataException(
-                $"The retained provider submission '{submissionId:D}' has no readable declaration.");
+                $"The retained Principal submission '{submissionId:D}' has no readable declaration.");
 
-    private static ProviderSubmissionRecord ToRecord(ProviderSubmissionEntity entity) => new(
+    private static PrincipalSubmissionRecord ToRecord(PrincipalSubmissionEntity entity) => new(
         entity.Id,
         entity.PrincipalId,
         entity.KeyId,
         entity.IdempotencyKey,
-        entity.ProviderReference,
+        entity.PrincipalReference,
         entity.ReceivedAtUtc,
         entity.BodySha256,
-        ProviderInstructionJson.Deserialize(entity.DeclaredInstructionJson),
+        PrincipalInstructionJson.Deserialize(entity.DeclaredInstructionJson),
         entity.StagedReceiptId);
 
     /// <summary>
@@ -180,12 +180,12 @@ internal sealed class EfProviderSubmissionStore(
     /// window for good. Joining here also answers "which receipt?" in the same
     /// read, instead of one lookup per candidate.
     /// </remarks>
-    private static IQueryable<ProviderSubmissionAcceptCandidate> AcceptRecoveryStates(
+    private static IQueryable<PrincipalSubmissionAcceptCandidate> AcceptRecoveryStates(
         PegasusDbContext context) =>
-        from submission in context.ProviderSubmissions.AsNoTracking()
+        from submission in context.PrincipalSubmissions.AsNoTracking()
         join staged in context.IntakeStagedReceipts
                 .AsNoTracking()
-                .Where(item => item.SourceChannel == ProviderApiSourceChannel)
+                .Where(item => item.SourceChannel == PrincipalApiSourceChannel)
             // The token the accept path writes is the submission id in "N"
             // form, matched under the database's own collation exactly as the
             // history join below matches the "D" form.
@@ -194,13 +194,13 @@ internal sealed class EfProviderSubmissionStore(
         join acceptedHistory in context.ActionHistory
                 .AsNoTracking()
                 .Where(item =>
-                    item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+                    item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
                     && item.Outcome == "Accepted")
             on submission.Id.ToString() equals acceptedHistory.AggregateId into acceptedHistories
         from acceptedHistory in acceptedHistories.DefaultIfEmpty()
         where submission.StagedReceiptId == null || acceptedHistory == null
         orderby submission.ReceivedAtUtc, submission.Id
-        select new ProviderSubmissionAcceptCandidate(
+        select new PrincipalSubmissionAcceptCandidate(
             submission.Id,
             submission.PrincipalId,
             submission.ReceivedAtUtc,
