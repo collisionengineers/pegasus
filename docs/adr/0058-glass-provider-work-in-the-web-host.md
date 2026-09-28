@@ -35,9 +35,13 @@ proves authority, ownership and the one-use token, records the session, and
 answers at once. The provider work runs afterwards in the Web host itself.
 
 The Web host keeps a bounded in-memory queue and a list of the sessions it is
-working on. A background service runs a few items at a time. Each item gets its
-own dependency scope and an overall time cap. The Glass's window polls a small
-owner-only state answer and moves on when the work is done.
+working on. A request holds its session busy from before it writes the claim
+until the work it queued has run. So no window finds the session idle between
+its claim and its work, and a racing second request waits on the first one's
+work. A background service runs a few items at a time, but one session's work
+runs in turn. Each item gets its own dependency scope and an overall time cap.
+The Glass's window polls a small owner-only state answer and moves on when the
+work is done.
 
 The work does not move to the Worker. The Worker would need the Web key ring to
 read the session state and the password. Sharing that ring would also let the
@@ -52,10 +56,14 @@ Worker read and mint staff cookies.
   interrupted request always left it: Prepared stays resumable, and anything
   past it becomes Unknown and holds the account. The Glass's window settles a
   session it finds waiting with nothing running.
-- A full queue runs nothing. The claim is settled as interrupted and the staff
-  member is told the estimate did not start.
-- A return's own message is carried in memory only. Work lost with the process
-  is later looked up again, never relayed again.
+- A full queue never drops work. The request runs the work itself, as every
+  request did before this decision.
+- The claim keeps the return's own message in the session's protected state,
+  and the claim before the relay records that the relay began. Work lost with
+  the process before the relay began is relayed once by Resume. A relay that
+  began is never repeated; its export is looked up instead.
+- A session cannot be closed while its work runs, so a launch cannot leave a
+  vehicle or estimate at the provider without a session.
 - EVA export and staff e-mail stay inside their requests.
 
 ## Links

@@ -712,12 +712,17 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// Whether the session on the screen can be closed by its owner: any one
-    /// that still holds the account except one mid-import, per the policy.
+    /// that still holds the account except one mid-import, per the policy, and
+    /// none while its provider work is running in the background.
     /// </summary>
     public bool CanCloseGlass => AssessmentCanOpen
         && !IsInspectionView
+        && !GlassWorkRunning
         && GlassSession is { } session
         && GlassRepairEstimateSessionPolicy.CanClose(session.State);
+
+    /// <summary>Whether provider work for this staff member's session is queued or running now.</summary>
+    public bool GlassWorkRunning { get; private set; }
 
     private static decimal? ParseNumber(string? value) =>
         string.IsNullOrWhiteSpace(value)
@@ -1074,6 +1079,9 @@ public sealed partial class DetailsModel(
         if (GlassAccountEnabled)
         {
             GlassSession = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
+            GlassWorkRunning = GlassSession is { } own
+                && HttpContext.RequestServices.GetRequiredService<Pegasus.Web.Background.ProviderWorkQueue>()
+                    .IsInFlight(own.Id);
             if (GlassSession is null || !GlassRepairEstimateSessionPolicy.OccupiesAccount(GlassSession.State))
             {
                 // The account's one live slot may be held from another Case;
@@ -3284,6 +3292,12 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
 
+        // The new session's id is chosen here and held busy before the session
+        // exists, so no window can find it idle between its claim and its work.
+        // A double-click replays one operation key and gets the session the
+        // first click created and holds, so it waits on the same work.
+        var newSessionId = Guid.NewGuid();
+        using var reservation = glassWork.Reserve(newSessionId);
         try
         {
             var step = await glassEstimates.PrepareLaunchAsync(
@@ -3292,12 +3306,10 @@ public sealed partial class DetailsModel(
                     id,
                     expectedCaseVersion,
                     editLeaseToken!,
-                    operationKey),
+                    operationKey,
+                    newSessionId),
                 cancellationToken);
-            // A double-click replays one operation key and gets the session the
-            // first click created, so it waits on the same work.
-            return await ContinueGlassAsync(
-                actor, step, glassEstimates, glassWork, GlassLabels.LaunchRefused, cancellationToken);
+            return await ContinueGlassAsync(actor, step, reservation, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -3353,6 +3365,8 @@ public sealed partial class DetailsModel(
             return GlassOpening(this, sessionId);
         }
 
+        // Held busy before the claim, so no window settles it before its work runs.
+        using var reservation = glassWork.Reserve(sessionId);
         try
         {
             // Every resume proves current authority and unchanged vehicle facts.
@@ -3364,8 +3378,7 @@ public sealed partial class DetailsModel(
                     expectedCaseVersion,
                     editLeaseToken!),
                 cancellationToken);
-            return await ContinueGlassAsync(
-                actor, step, glassEstimates, glassWork, GlassLabels.ResumeRefused, cancellationToken);
+            return await ContinueGlassAsync(actor, step, reservation, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -3383,22 +3396,23 @@ public sealed partial class DetailsModel(
     /// estimator or reports what the session came to.
     /// </summary>
     /// <remarks>
-    /// A full queue runs nothing: the claim stands and is settled as any
-    /// interrupted work is, and the operator is told it did not start.
+    /// The work is queued under the reservation this request took before the
+    /// claim. A full queue never drops it: the work runs here, as the request
+    /// always ran it before, and the window then reports what it came to.
     /// </remarks>
     private async Task<IActionResult> ContinueGlassAsync(
         ActionActor actor,
         GlassRepairEstimateStep step,
-        IGlassRepairEstimateGateway glassEstimates,
-        Pegasus.Web.Background.ProviderWorkQueue glassWork,
-        string refusal,
+        Pegasus.Web.Background.ProviderWorkReservation reservation,
         CancellationToken cancellationToken)
     {
-        if (step.Continuation != GlassRepairEstimateContinuation.None
-            && !glassWork.TryEnqueue(Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork.For(actor, step)))
+        if (step.Continuation != GlassRepairEstimateContinuation.None)
         {
-            var settled = await glassEstimates.SettleInterruptedAsync(actor, step.Session.Id, cancellationToken);
-            return ReportGlassSession(this, settled, refusal);
+            var work = Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork.For(actor, step);
+            if (reservation.Admit(work) == Pegasus.Web.Background.ProviderWorkAdmission.Full)
+            {
+                await reservation.RunHereAsync(work, HttpContext.RequestServices, cancellationToken);
+            }
         }
 
         return GlassOpening(this, step.Session.Id);
@@ -3469,7 +3483,8 @@ public sealed partial class DetailsModel(
 
     public async Task<IActionResult> OnPostCloseGlassAsync(
         Guid id, Guid sessionId, long expectedSessionVersion, bool externalSessionClosed,
-        string? reason, [FromServices] IGlassRepairEstimateGateway glassEstimates, CancellationToken cancellationToken)
+        string? reason, [FromServices] IGlassRepairEstimateGateway glassEstimates,
+        [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor) || actor.Kind != ActorKind.Staff
             || !Guid.TryParse(actor.SubjectId, out var staffId))
@@ -3485,6 +3500,13 @@ public sealed partial class DetailsModel(
         if (ownSession?.Id != sessionId)
         {
             return NotFound();
+        }
+        if (glassWork.IsInFlight(sessionId))
+        {
+            // Closing while Glass's is being prepared or brought back would
+            // leave whatever that work creates at the provider without a session.
+            TempData["CaseError"] = GlassLabels.CloseWhileWorking;
+            return RedirectToEstimate(id);
         }
         try
         {

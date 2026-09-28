@@ -353,7 +353,7 @@ public sealed class GlassRepairEstimateGatewayTests
     {
         var harness = Harness.Create();
         var request = new GlassRepairEstimateLaunchRequest(
-            harness.Engineer, harness.CaseId, Harness.CaseVersion, Harness.LeaseToken, "split-launch");
+            harness.Engineer, harness.CaseId, Harness.CaseVersion, Harness.LeaseToken, "split-launch", Guid.NewGuid());
 
         var step = await harness.Gateway.PrepareLaunchAsync(request, CancellationToken.None);
 
@@ -378,12 +378,12 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
-    /// The return's prepare half claims the delivery before the provider hears
-    /// anything, a repeat of it owes nothing, and the continuation relays only
-    /// the message the claim recorded.
+    /// The return's prepare half claims the delivery, and keeps its message,
+    /// before the provider hears anything; a repeat of it owes nothing; and
+    /// the continuation relays exactly the message the claim kept, once.
     /// </summary>
     [Fact]
-    public async Task AnAcceptedReturnIsClaimedBeforeTheProviderHearsAndOnlyItsOwnMessageIsRelayed()
+    public async Task AnAcceptedReturnIsClaimedBeforeTheProviderHearsAndItsOwnMessageIsRelayedOnce()
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();
@@ -402,17 +402,52 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateContinuation.None, replay.Continuation);
         Assert.Equal(GlassRepairEstimateSessionState.Importing, replay.Session.State);
 
+        Assert.DoesNotContain(SavedQuery, harness.Store.Material(session.Id).ProtectedProviderState, StringComparison.Ordinal);
         await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() =>
-            harness.Gateway.ContinueImportAsync(
-                new(harness.Engineer, session.Id, "?Total=1&DoSave=1&ErrMsg="), CancellationToken.None));
+            harness.Gateway.ContinueImportAsync(new(harness.OtherEngineer, session.Id), CancellationToken.None));
         Assert.Equal(0, harness.Mva.Count("GET /ere/ere-callback/"));
 
         var completed = await harness.Gateway.ContinueImportAsync(
-            new(harness.Engineer, session.Id, SavedQuery), CancellationToken.None);
+            new(harness.Engineer, session.Id), CancellationToken.None);
 
         Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
-        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        var relayed = harness.Mva.Requests.Single(
+            request => request.Path.StartsWith("/ere/ere-callback/", StringComparison.Ordinal));
+        Assert.Equal(SavedQuery, relayed.Query);
         Assert.Single(harness.Import.Requests);
+        Assert.Equal(completed, await harness.Gateway.ContinueImportAsync(
+            new(harness.Engineer, session.Id), CancellationToken.None));
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+    }
+
+    /// <summary>
+    /// An accepted return whose import never ran — a restart while it was
+    /// queued — is settled Unknown, and the resume makes the relay from the
+    /// message the claim kept: the saved estimate is not lost.
+    /// </summary>
+    [Fact]
+    public async Task AReturnWhoseImportNeverRanIsRelayedByTheResumeFromTheKeptMessage()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        var accepted = await harness.Gateway.AcceptCallbackAsync(
+            new(harness.Engineer, session.Id, session.Version, harness.CorrelationOf(session.Id), SavedQuery),
+            CancellationToken.None);
+        var restarted = Restarted(harness, harness.Store);
+
+        var unknown = await restarted.Gateway.SettleInterruptedAsync(
+            harness.Engineer, accepted.Session.Id, CancellationToken.None);
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, unknown.State);
+        Assert.Equal(0, harness.Mva.Count("GET /ere/ere-callback/"));
+
+        var completed = await restarted.ResumeAsync(
+            new(harness.Engineer, session.Id, unknown.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        var relayed = harness.Mva.Requests.Single(
+            request => request.Path.StartsWith("/ere/ere-callback/", StringComparison.Ordinal));
+        Assert.Equal(SavedQuery, relayed.Query);
+        Assert.Single(restarted.Import.Requests);
     }
 
     /// <summary>
@@ -431,7 +466,7 @@ public sealed class GlassRepairEstimateGatewayTests
             CancellationToken.None);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            harness.Gateway.ContinueImportAsync(new(harness.Engineer, step.Session.Id, SavedQuery), cancelled.Token));
+            harness.Gateway.ContinueImportAsync(new(harness.Engineer, step.Session.Id), cancelled.Token));
 
         var stopped = harness.Store.Material(session.Id).Session;
         Assert.Equal(GlassRepairEstimateSessionState.Unknown, stopped.State);
@@ -457,7 +492,7 @@ public sealed class GlassRepairEstimateGatewayTests
     {
         var harness = Harness.Create();
         var step = await harness.Gateway.PrepareLaunchAsync(
-            new(harness.Engineer, harness.CaseId, Harness.CaseVersion, Harness.LeaseToken, "settle-launch"),
+            new(harness.Engineer, harness.CaseId, Harness.CaseVersion, Harness.LeaseToken, "settle-launch", Guid.NewGuid()),
             CancellationToken.None);
 
         var prepared = await harness.Gateway.SettleInterruptedAsync(harness.Engineer, step.Session.Id, CancellationToken.None);
@@ -2508,9 +2543,9 @@ public sealed class GlassRepairEstimateGatewayTests
             var launcher = actor ?? Engineer;
             var step = await Gateway.PrepareLaunchAsync(
                 new GlassRepairEstimateLaunchRequest(
-                    launcher, CaseId, CaseVersion, LeaseToken, operationKey),
+                    launcher, CaseId, CaseVersion, LeaseToken, operationKey, Guid.NewGuid()),
                 cancellationToken);
-            var launched = await ContinueAsync(launcher, step, rawQuery: null, cancellationToken);
+            var launched = await ContinueAsync(launcher, step, cancellationToken);
             if (launched.State == GlassRepairEstimateSessionState.Active)
             {
                 // The one-use token the provider will hand back, read where the
@@ -2529,7 +2564,6 @@ public sealed class GlassRepairEstimateGatewayTests
             await ContinueAsync(
                 request.Actor,
                 await Gateway.PrepareResumeAsync(request, cancellationToken),
-                rawQuery: null,
                 cancellationToken);
 
         /// <summary>A return accepted and then imported, as the callback page and the executor do it.</summary>
@@ -2550,18 +2584,18 @@ public sealed class GlassRepairEstimateGatewayTests
                     correlation ?? correlations[session.Id],
                     query),
                 CancellationToken.None);
-            return await ContinueAsync(returning, step, query, CancellationToken.None);
+            return await ContinueAsync(returning, step, CancellationToken.None);
         }
 
         /// <summary>The provider work a step owes, run inline.</summary>
         public async Task<GlassRepairEstimateSession> ContinueAsync(
-            ActionActor actor, GlassRepairEstimateStep step, string? rawQuery, CancellationToken cancellationToken) =>
+            ActionActor actor, GlassRepairEstimateStep step, CancellationToken cancellationToken) =>
             step.Continuation switch
             {
                 GlassRepairEstimateContinuation.Launch =>
                     await Gateway.ContinueLaunchAsync(new(actor, step.Session.Id), cancellationToken),
                 GlassRepairEstimateContinuation.Import =>
-                    await Gateway.ContinueImportAsync(new(actor, step.Session.Id, rawQuery), cancellationToken),
+                    await Gateway.ContinueImportAsync(new(actor, step.Session.Id), cancellationToken),
                 _ => step.Session,
             };
     }

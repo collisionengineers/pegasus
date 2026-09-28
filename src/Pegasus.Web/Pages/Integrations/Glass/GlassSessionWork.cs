@@ -13,10 +13,11 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The work carries the proved actor and, for a return, the provider's own
-/// message; it reads everything else back from the session. The message lives
-/// only in memory: work lost with the process is settled as an interrupted
-/// request's would be, and the export is later looked up, never relayed again.
+/// The work carries only the proved actor and the session; everything else,
+/// the accepted return's own message included, is read back from the session.
+/// A refusal the gateway expects — the credential replaced or disabled, the
+/// session moved on by someone else — leaves the session as it stands and is
+/// logged as a warning with its reason; the Glass's window then reports it.
 /// </para>
 /// <para>
 /// <b>A held estimate lands when the Case is free.</b> When the launch's edit
@@ -34,7 +35,7 @@ public sealed partial class GlassSessionWork(
     ILogger<GlassSessionWork> logger)
 {
     /// <summary>The provider work a step owes, keyed by its session.</summary>
-    public static ProviderWork For(ActionActor actor, GlassRepairEstimateStep step, string? rawQuery = null)
+    public static ProviderWork For(ActionActor actor, GlassRepairEstimateStep step)
     {
         ArgumentNullException.ThrowIfNull(actor);
         ArgumentNullException.ThrowIfNull(step);
@@ -50,23 +51,45 @@ public sealed partial class GlassSessionWork(
                 sessionId,
                 "GlassImport",
                 (services, cancellationToken) => services.GetRequiredService<GlassSessionWork>()
-                    .ImportAsync(actor, sessionId, rawQuery, cancellationToken)),
+                    .ImportAsync(actor, sessionId, cancellationToken)),
             _ => throw new ArgumentException("The step owes no provider work.", nameof(step)),
         };
     }
 
-    public Task LaunchAsync(ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
-        glassEstimates.ContinueLaunchAsync(new(actor, sessionId), cancellationToken);
-
-    public async Task ImportAsync(
-        ActionActor actor, Guid sessionId, string? rawQuery, CancellationToken cancellationToken)
+    public async Task LaunchAsync(ActionActor actor, Guid sessionId, CancellationToken cancellationToken)
     {
-        var session = await glassEstimates.ContinueImportAsync(new(actor, sessionId, rawQuery), cancellationToken);
+        try
+        {
+            await glassEstimates.ContinueLaunchAsync(new(actor, sessionId), cancellationToken);
+        }
+        catch (Exception refusal) when (IsExpectedRefusal(refusal))
+        {
+            LogWorkRefused(logger, "GlassLaunch", sessionId, Reason(refusal));
+        }
+    }
+
+    public async Task ImportAsync(ActionActor actor, Guid sessionId, CancellationToken cancellationToken)
+    {
+        GlassRepairEstimateSession session;
+        try
+        {
+            session = await glassEstimates.ContinueImportAsync(new(actor, sessionId), cancellationToken);
+        }
+        catch (Exception refusal) when (IsExpectedRefusal(refusal))
+        {
+            LogWorkRefused(logger, "GlassImport", sessionId, Reason(refusal));
+            return;
+        }
         if (session.State == GlassRepairEstimateSessionState.AwaitingImport)
         {
             await LandHeldEstimateAsync(actor, session, cancellationToken);
         }
     }
+
+    private static bool IsExpectedRefusal(Exception exception) =>
+        exception is GlassRepairEstimateRefusalException
+            or GlassRepairEstimateSessionConflictException
+            or StaffAuthorizationException;
 
     /// <summary>
     /// Lands a held estimate on a fresh lease when nobody holds the Case and it
@@ -119,4 +142,10 @@ public sealed partial class GlassSessionWork(
         Message = "Glass's held estimate on case {CaseId} (session {SessionId}) did not land on the return and stays held for Resume: {Reason}")]
     private static partial void LogHeldEstimateNotLanded(
         ILogger logger, Guid caseId, Guid sessionId, string reason, Exception exception);
+
+    [LoggerMessage(
+        EventId = 1214,
+        Level = LogLevel.Warning,
+        Message = "Glass's {Kind} for session {SessionId} was refused and left the session as it stands: {Reason}")]
+    private static partial void LogWorkRefused(ILogger logger, string kind, Guid sessionId, string reason);
 }

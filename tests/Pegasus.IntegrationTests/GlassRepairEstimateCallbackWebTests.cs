@@ -945,6 +945,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         /// <summary>Holds every background import until the test releases it.</summary>
         public TaskCompletionSource? ImportGate { get; set; }
+
+        /// <summary>Holds every background launch until the test releases it.</summary>
+        public TaskCompletionSource? LaunchGate { get; set; }
     }
 
     /// <summary>A switch the test flips to make the host's Case read fault.</summary>
@@ -964,7 +967,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
     /// <summary>
     /// The real gateway with faults a test can switch on: an unrelated failure
-    /// inside a launch or a return, and a background import held at its start.
+    /// inside a launch or a return, and background launch or import work held
+    /// at its start.
     /// </summary>
     private sealed class FaultingGateway(IGlassRepairEstimateGateway inner, GatewayFault fault) : IGlassRepairEstimateGateway
     {
@@ -974,9 +978,16 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 ? Task.FromException<GlassRepairEstimateStep>(failure)
                 : inner.PrepareLaunchAsync(request, cancellationToken);
 
-        public Task<GlassRepairEstimateSession> ContinueLaunchAsync(
-            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken) =>
-            inner.ContinueLaunchAsync(request, cancellationToken);
+        public async Task<GlassRepairEstimateSession> ContinueLaunchAsync(
+            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
+        {
+            if (fault.LaunchGate is { } gate)
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+
+            return await inner.ContinueLaunchAsync(request, cancellationToken);
+        }
 
         public Task<GlassRepairEstimateStep> PrepareResumeAsync(
             GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken) =>
@@ -1305,7 +1316,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         CaseId,
                         await CaseVersionAsync(),
                         form["editLeaseToken"],
-                        Guid.NewGuid().ToString("N")),
+                        Guid.NewGuid().ToString("N"),
+                        Guid.NewGuid()),
                     CancellationToken.None);
             Assert.Equal(GlassRepairEstimateContinuation.Launch, step.Continuation);
             return step.Session;

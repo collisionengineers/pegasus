@@ -43,16 +43,18 @@ namespace Pegasus.Infrastructure.Glass;
 /// the store's version check before the provider hears anything, so two
 /// deliveries racing for one session meet there: one is recorded and acts,
 /// the other reads the record — the same message gets the session as it
-/// stands, a different one is refused. What is lost after the claim stays
-/// <see cref="GlassRepairEstimateSessionState.Unknown"/> on the record, and a
-/// later resume looks the export up again rather than relaying again.
+/// stands, a different one is refused. The claim keeps the message itself, so
+/// a relay that never began can still be made. Once the relay has begun, what
+/// is lost stays <see cref="GlassRepairEstimateSessionState.Unknown"/> on the
+/// record, and a later resume looks the export up again rather than relaying
+/// again.
 /// </para>
 ///
 /// <para>
 /// <b>What is protected.</b> The session's cookie jar, the prepared estimate
 /// (<c>MvaVehicleId</c>, <c>NatCode</c>, <c>EreId</c>, the provider's own
 /// callback — which carries its <c>ere_session</c> — and the rewritten
-/// estimator URL) and the launch's own Case
+/// estimator URL), the accepted return's own query and the launch's own Case
 /// authority are one protected blob at rest. The CSRF token is not: it is
 /// single-use and belongs to one login. The <c>ere_session</c> never appears in
 /// a log, an exception, a failure code or the session read model.
@@ -130,6 +132,10 @@ public sealed partial class GlassRepairEstimateGateway(
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        if (request.SessionId == Guid.Empty)
+        {
+            throw new ArgumentException("A launch names the id its new session takes.", nameof(request));
+        }
         RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
 
         var facts = await caseAuthority.RequireEditAuthorityAsync(
@@ -161,7 +167,7 @@ public sealed partial class GlassRepairEstimateGateway(
             PegasusCallback = options.CallbackFor(correlation).AbsoluteUri,
         };
         var prepared = new GlassRepairEstimateSession(
-            Guid.NewGuid(),
+            request.SessionId,
             request.CaseId,
             credential.Reference.PegasusUserId,
             credential.Reference.CredentialGeneration,
@@ -514,7 +520,10 @@ public sealed partial class GlassRepairEstimateGateway(
         // move to Importing go through the store's version check before the
         // provider hears anything, so two deliveries racing for the same
         // version meet here — one is recorded, the other reads the record.
+        // The message itself is kept with the protected provider state, so the
+        // relay can still be made when the work that owes it did not run.
         results.CallbackQueryDigest = queryDigest;
+        provider.ReturnQuery = callback.RawQuery;
         try
         {
             session = await WriteAsync(
@@ -569,10 +578,10 @@ public sealed partial class GlassRepairEstimateGateway(
 
     /// <summary>
     /// An import's provider work, from where its claim left it: a retained
-    /// result is resolved through custody and landed; an accepted return
-    /// relays the provider's own message, once, then exports; a claim whose
-    /// answer was lost looks the export up again and never relays again. A
-    /// session no import is owed to is returned as it stands.
+    /// result is resolved through custody and landed; an accepted return whose
+    /// relay has not begun relays the provider's own message, once, then
+    /// exports; a relay whose answer was lost is looked up again and never
+    /// relayed again. A session no import is owed to is returned as it stands.
     /// </summary>
     public async Task<GlassRepairEstimateSession> ContinueImportAsync(
         GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
@@ -591,14 +600,18 @@ public sealed partial class GlassRepairEstimateGateway(
         var provider = Unprotect(material.ProtectedProviderState);
         var results = Deserialize(material.ResultArtifactsJson);
         var digest = material.CallbackDigest;
-        if (results.Xml is null
-            && request.RawQuery is { } offered
-            && !string.Equals(Sha256Hex(offered), results.CallbackQueryDigest, StringComparison.Ordinal))
+        // The accepted return is relayed once. The mark goes into the same
+        // claim that precedes the relay, so a claim whose relay never began is
+        // told apart from one whose answer was lost.
+        var relay = results.Xml is null && !results.RelayStarted && provider.ReturnQuery is not null;
+        if (relay)
         {
-            throw Conflict(
-                GlassRepairEstimateSessionConflict.Callback,
-                session.Id,
-                "The Glass's callback offered is not the one this session accepted.");
+            if (!string.Equals(Sha256Hex(provider.ReturnQuery!), results.CallbackQueryDigest, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "The retained Glass's return is not the one this session accepted, so its outcome stays for reconciliation.");
+            }
+            results.RelayStarted = true;
         }
 
         // Claim this version before any external work, so a Resume that read
@@ -617,8 +630,8 @@ public sealed partial class GlassRepairEstimateGateway(
                 return await FinishAsync(request.Actor, session, provider, digest, results, cancellationToken);
             }
 
-            return request.RawQuery is { } rawQuery
-                ? await RelayAsync(request.Actor, session, provider, digest, results, rawQuery, cancellationToken)
+            return relay
+                ? await RelayAsync(request.Actor, session, provider, digest, results, provider.ReturnQuery!, cancellationToken)
                 : await LookUpExportAsync(request.Actor, session, provider, digest, results, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1379,6 +1392,13 @@ public sealed partial class GlassRepairEstimateGateway(
         public string? OriginalCallback { get; set; }
 
         public string? EstimatorUrl { get; set; }
+
+        /// <summary>
+        /// The provider's return exactly as it was accepted, kept so the relay
+        /// can be made by whichever work runs it, after a restart included.
+        /// Its fingerprint is <see cref="Results.CallbackQueryDigest"/>.
+        /// </summary>
+        public string? ReturnQuery { get; set; }
     }
 
     /// <summary>
@@ -1390,6 +1410,12 @@ public sealed partial class GlassRepairEstimateGateway(
     private sealed class Results
     {
         public string? CallbackQueryDigest { get; set; }
+
+        /// <summary>
+        /// Recorded in the claim that precedes the relay. Once set the relay is
+        /// never made again; a lost answer is looked up instead.
+        /// </summary>
+        public bool RelayStarted { get; set; }
 
         public Artifact? Xml { get; set; }
 

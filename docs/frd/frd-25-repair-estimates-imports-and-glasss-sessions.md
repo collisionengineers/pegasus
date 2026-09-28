@@ -170,6 +170,12 @@ delivered again while the import runs waits on the same work.
 Only the owning staff member sees the window or its progress. The estimator
 address is never shown on the page or in its progress answer.
 
+While a session's work runs it cannot be closed. The Close control is absent,
+and a Close posted anyway is refused with a reason, so nothing the work creates
+at the provider is left without a session. A second click of the same Launch
+waits on the first click's work. If the queue is full, the work runs in the
+staff member's own request, as it did before, and is never dropped.
+
 ### Glass's interrupted sessions
 
 A Glass's launch records its callback and external account before contacting
@@ -186,8 +192,10 @@ running for it is settled when the window next asks:
 - Prepared never reached the provider. It stays Prepared and can be resumed,
   and the Case says the estimate did not start.
 - Launching or a claimed import may have reached the provider. It becomes
-  `Unknown`, keeps the account, and follows the Unknown rule below. A claimed
-  import is later looked up again by Resume and is never relayed again.
+  `Unknown`, keeps the account, and follows the Unknown rule below.
+- A claimed import keeps the provider's return with its claim. If the relay
+  back to Glass's had not begun, Resume makes it once. If it had begun,
+  Resume looks the export up again and never relays again.
 
 Every Resume presents the current Case version and live edit lease, including
 preparation, an active estimate and a waiting import. The current registration

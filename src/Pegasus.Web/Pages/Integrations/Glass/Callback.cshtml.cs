@@ -51,7 +51,9 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// <b>The import runs in the background.</b> The return is accepted and
 /// claimed here. Relaying it, exporting, retaining and landing the estimate
 /// run as <see cref="GlassSessionWork"/>, and this window waits in the Glass's
-/// window (<see cref="OpeningModel"/>) until they finish.
+/// window (<see cref="OpeningModel"/>) until they finish. The session is held
+/// busy from before the claim until that work has run, and a full queue runs
+/// the import in this request instead: an accepted return is never dropped.
 /// </para>
 /// </remarks>
 [AllowAnonymous]
@@ -98,25 +100,34 @@ public sealed class CallbackModel(
             return Forbid();
         }
 
+        // Held busy before the claim: a second delivery racing this one sees
+        // the session busy until this one's import has run, and waits on it
+        // rather than settling it.
+        using var reservation = glassWork.Reserve(session.Id);
         try
         {
             // The provider's message travels verbatim: its identity is the
             // correlation and the fingerprint the gateway takes of the query.
-            var rawQuery = Request.QueryString.Value ?? string.Empty;
             var step = await glassEstimates.AcceptCallbackAsync(
-                new GlassRepairEstimateCallback(actor, session.Id, session.Version, correlation, rawQuery),
+                new GlassRepairEstimateCallback(
+                    actor, session.Id, session.Version, correlation, Request.QueryString.Value ?? string.Empty),
                 cancellationToken);
             if (step.Continuation != GlassRepairEstimateContinuation.None)
             {
-                if (glassWork.TryEnqueue(GlassSessionWork.For(actor, step, rawQuery)))
+                var work = GlassSessionWork.For(actor, step);
+                if (reservation.Admit(work) == ProviderWorkAdmission.Queued)
                 {
                     return DetailsModel.GlassOpening(this, step.Session.Id);
                 }
 
-                // The claim stands and nothing ran: settled as any interrupted
-                // import is, and looked up again by a later Resume.
-                return Report(await glassEstimates.SettleInterruptedAsync(actor, step.Session.Id, cancellationToken));
+                // A full queue never drops an accepted return: the import runs
+                // here, as the request always ran it before.
+                await reservation.RunHereAsync(work, HttpContext.RequestServices, cancellationToken);
+                return Report(await glassSessions.GetOwnAsync(session.Id, staffId, cancellationToken) ?? step.Session);
             }
+
+            // Only other work counts from here: this delivery owes none.
+            reservation.Dispose();
             if (glassWork.IsInFlight(step.Session.Id))
             {
                 // The same return again while its import still runs.
