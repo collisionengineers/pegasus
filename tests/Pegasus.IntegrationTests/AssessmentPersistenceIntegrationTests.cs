@@ -114,10 +114,16 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             harness.Factory,
             outcome.Identity.CaseId);
         await SeedReportReadyAssessmentAsync(harness.Factory, outcome.Identity.CaseId);
+        var principalName = await SeedPrincipalAddressAsync(harness.Factory, outcome.Identity.CaseId);
         input = await source.GetAsync(
             outcome.Identity.CaseId,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), CaseWorkSelector.Current);
         Assert.NotNull(input);
+        // Report For is the Principal's organisation, not its code: the name,
+        // each line of the address, then the postcode.
+        Assert.Equal(
+            [principalName, "3rd Floor, Crown House", "Manchester Road", "Wilmslow", "SK9 1BH"],
+            input.ReportFor);
         await using (var verificationContext = await harness.Factory.CreateDbContextAsync())
         {
             Assert.Equal(
@@ -192,6 +198,25 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         workflow.SignOffEngineerId = staffId;
         await context.SaveChangesAsync();
         return staffId;
+    }
+
+    /// <summary>
+    /// Records an address, with a blank line in it, and a postcode on the
+    /// organisation of the Case's Principal, and returns the organisation's name.
+    /// </summary>
+    private static async Task<string> SeedPrincipalAddressAsync(
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid caseId)
+    {
+        await using var context = await factory.CreateDbContextAsync();
+        var organization = await context.Cases
+            .Where(item => item.Id == caseId)
+            .Select(item => item.Principal.Organization)
+            .SingleAsync();
+        organization.Address = "3rd Floor, Crown House\r\nManchester Road\r\n\r\nWilmslow";
+        organization.Postcode = "SK9 1BH";
+        await context.SaveChangesAsync();
+        return organization.Name;
     }
 
     private static async Task SeedReportReadyAssessmentAsync(
