@@ -503,13 +503,11 @@ public partial class IndexModel(
         // The three sections read side by side, each on its own database
         // contexts, and each keeps its own failure: one unreadable section
         // never hides the others. The page's state is set once all three end.
+        // Each read starts inside its own async method, so a reader that
+        // throws before its first await still fails only its own section.
         var clientId = HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId;
         var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, cancellationToken);
-        var newCasesRead = listRecentCases.ExecuteAsync(
-            actor,
-            NewCasesPage,
-            markSeen: NewCasesPage == 1 && !refresh,
-            cancellationToken, NowUtc);
+        var newCasesRead = ReadNewCasesAsync(actor, markSeen: NewCasesPage == 1 && !refresh, cancellationToken);
         var aiJobsRead = ReadAiJobsAsync(clientId, cancellationToken);
         try
         {
@@ -674,6 +672,13 @@ public partial class IndexModel(
             return null;
         }
     }
+
+    /// <summary>The New cases section: the requested page of the recent-Case feed.</summary>
+    private async Task<RecentCasesFeed> ReadNewCasesAsync(
+        ActionActor actor,
+        bool markSeen,
+        CancellationToken cancellationToken) =>
+        await listRecentCases.ExecuteAsync(actor, NewCasesPage, markSeen, cancellationToken, NowUtc);
 
     /// <summary>
     /// The office's unfinished AI work (D9): Queued, Taken and Draft ready from
