@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
@@ -68,6 +69,9 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<VehicleRegistrationCandidateLookup>());
             var analysis = scopedServices.GetRequiredService<AnalyzeRetainedInstruction>();
             Assert.Same(analysis, scopedServices.GetRequiredService<IAnalyzeRetainedInstruction>());
+            // The sweep settles a report whose file custody filed after its request ended.
+            Assert.IsType<EfSettleFiledCaseReportArtifacts>(
+                scopedServices.GetRequiredService<ISettleFiledCaseReportArtifacts>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
@@ -284,6 +288,8 @@ public sealed class WorkerCompositionTests
                 scopedServices.GetRequiredService<IIntakeWorkStore>(),
                 scopedServices.GetRequiredService<IStagedArtifactAuthority>());
             Assert.NotNull(scopedServices.GetRequiredService<ReconcileStagedArtifacts>());
+            Assert.IsType<EfSettleFiledCaseReportArtifacts>(
+                scopedServices.GetRequiredService<ISettleFiledCaseReportArtifacts>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));

@@ -612,6 +612,7 @@ public static class DependencyInjection
                 provider.GetRequiredService<LocalDocumentContentStore>());
             services.AddScoped<IReadLogicalDocumentVersion, LocalLogicalDocumentVersionReader>();
             services.AddScoped<ReconcilePendingArtifactCustody>();
+            services.AddScoped<ISettleFiledCaseReportArtifacts, EfSettleFiledCaseReportArtifacts>();
             services.AddScoped(provider => new EfCaseArtifactCustody(
                 provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
                 provider.GetRequiredService<IDocumentContentStore>(),
@@ -845,6 +846,7 @@ public static class DependencyInjection
         services.AddScoped<ICaseArtifactCustodyStatus>(provider =>
             provider.GetRequiredService<EfCaseArtifactCustody>());
         services.AddScoped<ReconcilePendingArtifactCustody>();
+        services.AddScoped<ISettleFiledCaseReportArtifacts, EfSettleFiledCaseReportArtifacts>();
         return services;
     }
 

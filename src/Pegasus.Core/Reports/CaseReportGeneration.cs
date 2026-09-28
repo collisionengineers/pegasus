@@ -384,6 +384,20 @@ public interface ICaseReportGenerationStore
 }
 
 /// <summary>
+/// Records a generated report file as stored once custody has filed it. A
+/// request can end while its file is still on its way to Box; the file is
+/// filed afterwards and the report's own record would otherwise stay Pending
+/// until someone pressed Generate report again. Each pass confirms at most
+/// <c>maximumItems</c> such files and returns how many it confirmed. It
+/// leaves alone a report frozen, or a file recorded, in the last three
+/// minutes, so it never competes with the request still producing it.
+/// </summary>
+public interface ISettleFiledCaseReportArtifacts
+{
+    Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// Reopens a confirmed generated artifact's immutable bytes. It never
 /// regenerates and never returns a Pending, Failed or Unknown artifact.
 /// </summary>
@@ -711,7 +725,9 @@ public static class CaseReportReadiness
 /// render and retain outside every transaction, then confirm or record the
 /// custody outcome in a second short transaction. A concurrent material Case
 /// change between freeze and confirm leaves the generation confirmed but
-/// stale — rendering finishing later never makes it current again.
+/// stale — rendering finishing later never makes it current again. A retry
+/// asks custody what was filed first and never draws again a file custody
+/// already holds.
 /// </summary>
 public sealed class GenerateCaseReport(
     ICaseReportGenerationStore store,
@@ -760,14 +776,16 @@ public sealed class GenerateCaseReport(
         var artifact = generation.Artifacts.Single(item => item.Id == frozen.ArtifactId);
         var artifactKind = artifact.Kind;
 
-        // Restart-safe retry: a retained Pending or Unknown artifact already
-        // has a logical version, so ask custody what actually happened before
-        // rendering the same bytes again. The status read is occurrence-exact
+        // Restart-safe retry: ask custody what was filed under this artifact
+        // before drawing anything. A drawn file carries its own creation
+        // time, so a second drawing never matches the bytes custody holds
+        // and custody would refuse it. The status read is occurrence-exact
         // (G24) and the artifact record keeps no occurrence id, so the read is
         // by the retain operation key, which is this artifact's recovery
-        // identity (G15) and addresses the same object.
-        if (artifact is { VersionId: not null, DocumentId: not null }
-            && artifact.Status is CaseReportArtifactStatus.Pending or CaseReportArtifactStatus.Unknown)
+        // identity (G15) and addresses the same object. The artifact row need
+        // not hold a version: a request that ended after custody recorded the
+        // file and before its outcome was written left none.
+        if (artifact.Status != CaseReportArtifactStatus.Confirmed)
         {
             var status = await custodyStatus
                 .FindByOperationKeyAsync(request.Actor, request.CaseId, artifact.OperationKey, cancellationToken)
@@ -776,6 +794,11 @@ public sealed class GenerateCaseReport(
             {
                 return Result(await ConfirmAsync(request, generation, artifact, status, cancellationToken)
                     .ConfigureAwait(false));
+            }
+            if (status is not null)
+            {
+                return await RecordOutcomeAsync(request, generation, artifact, status, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
 
@@ -810,23 +833,38 @@ public sealed class GenerateCaseReport(
                 .ConfigureAwait(false));
         }
 
+        return await RecordOutcomeAsync(request, generation, artifact, retained, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Records what custody said about a file it has not confirmed, with
+    /// custody's own identities, and answers Failed or Pending.
+    /// </summary>
+    private async Task<CaseReportGenerationResult> RecordOutcomeAsync(
+        GenerateCaseReportRequest request,
+        CaseReportGenerationRecord generation,
+        CaseReportArtifactRecord artifact,
+        CaseArtifactCustodyResult custodyResult,
+        CancellationToken cancellationToken)
+    {
         var recorded = await store.RecordArtifactOutcomeAsync(
             new RecordCaseReportArtifactOutcomeRequest(
                 request.Actor,
                 request.CaseId,
                 generation.Id,
                 artifact.Id,
-                StatusOf(retained.Disposition),
-                retained.DocumentId,
-                retained.VersionId,
-                retained.BoxFileId,
-                retained.BoxVersionId,
-                retained.PendingContentStorageKey,
-                retained.FailureCode,
+                StatusOf(custodyResult.Disposition),
+                custodyResult.DocumentId,
+                custodyResult.VersionId,
+                custodyResult.BoxFileId,
+                custodyResult.BoxVersionId,
+                custodyResult.PendingContentStorageKey,
+                custodyResult.FailureCode,
                 timeProvider.GetUtcNow()),
             cancellationToken).ConfigureAwait(false);
         return new(
-            retained.Disposition == CaseArtifactCustodyDisposition.Failed
+            custodyResult.Disposition == CaseArtifactCustodyDisposition.Failed
                 ? CaseReportGenerationOutcome.Failed
                 : CaseReportGenerationOutcome.Pending,
             recorded,
