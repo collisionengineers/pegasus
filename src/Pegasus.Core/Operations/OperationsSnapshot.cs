@@ -2,6 +2,7 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Notifications;
@@ -395,8 +396,8 @@ public sealed class GetOperationsSnapshot(
     {
         // The Triage kind is work without a finding, so both no-finding states
         // are queried directly.
-        var openRead = ReadTriageAsync(actor, TriageState.Open, cancellationToken);
-        var awaitingRead = ReadTriageAsync(actor, TriageState.AwaitingInformation, cancellationToken);
+        var openRead = listTriage.ListAllAsync(actor, TriageState.Open, cancellationToken);
+        var awaitingRead = listTriage.ListAllAsync(actor, TriageState.AwaitingInformation, cancellationToken);
         var dueRead = ReadDueWorkAsync(asOfUtc, cancellationToken);
         var heldRead = ReadCasesAsync(actor, CaseLifecycleState.Held, cancellationToken);
         var reviewRead = ReadCasesAsync(actor, CaseLifecycleState.Review, cancellationToken);
@@ -405,16 +406,18 @@ public sealed class GetOperationsSnapshot(
         var draftsRead = aiDrafts is null
             ? Task.FromResult<IReadOnlyList<AiDraft>>([])
             : aiDrafts.ListOpenAsync(cancellationToken);
+        var pairedRead = dashboardQueries.ListPairedVehicleImagesAwaitingStaffAsync(cancellationToken);
         await Task.WhenAll(openRead, awaitingRead, dueRead, heldRead, reviewRead,
-            configurationRead, unidentifiedRead, draftsRead);
-        var (openTriage, openTriageCount) = await openRead;
-        var (awaitingTriage, awaitingTriageCount) = await awaitingRead;
+            configurationRead, unidentifiedRead, draftsRead, pairedRead);
+        var openTriage = await openRead;
+        var awaitingTriage = await awaitingRead;
         var dueWork = await dueRead;
         var held = await heldRead;
         var review = await reviewRead;
         var configuration = await configurationRead;
         var unidentified = await unidentifiedRead;
         var drafts = await draftsRead;
+        var paired = await pairedRead;
 
         var reviewPartitions = review
             .Select(item => new
@@ -435,29 +438,9 @@ public sealed class GetOperationsSnapshot(
             reviewPartitions.Where(partition => partition.IsReadyForEngineerAssignment).Select(partition => partition.Item).ToArray(),
             unidentified,
             [.. openTriage, .. awaitingTriage],
-            openTriageCount + awaitingTriageCount,
-            drafts);
-    }
-
-    private async Task<(IReadOnlyList<TriageSummary> Items, int TotalCount)> ReadTriageAsync(
-        ActionActor actor,
-        TriageState state,
-        CancellationToken cancellationToken)
-    {
-        List<TriageSummary> items = [];
-        var total = 0;
-        for (var page = 1; ; page++)
-        {
-            var result = await listTriage.ExecuteAsync(new(actor, state, page, SourcePageSize), cancellationToken);
-            total = result.TotalCount;
-            items.AddRange(result.Items);
-            if (result.Items.Count < SourcePageSize || page >= result.TotalPages)
-            {
-                break;
-            }
-        }
-
-        return (items, total);
+            openTriage.Count + awaitingTriage.Count,
+            drafts,
+            paired);
     }
 
     private async Task<IReadOnlyList<CaseSearchItem>> ReadCasesAsync(
@@ -507,7 +490,8 @@ public sealed class GetOperationsSnapshot(
         IReadOnlyList<UnidentifiedQueueRow> Unidentified,
         IReadOnlyList<TriageSummary> Triage,
         int TriageTotalCount,
-        IReadOnlyList<AiDraft> Drafts);
+        IReadOnlyList<AiDraft> Drafts,
+        IReadOnlyList<PairedVehicleImagesCase> PairedVehicleImages);
 
     /// <summary>
     /// Every needs-attention row, each read from the query that already backs
@@ -526,14 +510,14 @@ public sealed class GetOperationsSnapshot(
             staffAccounts,
             inputs.Held.Select(item => item.EngineerId ?? Guid.Empty)
                 .Concat(inputs.Triage.Select(record => record.AssigneeId ?? Guid.Empty))
-                .Concat(draftOwners.Values.Select(id => id ?? Guid.Empty)),
+                .Concat(draftOwners.Values.Select(id => id ?? Guid.Empty))
+                .Concat(inputs.PairedVehicleImages.Select(row => row.EngineerId ?? Guid.Empty)),
             cancellationToken);
 
         var items = new List<NeedsAttentionItem>();
         foreach (var work in inputs.DueWork)
         {
-            var due = work.NextChaseAtUtc
-                ?? (work.DueBy is { } dueBy ? WorkTargets.EndOfDay(dueBy) : null);
+            var due = CaseDuePolicy.DueAt(work.NextChaseAtUtc, work.DueBy);
             items.Add(new(
                 NeedsAttentionKind.CaseChase,
                 work.CaseId,
@@ -688,6 +672,28 @@ public sealed class GetOperationsSnapshot(
             });
         }
 
+        foreach (var paired in inputs.PairedVehicleImages)
+        {
+            items.Add(new(
+                NeedsAttentionKind.VehicleImagesPaired,
+                paired.CaseId,
+                paired.Reference,
+                paired.ImageReference,
+                paired.Principal,
+                nameof(ImageInitiatedCaseState.MergedIntoInstructionCase),
+                NeedsAttentionPolicy.Priority(paired.PairedAtUtc, asOfUtc, dayEndUtc),
+                OwnerName(paired.EngineerId, staffNames),
+                paired.PairedAtUtc,
+                LastOutcome: null,
+                Source: null,
+                Attempts: null,
+                Received: paired.ImagesRegisteredAtUtc)
+            {
+                OwnerStaffId = paired.EngineerId,
+                Route = StaffNotificationPolicy.CaseRoute(paired.CaseId)
+            });
+        }
+
         return NeedsAttentionPolicy.Order(
                 items.GroupBy(item => (item.Kind, item.Id)).Select(group => group.First()))
             .ToArray();
@@ -704,12 +710,20 @@ public sealed class GetOperationsSnapshot(
             return owners;
         }
 
-        foreach (var draft in drafts)
+        var caseDrafts = drafts
+            .Where(draft => draft.Job.SubjectKind == AiJobSubjectKind.Case && draft.Job.SubjectId is not null)
+            .ToArray();
+        if (caseDrafts.Length == 0)
         {
-            if (draft.Job.SubjectKind == AiJobSubjectKind.Case && draft.Job.SubjectId is { } caseId)
-            {
-                owners[draft.Job.JobId] = (await workflows.GetAsync(caseId, cancellationToken))?.AssignedEngineerId;
-            }
+            return owners;
+        }
+
+        var engineers = await workflows.GetAssignedEngineersAsync(
+            caseDrafts.Select(draft => draft.Job.SubjectId!.Value).Distinct().ToArray(),
+            cancellationToken);
+        foreach (var draft in caseDrafts)
+        {
+            owners[draft.Job.JobId] = engineers.GetValueOrDefault(draft.Job.SubjectId!.Value);
         }
 
         return owners;

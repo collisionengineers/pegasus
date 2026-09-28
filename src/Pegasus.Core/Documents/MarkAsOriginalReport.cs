@@ -1,6 +1,7 @@
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
@@ -37,6 +38,47 @@ public sealed class MarkAsOriginalReport(IMarkAsOriginalReportStore store, IRead
 
 public static class OriginalReportPolicy
 {
+    /// <summary>
+    /// <b>Original report missing</b> (FRD-01): an Audit with neither a filed
+    /// original report nor standalone-Audit evidence kept at intake.
+    /// </summary>
+    public static bool IsMissing(
+        CaseType caseType,
+        Guid? standaloneAuditEvidenceId,
+        bool hasCurrentAuditReport) =>
+        caseType == CaseType.Audit
+        && standaloneAuditEvidenceId is null
+        && !hasCurrentAuditReport;
+
+    /// <summary>
+    /// Whether a report filed on the Case now is recognised as its original
+    /// report (FRD-16): the report is missing and the Audit is still open,
+    /// the same Cases staff may mark one on.
+    /// </summary>
+    public static bool AwaitsRecognition(
+        CaseType caseType,
+        CaseLifecycleState state,
+        bool isArchived,
+        Guid? standaloneAuditEvidenceId,
+        bool hasCurrentAuditReport) =>
+        IsMissing(caseType, standaloneAuditEvidenceId, hasCurrentAuditReport)
+        && !isArchived
+        && !CaseLifecycleRules.IsClosed(state);
+
+    /// <summary>
+    /// A retained file that may be the original report: the uploaded file
+    /// itself or a message's attachment, never a photograph and never the
+    /// message, whose instruction letter prints dates and references of its own.
+    /// </summary>
+    public static bool IsRecognitionCandidate(IntakeAssetRecord asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return (asset.Kind == IntakeAssetKind.Source && asset.Disposition == IntakeAssetDisposition.Source
+                || asset.Kind == IntakeAssetKind.Attachment && asset.Disposition == IntakeAssetDisposition.Attachment)
+            && !InstructionEvidenceImages.IsImage(asset.MediaType)
+            && !EmailSourceFormat.IsMailMessage(asset.FileName, asset.MediaType);
+    }
+
     public static void ValidateRequest(MarkAsOriginalReportCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);

@@ -8,12 +8,13 @@ namespace Pegasus.Infrastructure.Persistence;
 /// current account state, straight off the Identity tables via EF. Unlike
 /// <see cref="EfStaffAccountAdministration"/> (which owns the mutations and
 /// needs <c>UserManager</c> for password and security-stamp handling), this
-/// class depends only on <see cref="PegasusDbContext"/> — so a host that never
-/// composes ASP.NET Identity (the Worker, and any Infrastructure-only test
-/// host) can still resolve <see cref="IStaffAccountQueries"/> to look up a
-/// staff display name.
+/// class depends only on the context factory — so a host that never composes
+/// ASP.NET Identity (the Worker, and any Infrastructure-only test host) can
+/// still resolve <see cref="IStaffAccountQueries"/> to look up a staff display
+/// name. Each read uses its own context, never the request's scoped one, so a
+/// page may run it beside other reads.
 /// </summary>
-public sealed class EfStaffAccountQueries(PegasusDbContext context)
+public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> contextFactory)
     : IStaffAccountQueries,
       ICaseEngineerChoices
 {
@@ -22,6 +23,7 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await context.Users.AsNoTracking()
             .Where(user => user.IsEnabled
                 && user.UserName != null)
@@ -36,6 +38,7 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
         int limit,
         CancellationToken cancellationToken)
     {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var users = await context.Users
             .AsNoTracking()
             .OrderBy(item => item.UserName)
@@ -79,6 +82,7 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
         Guid staffId,
         CancellationToken cancellationToken)
     {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var user = await context.Users
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == staffId, cancellationToken);
@@ -107,6 +111,7 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
         }
 
         var ids = staffIds.Distinct().ToArray();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // One row per user with its role names collected, so an account with
         // no role or two roles fails the same exactly-one-role invariant as
         // GetAsync instead of vanishing or appearing twice.
@@ -130,6 +135,19 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
     }
 
     public async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ListSignOffEngineersAsync(context, cancellationToken);
+    }
+
+    /// <summary>
+    /// The eligible sign-off Engineers read on a caller's own context, so a
+    /// store that already holds one (and perhaps its transaction) reads them
+    /// there.
+    /// </summary>
+    internal static async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+        PegasusDbContext context,
         CancellationToken cancellationToken)
     {
         var candidates = await (

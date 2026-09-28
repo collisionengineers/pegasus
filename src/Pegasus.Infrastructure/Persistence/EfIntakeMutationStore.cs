@@ -807,12 +807,28 @@ internal sealed class EfIntakeMutationStore(
         {
             throw new IntakeAssociationConflictException("The originating staff group decision changed before completion.");
         }
+        var sourceChannel = EfImageIntakeStore.ParseChannel(imageIntake.SourceChannel);
+        if (sourceChannel == IntakeSourceChannel.ManualUpload)
+        {
+            // A manual group staff have started keeps their per-member links.
+            var images = await EfImageIntakeStore.ListImagesAsync(
+                context, imageIntake.OriginReceiptId, imageIntake.SubmissionGroupId, cancellationToken);
+            var memberIds = images.Select(image => image.ReceiptId).Prepend(imageIntake.OriginReceiptId).ToArray();
+            if (await context.IntakeManualAssociations.AsNoTracking().AnyAsync(
+                    item => memberIds.Contains(item.IntakeReceiptId) && item.ActorKind == nameof(ActorKind.Staff),
+                    cancellationToken))
+            {
+                throw new IntakeAssociationConflictException(
+                    "Staff have started this manual group's decision; it gains no automatic link.");
+            }
+        }
         if (staffGroupOrigin is null)
         {
             var candidates = await EfImageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
                 context, imageIntake.NormalizedVehicleRegistration, cancellationToken);
             var currentTarget = ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
-                imageIntake.NormalizedVehicleRegistration, imageIntake.PrincipalId, memberCount);
+                imageIntake.NormalizedVehicleRegistration, imageIntake.PrincipalId, memberCount,
+                sourceChannel, imageIntake.CreatedAtUtc);
             if (currentTarget?.CaseId != request.CaseId)
             {
                 throw new IntakeAssociationConflictException(

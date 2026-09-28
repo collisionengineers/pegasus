@@ -329,6 +329,50 @@ public interface IMarkAsOriginalReportStore
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>A file an intake receipt filed on a Case, as the Case's document.</summary>
+public sealed record FiledOriginalReportCandidate(
+    Guid IntakeAssetId,
+    Guid DocumentOccurrenceId,
+    Guid DocumentVersionId);
+
+public sealed record RecordRecognisedOriginalReport(
+    Guid CaseId,
+    Guid IntakeReceiptId,
+    Guid DocumentOccurrenceId,
+    Guid DocumentVersionId,
+    ActionActor Actor,
+    string OperationKey);
+
+/// <summary>
+/// The Case side of recognising a filed original report (FRD-16): which of a
+/// receipt's files are on a Case that awaits its report, and the recording
+/// of the one recognised, as the system, under the same rules as a staff Mark.
+/// </summary>
+public interface IRecogniseOriginalReportStore
+{
+    /// <summary>
+    /// The receipt's filed documents among <paramref name="intakeAssetIds"/>,
+    /// current and not images; empty unless the Case is an open Audit whose
+    /// original report is missing.
+    /// </summary>
+    Task<IReadOnlyList<FiledOriginalReportCandidate>> FindAwaitingCandidatesAsync(
+        Guid caseId,
+        Guid receiptId,
+        IReadOnlyCollection<Guid> intakeAssetIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records the role and fills the Original report cells from
+    /// <paramref name="reading"/>. Null when the Case no longer awaits its
+    /// report or the document changed; a live staff edit defers it with
+    /// <see cref="Pegasus.Core.Intake.IntakeDependencyUnavailableException"/>.
+    /// </summary>
+    Task<OriginalReportRecorded?> RecordRecognisedAsync(
+        RecordRecognisedOriginalReport command,
+        OriginalReportReading reading,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// Durable content storage for managed case document versions, keyed by the
 /// immutable case and document-version identities. Implementations verify the
@@ -449,6 +493,24 @@ public sealed record ManagedDocumentContentRead(
     ManagedDocumentContentAddress Address,
     string ExpectedSha256,
     long ExpectedLength);
+
+/// <summary>
+/// A Case's managed versions read through the document content cache first:
+/// a warm version costs one cached-object read, and a cold one is read from
+/// Box once and cached for the next time. The export and the report read
+/// their photographs this way when the cache is composed.
+/// </summary>
+public interface IReadCachedDocumentVersions
+{
+    /// <summary>
+    /// The contents in the order asked for, each verified against its custody
+    /// hash and length, exactly as
+    /// <see cref="IDocumentContentStore.ReadVersionsAsync"/> returns them.
+    /// </summary>
+    Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
+        IReadOnlyList<ManagedDocumentContentRead> reads,
+        CancellationToken cancellationToken);
+}
 
 public sealed record ManagedDocumentContentAddress(
     Guid CaseId,

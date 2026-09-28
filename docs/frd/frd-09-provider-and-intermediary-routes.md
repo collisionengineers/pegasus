@@ -96,8 +96,8 @@ already holds the fields, so it states them.
   budget per request.
 - **Submit.** `POST /api/provider/v1/submissions` as `application/json`,
   with a required `Idempotency-Key` header (at most 200 characters, unique
-  per Principal). The body declares the instruction and carries its files
-  inline as base64.
+  per Principal). The body declares the instruction and carries any files
+  inline as base64. An instruction with no files is accepted.
 - **Principal.** The credential establishes it. A `principal` in the body is
   compared with it, and a mismatch is refused (403, recorded). The field
   exists to catch a provider posting to the wrong account, never to select
@@ -107,25 +107,28 @@ already holds the fields, so it states them.
   `triage` opens a Triage Case with a `t.` Case/PO under the credential's
   Principal ([FRD-03](frd-03-triage.md)).
 - **Audit.** A standalone `audit` states `originalReportVerdict`
-  (`repairable` or `total-loss`) and attaches the original report with its
-  role stated. The declared verdict records the assessment. The Audit Case's
+  (`repairable` or `total-loss`). It may attach the original report, once,
+  with its role stated. With the report, the declared verdict records the
+  assessment. Without it, the Audit Case shows **Original report missing**
+  until the report is filed. The Audit Case's
   reference is the `a.` value itself, and the verdict never changes it
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
   `auditreport` is Collision Engineers auditing its own report and carries
   neither.
-- **Files.** One or more, each with a leaf `fileName`, a `mediaType` the
-  intake reader supports, and base64 `contentBase64`. An optional `role`
-  (`instruction`, `originalreport`, `image`, `correspondence`, `other`) says
-  what the file is. Without it, nothing is inferred and the file is kept as
-  an ordinary attachment. Limits: at most 20 files, each at most 10 MiB, at
+- **Files.** Optional: zero or more, each with a leaf `fileName`, a
+  `mediaType` the intake reader supports, and base64 `contentBase64`. An
+  optional `role` (`instruction`, `originalreport`, `image`,
+  `correspondence`, `other`) says what the file is. Without it, nothing is
+  inferred and the file is kept as an ordinary attachment. At most one file
+  is the `originalreport`. Limits: at most 20 files, each at most 10 MiB, at
   most 30 MiB decoded in total, and at most 42 MiB of request body. A larger
   envelope is 413.
 - **Retention.** One submission is one intake receipt. The retained source
   is the request exactly as it arrived, and the files are that receipt's
   attachments, the same shape an email instruction has. That is what lets an
-  Audit find its original report among its own evidence. The receipt enters
-  the same durable intake path as a staff upload, on the `provider_api`
-  source channel, bound to the authenticated Principal. The submission is
+  Audit find its original report, when attached, among its own evidence. The
+  receipt enters the same durable intake path as a staff upload, on the
+  `provider_api` source channel, bound to the authenticated Principal. The submission is
   the recorded actor in permanent history. If a process crash separates the
   accept writes, the existing reconciliation timer repairs the staged-receipt
   link and the initial `Accepted` history row once intake retention exists.

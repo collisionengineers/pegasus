@@ -184,8 +184,8 @@ $webPackageSha256 = @($manifest.artifacts | Where-Object name -eq 'web.zip')[0].
 The manifest must use schema 3. Its `migrationRuntimeIdentifier` and
 `migrationBundleName` must match the workstation: `win-x64`/`efbundle.exe` on
 Windows or `linux-x64`/`efbundle` on Linux. The three artifacts are `web.zip`,
-`worker.zip` and that migration bundle. `web.zip` is a framework-dependent
-Linux x64 publish for the platform `DOTNETCORE|10.0` stack with
+`worker.zip` and that migration bundle. `web.zip` is a framework-dependent,
+ReadyToRun Linux x64 publish for the platform `DOTNETCORE|10.0` stack with
 `Pegasus.Web.dll` at its root; `worker.zip` targets Linux x64 and carries
 `.azurefunctions/`. Build and migrate on the same workstation platform; do not
 rename the bundle.
@@ -479,6 +479,15 @@ Provisioning may restart the site when it changes app settings; on this route
 that restart runs the previous package against a compatible schema and is
 acceptable. The Web package deployment, not provisioning, changes the served
 bytes.
+
+The exception is a release that adds or changes `WEBSITE_WARMUP_PATH` or
+`WEBSITE_WARMUP_STATUSES`. The previous package cannot answer the new warm-up,
+so the platform keeps failing its start. For that release, deploy `web.zip` and
+wait for the exact release read-back first, then provision and wait for it
+again. If the new package also needs a new setting to start, stage it on the
+stopped site with `--restart false` as in section 9, provision, then start it.
+A rollback is safe: the recovery procedure provisions the retained release's
+own settings before it deploys the retained package.
 
 ## 9. Destructive route: deploy the new Web package, then provision with Worker disabled
 

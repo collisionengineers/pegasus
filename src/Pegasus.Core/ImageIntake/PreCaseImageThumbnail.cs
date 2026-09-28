@@ -8,6 +8,16 @@ namespace Pegasus.Core.ImageIntake;
 public sealed record PreCaseImageThumbnailQuery(Guid ReceiptId, Guid IntakeAssetId, ActionActor Actor);
 
 /// <summary>
+/// A pre-Case image's prepared rendering and the preparation version it drew,
+/// so the route can tell a current tile address from a stale one.
+/// </summary>
+public sealed record PreCaseImageThumbnail(CaseDocumentThumbnail Rendering, long PreparationVersion)
+    : IAsyncDisposable
+{
+    public ValueTask DisposeAsync() => Rendering.DisposeAsync();
+}
+
+/// <summary>
 /// The tile of a pre-Case image with a recorded crop or rotation shows the
 /// prepared region, exactly as a Case image's tile does
 /// (<see cref="IReadCaseDocumentThumbnail"/>). The original is unchanged: Open
@@ -20,7 +30,7 @@ public interface IReadPreCaseImageThumbnail
     /// crop or rotation, is not a renderable image, or could not be rendered —
     /// the caller then serves the original.
     /// </summary>
-    Task<CaseDocumentThumbnail?> OpenAsync(
+    Task<PreCaseImageThumbnail?> OpenAsync(
         PreCaseImageThumbnailQuery query,
         CancellationToken cancellationToken = default);
 }
@@ -30,7 +40,7 @@ public sealed class ReadPreCaseImageThumbnail(
     IPreCaseImagePreparationStore preparations,
     IRenderImageThumbnail renderer) : IReadPreCaseImageThumbnail
 {
-    public async Task<CaseDocumentThumbnail?> OpenAsync(
+    public async Task<PreCaseImageThumbnail?> OpenAsync(
         PreCaseImageThumbnailQuery query,
         CancellationToken cancellationToken = default)
     {
@@ -61,10 +71,12 @@ public sealed class ReadPreCaseImageThumbnail(
         var rendered = await renderer.RenderAsync(asset.Content, preparation.Rotation, preparation.Crop, cancellationToken);
         return rendered is null
             ? null
-            : new CaseDocumentThumbnail(
-                new MemoryStream(rendered, writable: false),
-                CaseDocumentThumbnails.MediaType,
-                rendered.LongLength,
-                asset.Sha256);
+            : new PreCaseImageThumbnail(
+                new CaseDocumentThumbnail(
+                    new MemoryStream(rendered, writable: false),
+                    CaseDocumentThumbnails.MediaType,
+                    rendered.LongLength,
+                    asset.Sha256),
+                preparation.Version);
     }
 }

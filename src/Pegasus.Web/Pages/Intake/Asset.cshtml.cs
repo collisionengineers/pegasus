@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Intake;
 
@@ -12,7 +13,11 @@ namespace Pegasus.Web.Pages.Intake;
 /// download, so retained SVG, HTML or scripts can never execute from this
 /// origin.
 /// </summary>
-[ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+/// <remarks>
+/// An inline image is kept by the browser only when the address names its
+/// current content (<see cref="IntakeImageAddress"/>); every other answer,
+/// including every refusal, is <c>private, no-store</c>.
+/// </remarks>
 public sealed partial class AssetModel(
     IDownloadIntakeAsset downloadAsset,
     IReadPreCaseImageThumbnail readPreCaseThumbnail,
@@ -27,8 +32,12 @@ public sealed partial class AssetModel(
         Guid id,
         Guid assetId,
         [FromQuery] string? size = null,
+        [FromQuery] string? v = null,
+        [FromQuery] string? prep = null,
+        [FromQuery] string? renderer = null,
         CancellationToken cancellationToken = default)
     {
+        Response.Headers.CacheControl = IntakeImageAddress.UncachedCacheControl;
         if (!TryGetActor(out var actor))
         {
             return Forbid();
@@ -36,13 +45,22 @@ public sealed partial class AssetModel(
 
         try
         {
-            if (string.Equals(size, Pegasus.Core.Documents.CaseDocumentThumbnails.ThumbSizeToken, StringComparison.Ordinal)
-                && await readPreCaseThumbnail.OpenAsync(new PreCaseImageThumbnailQuery(id, assetId, actor), cancellationToken) is { } thumbnail)
+            var wantsTile = string.Equals(
+                size, Pegasus.Core.Documents.CaseDocumentThumbnails.ThumbSizeToken, StringComparison.Ordinal);
+            if (wantsTile
+                && await readPreCaseThumbnail.OpenAsync(new PreCaseImageThumbnailQuery(id, assetId, actor), cancellationToken) is { } tile)
             {
-                Response.Headers.CacheControl = "private, no-store";
+                var rendering = tile.Rendering;
+                if (IntakeImageAddress.NamesContent(v, rendering.SourceSha256)
+                    && IntakeImageAddress.NamesPreparation(prep, renderer, tile.PreparationVersion))
+                {
+                    Response.Headers.CacheControl = IntakeImageAddress.KeptCacheControl;
+                    Response.Headers.ETag = IntakeImageAddress.TileETag(
+                        rendering.SourceSha256, tile.PreparationVersion);
+                }
                 Response.Headers.XContentTypeOptions = "nosniff";
                 Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline").ToString();
-                return File(thumbnail.Content, thumbnail.MediaType);
+                return File(rendering.Content, rendering.MediaType);
             }
 
             var asset = await downloadAsset.ExecuteAsync(
@@ -57,7 +75,6 @@ public sealed partial class AssetModel(
                 return NotFound();
             }
 
-            Response.Headers.CacheControl = "private, no-store";
             Response.Headers.XContentTypeOptions = "nosniff";
             // Keep the intake route at the same safe raster boundary used by
             // report rendering. SVG is an image media type but can execute
@@ -70,6 +87,13 @@ public sealed partial class AssetModel(
                     asset.Content.ToArray(),
                     "application/octet-stream",
                     SafeFileName(asset.FileName));
+            }
+            // The whole image on a tile's address is the answer for this one
+            // request only: the tile's rendering may work on the next one.
+            if (!wantsTile && IntakeImageAddress.NamesContent(v, asset.Sha256))
+            {
+                Response.Headers.CacheControl = IntakeImageAddress.KeptCacheControl;
+                Response.Headers.ETag = IntakeImageAddress.ContentETag(asset.Sha256);
             }
             Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline")
             {

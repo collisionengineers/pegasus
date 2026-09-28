@@ -75,6 +75,7 @@ public static class DependencyInjection
             provider.GetRequiredService<DocumentContentCacheMetrics>());
         services.AddSingleton(TimeProvider.System);
         services.TryAddSingleton<IDocumentContentCacheCleanup, NoDocumentContentCacheCleanup>();
+        services.TryAddSingleton<IListDocumentThumbnailCandidates, NoDocumentThumbnailCandidates>();
         services.TryAddSingleton(VehicleLookupAvailability.Unavailable);
         services.AddScoped<EfIntakeReceiptStore>();
         services.AddScoped<EfIntakeSubmissionGroupStore>();
@@ -444,6 +445,7 @@ public static class DependencyInjection
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCaseHeader, GetCaseHeader>();
         services.AddScoped<IGetCase, GetCase>();
+        services.AddScoped<IGetCaseEditBasis, GetCaseEditBasis>();
         services.AddScoped<IGetCasePageFrame, GetCasePageFrame>();
         services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
         services.AddScoped<IGetCaseValuationSection, GetCaseValuationSection>();
@@ -488,6 +490,8 @@ public static class DependencyInjection
         services.AddSingleton(provider => GlassRepairEstimateOptions.Create(
             key => provider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()[key]));
         services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
+            .ConfigureHttpClient((provider, client) =>
+                client.Timeout = provider.GetRequiredService<GlassRepairEstimateOptions>().RequestTimeout)
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
                 AllowAutoRedirect = false,
@@ -674,6 +678,9 @@ public static class DependencyInjection
                 new CaseDocumentThumbnailReader(
                     provider.GetRequiredService<IReadLogicalDocumentVersion>(),
                     provider.GetService<DocumentThumbnailCache>()));
+            // The Worker's sweep makes plain thumbnails through that same
+            // reader before the first view.
+            services.AddScoped<PrepareDocumentThumbnails>();
             services.AddScoped<IExportCaseDocuments>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ILogicallyRemoveDocument>(provider =>
@@ -684,6 +691,11 @@ public static class DependencyInjection
             // cells; acceptance takes it where it is composed (v28 P51).
             services.AddScoped<IReadOriginalReport, ReadOriginalReport>();
             services.AddScoped<MarkAsOriginalReport>();
+            // The intake filer recognises the original report among what it
+            // filed on an Audit awaiting one, where this surface is composed.
+            services.AddScoped<IRecogniseOriginalReportStore>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<RecogniseFiledOriginalReport>();
             services.AddScoped<ITagCaseImage>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IUntagCaseImage>(provider =>
@@ -787,6 +799,9 @@ public static class DependencyInjection
             provider.GetRequiredService<IDocumentContentCacheMetrics>()));
         services.AddScoped<IReadLogicalDocumentVersion>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
+        // The export and the report read their photographs cache first.
+        services.AddScoped<IReadCachedDocumentVersions>(provider =>
+            provider.GetRequiredService<CachedDocumentContentStore>());
         services.AddScoped<IDocumentContentCacheCleanup>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
         // The derived-thumbnail variant of the same cache: the same container
@@ -795,6 +810,12 @@ public static class DependencyInjection
             provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
             intakeContainerFactory(provider),
             provider.GetRequiredService<TimeProvider>()));
+        // The versions whose plain thumbnails the Worker makes ahead of the
+        // first view. One per process, because it remembers what it offered.
+        services.AddSingleton<IListDocumentThumbnailCandidates>(provider =>
+            new EfDocumentThumbnailCandidates(
+                provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                provider.GetRequiredService<TimeProvider>()));
         return services.AddProductionBoxCustody(boxOptions);
     }
 
@@ -828,7 +849,8 @@ public static class DependencyInjection
         services.AddSingleton(provider => new BoxContentClient(
             provider.GetRequiredService<BoxCustodyOptions>(),
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(BoxContentClient)),
-            provider.GetRequiredService<IBoxAuthorizationHeaderProvider>()));
+            provider.GetRequiredService<IBoxAuthorizationHeaderProvider>(),
+            provider.GetRequiredService<TimeProvider>()));
         services.AddSingleton<ICaseCustody>(provider => new BoxCaseCustody(
             provider.GetRequiredService<IIntakeArtifactStore>(),
             provider.GetRequiredService<BoxContentClient>()));

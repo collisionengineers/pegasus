@@ -460,6 +460,11 @@ public sealed class AiJobTests
                     3)
                 : null);
 
+        public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
+            IReadOnlyCollection<Guid> caseIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<bool> HasOperationAsync(Guid id, string operationKey, CancellationToken cancellationToken) =>
             Task.FromResult(false);
     }

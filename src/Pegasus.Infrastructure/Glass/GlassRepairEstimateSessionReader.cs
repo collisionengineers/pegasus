@@ -3,8 +3,8 @@ using Pegasus.Core.Assessment;
 namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
-/// The two reads the Case workspace and the callback page make that
-/// <see cref="IGlassRepairEstimateSessionStore"/> does not answer.
+/// The reads the Case workspace, the callback page and the Glass's window make
+/// that <see cref="IGlassRepairEstimateSessionStore"/> does not answer.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -12,12 +12,12 @@ namespace Pegasus.Infrastructure.Glass;
 /// gateway needs: it either creates a session or is handed one. A screen has
 /// neither — the Estimate section knows a Case and the staff member looking at it,
 /// and the provider's redirect knows only the one-use correlation it was
-/// launched under. Both are answered here, in Infrastructure, because the
-/// contract is frozen across streams and a second read model in Core would be
-/// a second owner of the same row.
+/// launched under; the Glass's window knows a session id but must answer only
+/// its owner. These are answered here, in Infrastructure, because a second
+/// read model in Core would be a second owner of the same row.
 /// </para>
 /// <para>
-/// Neither read carries provider material: the answer is the same
+/// No read carries provider material: the answer is the same
 /// <see cref="GlassRepairEstimateSession"/> the store already projects, so the
 /// protected state, the cookie jar and the callback fingerprint stay where they
 /// are written. A caller that means to act on a session still goes through
@@ -51,4 +51,12 @@ public interface IGlassRepairEstimateSessionReader
     /// </summary>
     Task<GlassRepairEstimateSession?> GetLiveForUserAsync(
         Guid pegasusUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The session with this id when it belongs to the staff member, or null.
+    /// Another staff member's session answers null, so the Glass's window
+    /// that watches a session cannot tell it from one that does not exist.
+    /// </summary>
+    Task<GlassRepairEstimateSession?> GetOwnAsync(
+        Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken);
 }

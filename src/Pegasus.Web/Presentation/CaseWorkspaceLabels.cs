@@ -99,7 +99,7 @@ public static class CaseWorkspaceLabels
         public const string ContactEmail = "Contact e-mail";
         public const string ContactPhone = "Contact phone";
         public const string Address = "Address";
-        public const string VatStatus = "VAT status";
+        public const string VatStatus = "Claimant VAT status";
         public const string Notes = "Notes";
         public const string PrincipalNotes = "Principal notes";
         public const string PrincipalNotesThisCase = "Principal notes · this Case";
@@ -415,6 +415,17 @@ public static class CaseWorkspaceLabels
             } => "files",
             _ => null
         };
+
+        /// <summary>
+        /// The control on the Repair Spec section that clears a repairer VAT
+        /// blocker, as a selector: its Repairer VAT status for an unknown
+        /// status, Reset to repairer status for a hand-picked set of costs.
+        /// Null for every other blocker (issue 898).
+        /// </summary>
+        public static string? BlockerFocus(AssessmentReadinessItem item) =>
+            item == CaseReportReadiness.RepairerVatStatusUnknown ? "#estimate-vat-status"
+            : item == CaseReportReadiness.RepairerVatHandPicked ? "[data-vat-reset]"
+            : null;
     }
 
     /// <summary>
@@ -442,6 +453,7 @@ public static class CaseWorkspaceLabels
         public const string Scaled = "Scaled";
         public const string Apply = "Apply";
         public const string RemoveScaling = "Remove scaling";
+        public const string ScalePreview = "Preview";
         public const string Floors = "Floors";
         public const string FloorLabour = "labour \u00a3/h";
         public const string FloorPrices = "prices %";
@@ -900,6 +912,7 @@ public static class CaseWorkspaceLabels
         public const string IncludeFeeNote = "Include fee note";
         public const string OpenReport = "Open report";
         public const string OpenReportWithFeeNote = "Open report with fee note";
+        public const string OpenFeeNote = "Open fee note";
         public const string DownloadFeeNote = "Fee note";
         public const string GenerationStaleNotice =
             "A newer fact changed after this generation. Generate again before delivery.";
@@ -926,7 +939,7 @@ public static class CaseWorkspaceLabels
         /// no longer offers it.
         /// </summary>
         public const string NotReadyAfterSave =
-            "The report is not ready after the save. The Report section lists what is missing.";
+            "The report is not ready after the save.";
 
         /// <summary>The generation ran out of time.</summary>
         public static string TookTooLong(CaseReportArtifactKind kind) =>
@@ -997,6 +1010,7 @@ public static class CaseWorkspaceLabels
         public const string CloseConsequence = "Closing this record releases the Glass's account for another estimate.";
         public const string Closed = "The Glass's session was closed.";
         public const string CloseRefused = "The Glass's session was not closed.";
+        public const string CloseWhileWorking = "The Glass's session was not closed. Glass's is still being prepared or brought back; close it when that has finished.";
         public const string CloseChanged = "The Glass's session changed. Its controls have been refreshed. Confirm external closure again before closing it.";
         public const string State = "State";
         public const string OpenOn = "Open on";
@@ -1028,6 +1042,13 @@ public static class CaseWorkspaceLabels
 
         public const string ResumeRefused =
             "The Glass's session was not resumed. Retry the operation.";
+
+        /// <summary>The Glass's window while its provider work runs in the background.</summary>
+        public const string Preparing = "Preparing Glass's…";
+
+        public const string BringingBack = "Bringing the estimate back…";
+
+        public const string Continue = "Continue";
 
         /// <summary>
         /// What a settled session reports, wherever it settled: the Estimate

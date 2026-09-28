@@ -261,6 +261,10 @@ public sealed class ImmediateExternalPublicationTests
         public Task<OriginalReportReading?> ForDocumentAsync(
             ActionActor actor, Guid caseId, Guid occurrenceId, Guid versionId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<OriginalReportRecognition> RecogniseFiledAssetAsync(
+            Guid receiptId, IntakeAssetRecord asset, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingPublisher : ICommittedExternalWorkPublisher

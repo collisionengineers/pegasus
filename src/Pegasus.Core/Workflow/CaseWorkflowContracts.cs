@@ -440,6 +440,14 @@ public interface ICaseWorkflowQueries
 {
     Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The assigned engineer of each listed Case, in one read. A Case with no
+    /// workflow is absent; a Case with no engineer maps to <see langword="null"/>.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
+        IReadOnlyCollection<Guid> caseIds,
+        CancellationToken cancellationToken);
+
     Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken);
 }
 

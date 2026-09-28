@@ -1830,6 +1830,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[AuditReference] IS NOT NULL");
 
+                    b.HasIndex("CreatedAtUtc");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("CreatedAtUtc"), new[] { "Type" });
+
                     b.HasIndex("OriginIntakeReceiptId");
 
                     b.HasIndex("PrincipalId");
@@ -3069,6 +3073,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[ReportSentEvidenceId] IS NOT NULL");
 
+                    b.HasIndex("State");
+
                     b.ToTable("CaseWorkflows", null, t =>
                         {
                             t.HasCheckConstraint("CK_CaseWorkflows_ArchiveMetadata", "([ArchivedAtUtc] IS NULL AND [ArchivedByKind] IS NULL AND [ArchivedBySubjectId] IS NULL AND [ArchivedByRolesJson] IS NULL AND [ArchiveReason] IS NULL) OR ([ArchivedAtUtc] IS NOT NULL AND [ArchivedByKind] IS NOT NULL AND [ArchivedBySubjectId] IS NOT NULL AND [ArchivedByRolesJson] IS NOT NULL AND [ArchiveReason] IS NOT NULL AND [ArchiveReason] <> '')");
@@ -3142,6 +3148,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ActorKind", "OccurredAtUtc");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ActorKind", "OccurredAtUtc"), new[] { "CaseId", "EventType", "BeforeVersion", "AfterVersion" });
 
                     b.HasIndex("CaseId", "AfterVersion")
                         .IsUnique()

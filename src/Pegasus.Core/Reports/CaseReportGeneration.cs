@@ -470,8 +470,54 @@ public sealed record CaseReportFreezeInputs(
 /// </summary>
 public interface ICaseReportSnapshotSource
 {
+    /// <param name="reuse">
+    /// Reads the caller already holds for this Case, used in place of reading
+    /// them again; null reads everything.
+    /// </param>
     Task<CaseReportFreezeInputs?> GetAsync(
-        Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken);
+        Guid caseId,
+        ActionActor actor,
+        CaseWorkSelector work,
+        ReportProjectionReuse? reuse,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Reads a page already made for one Case and work, handed to the snapshot
+/// source so it does not repeat them. The workspace and the applied valuations
+/// are the work's own and are used only for that work; the image preparations
+/// are the Case's. A value that belongs to another Case is refused.
+/// </summary>
+public sealed record ReportProjectionReuse(
+    CaseWorkSelector Work,
+    AssessmentWorkspace? Workspace = null,
+    IReadOnlyList<CaseAssetPreparation>? Preparations = null,
+    IReadOnlyList<AppliedValuation>? AppliedValuations = null)
+{
+    public AssessmentWorkspace? WorkspaceFor(Guid caseId, CaseWorkSelector work)
+    {
+        if (Workspace is { Header.CaseId: var workspaceCaseId } && workspaceCaseId != caseId)
+        {
+            throw new ArgumentException("The reused Assessment workspace belongs to another Case.", nameof(caseId));
+        }
+
+        return work == Work ? Workspace : null;
+    }
+
+    public IReadOnlyList<CaseAssetPreparation>? PreparationsFor(Guid caseId) =>
+        Preparations is { } preparations && preparations.Any(preparation => preparation.CaseId != caseId)
+            ? throw new ArgumentException("A reused image preparation belongs to another Case.", nameof(caseId))
+            : Preparations;
+
+    public IReadOnlyList<AppliedValuation>? AppliedValuationsFor(Guid caseId, CaseWorkSelector work)
+    {
+        if (AppliedValuations is { } applied && applied.Any(valuation => valuation.CaseId != caseId))
+        {
+            throw new ArgumentException("A reused applied valuation belongs to another Case.", nameof(caseId));
+        }
+
+        return work == Work ? AppliedValuations : null;
+    }
 }
 
 /// <summary>
@@ -615,13 +661,14 @@ public static class CaseReportReadiness
 
     // The repairer's VAT status decides what VAT is charged on, so a report
     // on an unknown status would understate the repair cost (operator, 27
-    // September 2026).
-    internal static readonly AssessmentReadinessItem RepairerVatStatusUnknown = new(
+    // September 2026). Both are public so the Case page can open the control
+    // each one names (issue 898).
+    public static readonly AssessmentReadinessItem RepairerVatStatusUnknown = new(
         RepairerVatRequirement, "Estimates",
         "The Current repair spec does not say whether the repairer is VAT registered, so the report cannot work out the VAT.",
         "Choose Registered or Not registered as the Repairer VAT status on the Repair Spec section.");
 
-    internal static readonly AssessmentReadinessItem RepairerVatHandPicked = new(
+    public static readonly AssessmentReadinessItem RepairerVatHandPicked = new(
         RepairerVatRequirement, "Estimates",
         "The Current repair spec charges VAT on a hand-picked set of costs, and the report has no wording for that set.",
         "Use Reset to repairer status beside VAT charged on, on the Repair Spec section.");

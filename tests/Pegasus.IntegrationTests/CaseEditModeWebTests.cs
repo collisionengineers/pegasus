@@ -182,6 +182,31 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("data-editor-commit=\"{", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Save and the lease it reclaims read only the Case's frame and data,
+    /// never the full Case read with its documents, history and tasks.
+    /// </summary>
+    [Fact]
+    public async Task CaseSaveAndItsReclaimReadOnlyTheEditBasis()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true, ThrowOnBroadCaseRead = true };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISaveCaseWorkspace>(services, store));
+        var before = store.CaseVersion;
+
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            Form(workspace.AntiforgeryToken,
+                ("expectedVersion", before.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("claimNumber", "CLM-42")));
+
+        AssertPrg(response, store.CaseId);
+        Assert.Single(store.Saves);
+        Assert.Equal(2, store.Claims.Count);
+        Assert.Equal(2, store.EditBasisReads);
+    }
+
     [Fact]
     public async Task TheRibbonSaveEndsEditMode()
     {
@@ -225,6 +250,7 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IGetCase>(services, store);
+            Substitute<IGetCaseEditBasis>(services, store);
             Substitute<IGetCasePageFrame>(services, store);
             Substitute<IGetCaseVehicleSection>(services, store);
             Substitute<IGetCaseValuationSection>(services, store);
@@ -404,6 +430,7 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IGetCase>(services, store);
+            Substitute<IGetCaseEditBasis>(services, store);
             Substitute<IGetCasePageFrame>(services, store);
             Substitute<IGetCaseVehicleSection>(services, store);
             Substitute<IGetCaseValuationSection>(services, store);
@@ -657,12 +684,9 @@ public sealed class CaseEditModeWebTests
     {
         var store = new RecordingCaseDetailsStore
         {
-            InspectionChoices = new(
-                "8 Claimant Street",
-                "12 Kingsway, Leeds LS1 1AA",
-                "14 Storage Lane",
-                [],
-                "Kingsway Accident Repair")
+            RepairerAddress = "12 Kingsway, Leeds LS1 1AA",
+            RepairerName = "Kingsway Accident Repair",
+            PreviousInspectionAddresses = []
         };
         using var workspace = await EnterEditModeAsync(store, services =>
         {
@@ -751,28 +775,32 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("id=\"case-edit-form\"", reading, StringComparison.Ordinal);
     }
 
-    private static string HandlerFormInputValue(string html, string handler, string name)
+    private static string HandlerFormInputValue(string html, string handler, string name) =>
+        InputValue(HandlerForm(html, handler), name);
+
+    private static string HandlerForm(string html, string handler)
     {
         var form = Regex.Match(
             html,
             $"<form[^>]*handler={Regex.Escape(handler)}[^>]*>.*?</form>",
             RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         Assert.True(form.Success, $"The workspace must render the '{handler}' form.");
-        return InputValue(form.Value, name);
+        return form.Value;
     }
 
 
 
     [Fact]
-    public async Task HoldingTheEditLeaseDefersOnlyFilesAndKeepsTheSingleEditorComplete()
+    public async Task HoldingTheEditLeaseDefersOnlyFilesAndNotesAndKeepsTheSingleEditorComplete()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await workspace.GetWorkspaceAsync();
 
-        Assert.Equal(["files"], DeferredSections(html));
+        Assert.Equal(["files", "notes"], DeferredSections(html));
         Assert.Contains("id=\"section-files\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"section-notes\"", html, StringComparison.Ordinal);
         Assert.Contains("section-placeholder", html, StringComparison.Ordinal);
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
@@ -809,6 +837,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
             }));
@@ -866,6 +895,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
@@ -928,6 +958,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
@@ -994,6 +1025,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 var readers = new TwoCasePageReaders(store, otherStore);
                 Substitute<IGetCasePageFrame>(services, readers);
@@ -1046,6 +1078,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 var readers = new TwoCasePageReaders(store, otherStore);
                 Substitute<IGetCasePageFrame>(services, readers);
@@ -1118,6 +1151,7 @@ public sealed class CaseEditModeWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -1505,7 +1539,86 @@ public sealed class CaseEditModeWebTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>The Report not ready label and the blocker list show outside edit mode too.</summary>
+    /// <summary>
+    /// The companion documents are generated out of edit mode the way the
+    /// report is (issue 912): after a report is generated from read mode the
+    /// page offers each Generate without a lease, and the handler claims the
+    /// Case's lease for the one generation, names the confirmed generation
+    /// and releases the lease after.
+    /// </summary>
+    [Theory]
+    [InlineData("GenerateFeeNote", CaseReportArtifactKind.FeeNote)]
+    [InlineData("GenerateRepairSpec", CaseReportArtifactKind.RepairSpecification)]
+    [InlineData("GenerateImagePack", CaseReportArtifactKind.ImagePack)]
+    public async Task CompanionGenerateOutsideEditModeClaimsTheLeaseForTheGenerationAndReleasesIt(
+        string handler,
+        CaseReportArtifactKind kind)
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var generator = new RecordingGenerateReport();
+        var generation = ConfirmedSeparateGeneration(store);
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+        {
+            ReadyReportPorts(services, store, generator);
+            Substitute<ICaseReportGenerationStore>(services, generation);
+        });
+        var form = HandlerForm(await ReportSectionAsync(workspace), handler);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", form, StringComparison.Ordinal);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler={handler}&section=report",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion")),
+                ("targetGenerationId", InputValue(form, "targetGenerationId"))));
+
+        AssertPrg(response, store.CaseId, "section=report");
+        var claim = Assert.Single(store.Claims);
+        Assert.Equal(store.CaseVersion, claim.ExpectedVersion);
+        var request = Assert.Single(generator.Requests);
+        Assert.Equal(kind, request.Kind);
+        Assert.Equal(generation.Record.Id, request.TargetGenerationId);
+        Assert.False(request.IncludeFeeNote);
+        Assert.Equal(store.LeaseToken, request.LeaseToken);
+        var release = Assert.Single(store.LeaseReleases);
+        Assert.Equal(store.LeaseToken, release.LeaseToken);
+        Assert.Null(store.LeaseHolder);
+    }
+
+    /// <summary>
+    /// While a colleague holds the Case's lease no companion Generate is
+    /// offered in read mode, as Generate report is not.
+    /// </summary>
+    [Fact]
+    public async Task AColleaguesLeaseOffersNoCompanionGenerate()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            LeaseHolder = Guid.NewGuid().ToString("D")
+        };
+        var generator = new RecordingGenerateReport();
+        var generation = ConfirmedSeparateGeneration(store);
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+        {
+            ReadyReportPorts(services, store, generator);
+            Substitute<ICaseReportGenerationStore>(services, generation);
+        });
+
+        var html = await ReportSectionAsync(workspace);
+
+        Assert.DoesNotContain("handler=GenerateFeeNote", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=GenerateRepairSpec", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=GenerateImagePack", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Report not ready label and the blocker list show outside edit mode
+    /// too: the label in the Report head, the list in the aside's Next action
+    /// (issue 899), never both in Report.
+    /// </summary>
     [Fact]
     public async Task TheReportNotReadyLabelAndBlockersShowOutsideEditMode()
     {
@@ -1513,11 +1626,15 @@ public sealed class CaseEditModeWebTests
         using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
             Substitute<ICaseReportSnapshotSource>(services, store));
 
-        var report = Section(await ReportSectionAsync(workspace), "section-report-title");
+        var html = await ReportSectionAsync(workspace);
+        var report = Section(html, "section-report-title");
+        var nextAction = NextActionRegex().Match(html);
 
         Assert.Contains("data-report-gate", report, StringComparison.Ordinal);
-        Assert.Contains("data-report-not-ready", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-not-ready", report, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-generate-report-form\"", report, StringComparison.Ordinal);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        Assert.Contains("data-report-not-ready", nextAction.Value, StringComparison.Ordinal);
     }
 
     /// <summary>A report with nothing blocking it, and the generation the page calls.</summary>
@@ -1546,6 +1663,18 @@ public sealed class CaseEditModeWebTests
         return form.Value;
     }
 
+    /// <summary>
+    /// A confirmed generation whose fee note is a separate document not yet
+    /// made; its images are retried, so all three companion Generates stand.
+    /// </summary>
+    private static AssessmentReportDraftWebTests.FakeCurrentGeneration ConfirmedSeparateGeneration(
+        RecordingCaseDetailsStore store) =>
+        new(
+            store.CaseId,
+            includeFeeNote: false,
+            imagePackStatus: CaseReportArtifactStatus.Pending,
+            imagePackOperationKey: Guid.NewGuid().ToString("N"));
+
 
     [Fact]
     public async Task RefusedRetentionKeepsEditorialValuesAndNeverIdentifiersOrRoutingFields()
@@ -1558,6 +1687,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -1612,6 +1742,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -1652,6 +1783,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders("r.hughes"));
@@ -1687,6 +1819,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders(displayName: null));
@@ -1731,6 +1864,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders(displayName: null, isAutomation: true));
@@ -1767,6 +1901,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
@@ -1860,6 +1995,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
             }));

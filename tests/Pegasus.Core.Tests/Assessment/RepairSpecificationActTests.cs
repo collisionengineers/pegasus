@@ -40,6 +40,91 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
+    public void APreviewReadsTheScaledSpecsOwnTotalsAndTheWordsApplyRecords()
+    {
+        // Issue 897: the slider previews what Apply records, so the target,
+        // the totals and the readout are Core's, one owner for each.
+        var specification = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 400m, quantity: 2),
+            Line("repair", workUnits: 4m));
+        var target = RepairSpecificationScaling.TargetGross(2_000m, 60m);
+        Assert.Equal(1_200m, target);
+
+        var result = RepairSpecificationScaling.Scale(specification, target, ScalingFloors.Default);
+
+        Assert.Equal(result.Totals.Printed.Gross, result.GrossAfter);
+        Assert.Equal(result.Totals.Printed.Net + result.Totals.Printed.Vat, result.Totals.Printed.Gross);
+        Assert.True(result.GrossAfter <= target);
+        var readout = RepairSpecificationWording.ScaleReadout(result, 60m);
+        Assert.StartsWith(RepairSpecificationWording.Money(result.GrossBefore), readout, StringComparison.Ordinal);
+        Assert.Contains("(60.0 % of value)", readout, StringComparison.Ordinal);
+        Assert.Equal("Repair spec scaled: " + readout, RepairSpecificationWording.Scaled(result, 60m));
+        Assert.Throws<InvalidOperationException>(() => RepairSpecificationScaling.TargetGross(null, 30m));
+        Assert.Throws<ArgumentException>(() => RepairSpecificationScaling.TargetGross(2_000m, 0.5m));
+    }
+
+    [Fact]
+    public void APreviewScalesTheSpecASaveRecordsWithItsSpecialistWorkUnitsCarried()
+    {
+        // The editor posts a Specialist line as fixed-price; the save keeps
+        // the saved line's work-unit sub-type, whose hours are priced labour.
+        // The preview scales the spec the save records, so it matches Apply
+        // on the saved spec to the penny.
+        var saved = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 400m),
+            Line("specialist_wu", workUnits: 3m));
+        var posted = saved.Lines
+            .Select(RepairSpecificationScaling.ToInput)
+            .Select(line => line with
+            {
+                Type = EstimateOperations.ToLineType(EstimateOperations.FromLineType(line.Type)),
+            })
+            .ToArray();
+        Assert.Equal("specialist_fixed", posted[1].Type);
+        Guid?[] ids = [.. saved.Lines.Select(line => (Guid?)line.Id)];
+        var target = RepairSpecificationScaling.TargetGross(1_000m, 60m);
+
+        var preview = RepairSpecificationScaling.Scale(
+            EstimatePolicy.Edited(CaseId, Engineer, saved, saved.Details, posted, ids, Now),
+            target, ScalingFloors.Default);
+        var applied = RepairSpecificationScaling.Scale(saved, target, ScalingFloors.Default);
+
+        Assert.Equal("specialist_wu", preview.Lines[1].Type);
+        Assert.Equal(applied.GrossBefore, preview.GrossBefore);
+        Assert.Equal(applied.Totals.Printed, preview.Totals.Printed);
+        Assert.Equal(
+            RepairSpecificationWording.ScaleReadout(applied, 60m),
+            RepairSpecificationWording.ScaleReadout(preview, 60m));
+
+        // A line the save refuses is refused by the preview too.
+        Assert.Throws<ArgumentException>(() => EstimatePolicy.Edited(
+            CaseId, Engineer, saved, saved.Details, [posted[0] with { Quantity = 0 }, posted[1]], ids, Now));
+    }
+
+    [Fact]
+    public void TheReadoutSaysWhenTheLabourRateStopsAtItsFloor()
+    {
+        // v28 P34: the readout marks a target the labour floor keeps the
+        // rate from following; a target the rate can follow is unmarked.
+        var specification = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 400m),
+            Line("repair", workUnits: 4m));
+        var before = EstimateTotals.Compute(specification).Printed.Gross;
+
+        var deep = RepairSpecificationScaling.Scale(specification, before * 0.5m, ScalingFloors.Default);
+        var light = RepairSpecificationScaling.Scale(specification, before * 0.95m, ScalingFloors.Default);
+
+        Assert.True(deep.LabourAtFloor);
+        Assert.Equal(ScalingFloors.Default.LabourRatePerHour, deep.Details.BaseHourlyRate);
+        Assert.EndsWith(" · labour at floor", RepairSpecificationWording.ScaleReadout(deep, 50m), StringComparison.Ordinal);
+        Assert.False(light.LabourAtFloor);
+        Assert.DoesNotContain("labour at floor", RepairSpecificationWording.ScaleReadout(light, 95m), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ScalingUsesTheLastNonExceedingRoundedEndpoint()
     {
         var specification = Estimate(

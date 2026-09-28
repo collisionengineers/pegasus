@@ -72,6 +72,11 @@ public sealed class WorkerCompositionTests
             // The sweep settles a report whose file custody filed after its request ended.
             Assert.IsType<EfSettleFiledCaseReportArtifacts>(
                 scopedServices.GetRequiredService<ISettleFiledCaseReportArtifacts>());
+            // The sweep makes plain thumbnails from the cached production store.
+            Assert.NotNull(scopedServices.GetRequiredService<Pegasus.Core.Documents.PrepareDocumentThumbnails>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Custody.EfDocumentThumbnailCandidates",
+                provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>().GetType().FullName);
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
@@ -290,6 +295,9 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<ReconcileStagedArtifacts>());
             Assert.IsType<EfSettleFiledCaseReportArtifacts>(
                 scopedServices.GetRequiredService<ISettleFiledCaseReportArtifacts>());
+            // No thumbnail cache here, so the sweep has nothing to make.
+            Assert.IsType<Pegasus.Infrastructure.Custody.NoDocumentThumbnailCandidates>(
+                provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
