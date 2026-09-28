@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -18,6 +19,18 @@ internal sealed class EfRecentCaseQueries(
 {
     private static readonly string AutomationActorKind = nameof(ActorKind.Automation);
 
+    /// <summary>The event that created its Case, which the feed shows as the New case row.</summary>
+    private static readonly Expression<Func<CaseWorkflowEventEntity, bool>> IsCreationEvent =
+        item => item.BeforeVersion == 0
+            && item.AfterVersion == 0
+            && (item.EventType == "manual_case_created"
+                || item.EventType == "case_created_as_replacement");
+
+    private static readonly Expression<Func<CaseWorkflowEventEntity, bool>> IsNotCreationEvent =
+        Expression.Lambda<Func<CaseWorkflowEventEntity, bool>>(
+            Expression.Not(IsCreationEvent.Body),
+            IsCreationEvent.Parameters);
+
     public async Task<RecentCasesPage> ListAsync(
         DateTimeOffset sinceUtc,
         int page,
@@ -36,12 +49,9 @@ internal sealed class EfRecentCaseQueries(
         // A creation event is already its Case's New case row, and guidance
         // applied at version 0 is part of creating the Case.
         var changes = context.CaseWorkflowEvents.AsNoTracking()
+            .Where(IsNotCreationEvent)
             .Where(change => change.OccurredAtUtc >= sinceUtc
                 && change.ActorKind == AutomationActorKind
-                && !(change.BeforeVersion == 0
-                    && change.AfterVersion == 0
-                    && (change.EventType == "manual_case_created"
-                        || change.EventType == "case_created_as_replacement"))
                 && !(change.EventType == "case_guidance_applied" && change.BeforeVersion == 0));
         // Every Case has its Principal and every event its Case, so the joins
         // below neither add nor drop rows and each source is counted alone.
@@ -50,9 +60,11 @@ internal sealed class EfRecentCaseQueries(
 
         // Only a source's newest page*pageSize rows can reach the requested
         // page. A longer source is cut at its page*pageSize-th newest moment,
-        // keeping every row tied with it, so the merge below orders exactly
-        // the rows that lead the whole window.
-        var leading = page * pageSize;
+        // keeping every row tied with it, so the cut is the same whatever
+        // order ties come back in and the merge below orders exactly the
+        // rows that lead the whole window. A page past any int is past the end.
+        var leading = (int)Math.Min((long)page * pageSize, int.MaxValue);
+        var skipped = (int)Math.Min((long)(page - 1) * pageSize, int.MaxValue);
         var createdWindow = createdCases;
         if (createdCount > leading)
         {
@@ -75,7 +87,7 @@ internal sealed class EfRecentCaseQueries(
                     .FirstOrDefault());
         }
 
-        var creationEvents = CreationEvents(context.CaseWorkflowEvents);
+        var creationEvents = context.CaseWorkflowEvents.Where(IsCreationEvent);
         var created = await (
             from caseEntity in createdWindow
             join principal in context.Set<PrincipalEntity>().AsNoTracking()
@@ -93,6 +105,7 @@ internal sealed class EfRecentCaseQueries(
                 creationEvents.Any(item =>
                     item.CaseId == caseEntity.Id
                     && item.ActorKind == AutomationActorKind),
+                null,
                 null))
             .ToListAsync(cancellationToken);
 
@@ -113,14 +126,19 @@ internal sealed class EfRecentCaseQueries(
                 change.OccurredAtUtc,
                 receipt == null ? null : receipt.SourceChannel,
                 false,
-                change.EventType))
+                change.EventType,
+                change.Id))
             .ToListAsync(cancellationToken);
 
+        // Rows at the same moment on the same Case fall back to the New case
+        // row, then event identity, so every page agrees on where ties go.
         var rows = created.Concat(changed)
             .OrderByDescending(row => row.OccurredAtUtc)
             .ThenBy(row => row.Reference, StringComparer.Ordinal)
+            .ThenBy(row => row.Kind)
+            .ThenBy(row => row.EventId)
             .ToArray();
-        var pageRows = rows.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
+        var pageRows = rows.Skip(skipped).Take(pageSize).ToArray();
         var caseIds = pageRows.Select(row => row.CaseId).Distinct().ToArray();
         var facts = await context.CaseDataFields.AsNoTracking()
             .Where(item => caseIds.Contains(item.WorkId)
@@ -164,13 +182,6 @@ internal sealed class EfRecentCaseQueries(
         _ => EfIntakeReceiptStore.ParseSourceChannel(code)
     };
 
-    private static IQueryable<CaseWorkflowEventEntity> CreationEvents(
-        IQueryable<CaseWorkflowEventEntity> events) =>
-        events.Where(item => item.BeforeVersion == 0
-            && item.AfterVersion == 0
-            && (item.EventType == "manual_case_created"
-                || item.EventType == "case_created_as_replacement"));
-
     private sealed record Row(
         RecentCaseRowKind Kind,
         Guid CaseId,
@@ -179,7 +190,8 @@ internal sealed class EfRecentCaseQueries(
         DateTimeOffset OccurredAtUtc,
         string? SourceChannel,
         bool CreatedByAutomation,
-        string? ChangeKind);
+        string? ChangeKind,
+        Guid? EventId);
 }
 
 /// <summary>The person's last look at the Work Centre, kept on their account row.</summary>
