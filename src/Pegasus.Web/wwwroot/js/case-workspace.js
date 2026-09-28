@@ -303,7 +303,11 @@
     // A report blocker's Edit (issue 898) lands on the control that clears
     // it, once edit mode has drawn that control.
     function focusControl(key, selector) {
+        var navigation;
         function land(host) {
+            if (navigation !== navigationVersion) {
+                return;
+            }
             var control = host.querySelector(selector);
             if (!control) {
                 return;
@@ -314,6 +318,8 @@
         if (layout === 'tabs') {
             selectTab(key);
         }
+        // As jumpTo: a later navigation wins over a section still mounting.
+        navigation = ++navigationVersion;
         var target = sectionFor(key);
         if (!target) {
             return;
