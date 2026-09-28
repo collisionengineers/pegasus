@@ -672,7 +672,8 @@ never copied, except the Case Workspace v2 fixture set
 | Asset class | Approved consumer and boundary |
 | --- | --- |
 | Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the sign-in frame |
-| Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
+| Report layout | QuestPDF code in `src/Pegasus.Infrastructure/Reports`. There is no report template file and no document stylesheet. The page style follows the supplied template, `reference/rendererref1` Design I ([FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation)) |
+| Vehicle plan | One drawing. Its geometry is owned by `Pegasus.Core`; the Case page and the report both draw from it, and each brings its own colours |
 | Supplied engineer signatures | The report snapshot carries the Case Sign-off Engineer account's printed name, optional qualifications and supplied signature image bytes/media type. No signature is embedded as an application resource. Supplied signature assets remain governed and are never Web decorative imagery. |
 | Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
 
@@ -1005,7 +1006,7 @@ this section holds the cross-cutting rules every page is held to.
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record each report blocker links to the section that clears it; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
 | Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
-| Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
+| Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; it does block the report (27 September 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
 | Mail preview | Keyboard and pointer intent exposes an accessible preview that changes no message or Case state; when intent moves away the pane restores the selected message and stays visible with its navigation links. |
