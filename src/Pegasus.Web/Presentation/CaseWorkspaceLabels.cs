@@ -914,6 +914,9 @@ public static class CaseWorkspaceLabels
             _ => "Not generated",
         };
 
+        /// <summary>The Next action while the report's file is on its way to Box.</summary>
+        public const string WaitingForStorage = "Waiting for the report to be stored";
+
         public const string PrepareDelivery = "Prepare delivery";
         public const string DeliveryPrepared = "Delivery prepared";
         public const string SendPreparedReport = "Send prepared report";

@@ -590,6 +590,35 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.DoesNotContain("#icon-download", form, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Delivery is the next action only once the report is stored. While its
+    /// file is on its way to Box the aside says it is waited for; a report
+    /// never drawn, failed or not confirmed is generated again.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseReportArtifactStatus.Confirmed, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.PrepareDelivery)]
+    [InlineData(CaseReportArtifactStatus.Pending, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.WaitingForStorage)]
+    [InlineData(CaseReportArtifactStatus.Pending, false, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport)]
+    [InlineData(CaseReportArtifactStatus.Failed, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport)]
+    [InlineData(CaseReportArtifactStatus.Unknown, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport)]
+    public async Task TheNextActionIsDeliveryOnlyOnceTheReportIsStored(
+        CaseReportArtifactStatus status, bool filed, string expected)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = WithCurrentGeneration(baseFactory, caseId, status, filed);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var nextAction = NextActionRegex().Match(html);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        Assert.Equal(expected, NextLabelRegex().Match(nextAction.Value).Groups["label"].Value);
+        var link = SectionJumpRegex().Match(nextAction.Value);
+        Assert.True(link.Success, "The Next action must link to a section.");
+        Assert.Equal("report", link.Groups["key"].Value);
+    }
+
     [Fact]
     public async Task ConfirmedFeeNoteDownloadIsLimitedToFeePane()
     {
