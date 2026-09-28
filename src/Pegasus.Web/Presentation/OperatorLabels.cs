@@ -45,6 +45,9 @@ public static class OperatorLabels
 
     public const string PrincipalNotKnown = "Not known";
 
+    /// <summary>A Case's Principal that is no longer offered as an active choice.</summary>
+    public const string PrincipalInactive = "Inactive Principal";
+
     /// <summary>
     /// The Triage's own permanent reference, distinct from the originating
     /// provider claim number.
@@ -997,6 +1000,19 @@ public static class OperatorLabels
         var label = ImageIntakeLifecycleState(state);
         return string.Concat(char.ToLowerInvariant(label[0]).ToString(), label.AsSpan(1));
     }
+
+    /// <summary>
+    /// Why an Image-initiated Case is not linked automatically. The wording
+    /// says who decides, not how the policy counts.
+    /// </summary>
+    public static string ImageIntakeWithheldReason(ImageIntakeAutomationWithheld reason) => reason switch
+    {
+        ImageIntakeAutomationWithheld.PrincipalDisagrees =>
+            "Not linked automatically. No eligible Case with this registration belongs to the recorded Principal, so staff decide.",
+        ImageIntakeAutomationWithheld.RegistrationAmbiguous =>
+            "Not linked automatically. More than one eligible Case could match this registration, so staff decide.",
+        _ => Humanise(reason.ToString())
+    };
 
     public static string CustodyState(DocumentCustodyStatus status) => status switch
     {

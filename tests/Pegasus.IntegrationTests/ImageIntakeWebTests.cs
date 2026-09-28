@@ -264,6 +264,54 @@ public sealed class ImageIntakeWebTests
             "Not known");
     }
 
+    /// <summary>
+    /// Issue 832: the candidate table names each candidate's Principal without
+    /// filtering the staff list, and the page says why automation is withheld
+    /// when the recorded Principal has no candidate of its own.
+    /// </summary>
+    [Fact]
+    public async Task TheCandidateTableShowsEachPrincipalAndExplainsWithheldAutomation()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var alpha = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "ALPHA");
+        var imageIntakeId = await RegisterImageIntakeForPrincipalAsync(factory, client);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "WEB-PRINCIPAL-01");
+        Guid casePrincipal;
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            casePrincipal = await context.Cases.AsNoTracking()
+                .Where(item => item.Id == caseId).Select(item => item.PrincipalId).SingleAsync();
+        }
+
+        var unknown = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{imageIntakeId:D}");
+        AssertCandidatePrincipal(unknown, QdosPrincipal.Code);
+        Assert.DoesNotContain("data-image-automation-withheld", unknown, StringComparison.Ordinal);
+
+        await PostPrincipalAsync(factory, client, imageIntakeId, alpha);
+        var disagreeing = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{imageIntakeId:D}");
+        // Annotate, do not filter: the other Principal's Case stays listed.
+        AssertCandidatePrincipal(disagreeing, QdosPrincipal.Code);
+        Assert.Contains("data-image-automation-withheld=\"PrincipalDisagrees\"", disagreeing, StringComparison.Ordinal);
+        Assert.Contains("belongs to the recorded Principal", disagreeing, StringComparison.Ordinal);
+
+        await PostPrincipalAsync(factory, client, imageIntakeId, casePrincipal);
+        var agreeing = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{imageIntakeId:D}");
+        AssertCandidatePrincipal(agreeing, QdosPrincipal.Code);
+        Assert.DoesNotContain("data-image-automation-withheld", agreeing, StringComparison.Ordinal);
+    }
+
+    private static void AssertCandidatePrincipal(string html, string expected)
+    {
+        var match = Regex.Match(html, "data-image-candidate-principal>(?<value>[^<]*)</td>");
+        Assert.True(match.Success, "The candidate's Principal was not rendered.");
+        Assert.Equal(expected, match.Groups["value"].Value.Trim());
+    }
+
     private static async Task<Guid> RegisterImageIntakeForPrincipalAsync(
         IntakeWebApplicationFactory factory,
         HttpClient client)
