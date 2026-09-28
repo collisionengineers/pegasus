@@ -1229,7 +1229,142 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateSessionState.Failed, settled.State);
         Assert.Equal(expectedFailure, settled.FailureCode);
         Assert.Empty(harness.Import.Requests);
-        Assert.Empty(harness.Custody.Retained);
+        // Only a document the reader refused is kept, as a rejected export;
+        // another vehicle's or an empty estimate is not filed on this Case.
+        if (expectedFailure == GlassFailure.ExportUnreadable)
+        {
+            Assert.Equal(
+                GlassRepairEstimateGateway.RejectedXmlOccurrenceIdentity(session.Id),
+                Assert.Single(harness.Custody.Retained).OccurrenceIdentity);
+        }
+        else
+        {
+            Assert.Empty(harness.Custody.Retained);
+        }
+    }
+
+    /// <summary>
+    /// Issue 916: the reader's refusal is kept twice over. The downloaded
+    /// document stays on the Case as a rejected export, and the host log says
+    /// which position was refused, in codes only.
+    /// </summary>
+    [Fact]
+    public async Task AnExportTheReaderRefusesIsKeptOnTheCaseAndItsReasonIsLogged()
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        var session = await harness.LaunchAsync();
+        var rejected = GlassEstimateXmlParserTests.GlassExport.BuildXml(
+            positions: GlassEstimateXmlParserTests.GlassExport.Position("Part_SparePart", "Overhaul", "Wing", time: "1.00"));
+        harness.Mva.Set("GET /ndp_download/", new(HttpStatusCode.OK, rejected, ContentType: "application/xml"));
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, settled.State);
+        Assert.Equal(GlassFailure.ExportUnreadable, settled.FailureCode);
+        Assert.Empty(harness.Import.Requests);
+        var kept = Assert.Single(harness.Custody.Retained);
+        Assert.Equal(GlassRepairEstimateGateway.RejectedXmlOccurrenceIdentity(session.Id), kept.OccurrenceIdentity);
+        Assert.EndsWith("-rejected.xml", kept.FileName, StringComparison.Ordinal);
+        Assert.Equal("application/xml", kept.MediaType);
+        Assert.Equal(Encoding.UTF8.GetBytes(rejected), kept.Content);
+        Assert.Contains("\"rejectedXml\":{", harness.Store.ResultsOf(session.Id)!, StringComparison.Ordinal);
+        var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Failed", StringComparison.Ordinal));
+        Assert.Contains(GlassFailure.ExportUnreadable, settledLine, StringComparison.Ordinal);
+        Assert.Contains("Position 1 carries the unknown repair kind 'Overhaul'", settledLine, StringComparison.Ordinal);
+        Assert.DoesNotContain(Registration, settledLine, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(EreSession, settledLine, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Issue 916: a session that failed only because the reader refused the
+    /// export fetches the same estimate again, once the reader accepts it. It
+    /// signs in and selects the vehicle again; it makes no vehicle and starts
+    /// no estimate.
+    /// </summary>
+    [Fact]
+    public async Task AFailedExportIsFetchedAgainForTheSameEstimateWithoutANewVehicle()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK, "<Estimation><GlobalSetting /></Estimation>", ContentType: "application/xml"));
+        var failed = await harness.CompleteAsync(session);
+        Assert.Equal(GlassFailure.ExportUnreadable, failed.FailureCode);
+        Assert.True(GlassRepairEstimateSessionPolicy.CanRefetchExport(failed.State, failed.FailureCode));
+        Assert.False(GlassRepairEstimateSessionPolicy.OccupiesAccount(failed.State));
+        var vehicles = harness.Mva.Count("GET /index/create-new-vehicle");
+        var starts = harness.Mva.Count("POST /ere/start-ere");
+        var relays = harness.Mva.Count("GET /ere/ere-callback/");
+        var signIns = harness.Mva.Count("POST /login/index");
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK, GlassEstimateXmlParserTests.GlassExport.BuildXml(), ContentType: "application/xml"));
+
+        var completed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, failed.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(vehicles, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(starts, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(relays, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Equal(signIns + 1, harness.Mva.Count("POST /login/index"));
+        Assert.Single(harness.Import.Requests);
+        Assert.Contains(
+            harness.Custody.Retained,
+            item => item.OccurrenceIdentity == GlassRepairEstimateGateway.XmlOccurrenceIdentity(session.Id));
+    }
+
+    /// <summary>Only a refused export can be fetched again; any other failure is not resumable.</summary>
+    [Fact]
+    public async Task OnlyAnUnreadableExportOffersAFetchAgain()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK,
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: "ZZ99ZZZ"),
+            ContentType: "application/xml"));
+        var failed = await harness.CompleteAsync(session);
+        Assert.Equal(GlassFailure.IdentityRegistration, failed.FailureCode);
+        Assert.False(GlassRepairEstimateSessionPolicy.CanRefetchExport(failed.State, failed.FailureCode));
+
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.ResumeAsync(
+            new(harness.Engineer, session.Id, failed.Version, Harness.CaseVersion, Harness.LeaseToken)));
+    }
+
+    /// <summary>
+    /// Issue 923: custody that throws while the export is retained — the Box
+    /// sign-in failing on the first return after Release 74 — is not an
+    /// interruption. The session says custody failed, holds the account, and a
+    /// resume fetches the export again and lands the estimate.
+    /// </summary>
+    [Fact]
+    public async Task ACustodyThatThrowsOnTheReturnSettlesAsCustodyFailedAndAResumeLandsTheEstimate()
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        var session = await harness.LaunchAsync();
+        harness.Custody.Failure = new InvalidOperationException("Module checksum failed");
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, settled.State);
+        Assert.Equal(GlassFailure.CustodyFailed, settled.FailureCode);
+        Assert.True(GlassRepairEstimateSessionPolicy.OccupiesAccount(settled.State));
+        Assert.Empty(harness.Import.Requests);
+        Assert.Contains(logger.Messages, message => message.Contains("could not retain an export", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, message => message.Contains(GlassFailure.Interrupted, StringComparison.Ordinal));
+        var relays = harness.Mva.Count("GET /ere/ere-callback/");
+
+        harness.Custody.Failure = null;
+        var completed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, settled.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(relays, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Single(harness.Import.Requests);
+        Assert.Equal(2, harness.Custody.Retained.Count);
     }
 
     // ------------------------------------------------- waiting for the import
@@ -2055,6 +2190,21 @@ public sealed class GlassRepairEstimateGatewayTests
             provider: before.Mva,
             authority: authority);
 
+    /// <summary>Keeps every formatted message the gateway logs.</summary>
+    private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<GlassRepairEstimateGateway>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Messages.Add(formatter(state, exception));
+    }
+
     private sealed class InterruptedProvider(
         HttpMessageHandler inner, string path, CancellationTokenSource cancelled) : DelegatingHandler(inner)
     {
@@ -2150,9 +2300,13 @@ public sealed class GlassRepairEstimateGatewayTests
 
         public Guid OccurrenceIdOf(string kind) => identities[kind].Occurrence;
 
+        /// <summary>Thrown by the next retention, as a Box sign-in that cannot start is.</summary>
+        public Exception? Failure { get; set; }
+
         public async Task<CaseArtifactCustodyResult> RetainAsync(
             CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
         {
+            if (Failure is not null) { throw Failure; }
             using var buffer = new MemoryStream();
             await request.Content.CopyToAsync(buffer, cancellationToken);
             Retained.Add(new(
@@ -2516,7 +2670,8 @@ public sealed class GlassRepairEstimateGatewayTests
             IDataProtectionProvider? protection = null,
             ScriptedGlass? provider = null,
             Func<HttpMessageHandler, HttpMessageHandler>? transport = null,
-            IGlassRepairEstimateCaseAuthority? authority = null)
+            IGlassRepairEstimateCaseAuthority? authority = null,
+            Microsoft.Extensions.Logging.ILogger<GlassRepairEstimateGateway>? logger = null)
         {
             var clock = new TestClock(StartUtc);
             var mva = provider ?? new ScriptedGlass();
@@ -2557,7 +2712,7 @@ public sealed class GlassRepairEstimateGatewayTests
                     protector,
                     options,
                     clock,
-                    Microsoft.Extensions.Logging.Abstractions.NullLogger<GlassRepairEstimateGateway>.Instance),
+                    logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<GlassRepairEstimateGateway>.Instance),
                 sessions,
                 memory,
                 mva,
