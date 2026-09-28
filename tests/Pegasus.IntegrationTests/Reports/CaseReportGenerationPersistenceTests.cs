@@ -809,6 +809,72 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(CaseReportArtifactStatus.Confirmed, Assert.Single(generation.Artifacts).Status);
     }
 
+    /// <summary>
+    /// The whole chain over custody itself, with no fake between the report
+    /// and its file: the report waits for its Box folder, a second press draws
+    /// nothing, reconciliation files the version once the folder exists, and
+    /// the pass then records the report as stored.
+    /// </summary>
+    [Fact]
+    public async Task AReportWaitingForItsFolderIsFiledByReconciliationAndThenSettled()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using var scope = harness.CreateScope();
+        var content = scope.ServiceProvider.GetRequiredService<IDocumentContentStore>();
+        var custody = new EfCaseArtifactCustody(
+            harness.Factory,
+            content,
+            scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeQuarantineArtifactStore>(),
+            Harness.Clock);
+
+        var pending = await harness.GenerateThroughCustody(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pending.Outcome);
+        var waiting = Assert.Single(pending.Generation!.Artifacts);
+        Assert.Equal(CaseReportArtifactStatus.Pending, waiting.Status);
+        Assert.Equal("case_custody_pending", waiting.FailureCode);
+
+        // A second press asks custody first. Drawing again could never match
+        // the bytes custody holds, so the renderer here refuses every call.
+        harness.Sequence.Clear();
+        var pressedAgain = await harness.GenerateThroughCustody(custody, new RefusingRenderer())
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pressedAgain.Outcome);
+        Assert.Equal(["freeze", "record"], harness.Sequence);
+
+        await harness.RecordCaseFolderAsync("case-root");
+        var reconciled = await new ReconcilePendingArtifactCustody(
+                harness.Factory,
+                content,
+                scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeArtifactStore>(),
+                Harness.Clock)
+            .ExecuteAsync(10, CancellationToken.None);
+        Assert.Equal(1, reconciled.Confirmed);
+        Assert.Equal(
+            DocumentCustodyStatus.Confirmed,
+            await harness.CustodyStatusAsync(waiting.VersionId!.Value));
+        // Filing the version leaves the report's own record as it was.
+        Assert.Equal(
+            CaseReportArtifactStatus.Pending,
+            Assert.Single(Assert.Single(await harness.GenerationRowsAsync()).Artifacts).Status);
+
+        Assert.Equal(
+            1,
+            await harness.SettleAt(Harness.StartUtc.AddMinutes(4)).ExecuteAsync(50, CancellationToken.None));
+
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        var settled = Assert.Single(generation.Artifacts);
+        Assert.Equal(waiting.Id, settled.Id);
+        Assert.Equal(CaseReportArtifactStatus.Confirmed, settled.Status);
+        Assert.Equal(waiting.VersionId, settled.VersionId);
+        Assert.Equal(new RecordingRenderer(harness).Sha256, settled.Sha256);
+        Assert.Null(settled.FailureCode);
+        Assert.Null(settled.PendingContentStorageKey);
+        Assert.Single(await harness.ReadyEventsAsync());
+    }
+
     [Fact]
     public async Task AFailedArtifactIsRetriedWithTheSameSnapshotOperationKeyAndArtifactRow()
     {
@@ -1702,6 +1768,32 @@ public sealed class CaseReportGenerationPersistenceTests
                 custody,
                 custodyStatus ?? new RecordingCustodyStatus(),
                 new FixedTimeProvider(StartUtc));
+
+        /// <summary>
+        /// The generator over custody itself, which both retains the file and
+        /// answers what it holds, clocked as the store is.
+        /// </summary>
+        public GenerateCaseReport GenerateThroughCustody(
+            EfCaseArtifactCustody custody, IAssessmentReportRenderer renderer) => new(
+            new RecordingStore(Store, Sequence),
+            new FakeContentSource(this),
+            renderer,
+            new RefusingRepairSpecificationDocuments(),
+            custody,
+            custody,
+            new FixedTimeProvider(StartUtc));
+
+        /// <summary>The harness's own services, for the local stores custody writes to.</summary>
+        public AsyncServiceScope CreateScope() => database.CreateAsyncScope();
+
+        /// <summary>Records the Case's Box folder, as creating it does.</summary>
+        public async Task RecordCaseFolderAsync(string rootRemoteId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var @case = await context.Cases.SingleAsync(item => item.Id == CaseId);
+            @case.CustodyRootRemoteId = rootRemoteId;
+            await context.SaveChangesAsync();
+        }
 
         public static IRenderCaseEstimateDocument RenderedRepairSpecificationDocumentsForTest() =>
             new RenderedRepairSpecificationDocuments();
