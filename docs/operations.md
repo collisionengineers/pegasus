@@ -4,6 +4,31 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 74 — 28 September 2026 (deployment live)
+
+Release 74 deployed eleven PRs merged through [PR 918](https://github.com/collisionengineers/pegasus/pull/918), plus the release-build fix [PR 921](https://github.com/collisionengineers/pegasus/pull/921):
+- #895 performance, in four PRs: [908](https://github.com/collisionengineers/pegasus/pull/908) Work Centre reads, [909](https://github.com/collisionengineers/pegasus/pull/909) documents and photos, [910](https://github.com/collisionengineers/pegasus/pull/910) Case page, Save, sign-in check, compression and warm-up, and [911](https://github.com/collisionengineers/pegasus/pull/911) Glass in the background;
+- [900](https://github.com/collisionengineers/pegasus/pull/900): one Due, the scale preview and the repairer VAT route;
+- [904](https://github.com/collisionengineers/pegasus/pull/904): report blockers in the aside;
+- [917](https://github.com/collisionengineers/pegasus/pull/917): fee note from read mode;
+- [915](https://github.com/collisionengineers/pegasus/pull/915): fileless Provider submissions;
+- [903](https://github.com/collisionengineers/pegasus/pull/903): original-report recognition;
+- [914](https://github.com/collisionengineers/pegasus/pull/914): later-Case image pairing;
+- [906](https://github.com/collisionengineers/pegasus/pull/906): comic-burst damage marks.
+
+The route was the normal App Service route with an additive migration, run from the Windows workstation. This was the first release that adds `WEBSITE_WARMUP_PATH`, so `web.zip` was deployed and read back before provisioning. Web and Worker are Running on the approved release, and full production smoke passed. There were two Web start gaps, described below. No wipe ran.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `62438281b502ad355251b26b96668dbc9eb5087f`. `92c7ca553` was promoted first. Its build then stopped: `Build-ReleaseArtifacts.ps1` ran the Linux ReadyToRun `Pegasus.Web.dll` to read its identity, and Windows cannot load it (`BadImageFormatException`). PR 921 reads the identity from metadata instead. `62438281b` was then promoted atomically to both `dev` and `main`. Manifest schema 3 SHA-256 `AD2ED3B0FD0AF3224CFFCB21ACAF99C5A5B26864E423922767B5FFDA4F0CF63C`. `web.zip` SHA-256 `D44F65D9CBD044EF1936BED3EF656A44A8D0620EFE62EA5EE6BCC608B8F4987A`. `worker.zip` SHA-256 `6E66C0B28A5AD45C4F0BCAB52497623BC2B3FD956CEFB3A49DD58E26F2F4DF4E`. Windows `efbundle.exe` SHA-256 `183C1DDD01C529DC7A1E2D489F2D6EFFF6A350E88423BA3F6410A89CE69D36DB`, built and run. |
+| Review and verification | Review findings on PRs 900, 909, 910 and 911 were fixed on their branches, and each PR has a triage reply. The eleven heads were merged onto `task/integration-2809` and built once: 0 warnings, 0 errors. PR 918's first run found one wrong new test, which was fixed. Its second run passed all 12 jobs at `3ebc2c682`. PR 921's CI passed. The `main` push run 36474885515 passed at the release SHA. The Local, Artifact, PreDeploy, PreMigration and PreProvision gates passed. No browser walk ran before release. The operator granted merge and deployment authority for this release (28 September 2026). |
+| Schema and grants | Migration **additive**. `20260928100000_WorkCentreQueryIndexes` adds three indexes. `20260928160000_GrantWorkerDocumentOccurrenceUpdate` grants `pegasus_worker_runtime_role` UPDATE on `DocumentOccurrences`. Both apply over `20260928090000_GrantWorkerGeneratedCaseArtifactUpdate`. Bootstrap verified 714 catalogued permission/denial rows and 498 effective runtime DML rows (Release 73: 713/497). Read-back: the live head equals the manifest identity. |
+| Web and Worker deployment | `az webapp deploy` (`--restart true`) returned exit 1 after 711 s, but OneDeploy `5ed7f7d6-e6bd-4c6d-a645-b1401119f9c8` succeeded (status 4, active) onto package `20260928195856.zip`, and the exact read-back passed. Activation was set and `PreProvision` passed. `azd provision` took 106 s and set `WEBSITE_WARMUP_PATH=/health/warm` and `WEBSITE_WARMUP_STATUSES=200`. The exact read-back passed again. The Worker `config-zip` deployment ran with sync triggers and a health check. The Worker was not stopped. |
+| Start gaps | Both restarts lost their first container attempt, and the platform then stopped the old site too. At 20:02:46Z the deploy's container exited with code 134 after 118 s; the retry served from 20:08:14Z. At 20:17:47Z provisioning's container had no listening port within 230 s; the retry served from 20:22:38Z, with its warm-up probe taking 133 s. So the site served nothing for about 20:03–20:08Z and 20:19–20:22Z. One user's Case page request hung 42 s at 20:15Z. Release 73's start also took 163 s, but it succeeded first time. Tracked in [#922](https://github.com/collisionengineers/pegasus/issues/922). |
+| Production smoke | The first run, straight after the Worker deploy, timed out at 30 s on an HTTP probe during the second start gap. The rerun passed at about 20:24Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20260928195856.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-09-28T20:20:03Z`; the active Graph subscription expires `2026-10-02T15:15:00Z`. The release ran no signed-in journey check. |
+| Still owed | Browser walks: the scale preview and blocker focus (#900), the Glass waiting window with `Test-GlassBrowser.mjs` (#911), a signed-in gallery walk (#909), and Case Edit → Save (#910). Re-measure #895 against the 28 September baseline with the same KQL. Check read-only that GJ13EVC-01 pairs with a.QDOS26028 (#905). |
+| Evidence | Exact artifacts, the build log, the provision log and both smoke logs retained at ignored `artifacts/releases/release-74-62438281`. |
+
 ## Release 73 — 28 September 2026 (deployment live)
 
 Release 73 deployed [PR 894](https://github.com/collisionengineers/pegasus/pull/894): Generate report records the true result, the report opens after it, and the printed report is rebuilt to the template.
