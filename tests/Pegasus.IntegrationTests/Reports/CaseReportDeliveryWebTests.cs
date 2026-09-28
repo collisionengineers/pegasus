@@ -510,7 +510,7 @@ public sealed partial class AssessmentReportDraftWebTests
         // Only the draft's link carries the mark that names the viewer's Download draft.
         Assert.DoesNotMatch("data-report-preview(?![-\\w])", link);
         // Reading the Case is not arriving from a generation.
-        Assert.DoesNotContain("data-open-on-arrival", link, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-open-on-arrival=\"true\"", link, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -540,7 +540,7 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Contains("data-document-preview", link, StringComparison.Ordinal);
 
         var later = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
-        Assert.DoesNotContain("data-open-on-arrival", later, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-open-on-arrival=\"true\"", later, StringComparison.Ordinal);
         Assert.Contains("data-document-preview", OpenReportLink(ReportCard(later)), StringComparison.Ordinal);
     }
 
@@ -563,7 +563,7 @@ public sealed partial class AssessmentReportDraftWebTests
 
         Assert.Equal(HttpStatusCode.Redirect, failed.StatusCode);
         var arrived = await GetHtmlAsync(client, failed.Headers.Location!.OriginalString);
-        Assert.DoesNotContain("data-open-on-arrival", arrived, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-open-on-arrival=\"true\"", arrived, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-artifact", arrived, StringComparison.Ordinal);
     }
 

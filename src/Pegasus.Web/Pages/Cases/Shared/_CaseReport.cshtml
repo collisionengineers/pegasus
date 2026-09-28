@@ -345,9 +345,9 @@
                 @* The stored report in the page's document viewer, as Preview
                    opens the draft; without script the link itself gives the
                    file. The report Generate has just made is opened once, by
-                   the script, on the page that follows. The link is plain
-                   markup so the arrival mark is left out when it does not
-                   apply: a tag helper would write it empty. *@
+                   the script, on the page that follows. The mark is always
+                   written, true or false: Razor writes an omitted attribute
+                   as an empty one here. *@
                 var storedReportHref = Url.Page(
                     "/Cases/Details",
                     "GeneratedArtifact",
@@ -356,7 +356,7 @@
                     <a class="btn btn--small" href="@storedReportHref"
                        target="_blank" rel="noopener" data-report-artifact="@storedReport.Kind"
                        data-document-preview data-file-name="@storedReport.FileName" data-no-inplace
-                       data-open-on-arrival="@(Model.OpenReportArtifactId == storedReport.Id ? "true" : null)">
+                       data-open-on-arrival="@(Model.OpenReportArtifactId == storedReport.Id ? "true" : "false")">
                         <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                         <span>@(generation.Snapshot.Report.IncludeFeeNote
                             ? ReportLabels.OpenReportWithFeeNote
