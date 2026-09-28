@@ -1314,6 +1314,32 @@ public sealed class GlassRepairEstimateGatewayTests
             item => item.OccurrenceIdentity == GlassRepairEstimateGateway.XmlOccurrenceIdentity(session.Id));
     }
 
+    /// <summary>
+    /// Fetch again takes the account back, so it is refused while a newer live
+    /// session holds it. The store's one-live-session rule decides this.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task AFetchAgainIsRefusedWhileAnotherLiveSessionHoldsTheAccount()
+    {
+        await using var database = await GlassRepairEstimatePersistenceTests.Harness.CreateAsync();
+        var harness = Harness.Create(store: database.NewStore(), caseId: database.CaseId,
+            engineerId: database.UserId, otherEngineerId: database.OtherUserId);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK, "<Estimation><GlobalSetting /></Estimation>", ContentType: "application/xml"));
+        var failed = await harness.CompleteAsync(session);
+        Assert.True(GlassRepairEstimateSessionPolicy.CanRefetchExport(failed.State, failed.FailureCode));
+        var live = await harness.LaunchAsync(operationKey: "glass-launch-2");
+        Assert.True(GlassRepairEstimateSessionPolicy.OccupiesAccount(live.State));
+
+        var refusal = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(
+            () => harness.ResumeAsync(
+                new(harness.Engineer, session.Id, failed.Version, Harness.CaseVersion, Harness.LeaseToken)));
+
+        Assert.Equal(GlassRepairEstimateSessionConflict.ActiveAccount, refusal.Conflict);
+    }
+
     /// <summary>Only a refused export can be fetched again; any other failure is not resumable.</summary>
     [Fact]
     public async Task OnlyAnUnreadableExportOffersAFetchAgain()
