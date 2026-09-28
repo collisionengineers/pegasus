@@ -48,7 +48,7 @@ public sealed class AssessmentReportWordingTests
         var snapshot = Sample(AssessmentReportOutcome.TotalLoss);
         var separator = $" {NoBreakSpace}|{NoBreakSpace} ";
 
-        Assert.Equal(separator, AssessmentReportWording.FooterSeparator);
+        Assert.Equal(AssessmentReportWording.FooterSeparator, separator);
         Assert.Equal(
             $"PK12 TMZ · ap.qdos261789{separator}Collision Engineers Ltd{separator}www.CollisionEngineers.co.uk",
             AssessmentReportWording.Footer(snapshot, feeNote: false));
@@ -327,6 +327,28 @@ public sealed class AssessmentReportWordingTests
         Assert.Equal(new ReportRow(label, figure), AssessmentReportWording.ValueBox(Sample(outcome)));
     }
 
+    /// <summary>
+    /// Template: the value box of each sample report, page 2. The total loss
+    /// sample sets its label in two cells, the second beginning 47.4 mm to the
+    /// right of the first; the other three set theirs in one.
+    /// </summary>
+    [Fact]
+    public void TheValueBoxLabelStandsInTheTemplatesCells()
+    {
+        Assert.Equal(
+            ["Recommended equitable settlement", "(pre-accident value less salvage)"],
+            AssessmentReportWording.ValueBoxLabelCells(Sample(AssessmentReportOutcome.TotalLoss)));
+        Assert.Equal(
+            ["Recommended settlement (calculated repair cost)"],
+            AssessmentReportWording.ValueBoxLabelCells(Sample(AssessmentReportOutcome.Repairable)));
+        Assert.Equal(
+            ["Recommended cash in lieu settlement (estimated repair cost)"],
+            AssessmentReportWording.ValueBoxLabelCells(Sample(AssessmentReportOutcome.CashInLieu)));
+        Assert.Equal(
+            ["Agreed contract repair (including VAT)"],
+            AssessmentReportWording.ValueBoxLabelCells(Sample(AssessmentReportOutcome.ContractRepair)));
+    }
+
     /// <summary>Template: Sample - Total Loss Report.pdf, page 3.</summary>
     [Fact]
     public void VehicleDataIsTheTemplatesNineRows()
@@ -463,6 +485,33 @@ public sealed class AssessmentReportWordingTests
             "Independent Automotive Engineer, Collision Engineers Ltd",
             AssessmentReportWording.SignatoryRole);
         Assert.Equal("Engineers@CollisionEngineers.co.uk", AssessmentReportWording.CompanyEmail);
+    }
+
+    /// <summary>
+    /// Template: Sample - Total Loss Report.pdf, page 6. Its third paragraph
+    /// opens with the guide sentence and runs on.
+    /// </summary>
+    [Fact]
+    public void TheStatementOfTruthStandsInTheTemplatesFourParagraphs()
+    {
+        var sample = Sample(AssessmentReportOutcome.TotalLoss);
+        var disclosed = sample with
+        {
+            Content = sample.Content with { DiscloseGuideSource = true },
+            Guides = new ReportGuideSources([ValuationSource.Glasses]),
+        };
+
+        Assert.Equal(
+            [
+                "I declare that I understand my duty in providing this report to the court and I confirm that I have complied with that duty. I understand that this duty overrides any other obligation. The report is based upon instructions received.",
+                "I confirm that I have made clear which facts and matters referred to in this report are within my own knowledge and which are not. Those that are within my own knowledge I confirm to be true. The opinions I have expressed represent my true and complete professional opinion on the matters to which they refer.",
+                "We have used Glass's Evaluator to assist with the valuation of the vehicle and Thatcham and/or manufacturer's data to compile the repair specification. Parts prices are subject to fluctuation and further damage may be found upon dismantling the vehicle. Our valuation is based on the mileage information provided and assuming that the vehicle has a valid MOT certificate (where applicable) to support such.",
+                "We appreciate your instructions and enclose our fee note for your kind attention, which we confirm remains payable irrespective of the outcome of this case. Please ensure this is passed to your accounts department.",
+            ],
+            AssessmentReportWording.StatementOfTruthParagraphs(disclosed));
+        // A report that does not print the guide sentence prints the statement as it holds it.
+        Assert.Equal(sample.StatementOfTruth, AssessmentReportWording.StatementOfTruthParagraphs(sample));
+        Assert.Equal(4, sample.StatementOfTruth.Count);
     }
 
     /// <summary>Template: Sample - Total Loss Report.pdf, page 7.</summary>
@@ -604,9 +653,26 @@ public sealed class AssessmentReportWordingTests
             ["QDOS Assistance", "3rd Floor, Crown House, Manchester Road", "Wilmslow, SK9 1BH"],
             AssessmentReportWording.BillTo(
                 ["QDOS Assistance", "3rd Floor, Crown House", "Manchester Road", "Wilmslow", "SK9 1BH"]));
+        // Template: Sample - Total Loss Report.pdf, page 7, sets the sample
+        // job's six lines in these four rows.
         Assert.Equal(
-            ["QDOS Assistance", "3rd Floor, Crown House, Wilmslow", "SK9 1BH"],
+            [
+                "FAO The Court",
+                "C/o QDOS Assistance",
+                "3rd Floor, Crown House, Manchester Road",
+                "Wilmslow, SK9 1BH",
+            ],
+            AssessmentReportWording.BillTo(
+            [
+                "FAO The Court", "C/o QDOS Assistance", "3rd Floor, Crown House",
+                "Manchester Road", "Wilmslow", "SK9 1BH",
+            ]));
+        Assert.Equal(
+            ["QDOS Assistance", "3rd Floor, Crown House", "Wilmslow, SK9 1BH"],
             AssessmentReportWording.BillTo(["QDOS Assistance", "3rd Floor, Crown House", "Wilmslow", "SK9 1BH"]));
+        Assert.Equal(
+            ["QDOS Assistance", "SK9 1BH"],
+            AssessmentReportWording.BillTo(["QDOS Assistance", "SK9 1BH"]));
         Assert.Equal(["QDOS Assistance"], AssessmentReportWording.BillTo(["QDOS Assistance"]));
         Assert.Empty(AssessmentReportWording.BillTo([]));
     }

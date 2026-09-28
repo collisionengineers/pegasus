@@ -260,6 +260,23 @@ public static class AssessmentReportWording
         return new(presentation.SettlementLabel, Money(presentation.RecommendedSettlement!.Value));
     }
 
+    /// <summary>
+    /// The value box's label in the cells the template sets it in. A total
+    /// loss's label stands in two cells side by side, what is recommended and
+    /// then what it is made of (Sample - Total Loss Report.pdf, page 2); every
+    /// other outcome's label stands in one. The words are
+    /// <see cref="ValueBox"/>'s, unchanged.
+    /// </summary>
+    public static IReadOnlyList<string> ValueBoxLabelCells(AssessmentReportSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var label = snapshot.Presentation().SettlementLabel;
+        var basis = label.IndexOf(" (", StringComparison.Ordinal);
+        return snapshot.Outcome == AssessmentReportOutcome.TotalLoss && basis > 0
+            ? [label[..basis], label[(basis + 1)..]]
+            : [label];
+    }
+
     // ---- Page 3 ------------------------------------------------------------
 
     public const string VehicleDataHeading = "Vehicle Data";
@@ -342,6 +359,35 @@ public static class AssessmentReportWording
             new(OperationsHeading, snapshot.Operations),
         ];
         return [.. lists.Where(list => list.Items.Count > 0)];
+    }
+
+    /// <summary>
+    /// The statement of truth in the paragraphs the template sets it in
+    /// (Sample - Total Loss Report.pdf, page 6): the guide sentence, when the
+    /// report prints it, opens the paragraph that follows it. The sentences
+    /// are <see cref="AssessmentReportSnapshot.StatementOfTruth"/>'s,
+    /// unchanged.
+    /// </summary>
+    public static IReadOnlyList<string> StatementOfTruthParagraphs(AssessmentReportSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var paragraphs = new List<string>();
+        string? opening = null;
+        foreach (var sentence in snapshot.StatementOfTruth)
+        {
+            if (string.Equals(sentence, AssessmentReportContract.StatementOfTruthGuide, StringComparison.Ordinal))
+            {
+                opening = sentence;
+                continue;
+            }
+            paragraphs.Add(opening is null ? sentence : $"{opening} {sentence}");
+            opening = null;
+        }
+        if (opening is not null)
+        {
+            paragraphs.Add(opening);
+        }
+        return paragraphs;
     }
 
     /// <summary>"A Patterson — M.Inst.IAEA", or the name alone when the account records no qualifications.</summary>
@@ -444,9 +490,11 @@ public static class AssessmentReportWording
     }
 
     /// <summary>
-    /// The fee note's Bill To block, as the template sets the same address:
-    /// the name on its own line, then the address two lines to a row, joined
-    /// by a comma.
+    /// The fee note's Bill To block, as the template sets the same address
+    /// (Sample - Total Loss Report.pdf, page 7): the first line on its own,
+    /// then the rest two lines to a row, joined by a comma and counted from
+    /// the last, so the block ends with the town and its postcode. A line
+    /// left over stands alone beneath the first.
     /// </summary>
     public static IReadOnlyList<string> BillTo(IReadOnlyList<string> reportFor)
     {
@@ -457,11 +505,14 @@ public static class AssessmentReportWording
             return lines;
         }
         lines.Add(reportFor[0]);
-        for (var index = 1; index < reportFor.Count; index += 2)
+        var index = 1;
+        if (reportFor.Count % 2 == 0)
         {
-            lines.Add(index + 1 < reportFor.Count
-                ? $"{reportFor[index]}, {reportFor[index + 1]}"
-                : reportFor[index]);
+            lines.Add(reportFor[index++]);
+        }
+        for (; index < reportFor.Count; index += 2)
+        {
+            lines.Add($"{reportFor[index]}, {reportFor[index + 1]}");
         }
         return lines;
     }
