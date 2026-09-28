@@ -289,7 +289,7 @@ public sealed class IndexModel(
 
     public QuickDetail? Selected { get; private set; }
 
-    /// <summary>The version rendered with the awaiting-image confirmation form.</summary>
+    /// <summary>The receipt version the Attach form reviews.</summary>
     public long? SelectedImageReceiptVersion { get; private set; }
 
     /// <summary>The existing submission workflow owns a manual multi-image decision.</summary>

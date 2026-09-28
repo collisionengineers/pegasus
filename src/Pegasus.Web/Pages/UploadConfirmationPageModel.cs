@@ -83,9 +83,11 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
 
     /// <summary>
     /// The explicit staff decision to add the uploaded material to the chosen
-    /// case, through the existing leased link path. Replays are safe: the
-    /// operation keys are deterministic per receipt and case, and a decision
-    /// that already took effect reports the same success.
+    /// case, through the existing leased link path. On a surface with a review
+    /// dialog replays are safe: the operation keys are deterministic per receipt
+    /// and case, and a decision that already took effect reports the same
+    /// success. A one-press surface prepares first, so a repeat of an attach
+    /// that already worked reports the not-found notice and adds nothing.
     /// </summary>
     public async Task<IActionResult> OnPostAttachAsync(
         Guid id,
@@ -138,9 +140,11 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
                         receiptId, caseId.Value, operationId, reviewedReceiptVersion, actor, cancellationToken);
                 if (prepared is null)
                 {
-                    TempData["UploadConfirmationError"] = caseId is null
-                        ? "No single viable case matched that reference. Search and choose a case from the suggestions."
-                        : "That case is not currently available for this upload. Search and choose another case.";
+                    TempData["UploadConfirmationError"] = AttachInOnePress
+                        ? OperatorLabels.AttachOnePressNotFound
+                        : caseId is null
+                            ? "No single viable case matched that reference. Search and choose a case from the suggestions."
+                            : "That case is not currently available for this upload. Search and choose another case.";
                     return await RenderSurfaceAsync(id, cancellationToken);
                 }
                 if (!AttachInOnePress)
