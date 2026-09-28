@@ -333,6 +333,10 @@ public sealed class IndexModel(
             values.Where(item => !string.IsNullOrWhiteSpace(item.Value)));
     }
 
+    // The Cases page has no review dialog: one press resolves the typed
+    // reference and adds the image to that Case.
+    protected override bool AttachInOnePress => true;
+
     protected override IActionResult RedirectToSurface(Guid id) =>
         RedirectToPage(new { tab = "awaiting", selected = id });
 

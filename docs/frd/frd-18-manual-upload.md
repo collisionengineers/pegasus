@@ -178,8 +178,10 @@ Where the decision is genuinely open (rows 2 and 3) the surface carries it:
   merge where one is registered. The route and group membership are loaded
   server-side; a posted receipt id is not authority. The page operation id,
   the reviewed receipt version, and the reviewed target Case version (a Triage
-  Case's Triage version) bind the decision. A typed reference first renders
-  its exact target for confirmation before any write. A replay succeeds only
+  Case's Triage version) bind the decision. On the upload status pages a typed
+  reference first renders its exact target for confirmation before any
+  write. (The Cases page's Awaiting-instruction attach has no dialog and adds
+  in one press: [FRD-19](frd-19-image-led-intake-and-pairing.md).) A replay succeeds only
   for the identical committed decision (actor, target, reviewed input), not
   merely the same target. A stale version, a changed decision, a competing
   lease, an unavailable destination, or an incomplete group reports an honest
