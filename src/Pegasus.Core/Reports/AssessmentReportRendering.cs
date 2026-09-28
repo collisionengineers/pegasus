@@ -140,11 +140,12 @@ public sealed record ReportVehicle(
     string? Fuel);
 
 /// <summary>
-/// One recorded damage as the report draws it: the area codes, and the disc
-/// the operator drew (unit-plan terms; null for a damage recorded by area
-/// alone, drawn from its codes).
+/// One recorded damage as the report draws it: the area codes, its severity
+/// code, which shades its disc as the Case page shades it, and the disc the
+/// operator drew (unit-plan terms; null for a damage recorded by area alone,
+/// drawn from its codes).
 /// </summary>
-public sealed record ReportImpact(IReadOnlyList<string> Codes, DamageDisc? Disc = null);
+public sealed record ReportImpact(IReadOnlyList<string> Codes, string Severity, DamageDisc? Disc = null);
 
 /// <summary>
 /// The damage the report prints: the recorded damages the diagram marks and

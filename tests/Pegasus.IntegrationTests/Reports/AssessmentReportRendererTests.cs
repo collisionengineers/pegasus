@@ -33,9 +33,9 @@ public sealed partial class AssessmentReportRendererTests
     public void TheDamageDiagramClipsEveryDiscToTheBody()
     {
         var wide = new ReportImpact(
-            ["left_side", "right_side"], new DamageDisc(0.5, 0.5, DamageAreaGeometry.MaxRadius));
+            ["left_side", "right_side"], "moderate", new DamageDisc(0.5, 0.5, DamageAreaGeometry.MaxRadius));
 
-        var svg = DamagePlanDrawing.Svg([wide], "moderate");
+        var svg = DamagePlanDrawing.Svg([wide]);
 
         Assert.Contains(
             $"<clipPath id=\"plan-body\"><path d=\"{DamagePlanGeometry.BodyPath}\"/></clipPath>",
@@ -55,7 +55,7 @@ public sealed partial class AssessmentReportRendererTests
     [Fact]
     public void TheDamageDiagramIsTheCasePagesPlanTurnedOnItsSide()
     {
-        var svg = DamagePlanDrawing.Svg([new ReportImpact(["right_rear"])], "moderate");
+        var svg = DamagePlanDrawing.Svg([new ReportImpact(["right_rear"], "moderate")]);
 
         // The plan is 240 wide and 434 tall; turned, it is 434 by 240.
         Assert.Equal("0 0 240 434", DamagePlanGeometry.ViewBox);
@@ -95,11 +95,35 @@ public sealed partial class AssessmentReportRendererTests
     [Fact]
     public void ADamageThatNamesNoPlanAreaLeavesThePlanUnmarked()
     {
-        var svg = DamagePlanDrawing.Svg([new ReportImpact(["underside"])], "light");
+        var svg = DamagePlanDrawing.Svg([new ReportImpact(["underside"], "light")]);
 
         Assert.DoesNotContain("<circle", svg, StringComparison.Ordinal);
         Assert.Contains(DamagePlanGeometry.BodyPath, svg, StringComparison.Ordinal);
-        Assert.Equal(svg, DamagePlanDrawing.Svg([], "heavy"));
+        Assert.Equal(svg, DamagePlanDrawing.Svg([]));
+    }
+
+    /// <summary>
+    /// Each disc is shaded by its own damage's severity, as the Case page
+    /// shades it (coordinator, 28 September 2026): two damages of different
+    /// severities draw two different shades, and the heaviest draws in the
+    /// Case page's darker red.
+    /// </summary>
+    [Fact]
+    public void EachDiscTakesItsOwnDamagesSeverityShade()
+    {
+        var svg = DamagePlanDrawing.Svg(
+        [
+            new ReportImpact(["left_front"], "light"),
+            new ReportImpact(["right_rear"], "heavy"),
+        ]);
+
+        var discs = Regex.Matches(svg, "<circle clip-path=[^>]* fill=\"(#[0-9a-f]{6})\" fill-opacity=\"0.32\" stroke=\"(#[0-9a-f]{6})\"");
+        Assert.Equal(2, discs.Count);
+        // Light: the Case page's red at 22 parts in 100 on white, outlined at 40.
+        Assert.Equal(("#f3ced0", "#e9a7aa"), (discs[0].Groups[1].Value, discs[0].Groups[2].Value));
+        // Heavy: the Case page's darker red, filled and outlined.
+        Assert.Equal(("#9e1720", "#9e1720"), (discs[1].Groups[1].Value, discs[1].Groups[2].Value));
+        Assert.NotEqual(discs[0].Groups[1].Value, discs[1].Groups[1].Value);
     }
 
     [Fact]
@@ -746,8 +770,8 @@ public sealed partial class AssessmentReportRendererTests
             {
                 Impacts =
                 [
-                    new ReportImpact(["right_side", "right_rear"], new DamageDisc(0.8, 0.72, 0.12)),
-                    new ReportImpact(["underside"]),
+                    new ReportImpact(["right_side", "right_rear"], "moderate", new DamageDisc(0.8, 0.72, 0.12)),
+                    new ReportImpact(["underside"], "light"),
                 ],
             },
             Photos =

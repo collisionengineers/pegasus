@@ -29,7 +29,7 @@ public sealed class AssessmentReportRenderingTests
             ],
             Printed(typeof(ReportVehicle)));
         Assert.Equal(["Impacts", "Unrelated"], Printed(typeof(ReportDamage)));
-        Assert.Equal(["Codes", "Disc"], Printed(typeof(ReportImpact)));
+        Assert.Equal(["Codes", "Severity", "Disc"], Printed(typeof(ReportImpact)));
         Assert.Equal(["ContractSum"], Printed(typeof(ReportSettlement)));
     }
 
@@ -588,7 +588,7 @@ public sealed class AssessmentReportRenderingTests
             "case", "Test evidence",
             ActorKind.Staff, "engineer-1", RecordedAtUtc, Quantity: 1);
 
-    internal static ReportDamage Damage() => new([new(["right_rear"])], "Door scratch");
+    internal static ReportDamage Damage() => new([new(["right_rear"], "moderate")], "Door scratch");
 
     internal static ReportSettlement Settlement() => new();
 
