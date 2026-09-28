@@ -399,7 +399,13 @@ on a page of its own (v28 P41). An image fills its frame: it is trimmed to
 the frame's shape after the Engineer's own crop and rotation. Every image
 the Engineer includes prints, whatever their number or source file size,
 each as a print-resolution copy; the retained source is unchanged (operator,
-24 September 2026).
+24 September 2026). The renderer opens one source image at a time, when it
+prints that image, and lets it go before the next, so a long report does not
+hold every source at once. A large PNG is read a row at a time and averaged
+down, so it is never held whole at full size. An image is never refused for its
+size. A render that outlives its caller is told to stop and keeps its place in
+the renderer's admission until it has, so abandoned renders cannot add to the
+queue (issue 850).
 
 A report generated without an overridden report date is dated the day it was
 generated, and that date is written into the Case's own record so the screen
