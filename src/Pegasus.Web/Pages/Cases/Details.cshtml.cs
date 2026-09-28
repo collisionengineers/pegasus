@@ -517,9 +517,6 @@ public sealed partial class DetailsModel(
     /// <summary>The value a field's control opens with: the same value its box shows.</summary>
     public string? AssessmentEditorValue(string path) => ShownAssessment(path)?.Value;
 
-    public ReportSettlement? Settlement => Assessment is null ? null
-        : AssessmentReportProjection.BuildSettlement(Assessment, CurrentSpecification);
-
     public IReadOnlyList<SignOffEngineerProfile> EligibleSignOffEngineers { get; private set; } = [];
 
     public Guid? SelectedSignOffEngineerId { get; private set; }
@@ -2744,7 +2741,11 @@ public sealed partial class DetailsModel(
             AssessmentReportPresentation? presentation)
         {
             var title = string.IsNullOrWhiteSpace(Title) ? null : Title.Trim();
-            var text = string.IsNullOrWhiteSpace(Text) ? null : Text.Trim();
+            // The browser posts a line break as two characters; the composed
+            // sentence it is compared with holds one.
+            var text = string.IsNullOrWhiteSpace(Text)
+                ? null
+                : ReportWordingComposition.LineBreaks(Text.Trim());
             if (!Manual && snapshot is not null && presentation is not null)
             {
                 if (title is not null

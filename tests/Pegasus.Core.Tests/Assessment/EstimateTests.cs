@@ -682,6 +682,29 @@ public sealed class EstimateTests
         Assert.Equal(100m, totals.Raw.PaintLabour);
     }
 
+    /// <summary>
+    /// Total labour is the printed panel labour plus the printed paint
+    /// labour: a sum of printed components, so with the parts, materials and
+    /// specialist figures it adds up to the printed net to the penny, whatever
+    /// the discount. It is not the hours times the rate rounded again.
+    /// </summary>
+    [Fact]
+    public void PrintedTotalLabourIsTheSumOfItsPrintedComponents()
+    {
+        var estimate = Estimate(
+            Header(rate: 83.28m, otherCosts: 466.63m, discounts: new(0.1m, 0.05m, 0.125m, 0.075m)),
+            Line("repair", workUnits: 20.35m),
+            Line("paint_repair", paintWorkUnits: 5.55m, materials: 769.42m),
+            Line("new_part", price: 278.44m, quantity: 1));
+
+        var printed = EstimateTotals.Compute(estimate).Printed;
+
+        Assert.Equal(printed.PanelLabour + printed.PaintLabour, printed.Labour);
+        Assert.Equal(
+            printed.Net,
+            printed.Labour + printed.Parts + printed.Materials + printed.Specialist);
+    }
+
     [Fact]
     public void HoursRefuseAnUnknownLineTypeThroughTheSharedVocabularyOwner()
     {
