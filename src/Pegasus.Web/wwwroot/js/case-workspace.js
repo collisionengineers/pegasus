@@ -1431,7 +1431,7 @@
 
 
 // --- damage: damage by area (v28 P5) ---------------------------------------
-// The discs on the plan, the three chips, the recorded-areas list and the
+// The bursts on the plan, the three chips, the recorded-areas list and the
 // derived cells are one view of the impacts JSON the Save reads from the
 // hidden input. The page renders all of it server-side; this keeps them in
 // step while the section edits: pressing and dragging on the vehicle sizes a
@@ -1489,6 +1489,8 @@
             var margin = vocabulary.margin;
             var minRadius = vocabulary.minRadius * box.w;
             var maxRadius = vocabulary.maxRadius * box.w;
+            // Core's one comic burst (DamageBurst), drawn over each disc.
+            var burst = vocabulary.burst;
             var order = planAreas.concat(otherAreas);
 
             // Each recorded damage keeps its disc beside its areas. The disc the
@@ -1573,18 +1575,14 @@
                 var mapped = point.matrixTransform(svg.getScreenCTM().inverse());
                 return { x: mapped.x, y: mapped.y };
             }
+            // On the drawing's outline: its body, tyres and mirrors (and a
+            // motorbike's frame and bars), as Core lists them.
             function onVehicle(x, y) {
                 var point = svg.createSVGPoint();
                 point.x = x;
                 point.y = y;
-                var body = svg.querySelector('.dv-body');
-                if (body && body.isPointInFill(point)) {
-                    return true;
-                }
-                return Array.prototype.slice.call(svg.querySelectorAll('.dv-wheel, .dv-mirror')).some(function (rect) {
-                    var rx = +rect.getAttribute('x');
-                    var ry = +rect.getAttribute('y');
-                    return x >= rx && x <= rx + +rect.getAttribute('width') && y >= ry && y <= ry + +rect.getAttribute('height');
+                return Array.prototype.slice.call(svg.querySelectorAll('.dv-hit path')).some(function (path) {
+                    return path.isPointInFill(point);
                 });
             }
             function areaAt(x, y) {
@@ -1661,6 +1659,17 @@
             }
 
             // --- painting
+            // The burst over a disc, as Core draws it (DamagePlanGeometry.BurstPath).
+            function burstPath(disc) {
+                var vertices = [];
+                for (var i = 0; i < burst.points * 2; i++) {
+                    var theta = (burst.rotation - 90) * Math.PI / 180 + i * Math.PI / burst.points;
+                    var reach = i % 2 ? disc.r * (1 - burst.depth) : disc.r;
+                    var wave = 1 + burst.jitter * (Math.sin(theta * 3.7 + burst.points * 0.31) + Math.cos(theta * 2.1 + burst.rotation * 0.07)) * 0.35;
+                    vertices.push(format(disc.x + Math.cos(theta) * reach * wave * burst.stretchX) + ' ' + format(disc.y + Math.sin(theta) * reach * wave * burst.stretchY));
+                }
+                return 'M' + vertices.join(' L') + ' Z';
+            }
             function circle(className, x, y, r) {
                 var element = document.createElementNS(SVG_NS, 'circle');
                 element.setAttribute('class', className);
@@ -1681,17 +1690,16 @@
                     var group = document.createElementNS(SVG_NS, 'g');
                     group.setAttribute('class', 'dm');
                     group.setAttribute('data-mark', String(index));
-                    group.setAttribute('data-sev', mark.severity);
-                    var area = circle('area', mark.disc.x, mark.disc.y, mark.disc.r);
-                    area.setAttribute('clip-path', 'url(#damage-plan-clip)');
-                    group.appendChild(area);
-                    group.appendChild(circle('n', mark.disc.x, mark.disc.y, 8));
-                    var text = document.createElementNS(SVG_NS, 'text');
-                    text.setAttribute('x', format(mark.disc.x));
-                    text.setAttribute('y', format(mark.disc.y + 3.2));
-                    text.setAttribute('text-anchor', 'middle');
-                    text.textContent = String(index + 1);
-                    group.appendChild(text);
+                    group.appendChild(circle('area', mark.disc.x, mark.disc.y, mark.disc.r));
+                    var shape = document.createElementNS(SVG_NS, 'path');
+                    shape.setAttribute('class', 'burst');
+                    shape.setAttribute('d', burstPath(mark.disc));
+                    shape.setAttribute('fill', burst.fill);
+                    shape.setAttribute('fill-opacity', String(burst.opacity));
+                    shape.setAttribute('stroke', burst.line);
+                    shape.setAttribute('stroke-width', String(burst.lineWidth));
+                    shape.setAttribute('stroke-linejoin', 'round');
+                    group.appendChild(shape);
                     layer.appendChild(group);
                 });
             }
@@ -1978,7 +1986,6 @@
                     var recorded = row && marks[+row.getAttribute('data-damage-row')];
                     if (recorded) {
                         recorded.severity = select.value;
-                        paintMarks();
                         paintDerived();
                         persist();
                     }

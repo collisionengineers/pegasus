@@ -37,6 +37,7 @@ public sealed class CaseReportFreshnessTests
     [Theory]
     [InlineData(AssessmentVocabulary.VehicleVin)]
     [InlineData(AssessmentVocabulary.VehicleEngineCc)]
+    [InlineData(AssessmentVocabulary.VehicleType)]
     [InlineData(AssessmentVocabulary.VehicleFuel)]
     [InlineData(AssessmentVocabulary.VehicleCondition)]
     [InlineData(AssessmentVocabulary.ImpactSeverity)]
@@ -73,13 +74,12 @@ public sealed class CaseReportFreshnessTests
     /// <summary>
     /// The report prints only what the template prints (operator, 27
     /// September 2026). The tyres and belts, the airbags, the temporary
-    /// repairs, the vehicle's type, colour, body, transmission and expiry
+    /// repairs, the vehicle's colour, body, transmission and expiry
     /// dates, the unrelated damage deduction, the material transfer, the
     /// recovery charge and the settlement facts beyond the agreed contract sum
     /// stay on the Case, so changing one leaves a generated report current.
     /// </summary>
     [Theory]
-    [InlineData(AssessmentVocabulary.VehicleType)]
     [InlineData(AssessmentVocabulary.VehicleTransmission)]
     [InlineData(AssessmentVocabulary.VehicleColour)]
     [InlineData(AssessmentVocabulary.VehicleBody)]

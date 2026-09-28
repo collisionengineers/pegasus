@@ -220,8 +220,9 @@ Use the approved Plan clicker, not a newly invented Elevations/Dial/alternative 
 
 The recorded-zone model and visual markers must remain aligned: a drawn disc is saved as drawn and
 names exactly the areas it touches (Core reads them off the disc). Do not snap, regrow or rebuild a
-drawn disc from its areas, and keep every disc capped at half the vehicle's width and clipped to the
-body on the page and the report.
+drawn disc from its areas, and keep every disc capped at half the vehicle's width. Each disc is drawn
+as the one yellow comic burst, unnumbered and unclipped, on the recorded Vehicle type's drawing (car,
+van or motorbike), alike on the page and the report.
 
 Do not re-add the Files image strip to Damage.
 
