@@ -1,6 +1,6 @@
-# FRD-15: Work Centre, queues, search and Operations
+# FRD-15: Work Centre, queues and search
 
-> Owner capabilities: TRI-08, UI-01 to UI-07, UI-18, UI-19 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: TRI-08, UI-02 to UI-07, UI-18, UI-19 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -10,16 +10,15 @@
   never `0`.
 - `/Cases` is one page of queues grouped as Workflow, Pre-Case work and
   Exceptions. Each queue keeps its own row shape.
-- `/Search` is the advanced search. `/Operations` shows AI jobs, retryable
-  failures and EVA handoffs.
+- `/Search` is the advanced search.
 - Due dates are calendar days at midnight Europe/London. Targets are
   settings; the day rules are not.
 
 ## Purpose
 
 This document says how staff find the work that needs a person: the Work
-Centre, the Cases queues, the pre-Case records, the Triage Case page, Search,
-Operations and the freshness rules every count follows. Page shell and
+Centre, the Cases queues, the pre-Case records, the Triage Case page, Search
+and the freshness rules every count follows. Page shell and
 navigation are owned by [FRD-12](frd-12-operator-experience.md). The Case
 record is owned by [FRD-16](frd-16-case-record-workspace.md).
 
@@ -81,9 +80,11 @@ rules are fixed, not settings:
   date.
 
 Failed external work (custody, vehicle lookup, intake OCR) is never a Needs
-attention item. It is on Operations, whose rail badge counts retryable
-failed external work. Where a failure blocks a person's work, the record says
-so where it is used ("Lookup failed", "Storage not ready").
+attention item. Where a failure blocks a person's work, the record says so
+where it is used ("Lookup failed", "Storage not ready"), and a failed custody
+job is retried in the Case's Custody page. Intake OCR and allocation retries
+are on Administration Logs. Service health, Administration only, states the
+external-work queue.
 
 **Office, Mine, kinds and Find.** The section's toolbar carries the Office /
 Mine switch and **Find in Needs attention**. Office is every item. Mine is
@@ -134,7 +135,8 @@ record, who started it and when, then the lease expiry or failure reason and
 the Draft ready action defined per kind in
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
 (Review estimate, Open query, Review, Complete job). A failed job shows its
-reason with Open Case. Cancel stays on Operations.
+reason with Open Case. There is no Cancel here; an Administrator stops a job
+on Administration AI jobs.
 
 ### Cases: queues and filters
 
@@ -206,6 +208,9 @@ bounded detail. Its actions are:
 - **Create case**, from its receipt;
 - **Register images**, the registration prefilled from an agreeing reading,
   with a reason;
+- **Send Unidentified to AI**, while the item is open: queues one
+  Unidentified-resolution AI job for that item
+  ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
 - **Close with reason**, free text.
 
 Where Core allows it the record also offers **Open the Triage**, which
@@ -319,28 +324,6 @@ Paging counts Cases, so a page may hold more entries than its size.
 registration. Its row shows the Triage state, never a Case state, and opens
 the Triage Case page.
 
-### Operations
-
-`/Operations` shows these, with a partial-data notice when any query is not
-current:
-
-- the **AI Job List** (`AI-10`): kind, record, started by, created, state,
-  next action, Send Unidentified to AI. Started by names the staff username
-  or the Automation client name, resolved the same way Action logs does,
-  never a raw subject identifier;
-- **Attention required**: retryable external work with attempts, failure and
-  Retry. For Administrators it also lists failed intake, each received file
-  under its failure kind (Allocation failed, OCR failed, Processing failed),
-  offering only its own action (Retry allocation, Retry OCR or
-  Re-evaluate), each with a reason, through the Logs handlers
-  ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions));
-- **EVA handoffs**: route, Engineer, state, result.
-
-Operations is open to Engineers and Users. Its rail badge counts retryable
-failed external work and is absent at zero. Service health is
-Administration-only. Operations has no service health table; its one-line
-partial-data notice links to Administration Service health.
-
 ### Dashboard freshness and reconciliation
 
 Every count and query shows its last successful update time and current
@@ -399,7 +382,7 @@ tiers ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `TRI-08`, `UI-01`–`UI-07`, `UI-18`, `UI-19` in
+- Capabilities: `TRI-08`, `UI-02`–`UI-07`, `UI-18`, `UI-19` in
   [capabilities](../capabilities.md). `AI-10`
   stays with [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
