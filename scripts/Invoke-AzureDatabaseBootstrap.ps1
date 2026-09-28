@@ -577,6 +577,10 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|EmailTemplates')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|EmailTemplates')
+    # 20260928090000_GrantWorkerGeneratedCaseArtifactUpdate: the Worker's sweep
+    # records a generated report file as stored once custody has filed it, so
+    # it updates the row it could only read before. It never inserts one.
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|GeneratedCaseArtifacts')
     return @($expected | Sort-Object -Unique)
 }
 

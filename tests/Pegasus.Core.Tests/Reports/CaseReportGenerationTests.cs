@@ -684,7 +684,8 @@ public sealed class CaseReportGenerationTests
 
         await Use(store, renderer, custody).ExecuteAsync(Request(), default);
 
-        Assert.Equal(["freeze", "render", "retain", "confirm"], store.Sequence);
+        // Custody is asked what it holds before anything is drawn.
+        Assert.Equal(["freeze", "ask", "render", "retain", "confirm"], store.Sequence);
     }
 
     [Fact]
@@ -773,23 +774,149 @@ public sealed class CaseReportGenerationTests
         Assert.Single(store.Confirmations);
     }
 
+    /// <summary>
+    /// A request can end after custody recorded the file and before the
+    /// report's row was given its version. The retry asks custody by the
+    /// operation key all the same, and confirms the file custody holds.
+    /// </summary>
     [Fact]
-    public async Task AStillPendingArtifactIsRenderedAgainUnderTheSameOperationKey()
+    public async Task ARowWithNoRecordedVersionAsksCustodyBeforeRendering()
     {
-        var store = new FakeStore { PendingDocumentId = Guid.NewGuid(), PendingVersionId = Guid.NewGuid() };
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var store = new FakeStore();
         var renderer = new RecordingRenderer();
         var custody = new RecordingCustody();
         var status = new RecordingCustodyStatus
         {
             Result = new CaseArtifactCustodyResult(
-                CaseArtifactCustodyDisposition.Pending, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-                null, null, null, null, null, null, "pending-key"),
+                CaseArtifactCustodyDisposition.Confirmed, documentId, versionId, Guid.NewGuid(),
+                "box-file", "box-version", Sha256Of([1, 2, 3]), 3, "application/pdf", null, null),
         };
 
-        await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
 
-        Assert.Equal([CaseReportArtifactKind.AssessmentReport], renderer.Kinds);
-        Assert.Equal("operation-1", custody.LastRequest!.OperationKey);
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.Equal("operation-1", status.LastOperationKey);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        var confirmed = Assert.Single(store.Confirmations);
+        Assert.Equal(documentId, confirmed.DocumentId);
+        Assert.Equal(versionId, confirmed.VersionId);
+        Assert.Equal("box-file", confirmed.BoxFileId);
+        Assert.Equal(["freeze", "ask", "confirm"], store.Sequence);
+    }
+
+    /// <summary>
+    /// A drawn file carries its own creation time, so drawing a file custody
+    /// still holds as Pending could never match it. The retry records what
+    /// custody says, with custody's identities, and draws nothing.
+    /// </summary>
+    [Fact]
+    public async Task AStillPendingFileIsRecordedAsPendingWithoutRenderingAgain()
+    {
+        var store = new FakeStore { PendingDocumentId = Guid.NewGuid(), PendingVersionId = Guid.NewGuid() };
+        var renderer = new RecordingRenderer();
+        var custody = new RecordingCustody();
+        var held = new CaseArtifactCustodyResult(
+            CaseArtifactCustodyDisposition.Pending, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            null, null, Sha256Of([1, 2, 3]), 3, "application/pdf", "case_custody_pending", "pending-key");
+        var status = new RecordingCustodyStatus { Result = held };
+
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Pending, result.Outcome);
+        Assert.Equal("operation-1", status.LastOperationKey);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        Assert.Empty(store.Confirmations);
+        var recorded = Assert.Single(store.Outcomes);
+        Assert.Equal(CaseReportArtifactStatus.Pending, recorded.Status);
+        Assert.Equal(held.DocumentId, recorded.DocumentId);
+        Assert.Equal(held.VersionId, recorded.VersionId);
+        Assert.Equal("pending-key", recorded.PendingContentStorageKey);
+        Assert.Equal("case_custody_pending", recorded.FailureCode);
+        Assert.Equal(["freeze", "ask", "record"], store.Sequence);
+    }
+
+    [Fact]
+    public async Task AFailedFileIsRecordedAsFailedWithoutRenderingAgain()
+    {
+        var store = new FakeStore();
+        var renderer = new RecordingRenderer();
+        var custody = new RecordingCustody();
+        var held = new CaseArtifactCustodyResult(
+            CaseArtifactCustodyDisposition.Failed, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            null, null, Sha256Of([1, 2, 3]), 3, "application/pdf", "case_custody_failed", null);
+        var status = new RecordingCustodyStatus { Result = held };
+
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Failed, result.Outcome);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        var recorded = Assert.Single(store.Outcomes);
+        Assert.Equal(CaseReportArtifactStatus.Failed, recorded.Status);
+        Assert.Equal(held.VersionId, recorded.VersionId);
+        Assert.Equal("case_custody_failed", recorded.FailureCode);
+    }
+
+    /// <summary>
+    /// Custody holds a record of the file though it cannot say what became
+    /// of it. A second drawing would still be refused against that record, so
+    /// the retry keeps the outcome and draws nothing.
+    /// </summary>
+    [Fact]
+    public async Task AFileCustodyCannotAccountForIsRecordedWithoutRenderingAgain()
+    {
+        var store = new FakeStore();
+        var renderer = new RecordingRenderer();
+        var custody = new RecordingCustody();
+        var held = new CaseArtifactCustodyResult(
+            CaseArtifactCustodyDisposition.Unknown, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            null, null, null, null, null, null, null);
+        var status = new RecordingCustodyStatus { Result = held };
+
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Pending, result.Outcome);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        var recorded = Assert.Single(store.Outcomes);
+        Assert.Equal(CaseReportArtifactStatus.Unknown, recorded.Status);
+        Assert.Equal(held.VersionId, recorded.VersionId);
+    }
+
+    /// <summary>
+    /// The fee note, the Repair Spec and the image pack retry as the report
+    /// does: a stored file is confirmed under its own name and nothing is
+    /// drawn, the Repair Spec's own document included.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE_100_assessment.pdf")]
+    [InlineData(CaseReportArtifactKind.FeeNote, "CE_100_fee_note.pdf")]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, "CE_100_repair_specification.pdf")]
+    [InlineData(CaseReportArtifactKind.ImagePack, "CE_100_images.pdf")]
+    public async Task ARetryOfEveryArtifactKindConfirmsTheStoredFileWithoutDrawingIt(
+        CaseReportArtifactKind kind, string expectedFileName)
+    {
+        var store = new FakeStore();
+        var renderer = new RecordingRenderer();
+        var custody = new RecordingCustody();
+        var status = new RecordingCustodyStatus
+        {
+            Result = new CaseArtifactCustodyResult(
+                CaseArtifactCustodyDisposition.Confirmed, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                "box-file", "box-version", Sha256Of([1, 2, 3]), 3, "application/pdf", null, null),
+        };
+
+        // The default Repair Spec document source refuses every call.
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(kind), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        Assert.Equal(expectedFileName, Assert.Single(store.Confirmations).FileName);
     }
 
     [Fact]
@@ -850,13 +977,15 @@ public sealed class CaseReportGenerationTests
     {
         custody.Sequence = store.Sequence;
         renderer.Sequence = store.Sequence;
+        status ??= new RecordingCustodyStatus();
+        status.Sequence = store.Sequence;
         return new GenerateCaseReport(
             store,
             new FakeContentSource(),
             renderer,
             repairSpecificationDocuments ?? new RefusingRepairSpecificationDocuments(),
             custody,
-            status ?? new RecordingCustodyStatus(),
+            status,
             TimeProvider.System);
     }
 
@@ -1127,20 +1256,22 @@ public sealed class CaseReportGenerationTests
 
     private sealed class RecordingCustodyStatus : ICaseArtifactCustodyStatus
     {
+        public List<string>? Sequence { get; set; }
+
         public (Guid CaseId, Guid DocumentId, Guid VersionId, Guid OccurrenceId)? LastQuery { get; private set; }
 
         public string? LastOperationKey { get; private set; }
 
-        public CaseArtifactCustodyResult Result { get; init; } = new(
-            CaseArtifactCustodyDisposition.Unknown, null, null, null,
-            null, null, null, null, null, null, null);
+        /// <summary>What custody holds under the operation key; nothing on a first request.</summary>
+        public CaseArtifactCustodyResult? Result { get; init; }
 
         public Task<CaseArtifactCustodyResult> GetAsync(
             ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
             CancellationToken cancellationToken)
         {
             LastQuery = (caseId, documentId, versionId, occurrenceId);
-            return Task.FromResult(Result);
+            return Task.FromResult(Result
+                ?? throw new FileNotFoundException("Custody holds nothing under these identities."));
         }
 
         /// <summary>
@@ -1152,7 +1283,8 @@ public sealed class CaseReportGenerationTests
             CancellationToken cancellationToken)
         {
             LastOperationKey = operationKey;
-            return Task.FromResult<CaseArtifactCustodyResult?>(Result);
+            Sequence?.Add("ask");
+            return Task.FromResult(Result);
         }
     }
 }
