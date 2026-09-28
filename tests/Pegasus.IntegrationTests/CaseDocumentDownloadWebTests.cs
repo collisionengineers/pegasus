@@ -68,6 +68,32 @@ public sealed class CaseDocumentDownloadWebTests
         Assert.Equal(0, ports.AuditedDownloads);
     }
 
+    /// <summary>
+    /// A PDF the viewer shows is kept like an image: the URL names the
+    /// version and the ETag is its SHA-256, so a kept copy is never stale.
+    /// </summary>
+    [Fact]
+    public async Task APdfPreviewIsCacheableByContentHash()
+    {
+        var ports = new DocumentPorts { PreviewMediaType = "application/pdf", PreviewFileName = "estimate.pdf" };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync(PreviewRoute());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("inline", response.Content.Headers.ContentDisposition!.DispositionType);
+        var caching = response.Headers.CacheControl!;
+        Assert.True(caching.Private);
+        Assert.Equal(TimeSpan.FromDays(7), caching.MaxAge);
+        Assert.Contains(caching.Extensions, directive => directive.Name == "immutable");
+        Assert.Equal($"\"{Sha256}\"", response.Headers.ETag!.Tag);
+        Assert.Equal(1, ports.LogicalReads);
+        Assert.Equal(0, ports.AuditedDownloads);
+    }
+
     [Fact]
     public async Task APreviewTheBrowserAlreadyHoldsIsAnsweredWithNotModified()
     {
@@ -502,6 +528,10 @@ public sealed class CaseDocumentDownloadWebTests
 
         public CaseAssetPreparation? Preparation { get; init; }
 
+        public string PreviewMediaType { get; init; } = MediaType;
+
+        public string PreviewFileName { get; init; } = FileName;
+
         public int LogicalReads => Volatile.Read(ref logicalReads);
 
         public int ThumbnailReads => Volatile.Read(ref thumbnailReads);
@@ -545,8 +575,8 @@ public sealed class CaseDocumentDownloadWebTests
                     OccurrenceId,
                     DocumentId,
                     VersionId,
-                    FileName,
-                    MediaType,
+                    PreviewFileName,
+                    PreviewMediaType,
                     FullContent.LongLength,
                     Sha256,
                     CustodyStatus)
@@ -572,8 +602,8 @@ public sealed class CaseDocumentDownloadWebTests
                 null,
                 Sha256,
                 FullContent.LongLength,
-                FileName,
-                MediaType));
+                PreviewFileName,
+                PreviewMediaType));
         }
 
         Task<CaseDocumentThumbnail?> IReadCaseDocumentThumbnail.OpenAsync(

@@ -91,6 +91,75 @@ public sealed class ImageIntakeWebTests
         Assert.DoesNotContain("data-record-kind", imageIntakePage, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A browser keeps an intake image for a week only when the address names
+    /// the content it is answered with. An address without the hash, or with
+    /// an old one, is never kept, so a changed image is never shown stale.
+    /// </summary>
+    [Fact]
+    public async Task AnIntakeImageIsKeptByTheBrowserOnlyWhenItsAddressNamesItsContent()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        IntakeReceipt receipt;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            receipt = Assert.IsType<IntakeReceipt>(await scope.ServiceProvider
+                .GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None));
+        }
+        var asset = Assert.IsType<IntakeAssetRecord>(IntakeFileIdentity.SourceAsset(receipt));
+        var assetRoute = $"/Received/{receiptId:D}/Asset/{asset.Id:D}";
+        var named = $"{assetRoute}?v={asset.ContentHash}";
+
+        // The record's gallery links the address that names the content.
+        var unidentifiedId = await OpenUnidentifiedIdAsync(factory, receiptId);
+        var record = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
+        Assert.Contains($"href=\"{named}\"", record, StringComparison.OrdinalIgnoreCase);
+
+        using (var kept = await client.GetAsync(named))
+        {
+            Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+            var caching = kept.Headers.CacheControl!;
+            Assert.True(caching.Private);
+            Assert.Equal(TimeSpan.FromDays(7), caching.MaxAge);
+            Assert.Contains(caching.Extensions, directive => directive.Name == "immutable");
+            Assert.Equal($"\"{asset.ContentHash.ToLowerInvariant()}\"", kept.Headers.ETag!.Tag);
+        }
+        foreach (var uncached in new[] { assetRoute, $"{assetRoute}?v={new string('0', 64)}" })
+        {
+            using var response = await client.GetAsync(uncached);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.True(response.Headers.CacheControl!.NoStore);
+            Assert.Null(response.Headers.CacheControl.MaxAge);
+            Assert.Null(response.Headers.ETag);
+        }
+
+        // The receipt's own image route follows the same rule.
+        using (var image = await client.GetAsync($"/Received/{receiptId:D}/Image?v={receipt.SourceHash}"))
+        {
+            Assert.Equal(HttpStatusCode.OK, image.StatusCode);
+            Assert.Equal(TimeSpan.FromDays(7), image.Headers.CacheControl!.MaxAge);
+            Assert.Equal($"\"{receipt.SourceHash.ToLowerInvariant()}\"", image.Headers.ETag!.Tag);
+        }
+        using (var image = await client.GetAsync($"/Received/{receiptId:D}/Image"))
+        {
+            Assert.True(image.Headers.CacheControl!.NoStore);
+            Assert.Null(image.Headers.ETag);
+        }
+    }
+
     [Fact]
     public async Task ConfidentMailboxReadAutoRegistersAndAutoAssociatesTheUnambiguousCase()
     {

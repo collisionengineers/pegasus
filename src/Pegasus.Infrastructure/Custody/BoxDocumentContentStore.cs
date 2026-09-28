@@ -36,6 +36,11 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// </summary>
     private const int MaximumReadAttempts = 3;
 
+    /// <summary>
+    /// The longest a read waits before its next attempt, whatever Box asks.
+    /// </summary>
+    internal static readonly TimeSpan MaximumRetryWait = TimeSpan.FromSeconds(10);
+
     private static readonly SemaphoreSlim ReadGate =
         new(MaximumConcurrentReads, MaximumConcurrentReads);
 
@@ -133,8 +138,15 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             || address.BoxVersionId is { Length: > 0 })
         {
             RequirePersistedBoxIdentity(address);
+            // A write proves the folder's ancestry itself, never from the
+            // read path's memory.
             await using var persisted = await OpenOwnedExactVersionAsync(
-                address.BoxFileId!, address.BoxVersionId!, caseFolder, contentLength, cancellationToken);
+                address.BoxFileId!,
+                address.BoxVersionId!,
+                caseFolder,
+                contentLength,
+                proveAncestry: true,
+                cancellationToken);
             await VerifyStreamAsync(persisted, normalizedHash, contentLength, cancellationToken);
             return new(
                 DocumentContentWriteDisposition.Replay,
@@ -210,6 +222,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                     address.BoxVersionId!,
                     address.CaseRootRemoteId!,
                     expectedLength,
+                    proveAncestry: false,
                     token);
                 return await ReadExactlyAsync(exact, expectedLength, token);
             },
@@ -220,7 +233,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
 
     /// <summary>
     /// Runs one Box read inside the process-wide read gate, retrying a
-    /// throttled (429) or unavailable (5xx) response with bounded backoff.
+    /// throttled (429) or unavailable (5xx) response.
     /// </summary>
     /// <remarks>
     /// The whole read is retried, metadata call included, because either half
@@ -228,41 +241,54 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// A read that fails verification is not retried: those bytes are wrong,
     /// not late.
     ///
-    /// Box's <c>Retry-After</c> is not honoured: <see cref="BoxContentClient"/>
-    /// reports a failed response as an <see cref="HttpRequestException"/>
-    /// carrying the status only, so the header is not available here. The
-    /// backoff below stands in for it and is deliberately longer than the
-    /// header's usual value.
+    /// A read gives its gate slot back while it waits, so one throttled read
+    /// never holds a slot other reads could use. The wait is Box's
+    /// <c>Retry-After</c> when that is longer than the backoff, and never more
+    /// than <see cref="MaximumRetryWait"/>.
     /// </remarks>
     internal static async Task<T> ReadGatedWithRetryAsync<T>(
         Func<CancellationToken, Task<T>> read,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(read);
-        using (DocumentReadTelemetry.Start("document.provider.gate"))
+        for (var attempt = 1; ; attempt++)
         {
-            await ReadGate.WaitAsync(cancellationToken);
-        }
-        try
-        {
-            for (var attempt = 1; ; attempt++)
+            using (DocumentReadTelemetry.Start("document.provider.gate"))
             {
-                try
-                {
-                    using var providerRead = DocumentReadTelemetry.Start("document.provider.read");
-                    return await read(cancellationToken);
-                }
-                catch (HttpRequestException exception)
-                    when (attempt < MaximumReadAttempts && IsTransientReadFailure(exception))
-                {
-                    await Task.Delay(BackoffBeforeAttempt(attempt + 1), cancellationToken);
-                }
+                await ReadGate.WaitAsync(cancellationToken);
             }
+            var wait = TimeSpan.Zero;
+            try
+            {
+                using var providerRead = DocumentReadTelemetry.Start("document.provider.read");
+                return await read(cancellationToken);
+            }
+            catch (HttpRequestException exception)
+                when (attempt < MaximumReadAttempts && IsTransientReadFailure(exception))
+            {
+                wait = WaitBeforeRetry(exception, attempt + 1);
+            }
+            finally
+            {
+                ReadGate.Release();
+            }
+            await Task.Delay(wait, cancellationToken);
         }
-        finally
+    }
+
+    /// <summary>
+    /// How long to wait before <paramref name="attempt"/>: the larger of Box's
+    /// <c>Retry-After</c> and the backoff, capped at
+    /// <see cref="MaximumRetryWait"/>.
+    /// </summary>
+    internal static TimeSpan WaitBeforeRetry(HttpRequestException exception, int attempt)
+    {
+        var wait = BackoffBeforeAttempt(attempt);
+        if (exception is BoxThrottledException { RetryAfter: { } retryAfter } && retryAfter > wait)
         {
-            ReadGate.Release();
+            wait = retryAfter;
         }
+        return wait > MaximumRetryWait ? MaximumRetryWait : wait;
     }
 
     /// <summary>
@@ -277,10 +303,10 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt - 2));
 
     /// <summary>
-    /// Every eligible photograph of one case, read with the case
-    /// folder resolved once for the whole set instead of once per file. What
-    /// remains per image is the download itself, and those run together rather
-    /// than one after another.
+    /// Every eligible photograph of one case, read together rather than one
+    /// after another. Each read checks its own file's parent and trash state;
+    /// the case folder's ancestry comes from the client's read memory, so a
+    /// set costs one ancestry walk rather than one per file.
     ///
     /// Every version is materialised in full before any is returned, which is
     /// what this caller wants — the EVA archive holds the bytes — and what a
@@ -339,6 +365,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                             read.Address.BoxVersionId!,
                             read.Address.CaseRootRemoteId!,
                             read.ExpectedLength,
+                            proveAncestry: false,
                             attemptToken);
                         return await ReadExactlyAsync(exact, read.ExpectedLength, attemptToken);
                     },
@@ -427,13 +454,10 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             || string.Equals(mediaType, expectedMediaType, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// Only the write path still asks. A read used to spend this GET
-    /// and the two ancestry calls under it on every image — three of its nine
-    /// round trips — to re-derive length and parent before downloading the
-    /// content and verifying its SHA-256 anyway. As the remarks on
-    /// <see cref="IsExpectedRevision"/> already conceded, that hash is the real
-    /// guarantee: it refuses every wrong file this check refused, and it does it
-    /// against the bytes rather than against Box's description of them.
+    /// The write path's check of an existing file, with its ancestry proved
+    /// in full. A read does not make it: the read checks the file's parent and
+    /// trash state from its own metadata call and then verifies the SHA-256 of
+    /// the bytes, which refuses every wrong file this check would.
     /// </summary>
     private async Task VerifyFileMetadataAsync(
         BoxContentClient.BoxItem file,
@@ -591,12 +615,16 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         string versionId,
         string caseRootRemoteId,
         long expectedLength,
+        bool proveAncestry,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await client.OpenOwnedVersionReadAsync(
-                fileId, versionId, caseRootRemoteId, expectedLength, cancellationToken);
+            return proveAncestry
+                ? await client.OpenOwnedVersionProvedAsync(
+                    fileId, versionId, caseRootRemoteId, expectedLength, cancellationToken)
+                : await client.OpenOwnedVersionReadAsync(
+                    fileId, versionId, caseRootRemoteId, expectedLength, cancellationToken);
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
         {

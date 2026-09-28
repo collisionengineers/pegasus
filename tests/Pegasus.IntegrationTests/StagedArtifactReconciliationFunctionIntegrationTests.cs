@@ -57,6 +57,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new UnreachableActionHistoryWriter(),
             TimeProvider.System);
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+        var thumbnailCandidates = new RecordingThumbnailCandidates();
         var pairing = new RecordingPairing();
         var triagePairing = new RecordingTriagePairing();
         var settlement = new RecordingSettlement();
@@ -75,6 +76,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             vehicleLookupReconciler,
             providerSubmissionReconciler,
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
+            new PrepareDocumentThumbnails(thumbnailCandidates, new UnreachableDocumentThumbnails()),
             logger);
 
         await function.RunAsync(null!, CancellationToken.None);
@@ -84,6 +86,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(50, settlement.MaximumItems);
         Assert.Equal(50, pairing.MaximumItems);
         Assert.Equal(50, triagePairing.MaximumItems);
+        // The thumbnail sweep asks for a small number each run; with none to
+        // make it logs nothing.
+        Assert.Equal(2, thumbnailCandidates.MaximumItems);
         // Eight reconciliation results and the staff-notification purge.
         Assert.Equal(9, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
@@ -178,6 +183,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
             new ReconcileProviderSubmissions(new EmptyProviderSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
+            new PrepareDocumentThumbnails(new NoDocumentThumbnailCandidates(), new UnreachableDocumentThumbnails()),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, CancellationToken.None);
     }
@@ -275,6 +281,27 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         public Task<StaffNotification?> MarkReadAsync(Guid staffId, Guid notificationId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<int> MarkAllReadAsync(Guid staffId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<int> PurgeOlderThanAsync(DateTimeOffset cutoffUtc, CancellationToken cancellationToken) => Task.FromResult(0);
+    }
+
+    private sealed class RecordingThumbnailCandidates : IListDocumentThumbnailCandidates
+    {
+        public int MaximumItems { get; private set; }
+
+        public Task<IReadOnlyList<DocumentThumbnailCandidate>> ListAsync(
+            int maximumItems,
+            CancellationToken cancellationToken)
+        {
+            MaximumItems = maximumItems;
+            return Task.FromResult<IReadOnlyList<DocumentThumbnailCandidate>>([]);
+        }
+    }
+
+    private sealed class UnreachableDocumentThumbnails : IReadCaseDocumentThumbnail
+    {
+        public Task<CaseDocumentThumbnail?> OpenAsync(
+            CaseDocumentThumbnailRequest request,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No thumbnail is made without a candidate.");
     }
 
     private sealed class EmptyCacheCleanup : IDocumentContentCacheCleanup

@@ -123,7 +123,7 @@
                         var gallery = Model.EvidenceImages
                             .Select(image =>
                             {
-                                var href = $"/Received/{image.ReceiptId:D}/Asset/{image.Asset.Id:D}";
+                                var href = IntakeImageAddress.Asset(image.ReceiptId, image.Asset.Id, image.Asset.ContentHash);
                                 return new GalleryImage(
                                     href,
                                     href,
@@ -133,7 +133,8 @@
                                     IntakeAssetId: image.Asset.Id,
                                     Preparation: Model.Preparations.GetValueOrDefault(image.Asset.Id),
                                     IntakeReceiptId: image.ReceiptId,
-                                    CustodyState: image.Asset.CustodyState);
+                                    CustodyState: image.Asset.CustodyState,
+                                    ContentHash: image.Asset.ContentHash);
                             })
                             .ToArray();
                         ViewData["PreCaseImageTags"] = Model.ImageTags;

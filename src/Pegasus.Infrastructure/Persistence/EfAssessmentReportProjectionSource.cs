@@ -30,7 +30,8 @@ internal sealed class EfAssessmentReportProjectionSource(
     IDocumentContentStore contentStore,
     IStaffAccountQueries staffAccountQueries,
     ICaseAssetPreparationQueries assetPreparationQueries,
-    IListAppliedValuations listAppliedValuations)
+    IListAppliedValuations listAppliedValuations,
+    Pegasus.Infrastructure.Custody.IReadCachedDocumentVersions? cachedVersions = null)
     : IAssessmentReportProjectionSource, ICaseReportSnapshotSource
 {
     /// <summary>The preview path: the same facts, with image bytes read.</summary>
@@ -143,9 +144,13 @@ internal sealed class EfAssessmentReportProjectionSource(
                 pair.Row.Sha256,
                 pair.Row.ContentLength))
             .ToArray();
-        var contents = withImageContent
-            ? await contentStore.ReadVersionsAsync(reads, cancellationToken)
-            : [];
+        // Cache first where the content cache is composed, so a repeat
+        // preview does not ask Box for the same photographs again.
+        var contents = !withImageContent
+            ? []
+            : cachedVersions is null
+                ? await contentStore.ReadVersionsAsync(reads, cancellationToken)
+                : await cachedVersions.ReadVersionsAsync(reads, cancellationToken);
         var photos = photoRows
             .Select((pair, index) => new ReportImageEvidence(
                 pair.Row.FileName,
