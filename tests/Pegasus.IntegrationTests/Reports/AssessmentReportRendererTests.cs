@@ -471,7 +471,7 @@ public sealed partial class AssessmentReportRendererTests
         ReportImageEvidence Photo(int index, bool fullPage = false) => new(
             $"site-{index}.jpg",
             "image/jpeg",
-            bytes,
+            ReportImageContent.Opened(_ => Task.FromResult(bytes)),
             hash,
             CaseAssetReportRole.Supporting,
             index,
@@ -553,7 +553,7 @@ public sealed partial class AssessmentReportRendererTests
         {
             var bytes = Bitmap(width, height, SKEncodedImageFormat.Jpeg);
             return new(
-                name, "image/jpeg", bytes, Convert.ToHexStringLower(SHA256.HashData(bytes)), role, order);
+                name, "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(bytes)), Convert.ToHexStringLower(SHA256.HashData(bytes)), role, order);
         }
 
         // Out of order, and each of a size of its own, so each can be told apart in print.

@@ -396,27 +396,63 @@ public sealed class AssessmentReportRenderingTests
         Assert.DoesNotContain("Glass's", AssessmentReportContract.StatementOfTruth3, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verification moved to open time (issue 850): the snapshot no longer
+    /// holds image bytes, so an image whose bytes are not the ones custody
+    /// pinned is refused when the renderer opens it, naming the file in staff's words.
+    /// </summary>
     [Fact]
-    public async Task AlteredPhotoFailsCustodyValidationBeforeAdapter()
+    public async Task AnAlteredPhotoIsRefusedWhenItIsOpened()
     {
-        var renderer = new FakeRenderer();
         var valid = Snapshot(AssessmentReportOutcome.Repairable);
         var photo = valid.Photos.Single() with
         {
             CustodyReference = "page-1-image-2.jpg",
-            Content = [1, 2, 3],
+            Content = ReportImageContent.Opened(_ => Task.FromResult(new byte[] { 1, 2, 3 })),
         };
 
-        var refusal = await Assert.ThrowsAsync<ReportRenderRejectedException>(
-            () => new GenerateAssessmentReportDraft(renderer)
-                .ExecuteAsync(valid with { Photos = [photo] }, CaseReportArtifactKind.AssessmentReport));
+        // The snapshot is accepted; nothing has been read yet.
+        (valid with { Photos = [photo] }).Validate();
+        var refusal = await Assert.ThrowsAsync<ReportRenderRejectedException>(() => photo.OpenAsync());
 
         // Staff read this refusal, so it names the file in their words.
         Assert.Equal(
             "The stored version of page-1-image-2.jpg has changed. "
             + "Open the Files section to see the image as it is stored now.",
             refusal.Message);
-        Assert.Null(renderer.Received);
+    }
+
+    [Fact]
+    public async Task AnImageIsReadOnlyWhenItIsOpenedAndEachOpenReadsItAgain()
+    {
+        var bytes = new byte[] { 137, 80, 78, 71, 1, 2, 3, 4 };
+        var reads = 0;
+        var photo = Snapshot(AssessmentReportOutcome.Repairable).Photos.Single() with
+        {
+            Content = ReportImageContent.Opened(_ =>
+            {
+                reads++;
+                return Task.FromResult(bytes);
+            }),
+            Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
+        };
+
+        photo.Validate();
+        Assert.Equal(0, reads);
+        Assert.Same(bytes, await photo.OpenAsync());
+        Assert.Same(bytes, await photo.OpenAsync());
+        Assert.Equal(2, reads);
+    }
+
+    [Fact]
+    public async Task AnImageThatOpensEmptyIsRefused()
+    {
+        var photo = Snapshot(AssessmentReportOutcome.Repairable).Photos.Single() with
+        {
+            Content = ReportImageContent.Opened(_ => Task.FromResult(Array.Empty<byte>())),
+        };
+
+        await Assert.ThrowsAsync<ReportRenderRejectedException>(() => photo.OpenAsync());
     }
 
     /// <summary>
@@ -435,6 +471,9 @@ public sealed class AssessmentReportRenderingTests
             .ExecuteAsync(valid with { Photos = [recordedByIntake] }, CaseReportArtifactKind.AssessmentReport);
 
         Assert.Equal(recordedByIntake, Assert.Single(renderer.Received!.Photos));
+        Assert.Equal(
+            await photo.OpenAsync(CancellationToken.None),
+            await recordedByIntake.OpenAsync(CancellationToken.None));
     }
 
     [Fact]

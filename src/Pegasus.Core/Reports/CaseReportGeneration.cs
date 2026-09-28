@@ -125,7 +125,8 @@ public sealed record CaseReportActor(
 /// <summary>
 /// One prepared image as the frozen snapshot pins it: the confirmed source
 /// identity and hash plus the report role, order, rotation, crop and full-page
-/// choice. Bytes are never frozen — they are reopened by exact hash at render time.
+/// choice. Bytes are never frozen — they are reopened by exact hash, one image
+/// at a time, when the renderer prints it. The file name is the one staff see.
 /// </summary>
 public sealed record CaseReportSnapshotImage(
     Guid OccurrenceId,
@@ -134,6 +135,7 @@ public sealed record CaseReportSnapshotImage(
     long ContentLength,
     string Sha256,
     string ContentType,
+    string FileName,
     CaseAssetReportRole Role,
     int? Order,
     CaseAssetRotation Rotation,
