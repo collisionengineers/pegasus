@@ -86,6 +86,9 @@ if (args.Contains(BuildDiagnosticsArgument, StringComparer.Ordinal))
     }));
     return;
 }
+// Phase timings go to stdout so a slow start shows where the time went.
+var startupTimeline = StartupTimeline.Current;
+startupTimeline.Mark("Main entered (time so far is runtime start)");
 var initializeDevelopment =
     args.Contains(InitializeDevelopmentArgument, StringComparer.Ordinal);
 var migrateDevelopment = args.Contains("--migrate-development", StringComparer.Ordinal);
@@ -106,6 +109,7 @@ var applicationArgs = args
         && !argument.Equals("--migrate-development", StringComparison.Ordinal))
     .ToArray();
 var builder = WebApplication.CreateBuilder(applicationArgs);
+startupTimeline.Mark("configuration loaded");
 var configuredRuntimeProfile = builder.Configuration["Runtime:Profile"]
     ?? throw new InvalidOperationException("Runtime:Profile is required.");
 var developmentOfflineProfile = builder.Environment.IsDevelopment()
@@ -775,7 +779,12 @@ if (providerApiEnabled)
     builder.Services.AddPegasusProviderApi();
 }
 
+startupTimeline.Mark("services composed");
+// Last, after every AddDataProtection: the framework's start-up load of the key
+// ring would hold the port behind a managed-identity token (see the extension).
+builder.Services.DeferDataProtectionKeyRingLoad();
 var app = builder.Build();
+startupTimeline.Mark("host built");
 if (applicationInsightsConfigured)
 {
     // This singleton owns the listener for the application's lifetime. Resolving
@@ -836,21 +845,27 @@ if (productionProfile
     && (builder.Configuration["Bootstrap:VerificationAccount:UserName"] is { Length: > 0 }
         || builder.Configuration["Bootstrap:VerificationAccount:Removed"] is { Length: > 0 }))
 {
-    try
+    // After the port is listening, not before: it reads SQL behind a
+    // managed-identity token, and a slow token must not hold the port.
+    app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
     {
-        await using var scope = app.Services.CreateAsyncScope();
-        await ReconcileVerificationAccountAsync(scope.ServiceProvider, builder.Configuration);
-    }
-    catch (Exception exception)
-    {
-        // A temporary verification account is never worth refusing to start
-        // over. The database may be unreachable or unmigrated at this point in
-        // startup — both are the deployment's problem to report, not this
-        // block's to escalate into an outage.
-        BootstrapLog.VerificationAccountSkipped(
-            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Pegasus.Bootstrap"),
-            exception);
-    }
+        try
+        {
+            await using var scope = app.Services.CreateAsyncScope();
+            await ReconcileVerificationAccountAsync(scope.ServiceProvider, builder.Configuration);
+            startupTimeline.Mark("verification account reconciled");
+        }
+        catch (Exception exception)
+        {
+            // A temporary verification account is never worth refusing to start
+            // over. The database may be unreachable or unmigrated at this point in
+            // startup — both are the deployment's problem to report, not this
+            // block's to escalate into an outage.
+            BootstrapLog.VerificationAccountSkipped(
+                app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Pegasus.Bootstrap"),
+                exception);
+        }
+    }));
 }
 
 var localIntakeEnabled = developmentOffline && localIntakeConfigured;
@@ -888,6 +903,14 @@ if (productionProfile)
     forwardedHeadersOptions.KnownIPNetworks.Clear();
     forwardedHeadersOptions.KnownProxies.Clear();
     app.UseForwardedHeaders(forwardedHeadersOptions);
+}
+
+// While the Automation OAuth certificates load (after the port binds), every
+// request but a health or version probe gets 503 and a retry hint. Absent when
+// the certificates are not read from Key Vault.
+if (app.Services.GetService<OAuthCertificateStore>() is { } oauthCertificates)
+{
+    app.Use(oauthCertificates.Gate);
 }
 
 // Every status code that reaches a browser gets the designed page. Before this,
@@ -1151,6 +1174,16 @@ if (providerApiEnabled)
     app.MapPegasusProviderApi();
 }
 
+startupTimeline.Mark("pipeline built, starting to listen");
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    startupTimeline.Mark("listening");
+    // Information reaches Application Insights only for this category (see
+    // appsettings.json), so the next slow start can be read from telemetry.
+    StartupLog.Phases(
+        app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(StartupTimeline.Category),
+        startupTimeline.Summary());
+});
 app.Run();
 
 
@@ -1380,6 +1413,18 @@ internal static class BootstrapLog
 
     public static void VerificationAccountSkipped(ILogger logger, Exception exception) =>
         VerificationAccountSkippedMessage(logger, exception);
+}
+
+internal static class StartupLog
+{
+    private static readonly Action<ILogger, string, Exception?> PhasesMessage =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(2, nameof(Phases)),
+            "Web is listening. Startup phases: {Phases}");
+
+    public static void Phases(ILogger logger, string phases) =>
+        PhasesMessage(logger, phases, null);
 }
 
 internal sealed class DevelopmentOfflineAuthenticationHandler(
