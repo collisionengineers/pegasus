@@ -251,9 +251,12 @@ the facts only the lookup holds.
   date; MOT expiry is the latest expiry date in the DVSA MOT history. Each is
   recorded with Lookup provenance and the Case shows it read-only; no staff
   or automation save writes it. Each answer
-  replaces a changed value, leaves an unchanged one as it stands and stales a
-  generated report when one changes. An answer where each provider either
-  described the vehicle or said it holds no such vehicle also clears a fact
+  replaces a changed value and leaves an unchanged one as it stands. A
+  changed Engine or Fuel stales a generated report, because the report prints
+  them. Colour, Tax expiry and MOT expiry are not printed, so a change to one
+  leaves the report current (operator, 27 September 2026). An answer where
+  each provider either described the vehicle or said it holds no such vehicle
+  also clears a fact
   it no longer carries, so a DVSA not-found clears MOT expiry and a DVLA
   not-found clears tax expiry. An answer with a failed provider leaves what
   it did not carry.
