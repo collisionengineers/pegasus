@@ -3,9 +3,9 @@ using Pegasus.Core.Cases;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-public sealed class EfProviderInspectionModeStore(
+public sealed class EfPrincipalInspectionModeStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
-    : IProviderInspectionModeStore
+    : IPrincipalInspectionModeStore
 {
     public async Task<CaseInspectionMode?> GetForPrincipalAsync(
         string principalCode,
@@ -19,6 +19,6 @@ public sealed class EfProviderInspectionModeStore(
             .Where(item => item.Code == normalized && item.IsActive)
             .Select(item => item.InspectionMode)
             .SingleOrDefaultAsync(cancellationToken);
-        return mode is null ? null : ProviderInspectionModePolicy.Parse(mode);
+        return mode is null ? null : PrincipalInspectionModePolicy.Parse(mode);
     }
 }

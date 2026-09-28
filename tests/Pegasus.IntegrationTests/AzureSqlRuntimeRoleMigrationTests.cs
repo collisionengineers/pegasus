@@ -132,11 +132,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         OrganizationAdministrationOperations
         OrganizationRoles
         Organizations
+        PrincipalDomainEvidence
+        PrincipalDomainPackages
+        PrincipalReferences
         PrincipalSequenceLineages
         Principals
-        ProviderDomainEvidence
-        ProviderDomainPackages
-        ProviderReferences
         RequestUploadLinks
         RequestUploadReceipts
         SecurityEvents
@@ -251,9 +251,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         IntakeReceipts:SELECT,INSERT,UPDATE
         IntakeStagedReceipts:SELECT,INSERT,UPDATE
         IntakeWorkItems:SELECT,INSERT,UPDATE
-        ProviderDomainEvidence:SELECT
-        ProviderDomainPackages:SELECT
-        ProviderReferences:SELECT
+        PrincipalDomainEvidence:SELECT
+        PrincipalDomainPackages:SELECT
+        PrincipalReferences:SELECT
         RequestUploadLinks:SELECT
         SentEmailEvidence:SELECT,INSERT,UPDATE
         Triage:SELECT,INSERT,UPDATE
@@ -1420,7 +1420,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             INSERT INTO [dbo].[CaseWorkflows] ([CaseId], [State], [Version], [ConcurrencyToken])
             VALUES ('{caseId:D}', N'{nameof(CaseLifecycleState.Review)}', 0, '{Guid.NewGuid():D}');
             INSERT INTO [dbo].[CaseMatchIndex] (
-                [CaseId], [WorkProviderCode], [NormalizedVrm], [MatchPolicyKey],
+                [CaseId], [PrincipalCode], [NormalizedVrm], [MatchPolicyKey],
                 [MatchPolicyVersion], [UpdatedAtUtc])
             VALUES ('{caseId:D}', N'QDOS', N'PG18BTY', N'runtime-role-test', 1,
                 '2031-05-06T10:31:00+00:00');

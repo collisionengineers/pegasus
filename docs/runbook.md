@@ -525,7 +525,7 @@ artifacts/reference-data-staging/
 and publishes:
 
 ```text
-src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json
 ```
 
 Publication rules are immutable:
@@ -542,8 +542,8 @@ Future versions use a new cumulative workbook, version, output, and the previous
 pwsh ./scripts/Build-ProviderReferenceData.ps1 `
   -SourcePath ./reference/workproviders-and-repairers/provider-domains-v2.xlsx `
   -Version provider-domains-v2 `
-  -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v2.json `
-  -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+  -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v2.json `
+  -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json
 ```
 
 Every previous provider/suffix pair must remain. Removal fails `non-monotonic-source`. Source, previous package, staging, and output paths must be distinct; staging and output may not be beneath `reference/`.

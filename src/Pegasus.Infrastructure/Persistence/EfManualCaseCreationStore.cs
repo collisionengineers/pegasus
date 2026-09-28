@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfManualCaseCreationStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider? timeProvider = null,
-    IEnumerable<IProviderCaseMatchPolicy>? caseMatchPolicies = null,
+    IEnumerable<IPrincipalCaseMatchPolicy>? caseMatchPolicies = null,
     VehicleLookupAvailability? vehicleLookupAvailability = null)
     : IManualCaseCreationStore
 {

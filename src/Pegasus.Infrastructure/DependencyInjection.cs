@@ -20,7 +20,7 @@ using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Operations;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
@@ -197,15 +197,15 @@ public static class DependencyInjection
         services.AddScoped<IExactEmailResponseEvidenceQueries>(
             provider => provider.GetRequiredService<EfEmailEvidenceStore>());
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
-        services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
+        services.AddScoped<IPrincipalReferenceCatalog, EfPrincipalReferenceCatalog>();
         services.AddSingleton<IMailRoutePolicy, PrincipalMailRoutePolicy>();
         services.AddSingleton<IEnumerable<IMailClassificationPolicy>>(provider =>
             provider.GetServices<IInstructionExtractionPolicy>()
                 .Select(policy => (IMailClassificationPolicy)new PrincipalMailClassificationPolicy(policy.PrincipalCode))
                 .ToArray());
-        services.AddSingleton<IEnumerable<IProviderCaseMatchPolicy>>(provider =>
+        services.AddSingleton<IEnumerable<IPrincipalCaseMatchPolicy>>(provider =>
             provider.GetServices<IInstructionExtractionPolicy>()
-                .Select(policy => (IProviderCaseMatchPolicy)new PrincipalCaseMatchPolicy(policy))
+                .Select(policy => (IPrincipalCaseMatchPolicy)new PrincipalCaseMatchPolicy(policy))
                 .ToArray());
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
@@ -245,7 +245,7 @@ public static class DependencyInjection
         // creates the case for a definitive instruction, and it composes only
         // Infrastructure.
         services.AddScoped<IAcceptIntake, AcceptIntake>();
-        services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
+        services.AddScoped<IPrincipalInspectionModeStore, EfPrincipalInspectionModeStore>();
         services.AddScoped<IEvaSubmissionModeStore, EfEvaSubmissionModeStore>();
         services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
         services.AddScoped<IAutomaticEvaReviewSubmissionStore, EfAutomaticEvaReviewSubmissionStore>();
@@ -309,15 +309,15 @@ public static class DependencyInjection
         // API-01: the submission row is both the idempotency record and the
         // Principal binding processing reads, so the Worker composes the
         // bindings port too.
-        services.AddScoped<EfProviderSubmissionStore>();
-        services.AddScoped<IProviderSubmissionStore>(
-            provider => provider.GetRequiredService<EfProviderSubmissionStore>());
-        services.AddScoped<IProviderSubmissionBindings>(
-            provider => provider.GetRequiredService<EfProviderSubmissionStore>());
+        services.AddScoped<EfPrincipalSubmissionStore>();
+        services.AddScoped<IPrincipalSubmissionStore>(
+            provider => provider.GetRequiredService<EfPrincipalSubmissionStore>());
+        services.AddScoped<IPrincipalSubmissionBindings>(
+            provider => provider.GetRequiredService<EfPrincipalSubmissionStore>());
         services.AddScoped<MimeKitPdfPigOpenXmlIntakeSourceReader>();
-        services.AddScoped<IProviderAttachmentAdmission, ProviderAttachmentAdmission>();
-        services.AddScoped<ISubmitProviderInstruction, SubmitProviderInstruction>();
-        services.AddScoped<IGetProviderSubmissionResult, GetProviderSubmissionResult>();
+        services.AddScoped<IPrincipalAttachmentAdmission, PrincipalAttachmentAdmission>();
+        services.AddScoped<ISubmitPrincipalInstruction, SubmitPrincipalInstruction>();
+        services.AddScoped<IGetPrincipalSubmissionResult, GetPrincipalSubmissionResult>();
         services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
@@ -344,7 +344,7 @@ public static class DependencyInjection
         services.AddScoped<IAutomaticVehicleLookupStore>(
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
         services.AddScoped<ReconcileAutomaticVehicleLookups>();
-        services.AddScoped<ReconcileProviderSubmissions>();
+        services.AddScoped<ReconcilePrincipalSubmissions>();
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IVehicleLookupWorkStore, EfVehicleLookupWorkStore>();
         services.AddScoped<EfOperationsStore>();
@@ -643,10 +643,10 @@ public static class DependencyInjection
         {
             services.AddScoped<IIncomingArtifactRetentionStore, EfIncomingArtifactRetentionStore>();
             services.AddScoped<RetainIncomingArtifact>();
-            // The Provider API reader decorates the ordinary one: it answers for
+            // The Principal API reader decorates the ordinary one: it answers for
             // its own channel and defers for every other (API-01).
             services.AddScoped<IIntakeSourceReader>(provider =>
-                new ProviderApiIntakeSourceReader(
+                new PrincipalApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
             services.AddScoped<ProcessIntake>();
 

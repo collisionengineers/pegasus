@@ -1,22 +1,22 @@
 using Pegasus.Core.Intake;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Infrastructure.Intake;
 
-/// <summary>Checks a Provider file against its declaration and the ordinary intake reader before custody.</summary>
-internal sealed class ProviderAttachmentAdmission(
+/// <summary>Checks a Principal file against its declaration and the ordinary intake reader before custody.</summary>
+internal sealed class PrincipalAttachmentAdmission(
     MimeKitPdfPigOpenXmlIntakeSourceReader reader,
-    TimeProvider timeProvider) : IProviderAttachmentAdmission
+    TimeProvider timeProvider) : IPrincipalAttachmentAdmission
 {
     public async Task RequireSupportedAsync(
-        IReadOnlyList<ProviderSubmissionFile> files,
+        IReadOnlyList<PrincipalSubmissionFile> files,
         CancellationToken cancellationToken)
     {
         foreach (var file in files)
         {
             if (!MatchesDeclarationAndHeader(file))
             {
-                throw new ProviderInstructionValidationException(
+                throw new PrincipalInstructionValidationException(
                     $"files[{file.Ordinal}]",
                     "The file type, media type and content do not agree or are unsupported.");
             }
@@ -27,19 +27,19 @@ internal sealed class ProviderAttachmentAdmission(
                     file.MediaType,
                     file.Content,
                     timeProvider.GetUtcNow(),
-                    "provider-attachment-admission",
-                    new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, $"provider-file:{file.Ordinal}")),
+                    "principal-attachment-admission",
+                    new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, $"principal-file:{file.Ordinal}")),
                 cancellationToken);
             if (result.Status != IntakeSourceReadStatus.Readable)
             {
-                throw new ProviderInstructionValidationException(
+                throw new PrincipalInstructionValidationException(
                     $"files[{file.Ordinal}]",
                     result.FailureReason ?? "The file could not be read by the intake reader.");
             }
         }
     }
 
-    private static bool MatchesDeclarationAndHeader(ProviderSubmissionFile file)
+    private static bool MatchesDeclarationAndHeader(PrincipalSubmissionFile file)
     {
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
         var mediaType = file.MediaType.Trim().ToLowerInvariant();
