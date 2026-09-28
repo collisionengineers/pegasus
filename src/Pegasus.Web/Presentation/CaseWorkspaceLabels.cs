@@ -403,7 +403,11 @@ public static class CaseWorkspaceLabels
             // signature are the account's, set in Accounts, so no Case section
             // clears those blockers (operator, 26 September 2026).
             _ when item == CaseReportReadiness.SignOffEngineerNotChosen => "overview",
-            { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
+            {
+                Requirement: CaseReportReadiness.CurrentEstimateRequirement
+                    or CaseReportReadiness.LabourRateRequirement
+                    or CaseReportReadiness.RepairerVatRequirement
+            } => "estimate",
             {
                 Requirement: CaseReportReadiness.CloseUpImageRequirement
                     or CaseReportReadiness.OverviewImageRequirement

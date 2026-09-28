@@ -147,13 +147,95 @@ public sealed class AssessmentReportRenderingTests
         Assert.Equal(costs.Totals.Raw.PanelLabour, costs.LabourHours * costs.HourlyRate);
     }
 
+    /// <summary>
+    /// The template prints one Labour Hours figure and one Total Labour
+    /// figure. Both are computed once: the hours are panel and paint hours
+    /// together, as the Case page shows them, and the money is the printed
+    /// panel and paint labour, so the rows add up to the printed Sub Total.
+    /// </summary>
     [Fact]
-    public void TheVatLabelIsTheEstimatesOwnPercentageNotABoolean()
+    public void TotalLabourAndItsHoursAreComputedOnceAndReconcileToTheSubTotal()
+    {
+        var estimate = new RepairSpecificationVersion(
+            Guid.NewGuid(), Guid.NewGuid(), 1, RepairSpecificationState.Draft,
+            new(RepairSpecificationSourceRoute.Manual, null, null, null),
+            [
+                Line(1, "repair", "Repair wing", workUnits: 3m, price: null),
+                Line(2, "paint_repair", "Paint wing", workUnits: 0.5m, price: null)
+                    with { PaintWorkUnits = 2.5m, Materials = 60m },
+                Line(3, "new_part", "Bonnet", workUnits: null, price: 310m),
+            ],
+            "engineer-1", RecordedAtUtc,
+            new("Repairer", 41.33m, 15m, 20m,
+                new EstimateDiscounts(0m, 0m, 0m, 0.025m),
+                EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            IsCurrent: true);
+
+        var costs = ReportRepairCosts.For(estimate);
+
+        Assert.Equal(3.5m, costs.LabourHours);
+        Assert.Equal(2.5m, costs.PaintHours);
+        Assert.Equal(6m, costs.TotalLabourHours);
+        Assert.Equal(EstimateHours.Of(estimate).PricedTotal, costs.TotalLabourHours);
+        Assert.Equal(costs.Printed.PanelLabour + costs.Printed.PaintLabour, costs.TotalLabour);
+        Assert.Equal(costs.Printed.Labour, costs.TotalLabour);
+        Assert.Equal(
+            costs.Printed.Net,
+            costs.TotalLabour + costs.Printed.Parts + costs.Printed.Materials + costs.Printed.Specialist);
+        costs.Validate();
+    }
+
+    /// <summary>
+    /// The template words two VAT rows (DESIGN_SPEC.md, values and repair cost
+    /// calculation): "VAT (20%)" for a registered repairer, and
+    /// "VAT (20% — parts &amp; paint only)" for one who is not. The
+    /// percentage is the estimate's own.
+    /// </summary>
+    [Fact]
+    public void TheVatRowIsWordedAsTheTemplateWordsIt()
     {
         Assert.Equal("VAT (20%)", Costs(20m).VatLabel);
         Assert.Equal("VAT (5%)", Costs(5m).VatLabel);
-        Assert.Equal("VAT (0%)", Costs(0m).VatLabel);
         Assert.Equal("VAT (17.5%)", Costs(17.5m).VatLabel);
+        Assert.Equal(
+            "VAT (20% — parts & paint only)",
+            ReportRepairCosts.VatLabelOf(EstimateVatPolicy.For(RepairerVatStatus.NotRegistered), 20m));
+        // Charging parts and paint only by hand is the same row.
+        Assert.Equal(
+            "VAT (20% — parts & paint only)",
+            ReportRepairCosts.VatLabelOf(
+                new EstimateVatPolicy(
+                    RepairerVatStatus.Registered,
+                    EstimateVatCategories.Parts | EstimateVatCategories.Materials,
+                    CategoriesOverridden: true),
+                20m));
+    }
+
+    /// <summary>
+    /// An unknown repairer VAT status, and a hand-picked set of costs the
+    /// template has no words for, has no VAT row: the report is refused
+    /// rather than printed with a row nobody accepted.
+    /// </summary>
+    [Fact]
+    public void AVatTreatmentTheTemplateCannotWordHasNoRowAndFailsClosed()
+    {
+        Assert.Null(ReportRepairCosts.VatLabelOf(EstimateVatPolicy.For(RepairerVatStatus.Unknown), 20m));
+        Assert.Null(ReportRepairCosts.VatLabelOf(
+            new EstimateVatPolicy(RepairerVatStatus.Unknown, EstimateVatCategories.All, CategoriesOverridden: true),
+            20m));
+        Assert.Null(ReportRepairCosts.VatLabelOf(
+            new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Labour, CategoriesOverridden: true),
+            20m));
+
+        var registered = Costs(20m);
+        var unknown = registered with
+        {
+            Totals = registered.Totals with { VatPolicy = EstimateVatPolicy.For(RepairerVatStatus.Unknown) },
+        };
+
+        Assert.Null(unknown.VatLabel);
+        var refusal = Assert.Throws<ReportRenderRejectedException>(unknown.Validate);
+        Assert.Contains("the Repair Spec section", refusal.Message, StringComparison.Ordinal);
     }
 
     [Fact]
