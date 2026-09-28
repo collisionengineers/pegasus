@@ -1126,6 +1126,100 @@
         proceed();
     });
 
+    // Image tags while the Case has unsaved changes. Tagging, untagging and a
+    // new tag post at once, so they neither ask the unsaved-changes question
+    // nor swap the page over the draft. The post moves the Case version and
+    // lease, so the draft's own authority moves with it; only the tiles' tag
+    // markup is redrawn. A tag that also takes the image out of the report
+    // (data-tag-leaves-report) changes what a staged preparation is saved
+    // against, so it keeps the ordinary question and the save-first route.
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.closest('[data-tag-picker]')
+            || form.hasAttribute('data-tag-leaves-report')
+            || dirtyEditors.size === 0 || !record.contains(form)) {
+            return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') { return; }
+        submitting = true;
+        form.dataset.inplaceSubmitting = 'true';
+        form.setAttribute('aria-busy', 'true');
+        var oldVersion = record.getAttribute('data-case-version');
+        var oldLeaseInput = form.querySelector('[name="editLeaseToken"]');
+        var oldLease = oldLeaseInput ? oldLeaseInput.value : '';
+        var action = form.getAttribute('action') || window.location.href;
+        fetch(action, {
+            method: 'POST',
+            body: new FormData(form),
+            credentials: 'same-origin',
+            redirect: 'follow',
+            headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
+        }).then(function (response) {
+            if (!samePage(response.url || action)) { throw new Error('The action left the Case before its result was confirmed.'); }
+            if (!response.ok) { throw new Error('The server could not confirm the action.'); }
+            return response.text();
+        }).then(function (html) {
+            var parsed = new DOMParser().parseFromString(html, 'text/html');
+            var incoming = parsed.querySelector('[data-case-record]');
+            if (!incoming) { throw new Error('The server did not return the Case.'); }
+            // The draft keeps its place; when the edit session carried on,
+            // its version and lease move to the ones the server now holds.
+            var newLeaseInput = incoming.querySelector('#case-edit-form [name="editLeaseToken"]');
+            var newVersion = incoming.getAttribute('data-case-version');
+            if (incoming.getAttribute('data-case-editing') === 'true' && newLeaseInput && newVersion) {
+                document.querySelectorAll('input[name="expectedVersion"]').forEach(function (input) {
+                    if (input.value === oldVersion) { input.value = newVersion; }
+                });
+                document.querySelectorAll('input[name="editLeaseToken"]').forEach(function (input) {
+                    if (input.value === oldLease) { input.value = newLeaseInput.value; }
+                });
+                record.setAttribute('data-case-version', newVersion);
+            } else if (newVersion !== oldVersion) {
+                showActionError('The tag was applied, but the Case changed again or editing expired. Your unsaved changes still use their original version.');
+            }
+            incoming.querySelectorAll('[data-image-tile]').forEach(function (fresh) {
+                var tile = main.querySelector('[data-image-tile="' + fresh.getAttribute('data-image-tile') + '"]');
+                if (!tile) { return; }
+                var link = tile.querySelector('a.th');
+                var freshLink = fresh.querySelector('a.th');
+                if (link && freshLink) {
+                    var freshTag = freshLink.getAttribute('data-tag');
+                    if (freshTag === null) { link.removeAttribute('data-tag'); } else { link.setAttribute('data-tag', freshTag); }
+                    var badge = link.querySelector(':scope > .tag');
+                    if (badge) { badge.remove(); }
+                    var freshBadge = freshLink.querySelector(':scope > .tag');
+                    var picture = link.querySelector('img');
+                    if (freshBadge && picture) { picture.insertAdjacentElement('afterend', document.importNode(freshBadge, true)); }
+                }
+                var chips = tile.querySelector(':scope > .tag-chips');
+                if (chips) { chips.remove(); }
+                var freshChips = fresh.querySelector(':scope > .tag-chips');
+                if (freshChips && link) { link.insertAdjacentElement('afterend', document.importNode(freshChips, true)); }
+                var actions = tile.querySelector(':scope > .image-tile-actions');
+                var freshActions = fresh.querySelector(':scope > .image-tile-actions');
+                if (actions && freshActions) {
+                    var replacement = document.importNode(freshActions, true);
+                    actions.replaceWith(replacement);
+                    bindMounted(replacement);
+                }
+            });
+            var notice = incoming.querySelector('[data-case-notices] [data-confirmation] span');
+            var refusal = incoming.querySelector('[data-case-notices] [role="alert"]');
+            if (typeof window.pegasusToast === 'function') {
+                if (refusal && refusal.textContent.trim()) { window.pegasusToast(refusal.textContent.trim(), 'danger'); }
+                else if (notice) { window.pegasusToast(notice.textContent.trim()); }
+            }
+        }).catch(function (error) {
+            showActionError(error.message + ' Your unsaved changes are still here.');
+        }).finally(function () {
+            form.removeAttribute('aria-busy');
+            form.removeAttribute('data-inplace-submitting');
+            submitting = false;
+        });
+    }, true);
+
     // The frame owns this shortcut even inside a field; site.js handles it on
     // other pages. It saves the Case and keeps editing (no finishEditing).
     document.addEventListener('keydown', function (event) {
