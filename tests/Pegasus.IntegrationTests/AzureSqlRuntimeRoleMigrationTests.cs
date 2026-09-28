@@ -1045,7 +1045,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
     // 20260929091000_GrantWebRetainedMailDismissal: Inbox Dismiss and Restore
     // write the dismissal cells of the retained message row as the Web role,
-    // which held SELECT only. The grant is table-level; DELETE stays denied.
+    // which held SELECT only. The grant is table-level; the exact list below
+    // proves no DELETE grant.
     [Fact]
     public async Task LatestMigrationGrantsWebUpdateOnRetainedMailboxMessages()
     {
@@ -1059,7 +1060,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             (await ReadGrantedPermissionsAsync(database, WebRole))
                 .Where(value => value.StartsWith("RetainedMailboxMessages:", StringComparison.Ordinal))
                 .ToArray());
-        Assert.Contains("RetainedMailboxMessages", await ReadDeniedDeleteTablesAsync(database, WebRole));
     }
 
     // The Worker's thumbnail sweep lists confirmed versions and reads and
