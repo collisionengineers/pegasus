@@ -705,7 +705,8 @@ Approved necessary copy includes:
 > {Source} valuation is unavailable. Contact an administrator or report a problem.
 
 The last is the operator's own wording (23 September 2026) for Get valuation
-on a source with no working provider, shown in that source's card; "report a
+on a source with no working provider, shown in that source's card from the
+start (28 September 2026), with no Get valuation button; "report a
 problem" opens the Report a problem dialog. It replaces the 18 September
 "Error. Contact an administrator." Received-mail chasing categories read
 "Update Request", also the operator's wording; "provider" never appears in
@@ -773,8 +774,10 @@ CAP and Cazana are each one card with month, retail and trade boxes (the
 Case's own mileage is used; a card has none, 24 September 2026)
 — greyed while reading, editable while editing — and, while editing, a Get
 valuation button that looks the figures up and fills the boxes in place
-(answering with the card's notice while that source has no working
-provider); the boxes are typed by hand just as well. The card has no Save of
+(a source with no working provider shows the card's notice from the start and
+has no button) and a Use this value button that chooses the card and records
+the decision on the one Save (28 September 2026); the boxes are typed by hand
+just as well. The card has no Save of
 its own (23 September 2026): its boxes belong to the Case form and the
 ribbon Save records a changed card with whatever was entered; any box may be
 left blank. The ribbon Save is the Case's one save (23 September 2026): the
