@@ -995,6 +995,9 @@ public sealed class EfTriageStore(
             .Include(item => item.Findings)
             .Include(item => item.ResponseEvidenceLinks)
             .Include(item => item.History)
+            // Three sibling collections joined in one query multiply into
+            // their cross product; each is read on its own instead.
+            .AsSplitQuery()
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
         if (entity is null)
         {

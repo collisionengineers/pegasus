@@ -395,8 +395,8 @@ public sealed class GetOperationsSnapshot(
     {
         // The Triage kind is work without a finding, so both no-finding states
         // are queried directly.
-        var openRead = ReadTriageAsync(actor, TriageState.Open, cancellationToken);
-        var awaitingRead = ReadTriageAsync(actor, TriageState.AwaitingInformation, cancellationToken);
+        var openRead = listTriage.ListAllAsync(actor, TriageState.Open, cancellationToken);
+        var awaitingRead = listTriage.ListAllAsync(actor, TriageState.AwaitingInformation, cancellationToken);
         var dueRead = ReadDueWorkAsync(asOfUtc, cancellationToken);
         var heldRead = ReadCasesAsync(actor, CaseLifecycleState.Held, cancellationToken);
         var reviewRead = ReadCasesAsync(actor, CaseLifecycleState.Review, cancellationToken);
@@ -407,8 +407,8 @@ public sealed class GetOperationsSnapshot(
             : aiDrafts.ListOpenAsync(cancellationToken);
         await Task.WhenAll(openRead, awaitingRead, dueRead, heldRead, reviewRead,
             configurationRead, unidentifiedRead, draftsRead);
-        var (openTriage, openTriageCount) = await openRead;
-        var (awaitingTriage, awaitingTriageCount) = await awaitingRead;
+        var openTriage = await openRead;
+        var awaitingTriage = await awaitingRead;
         var dueWork = await dueRead;
         var held = await heldRead;
         var review = await reviewRead;
@@ -435,29 +435,8 @@ public sealed class GetOperationsSnapshot(
             reviewPartitions.Where(partition => partition.IsReadyForEngineerAssignment).Select(partition => partition.Item).ToArray(),
             unidentified,
             [.. openTriage, .. awaitingTriage],
-            openTriageCount + awaitingTriageCount,
+            openTriage.Count + awaitingTriage.Count,
             drafts);
-    }
-
-    private async Task<(IReadOnlyList<TriageSummary> Items, int TotalCount)> ReadTriageAsync(
-        ActionActor actor,
-        TriageState state,
-        CancellationToken cancellationToken)
-    {
-        List<TriageSummary> items = [];
-        var total = 0;
-        for (var page = 1; ; page++)
-        {
-            var result = await listTriage.ExecuteAsync(new(actor, state, page, SourcePageSize), cancellationToken);
-            total = result.TotalCount;
-            items.AddRange(result.Items);
-            if (result.Items.Count < SourcePageSize || page >= result.TotalPages)
-            {
-                break;
-            }
-        }
-
-        return (items, total);
     }
 
     private async Task<IReadOnlyList<CaseSearchItem>> ReadCasesAsync(
@@ -704,12 +683,20 @@ public sealed class GetOperationsSnapshot(
             return owners;
         }
 
-        foreach (var draft in drafts)
+        var caseDrafts = drafts
+            .Where(draft => draft.Job.SubjectKind == AiJobSubjectKind.Case && draft.Job.SubjectId is not null)
+            .ToArray();
+        if (caseDrafts.Length == 0)
         {
-            if (draft.Job.SubjectKind == AiJobSubjectKind.Case && draft.Job.SubjectId is { } caseId)
-            {
-                owners[draft.Job.JobId] = (await workflows.GetAsync(caseId, cancellationToken))?.AssignedEngineerId;
-            }
+            return owners;
+        }
+
+        var engineers = await workflows.GetAssignedEngineersAsync(
+            caseDrafts.Select(draft => draft.Job.SubjectId!.Value).Distinct().ToArray(),
+            cancellationToken);
+        foreach (var draft in caseDrafts)
+        {
+            owners[draft.Job.JobId] = engineers.GetValueOrDefault(draft.Job.SubjectId!.Value);
         }
 
         return owners;
