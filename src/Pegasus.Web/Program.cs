@@ -906,8 +906,10 @@ if (productionProfile)
 }
 
 // While the Automation OAuth certificates load (after the port binds), every
-// request but a health or version probe gets 503 and a retry hint. Absent when
-// the certificates are not read from Key Vault.
+// request but a health or version probe gets 503 and a retry hint. Those probes
+// short-circuit after routing, so they never reach authentication, which builds
+// the token server's options. Absent when the certificates are not read from
+// Key Vault.
 if (app.Services.GetService<OAuthCertificateStore>() is { } oauthCertificates)
 {
     app.Use(oauthCertificates.Gate);
@@ -1159,7 +1161,8 @@ app.MapGet("/diagnostics/version", () => Results.Ok(new
 {
     version = productVersion,
     sourceSha
-})).AllowAnonymous();
+})).AllowAnonymous()
+    .ShortCircuit();
 app.MapPost("/hooks/microsoft-graph/mail", GraphMailWebhook.HandleAsync)
     .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(64 * 1024))
     .AllowAnonymous();

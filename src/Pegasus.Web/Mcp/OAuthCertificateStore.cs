@@ -60,7 +60,9 @@ internal sealed class OAuthCertificateStore
     /// <summary>
     /// Answers 503 to every request but the health and version probes until the
     /// certificates are loaded. Any other request builds the token server's
-    /// options, and building them without certificates would fail for good.
+    /// options, and building them without certificates would fail for good. The
+    /// probes pass only because their endpoints short-circuit after routing and
+    /// never reach authentication.
     /// </summary>
     public Task Gate(HttpContext context, RequestDelegate next)
     {
