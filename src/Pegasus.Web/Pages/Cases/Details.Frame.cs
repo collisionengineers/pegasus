@@ -143,18 +143,41 @@ public sealed partial class DetailsModel
     };
 
     /// <summary>
+    /// The report blockers the Next action lists (issue 899): while the
+    /// report is not ready and this view's assessment is writable, every
+    /// blocker, each linking to the section that clears it (FRD-13). Empty
+    /// otherwise, and always in the read-only Inspection view.
+    /// </summary>
+    public IReadOnlyList<AssessmentReadinessItem> NextActionBlockers =>
+        !AssessmentIsReadOnly && ReportDraftNotReady ? ReportDraftReasons : [];
+
+    /// <summary>
     /// The one-line Next action the aside states: the AI draft rows come first
     /// (rendered by the view), then the Case's next permitted lifecycle action
-    /// (<see cref="CaseNextAction"/>).
+    /// (<see cref="CaseNextAction"/>). With Engineer, while the report is not
+    /// ready, there is no line: the <see cref="NextActionBlockers"/> list is the
+    /// next action (in the Inspection view, which lists none, the line names
+    /// Report not ready).
     /// </summary>
-    public (string Label, string SectionKey, AssessmentReadinessItem? Blocker) NextAction =>
-        CaseNextAction.Of(
-            Case!.Workflow,
-            OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
-            ReportDraftReasons,
-            BlockerSectionKey,
-            CurrentReportGeneration,
-            CurrentDeliveryPreparation);
+    public (string Label, string SectionKey)? NextAction
+    {
+        get
+        {
+            var next = CaseNextAction.Of(
+                Case!.Workflow,
+                OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
+                ReportDraftNotReady ? ReportDraftReasons : [],
+                BlockerSectionKey,
+                CurrentReportGeneration,
+                CurrentDeliveryPreparation);
+            if (next.Blocker is null)
+            {
+                return (next.Label, next.SectionKey);
+            }
+            // A writable view lists the blockers in place of this line.
+            return AssessmentIsReadOnly ? (CaseWorkspaceLabels.Report.NotReady, "report") : null;
+        }
+    }
 
     /// <summary>The Figures aside's repair cost inc VAT from the current estimate.</summary>
     public decimal? RepairCostIncVat =>

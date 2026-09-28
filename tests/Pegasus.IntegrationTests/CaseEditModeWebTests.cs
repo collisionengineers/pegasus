@@ -1614,7 +1614,11 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("handler=GenerateImagePack", html, StringComparison.Ordinal);
     }
 
-    /// <summary>The Report not ready label and the blocker list show outside edit mode too.</summary>
+    /// <summary>
+    /// The Report not ready label and the blocker list show outside edit mode
+    /// too: the label in the Report head, the list in the aside's Next action
+    /// (issue 899), never both in Report.
+    /// </summary>
     [Fact]
     public async Task TheReportNotReadyLabelAndBlockersShowOutsideEditMode()
     {
@@ -1622,11 +1626,15 @@ public sealed class CaseEditModeWebTests
         using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
             Substitute<ICaseReportSnapshotSource>(services, store));
 
-        var report = Section(await ReportSectionAsync(workspace), "section-report-title");
+        var html = await ReportSectionAsync(workspace);
+        var report = Section(html, "section-report-title");
+        var nextAction = NextActionRegex().Match(html);
 
         Assert.Contains("data-report-gate", report, StringComparison.Ordinal);
-        Assert.Contains("data-report-not-ready", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-not-ready", report, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-generate-report-form\"", report, StringComparison.Ordinal);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        Assert.Contains("data-report-not-ready", nextAction.Value, StringComparison.Ordinal);
     }
 
     /// <summary>A report with nothing blocking it, and the generation the page calls.</summary>

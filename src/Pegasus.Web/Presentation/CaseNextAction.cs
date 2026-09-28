@@ -39,16 +39,12 @@ public static class CaseNextAction
         }
         if (reportBlockers.Count > 0)
         {
-            // One line: the first blocker and how many follow, linking to the
-            // section that clears the first (FRD-13). The Report section lists
-            // every blocker with its own link, and is the target when the
-            // first has no section.
+            // One line names the first blocker, linking to the section that
+            // clears it, and to Report when it has none. It never counts the
+            // rest: FRD-13 allows no summary. The Case page's aside lists
+            // every blocker in place of this line (issue 899).
             var first = reportBlockers[0];
-            return (reportBlockers.Count > 1
-                    ? $"{first.Requirement} · {reportBlockers.Count - 1} more"
-                    : first.Requirement,
-                blockerSection(first) ?? "report",
-                first);
+            return (first.Requirement, blockerSection(first) ?? "report", first);
         }
         if (currentReport is null || currentReport.State == CaseReportGenerationState.Stale)
         {
