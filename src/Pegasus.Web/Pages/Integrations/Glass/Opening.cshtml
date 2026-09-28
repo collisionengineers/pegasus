@@ -1,0 +1,24 @@
+@page "/Integrations/Glass/Opening/{sessionId:guid}"
+@model Pegasus.Web.Pages.Integrations.Glass.OpeningModel
+@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
+@{
+    Layout = null;
+    var sessionId = Model.Session.Id;
+    var go = Url.Page("/Integrations/Glass/Opening", "Go", new { sessionId });
+}
+@* The Glass's window while its provider work runs in the background. The
+   script asks the owner-only State handler until nothing runs, then continues
+   to Go, which answers with the estimator or hands the outcome back to the
+   Case window (Shared/_GlassReturn). The Continue link is the no-script path. *@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>@GlassLabels.Launch · Pegasus</title>
+</head>
+<body data-glass-opening-state="@Url.Page("/Integrations/Glass/Opening", "State", new { sessionId })" data-glass-opening-go="@go">
+    <p role="status">@Model.Waiting <a href="@go">@GlassLabels.Continue</a>.</p>
+    <script src="~/js/glass-opening.js" asp-append-version="true"></script>
+</body>
+</html>
