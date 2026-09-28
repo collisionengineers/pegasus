@@ -81,15 +81,27 @@ public sealed class RecentCasesPersistenceTests
                 }
             }
 
-            Assert.Equal(
-                whole.Items.Select(item => (item.OccurredAtUtc, item.Reference, item.Kind)),
-                walked.Select(item => (item.OccurredAtUtc, item.Reference, item.Kind)));
-            Assert.Equal(
-                whole.Items.OrderBy(Key, StringComparer.Ordinal).ToArray(),
-                walked.OrderBy(Key, StringComparer.Ordinal).ToArray());
+            // Ties on one Case at one moment have a fixed order, so the
+            // walk is the whole page row for row.
+            Assert.Equal(whole.Items, walked);
         }
 
-        static string Key(RecentCaseRow row) => $"{row.CaseId:N}:{row.Kind}:{row.ChangeKind}";
+        var again = await queries.ListAsync(Since, 1, 100, CancellationToken.None);
+        Assert.Equal(whole.Items, again.Items);
+    }
+
+    [Fact]
+    public async Task APageBeyondAnyIntegerIsPastTheEndRatherThanAFailedRead()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedTiesAsync(database);
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>();
+        var page = await queries.ListAsync(Since, int.MaxValue, 50, CancellationToken.None);
+
+        Assert.Empty(page.Items);
+        Assert.Equal(12, page.TotalCount);
     }
 
     private static async Task SeedTiesAsync(LocalDbTestDatabase database)
