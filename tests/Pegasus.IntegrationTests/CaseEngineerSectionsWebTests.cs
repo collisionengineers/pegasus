@@ -72,7 +72,7 @@ public sealed class CaseEngineerSectionsWebTests
         // in every state, as the issued report printed them; neither is a
         // recorded field.
         Assert.Contains(
-            $"data-damage-narrative>{ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear")}</div>",
+            $"data-damage-narrative>{ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear", ["right_rear"])}</div>",
             html,
             StringComparison.Ordinal);
         Assert.Contains(AssessmentReportContract.StatementOfTruth1, html, StringComparison.Ordinal);

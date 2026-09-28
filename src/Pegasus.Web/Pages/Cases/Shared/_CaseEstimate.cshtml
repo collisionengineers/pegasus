@@ -421,7 +421,7 @@
                 }
                 @if (outcomeIsContract && contractSum is { } sentenceSum)
                 {
-                    <div class="fc ro est-contract-sentence"><span class="lbl">@EstimateLabels.ContractRepair</span><div class="fv derived" data-contract-sentence>@RepairSpecificationWording.ContractRepair(sentenceSum)</div></div>
+                    <div class="fc ro est-contract-sentence"><span class="lbl">@EstimateLabels.ContractRepair</span><div class="fv derived" data-contract-sentence>@Pegasus.Core.Reports.ReportWordingComposition.ContractRepairSentence(sentenceSum)</div></div>
                 }
             </div>
         }

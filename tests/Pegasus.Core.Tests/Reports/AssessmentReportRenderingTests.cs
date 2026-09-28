@@ -10,11 +10,27 @@ public sealed class AssessmentReportRenderingTests
 {
     private static readonly DateTimeOffset RecordedAtUtc = new(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// Version six carries only what the template prints (operator, 27
+    /// September 2026): the tyres, belts, airbags, temporary repairs, the
+    /// vehicle's colour, body, transmission and expiry dates, the damage
+    /// tables and the settlement rows are recorded on the Case and are no
+    /// part of the report.
+    /// </summary>
     [Fact]
-    public void ExpandedSnapshotUsesVersionFiveAndImpactRetainsItsAreaCodes()
+    public void TheSnapshotIsVersionSixAndCarriesOnlyWhatTheTemplatePrints()
     {
-        Assert.Equal("rendererref1-v5", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
-        Assert.Equal(["Areas", "Severity", "Note", "Codes", "Disc"], typeof(ReportImpact).GetProperties().Select(property => property.Name));
+        Assert.Equal("rendererref1-v6", AssessmentReportContract.TemplateVersion);
+        Assert.Equal("rendererref1-v6", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
+        Assert.Equal(
+            [
+                "Registration", "Make", "Model", "Year", "Condition",
+                "MileageDescription", "MileageSource", "Vin", "Engine", "Fuel",
+            ],
+            Printed(typeof(ReportVehicle)));
+        Assert.Equal(["Impacts", "Unrelated"], Printed(typeof(ReportDamage)));
+        Assert.Equal(["Codes", "Disc"], Printed(typeof(ReportImpact)));
+        Assert.Equal(["ContractSum"], Printed(typeof(ReportSettlement)));
     }
 
     [Theory]
@@ -471,19 +487,53 @@ public sealed class AssessmentReportRenderingTests
         Assert.Null(renderer.Received.Signatory.Qualifications);
     }
 
+    /// <summary>
+    /// A report frozen on the earlier layout is refused before it reaches the
+    /// renderer, in words staff can act on: no version, no developer's term.
+    /// </summary>
     [Fact]
     public async Task PreviousPayloadVersionFailsBeforeAdapter()
     {
         var renderer = new FakeRenderer();
         var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
         {
-            PayloadVersion = "rendererref1-v1",
+            PayloadVersion = "rendererref1-v5",
         };
 
-        await Assert.ThrowsAsync<ReportRenderRejectedException>(
+        var refusal = await Assert.ThrowsAsync<ReportRenderRejectedException>(
             () => new GenerateAssessmentReportDraft(renderer)
                 .ExecuteAsync(invalid, CaseReportArtifactKind.AssessmentReport));
+
+        Assert.Equal(
+            "This report was generated before the report's layout changed, so it cannot be printed again. "
+            + "Save a change to the Case, then generate the report again.",
+            refusal.Message);
+        Assert.DoesNotContain("rendererref1", refusal.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("payload", refusal.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Null(renderer.Received);
+    }
+
+    /// <summary>
+    /// Core says whether the vehicle is unroadworthy and whether it was
+    /// assessed from images, so the layout compares no strings.
+    /// </summary>
+    [Fact]
+    public void TheSnapshotSaysWhetherTheVehicleIsUnroadworthyAndHowItWasAssessed()
+    {
+        var roadworthy = Snapshot(AssessmentReportOutcome.Repairable);
+        var unroadworthy = roadworthy with
+        {
+            LegalStatus = "unroadworthy",
+            UnroadworthyReason = "the illegal offside front tyre",
+            AssessmentMethod = "physical",
+            LocationAddress = "1 Test Street, London",
+        };
+
+        Assert.False(roadworthy.IsUnroadworthy);
+        Assert.True(roadworthy.IsImageBased);
+        Assert.True(unroadworthy.IsUnroadworthy);
+        Assert.False(unroadworthy.IsImageBased);
+        unroadworthy.Validate();
     }
 
     internal static AssessmentReportSnapshot Snapshot(AssessmentReportOutcome outcome)
@@ -494,7 +544,7 @@ public sealed class AssessmentReportRenderingTests
             ClaimantName: "Alex Example", IncidentDate: new DateOnly(2026, 8, 1),
             InstructionsReceived: new DateOnly(2026, 8, 2), Assessed: new DateOnly(2026, 8, 3),
             ReportFor: ["Approved Principal", "1 Example Street"],
-            Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "car", "good", "80,000 miles", "online_data", "VIN", "1600 cc", "Petrol", "manual", "Blue", "Hatchback", new(2027, 1, 2), new(2027, 3, 4), "None", true, "Secure bumper", 25m),
+            Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "good", "80,000 miles", "online_data", "VIN", "1600", "Petrol"),
             Outcome: outcome, LegalStatus: "roadworthy", UnroadworthyReason: null,
             ImpactSeverity: "moderate", ImpactLocation: "right_rear", AssessmentMethod: "image_based", LocationAddress: null,
             EngineerValue: 5_000m, RetailValue: 5_000m, TradeValue: 4_000m,
@@ -538,15 +588,13 @@ public sealed class AssessmentReportRenderingTests
             "case", "Test evidence",
             ActorKind.Staff, "engineer-1", RecordedAtUtc, Quantity: 1);
 
-    internal static ReportDamage Damage() => new(
-        [new("RH Rear", "Moderate", "Quarter panel", ["right_rear"])],
-        "ok", "worn", "damaged", "illegal", "ok", "locked", "deployed", "not_fitted",
-        "repair_kit", "not_fitted", "Door scratch", 75m, "Red paint");
+    internal static ReportDamage Damage() => new([new(["right_rear"])], "Door scratch");
 
-    internal static ReportSettlement Settlement() => new(
-        250m, 100m, true, 6_000m, 4_125m, "Parts delay", "None", 20m, 80m,
-        new(2026, 8, 4), 35m, 200m, "Repairer", "Salvage Co", "SAL-1", true, false, true,
-        new(2026, 8, 20));
+    internal static ReportSettlement Settlement() => new();
+
+    /// <summary>The members of a snapshot record, in the order it declares them.</summary>
+    private static IEnumerable<string> Printed(Type record) =>
+        record.GetProperties().Select(property => property.Name);
 
     private static string RepositoryRoot()
     {

@@ -593,6 +593,28 @@ public sealed class CaseReportGenerationTests
     }
 
     /// <summary>
+    /// "Engineer's Value applied." is the reason the Case save records by
+    /// itself: a message for the screen, not commentary. It does not satisfy
+    /// the switch, so it can never print as the report's commentary.
+    /// </summary>
+    [Fact]
+    public void TheCaseSavesOwnReasonDoesNotSatisfyTheValuationCommentarySwitch()
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields
+            .Append(Field(AssessmentVocabulary.ReportValuationCommentary, "true"))
+            .ToArray();
+
+        var result = CaseReportReadiness.Evaluate(input with
+        {
+            Assessment = input.Assessment with { Fields = fields },
+            AppliedValuation = Valuation() with { Reason = ValuationCalculationPolicy.AppliedReason },
+        });
+
+        AssertBlocked(result, CaseReportReadiness.ValuationCommentaryRequirement);
+    }
+
+    /// <summary>
     /// Phase 5b: the Engineer's written commentary satisfies the switch on its
     /// own, and it is what the report prints ahead of the applied valuation's
     /// reason; with neither there is nothing to print and no placeholder.

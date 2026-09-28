@@ -577,9 +577,11 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal(1, source.PreviewReads);
         var snapshot = Assert.IsType<AssessmentReportSnapshot>(renderer.Snapshot);
-        Assert.Equal(AssessmentReportProjection.BuildSettlement(persisted, input.CurrentEstimate), snapshot.Settlement);
-        Assert.Equal(250m, snapshot.Settlement.Excess);
-        Assert.False(snapshot.Settlement.ClaimantVatRegistered);
+        // The excess, betterment and the claimant's VAT answer are saved on
+        // the Case and are no part of the report; only a contract repair
+        // carries an agreed sum.
+        Assert.Equal("250.00", persisted.Field(AssessmentVocabulary.SettlementExcess)?.Value);
+        Assert.Equal(new ReportSettlement(), snapshot.Settlement);
         Assert.Equal("History clear", snapshot.HistoryCheck);
         Assert.Equal("Scuffed", snapshot.EngineerComments);
         Assert.Equal(120m, snapshot.AgreedFee);
