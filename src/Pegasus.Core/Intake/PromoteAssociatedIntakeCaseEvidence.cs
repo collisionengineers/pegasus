@@ -10,12 +10,15 @@ namespace Pegasus.Core.Intake;
 /// matched Case: its source email, its documents and its selected photographs.
 /// A receipt filed here is not held; holding custody and Case custody use
 /// different operation identities, and confirmation in the holding area is
-/// not filing.
+/// not filing. Once filed, an open Audit awaiting its original report has it
+/// recognised among the filed files (FRD-16); a later pass whose filing is
+/// already complete recognises again, so a deferred recognition is retried.
 /// </summary>
 public sealed class PromoteAssociatedIntakeCaseEvidence(
     IIntakeArtifactStore artifactStore,
     ICaseArtifactCustody custody,
-    IAutomaticCaseEvidencePromotionStore promotionStore)
+    IAutomaticCaseEvidencePromotionStore promotionStore,
+    RecogniseFiledOriginalReport? recogniseOriginalReport = null)
 {
     private static readonly ActionActor SystemWorkerActor =
         ActionActor.SystemWorker("intake-processing");
@@ -30,15 +33,31 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
             return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
         }
 
-        // A registered Image intake's photographs reach the Case through its
-        // merge: the fold moves the Vehicle images folder into the Case folder
-        // and files each photograph as a Case image (FRD-05, FRD-19). Filing
-        // them here as well would place them on the Case twice.
+        // A registered Image intake reaches the Case through its merge: the
+        // fold moves the Vehicle images folder into the Case folder and files
+        // what it held, documents and photographs alike, on the Case (FRD-05,
+        // FRD-19). Filing them here as well would place them on the Case twice.
         if (receipt.Decision == IntakeDecision.ImageIntakeRegistered)
         {
             return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
         }
 
+        var outcome = await FileAsync(receipt, caseId, cancellationToken);
+        if (recogniseOriginalReport is not null
+            && outcome is not (AutomaticCaseEvidencePromotionOutcome.Deferred
+                or AutomaticCaseEvidencePromotionOutcome.Failed))
+        {
+            await recogniseOriginalReport.ExecuteAsync(caseId, receipt, cancellationToken);
+        }
+
+        return outcome;
+    }
+
+    private async Task<AutomaticCaseEvidencePromotionOutcome> FileAsync(
+        IntakeReceipt receipt,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
         // A matched follow-up is filed whether or not it carries photographs:
         // its email and documents belong on the Case too (operator, 23 September 2026).
         // A receipt that retained nothing has nothing to file.
@@ -90,7 +109,7 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
                     asset.ContentLength,
                     asset.ContentHash,
                     stream,
-                    RoleFor(asset),
+                    IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType),
                     DocumentSource.Intake,
                     preparation.ExpectedCaseVersion,
                     IsAutomaticIntakeEvidencePromotion: true),
@@ -128,11 +147,6 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
             .DistinctBy(asset => asset.Id)
             .ToArray();
     }
-
-    private static DocumentSemanticRole RoleFor(IntakeAssetRecord asset) =>
-        asset.Kind == IntakeAssetKind.Source ? DocumentSemanticRole.OriginalSource
-        : InstructionEvidenceImages.IsImage(asset.MediaType) ? DocumentSemanticRole.Image
-        : DocumentSemanticRole.Correspondence;
 
     private static void Verify(IntakeAssetRecord asset, ReadOnlySpan<byte> content)
     {
@@ -191,4 +205,17 @@ public static class AutomaticCaseEvidencePromotionOperationKey
         $"case-intake:{caseId:N}:{receiptId:N}:{assetId:N}";
 
     public static string Plan(Guid receiptId) => $"case-intake-promotion:{receiptId:N}";
+}
+
+/// <summary>
+/// The role a retained intake file takes when it is filed on a Case, by this
+/// filer or by the image fold: the received file itself is the original
+/// source, a photograph is an image, anything else is correspondence.
+/// </summary>
+public static class IntakeCaseEvidenceRoles
+{
+    public static DocumentSemanticRole For(IntakeAssetKind kind, string mediaType) =>
+        kind == IntakeAssetKind.Source ? DocumentSemanticRole.OriginalSource
+        : InstructionEvidenceImages.IsImage(mediaType) ? DocumentSemanticRole.Image
+        : DocumentSemanticRole.Correspondence;
 }

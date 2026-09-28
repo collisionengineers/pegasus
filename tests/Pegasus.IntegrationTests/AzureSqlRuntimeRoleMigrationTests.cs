@@ -1011,6 +1011,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     // every deployed case uploaded its evidence to Box and was then refused the
     // record write. Nothing here caught it because the tests run
     // full-privilege; this asserts the grant itself.
+    // 20260928160000_GrantWorkerDocumentOccurrenceUpdate: the Worker gives the
+    // original report it recognised among a receipt's filed files the Audit
+    // report role, so it updates an occurrence too.
     [Fact]
     public async Task LatestMigrationGrantsWorkerTheCaseDocumentTables()
     {
@@ -1026,7 +1029,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         foreach (var (table, expected) in new[]
         {
             ("CaseDocuments", new[] { "CaseDocuments:INSERT", "CaseDocuments:SELECT" }),
-            ("DocumentOccurrences", ["DocumentOccurrences:INSERT", "DocumentOccurrences:SELECT"]),
+            ("DocumentOccurrences",
+                ["DocumentOccurrences:INSERT", "DocumentOccurrences:SELECT", "DocumentOccurrences:UPDATE"]),
             ("DocumentVersions",
                 ["DocumentVersions:INSERT", "DocumentVersions:SELECT", "DocumentVersions:UPDATE"])
         })

@@ -175,7 +175,10 @@ holds takes the record's reference in front of its name. The removal is
 non-recursive, so unexpected content makes the fold fail closed instead of
 being destroyed. Each moved file keeps its Box file and version identity.
 When the fold completes it records each photograph it moved as a Case image
-document under that identity (operator, 27 September 2026). Nothing is
+document under that identity (operator, 27 September 2026), and each other
+file it moved that the record was registered from, such as the PDF the
+photographs came in, as a Case document (operator, 28 September 2026), which
+staff may then mark as an Audit's original report. Nothing is
 uploaded again, and a replay records nothing twice. The fold yields to a
 member of staff editing the Case and retries after they finish
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). The record's
