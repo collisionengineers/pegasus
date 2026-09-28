@@ -68,7 +68,17 @@ public static class DamagePlanGeometry
     public static DamageDisc? Disc(AssessmentImpact impact)
     {
         ArgumentNullException.ThrowIfNull(impact);
-        var disc = DamageAreaGeometry.RenderDisc(impact.Areas, PlanWidth, PlanHeight, impact.Disc);
+        return Disc(impact.Areas, impact.Disc);
+    }
+
+    /// <summary>
+    /// The same disc from a damage's areas and the disc drawn for it, which is
+    /// how a report carries a damage.
+    /// </summary>
+    public static DamageDisc? Disc(IReadOnlyList<string> areas, DamageDisc? drawn)
+    {
+        ArgumentNullException.ThrowIfNull(areas);
+        var disc = DamageAreaGeometry.RenderDisc(areas, PlanWidth, PlanHeight, drawn);
         return disc is null ? null : disc with { CentreX = disc.CentreX + PlanLeft, CentreY = disc.CentreY + PlanTop };
     }
 
