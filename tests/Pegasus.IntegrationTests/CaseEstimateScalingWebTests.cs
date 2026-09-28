@@ -235,10 +235,11 @@ public sealed class CaseEstimateScalingWebTests
         Assert.Equal("£483.76", preview.GetProperty("rollup").GetProperty("gross").GetString());
         var readout = preview.GetProperty("readout").GetString();
         Assert.StartsWith("£744.24 ", readout, StringComparison.Ordinal);
-        // The readout states the share asked for, as Apply records it, and
-        // that the labour rate stopped at its floor.
+        // The readout states the share asked for, as Apply records it. The
+        // line has no labour hours, so the total stops moving once the
+        // price floor bites and the labour rate never reaches its floor.
         Assert.Contains("(45.0 % of value)", readout, StringComparison.Ordinal);
-        Assert.EndsWith(" · labour at floor", readout, StringComparison.Ordinal);
+        Assert.DoesNotContain("labour at floor", readout, StringComparison.Ordinal);
 
         // The spec as edited, not as saved: a part typed at £500 totals
         // £600.00 before scaling.
