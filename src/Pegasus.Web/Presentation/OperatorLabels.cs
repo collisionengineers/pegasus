@@ -1214,6 +1214,13 @@ public static class OperatorLabels
         LondonCalendar.DateAt(value).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
 
     /// <summary>
+    /// The date a due instant falls due. A Due by date's instant is the
+    /// midnight that ends it (<see cref="Pegasus.Core.Tasks.CaseDuePolicy.DueAt"/>),
+    /// so the day named is the one just before the instant.
+    /// </summary>
+    public static string DueDate(DateTimeOffset due) => OfficeDate(due.AddTicks(-1));
+
+    /// <summary>
     /// The time of day in the office's zone, for the two-line surfaces that
     /// print the date above it.
     /// </summary>

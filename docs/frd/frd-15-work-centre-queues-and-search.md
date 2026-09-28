@@ -172,7 +172,12 @@ Each queue keeps its own row shape:
 Awaiting-instruction rows select their quick detail. Every other row links
 straight to its full detail. Selecting a row shows a quick detail. For a
 Case that is its origin, compact workflow position, outstanding requirements
-and current work (due, Engineer, next action), with Open full Case. For other
+and current work, with Open full Case. Current work is the Case's Next action,
+the step the Case record's aside names (a report blocker, Generate report,
+Prepare delivery and so on), never the chase schedule's state; beside it stand
+the Engineer and the due. A Case's due is one instant everywhere it shows, on
+the list, the quick detail and Search: its Case chase due instant from the
+table above, dated by the day it falls due (issue 896, 28 September 2026). For other
 kinds it is the definition list and the open action, with Add to an existing
 case on an Awaiting-instruction record. A Triage row's open action, **Open
 Triage**, opens the Triage Case page at `/Cases/{id}`.
