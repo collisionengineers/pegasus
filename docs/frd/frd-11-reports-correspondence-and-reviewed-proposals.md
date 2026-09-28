@@ -287,7 +287,8 @@ prepared-but-unsent delivery is not one.
 
 **Report and fee note.** They are separately addressable files in custody.
 The operator generating the report chooses whether the fee note is a separate
-document or the report's final pages. The snapshot records that choice, so a
+document or the report's final pages, with the Include fee note choice beside
+Generate report (issue 912). The snapshot records that choice, so a
 combined report is one file under the report's name and reproduces the same
 way. A later request for a separate fee note names the current confirmed,
 non-stale generation and adds the fee note from that generation's frozen
@@ -340,7 +341,10 @@ handler claims the Case's edit lease for the one generation and releases it;
 a colleague's live lease refuses it. In edit mode Generate saves the Case
 first. It uses the accepted saved facts and the snapshot above, and retains
 versioned report and fee-note files, their custody outcome and history. A
-generated file is not approval, sending or receipt.
+generated file is not approval, sending or receipt. Generate for a companion
+document of the confirmed generation — the separate fee note, the Repair Spec
+and the images — is offered the same way, in or out of edit mode, with the
+same one-off lease (operator, 28 September 2026, issue 912).
 
 **After Generate report** (operator, 27 September 2026). A report that was
 generated and stored opens in the Case page's document viewer by itself,

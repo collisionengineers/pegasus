@@ -3441,8 +3441,8 @@
             }
             section.dataset.reportPreviewBound = 'true';
 
-            // The preview follows the Include fee note choice, and opens in
-            // the page's document viewer when one is present.
+            // The preview follows the Include fee note choice beside Generate
+            // report, and opens in the page's document viewer when one is present.
             var preview = section.querySelector('[data-report-preview]');
             var feeNote = section.querySelector('[data-include-fee-note]');
             function previewHref() {
