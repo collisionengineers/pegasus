@@ -157,6 +157,12 @@ public sealed record ValuationCalculationSelection(
     /// its identity, whichever source it is.
     /// </summary>
     public ValuationSource? GuideSource { get; init; }
+
+    /// <summary>
+    /// The Engineer pressed Use this value: an explicit decision that the Save
+    /// must record or refuse, never drop. Absent on every other save.
+    /// </summary>
+    public bool Use { get; init; }
 }
 
 /// <summary>
@@ -316,6 +322,13 @@ public static class ValuationCalculationPolicy
 
     /// <summary>The reason an adoption by the Case Save records.</summary>
     public const string AppliedReason = "Engineer's Value applied.";
+
+    /// <summary>
+    /// The refusal when Use this value was pressed and the Engineer's Value
+    /// box no longer holds the figure it chose, so no decision is dropped silently.
+    /// </summary>
+    public const string UseFigureChanged =
+        "The Engineer's Value no longer matches the figure you chose to use. Press Use this value again.";
 
     /// <summary>
     /// Printed currency. The value itself stays decimal; only what is shown

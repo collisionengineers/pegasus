@@ -354,6 +354,7 @@ public sealed partial class DetailsModel
                 ConditionDeduction ?? 0m)
             {
                 GuideSource = GuideValuationId == Guid.Empty ? GuideSource : null,
+                Use = Use,
             };
         }
 
@@ -507,6 +508,8 @@ public sealed partial class DetailsModel
 
         try
         {
+            // A retail box posted empty is "no retail" (Core answers that it is
+            // required), never the recorded card: the Save reads the same box.
             decimal? retail = null;
             if (!string.IsNullOrWhiteSpace(basisRetail))
             {
@@ -514,6 +517,10 @@ public sealed partial class DetailsModel
                     basisRetail.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var typed)
                     ? typed
                     : throw new InvalidOperationException("The basis retail value is not a number.");
+            }
+            else if (Request.Form.ContainsKey(nameof(basisRetail)))
+            {
+                retail = 0m;
             }
             bool? claimantVat = assessmentFields is not null
                 && assessmentFields.TryGetValue(AssessmentVocabulary.SettlementClaimantVatRegistered, out var vat)

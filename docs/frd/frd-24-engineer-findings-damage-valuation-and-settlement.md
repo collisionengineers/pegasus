@@ -189,6 +189,13 @@ neither records no calculation, so an unrelated save never adopts a value.
 A figure typed over the Engineer's Value box after the calculation filled it
 is the Engineer's own value: the Save records it as theirs and does not
 record the calculation against the card.
+If the box no longer holds the figure the Engineer chose to use (the preview
+had not landed, or a card changed underneath), the Save is refused with that
+reason and writes nothing, so a decision is never dropped silently. A
+preview that fails or is refused puts the box back to its recorded value and
+withdraws the decision; typing in the box withdraws it too. A card with no
+retail offers no Use this value, and a cleared retail box is "no retail", not
+the recorded card's figure.
 
 **The preview shows what the Save will use.** The lines and the figure that
 fills the Engineer's Value box come from the retail on the chosen card as

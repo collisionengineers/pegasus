@@ -861,6 +861,69 @@ public sealed class AutomationAiJobIngressTests
             $"SELECT COUNT(*) FROM CaseWorkflowEvents WHERE CaseId = '{caseId:D}' AND EventType = N'market_research_attached'"));
     }
 
+    /// <summary>
+    /// Filing without the Case edit lease leaves one Case-state guard: the Case
+    /// must be open. An archived Case and one in a terminal state refuse the
+    /// result and nothing is written.
+    /// </summary>
+    [Theory]
+    [InlineData("archived")]
+    [InlineData("terminal")]
+    public async Task MarketResearchCompletionIsRefusedForAnArchivedOrTerminalCaseAndWritesNothing(string closure)
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        AiJobRecord taken;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var created = await services.GetRequiredService<IAiJobStore>().CreateAsync(
+                new(
+                    AiJobKind.MarketResearch,
+                    AiJobSubjectKind.Case,
+                    caseId,
+                    "fixture-reference",
+                    "Research comparable vehicles.",
+                    null,
+                    null,
+                    Staff,
+                    $"market-research-{closure}-seed",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
+                new(created.JobId, created.Version, Client, $"market-research-{closure}-take"),
+                CancellationToken.None);
+        }
+
+        await factory.Database.ExecuteAsync(closure == "archived"
+            ? $"UPDATE CaseWorkflows SET ArchivedAtUtc = SYSDATETIMEOFFSET(), ArchivedByKind = N'Staff', ArchivedBySubjectId = N'staff', ArchivedByRolesJson = N'[]', ArchiveReason = N'Test archive' WHERE CaseId = '{caseId:D}'"
+            : $"UPDATE CaseWorkflows SET State = '{nameof(Pegasus.Core.Lifecycle.CaseLifecycleState.ProviderCancelled)}' WHERE CaseId = '{caseId:D}'");
+
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, JobsScope);
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            MarketResearchCompletionPayload(
+                31,
+                taken.JobId,
+                taken.Version,
+                caseId,
+                $"mcp:market-research-{closure}-complete")))
+        {
+            using var document = await ReadJsonRpcAsync(response);
+            Assert.DoesNotContain("DraftReady", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseWorkflowEvents WHERE CaseId = '{caseId:D}' AND EventType = N'market_research_attached'"));
+    }
+
     private static string MarketResearchCompletionPayload(
         int id,
         Guid jobId,

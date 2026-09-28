@@ -285,7 +285,11 @@
                             {
                                 <button type="submit" form="case-market-research-form" class="btn btn--small btn--ghost" data-valuation-card-get="@ValuationLabels.SourceSlug(valuation.Details.Source)"><span>@ValuationLabels.GetValuation</span></button>
                             }
-                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>@ValuationLabels.UseThisValue</span></button>
+                            @if (valuation.Details.RetailValue is > 0m)
+                            {
+                                @* A card with no retail has no figure to use. *@
+                                <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>@ValuationLabels.UseThisValue</span></button>
+                            }
                         }
                     </h3>
                     <div class="figs fg g2">

@@ -1653,6 +1653,41 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
+    /// Use this value is a decision, so a Save that carries it while the
+    /// Engineer's Value box no longer holds the calculated figure (the preview
+    /// had not landed, or the box was typed over) is refused with a message and
+    /// writes nothing: it is never dropped silently.
+    /// </summary>
+    [Fact]
+    public async Task UseThisValueWithAnEngineersValueBoxThatDoesNotMatchTheCalculationIsRefused()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-use-stale-1");
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "use-stale-save-1", engineer) with
+            {
+                Valuation = new(
+                    [GuideCard(ValuationSource.Glasses, new DateOnly(2030, 4, 1), 12_500m)],
+                    new ValuationCalculationSelection(Guid.Empty, false, null, [], 0m)
+                    {
+                        GuideSource = ValuationSource.Glasses,
+                        Use = true,
+                    },
+                    // The box still holds an earlier figure, not the calculated 12,500.
+                    Values("12500", "11500", "9000"))
+            },
+            CancellationToken.None));
+        Assert.Equal(ValuationCalculationPolicy.UseFigureChanged, refusal.Message);
+
+        var valuations = new EfValuationStore(harness.Factory);
+        Assert.Empty(await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        Assert.Empty(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+    }
+
+    /// <summary>
     /// The preview is what the Save uses (operator, 28 September 2026): from
     /// the retail as typed and the claimant's VAT position as the form holds
     /// it, the preview and the calculation the Save records are one figure,

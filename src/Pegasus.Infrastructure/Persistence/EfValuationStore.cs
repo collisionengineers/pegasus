@@ -37,11 +37,14 @@ public sealed class EfValuationStore(
     /// screen, and a card typed in this same edit is chosen by its source.
     /// The claimant's VAT position is the one this save records. The Case
     /// save owns the version, the workflow event and the history line.
-    /// No stamp is checked: every writer of a guide card moves the Case
-    /// version, which the save has already checked.
+    /// No stamp is checked: the calculation is worked out here from the card
+    /// as it is now, and the Engineer's Value box must still hold that figure.
+    /// A card changed underneath the page (an AI research result is filed
+    /// without the Case edit lease) therefore fails that check.
     /// Null when the Engineer typed a different figure over the Engineer's
     /// Value box: that figure is the Engineer's own, so it is not recorded as
-    /// this card's calculation.
+    /// this card's calculation. When Use this value was pressed the same
+    /// mismatch is refused instead.
     /// </summary>
     internal static async Task<AppliedValuation?> AdoptAsync(
         PegasusDbContext context,
@@ -96,7 +99,11 @@ public sealed class EfValuationStore(
         var accepted = ValuationCalculationPolicy.AcceptedValue(calculation);
         if (!ValuationCalculationPolicy.IsEngineerValueBox(accepted, engineerValueBox))
         {
-            return null;
+            // A figure typed over a changed calculation is the Engineer's own.
+            // An explicit Use is a decision, so it is refused, never dropped.
+            return selection.Use
+                ? throw new InvalidOperationException(ValuationCalculationPolicy.UseFigureChanged)
+                : null;
         }
 
         // The calculated value, with the Case's own mileage when it has one:

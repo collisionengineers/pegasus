@@ -548,6 +548,17 @@ public sealed class CaseValuationV26WebTests
         Assert.Equal(HttpStatusCode.OK, recorded.StatusCode);
         Assert.Null(preview.Requests[1].GuideRetailValue);
         Assert.Null(preview.Requests[1].ClaimantVatRegistered);
+
+        // A retail box the Engineer cleared is posted empty and means "no
+        // retail", as the Save reads it: never the recorded card's figure.
+        using var cleared = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=PreviewValuation",
+            Form(
+                workspace.AntiforgeryToken,
+                ("selection.GuideValuationId", glasses.ValuationId.ToString("D")),
+                ("basisRetail", "")));
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        Assert.Equal(0m, preview.Requests[2].GuideRetailValue);
     }
 
     /// <summary>
