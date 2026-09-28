@@ -70,7 +70,7 @@ public static class CaseNextAction
         }
         if (workflow.ReportSentEvidence is not null)
         {
-            return ("Mark completed", "overview", null);
+            return (CaseWorkspaceLabels.Frame.MarkCompleted, "overview", null);
         }
         if (deliveryPreparation is not null)
         {
