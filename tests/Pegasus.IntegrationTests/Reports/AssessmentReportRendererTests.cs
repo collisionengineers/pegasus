@@ -10,14 +10,17 @@ using Pegasus.Infrastructure.Reports;
 using SkiaSharp;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
+using static Pegasus.IntegrationTests.Reports.PrintedPages;
 
 namespace Pegasus.IntegrationTests.Reports;
 
 /// <summary>
 /// The integrated renderer (ADR-0050) against the ready fixture: the three
 /// artifact shapes render to real pages whose text carries the accepted
-/// wording, the provenance the port promises holds, and an input the
-/// snapshot or the renderer cannot print fails closed.
+/// wording, the images stand in their slots, the provenance the port
+/// promises holds, and an input the snapshot or the renderer cannot print
+/// fails closed. The layout against the template is
+/// <see cref="AssessmentReportTemplateConformanceTests"/>'s.
 /// </summary>
 public sealed partial class AssessmentReportRendererTests
 {
@@ -29,14 +32,74 @@ public sealed partial class AssessmentReportRendererTests
     [Fact]
     public void TheDamageDiagramClipsEveryDiscToTheBody()
     {
-        var wide = DamageAreaGeometry.RenderDisc(["left_side", "right_side"], 124, 364, new DamageDisc(0.5, 0.5, DamageAreaGeometry.MaxRadius))!;
-        var svg = AssessmentReportLayout.DiagramSvg([wide]);
+        var wide = new ReportImpact(
+            ["left_side", "right_side"], new DamageDisc(0.5, 0.5, DamageAreaGeometry.MaxRadius));
 
-        Assert.Contains("<clipPath id=\"plan-body\"><path d=\"", svg, StringComparison.Ordinal);
-        var clipped = Regex.Match(svg, "<g clip-path=\"url\\(#plan-body\\)\">(.*?)</g>", RegexOptions.Singleline);
-        Assert.True(clipped.Success, "The discs are not clipped to the body.");
-        Assert.Contains("r=\"62\"", clipped.Groups[1].Value, StringComparison.Ordinal);
-        Assert.Equal(1, Regex.Count(clipped.Groups[1].Value, "<circle "));
+        var svg = DamagePlanDrawing.Svg([wide], "moderate");
+
+        Assert.Contains(
+            $"<clipPath id=\"plan-body\"><path d=\"{DamagePlanGeometry.BodyPath}\"/></clipPath>",
+            svg,
+            StringComparison.Ordinal);
+        var disc = Assert.Single(Regex.Matches(svg, "<circle clip-path=\"url\\(#plan-body\\)\"[^>]* r=\"([0-9.]+)\"/>"));
+        Assert.Equal("78", disc.Groups[1].Value);
+        // The disc and the dot at its centre, and no other mark.
+        Assert.Equal(2, Regex.Count(svg, "<circle "));
+    }
+
+    /// <summary>
+    /// One vehicle drawing (operator, 27 September 2026): the report draws
+    /// the Case page's plan from Core's geometry, turned on its side with the
+    /// front at the left, in flat colours and with no words.
+    /// </summary>
+    [Fact]
+    public void TheDamageDiagramIsTheCasePagesPlanTurnedOnItsSide()
+    {
+        var svg = DamagePlanDrawing.Svg([new ReportImpact(["right_rear"])], "moderate");
+
+        // The plan is 240 wide and 434 tall; turned, it is 434 by 240.
+        Assert.Equal("0 0 240 434", DamagePlanGeometry.ViewBox);
+        Assert.Contains("viewBox=\"0 0 434 240\"", svg, StringComparison.Ordinal);
+        // A quarter turn and nothing else, so left stays left.
+        Assert.Contains("<g transform=\"translate(0 240) rotate(-90)\">", svg, StringComparison.Ordinal);
+        Assert.DoesNotContain("scale(", svg, StringComparison.Ordinal);
+        foreach (var path in new[]
+        {
+            DamagePlanGeometry.BodyPath, DamagePlanGeometry.FrontGlassPath, DamagePlanGeometry.RearGlassPath,
+            DamagePlanGeometry.SeamPath, DamagePlanGeometry.SoftSeamPath,
+        }.Concat(DamagePlanGeometry.FrontLampPaths).Concat(DamagePlanGeometry.RearLampPaths))
+        {
+            Assert.Contains($" d=\"{path}\"/>", svg, StringComparison.Ordinal);
+        }
+        Assert.Equal(
+            DamagePlanGeometry.Wheels.Count + DamagePlanGeometry.Mirrors.Count,
+            Regex.Count(svg, "<rect "));
+        foreach (var banned in new[] { "<text", "Gradient", "<filter", "filter=", "url(#damage", "FRONT", "REAR" })
+        {
+            Assert.DoesNotContain(banned, svg, StringComparison.OrdinalIgnoreCase);
+        }
+        // The disc stands where the Case page draws it, in the Case page's
+        // colour for the severity: its red, 58 parts in 100, on white.
+        var disc = DamagePlanGeometry.Disc(["right_rear"], null)!;
+        Assert.Contains(
+            FormattableString.Invariant(
+                $"fill=\"#e07f84\" fill-opacity=\"0.32\" stroke=\"#d9646b\" stroke-width=\"1.6\" cx=\"{disc.CentreX:0.#}\" cy=\"{disc.CentreY:0.#}\" r=\"{disc.Radius:0.#}\""),
+            svg,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// When no damage names a plan area the plan prints with no marks
+    /// (operator, 27 September 2026).
+    /// </summary>
+    [Fact]
+    public void ADamageThatNamesNoPlanAreaLeavesThePlanUnmarked()
+    {
+        var svg = DamagePlanDrawing.Svg([new ReportImpact(["underside"])], "light");
+
+        Assert.DoesNotContain("<circle", svg, StringComparison.Ordinal);
+        Assert.Contains(DamagePlanGeometry.BodyPath, svg, StringComparison.Ordinal);
+        Assert.Equal(svg, DamagePlanDrawing.Svg([], "heavy"));
     }
 
     [Fact]
@@ -75,9 +138,9 @@ public sealed partial class AssessmentReportRendererTests
         Assert.Equal(AssessmentReportContract.TemplateVersion, artifact.TemplateVersion);
         Assert.Equal(renderer.EngineVersion, artifact.EngineVersion);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(artifact.Pdf)), artifact.Sha256);
-        // Page 1, the vehicle data, the work lists, the images and the
-        // statement of truth each start a page.
-        Assert.True(artifact.PageCount >= 5, $"Expected at least five pages, got {artifact.PageCount}.");
+        // Page 1, the narrative, the vehicle data, the work lists, the images
+        // and the statement of truth each start a page.
+        Assert.Equal(6, artifact.PageCount);
 
         var pages = PageTexts(artifact.Pdf);
         Assert.Equal(artifact.PageCount, pages.Length);
@@ -96,44 +159,94 @@ public sealed partial class AssessmentReportRendererTests
         {
             Assert.Contains($"Page {page} of {pages.Length}", pages[page - 1], StringComparison.Ordinal);
             Assert.Contains($"{snapshot.Vehicle.Registration} · {snapshot.OurReference}", pages[page - 1], StringComparison.Ordinal);
+            // The company block runs on every page, and the VAT number on none of the report's.
+            Assert.Contains(AssessmentReportWording.CompanyName, pages[page - 1], StringComparison.Ordinal);
+            Assert.Contains(AssessmentReportWording.CompanyWebsite, pages[page - 1], StringComparison.Ordinal);
+            Assert.DoesNotContain(AssessmentReportWording.VatNumberLine, pages[page - 1], StringComparison.Ordinal);
         }
-    }
-
-    [Fact]
-    public async Task ReportChromeExtractionKeepsCurrentAssessmentTextAndPageCountStable()
-    {
-        await using var provider = RendererProvider();
-        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
-        var draft = new GenerateAssessmentReportDraft(renderer);
-        var snapshot = ReadySnapshot();
-
-        // The pre-extraction renderer is no longer present. The checked-in
-        // baseline freezes reviewed current text and records that limitation.
-        var current = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
-        var comparison = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
-        var pages = PageTexts(current.Pdf);
-        var reviewedBaseline = File.ReadAllLines(Path.Combine(
-            RepositoryRoot(), "tests", "Pegasus.IntegrationTests", "Reports", "Baselines",
-            "AssessmentReportRenderer.current-text.txt"));
-        var reviewedPageCount = int.Parse(
-            reviewedBaseline.Single(line => line.StartsWith("pages=", StringComparison.Ordinal))["pages=".Length..],
-            System.Globalization.CultureInfo.InvariantCulture);
-        var reviewedText = reviewedBaseline
-            .Where(line => line.Length > 0 && !line.StartsWith('#') && !line.StartsWith("pages=", StringComparison.Ordinal))
-            .ToArray();
-        var actualText = string.Join(" ", pages);
-
-        Assert.Equal(7, current.PageCount);
-        Assert.Equal(current.PageCount, comparison.PageCount);
-        Assert.Equal(PageTexts(current.Pdf), PageTexts(comparison.Pdf));
-        Assert.Equal(reviewedPageCount, pages.Length);
-        Assert.All(reviewedText, expected => Assert.Contains(expected, actualText, StringComparison.Ordinal));
+        Assert.Contains(AssessmentReportWording.VehicleDetailsHeading, pages[0], StringComparison.Ordinal);
+        Assert.Contains(presentation.SettlementText, pages[1], StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.RepairCostHeading, pages[2], StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.StatementOfTruthHeading, pages[^1], StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// v28 P22: the image pack is the included images alone, under the
-    /// report's letterhead, with none of the report's narrative or its
-    /// statement of truth.
+    /// The rows the template lacks are not printed (operator, 27 September
+    /// 2026): the damage tables, tyres and seat belts, the settlement facts
+    /// and the further vehicle details.
+    /// </summary>
+    [Fact]
+    public async Task TheReportPrintsNoRowTheTemplateLacks()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(ReadySnapshot(), CaseReportArtifactKind.AssessmentReport);
+
+        var text = string.Join(" ", PageTexts(artifact.Pdf));
+        foreach (var gone in new[]
+        {
+            "Tyres and Seat Belts", "Tyre / Belt", "Spare Tyre", "Centre Belt", "Severity", "Paint / Material Transfer",
+            "Unrelated Damage Deduction", "Transmission", "Colour / Body", "Tax Expiry", "MOT Expiry",
+            "Airbags Deployed", "Temporary Repair", "Excess", "Betterment", "Claimant VAT Registered", "Reserve",
+            "Equity", "Agreed Contract Sum", "Repair Delays", "Storage Per Day", "Hire Start", "Diminution",
+            "Salvage Agent", "Owner Retains Salvage", "Paint Hours", "Panel Labour", "FRONT", "REAR",
+        })
+        {
+            Assert.DoesNotContain(gone, text, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// A work list flows as a table with its title row repeated
+    /// (DESIGN_SPEC.md, fixed slots): a list that runs onto another page
+    /// begins that page at the top of the body, under its title again. A
+    /// list with no items is not printed.
+    /// </summary>
+    [Fact]
+    public async Task ALongWorkListRunsOnUnderItsTitleAndAnEmptyOneIsNotPrinted()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var snapshot = ReadySnapshot() with
+        {
+            NewParts = [],
+            Operations = [.. Enumerable.Range(1, 90).Select(index => $"Operation {index:00}")],
+        };
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+
+        var texts = PageTexts(artifact.Pdf);
+        Assert.DoesNotContain(
+            texts, page => page.Contains(AssessmentReportWording.NewPartsHeading, StringComparison.Ordinal));
+        var listed = Enumerable.Range(0, texts.Length)
+            .Where(page => texts[page].Contains(AssessmentReportWording.OperationsHeading, StringComparison.Ordinal))
+            .ToArray();
+        // Forty-five rows of two: more than two pages hold.
+        Assert.Equal(3, listed.Length);
+        for (var index = 1; index <= 90; index++)
+        {
+            Assert.Equal(1, Regex.Count(string.Join(" ", texts), $"Operation {index:00}"));
+        }
+        // Each page it runs onto opens with the red title row, at the top of the body.
+        var printed = Read(artifact.Pdf);
+        Assert.All(listed.Skip(1), page =>
+        {
+            var title = printed[page].Shapes
+                .Where(shape => shape.Fill == "#c80a32" && shape.Height > 1)
+                .MinBy(shape => shape.Top)!;
+            Assert.InRange(title.Top, 38.8, 39.2);
+            Assert.InRange(title.Left, 22.0, 22.3);
+            Assert.InRange(title.Right, 187.7, 188.0);
+        });
+    }
+
+    /// <summary>
+    /// v28 P22: the image pack is the included images alone, on the report's
+    /// own page, with none of the report's narrative or its statement of
+    /// truth.
     /// </summary>
     [Fact]
     public async Task TheImagePackRendersTheIncludedImagesAlone()
@@ -148,28 +261,48 @@ public sealed partial class AssessmentReportRendererTests
         Assert.Equal("CE_100_images.pdf", artifact.SuggestedFileName);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(artifact.Pdf)), artifact.Sha256);
         var text = string.Join(" ", PageTexts(artifact.Pdf));
-        Assert.Contains("Vehicle Images", text, StringComparison.Ordinal);
+        Assert.Contains(Squeeze(AssessmentReportWording.ImagePackTitle), Squeeze(text), StringComparison.Ordinal);
         Assert.Contains($"{snapshot.Vehicle.Registration} · {snapshot.OurReference}", text, StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.CompanyName, text, StringComparison.Ordinal);
         Assert.DoesNotContain(AssessmentReportContract.StatementOfTruth1, text, StringComparison.Ordinal);
         Assert.DoesNotContain("TOTAL DUE", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Repair Cost Calculation", text, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task TheImagePackPaginatesOrdinaryImagesInPairs()
+    /// <summary>
+    /// The image pack uses the report's own image pages (operator, 27
+    /// September 2026): six images to a page, the Close-up among them.
+    /// </summary>
+    [Theory]
+    [InlineData(5, 1)]
+    [InlineData(6, 1)]
+    [InlineData(7, 2)]
+    [InlineData(13, 3)]
+    public async Task TheImagePackPrintsSixOrdinaryImagesToAPage(int images, int pages)
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var snapshot = ReadySnapshot();
         var photo = snapshot.Photos.Single();
-        var photos = Enumerable.Range(0, 5)
-            .Select(index => photo with { CustodyReference = $"site-{index}.jpg", Order = index })
+        var photos = Enumerable.Range(0, images)
+            .Select(index => photo with
+            {
+                CustodyReference = $"site-{index}.jpg",
+                Order = index,
+                Role = index == 0 ? CaseAssetReportRole.CloseUp : CaseAssetReportRole.Supporting,
+            })
             .ToArray();
 
         var artifact = await new GenerateAssessmentReportDraft(renderer)
             .ExecuteAsync(snapshot with { Photos = photos }, CaseReportArtifactKind.ImagePack);
 
-        Assert.Equal(3, artifact.PageCount);
+        Assert.Equal(pages, artifact.PageCount);
+        Assert.Equal(images, BodyImages(artifact.Pdf).Sum(page => page.Count));
+        Assert.All(BodyImages(artifact.Pdf).SelectMany(page => page), image =>
+        {
+            Assert.InRange(image.Width, 80.2, 80.6);
+            Assert.InRange(image.Height, 47.8, 48.2);
+        });
     }
 
     [Fact]
@@ -198,8 +331,8 @@ public sealed partial class AssessmentReportRendererTests
             .ExecuteAsync(ReadySnapshot() with { IncludeFeeNote = true }, CaseReportArtifactKind.ImagePack);
 
         var text = string.Join(" ", PageTexts(artifact.Pdf));
-        Assert.Contains("Vehicle Images", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("FEE NOTE", text, StringComparison.Ordinal);
+        Assert.Contains(Squeeze(AssessmentReportWording.ImagePackTitle), Squeeze(text), StringComparison.Ordinal);
+        Assert.DoesNotContain(Squeeze(AssessmentReportWording.FeeNoteTitle), Squeeze(text), StringComparison.Ordinal);
         Assert.DoesNotContain("TOTAL DUE", text, StringComparison.Ordinal);
         Assert.DoesNotContain($"VAT No: {AssessmentReportContract.VatNumber}", text, StringComparison.Ordinal);
     }
@@ -230,7 +363,10 @@ public sealed partial class AssessmentReportRendererTests
         Assert.True(artifact.PageCount >= 1);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(artifact.Pdf)), artifact.Sha256);
         var text = string.Join(" ", PageTexts(artifact.Pdf));
-        Assert.Contains("FEE NOTE", text, StringComparison.Ordinal);
+        Assert.Contains(Squeeze(AssessmentReportWording.FeeNoteTitle), Squeeze(text), StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.BillToLabel, text, StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.PaymentDetailsHeading, text, StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.ThankYou, text, StringComparison.Ordinal);
         Assert.Contains("TOTAL DUE", text, StringComparison.Ordinal);
         Assert.Contains(snapshot.OurReference, text, StringComparison.Ordinal);
         Assert.Contains($"VAT No: {AssessmentReportContract.VatNumber}", text, StringComparison.Ordinal);
@@ -262,7 +398,7 @@ public sealed partial class AssessmentReportRendererTests
         var pages = PageTexts(combined.Pdf);
         var last = pages[^1];
         Assert.Contains("TOTAL DUE", last, StringComparison.Ordinal);
-        Assert.Contains("BILL TO:", last, StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.BillToLabel, last, StringComparison.Ordinal);
         Assert.Contains($"Page {pages.Length} of {pages.Length}", last, StringComparison.Ordinal);
         // The report is first and complete: its final page still closes with
         // the signatory, and no report page carries the fee note's totals.
@@ -317,11 +453,20 @@ public sealed partial class AssessmentReportRendererTests
             snapshot with { Photos = [rotated, snapshot.Photos[0]] },
             CaseReportArtifactKind.AssessmentReport);
 
-        Assert.True(artifact.PageCount >= 5);
+        Assert.Equal(6, artifact.PageCount);
+        // The Close-up leads page 1 in its slot, turned and cropped as the
+        // Engineer left it and then trimmed to the slot's shape.
+        var lead = Assert.Single(BodyImages(artifact.Pdf)[0]);
+        Assert.InRange(lead.Width, 80.2, 80.6);
+        Assert.InRange(lead.Height, 35.8, 36.2);
     }
 
+    /// <summary>
+    /// Six images to a page, two across and three down, and an image flagged
+    /// Full page alone on a page of its own (operator, 27 September 2026).
+    /// </summary>
     [Fact]
-    public async Task NormalImagesArePagedInPairsAndFullPageImageIsIsolated()
+    public async Task OrdinaryImagesPrintSixToAPageAndAFullPageImageAlone()
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
@@ -340,27 +485,144 @@ public sealed partial class AssessmentReportRendererTests
             CaseAssetCrop.Full,
             FullPage: fullPage);
 
-        var fourNormal = ReadySnapshot() with
+        var seven = await draft.ExecuteAsync(
+            ReadySnapshot() with { Photos = [.. Enumerable.Range(1, 7).Select(index => Photo(index))] },
+            CaseReportArtifactKind.AssessmentReport);
+        Assert.Equal(2, VehicleImagePageCount(seven.Pdf));
+        var pages = ImagePages(seven.Pdf);
+        Assert.Equal([6, 1], pages.Select(page => page.Count));
+        // Two across and three down: the frames stand at the body's left
+        // edge and at 107.5 mm, 54.8 mm apart down the page.
+        (double Left, double Top)[] slots =
+        [
+            (22.1, 52.2), (107.5, 52.2), (22.1, 107.0), (107.5, 107.0), (22.1, 161.9), (107.5, 161.9),
+        ];
+        Assert.All(pages[0].Zip(slots), pair =>
         {
-            Photos = [Photo(1), Photo(2), Photo(3), Photo(4)],
-        };
-        var normalArtifact = await draft.ExecuteAsync(
-            fourNormal, CaseReportArtifactKind.AssessmentReport);
-        Assert.Equal(2, VehicleImagePageCount(normalArtifact.Pdf));
+            Assert.InRange(pair.First.Left, pair.Second.Left - 0.2, pair.Second.Left + 0.2);
+            Assert.InRange(pair.First.Top, pair.Second.Top - 0.2, pair.Second.Top + 0.2);
+        });
+        // The page after it begins at the top of the body, with no heading.
+        Assert.InRange(Assert.Single(pages[1]).Top, 38.8, 39.2);
+        Assert.All(pages.SelectMany(page => page), image =>
+        {
+            Assert.InRange(image.Width, 80.2, 80.6);
+            Assert.InRange(image.Height, 47.8, 48.2);
+        });
 
-        var isolated = fourNormal with
+        var isolated = await draft.ExecuteAsync(
+            ReadySnapshot() with { Photos = [Photo(1), Photo(2), Photo(3, fullPage: true), Photo(4)] },
+            CaseReportArtifactKind.AssessmentReport);
+        Assert.Equal(3, VehicleImagePageCount(isolated.Pdf));
+        Assert.Equal([2, 1, 1], ImagePages(isolated.Pdf).Select(page => page.Count));
+    }
+
+    /// <summary>
+    /// An image flagged Full page is fitted whole into the body of its
+    /// page: nothing is trimmed from it and it is not enlarged.
+    /// </summary>
+    [Fact]
+    public async Task AFullPageImageKeepsItsWholeCropWithinTheBody()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var tall = Bitmap(2400, 3200, SKEncodedImageFormat.Jpeg);
+        var photo = new ReportImageEvidence(
+            "tall.jpg", "image/jpeg", tall, Convert.ToHexStringLower(SHA256.HashData(tall)), FullPage: true);
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
+            ReadySnapshot() with { Photos = [photo] }, CaseReportArtifactKind.AssessmentReport);
+
+        var image = Assert.Single(Assert.Single(ImagePages(artifact.Pdf)));
+        // Its longest edge is 2000 px and its shape is its own, three to four.
+        Assert.Equal((1500, 2000), (image.PixelWidth, image.PixelHeight));
+        Assert.InRange(image.Width / image.Height, 0.749, 0.751);
+        Assert.InRange(image.Left, 22.0, 187.9);
+        Assert.InRange(image.Left + image.Width, 22.0, 188.0);
+        Assert.InRange(image.Top, 39, 275);
+        Assert.InRange(image.Top + image.Height, 39, 275);
+    }
+
+    /// <summary>
+    /// Page 1 carries the Close-up beside the damage diagram and the image
+    /// pages begin with the Overview (operator, 27 September 2026). The
+    /// Close-up prints on page 1 only, and Full page has no effect on it.
+    /// </summary>
+    [Fact]
+    public async Task TheCloseUpLeadsPageOneAndTheOverviewLeadsTheImagePages()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+
+        static ReportImageEvidence Photo(
+            string name, int width, int height, CaseAssetReportRole role, int? order = null)
         {
-            Photos = [Photo(1), Photo(2), Photo(3, fullPage: true), Photo(4)],
+            var bytes = Bitmap(width, height, SKEncodedImageFormat.Jpeg);
+            return new(
+                name, "image/jpeg", bytes, Convert.ToHexStringLower(SHA256.HashData(bytes)), role, order);
+        }
+
+        // Out of order, and each of a size of its own, so each can be told apart in print.
+        var snapshot = ReadySnapshot() with
+        {
+            Photos =
+            [
+                Photo("second.jpg", 640, 480, CaseAssetReportRole.Supporting, 2),
+                Photo("overview.jpg", 800, 600, CaseAssetReportRole.Overview),
+                Photo("close-up.jpg", 1600, 1200, CaseAssetReportRole.CloseUp) with { FullPage = true },
+                Photo("first.jpg", 400, 300, CaseAssetReportRole.Supporting, 1),
+            ],
         };
-        var isolatedArtifact = await draft.ExecuteAsync(
-            isolated, CaseReportArtifactKind.AssessmentReport);
-        Assert.Equal(3, VehicleImagePageCount(isolatedArtifact.Pdf));
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+
+        var printed = BodyImages(artifact.Pdf);
+        var closeUp = Assert.Single(printed[0]);
+        // 80.4 by 36 mm at the body's left edge, 1000 px across.
+        Assert.Equal((1000, 448), (closeUp.PixelWidth, closeUp.PixelHeight));
+        Assert.Equal(22.1, Math.Round(closeUp.Left, 1));
+        Assert.InRange(closeUp.Width, 80.2, 80.6);
+        Assert.InRange(closeUp.Height, 35.8, 36.2);
+        var images = Assert.Single(ImagePages(artifact.Pdf));
+        // The Overview, then the supporting images in the Engineer's order;
+        // none is enlarged, so each prints at its own width in pixels.
+        Assert.Equal([800, 400, 640], images.Select(image => image.PixelWidth));
+        // The narrative, the vehicle data and the work lists carry no image,
+        // and the last page carries the signature alone.
+        Assert.Equal([1, 0, 0, 0, 3, 1], printed.Select(page => page.Count));
+    }
+
+    /// <summary>
+    /// An image is trimmed about its centre to the shape of its slot after
+    /// the Engineer's own crop, and is never enlarged.
+    /// </summary>
+    [Theory]
+    [InlineData(1600, 1200, 1000, 597)]
+    [InlineData(3000, 1000, 1000, 597)]
+    [InlineData(1200, 1600, 1000, 597)]
+    [InlineData(160, 120, 160, 96)]
+    public async Task AnImageIsTrimmedToItsSlotAndNeverEnlarged(int width, int height, int printedWidth, int printedHeight)
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var bytes = Bitmap(width, height, SKEncodedImageFormat.Png);
+        var photo = new ReportImageEvidence(
+            "site.png", "image/png", bytes, Convert.ToHexStringLower(SHA256.HashData(bytes)));
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
+            ReadySnapshot() with { Photos = [photo] }, CaseReportArtifactKind.AssessmentReport);
+
+        var image = Assert.Single(Assert.Single(ImagePages(artifact.Pdf)));
+        Assert.Equal((printedWidth, printedHeight), (image.PixelWidth, image.PixelHeight));
+        Assert.InRange(image.Width, 80.2, 80.6);
+        Assert.InRange(image.Height, 47.8, 48.2);
     }
 
     /// <summary>
     /// Every image the Engineer includes prints, whatever their number
-    /// (operator, 24 September 2026): thirty ordinary images fill fifteen
-    /// pages of the image pack and fifteen image pages of the report.
+    /// (operator, 24 September 2026): thirty ordinary images fill five pages
+    /// of the image pack and five image pages of the report.
     /// </summary>
     [Fact]
     public async Task ThirtyImagesPrintWithoutACountLimit()
@@ -379,8 +641,9 @@ public sealed partial class AssessmentReportRendererTests
         var report = await draft.ExecuteAsync(
             snapshot with { Photos = photos }, CaseReportArtifactKind.AssessmentReport);
 
-        Assert.Equal(15, imagePack.PageCount);
-        Assert.Equal(15, VehicleImagePageCount(report.Pdf));
+        Assert.Equal(5, imagePack.PageCount);
+        Assert.Equal(5, VehicleImagePageCount(report.Pdf));
+        Assert.Equal(30, ImagePages(report.Pdf).Sum(page => page.Count));
     }
 
     /// <summary>
@@ -483,8 +746,8 @@ public sealed partial class AssessmentReportRendererTests
             {
                 Impacts =
                 [
-                    new ReportImpact("RH Side, RH Rear", "Moderate", "Creased below the swage line", ["right_side", "right_rear"], new DamageDisc(0.8, 0.72, 0.12)),
-                    new ReportImpact("Underside", "Light", "Exhaust hanger bent", ["underside"]),
+                    new ReportImpact(["right_side", "right_rear"], new DamageDisc(0.8, 0.72, 0.12)),
+                    new ReportImpact(["underside"]),
                 ],
             },
             Photos =
@@ -549,28 +812,59 @@ public sealed partial class AssessmentReportRendererTests
 
     private static int VehicleImagePageCount(byte[] pdf)
     {
-        var pages = PageTexts(pdf);
-        var imagePage = Array.FindIndex(
-            pages, page => page.Contains("Vehicle Images", StringComparison.Ordinal));
-        var statementPage = Array.FindIndex(
-            pages, page => page.Contains("Statement of Truth", StringComparison.Ordinal));
-        Assert.True(imagePage >= 0, "The report did not render the Vehicle Images section.");
-        Assert.True(statementPage > imagePage, "The Statement of Truth did not follow the image pages.");
+        var (imagePage, statementPage) = ImagePageRange(pdf);
         return statementPage - imagePage;
     }
 
+    /// <summary>The report's image pages: from its images heading to its statement of truth.</summary>
+    private static (int First, int Statement) ImagePageRange(byte[] pdf)
+    {
+        var pages = PageTexts(pdf);
+        var imagePage = Array.FindIndex(
+            pages, page => page.Contains(AssessmentReportWording.VehicleImagesHeading, StringComparison.Ordinal));
+        var statementPage = Array.FindIndex(
+            pages, page => page.Contains(AssessmentReportWording.StatementOfTruthHeading, StringComparison.Ordinal));
+        Assert.True(imagePage >= 0, "The report did not render the Vehicle Images section.");
+        Assert.True(statementPage > imagePage, "The Statement of Truth did not follow the image pages.");
+        return (imagePage, statementPage);
+    }
+
+    /// <summary>The images of the report's image pages, page by page, in print order.</summary>
+    private static List<PrintedImage>[] ImagePages(byte[] pdf)
+    {
+        var (first, statement) = ImagePageRange(pdf);
+        return BodyImages(pdf)[first..statement];
+    }
+
+    /// <summary>
+    /// Each page's images beneath the running header, in print order, in
+    /// millimetres from the top left of the page and in the pixels they hold.
+    /// </summary>
+    private static List<PrintedImage>[] BodyImages(byte[] pdf)
+    {
+        const double millimetres = 25.4 / 72.0;
+        using var document = PdfDocument.Open(pdf);
+        return document.GetPages()
+            .Select(page => page.GetImages()
+                .Select(image => new PrintedImage(
+                    image.BoundingBox.Left * millimetres,
+                    (page.Height - image.BoundingBox.Top) * millimetres,
+                    image.BoundingBox.Width * millimetres,
+                    image.BoundingBox.Height * millimetres,
+                    image.WidthInSamples,
+                    image.HeightInSamples))
+                .Where(image => image.Top > 36)
+                .OrderBy(image => Math.Round(image.Top))
+                .ThenBy(image => image.Left)
+                .ToList())
+            .ToArray();
+    }
+
+    private sealed record PrintedImage(
+        double Left, double Top, double Width, double Height, int PixelWidth, int PixelHeight);
+
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
-
-    private static string RepositoryRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null && !File.Exists(Path.Combine(current.FullName, "Pegasus.slnx")))
-        {
-            current = current.Parent;
-        }
-        return current?.FullName ?? throw new InvalidOperationException("Repository root not found.");
-    }
 
     private static ServiceProvider RendererProvider()
     {
