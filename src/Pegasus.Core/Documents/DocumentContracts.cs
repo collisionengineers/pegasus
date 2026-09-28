@@ -450,6 +450,24 @@ public sealed record ManagedDocumentContentRead(
     string ExpectedSha256,
     long ExpectedLength);
 
+/// <summary>
+/// A Case's managed versions read through the document content cache first:
+/// a warm version costs one cached-object read, and a cold one is read from
+/// Box once and cached for the next time. The export and the report read
+/// their photographs this way when the cache is composed.
+/// </summary>
+public interface IReadCachedDocumentVersions
+{
+    /// <summary>
+    /// The contents in the order asked for, each verified against its custody
+    /// hash and length, exactly as
+    /// <see cref="IDocumentContentStore.ReadVersionsAsync"/> returns them.
+    /// </summary>
+    Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
+        IReadOnlyList<ManagedDocumentContentRead> reads,
+        CancellationToken cancellationToken);
+}
+
 public sealed record ManagedDocumentContentAddress(
     Guid CaseId,
     string CaseReference,
