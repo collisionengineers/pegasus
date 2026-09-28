@@ -454,6 +454,7 @@ public sealed partial class SendToAiIntegrationTests
                 services.RemoveAll<ICreateAiJob>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
                 services.AddSingleton<IGetCaseValuationSection>(source);
@@ -598,7 +599,7 @@ public sealed partial class SendToAiIntegrationTests
     }
 
     private sealed class FakeGetCase(Guid caseId) :
-        IGetCase,
+        IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetCaseVehicleSection,
         IGetCaseValuationSection,
@@ -618,6 +619,10 @@ public sealed partial class SendToAiIntegrationTests
                 request.CaseId, "lease-1", request.Actor.SubjectId, request.ExpectedVersion,
                 DateTimeOffset.UtcNow.AddMinutes(5)));
         }
+
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {

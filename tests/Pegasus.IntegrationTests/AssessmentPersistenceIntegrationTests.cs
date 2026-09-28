@@ -79,12 +79,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
         await SeedPhotosAsync(harness.Factory, outcome.Identity.CaseId, 2);
         var contentStore = new RecordingDocumentContentStore();
-        await using var staffContext = await harness.Factory.CreateDbContextAsync();
         var source = new EfAssessmentReportProjectionSource(
             harness.Factory,
             new GetAssessmentWorkspace(new EfAssessmentWorkspaceSource(harness.Factory)),
             contentStore,
-            new EfStaffAccountQueries(staffContext),
+            new EfStaffAccountQueries(harness.Factory),
             new EfCaseAssetPreparationStore(harness.Factory),
             new ListAppliedValuations(new EfValuationStore(harness.Factory)));
 

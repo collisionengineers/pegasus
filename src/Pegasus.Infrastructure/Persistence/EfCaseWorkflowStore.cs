@@ -621,8 +621,7 @@ public sealed class EfCaseWorkflowStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var profiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken);
+        var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
         var before = CaseSignOffEngineerResolver.Resolve(
             beforeSignOffEngineerId,
             beforeAssignedEngineerId,

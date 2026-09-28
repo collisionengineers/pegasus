@@ -94,6 +94,41 @@ public sealed class SqlServerReadinessEndpointTests
         Assert.Equal("Unhealthy", await ready.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// The platform's start-up ping reaches the instance over plain HTTP and
+    /// waits for a 200. It answers from the warm-up alone, so an unreachable
+    /// database cannot hold a new instance in a restart loop, and it is never
+    /// redirected to HTTPS while pages still are.
+    /// </summary>
+    [Fact]
+    public async Task TheWarmUpProbeAnswersPlainHttpWithoutTheDatabase()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Pegasus"] =
+                    "Server=127.0.0.1,1;Database=Pegasus_Unavailable;Integrated Security=true;" +
+                    "Encrypt=false;Connect Timeout=1",
+                ["https_port"] = "443"
+            });
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("http://localhost")
+        });
+
+        using var warm = await client.GetAsync("/health/warm");
+        using var ready = await client.GetAsync("/health/ready");
+        using var page = await client.GetAsync("/Account/SignIn");
+
+        Assert.Equal(HttpStatusCode.OK, warm.StatusCode);
+        Assert.Equal("Healthy", await warm.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
+        Assert.Equal(HttpStatusCode.TemporaryRedirect, page.StatusCode);
+        Assert.Equal(Uri.UriSchemeHttps, page.Headers.Location?.Scheme);
+    }
+
     [Fact]
     public async Task PendingSqlMigrationMakesReadinessUnavailable()
     {
@@ -289,7 +324,10 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
             ["Glass:RepairProfileId"] = "4063",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
-            ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
+            ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports",
+            // The startup warm-up reads in the background; a test host skips
+            // it so readiness answers for the database alone.
+            ["Startup:Warmup"] = "false"
         };
         foreach (var setting in settings)
         {

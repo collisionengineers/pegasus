@@ -37,7 +37,7 @@ internal sealed class EfAssessmentReportProjectionSource(
     /// <summary>The preview path: the same facts, with image bytes read.</summary>
     public async Task<AssessmentReportProjectionInput?> GetAsync(
         Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken = default) =>
-        (await LoadAsync(caseId, actor, work, withImageContent: true, cancellationToken))?.Projection;
+        (await LoadAsync(caseId, actor, work, withImageContent: true, reuse: null, cancellationToken))?.Projection;
 
     /// <summary>
     /// The freeze path: identical facts with image bytes omitted, plus the
@@ -45,14 +45,16 @@ internal sealed class EfAssessmentReportProjectionSource(
     /// decides readiness from anything but persisted state.
     /// </summary>
     async Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
-        Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
-        await LoadAsync(caseId, actor, work, withImageContent: false, cancellationToken);
+        Guid caseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse,
+        CancellationToken cancellationToken) =>
+        await LoadAsync(caseId, actor, work, withImageContent: false, reuse, cancellationToken);
 
     private async Task<CaseReportFreezeInputs?> LoadAsync(
         Guid caseId,
         ActionActor actor,
         CaseWorkSelector work,
         bool withImageContent,
+        ReportProjectionReuse? reuse,
         CancellationToken cancellationToken)
     {
         // Capture the version before any component read. A later workflow read
@@ -98,9 +100,14 @@ internal sealed class EfAssessmentReportProjectionSource(
                 workflow.AuditReference),
             selectedWork.Kind);
 
-        var workspace = await getAssessmentWorkspace.ExecuteAsync(
-            new(caseId, actor, work),
-            cancellationToken);
+        // A reused workspace counts only at the version read above; one read at
+        // another version is read again rather than trusted.
+        var workspace = reuse?.WorkspaceFor(caseId, work) is { } reused
+            && reused.Header.Version == workflow.Version
+                ? reused
+                : await getAssessmentWorkspace.ExecuteAsync(
+                    new(caseId, actor, work),
+                    cancellationToken);
         if (workspace is null)
         {
             return null;
@@ -116,7 +123,8 @@ internal sealed class EfAssessmentReportProjectionSource(
         var sources = ReportSources(confirmed);
 
         // Only the operator's prepared images, in the report's own order.
-        var preparations = await assetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
+        var preparations = reuse?.PreparationsFor(caseId)
+            ?? await assetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
         var prepared = CaseAssetPreparationPolicy.ForReport(preparations);
         var photoRows = (
                 from image in prepared
@@ -168,7 +176,8 @@ internal sealed class EfAssessmentReportProjectionSource(
                 pair.Image.FullPage))
             .ToArray();
 
-        var applied = await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
+        var applied = reuse?.AppliedValuationsFor(caseId, work)
+            ?? await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
         var latestApplied = applied
             .OrderByDescending(valuation => valuation.AcceptedAtUtc)
             .FirstOrDefault();

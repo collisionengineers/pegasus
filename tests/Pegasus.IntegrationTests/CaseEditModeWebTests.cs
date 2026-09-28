@@ -182,6 +182,31 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("data-editor-commit=\"{", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Save and the lease it reclaims read only the Case's frame and data,
+    /// never the full Case read with its documents, history and tasks.
+    /// </summary>
+    [Fact]
+    public async Task CaseSaveAndItsReclaimReadOnlyTheEditBasis()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true, ThrowOnBroadCaseRead = true };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISaveCaseWorkspace>(services, store));
+        var before = store.CaseVersion;
+
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            Form(workspace.AntiforgeryToken,
+                ("expectedVersion", before.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("claimNumber", "CLM-42")));
+
+        AssertPrg(response, store.CaseId);
+        Assert.Single(store.Saves);
+        Assert.Equal(2, store.Claims.Count);
+        Assert.Equal(2, store.EditBasisReads);
+    }
+
     [Fact]
     public async Task TheRibbonSaveEndsEditMode()
     {
@@ -225,6 +250,7 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IGetCase>(services, store);
+            Substitute<IGetCaseEditBasis>(services, store);
             Substitute<IGetCasePageFrame>(services, store);
             Substitute<IGetCaseVehicleSection>(services, store);
             Substitute<IGetCaseValuationSection>(services, store);
@@ -404,6 +430,7 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IGetCase>(services, store);
+            Substitute<IGetCaseEditBasis>(services, store);
             Substitute<IGetCasePageFrame>(services, store);
             Substitute<IGetCaseVehicleSection>(services, store);
             Substitute<IGetCaseValuationSection>(services, store);
@@ -657,12 +684,9 @@ public sealed class CaseEditModeWebTests
     {
         var store = new RecordingCaseDetailsStore
         {
-            InspectionChoices = new(
-                "8 Claimant Street",
-                "12 Kingsway, Leeds LS1 1AA",
-                "14 Storage Lane",
-                [],
-                "Kingsway Accident Repair")
+            RepairerAddress = "12 Kingsway, Leeds LS1 1AA",
+            RepairerName = "Kingsway Accident Repair",
+            PreviousInspectionAddresses = []
         };
         using var workspace = await EnterEditModeAsync(store, services =>
         {
@@ -764,15 +788,16 @@ public sealed class CaseEditModeWebTests
 
 
     [Fact]
-    public async Task HoldingTheEditLeaseDefersOnlyFilesAndKeepsTheSingleEditorComplete()
+    public async Task HoldingTheEditLeaseDefersOnlyFilesAndNotesAndKeepsTheSingleEditorComplete()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await workspace.GetWorkspaceAsync();
 
-        Assert.Equal(["files"], DeferredSections(html));
+        Assert.Equal(["files", "notes"], DeferredSections(html));
         Assert.Contains("id=\"section-files\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"section-notes\"", html, StringComparison.Ordinal);
         Assert.Contains("section-placeholder", html, StringComparison.Ordinal);
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
@@ -809,6 +834,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
             }));
@@ -866,6 +892,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
@@ -928,6 +955,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
@@ -994,6 +1022,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 var readers = new TwoCasePageReaders(store, otherStore);
                 Substitute<IGetCasePageFrame>(services, readers);
@@ -1046,6 +1075,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 var readers = new TwoCasePageReaders(store, otherStore);
                 Substitute<IGetCasePageFrame>(services, readers);
@@ -1118,6 +1148,7 @@ public sealed class CaseEditModeWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -1558,6 +1589,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -1612,6 +1644,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -1652,6 +1685,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders("r.hughes"));
@@ -1687,6 +1721,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders(displayName: null));
@@ -1731,6 +1766,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders(displayName: null, isAutomation: true));
@@ -1767,6 +1803,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
@@ -1860,6 +1897,7 @@ public sealed class CaseEditModeWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
             }));
