@@ -1,5 +1,6 @@
 using Pegasus.Core.Cases;
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -783,6 +784,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("expectedCaseVersion", "0"),
                 ("generationId", generationId.ToString("D")),
                 ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "Edited by staff.\r\n\r\nKind regards"),
                 ("toRecipients", "reviewed@recipient.example"),
                 ("ccRecipients", "copy@recipient.example")));
 
@@ -794,6 +796,9 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(generationId, request.GenerationId);
         Assert.Equal(13, request.ExpectedGenerationVersion);
         Assert.Equal(operationKey, request.OperationKey);
+        // The message the operator submitted goes to preparation as posted;
+        // Core freezes it.
+        Assert.Equal("Edited by staff.\r\n\r\nKind regards", request.CoveringMessage);
         Assert.Equal(ActorKind.Staff, request.Actor.Kind);
         Assert.Equal("reviewed@recipient.example", Assert.Single(request.ReviewedRecipients!.To));
         Assert.Equal("copy@recipient.example", Assert.Single(request.ReviewedRecipients.Cc));
@@ -831,6 +836,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("expectedCaseVersion", "0"),
                 ("generationId", generationId.ToString("D")),
                 ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "Edited by staff.\r\n\r\nKind regards"),
                 ("toRecipients", "reviewed@recipient.example"),
                 ("attach", nameof(CaseReportArtifactKind.AssessmentReport)),
                 ("attach", nameof(CaseReportArtifactKind.ImagePack))));
@@ -840,6 +846,44 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(
             [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.ImagePack],
             request.Attach);
+    }
+
+    /// <summary>
+    /// The message is what staff review before Prepare delivery: a blank one
+    /// never reaches preparation and the operator is told why.
+    /// </summary>
+    [Fact]
+    public async Task PrepareDeliveryRefusesABlankMessage()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var prepare = new RecordingPrepareDelivery(caseId, generationId);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            prepareDelivery: prepare);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=PrepareReportDelivery&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", generationId.ToString("D")),
+                ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "  "),
+                ("toRecipients", "reviewed@recipient.example")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Empty(prepare.Requests);
     }
 
     [Theory]
@@ -1399,4 +1443,28 @@ public sealed partial class AssessmentReportDraftWebTests
             Guid caseId, Guid snapshotId, CancellationToken cancellationToken) =>
             Task.FromResult<RepairSpecificationSnapshot?>(null);
     }
+
+    private static FormUrlEncodedContent Form(
+        string antiforgeryToken, params (string Name, string Value)[] values)
+    {
+        var fields = values
+            .Select(item => new KeyValuePair<string, string>(item.Name, item.Value))
+            .Append(new("__RequestVerificationToken", antiforgeryToken));
+        return new(fields);
+    }
+
+    private static string AntiforgeryValue(string html)
+    {
+        var tag = AntiforgeryTagRegex().Match(html);
+        Assert.True(tag.Success, "The case action must render an antiforgery token.");
+        var value = ValueRegex().Match(tag.Value);
+        Assert.True(value.Success, "The case antiforgery token must have a value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
+    [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex AntiforgeryTagRegex();
+
+    [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ValueRegex();
 }

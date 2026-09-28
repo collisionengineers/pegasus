@@ -28,6 +28,7 @@ public sealed class EfReportRecipientSuggestionQueries(
                              @case.Year,
                              @case.Sequence,
                              PrincipalCode = principal.Code,
+                             PrincipalName = principal.Organization.Name,
                              principal.IncludeOriginalInstructionSender,
                              principal.ReportRecipientAddressesJson,
                              OriginalInstructionSender = route == null
@@ -53,6 +54,7 @@ public sealed class EfReportRecipientSuggestionQueries(
         return new(reportReference, settings,
             settings.IncludeOriginalInstructionSender
                 ? row.OriginalInstructionSender
-                : null);
+                : null,
+            row.PrincipalName);
     }
 }
