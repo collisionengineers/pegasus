@@ -106,12 +106,28 @@ missing then moves to Review
 Triage Case records no image completeness.
 
 Pairing uses the Case's current accepted registration and Principal, not
-its original instruction draft. A registered image identity needs an exact
-registration match, and a known Principal must agree. The single-image
+its original instruction draft. A known Principal is a hard scope on the
+candidates, as an established Principal is on the mail path
+([FRD-09](frd-09-provider-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association)):
+only that Principal's Cases are candidates, and they are chosen before any
+uniqueness count (operator, 28 September 2026). Two Principals' Cases with
+the same registration are then no tie. An unknown Principal leaves every
+eligible Case as a candidate. A registered image identity needs an exact
+registration match among the candidates. The single-image
 exact-match precedence also applies to one-member groups. Multi-member
-groups keep the stricter complete-candidate uniqueness rule. Persisted
+groups keep the stricter complete-candidate uniqueness rule, counted among
+the same candidates. Persisted
 expected membership, not the presence of a group identifier, tells the two
-apart.
+apart. Registration itself has no known Principal, so it scopes nothing.
+
+The record's page lists every eligible Case for the registration, filtered
+by nothing, and names each one's Principal. Staff may link to any of them: a
+staff decision is a reasoned override and stays authoritative. When
+automation is withheld the page says why: the recorded Principal has no
+eligible Case with the registration, or more than one Case could match. The
+reason is computed from the same policy, and nothing is stored. This is not
+a Triage, Unidentified or conflict outcome; the record stays Awaiting
+instruction ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
 
 Manual-upload image material needs explicit staff confirmation even for one
 eligible match among the Cases that existed when it registered: those are the

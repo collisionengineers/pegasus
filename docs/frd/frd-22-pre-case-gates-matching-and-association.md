@@ -135,7 +135,9 @@ relationship. It never turns the source into the Case, rewrites source facts,
 or changes the original intake origin.
 
 Image-led material has its own pairing rules
-([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)):
+a known Principal there scopes the candidates before the uniqueness count,
+as it does here, and the record's page says why automation is withheld.
 Triage association follows
 [FRD-03](frd-03-triage.md#automatic-association-with-a-formal-case):
 creation, formal acceptance, and replay each attempt the same

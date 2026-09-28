@@ -391,7 +391,8 @@ public sealed class ImageIntakeAutomation(
             // value is registered.
             var target = SelectAssociationTarget(
                 associationAllowed ? eligibleCases : [],
-                read);
+                read,
+                principalId: null);
             var registration = target?.ConfirmedRegistration ?? read;
             var reason = target is not null
                 && !string.Equals(registration, read, StringComparison.Ordinal)
@@ -451,9 +452,13 @@ public sealed class ImageIntakeAutomation(
     /// kind resolves to none.
     /// </summary>
     private static ImageIntakeCaseCandidate? SelectAssociationTarget(
-        IReadOnlyList<ImageIntakeCaseCandidate> candidates,
-        string read)
+        IReadOnlyList<ImageIntakeCaseCandidate> unscoped,
+        string read,
+        Guid? principalId)
     {
+        // Same Principal scope as the registered-target policy. No caller
+        // knows a Principal at registration; the parameter keeps one rule.
+        var candidates = ImageIntakeCasePairing.ScopeToPrincipal(unscoped, principalId);
         var exactMatches = candidates
             .Where(candidate => string.Equals(
                 candidate.ConfirmedRegistration,
@@ -606,7 +611,7 @@ public sealed class ImageIntakeAutomation(
         activity?.SetTag("image_intake.case_candidates", candidates.Count);
         var target = receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
             ? null
-            : SelectAssociationTarget(candidates, read);
+            : SelectAssociationTarget(candidates, read, principalId: null);
         var registration = target?.ConfirmedRegistration ?? read;
         var reason = target is not null
             && !string.Equals(registration, read, StringComparison.Ordinal)

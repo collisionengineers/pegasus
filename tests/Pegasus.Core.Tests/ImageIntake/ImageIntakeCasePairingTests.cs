@@ -94,23 +94,103 @@ public sealed class ImageIntakeCasePairingTests
     }
 
     [Theory]
-    [InlineData(1, true, true)]
-    [InlineData(2, true, false)]
-    [InlineData(1, false, false)]
-    [InlineData(2, false, false)]
-    public void RegisteredSelectionPreservesExactIdentityPrincipalAndPersistedGroupRule(
-        int expectedMembers, bool samePrincipal, bool selected)
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    public void RegisteredSelectionPreservesExactIdentityAndPersistedGroupRule(
+        int expectedMembers, bool selected)
+    {
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch),
+            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDEF", DateTimeOffset.UnixEpoch)
+        ];
+        var result = ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
+            "AB12CDE", null, expectedMembers, IntakeSourceChannel.Mailbox, DateTimeOffset.UtcNow);
+        Assert.Equal(selected, result is not null);
+    }
+
+    [Fact]
+    public void AKnownPrincipalScopesTheCandidatesBeforeTheUniquenessCount()
+    {
+        var principalId = Guid.NewGuid();
+        var otherCaseId = Guid.NewGuid();
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch, principalId),
+            new(otherCaseId, "QDS26002", 0, "AB12CDE", DateTimeOffset.UnixEpoch, Guid.NewGuid())
+        ];
+
+        // The same vehicle instructed by two Principals is a tie only while
+        // the Principal is unknown.
+        Assert.Null(ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", null, 1, IntakeSourceChannel.Mailbox, Registered));
+        var selected = ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", principalId, 1, IntakeSourceChannel.Mailbox, Registered);
+        Assert.Equal(CaseId, selected?.CaseId);
+    }
+
+    [Fact]
+    public void AKnownPrincipalWithNoCaseOfItsOwnSelectsNothing()
+    {
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch, Guid.NewGuid())
+        ];
+
+        Assert.Null(ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", Guid.NewGuid(), 1, IntakeSourceChannel.Mailbox, Registered));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void AGroupCountsOnlyTheKnownPrincipalsCandidates(bool principalKnown, bool selected)
     {
         var principalId = Guid.NewGuid();
         ImageIntakeCaseCandidate[] candidates =
         [
             new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch, principalId),
-            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDEF", DateTimeOffset.UnixEpoch, principalId)
+            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDEF", DateTimeOffset.UnixEpoch, Guid.NewGuid())
         ];
-        var result = ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
-            "AB12CDE", samePrincipal ? principalId : Guid.NewGuid(), expectedMembers,
-            IntakeSourceChannel.Mailbox, DateTimeOffset.UtcNow);
+
+        var result = ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", principalKnown ? principalId : null, 2,
+            IntakeSourceChannel.Mailbox, Registered);
+
         Assert.Equal(selected, result is not null);
+    }
+
+    [Fact]
+    public void ExplainingWithheldAutomationUsesTheSameScopeAsSelection()
+    {
+        var principalId = Guid.NewGuid();
+        ImageIntakeCaseCandidate[] tie =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch, principalId),
+            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDE", DateTimeOffset.UnixEpoch, Guid.NewGuid())
+        ];
+        ImageIntakeCaseCandidate[] sameTwice =
+        [
+            tie[0], new(Guid.NewGuid(), "QDS26003", 0, "AB12CDE", DateTimeOffset.UnixEpoch, principalId)
+        ];
+        ImageIntakeCaseCandidate[] group =
+        [
+            tie[0], new(Guid.NewGuid(), "QDS26004", 0, "AB12CDEF", DateTimeOffset.UnixEpoch, principalId)
+        ];
+
+        Assert.Equal(ImageIntakeAutomationWithheld.RegistrationAmbiguous,
+            ImageIntakeCasePairing.ExplainWithheld(tie, "AB12CDE", null, 1));
+        Assert.Null(ImageIntakeCasePairing.ExplainWithheld(tie, "AB12CDE", principalId, 1));
+        Assert.Equal(ImageIntakeAutomationWithheld.RegistrationAmbiguous,
+            ImageIntakeCasePairing.ExplainWithheld(sameTwice, "AB12CDE", principalId, 1));
+        Assert.Equal(ImageIntakeAutomationWithheld.PrincipalDisagrees,
+            ImageIntakeCasePairing.ExplainWithheld(tie, "AB12CDE", Guid.NewGuid(), 1));
+        Assert.Equal(ImageIntakeAutomationWithheld.RegistrationAmbiguous,
+            ImageIntakeCasePairing.ExplainWithheld(group, "AB12CDE", principalId, 2));
+        Assert.Null(ImageIntakeCasePairing.ExplainWithheld([], "AB12CDE", Guid.NewGuid(), 1));
+        Assert.Null(ImageIntakeCasePairing.ExplainWithheld(
+            [new(CaseId, "QDS26001", 0, "ZZ99ZZZ", DateTimeOffset.UnixEpoch, principalId)],
+            "AB12CDE", Guid.NewGuid(), 1));
     }
 
     [Theory]
