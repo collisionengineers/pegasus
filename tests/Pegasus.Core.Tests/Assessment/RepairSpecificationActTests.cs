@@ -104,6 +104,27 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
+    public void TheReadoutSaysWhenTheLabourRateStopsAtItsFloor()
+    {
+        // v28 P34: the readout marks a target the labour floor keeps the
+        // rate from following; a target the rate can follow is unmarked.
+        var specification = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 400m),
+            Line("repair", workUnits: 4m));
+        var before = EstimateTotals.Compute(specification).Printed.Gross;
+
+        var deep = RepairSpecificationScaling.Scale(specification, before * 0.5m, ScalingFloors.Default);
+        var light = RepairSpecificationScaling.Scale(specification, before * 0.95m, ScalingFloors.Default);
+
+        Assert.True(deep.LabourAtFloor);
+        Assert.Equal(ScalingFloors.Default.LabourRatePerHour, deep.Details.BaseHourlyRate);
+        Assert.EndsWith(" · labour at floor", RepairSpecificationWording.ScaleReadout(deep, 50m), StringComparison.Ordinal);
+        Assert.False(light.LabourAtFloor);
+        Assert.DoesNotContain("labour at floor", RepairSpecificationWording.ScaleReadout(light, 95m), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ScalingUsesTheLastNonExceedingRoundedEndpoint()
     {
         var specification = Estimate(
