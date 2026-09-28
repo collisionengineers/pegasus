@@ -243,9 +243,10 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
     /// first response. The addressed section is always rendered, so
-    /// <c>?section=</c> works over plain HTTP. Files is the one heavy section
-    /// that has no fields in the record's single Save form, so it can remain
-    /// deferred while editing without replacing entered values elsewhere.
+    /// <c>?section=</c> works over plain HTTP. Files and Notes have no fields
+    /// in the record's single Save form, so they remain deferred while editing
+    /// without replacing entered values elsewhere; their bodies act through
+    /// their own posts with the render lease token.
     /// </summary>
     public bool SectionIsDeferred(string key) =>
         !string.Equals(key, Section, StringComparison.Ordinal)
@@ -253,7 +254,7 @@ public sealed partial class DetailsModel(
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
-        && (LeaseToken is null || string.Equals(key, "files", StringComparison.Ordinal));
+        && (LeaseToken is null || key is "files" or "notes");
 
     /// <summary>
     /// A lease token supplied only for rendering an asynchronously mounted

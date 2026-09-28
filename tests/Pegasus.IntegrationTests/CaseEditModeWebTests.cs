@@ -764,15 +764,16 @@ public sealed class CaseEditModeWebTests
 
 
     [Fact]
-    public async Task HoldingTheEditLeaseDefersOnlyFilesAndKeepsTheSingleEditorComplete()
+    public async Task HoldingTheEditLeaseDefersOnlyFilesAndNotesAndKeepsTheSingleEditorComplete()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await workspace.GetWorkspaceAsync();
 
-        Assert.Equal(["files"], DeferredSections(html));
+        Assert.Equal(["files", "notes"], DeferredSections(html));
         Assert.Contains("id=\"section-files\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"section-notes\"", html, StringComparison.Ordinal);
         Assert.Contains("section-placeholder", html, StringComparison.Ordinal);
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
