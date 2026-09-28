@@ -435,8 +435,8 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 @media(max-width:760px){#section-settlement .metric-strip{grid-template-columns:repeat(2,1fr)}#section-settlement .metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 
 /* ---- Report (v26): preview card, generation, recipients, image strip -------- */
-#section-report .menu-body .menu-choice{padding:0 12px;font-size:12px;min-height:32px}
-#section-report .menu-body .menu-choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+#section-report .panel-actions .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
+#section-report .panel-actions .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
 #section-report .pv{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;flex-wrap:wrap}
 #section-report .pv-thumb{width:56px;height:76px;border-radius:2px;background:#fdfcfa;border:1px solid #e4dfd8;position:relative;flex-shrink:0}
 #section-report .pv-thumb::before{content:"";position:absolute;inset:7px 7px auto;height:6px;background:var(--red)}

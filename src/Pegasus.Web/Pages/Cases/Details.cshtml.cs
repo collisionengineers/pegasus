@@ -2175,71 +2175,10 @@ public sealed partial class DetailsModel(
         long expectedCaseVersion,
         bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        string.IsNullOrWhiteSpace(editLeaseToken)
-            ? GenerateReportWithOneOffLeaseAsync(
-                id, operationKey, expectedCaseVersion, includeFeeNote, cancellationToken)
-            : GenerateArtifactAsync(
-                id, operationKey, editLeaseToken, expectedCaseVersion,
-                CaseReportArtifactKind.AssessmentReport, includeFeeNote,
-                targetGenerationId: null, cancellationToken);
-
-    /// <summary>
-    /// Generate report outside edit mode (operator, 26 September 2026): the
-    /// handler claims the Case's edit lease for this one generation and
-    /// releases it after, the way Work Centre actions do. A colleague's live
-    /// lease refuses the claim with the claim's own wording. A generation
-    /// never consumes the lease, so the release runs whatever the outcome.
-    /// </summary>
-    private async Task<IActionResult> GenerateReportWithOneOffLeaseAsync(
-        Guid id,
-        string operationKey,
-        long expectedCaseVersion,
-        bool includeFeeNote,
-        CancellationToken cancellationToken)
-    {
-        var guard = await GuardSectionCommandAsync(
-            id, operationKey, editLeaseToken: null, () => RedirectToReport(id), cancellationToken,
-            requireLease: false);
-        if (guard is not null)
-        {
-            return guard;
-        }
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        CaseEditLease lease;
-        try
-        {
-            lease = await acquireLease.ExecuteAsync(
-                new ClaimCaseEditLeaseRequest(id, expectedCaseVersion, actor, NewOperationKey()),
-                cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "claim_lease", exception);
-            TempData["CaseError"] = ClaimLeaseFailureMessage(exception);
-            return RedirectToReport(id);
-        }
-
-        try
-        {
-            return await GenerateAsync(
-                actor, id, operationKey, lease.Token, expectedCaseVersion,
-                CaseReportArtifactKind.AssessmentReport, includeFeeNote,
-                targetGenerationId: null, cancellationToken);
-        }
-        finally
-        {
-            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
-                releaseLease, logger, id, actor, lease);
-        }
-    }
+        GenerateArtifactAsync(
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+            targetGenerationId: null, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
         Guid id,
@@ -2283,6 +2222,11 @@ public sealed partial class DetailsModel(
             CaseReportArtifactKind.ImagePack, includeFeeNote: false,
             targetGenerationId, cancellationToken);
 
+    /// <summary>
+    /// Every Generate, in or out of edit mode: the report (operator, 26
+    /// September 2026) and its companion documents (issue 912, 28 September
+    /// 2026). Without a lease the handler claims one for the generation.
+    /// </summary>
     private async Task<IActionResult> GenerateArtifactAsync(
         Guid id,
         string operationKey,
@@ -2293,6 +2237,12 @@ public sealed partial class DetailsModel(
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return await GenerateWithOneOffLeaseAsync(
+                id, operationKey, expectedCaseVersion, kind, includeFeeNote,
+                targetGenerationId, cancellationToken);
+        }
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
@@ -2303,8 +2253,67 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
         return await GenerateAsync(
-            actor, id, operationKey, editLeaseToken!, expectedCaseVersion,
+            actor, id, operationKey, editLeaseToken, expectedCaseVersion,
             kind, includeFeeNote, targetGenerationId, cancellationToken);
+    }
+
+    /// <summary>
+    /// A Generate outside edit mode: the handler claims the Case's edit lease
+    /// for this one generation and releases it after, the way Work Centre
+    /// actions do. A colleague's live lease refuses the claim with the
+    /// claim's own wording. A generation never consumes the lease, so the
+    /// release runs whatever the outcome.
+    /// </summary>
+    private async Task<IActionResult> GenerateWithOneOffLeaseAsync(
+        Guid id,
+        string operationKey,
+        long expectedCaseVersion,
+        CaseReportArtifactKind kind,
+        bool includeFeeNote,
+        Guid? targetGenerationId,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardSectionCommandAsync(
+            id, operationKey, editLeaseToken: null, () => RedirectToReport(id), cancellationToken,
+            requireLease: false);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        CaseEditLease lease;
+        try
+        {
+            lease = await acquireLease.ExecuteAsync(
+                new ClaimCaseEditLeaseRequest(id, expectedCaseVersion, actor, NewOperationKey()),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "claim_lease", exception);
+            TempData["CaseError"] = ClaimLeaseFailureMessage(exception);
+            return RedirectToReport(id);
+        }
+
+        try
+        {
+            return await GenerateAsync(
+                actor, id, operationKey, lease.Token, expectedCaseVersion,
+                kind, includeFeeNote, targetGenerationId, cancellationToken);
+        }
+        finally
+        {
+            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
+                releaseLease, logger, id, actor, lease);
+        }
     }
 
     /// <summary>The generation itself, once guarded: the request, and how each outcome reads back.</summary>

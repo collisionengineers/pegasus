@@ -616,7 +616,10 @@ is owned by
 The Report section's More menu offers the three documents as previews (v28
 P42) — the report, the Repair Spec and the images — each opening the document
 the Case would actually produce rather than a picture of one, and offers
-Generate for a companion document the confirmed generation does not yet hold.
+Generate for a companion document the confirmed generation does not yet hold,
+in or out of edit mode as Generate report is. Include fee note sits beside
+Generate report, and once a separate fee note is confirmed the report card
+offers Open fee note beside Open report (issue 912).
 The delivery form offers the Case's known addresses on every recipient field
 (v28 P21), the documents to attach (v28 P22), and states the name the report
 will be attached under and the covering line it will carry (v28 P23) before
