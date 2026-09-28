@@ -6,7 +6,9 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
+using Microsoft.AspNetCore.DataProtection;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Mcp;
 
 namespace Pegasus.Web.Health;
 
@@ -49,11 +51,15 @@ internal sealed class StartupWarmupHealthCheck(StartupWarmupState state) : IHeal
 }
 
 /// <summary>
-/// Runs once when Web starts: builds the EF model and runs the Work Centre's
-/// and the Case page's hot read shapes, so the first staff request after a
-/// deploy does not pay for them. It only reads. Every step is best effort: a
-/// failure is logged and the next step still runs, and nothing it meets
-/// stops the host. Setting <c>Startup:Warmup</c> to false skips it.
+/// Runs once when Web starts, after the port is listening: loads the
+/// data-protection key ring, waits for the Automation OAuth certificates, builds
+/// the EF model and runs the Work Centre's and the Case page's hot read shapes,
+/// so the first staff request after a deploy does not pay for them. The key
+/// ring and the certificates are remote reads behind a managed-identity token,
+/// which is why they are here and not before the port binds. Its database
+/// steps only read. Every step is best effort: a failure is logged and the next step still runs,
+/// and nothing it meets stops the host. Setting <c>Startup:Warmup</c> to false
+/// skips it.
 /// </summary>
 internal sealed partial class StartupWarmup(
     IServiceScopeFactory scopes,
@@ -103,6 +109,31 @@ internal sealed partial class StartupWarmup(
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var now = clock.GetUtcNow();
 
+        // Neither needs the database, so they run beside the reads below.
+        var keyRing = StepAsync(
+            "key-ring",
+            () => Task.Run(() => services.GetRequiredService<IDataProtectionProvider>().LoadKeyRing())
+                .WaitAsync(cancellationToken),
+            stoppingToken,
+            cancellationToken);
+        var certificates = StepAsync(
+            "oauth-certificates",
+            () => services.GetService<OAuthCertificateStore>() is { } store
+                ? store.Loaded.WaitAsync(cancellationToken)
+                : Task.CompletedTask,
+            stoppingToken,
+            cancellationToken);
+        await WarmDatabaseAsync(services, actor, now, cancellationToken, stoppingToken);
+        await Task.WhenAll(keyRing, certificates);
+    }
+
+    private async Task WarmDatabaseAsync(
+        IServiceProvider services,
+        ActionActor actor,
+        DateTimeOffset now,
+        CancellationToken cancellationToken,
+        CancellationToken stoppingToken)
+    {
         await StepAsync("model", async () =>
         {
             var factory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -162,9 +193,19 @@ internal sealed partial class StartupWarmup(
             return;
         }
 
+        var started = Stopwatch.GetTimestamp();
         try
         {
             await read();
+            var elapsedMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            LogWarmupStepFinished(logger, step, elapsedMilliseconds);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (!stoppingToken.IsCancellationRequested)
+            {
+                LogWarmupStepBounded(logger, step, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            }
         }
         catch (Exception exception)
         {
@@ -174,6 +215,12 @@ internal sealed partial class StartupWarmup(
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Startup warm-up step {Step} finished in {ElapsedMs} ms")]
+    private static partial void LogWarmupStepFinished(ILogger logger, string step, double elapsedMs);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Startup warm-up step {Step} was still running after {ElapsedMs} ms and was left")]
+    private static partial void LogWarmupStepBounded(ILogger logger, string step, double elapsedMs);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Startup warm-up finished in {ElapsedMs} ms")]
     private static partial void LogWarmupFinished(ILogger logger, double elapsedMs);
