@@ -96,6 +96,17 @@ public sealed class GlassRepairEstimateSessionPolicyTests
         }
     }
 
+    [Theory]
+    [InlineData(GlassRepairEstimateSessionState.Failed, "glass.export.unreadable", true)]
+    [InlineData(GlassRepairEstimateSessionState.Failed, "glass.export.empty", false)]
+    [InlineData(GlassRepairEstimateSessionState.Failed, "glass.identity.registration", false)]
+    [InlineData(GlassRepairEstimateSessionState.Failed, null, false)]
+    [InlineData(GlassRepairEstimateSessionState.Unknown, "glass.export.unreadable", false)]
+    [InlineData(GlassRepairEstimateSessionState.Completed, "glass.export.unreadable", false)]
+    public void OnlyAFailedSessionWhoseExportWasUnreadableFetchesItAgain(
+        GlassRepairEstimateSessionState state, string? failureCode, bool expected) =>
+        Assert.Equal(expected, GlassRepairEstimateSessionPolicy.CanRefetchExport(state, failureCode));
+
     private static GlassRepairEstimateSession Session(GlassRepairEstimateSessionState state) =>
         new(
             Guid.NewGuid(),
