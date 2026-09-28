@@ -516,7 +516,9 @@ tile shows:
   a colour;
 - while the Case edit lease is held, **In report**, on or off, posted at
   once like a tag, so readiness reads it with no Case save (operator, 26
-  September 2026);
+  September 2026). A tag, New tag or In report pressed while the Case has
+  unsaved changes posts in place: no unsaved-changes question, and the
+  changes stay;
 - Preview and, while the Case edit lease is held, Crop.
 
 The Crop lease gate is the record's whole edit mode

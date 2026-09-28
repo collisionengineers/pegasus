@@ -19,7 +19,7 @@
                   asp-page="/Cases/Custody"
                   asp-route-id="@view.CaseId"
                   asp-page-handler="@(applied ? "UntagImage" : "TagImage")"
-                  data-tag-leaves-report="@(!applied && ImageTagVocabulary.TakesImageOutOfReport(tag.Id) ? "true" : null)">
+                  data-document-action>
                 <input type="hidden" name="id" value="@view.CaseId" />
                 <input type="hidden" name="occurrenceId" value="@view.OccurrenceId" />
                 <input type="hidden" name="tagId" value="@tag.Id" />
@@ -42,7 +42,8 @@
               class="tag-picker-new"
               asp-page="/Cases/Custody"
               asp-route-id="@view.CaseId"
-              asp-page-handler="CreateImageTag">
+              asp-page-handler="CreateImageTag"
+              data-document-action>
             <input type="hidden" name="id" value="@view.CaseId" />
             <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
             <input type="hidden" name="editLeaseToken" value="@view.EditLeaseToken" />
