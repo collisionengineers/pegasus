@@ -10,9 +10,10 @@ public static class AssessmentReportContract
 {
     /// <summary>
     /// v6 (27 September 2026): the snapshot carries only what the template
-    /// (<c>reference/rendererref1</c>) prints.
+    /// (<c>reference/rendererref1</c>) prints. v7 (28 September 2026): the
+    /// damage carries the vehicle drawing its bursts are printed on.
     /// </summary>
-    public const string TemplateVersion = "rendererref1-v6";
+    public const string TemplateVersion = "rendererref1-v7";
     public const string VatNumber = "262 0937 10";
     public const decimal FeeVatRate = 0.20m;
     public const string AccountName = "Collision Engineers Ltd";
@@ -149,12 +150,14 @@ public sealed record ReportImpact(IReadOnlyList<string> Codes, string Severity, 
 
 /// <summary>
 /// The damage the report prints: the recorded damages the diagram marks and
-/// the Nature of Incident block lists, and the unrelated damage its own block
+/// the Nature of Incident block lists, the drawing they are marked on (a
+/// DamagePlanGeometry profile) and the unrelated damage its own block
 /// describes.
 /// </summary>
 public sealed record ReportDamage(
     IReadOnlyList<ReportImpact> Impacts,
-    string? Unrelated);
+    string? Unrelated,
+    string Profile);
 
 /// <summary>
 /// The one settlement fact the report prints beyond its own figures: the

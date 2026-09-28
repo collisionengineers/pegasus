@@ -1,3 +1,4 @@
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Tests.Reports;
@@ -307,7 +308,7 @@ public sealed class ReportWordingTests
         {
             ImpactSeverity = severity,
             ImpactLocation = location,
-            Damage = new([new([location], severity)], null),
+            Damage = new([new([location], severity)], null, DamagePlanGeometry.Car),
         };
         Assert.Equal(expected, snapshot.PrintedWording[0].Text);
     }
@@ -348,7 +349,8 @@ public sealed class ReportWordingTests
                     new(["rear", "right_rear"], "light"),
                     new(["underside"], "heavy"),
                 ],
-                null),
+                null,
+                DamagePlanGeometry.Car),
         };
 
         var nature = snapshot.PrintedWording
