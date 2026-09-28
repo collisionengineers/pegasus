@@ -131,8 +131,33 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Null(providerSubmissionState["FirstFailure"]);
     }
 
+    /// <summary>
+    /// A report that cannot be settled is named with its cause and the steps
+    /// after it still run: filing a report never holds up intake.
+    /// </summary>
+    [Fact]
+    public async Task ASettlementFailureIsLoggedAndTheRestOfTheSweepStillRuns()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var pairing = new RecordingPairing();
+        var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+
+        await RunPairingTimerAsync(pairing, contextFactory, new FailingSettlement(), logger);
+
+        var failure = Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Error);
+        Assert.IsType<InvalidOperationException>(failure.Exception);
+        Assert.DoesNotContain(logger.States, state => state.ContainsKey("Settled"));
+        Assert.Equal(50, pairing.MaximumItems);
+        Assert.Contains(logger.States, state => state.ContainsKey("Purged"));
+    }
+
     internal static Task RunPairingTimerAsync(
-        IImageIntakeCasePairing pairing, IDbContextFactory<PegasusDbContext> contextFactory)
+        IImageIntakeCasePairing pairing,
+        IDbContextFactory<PegasusDbContext> contextFactory,
+        ISettleFiledCaseReportArtifacts? settlement = null,
+        ILogger<StagedArtifactReconciliationFunction>? logger = null)
     {
         var workStore = new ReconciliationWorkStore(0);
         var receipts = new EmptyIntakeReceiptQueries();
@@ -141,7 +166,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new EmptyStagedArtifactStore(), TimeProvider.System),
             new EmptyCacheCleanup(),
             new ReconcilePendingArtifactCustody(contextFactory, new EmptyDocumentContentStore(), new EmptyStagedArtifactStore()),
-            new EfSettleFiledCaseReportArtifacts(contextFactory, TimeProvider.System),
+            settlement ?? new EfSettleFiledCaseReportArtifacts(contextFactory, TimeProvider.System),
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
                 new UnreachableProcessQueuedIntake(), TimeProvider.System, new UnreachableRegisterUnidentified()),
             pairing,
@@ -153,7 +178,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
             new ReconcileProviderSubmissions(new EmptyProviderSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
+            logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, CancellationToken.None);
     }
 
@@ -179,6 +204,12 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             MaximumItems = maximumItems;
             return Task.FromResult(3);
         }
+    }
+
+    private sealed class FailingSettlement : ISettleFiledCaseReportArtifacts
+    {
+        public Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken) =>
+            Task.FromException<int>(new InvalidOperationException("The report could not be settled."));
     }
 
     private sealed class RecordingPairing : IImageIntakeCasePairing
@@ -667,6 +698,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     {
         internal List<IReadOnlyDictionary<string, object?>> States { get; } = [];
 
+        internal List<(LogLevel Level, Exception? Exception)> Entries { get; } = [];
+
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => null;
 
@@ -679,6 +712,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
+            Entries.Add((logLevel, exception));
             States.Add(state is IEnumerable<KeyValuePair<string, object?>> values
                 ? values.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
                 : throw new InvalidOperationException(
