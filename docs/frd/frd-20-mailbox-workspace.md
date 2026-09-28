@@ -178,6 +178,12 @@ does not move and no Graph call is made
 no delete and no Deleted Items move on any surface
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 
+Both acts write only the message's dismissed-at and dismissed-by cells and one
+history entry keyed by the operation, so the Web role holds UPDATE and no
+DELETE on the retained message table. A retried post returns the committed
+state: the act takes the message row first, so a retry waits for it, and no
+range lock is taken on the history index.
+
 ## States and transitions
 
 | Surface | States |
@@ -211,6 +217,9 @@ workspace only shows them.
 - Tests that the folder move is a separate confirmation and refuses any
   folder other than the policy's.
 - Dismiss and Restore tests showing no Graph call.
+- A persistence test that a retried Dismiss replays without a second history
+  entry and that concurrent acts do not deadlock, and a grant test that Web
+  holds UPDATE and not DELETE on the retained message table.
 - Deployment and live acceptance are separate evidence tiers
   ([engineering](../engineering.md#required-evidence-tiers)).
 
