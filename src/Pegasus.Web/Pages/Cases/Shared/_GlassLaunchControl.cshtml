@@ -35,6 +35,25 @@
     }
     else if (editing && Model.CanLaunchGlass)
     {
+        @* A session that failed because its export could not be read has
+           nothing wrong at Glass's: the same handler fetches that estimate
+           again, and Glass's beside it still starts a new one. *@
+        @if (Model.CanFetchGlassAgain && glassSession is not null)
+        {
+            <form method="post" asp-page="/Cases/Details" asp-page-handler="ResumeGlass"
+                  asp-route-id="@caseId" asp-route-section="estimate"
+                  target="_blank" data-glass-window data-glass-slot="fetch-again">
+                <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
+                <input type="hidden" name="expectedCaseVersion" value="@Model.Case.Workflow.Version" />
+                <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
+                <input type="hidden" name="sessionId" value="@glassSession.Id" />
+                <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
+                <button type="submit" class="btn btn--small">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                    <span>@GlassLabels.FetchAgain</span>
+                </button>
+            </form>
+        }
         <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
               asp-route-id="@caseId" asp-route-section="estimate"
               target="_blank" data-glass-window data-glass-slot="launch">

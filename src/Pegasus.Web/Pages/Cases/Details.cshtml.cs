@@ -700,6 +700,15 @@ public sealed partial class DetailsModel(
         && GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State);
 
     /// <summary>
+    /// Whether the session on the screen failed because its export could not be
+    /// read, so its owner may fetch that same estimate again.
+    /// </summary>
+    public bool CanFetchGlassAgain =>
+        CanLaunchGlass
+        && GlassSession is { } session
+        && GlassRepairEstimateSessionPolicy.CanRefetchExport(session.State, session.FailureCode);
+
+    /// <summary>
     /// Whether the session on the screen can be closed by its owner: any one
     /// that still holds the account except one mid-import, per the policy, and
     /// none while its provider work is running in the background.
@@ -3724,20 +3733,29 @@ public sealed partial class DetailsModel(
                 ? $"{conflict.GetType().Name}:{conflict.Conflict}"
                 : exception.GetType().Name);
         HandleLeaseFailure(id, editLeaseToken, exception);
-        TempData["CaseError"] = exception is GlassRepairEstimateSessionConflictException
+        TempData["CaseError"] = exception switch
         {
-            Conflict: not GlassRepairEstimateSessionConflict.ActiveAccount
-        }
             // A stale session version, a spent callback or another staff member's
             // session says nothing an operator can act on beyond the refusal.
-            ? refusal
-            : MutationRefusalMessage(exception, refusal);
+            GlassRepairEstimateSessionConflictException
+            {
+                Conflict: not GlassRepairEstimateSessionConflict.ActiveAccount
+            } => refusal,
+            // The Case moved since this page rendered (custody confirming a
+            // file, another save) or its edit lease ended: reloading is the cure.
+            CaseVersionConflictException or CaseEditLeaseConflictException or CaseEditLeaseExpiredException
+                => GlassLabels.CaseChanged,
+            _ => MutationRefusalMessage(exception, refusal),
+        };
         return GlassReturn(id);
     }
 
     private static bool IsGlassRefusal(Exception exception) =>
         exception is GlassRepairEstimateRefusalException
             or GlassRepairEstimateSessionConflictException
+            or CaseVersionConflictException
+            or CaseEditLeaseConflictException
+            or CaseEditLeaseExpiredException
             or ArgumentException
             or KeyNotFoundException;
 

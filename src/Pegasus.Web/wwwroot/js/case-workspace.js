@@ -720,7 +720,9 @@
                 if (mayAdvance) {
                     var newLease = incoming.querySelector('[name="editLeaseToken"]');
                     host.querySelectorAll('form').forEach(function (form) {
-                        var version = form.querySelector('[name="expectedVersion"]');
+                        // A Case's own forms name the version expectedVersion; the
+                        // Glass's and report forms name it expectedCaseVersion.
+                        var version = form.querySelector('[name="expectedVersion"], [name="expectedCaseVersion"]');
                         var lease = form.querySelector('[name="editLeaseToken"]');
                         if (lease && newLease && lease.value === command.editLeaseToken
                             && (!version || version.value === command.expectedVersion)) {
