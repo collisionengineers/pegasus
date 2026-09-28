@@ -1045,6 +1045,13 @@ internal static partial class CaseWebTestSupport
             string operationKey,
             CancellationToken cancellationToken) => Task.FromResult(false);
 
+        Task<IReadOnlyDictionary<Guid, Guid?>> ICaseWorkflowQueries.GetAssignedEngineersAsync(
+            IReadOnlyCollection<Guid> caseIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, Guid?>>(caseIds.Contains(CaseId)
+                ? new Dictionary<Guid, Guid?> { [CaseId] = CreateWorkflow().AssignedEngineerId }
+                : new Dictionary<Guid, Guid?>());
+
         Task<InspectionAddressChoicesData?> IInspectionAddressChoicesQueries.GetAsync(
             Guid caseId,
             CaseWorkSelector work, CancellationToken cancellationToken) =>

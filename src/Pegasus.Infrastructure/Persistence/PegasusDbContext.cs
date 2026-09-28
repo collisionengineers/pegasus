@@ -616,6 +616,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.Reference).IsUnique();
             entity.HasIndex(item => item.AuditReference).IsUnique();
             entity.HasIndex(item => item.OriginIntakeReceiptId);
+            // The Work Centre's New cases feed reads Cases by creation time.
+            entity.HasIndex(item => item.CreatedAtUtc).IncludeProperties(item => item.Type);
             entity.HasIndex(item => new { item.SequenceLineageId, item.Year, item.Sequence })
                 .IsUnique();
             entity.HasOne(item => item.Principal)

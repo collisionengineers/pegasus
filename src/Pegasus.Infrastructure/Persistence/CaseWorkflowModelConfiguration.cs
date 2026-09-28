@@ -47,6 +47,8 @@ internal static class CaseWorkflowModelConfiguration
             entity.HasIndex(item => item.ReportSentEvidenceId).IsUnique();
             entity.HasIndex(item => item.ReplacementCaseId).IsUnique();
             entity.HasIndex(item => item.OriginalCaseId).IsUnique();
+            // The Work Centre reads every queue by workflow state.
+            entity.HasIndex(item => item.State);
             entity.HasOne(item => item.Case).WithOne().HasForeignKey<CaseWorkflowEntity>(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.ReplacementCase).WithMany().HasForeignKey(item => item.ReplacementCaseId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.OriginalCase).WithMany().HasForeignKey(item => item.OriginalCaseId).OnDelete(DeleteBehavior.Restrict);
@@ -66,6 +68,10 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.ActorRolesJson).HasMaxLength(500).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(AddCaseNote.MaximumLength);
             entity.HasIndex(item => new { item.CaseId, item.OperationKey }).IsUnique();
+            // The Work Centre's New cases feed reads the Automation actor's
+            // recent changes from this index alone.
+            entity.HasIndex(item => new { item.ActorKind, item.OccurredAtUtc })
+                .IncludeProperties(item => new { item.CaseId, item.EventType, item.BeforeVersion, item.AfterVersion });
             // A report or estimate-document preview, a report download, or
             // an edit lease taken over from a colleague is Case history
             // rather than a Case mutation, so it carries no fresh version and

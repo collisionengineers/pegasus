@@ -46,6 +46,16 @@ public interface IListTriage
         ActionActor actor,
         TriageState? state,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Every Triage in <paramref name="state"/> (every state when
+    /// <see langword="null"/>), in the list's order, read once rather than
+    /// page by page.
+    /// </summary>
+    Task<IReadOnlyList<TriageSummary>> ListAllAsync(
+        ActionActor actor,
+        TriageState? state,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -119,6 +129,23 @@ public sealed class ListTriage(ITriageQueries queries) : IListTriage
         }
 
         return queries.CountAsync(state, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<TriageSummary>> ListAllAsync(
+        ActionActor actor,
+        TriageState? state,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (state is { } requested && !Enum.IsDefined(requested))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(state),
+                "The Triage state is not recognized.");
+        }
+
+        return queries.ListAsync(state, cancellationToken);
     }
 }
 
