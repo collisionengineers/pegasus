@@ -202,7 +202,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260928090000_GrantWorkerGeneratedCaseArtifactUpdate",
                 "20260928100000_WorkCentreQueryIndexes",
                 "20260928160000_GrantWorkerDocumentOccurrenceUpdate",
-                "20260929090000_RetireUnusedTables"
+                "20260929090000_RetireUnusedTables",
+                "20260929091000_GrantWebRetainedMailDismissal"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
