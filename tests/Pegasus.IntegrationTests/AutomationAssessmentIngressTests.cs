@@ -429,29 +429,11 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     [Fact]
-    public async Task AssessmentUpdateOverHttpMutatesUnderLeaseWithCorrelatedAttribution()
+    public async Task AssessmentUpdateOverHttpMutatesUnderLeaseWithAttribution()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
         var caseId = await SeedAcceptedCaseAsync(mcpFactory);
-        Guid workRequestId;
-        await using (var scope = mcpFactory.Services.CreateAsyncScope())
-        {
-            var created = await scope.ServiceProvider
-                .GetRequiredService<IAiWorkRequestStore>()
-                .CreateAsync(
-                    new(
-                        caseId,
-                        "fixture-reference",
-                        0,
-                        ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
-                        "ingress-send-op",
-                        "Work the assessment.",
-                        TimeSpan.FromHours(24)),
-                    CancellationToken.None);
-            workRequestId = created.RequestId;
-        }
-
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
@@ -497,8 +479,7 @@ public sealed class AutomationAssessmentIngressTests
                     {
                         ["vehicle.condition"] = "good",
                         [AssessmentVocabulary.VehicleBody] = "Hatchback"
-                    },
-                    workRequestId = workRequestId.ToString("D")
+                    }
                 })))
         {
             Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
@@ -508,7 +489,7 @@ public sealed class AutomationAssessmentIngressTests
             var structured = result.GetProperty("structuredContent");
             Assert.Equal(caseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
             Assert.Equal(
-                workRequestId.ToString("D"),
+                "mcp:ingress-assessment-1",
                 structured.GetProperty("correlationId").GetString());
             var fields = structured.GetProperty("fields").EnumerateArray().ToArray();
         }
@@ -523,7 +504,7 @@ public sealed class AutomationAssessmentIngressTests
             "SELECT COUNT(*) FROM CaseEstimateLines WHERE RecordedByKind = N'Automation'"));
 
         // Logging parity: the business save is recorded exactly like a staff
-        // save, and the ingress attribution row correlates to the hand-off.
+        // save, and the ingress attribution row correlates to the operation key.
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
@@ -537,7 +518,7 @@ public sealed class AutomationAssessmentIngressTests
             WHERE ActorKind = N'Automation'
               AND EventKind = N'pegasus_assessment_update'
               AND Outcome = N'Succeeded'
-              AND CorrelationId = N'{workRequestId:D}'
+              AND CorrelationId = N'mcp:ingress-assessment-1'
             """));
 
         // A replayed operation key returns the original result.
@@ -558,8 +539,7 @@ public sealed class AutomationAssessmentIngressTests
                     {
                         ["vehicle.condition"] = "good",
                         [AssessmentVocabulary.VehicleBody] = "Hatchback"
-                    },
-                    workRequestId = workRequestId.ToString("D")
+                    }
                 })))
         {
             Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
@@ -671,24 +651,6 @@ public sealed class AutomationAssessmentIngressTests
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
         var caseId = await SeedAcceptedCaseAsync(mcpFactory);
-        Guid workRequestId;
-        await using (var scope = mcpFactory.Services.CreateAsyncScope())
-        {
-            var created = await scope.ServiceProvider
-                .GetRequiredService<IAiWorkRequestStore>()
-                .CreateAsync(
-                    new(
-                        caseId,
-                        "fixture-reference",
-                        0,
-                        ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
-                        "ingress-details-op",
-                        "Confirm the contact details.",
-                        TimeSpan.FromHours(24)),
-                    CancellationToken.None);
-            workRequestId = created.RequestId;
-        }
-
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
@@ -731,8 +693,7 @@ public sealed class AutomationAssessmentIngressTests
                     operationKey = "mcp:ingress-details-1",
                     reason = "Automation recorded the contact details.",
                     contactName = "Automation QA Contact",
-                    contactEmailAddress = "automation-qa@example.test",
-                    workRequestId = workRequestId.ToString("D")
+                    contactEmailAddress = "automation-qa@example.test"
                 })))
         {
             Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
@@ -743,7 +704,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(caseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
             Assert.Equal("NotReady", structured.GetProperty("state").GetString());
             Assert.Equal(
-                workRequestId.ToString("D"),
+                "mcp:ingress-details-1",
                 structured.GetProperty("correlationId").GetString());
         }
 
@@ -769,7 +730,7 @@ public sealed class AutomationAssessmentIngressTests
             $"SELECT CAST(InstructionComplete AS INT) FROM Cases WHERE Id = '{caseId:D}'"));
 
         // Logging parity: the business save is recorded exactly like a staff save, and the
-        // ingress attribution row correlates to the hand-off.
+        // ingress attribution row correlates to the operation key.
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
@@ -783,7 +744,7 @@ public sealed class AutomationAssessmentIngressTests
             WHERE ActorKind = N'Automation'
               AND EventKind = N'pegasus_case_update_details'
               AND Outcome = N'Succeeded'
-              AND CorrelationId = N'{workRequestId:D}'
+              AND CorrelationId = N'mcp:ingress-details-1'
             """));
 
         // A replayed operation key returns the original result rather than re-saving.
@@ -801,8 +762,7 @@ public sealed class AutomationAssessmentIngressTests
                     operationKey = "mcp:ingress-details-1",
                     reason = "Automation recorded the contact details.",
                     contactName = "Automation QA Contact",
-                    contactEmailAddress = "automation-qa@example.test",
-                    workRequestId = workRequestId.ToString("D")
+                    contactEmailAddress = "automation-qa@example.test"
                 })))
         {
             Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);

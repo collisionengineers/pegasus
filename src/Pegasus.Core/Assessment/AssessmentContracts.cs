@@ -481,9 +481,7 @@ public sealed record CaseAssessmentProjection(
 /// <summary>
 /// One save over the assessment surface: scalar values keyed by the closed
 /// path vocabulary (null clears), and the same actor, edit-lease,
-/// expected-version, and operation-key guards as every case mutation. The
-/// optional Send-to-AI work-request binding is correlation evidence only and
-/// is never required (companion-plan decision D3).
+/// expected-version, and operation-key guards as every case mutation.
 /// </summary>
 public sealed record SaveAssessmentRequest(
     Guid CaseId,
@@ -492,8 +490,7 @@ public sealed record SaveAssessmentRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    IReadOnlyDictionary<string, string?> Fields,
-    Guid? AiWorkRequestId = null)
+    IReadOnlyDictionary<string, string?> Fields)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public interface ICaseAssessmentStore

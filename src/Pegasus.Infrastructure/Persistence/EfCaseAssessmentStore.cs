@@ -104,19 +104,6 @@ public sealed class EfCaseAssessmentStore(
 
         // The save writes the current work, resolved after the guards.
         var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
-        if (request.AiWorkRequestId is { } workRequestId)
-        {
-            var workRequest = await context.AiWorkRequests.AsNoTracking()
-                .SingleOrDefaultAsync(item => item.RequestId == workRequestId, cancellationToken)
-                ?? throw new InvalidOperationException(
-                    "The referenced Send to AI work request was not found.");
-            if (workRequest.CaseId != request.CaseId)
-            {
-                throw new InvalidOperationException(
-                    "The referenced Send to AI work request belongs to another case.");
-            }
-        }
-
         var fields = await context.CaseAssessmentFields
             .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
@@ -157,11 +144,7 @@ public sealed class EfCaseAssessmentStore(
                 new { Fields = beforeFields },
                 JsonOptions),
             JsonSerializer.Serialize(
-                new
-                {
-                    Fields = afterFields,
-                    request.AiWorkRequestId
-                },
+                new { Fields = afterFields },
                 JsonOptions),
             $"{AssessmentPolicy.PolicyKey}/v{AssessmentPolicy.PolicyVersion}",
             now);
@@ -392,8 +375,7 @@ public sealed class EfCaseAssessmentStore(
             request.OperationKey,
             request.Reason,
             request.EditLeaseToken,
-            Fields = request.Fields.OrderBy(pair => pair.Key, StringComparer.Ordinal),
-            request.AiWorkRequestId
+            Fields = request.Fields.OrderBy(pair => pair.Key, StringComparer.Ordinal)
         }, JsonOptions);
         return CaseOperationReplay.Hash(material);
     }

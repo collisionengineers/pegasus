@@ -10,12 +10,11 @@ public sealed class AdministrationAiJobsTests
     {
         var query = new Query(Enumerable.Range(0, 51).Select(_ => Job()).ToArray());
         var result = await new GetAdministrationAiJobs(query, new Jobs(), new Control(true))
-            .ExecuteAsync(Admin(), 1, transportComposed: true, cancellationToken: CancellationToken.None);
+            .ExecuteAsync(Admin(), 1, cancellationToken: CancellationToken.None);
 
         Assert.Equal((0, 51), query.Request);
         Assert.Equal(50, result.Jobs.Count);
         Assert.True(result.HasMore);
-        Assert.True(result.TransportComposed);
         Assert.True(result.SendToAiSwitchEnabled);
         Assert.Equal(new AiJobCounts(2, 1), result.Counts);
     }
@@ -26,7 +25,7 @@ public sealed class AdministrationAiJobsTests
         var query = new Query([]);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new GetAdministrationAiJobs(query, new Jobs(), new Control(false)).ExecuteAsync(
-                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), 1, transportComposed: false, cancellationToken: CancellationToken.None));
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), 1, cancellationToken: CancellationToken.None));
         Assert.Null(query.Request);
     }
 
@@ -36,7 +35,7 @@ public sealed class AdministrationAiJobsTests
         var query = new Query(Enumerable.Range(0, 51).Select(_ => Job()).ToArray());
 
         _ = await new GetAdministrationAiJobs(query, new Jobs(), new Control(true))
-            .ExecuteAsync(Admin(), 3, transportComposed: true, cancellationToken: CancellationToken.None);
+            .ExecuteAsync(Admin(), 3, cancellationToken: CancellationToken.None);
 
         Assert.Equal((100, 51), query.Request);
     }

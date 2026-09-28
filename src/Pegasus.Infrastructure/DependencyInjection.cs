@@ -533,7 +533,6 @@ public static class DependencyInjection
         services.AddScoped<IAssessmentWorkspaceSource, EfAssessmentWorkspaceSource>();
         services.AddScoped<IGetAssessmentWorkspace, GetAssessmentWorkspace>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();
-        services.AddScoped<IAiWorkRequestStore, EfAiWorkRequestStore>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
         services.AddScoped<EfAiJobStore>();
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());

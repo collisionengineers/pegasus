@@ -1988,16 +1988,8 @@ public static class OperatorLabels
         public const string StopConsequence =
             "In-flight work remains visible and no result is discarded.";
 
-        public const string ChannelToken = "Channel token";
-        public const string ChannelTokenEntered = "Entered from Administration";
-        public const string ChannelTokenStandard = "Standard setting";
-        public const string ChannelTokenChanged = "Changed";
-        public const string ChannelAddress = "Channel address";
-        public const string Timeout = "Timeout in seconds";
-        public const string NewChannelToken = "New channel token";
         public const string SendToAiEnabled = "Reviewed AI proposals enabled";
         public const string Save = "Save AI settings";
-        public const string RemoveChannelToken = "Remove the channel token";
 
         /// <summary>The state word for a switch an administrator holds.</summary>
         public static string SwitchState(bool enabled) => enabled ? Enabled : Stopped;

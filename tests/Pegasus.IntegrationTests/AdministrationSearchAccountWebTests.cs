@@ -193,21 +193,6 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
-    public async Task AiJobsShowsUnavailableWhenTheHostDidNotComposeAHandOffTransport()
-    {
-        // The default test composition carries the persistent switch but no
-        // DevelopmentOffline Send-to-AI transport, matching a production host
-        // where the preview capability is absent.
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        var html = await client.GetStringAsync("/Administration/AiJobs");
-
-        Assert.Contains("Unavailable", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("· Active</span>", html, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task ActionLogsSelectPeopleByDisplayNameAndKeepAdministrationDiagnostics()
     {
         var now = DateTimeOffset.UtcNow;

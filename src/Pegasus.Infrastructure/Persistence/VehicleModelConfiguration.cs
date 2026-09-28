@@ -68,44 +68,5 @@ internal static class VehicleModelConfiguration
                 .HasForeignKey(item => item.WorkItemId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
-
-        builder.Entity<VehicleConfirmationEntity>(entity =>
-        {
-            entity.ToTable("VehicleConfirmations", table =>
-            {
-                table.HasCheckConstraint(
-                    "CK_VehicleConfirmations_CaseVersions",
-                    "[BeforeCaseVersion] >= 0 AND [AfterCaseVersion] > [BeforeCaseVersion]");
-                table.HasCheckConstraint(
-                    "CK_VehicleConfirmations_Mileage",
-                    "([Mileage] IS NULL AND [MileageUnit] IS NULL) OR ([Mileage] >= 0 AND [MileageUnit] IS NOT NULL)");
-                table.HasCheckConstraint(
-                    "CK_VehicleConfirmations_PolicyVersion",
-                    "[PolicyVersion] > 0");
-            });
-            entity.HasKey(item => item.Id);
-            entity.Property(item => item.Decision).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.Registration).HasMaxLength(20).IsRequired();
-            entity.Property(item => item.Make).HasMaxLength(100);
-            entity.Property(item => item.Model).HasMaxLength(100);
-            entity.Property(item => item.MileageUnit).HasMaxLength(40);
-            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
-            entity.Property(item => item.ActorRolesJson).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
-            entity.Property(item => item.RequestFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
-            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.PolicyKey).HasMaxLength(100).IsRequired();
-            entity.HasIndex(item => new { item.CaseId, item.OperationKey }).IsUnique();
-            entity.HasIndex(item => new { item.CaseId, item.AfterCaseVersion }).IsUnique();
-            entity.HasOne(item => item.Case)
-                .WithMany()
-                .HasForeignKey(item => item.CaseId)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(item => item.LookupObservation)
-                .WithMany(item => item.Confirmations)
-                .HasForeignKey(item => item.LookupObservationId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
     }
 }

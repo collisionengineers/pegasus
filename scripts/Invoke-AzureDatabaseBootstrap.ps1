@@ -59,7 +59,8 @@ function Get-MigrationPermissionMatrix {
         '20260814094632_DropBoxFileRequests.cs',
         '20260824123336_DropEvaHandoffTables.cs',
         '20260917161519_RemovePublicUploadLinks.cs',
-        '20260924180000_CaseWorksAndTriageCases.cs'
+        '20260924180000_CaseWorksAndTriageCases.cs',
+        '20260929090000_RetireUnusedTables.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -154,13 +155,13 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseAssessmentFields")
     }
-    foreach ($table in @('AiWorkRequests', 'SendToAiControl')) {
-        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
-        }
-        $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
-        $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
+    # AiWorkRequests went with 20260929090000_RetireUnusedTables; only the
+    # SendToAiControl switch row is left.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|SendToAiControl")
     }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|SendToAiControl')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|SendToAiControl')
     # 20260805223036_RetainedMailboxMessages: retained evidence is immutable;
     # Web reads it and Worker can only append it.
     foreach ($table in @('RetainedMailboxMessages', 'RetainedMailboxAttachments')) {
@@ -190,6 +191,8 @@ function Get-MigrationPermissionMatrix {
     foreach ($grant in [regex]::Matches(
         $workerGrantBlock.Groups['body'].Value,
         '\("(?<table>[A-Za-z0-9]+)", "(?<permissions>[A-Z, ]+)"\)')) {
+        # The migration still names tables a later migration dropped.
+        if ($grant.Groups['table'].Value -in $removedTables) { continue }
         foreach ($permission in $grant.Groups['permissions'].Value.Split(',').Trim()) {
             $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
         }
