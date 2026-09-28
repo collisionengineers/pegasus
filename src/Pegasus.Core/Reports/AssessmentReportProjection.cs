@@ -304,7 +304,10 @@ public static class AssessmentReportProjection
         var impacts = AssessmentPolicy.ParseImpacts(Field(fields, AssessmentVocabulary.DamageImpacts))
             .Select(impact => new ReportImpact(impact.Areas, impact.Severity, impact.Disc))
             .ToArray();
-        return new(impacts, Field(fields, AssessmentVocabulary.DamageUnrelated));
+        return new(
+            impacts,
+            Field(fields, AssessmentVocabulary.DamageUnrelated),
+            DamagePlanGeometry.ProfileFor(Field(fields, AssessmentVocabulary.VehicleType)));
     }
 
     /// <summary>

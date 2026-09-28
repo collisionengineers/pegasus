@@ -11,24 +11,25 @@ public sealed class AssessmentReportRenderingTests
     private static readonly DateTimeOffset RecordedAtUtc = new(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
 
     /// <summary>
-    /// Version six carries only what the template prints (operator, 27
+    /// Version seven carries only what the template prints (operator, 27
     /// September 2026): the tyres, belts, airbags, temporary repairs, the
     /// vehicle's colour, body, transmission and expiry dates, the damage
     /// tables and the settlement rows are recorded on the Case and are no
-    /// part of the report.
+    /// part of the report. The damage carries the drawing its marks are
+    /// printed on (28 September 2026).
     /// </summary>
     [Fact]
-    public void TheSnapshotIsVersionSixAndCarriesOnlyWhatTheTemplatePrints()
+    public void TheSnapshotIsVersionSevenAndCarriesOnlyWhatTheTemplatePrints()
     {
-        Assert.Equal("rendererref1-v6", AssessmentReportContract.TemplateVersion);
-        Assert.Equal("rendererref1-v6", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
+        Assert.Equal("rendererref1-v7", AssessmentReportContract.TemplateVersion);
+        Assert.Equal("rendererref1-v7", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
         Assert.Equal(
             [
                 "Registration", "Make", "Model", "Year", "Condition",
                 "MileageDescription", "MileageSource", "Vin", "Engine", "Fuel",
             ],
             Printed(typeof(ReportVehicle)));
-        Assert.Equal(["Impacts", "Unrelated"], Printed(typeof(ReportDamage)));
+        Assert.Equal(["Impacts", "Unrelated", "Profile"], Printed(typeof(ReportDamage)));
         Assert.Equal(["Codes", "Severity", "Disc"], Printed(typeof(ReportImpact)));
         Assert.Equal(["ContractSum"], Printed(typeof(ReportSettlement)));
     }
@@ -497,7 +498,7 @@ public sealed class AssessmentReportRenderingTests
         var renderer = new FakeRenderer();
         var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
         {
-            PayloadVersion = "rendererref1-v5",
+            PayloadVersion = "rendererref1-v6",
         };
 
         var refusal = await Assert.ThrowsAsync<ReportRenderRejectedException>(
@@ -588,7 +589,7 @@ public sealed class AssessmentReportRenderingTests
             "case", "Test evidence",
             ActorKind.Staff, "engineer-1", RecordedAtUtc, Quantity: 1);
 
-    internal static ReportDamage Damage() => new([new(["right_rear"], "moderate")], "Door scratch");
+    internal static ReportDamage Damage() => new([new(["right_rear"], "moderate")], "Door scratch", DamagePlanGeometry.Car);
 
     internal static ReportSettlement Settlement() => new();
 

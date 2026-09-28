@@ -300,16 +300,18 @@ field.
 
 ### Damage
 
-Damage shows the **plan**: a top-down silhouette drawn as the panels, with
-one numbered disc per recorded damage, Underside, Interior and Mechanical
-chips, and five graded severity fills with a legend. While editable, dashed
-band guides show the eight areas, pressing and dragging on the vehicle sizes
-a disc, dragging a disc moves it, the readout names the area under the
-pointer, and Reset returns the damage to the values held when the edit
-opened. A disc stays as it was drawn, names the areas it touches, is never
-wider than half the vehicle and is clipped to its body, so it never covers
-the page around the plan. Beside it sits the recorded-areas list numbered
-like the discs, with the areas, severity and note per damage, and the other
+Damage shows the **plan**: a top-down drawing of the recorded Vehicle type —
+the car, the van or the motorbike
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record))
+— with one yellow comic burst per recorded damage, and Underside, Interior
+and Mechanical chips. While editable, dashed band guides show the eight
+areas, pressing and dragging on the vehicle sizes a disc, dragging a burst
+moves it, the readout names the area under the pointer, and Reset returns
+the damage to the values held when the edit opened. A disc stays as it was
+drawn, names the areas it touches and is never wider than half the vehicle;
+its burst carries no number and may spill past the outline. Beside it sits
+the recorded-areas list, numbered in recorded order, with the areas,
+severity and note per damage, and the other
 damage facts; the list rows and the chips stand in the same places in read
 and edit mode, greyed when they cannot be edited. The **Incident narrative**
 is read-only: it is the report's Nature of Incident wording, the Engineer's
@@ -417,7 +419,7 @@ blocker list show in both modes (operator, 26 September 2026).
 The content switches are under **On the report** in Valuation. The report
 renders the sign-off Engineer tuple and the marked damage diagram. The
 diagram is the Case page's own plan: the report and the Damage section draw
-the same vehicle and place each disc alike (operator, 27 September 2026). The
+the same vehicle and place each burst alike (operator, 27 September 2026). The
 **Statement of truth** cell shows the accepted statement the report prints,
 read-only; no Case edits it
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).

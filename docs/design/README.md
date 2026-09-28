@@ -176,10 +176,11 @@ to Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
 or Engineer, Archive, Place on Hold or Release Hold, Correct principal, Create
 audit — then, after a separator and in red, Close case. Outside an edit
 session the menu appears only when Send to EVA is available. Damage uses the
-**plan** only: a top-down silhouette drawn as the panels, one numbered disc
-per recorded damage sized and placed by dragging and kept as drawn (no wider
-than half the vehicle, clipped to its body), five graded severity fills with a
-legend, and a recorded-areas list numbered like the discs. Images open in a
+**plan** only: a top-down drawing of the recorded vehicle (car, van or
+motorbike), one yellow comic burst per recorded damage sized and placed by
+dragging and kept as drawn (no wider than half the vehicle, unnumbered and
+unclipped, one look for every severity), and a recorded-areas list numbered
+in recorded order. Images open in a
 full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, In
 report while editing, and a filmstrip with excluded images greyed); crop
 happens on the viewer stage itself (drag, handles, move, Aspect, Rotate left
@@ -847,8 +848,8 @@ deleted in wave 5.
 | `src-tag` and its `--lookup`, `--ai`, `--warn` tones | The source tag: one word in the cell's label line saying where a value came from ([source tags](README.md#source-tags)); the same pill names other short origins (AI, Manual, Amended) |
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
 | `gated`, `avail` | The dashed availability label, stated once per section head; in the Inspection view it reads "Read-only · Audit created" |
-| `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its numbered discs, and the aside figures |
-| `damage-diagram`, `dm`, `dm-guides` | The plan silhouette, one disc per recorded damage (kept as drawn, clipped to the body by `damage-plan-clip`), and the dashed band guides shown while editing |
+| `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures |
+| `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
