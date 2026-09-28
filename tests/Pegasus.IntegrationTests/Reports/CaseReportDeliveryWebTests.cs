@@ -681,12 +681,42 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
 
-        var nextAction = NextActionRegex().Match(html);
+        var nextAction = CaseWebTestSupport.NextActionRegex().Match(html);
         Assert.True(nextAction.Success, "The Case aside must state its Next action.");
         Assert.Equal(expected, NextLabelRegex().Match(nextAction.Value).Groups["label"].Value);
         var link = SectionJumpRegex().Match(nextAction.Value);
         Assert.True(link.Success, "The Next action must link to a section.");
         Assert.Equal("report", link.Groups["key"].Value);
+    }
+
+    /// <summary>
+    /// A stale generation is stated once, in the aside's Next action above its
+    /// Generate report line (issue 899): no page-wide bar and no second
+    /// notice in the Report section.
+    /// </summary>
+    [Fact]
+    public async Task AStaleGenerationIsStatedOnceInTheNextAction()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = WithCurrentGeneration(
+            baseFactory, caseId, new FakeCurrentGeneration(caseId, includeFeeNote: false, stale: true));
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var nextAction = CaseWebTestSupport.NextActionRegex().Match(html);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        Assert.Contains("data-report-stale", nextAction.Value, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice,
+            nextAction.Value,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport,
+            NextLabelRegex().Match(nextAction.Value).Groups["label"].Value);
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Count(html, "data-report-stale"));
+        Assert.DoesNotContain("data-stale-bar", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1029,7 +1059,8 @@ public sealed partial class AssessmentReportDraftWebTests
         string? repairSpecOperationKey = null,
         CaseReportArtifactStatus? imagePackStatus = null,
         string? imagePackOperationKey = null,
-        bool reportFiled = false)
+        bool reportFiled = false,
+        bool stale = false)
         : ICaseReportGenerationStore
     {
         private readonly CaseReportGenerationRecord record = GenerationRecord(
@@ -1043,7 +1074,9 @@ public sealed partial class AssessmentReportDraftWebTests
             repairSpecOperationKey,
             imagePackStatus,
             imagePackOperationKey,
-            reportFiled);
+            reportFiled) is var generation && stale
+                ? generation with { State = CaseReportGenerationState.Stale }
+                : generation;
 
         public CaseReportGenerationRecord Record => record;
 

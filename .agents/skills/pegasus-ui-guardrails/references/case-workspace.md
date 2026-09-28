@@ -92,7 +92,7 @@ Important ownership decisions:
 - Valuation owns the Retail, Trade and Engineer's value boxes, guide-source cards, the valuation calculation and the On the report content switches.
 - Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
 - Decisions owns settlement decisions and settlement-only figures.
-- Report owns generation/preview/finality controls, report wording, report date, commentary, the Fee pane and the report's blocker list, each row linking to the section that owns the fact rather than repeating it.
+- Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Next action (below).
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces. A document row may offer **Import as repair spec**, which runs Repair Spec's own import on that file (operator, 25 September 2026).
 - Notes owns the single Case timeline, notes and chase recording.
 
@@ -244,6 +244,13 @@ Viewer controls must not overlap the image stage. Keep the crop toolbar coherent
 
 The context aside contains the Views card (only once an Audit exists), then Figures and Next
 action.
+
+While the report is not ready, Next action lists every report blocker (With Engineer, in place of
+its one line), each row linking to the section that owns the fact rather than repeating it. A stale generation's warning notice sits at the
+top of Next action; there is no page-wide stale bar and no second stale notice in Report
+(operator, 28 September 2026). Beside the sections the sticky aside is capped at the viewport and
+scrolls on its own; folded above them, the blocker list scrolls inside its panel. Do not let a long
+list push the sections down or hide below a sticky aside.
 
 Do not recreate a separate "Current position" card that repeats the ribbon.
 

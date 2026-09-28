@@ -65,9 +65,10 @@ the Case record each report blocker links to the section that clears it. A
 recorded value is never a blocker because of who recorded it: there is no
 per-field review, and Hand to Engineer is the only review (operator, 25
 September 2026). Once the Case is With Engineer, while the report is not ready the
-Next action names the first blocker and links to its section (in Not ready
-and Review it names the outstanding requirement or Hand to Engineer)
-([FRD-16](frd-16-case-record-workspace.md#report),
+Next action lists every report blocker, each linking to its section, and the
+Report section's head keeps the one **Not ready** availability label (in Not
+ready and Review the Next action names the outstanding requirement or Hand to
+Engineer, and the report blockers follow it) ([FRD-16](frd-16-case-record-workspace.md#case-workspace),
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 
 **Required items are configuration.** Instruction completeness and image

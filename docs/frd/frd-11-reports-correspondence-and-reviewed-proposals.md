@@ -380,7 +380,7 @@ report, the fee note, the Repair Spec or the images.
 | Box could not be reached or written to | "The report could not be stored in Box just now." |
 | The report was refused | The refusal's own reason |
 | Storing failed, or any other fault | "The report could not be generated." |
-| Generate report was pressed over unsaved changes and the saved Case no longer offers it | "The report is not ready after the save. The Report section lists what is missing." |
+| Generate report was pressed over unsaved changes and the saved Case no longer offers it | "The report is not ready after the save." |
 
 A fee-note preview shows the recorded fee and description without saving
 anything. Native Hand to Engineer opens engineering work without an EVA
@@ -544,8 +544,8 @@ Any other hand-picked set of VAT categories blocks the report, because no
 accepted wording exists for it. Staff clear it on Repair Spec with Reset to
 repairer status.
 
-Where the viewer can edit the Repair Spec, both blockers' links, in the
-readiness list and as the Next action, open it for editing on the Current
+Where the viewer can edit the Repair Spec, both blockers' links in the Next
+action's blocker list open it for editing on the Current
 spec and put the focus on the control that clears the blocker: Repairer VAT
 status for an unknown status, Reset to repairer status for a hand-picked set
 (operator, 28 September 2026). Otherwise they jump to the section.

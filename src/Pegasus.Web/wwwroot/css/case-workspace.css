@@ -12,10 +12,6 @@
 .case-record .case-edit-badge{margin-right:2px}
 .case-record .ribbon-actions form{display:contents}
 .case-record .ribbon-actions .menu-body form{display:contents}
-.stale-bar{position:relative;display:flex;align-items:center;gap:8px;padding:6px 38px 6px 12px;border-top:1px solid var(--line);background:var(--amber-bg);color:var(--amber);font-size:12px;font-weight:600}
-.stale-bar .icon{width:14px;height:14px;flex:none}
-.stale-bar .btn{margin-left:auto}
-.stale-bar .dismiss{position:absolute;right:6px;top:50%;transform:translateY(-50%)}
 
 /* Sections are panels; the head carries the title, an optional meta and the
    actions cluster (primary, menu, Edit, availability, collapse). */
@@ -47,6 +43,16 @@
    the current view reads plain and strong, the other is a link. */
 [data-case-views] .next-row{gap:8px}
 [data-case-views] [aria-current="page"]{font-weight:600;color:var(--ink)}
+/* Next action (issue 899) stacks a stale generation's notice, its line and
+   the report blockers; a blocker's words wrap inside the 285px aside. */
+[data-next-action] .panel-body>*+*{margin-top:8px}
+.workspace-aside .blocker{overflow-wrap:anywhere}
+/* A long list stays reachable (operator, 28 September 2026): beside the
+   sections the sticky aside is never taller than the space below the
+   sticky block and scrolls on its own; folded above them, the list scrolls
+   inside its panel so the sections stay near the top. */
+@media(min-width:1441px){.case-record .workspace-aside{max-height:calc(100vh - var(--utility-h) - var(--sticky-h,97px) - 32px);overflow-y:auto;overscroll-behavior:contain}}
+@media(max-width:1440px){.case-record [data-report-not-ready] .blocker-list{max-height:400px;overflow-y:auto;overscroll-behavior:contain}}
 
 /* Overview */
 /* Nested sections (v28 P26): Damage and Valuation read inside Vehicle, one rule apart. */

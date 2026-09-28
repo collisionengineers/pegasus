@@ -42,7 +42,7 @@ function fixture() {
         return '<div data-case-record data-case-version="' + state.caseVersion + '" data-case-editing="true" data-section-current="estimate"'
             + (commit ? " data-editor-commit='" + JSON.stringify(commit) + "'" : '') + '>'
             + '<div data-sticky-block><nav data-section-nav><a href="#section-estimate" data-section-link="estimate">Estimate</a></nav></div>'
-            + '<div data-case-notices>' + (notice || '') + '</div><div data-case-ribbon-facts></div><div data-case-ribbon-actions></div><div data-case-stale></div>'
+            + '<div data-case-notices>' + (notice || '') + '</div><div data-case-ribbon-facts></div><div data-case-ribbon-actions></div>'
             + '<main id="case-main"><section class="record-section" id="section-estimate" data-section="estimate">'
             + '<form id="case-edit-form" method="post" action="/case?handler=Save"><input name="expectedVersion" type="hidden" value="' + state.caseVersion + '">'
             + '<input name="editLeaseToken" type="hidden" value="lease"><input name="operationKey" type="hidden" value="save-' + state.caseVersion + '">'

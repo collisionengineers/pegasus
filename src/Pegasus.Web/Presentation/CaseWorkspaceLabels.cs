@@ -939,7 +939,7 @@ public static class CaseWorkspaceLabels
         /// no longer offers it.
         /// </summary>
         public const string NotReadyAfterSave =
-            "The report is not ready after the save. The Report section lists what is missing.";
+            "The report is not ready after the save.";
 
         /// <summary>The generation ran out of time.</summary>
         public static string TookTooLong(CaseReportArtifactKind kind) =>
