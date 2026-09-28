@@ -239,6 +239,27 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
+    public async Task AssignedEngineersAreReadForManyCasesAtOnceAndAnUnknownCaseIsAbsent()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var unknownCaseId = Guid.NewGuid();
+
+        var engineers = await harness.Store.GetAssignedEngineersAsync(
+            [harness.CaseId, harness.NotReadyCaseId, unknownCaseId, harness.CaseId],
+            default);
+
+        Assert.Equal(2, engineers.Count);
+        Assert.NotNull(engineers[harness.CaseId]);
+        foreach (var caseId in new[] { harness.CaseId, harness.NotReadyCaseId })
+        {
+            var workflow = Assert.IsType<CaseWorkflowRecord>(await harness.Store.GetAsync(caseId, default));
+            Assert.Equal(workflow.AssignedEngineerId, engineers[caseId]);
+        }
+        Assert.False(engineers.ContainsKey(unknownCaseId));
+        Assert.Empty(await harness.Store.GetAssignedEngineersAsync([], default));
+    }
+
+    [Fact]
     public async Task StartRejectsEngineerDisabledAfterAssignment()
     {
         await using var harness = await WorkflowHarness.CreateAsync();

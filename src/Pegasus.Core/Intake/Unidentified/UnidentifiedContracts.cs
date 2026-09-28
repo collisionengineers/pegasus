@@ -110,8 +110,9 @@ public static class UnidentifiedMediaKindPolicy
 /// an <see cref="UnidentifiedMediaKind.Image"/> or
 /// <see cref="UnidentifiedMediaKind.Document"/> row; <see cref="EmailSubject"/>
 /// and <see cref="EmailSender"/> are set for an
-/// <see cref="UnidentifiedMediaKind.Email"/> row. Never a GUID or an internal
-/// origin identifier.
+/// <see cref="UnidentifiedMediaKind.Email"/> row. <see cref="ResolutionReason"/>
+/// is the reason a closed item was closed with, and absent on an open item.
+/// Never a GUID or an internal origin identifier.
 /// </summary>
 public sealed record UnidentifiedQueueRow(
     Guid Id,
@@ -121,7 +122,8 @@ public sealed record UnidentifiedQueueRow(
     string? EmailSubject,
     string? EmailSender,
     DateTimeOffset ReceivedAtUtc,
-    UnidentifiedReasonCode ReasonCode);
+    UnidentifiedReasonCode ReasonCode,
+    string? ResolutionReason);
 
 public sealed record UnidentifiedOrigin(UnidentifiedOriginKind Kind, Guid Id)
 {

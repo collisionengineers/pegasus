@@ -624,6 +624,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     {
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,
+            ImageInitiatedCaseState? state,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 

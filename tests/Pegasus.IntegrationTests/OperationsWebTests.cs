@@ -952,7 +952,8 @@ public sealed partial class OperationsWebTests
                         "Instruction for an unknown vehicle",
                         "operations@example.invalid",
                         FixedUtcNow.AddHours(-4),
-                        UnidentifiedReasonCode.NoUsableIdentification)
+                        UnidentifiedReasonCode.NoUsableIdentification,
+                        null)
                 ]
                 : []);
         }
