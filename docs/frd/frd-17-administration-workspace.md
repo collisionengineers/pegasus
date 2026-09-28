@@ -112,21 +112,28 @@ this area; they are not an area of their own.
 **E-mail templates** (`/Administration/EmailTemplates`) holds the text of
 the staff replies an Administrator may change. Only an Administrator may open
 it or save a template. It lists one row per template: its name, who last
-changed it and when, and **Edit**. The first template is the Triage outcome
-reply ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
+changed it and when, and **Edit**. The templates are the Triage outcome reply
+([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)) and the
+Case report delivery
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)).
 
 **Edit** opens a dialog: the body, up to 5000 characters, a row of
 placeholder buttons that insert at the cursor, and Cancel and Save. The
 Triage outcome reply's placeholders are `{registration}`,
-`{roadworthiness}`, `{repair outcome}` and `{reason}`. A body naming any
-other placeholder is refused, and the message names it. Save acts on the
-click with the rendered version. A stale save is refused and asks the
-Administrator to reload.
+`{roadworthiness}`, `{repair outcome}` and `{reason}`. The Case report
+delivery's are `{case reference}`, `{registration}`, `{outcome}`,
+`{principal name}` and `{superseded report date}`; its built-in body has a
+"This report supersedes our report dated ..." line that is left out on a first
+send. A body naming any other placeholder is refused, and the message names
+it. Save acts on the click with the rendered version. A stale save is refused
+and asks the Administrator to reload.
 
 A placeholder with no value renders nothing. A line whose placeholders are
 all empty is left out. The subject is not templated: a reply keeps
-"Re: {original subject}". Until an Administrator saves a template, its
-built-in body is used. Each save enters the Action logs.
+"Re: {original subject}", and a report delivery keeps its Case or Audit
+reference. Until an Administrator saves a template, its built-in body is used.
+Staff can edit the rendered text before it is sent or prepared. Each save
+enters the Action logs.
 
 ### Valuation presets
 
