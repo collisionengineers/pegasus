@@ -892,6 +892,26 @@ public sealed class GlassRepairEstimatePersistenceTests
         Assert.Null(await harness.Store.GetAsync(Guid.NewGuid(), CancellationToken.None));
     }
 
+    /// <summary>
+    /// The Glass's window reads a session by id for its owner only: another
+    /// staff member's session reads exactly as one that does not exist.
+    /// </summary>
+    [Fact]
+    public async Task ASessionReadByIdAnswersOnlyItsOwner()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Store.CreateAsync(
+            harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1"),
+            CancellationToken.None);
+
+        var own = await harness.Store.GetOwnAsync(created.Session.Id, harness.UserId, CancellationToken.None);
+
+        Assert.Equal(created.Session.Id, own?.Id);
+        Assert.Equal(GlassRepairEstimateSessionState.Prepared, own?.State);
+        Assert.Null(await harness.Store.GetOwnAsync(created.Session.Id, harness.OtherUserId, CancellationToken.None));
+        Assert.Null(await harness.Store.GetOwnAsync(Guid.NewGuid(), harness.UserId, CancellationToken.None));
+    }
+
     [Fact]
     public async Task SavingASessionThatWasNeverCreatedIsRefused()
     {

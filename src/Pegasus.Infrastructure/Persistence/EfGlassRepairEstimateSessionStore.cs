@@ -271,7 +271,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         entity.UpdatedAtUtc = now;
         entity.Version = expectedVersion + 1;
         AddHistory(context, entity, previousState, session.State, now);
-        // CompleteAsync claims a callback by moving the session to Importing.
+        // AcceptCallbackAsync claims a callback by moving the session to Importing.
         // Expiry or failure without a callback must not claim consumption.
         if (session.State == GlassRepairEstimateSessionState.Importing
             && entity.CallbackConsumedAtUtc is null)
@@ -388,6 +388,16 @@ public sealed class EfGlassRepairEstimateSessionStore(
             .Where(item => item.UserId == pegasusUserId && item.ActiveAccountKey != null)
             .OrderByDescending(item => item.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
+        return entity is null ? null : ToSession(entity);
+    }
+
+    public async Task<GlassRepairEstimateSession?> GetOwnAsync(
+        Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == sessionId && item.UserId == pegasusUserId, cancellationToken);
         return entity is null ? null : ToSession(entity);
     }
 
