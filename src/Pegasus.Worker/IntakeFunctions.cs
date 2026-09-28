@@ -266,9 +266,17 @@ public sealed partial class StagedArtifactReconciliationFunction(
         // A generated report whose file was filed after its request ended
         // is recorded as stored, so nobody has to press Generate report
         // again. Same existing timer trigger deliberately; this is not a new
-        // schedule.
-        var settledReportFiles = await settleFiledCaseReportArtifacts.ExecuteAsync(50, cancellationToken);
-        LogFiledReportSettlement(logger, settledReportFiles);
+        // schedule. A report that cannot be settled is named here with its
+        // cause and the intake steps below still run.
+        try
+        {
+            var settledReportFiles = await settleFiledCaseReportArtifacts.ExecuteAsync(50, cancellationToken);
+            LogFiledReportSettlement(logger, settledReportFiles);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogFiledReportSettlementFailed(logger, exception);
+        }
 
         // Recovers a grouped-image straggler that never got a
         // registered Image intake or an Unidentified reference — re-drives
@@ -377,6 +385,11 @@ public sealed partial class StagedArtifactReconciliationFunction(
         Level = LogLevel.Information,
         Message = "Settled {Settled} generated report files filed after their request ended.")]
     private static partial void LogFiledReportSettlement(ILogger logger, int settled);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Settling generated report files failed; the next sweep tries again.")]
+    private static partial void LogFiledReportSettlementFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(
         Level = LogLevel.Information,

@@ -69,7 +69,7 @@ public sealed class EfSettleFiledCaseReportArtifacts(
                 // A retry of Generate report reached the same artifact and
                 // the database ended this transaction; the next pass reads the
                 // row as the retry left it. Any other failure (a denied
-                // permission above all) propagates and fails the sweep visibly.
+                // permission above all) propagates, and the sweep names it.
             }
         }
 
