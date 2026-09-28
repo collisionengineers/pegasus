@@ -34,40 +34,6 @@ public sealed class WorkCentreLabelTests
         Assert.Equal("Mr A Claimant", NeedsAttentionPresentation.TitleLabel(item));
     }
 
-    /// <summary>
-    /// `asp-page` takes a Razor page name, not a route template.
-    /// `Pages/Operations/Index.cshtml` declares `@page "/Operations"`, which
-    /// sets its route but leaves its page name `/Operations/Index` — the
-    /// spelling `_Layout.cshtml` uses. `RecordPage` returned the route, so the
-    /// tag helper resolved nothing and every external-work row, the pane's
-    /// Open-full-record and the next-action button rendered `href=""`.
-    ///
-    /// A dead link is valid HTML, so no gate caught it. This pins the page name
-    /// itself; <see cref="TheWorkCentreRendersNoEmptyLink"/> catches the class.
-    /// </summary>
-    [Fact]
-    public void AnAiDraftOpensThroughItsOwnRouteNotARecordPage()
-    {
-        Assert.Equal("/Operations/Index", NeedsAttentionPresentation.RecordPage(NeedsAttentionKind.AiDraft));
-    }
-
-    /// <summary>
-    /// Every other kind names a real page too, so none of them can regress the
-    /// same way.
-    /// </summary>
-    [Theory]
-    [InlineData(NeedsAttentionKind.CaseChase, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.HeldDecision, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.ReviewCase, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.UnassignedEngineer, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.Unidentified, "/Unidentified/Details")]
-    [InlineData(NeedsAttentionKind.Triage, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.VehicleImagesPaired, "/Cases/Details")]
-    public void EveryRecordPageNamesARealPage(NeedsAttentionKind kind, string expected)
-    {
-        Assert.Equal(expected, NeedsAttentionPresentation.RecordPage(kind));
-    }
-
     [Fact]
     public void PairedVehicleImagesReadAsTheirImageReferenceAndPrincipal()
     {

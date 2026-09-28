@@ -1158,14 +1158,6 @@ function Invoke-RunSmoke {
         throw "Run '$($Manifest.runId)' version diagnostic does not match its initialized source."
     }
 
-    $webBase = [string]$Manifest.endpoints.webBase
-    $operationsResponse = Invoke-LoopbackRequest `
-        -Uri "$webBase/Operations" `
-        -SkipCertificateCheck
-    if ($operationsResponse.StatusCode -ne 200) {
-        throw "Run '$($Manifest.runId)' Operations route returned HTTP $($operationsResponse.StatusCode)."
-    }
-
 
     $smokeEvidence = [pscustomobject][ordered]@{
         RunId = [string]$Manifest.runId

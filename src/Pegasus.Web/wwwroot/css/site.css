@@ -867,8 +867,6 @@ tbody tr:hover{background:#f3f6f7}
 .estimate-totals dd{margin:0;font-weight:790;font-variant-numeric:tabular-nums}
 .estimate-totals .estimate-total{padding:10px;background:var(--nav);color:#fff;font-size:13px}
 .estimate-totals .estimate-total dt{color:#dce1e3;font-weight:760}
-.ai-jobs-panel tbody td:first-child{min-width:210px}
-.ai-jobs-panel td,.ai-jobs-panel th{white-space:normal}
 
 /* ---------------------------------------------------------------------------
    Utilities. Every one replaces an inline style="" the prototype carried; the

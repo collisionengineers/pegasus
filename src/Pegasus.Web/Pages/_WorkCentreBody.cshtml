@@ -519,9 +519,9 @@
                             <p class="wc-job-note wc-failed">@(string.IsNullOrWhiteSpace(job.ClosureReason) ? Labels.NoReasonRecorded : job.ClosureReason)</p>
                         }
                         <div class="wc-job-actions">
-                            @if (row.Draft is { } draft)
+                            @if (row.Draft is { Route: { Length: > 0 } draftRoute } draft)
                             {
-                                <a class="btn btn--small btn--dark" href="@draft.Route">@Labels.AiDraftAction(draft.Action.ToString())</a>
+                                <a class="btn btn--small btn--dark" href="@draftRoute">@Labels.AiDraftAction(draft.Action.ToString())</a>
                             }
                             @if (row.CanComplete)
                             {

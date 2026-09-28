@@ -91,8 +91,8 @@ internal sealed class EfIntakeLogQueries(
 
     /// <remarks>
     /// Failed intake is the number of receipts whose composed outcome is a
-    /// retryable failure (<see cref="IntakeLogPolicy.IsRetryableFailure"/>) — the
-    /// rows Operations lists — judged by the same composition as the list, over
+    /// retryable failure (<see cref="IntakeLogPolicy.IsRetryableFailure"/>), judged
+    /// by the same composition as the list, over
     /// the same bounded newest candidates.
     /// </remarks>
     public async Task<IntakeLogCounts> GetCountsAsync(CancellationToken cancellationToken)

@@ -14,8 +14,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// Administration › Logs (13 September): the Action logs and Intake log tabs, the
 /// Intake log's head-line counts, filters and row drawer with Re-evaluate, Retry
-/// allocation and Retry OCR, and the same actions on Operations' failed intake
-/// processing rows — one owner (the Logs handlers), Administrators only.
+/// allocation and Retry OCR — one owner (the Logs handlers), Administrators only.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class LogsWebTests
@@ -176,73 +175,6 @@ public sealed class LogsWebTests
             Assert.Equal(HttpStatusCode.Redirect, refusedOcr.StatusCode);
         }
         Assert.Single(log.OcrRetries);
-    }
-
-    [Fact]
-    public async Task OperationsListsFailedIntakeForAdministratorsWithActionsPostingToLogs()
-    {
-        var log = new RecordingIntakeLog();
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = Configure(baseFactory, log);
-        using var client = CreateClient(factory);
-
-        var operations = await GetHtmlAsync(client, "/Operations");
-        // The dedicated failure projection returns each retryable outcome with
-        // only the action that outcome permits.
-        Assert.Equal(1, log.RetryableFailureReads);
-        var allocationRow = FailedRow(operations, "allocation");
-        Assert.Contains("action=\"/Administration/Logs?handler=RetryIntakeAllocation\"", allocationRow, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=RetryIntakeOcr", allocationRow, StringComparison.Ordinal);
-        var ocrRow = FailedRow(operations, "ocr");
-        Assert.Contains("action=\"/Administration/Logs?handler=RetryIntakeOcr\"", ocrRow, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ReevaluateIntake", ocrRow, StringComparison.Ordinal);
-        var processingRow = FailedRow(operations, "processing");
-        Assert.Contains("action=\"/Administration/Logs?handler=ReevaluateIntake\"", processingRow, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=RetryIntakeAllocation", processingRow, StringComparison.Ordinal);
-        Assert.Contains("name=\"returnUrl\" value=\"/Operations\"", operations, StringComparison.Ordinal);
-
-        var form = Regex.Match(ocrRow, "<form[^>]*action=\"/Administration/Logs\\?handler=RetryIntakeOcr\"[^>]*>[\\s\\S]*?</form>").Value;
-        using (var response = await client.PostAsync(
-            "/Administration/Logs?handler=RetryIntakeOcr",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = Input(form, "__RequestVerificationToken"),
-                ["receiptId"] = log.ReceiptId.ToString("D"),
-                ["expectedVersion"] = Input(form, "expectedVersion"),
-                ["operationKey"] = Input(form, "operationKey"),
-                ["reason"] = "The provider is back.",
-                ["returnUrl"] = "/Operations"
-            })))
-        {
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-            Assert.Equal("/Operations", response.Headers.Location?.OriginalString);
-        }
-        Assert.Single(log.OcrRetries);
-        Assert.Empty(log.Reevaluations);
-    }
-
-    private static string FailedRow(string html, string kind)
-    {
-        var row = Regex.Match(html, $"<tr[^>]*data-failed-intake-kind=\"{kind}\"[^>]*>[\\s\\S]*?</tr>");
-        Assert.True(row.Success, $"The {kind} failure row was not rendered.");
-        return row.Value;
-    }
-
-    [Theory]
-    [InlineData("Engineer")]
-    [InlineData("User")]
-    public async Task OperationsOmitsFailedIntakeForNonAdministrators(string role)
-    {
-        var log = new RecordingIntakeLog();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var factory = Configure(baseFactory, log);
-        using var client = CreateClient(factory);
-        client.DefaultRequestHeaders.Add("X-Test-Roles", role);
-
-        var operations = await GetHtmlAsync(client, "/Operations");
-
-        Assert.DoesNotContain("data-failed-intake", operations, StringComparison.Ordinal);
-        Assert.Null(log.LastFilter);
     }
 
     private static WebApplicationFactory<Program> Configure(IntakeWebApplicationFactory baseFactory, RecordingIntakeLog log) =>

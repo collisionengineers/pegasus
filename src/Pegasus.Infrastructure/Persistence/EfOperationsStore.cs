@@ -8,8 +8,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfOperationsStore(
     IDbContextFactory<PegasusDbContext> contextFactory) :
-    IRequestOperationsProjectionStore,
-    IExternalWorkRetryStore
+    IRequestOperationsProjectionStore
 {
     private readonly IDbContextFactory<PegasusDbContext> contextFactory =
         contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
@@ -56,65 +55,6 @@ internal sealed class EfOperationsStore(
         return new(
             ordered.Take(maximumItems).ToImmutableArray(),
             ordered.Length > maximumItems);
-    }
-
-    Task<int> IRequestOperationsProjectionStore.CountRetryableExternalFailuresAsync(
-        DateTimeOffset nowUtc,
-        CancellationToken cancellationToken) => CountRetryableExternalFailuresAsync(nowUtc, cancellationToken);
-
-    private async Task<int> CountRetryableExternalFailuresAsync(
-        DateTimeOffset nowUtc,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.ExternalWorkItems
-            .AsNoTracking()
-            .CountAsync(item => item.State == "failed"
-                && ((item.LeaseToken == null && item.LeaseExpiresAtUtc == null)
-                    || (item.LeaseToken != null && item.LeaseExpiresAtUtc <= nowUtc)),
-                cancellationToken);
-    }
-
-    async Task<OperationsRetryResult> IExternalWorkRetryStore.RetryAsync(
-        RetryExternalWorkCommand command,
-        DateTimeOffset retryAtUtc,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var updated = await context.ExternalWorkItems
-            .Where(item => item.Id == command.WorkItemId
-                && item.State == "failed"
-                && item.AttemptCount == command.ExpectedAttemptCount)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(item => item.State, "pending")
-                .SetProperty(item => item.DueAtUtc, retryAtUtc)
-                .SetProperty(item => item.LeaseToken, (string?)null)
-                .SetProperty(item => item.LeaseExpiresAtUtc, (DateTimeOffset?)null)
-                .SetProperty(item => item.FailureCode, (string?)null)
-                .SetProperty(item => item.FailureReason, (string?)null),
-                cancellationToken);
-        if (updated == 1)
-        {
-            return new(IsReplay: false);
-        }
-
-        var current = await context.ExternalWorkItems
-            .AsNoTracking()
-            .Where(item => item.Id == command.WorkItemId)
-            .Select(item => new { item.State, item.AttemptCount })
-            .SingleOrDefaultAsync(cancellationToken)
-            ?? throw new InvalidOperationException("The external work failure is unavailable.");
-        if (current.AttemptCount >= command.ExpectedAttemptCount
-            && !string.Equals(current.State, "failed", StringComparison.Ordinal))
-        {
-            return new(IsReplay: true);
-        }
-        if (current.AttemptCount > command.ExpectedAttemptCount)
-        {
-            return new(IsReplay: true);
-        }
-
-        throw new InvalidOperationException("The external work failure changed before retry.");
     }
 
     private static DateTimeOffset LatestActivity(

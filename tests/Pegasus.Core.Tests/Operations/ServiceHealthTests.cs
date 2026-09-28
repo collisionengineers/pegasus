@@ -364,11 +364,6 @@ public sealed class ServiceHealthTests
 
         public bool LimitReached { get; init; }
 
-        public Task<int> CountRetryableExternalFailuresAsync(
-            DateTimeOffset nowUtc,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by the snapshot.");
-
         public Task<EvaSubmissionRecord?> GetLatestAsync(
             Guid caseId,
             CancellationToken cancellationToken = default) =>

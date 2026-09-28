@@ -2959,7 +2959,7 @@ public sealed partial class DetailsModel(
         }
 
         TempData["CaseStatus"] =
-            "Sent to AI. The job is queued; its estimate opens from Operations when ready.";
+            "Sent to AI. The job is queued; its estimate opens from the Work Centre when ready.";
         return RedirectToEstimate(id);
     }
 
