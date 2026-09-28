@@ -37,13 +37,23 @@ internal static class AudatexEstimatePdfParser
     /// <summary>A value row sits ~1pt below its description row; the row pitch is ~11-12pt.</summary>
     private const double ValuePairingTolerance = 3.5;
 
-    /// <summary>Rows above this are the repeating page header block, below the lower bound the footer.</summary>
+    /// <summary>
+    /// Rows above this are the repeating page header block, below the lower
+    /// bound the footer. The header's height varies with the trader's address
+    /// (a longer address pushes "Version:" below this line), so the header
+    /// also ends at each page's own "Version:" row: the page's body is what
+    /// prints under it.
+    /// </summary>
     private const double PageBodyTop = 720;
     private const double PageBodyBottom = 30;
 
     internal static ParsedEstimate Parse(IReadOnlyList<VisualRow> rows)
     {
-        var reader = new ReportReader();
+        var headerEnds = rows
+            .Where(IsVersionRow)
+            .GroupBy(row => row.Page)
+            .ToDictionary(group => group.Key, group => group.Max(row => row.Y));
+        var reader = new ReportReader(headerEnds);
         foreach (var row in rows)
         {
             reader.Read(row);
@@ -51,6 +61,12 @@ internal static class AudatexEstimatePdfParser
 
         return reader.Complete();
     }
+
+    /// <summary>The "Version:" row that closes each page's repeating header block.</summary>
+    private static bool IsVersionRow(VisualRow row) =>
+        row.Words.Count > 1
+        && row.Words[0].Text == "Version:"
+        && row.Words[1].X < 400;
 
     private enum Section
     {
@@ -97,7 +113,7 @@ internal static class AudatexEstimatePdfParser
         public List<decimal> Values { get; } = [];
     }
 
-    private sealed class ReportReader
+    private sealed class ReportReader(IReadOnlyDictionary<int, double> headerEnds)
     {
         private readonly Dictionary<Section, SectionState> sections = new()
         {
@@ -134,7 +150,8 @@ internal static class AudatexEstimatePdfParser
             {
                 sawAudatexFooter = true;
             }
-            if (row.Y is > PageBodyTop or < PageBodyBottom)
+            if (row.Y is > PageBodyTop or < PageBodyBottom
+                || (headerEnds.TryGetValue(row.Page, out var headerEnd) && row.Y >= headerEnd))
             {
                 return;
             }
@@ -239,10 +256,7 @@ internal static class AudatexEstimatePdfParser
 
         private void CaptureIdentity(VisualRow row)
         {
-            if (documentVersion is null
-                && row.Words.Count > 1
-                && row.Words[0].Text == "Version:"
-                && row.Words[1].X < 400)
+            if (documentVersion is null && IsVersionRow(row))
             {
                 documentVersion = row.Words[1].Text;
             }
