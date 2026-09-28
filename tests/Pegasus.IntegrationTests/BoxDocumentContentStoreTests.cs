@@ -626,7 +626,7 @@ public sealed class BoxDocumentContentStoreTests
         // Well inside the three-second wait: had the throttled read kept its
         // slot, only three could be inside until it finished.
         await allInside.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal(new[] { 1, 2, 3, 4 }, await Task.WhenAll(others));
+        Assert.Equal([1, 2, 3, 4], await Task.WhenAll(others));
         Assert.Equal(0, await throttled);
         Assert.Equal(2, attempts);
     }
