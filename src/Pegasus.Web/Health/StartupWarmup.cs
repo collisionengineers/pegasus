@@ -13,7 +13,8 @@ namespace Pegasus.Web.Health;
 /// <summary>
 /// Whether the new instance has finished warming. It is ready once the
 /// warm-up ends, or after <see cref="ReadyAfter"/> whatever the warm-up is
-/// doing, so a slow database never keeps an instance out of service.
+/// doing, so a slow database never keeps an instance out of service. A host
+/// that does not warm (<c>Startup:Warmup</c> false) is ready from the start.
 /// </summary>
 internal sealed class StartupWarmupState
 {
@@ -21,6 +22,14 @@ internal sealed class StartupWarmupState
 
     private readonly long startedAt = Stopwatch.GetTimestamp();
     private int completed;
+
+    public StartupWarmupState(bool warms)
+    {
+        Warms = warms;
+        completed = warms ? 0 : 1;
+    }
+
+    public bool Warms { get; }
 
     public bool IsReady =>
         Volatile.Read(ref completed) == 1 || Stopwatch.GetElapsedTime(startedAt) >= ReadyAfter;
@@ -43,21 +52,19 @@ internal sealed class StartupWarmupHealthCheck(StartupWarmupState state) : IHeal
 /// Runs once when Web starts: builds the EF model and runs the Work Centre's
 /// and the Case page's hot read shapes, so the first staff request after a
 /// deploy does not pay for them. It only reads. Every step is best effort: a
-/// failure is logged and the next step still runs. Setting
-/// <c>Startup:Warmup</c> to false skips it and reports ready at once.
+/// failure is logged and the next step still runs, and nothing it meets
+/// stops the host. Setting <c>Startup:Warmup</c> to false skips it.
 /// </summary>
 internal sealed partial class StartupWarmup(
     IServiceScopeFactory scopes,
     StartupWarmupState state,
-    IConfiguration configuration,
     TimeProvider clock,
     ILogger<StartupWarmup> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!configuration.GetValue("Startup:Warmup", true))
+        if (!state.Warms)
         {
-            state.Complete();
             return;
         }
 
@@ -67,13 +74,19 @@ internal sealed partial class StartupWarmup(
         var started = Stopwatch.GetTimestamp();
         try
         {
-            await WarmAsync(bounded.Token);
+            await WarmAsync(bounded.Token, stoppingToken);
             var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             LogWarmupFinished(logger, elapsedMs);
         }
-        catch (OperationCanceledException) when (bounded.IsCancellationRequested)
+        catch (Exception exception)
         {
-            // Stopping, or the warm-up outlived its bound; readiness no longer waits.
+            // Nothing leaves the warm-up: a failure here would stop the host.
+            // A cancelled SQL command surfaces as a database error, not as a
+            // cancellation, so the bound is not asked about the exception type.
+            if (!stoppingToken.IsCancellationRequested)
+            {
+                LogWarmupFailed(logger, exception);
+            }
         }
         finally
         {
@@ -81,7 +94,7 @@ internal sealed partial class StartupWarmup(
         }
     }
 
-    private async Task WarmAsync(CancellationToken cancellationToken)
+    private async Task WarmAsync(CancellationToken cancellationToken, CancellationToken stoppingToken)
     {
         await using var scope = scopes.CreateAsyncScope();
         var services = scope.ServiceProvider;
@@ -96,14 +109,14 @@ internal sealed partial class StartupWarmup(
             await using var context = await factory.CreateDbContextAsync(cancellationToken);
             _ = context.Model;
             await context.Database.CanConnectAsync(cancellationToken);
-        }, cancellationToken);
+        }, stoppingToken, cancellationToken);
         await StepAsync("work-centre", async () =>
         {
             await services.GetRequiredService<IGetOperationsSnapshot>().ExecuteAsync(
                 new NeedsAttentionQuery(actor, NeedsAttentionScope.Office, 1, null, now), cancellationToken);
             await services.GetRequiredService<IAiJobQueries>().ListOpenAsync(cancellationToken);
             await services.GetRequiredService<IAiDraftQueries>().ListOpenAsync(cancellationToken);
-        }, cancellationToken);
+        }, stoppingToken, cancellationToken);
 
         Guid? caseId = null;
         await StepAsync("recent-cases", async () =>
@@ -111,7 +124,7 @@ internal sealed partial class StartupWarmup(
             var feed = await services.GetRequiredService<IListRecentCases>().ExecuteAsync(
                 actor, 1, markSeen: false, cancellationToken, now);
             caseId = feed.Page.Items.Select(item => (Guid?)item.CaseId).FirstOrDefault();
-        }, cancellationToken);
+        }, stoppingToken, cancellationToken);
         if (caseId is not { } id)
         {
             return;
@@ -131,23 +144,42 @@ internal sealed partial class StartupWarmup(
                 new(id, actor), cancellationToken);
             await services.GetRequiredService<IGetAssessmentWorkspace>().ExecuteAsync(
                 new(id, actor, CaseWorkSelector.Current), cancellationToken);
-        }, cancellationToken);
+        }, stoppingToken, cancellationToken);
     }
 
-    private async Task StepAsync(string step, Func<Task> read, CancellationToken cancellationToken)
+    /// <summary>
+    /// One best-effort read. Any failure is logged and the next step runs; a
+    /// step past the bound fails fast. Only the host stopping ends it quietly.
+    /// </summary>
+    private async Task StepAsync(
+        string step,
+        Func<Task> read,
+        CancellationToken stoppingToken,
+        CancellationToken cancellationToken)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
         try
         {
             await read();
         }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception exception)
         {
-            LogWarmupStepFailed(logger, step, exception);
+            if (!stoppingToken.IsCancellationRequested)
+            {
+                LogWarmupStepFailed(logger, step, exception);
+            }
         }
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Startup warm-up finished in {ElapsedMs} ms")]
     private static partial void LogWarmupFinished(ILogger logger, double elapsedMs);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Startup warm-up ended early")]
+    private static partial void LogWarmupFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Startup warm-up step {Step} failed")]
     private static partial void LogWarmupStepFailed(ILogger logger, string step, Exception exception);

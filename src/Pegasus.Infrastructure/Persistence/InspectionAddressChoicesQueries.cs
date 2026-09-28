@@ -36,28 +36,29 @@ public sealed class InspectionAddressChoicesQueries(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var principalIds = context.Cases.Where(item => item.Id == caseId).Select(item => item.PrincipalId);
-        var confirmed = context.CaseDataFields.AsNoTracking()
+        var confirmed = await context.CaseDataFields.AsNoTracking()
             .Where(field => field.FieldName == CaseDataFieldNames.InspectionAddress
                 && field.ValueKind == CaseDataCodes.Confirmed
                 && field.ConfirmedAtUtc != null
                 && field.Snapshot.Work.Kind == CaseWorkKinds.Primary
                 && field.Snapshot.Work.CaseId != caseId
                 && principalIds.Contains(field.Snapshot.Work.Case.PrincipalId)
-                && field.Value != Ext18InspectionAddressPolicy.ImageBasedAssessment
-                && field.Value.Trim() != string.Empty);
-        // One row per address, its most recent confirmation, newest first. The
-        // comparison uses the database's case-insensitive collation.
-        var latest = await confirmed
-            .Where(field => !confirmed.Any(other => other.Value.Trim() == field.Value.Trim()
-                && other.ConfirmedAtUtc > field.ConfirmedAtUtc))
-            .OrderByDescending(field => field.ConfirmedAtUtc)
-            .Select(field => field.Value)
+                && field.Value != Ext18InspectionAddressPolicy.ImageBasedAssessment)
+            .Select(field => new
+            {
+                field.Value,
+                ConfirmedAtUtc = field.ConfirmedAtUtc!.Value
+            })
             .ToListAsync(cancellationToken);
 
-        return latest
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+        // One entry per address, ignoring case and outer spaces, ordered by its
+        // most recent confirmation.
+        return confirmed
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate.Value))
+            .GroupBy(candidate => candidate.Value.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.OrderByDescending(candidate => candidate.ConfirmedAtUtc).First())
+            .OrderByDescending(candidate => candidate.ConfirmedAtUtc)
+            .Select(candidate => candidate.Value.Trim())
             .ToArray();
     }
 

@@ -20,6 +20,7 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
     [Theory]
     [InlineData("/health/live")]
     [InlineData("/health/ready")]
+    [InlineData("/health/warm")]
     public async Task HealthEndpointReturnsSuccess(string path)
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -35,7 +36,7 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
     [Fact]
     public async Task ReadinessWaitsForTheStartupWarmup()
     {
-        var state = new StartupWarmupState();
+        var state = new StartupWarmupState(warms: true);
         var check = new StartupWarmupHealthCheck(state);
 
         Assert.Equal(HealthStatus.Unhealthy, (await check.CheckHealthAsync(new HealthCheckContext())).Status);
