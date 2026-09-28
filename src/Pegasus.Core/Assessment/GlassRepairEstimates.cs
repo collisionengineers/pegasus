@@ -182,10 +182,16 @@ public sealed class GlassRepairEstimateSessionMaterial(
     public string? ResultArtifactsJson { get; } = resultArtifactsJson;
     public override string ToString() => nameof(GlassRepairEstimateSessionMaterial);
 }
+/// <summary>
+/// A create's answer: the stored session, and whether this call created it or
+/// a replay of its operation key returned the session already recorded.
+/// </summary>
+public sealed record GlassRepairEstimateSessionCreation(
+    GlassRepairEstimateSessionMaterial Material, bool Created);
 public interface IGlassRepairEstimateSessionStore
 {
     Task<GlassRepairEstimateSessionMaterial?> GetAsync(Guid sessionId, CancellationToken cancellationToken);
-    Task<GlassRepairEstimateSessionMaterial> CreateAsync(
+    Task<GlassRepairEstimateSessionCreation> CreateAsync(
         GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken);
     Task SaveAsync(GlassRepairEstimateSessionMaterial material, long expectedVersion,
         CancellationToken cancellationToken);

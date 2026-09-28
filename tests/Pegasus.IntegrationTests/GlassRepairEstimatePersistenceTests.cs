@@ -24,7 +24,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task OnlyTheOwnerCanConfirmUnknownClosureAndTheReasonIsPermanent()
     {
         await using var harness = await Harness.CreateAsync();
-        var material = await harness.Store.CreateAsync(
+        var (material, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Unknown, "uncertain-launch"), default);
         var session = material.Session;
         var owner = ActionActor.Staff(harness.UserId, [StaffRole.User]);
@@ -140,7 +140,7 @@ public sealed class GlassRepairEstimatePersistenceTests
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
 
-        var second = await harness.Store.CreateAsync(
+        var (second, _) = await harness.Store.CreateAsync(
             harness.Material(OtherAccountKey, GlassRepairEstimateSessionState.Active, "launch-2"),
             CancellationToken.None);
 
@@ -181,13 +181,13 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task TheAccountIsFreeOnceItsSessionIsNoLongerLive(GlassRepairEstimateSessionState settled)
     {
         await using var harness = await Harness.CreateAsync();
-        var first = await harness.Store.CreateAsync(
+        var (first, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
         await harness.Store.SaveAsync(
             Transition(first, settled), first.Session.Version, CancellationToken.None);
 
-        var second = await harness.Store.CreateAsync(
+        var (second, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-2"),
             CancellationToken.None);
 
@@ -207,7 +207,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task TheStoreNeverTransformsTheAccountKey()
     {
         await using var harness = await Harness.CreateAsync();
-        var created = await harness.Store.CreateAsync(
+        var (created, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
 
@@ -268,11 +268,11 @@ public sealed class GlassRepairEstimatePersistenceTests
         Assert.True(canonicalKey.All(Uri.IsHexDigit));
 
         await using var harness = await Harness.CreateAsync();
-        var created = await harness.Store.CreateAsync(
+        var (created, _) = await harness.Store.CreateAsync(
             harness.Material(canonicalKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
         var read = await harness.Store.GetAsync(created.Session.Id, CancellationToken.None);
-        var replayed = await harness.Store.CreateAsync(
+        var (replayed, _) = await harness.Store.CreateAsync(
             harness.Material(canonicalKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
 
@@ -289,12 +289,14 @@ public sealed class GlassRepairEstimatePersistenceTests
     {
         await using var harness = await Harness.CreateAsync();
         var request = harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1");
-        var first = await harness.Store.CreateAsync(request, CancellationToken.None);
+        var (first, firstCreated) = await harness.Store.CreateAsync(request, CancellationToken.None);
 
-        var replay = await harness.Store.CreateAsync(
+        var (replay, replayCreated) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1"),
             CancellationToken.None);
 
+        Assert.True(firstCreated);
+        Assert.False(replayCreated);
         Assert.Equal(first.Session.Id, replay.Session.Id);
         Assert.Equal(1, await harness.SessionCountAsync());
     }
@@ -329,7 +331,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task AConsumedCallbackIsRecordedAndTheIdenticalWriteDoesNotActTwice()
     {
         await using var harness = await Harness.CreateAsync();
-        var session = await harness.Store.CreateAsync(
+        var (session, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
 
@@ -367,7 +369,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task ADifferentCallbackForTheSameSessionIsRefusedAndChangesNothing()
     {
         await using var harness = await Harness.CreateAsync();
-        var session = await harness.Store.CreateAsync(
+        var (session, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
 
@@ -397,7 +399,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task ProtectedProviderMaterialRoundTripsAsTheSameOpaqueString()
     {
         await using var harness = await Harness.CreateAsync();
-        var created = await harness.Store.CreateAsync(
+        var (created, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1"),
             CancellationToken.None);
 
@@ -418,7 +420,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task TheProvidersResultsRoundTripAsTheSameOpaqueJson()
     {
         await using var harness = await Harness.CreateAsync();
-        var created = await harness.Store.CreateAsync(
+        var (created, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
         Assert.Null(created.ResultArtifactsJson);
@@ -459,7 +461,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task ASaveCarryingNoResultsWritesNullRatherThanKeepingTheOldOnes()
     {
         await using var harness = await Harness.CreateAsync();
-        var created = await harness.Store.CreateAsync(
+        var (created, _) = await harness.Store.CreateAsync(
             harness.Material(
                 EngineerAccountKey,
                 GlassRepairEstimateSessionState.Active,
@@ -497,11 +499,11 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task AReplayCarryingFreshProviderStateIsStillTheSameLaunch()
     {
         await using var harness = await Harness.CreateAsync();
-        var first = await harness.Store.CreateAsync(
+        var (first, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1"),
             CancellationToken.None);
 
-        var replay = await harness.Store.CreateAsync(
+        var (replay, _) = await harness.Store.CreateAsync(
             harness.Material(
                 EngineerAccountKey,
                 GlassRepairEstimateSessionState.Prepared,
@@ -524,7 +526,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task AnotherCredentialGenerationUnderTheSameOperationKeyIsACollision()
     {
         await using var harness = await Harness.CreateAsync();
-        var first = await harness.Store.CreateAsync(
+        var (first, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1"),
             CancellationToken.None);
 
@@ -573,7 +575,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task AnUncertainOutcomeKeepsTheAccountOccupied()
     {
         await using var harness = await Harness.CreateAsync();
-        var first = await harness.Store.CreateAsync(
+        var (first, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
         await harness.Store.SaveAsync(
@@ -605,7 +607,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task ImportingKeepsTheAccountOccupied(GlassRepairEstimateSessionState importing)
     {
         await using var harness = await Harness.CreateAsync();
-        var first = await harness.Store.CreateAsync(
+        var (first, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
         var current = first;
@@ -643,7 +645,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task ACompletedSessionReleasesTheAccountForTheNextLaunch()
     {
         await using var harness = await Harness.CreateAsync();
-        var first = await harness.Store.CreateAsync(
+        var (first, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
         await harness.Store.SaveAsync(
@@ -657,7 +659,7 @@ public sealed class GlassRepairEstimatePersistenceTests
             claimed.Session.Version,
             CancellationToken.None);
 
-        var second = await harness.Store.CreateAsync(
+        var (second, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-2"),
             CancellationToken.None);
 
@@ -758,7 +760,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task AStaleVersionIsRefused()
     {
         await using var harness = await Harness.CreateAsync();
-        var session = await harness.Store.CreateAsync(
+        var (session, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1"),
             CancellationToken.None);
         await harness.Store.SaveAsync(
@@ -785,7 +787,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task EveryStageIsReadableAfterARestartAndTheAccountSlotFollowsTheState()
     {
         await using var harness = await Harness.CreateAsync();
-        var session = await harness.NewStore().CreateAsync(
+        var (session, _) = await harness.NewStore().CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1"),
             CancellationToken.None);
         Assert.NotNull(await harness.ActiveAccountKeyAsync(session.Session.Id));
@@ -851,7 +853,7 @@ public sealed class GlassRepairEstimatePersistenceTests
         GlassRepairEstimateSessionState terminalState)
     {
         await using var harness = await Harness.CreateAsync();
-        var session = await harness.Store.CreateAsync(
+        var (session, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
 
@@ -870,7 +872,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task AFailureIsRecordedAgainstTheSessionThatFailed()
     {
         await using var harness = await Harness.CreateAsync();
-        var session = await harness.Store.CreateAsync(
+        var (session, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
 
@@ -900,7 +902,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task ASessionReadByIdAnswersOnlyItsOwner()
     {
         await using var harness = await Harness.CreateAsync();
-        var created = await harness.Store.CreateAsync(
+        var (created, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1"),
             CancellationToken.None);
 
@@ -927,7 +929,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task AWriteThatNamesAnotherCaseIsRefused()
     {
         await using var harness = await Harness.CreateAsync();
-        var session = await harness.Store.CreateAsync(
+        var (session, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
 
@@ -956,7 +958,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     public async Task ASessionReadBackSavesUnderTheSameAccount()
     {
         await using var harness = await Harness.CreateAsync();
-        var created = await harness.Store.CreateAsync(
+        var (created, _) = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
         var read = await harness.Store.GetAsync(created.Session.Id, CancellationToken.None);
@@ -1024,7 +1026,7 @@ public sealed class GlassRepairEstimatePersistenceTests
             try
             {
                 return new LaunchOutcome(
-                    await launch.Store.CreateAsync(launch.Material, CancellationToken.None), null);
+                    (await launch.Store.CreateAsync(launch.Material, CancellationToken.None)).Material, null);
             }
             catch (Exception exception)
             {

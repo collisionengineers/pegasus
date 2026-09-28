@@ -49,8 +49,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </para>
 /// <para>
 /// <b>Replay.</b> <c>OperationKey</c> is unique, so relaunching the same
-/// operation returns the session that launch already created instead of
-/// creating a second one — the index decides that, and <see cref="CreateAsync"/>
+/// operation returns the session that launch already created, answered as not
+/// created, instead of creating a second one — the index decides that, and <see cref="CreateAsync"/>
 /// never reads the key ahead of the insert that would take it. But the recorded
 /// session comes back only when the replay names the same launch: the
 /// same Case, the same Pegasus user, the same credential generation and the
@@ -143,7 +143,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         return entity is null ? null : ToSession(entity);
     }
 
-    public async Task<GlassRepairEstimateSessionMaterial> CreateAsync(
+    public async Task<GlassRepairEstimateSessionCreation> CreateAsync(
         GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(material);
@@ -210,14 +210,14 @@ public sealed class EfGlassRepairEstimateSessionStore(
             context.ChangeTracker.Clear();
             var replayed = await FindReplayAsync(context, operationKey, cancellationToken);
             return replayed is not null
-                ? RequireSameLaunch(replayed, session, accountKey, operationKey)
+                ? new(RequireSameLaunch(replayed, session, accountKey, operationKey), Created: false)
                 : throw new GlassRepairEstimateSessionConflictException(
                     GlassRepairEstimateSessionConflict.ActiveAccount,
                     session.Id,
                     "The Glass's account already holds a live session.");
         }
 
-        return ToMaterial(entity);
+        return new(ToMaterial(entity), Created: true);
     }
 
     public async Task SaveAsync(

@@ -184,14 +184,15 @@ public sealed partial class GlassRepairEstimateGateway(
             ProviderEstimateId: null,
             FailureCode: null);
 
-        var created = await store.CreateAsync(
+        var creation = await store.CreateAsync(
             new(prepared, Protect(provider), digest, null), cancellationToken);
-        // The same operation key: this launch already happened and the session
-        // it created is the answer. Running the provider stages again would
-        // start a second estimate for one operator action.
+        // The store says whether this call created the session. A replay of the
+        // same operation key names the launch that already happened, whatever
+        // id it carries: running the provider stages again would start a second
+        // estimate for one operator action.
         return new(
-            created.Session,
-            created.Session.Id == prepared.Id
+            creation.Material.Session,
+            creation.Created
                 ? GlassRepairEstimateContinuation.Launch
                 : GlassRepairEstimateContinuation.None);
     }

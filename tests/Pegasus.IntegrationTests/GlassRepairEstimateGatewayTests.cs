@@ -2265,7 +2265,7 @@ public sealed class GlassRepairEstimateGatewayTests
             Guid sessionId, CancellationToken cancellationToken) =>
             Task.FromResult(Sessions.GetValueOrDefault(sessionId));
 
-        public Task<GlassRepairEstimateSessionMaterial> CreateAsync(
+        public Task<GlassRepairEstimateSessionCreation> CreateAsync(
             GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken)
         {
             var session = material.Session;
@@ -2280,7 +2280,7 @@ public sealed class GlassRepairEstimateGatewayTests
                     && replay.Session.PegasusUserId == session.PegasusUserId
                     && replay.Session.CredentialGeneration == session.CredentialGeneration
                     && replay.Session.NormalizedExternalAccountKey == accountKey
-                    ? Task.FromResult(replay)
+                    ? Task.FromResult(new GlassRepairEstimateSessionCreation(replay, Created: false))
                     : throw new GlassRepairEstimateSessionConflictException(
                         GlassRepairEstimateSessionConflict.OperationKey,
                         replay.Session.Id,
@@ -2302,7 +2302,7 @@ public sealed class GlassRepairEstimateGatewayTests
                 material.ResultArtifactsJson);
             Sessions[session.Id] = stored;
             History.Add((session.State, RequestCount()));
-            return Task.FromResult(stored);
+            return Task.FromResult(new GlassRepairEstimateSessionCreation(stored, Created: true));
         }
 
         public Task SaveAsync(
@@ -2394,7 +2394,7 @@ public sealed class GlassRepairEstimateGatewayTests
             string normalizedExternalAccountKey, CancellationToken cancellationToken) =>
             inner.FindLiveForAccountAsync(normalizedExternalAccountKey, cancellationToken);
 
-        public Task<GlassRepairEstimateSessionMaterial> CreateAsync(
+        public Task<GlassRepairEstimateSessionCreation> CreateAsync(
             GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
             inner.CreateAsync(material, cancellationToken);
 
