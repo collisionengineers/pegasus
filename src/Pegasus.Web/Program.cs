@@ -583,6 +583,19 @@ builder.Services.AddAuthorizationBuilder()
         .Build())
     .AddPolicy("Administrator", policy =>
         policy.RequireRole(StaffRoleNames.Administrator));
+// Pages only, over HTTPS too; a decision record accepts the BREACH risk.
+// Static assets are precompressed at build and files keep their own encoding.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ["text/html"];
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+});
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(
+    options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(
+    options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
 builder.Services.Configure<FormOptions>(options =>
@@ -954,6 +967,7 @@ if (!providerApiEnabled)
 }
 
 app.UseHttpsRedirection();
+app.UseResponseCompression();
 
 app.UseRouting();
 app.Use(async (context, next) =>
