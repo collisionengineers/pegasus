@@ -247,7 +247,7 @@ public sealed class CaseEngineerSectionsWebTests
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
                 caseId == CaseId ? [estimate] : []);
 
-        public Task<CaseReportFreezeInputs?> GetAsync(Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
+        public Task<CaseReportFreezeInputs?> GetAsync(Guid caseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
                 new(workspace.Assessment, workspace.Assessment.Reference, [], null, [], [], estimate),
                 new(workspace.Assessment, null, null, [], estimate, null, [], new Dictionary<Guid, DocumentVersion>()),

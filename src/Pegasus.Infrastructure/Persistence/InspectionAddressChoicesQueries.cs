@@ -12,7 +12,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// — the bounded local address-suggestion search — beside the existing
 /// address-choice query. It unions the case's own current claimant/repairer/
 /// storage addresses, the principal's prior accepted locations (the same
-/// cross-case history <see cref="GetAsync"/> already reads) and the active
+/// cross-case history <see cref="GetPreviousAddressesAsync"/> reads) and the active
 /// <see cref="IOrganizationDirectoryQueries"/> directory locations; no
 /// external address provider or fuzzy/geographic inference is part of it.
 /// </summary>
@@ -25,9 +25,8 @@ public sealed class InspectionAddressChoicesQueries(
         directory ?? throw new ArgumentNullException(nameof(directory));
 
 
-    public async Task<InspectionAddressChoicesData?> GetAsync(
+    public async Task<IReadOnlyList<string>> GetPreviousAddressesAsync(
         Guid caseId,
-        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -36,47 +35,30 @@ public sealed class InspectionAddressChoicesQueries(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
-        var current = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken);
-        if (current is null)
-        {
-            return null;
-        }
-
-        var workflow = await context.CaseWorkflows.AsNoTracking()
-            .SingleAsync(item => item.CaseId == caseId, cancellationToken);
-        var projection = EfCaseDataStore.Map(current, workflow);
-        var principalId = current.Work.Case.PrincipalId;
-
-        var candidates = await context.CaseDataFields.AsNoTracking()
+        var principalIds = context.Cases.Where(item => item.Id == caseId).Select(item => item.PrincipalId);
+        var confirmed = context.CaseDataFields.AsNoTracking()
             .Where(field => field.FieldName == CaseDataFieldNames.InspectionAddress
                 && field.ValueKind == CaseDataCodes.Confirmed
+                && field.ConfirmedAtUtc != null
                 && field.Snapshot.Work.Kind == CaseWorkKinds.Primary
                 && field.Snapshot.Work.CaseId != caseId
-                && field.Snapshot.Work.Case.PrincipalId == principalId
-                && field.Value != Ext18InspectionAddressPolicy.ImageBasedAssessment)
-            .Select(field => new
-            {
-                field.Value,
-                ConfirmedAtUtc = field.ConfirmedAtUtc!.Value
-            })
+                && principalIds.Contains(field.Snapshot.Work.Case.PrincipalId)
+                && field.Value != Ext18InspectionAddressPolicy.ImageBasedAssessment
+                && field.Value.Trim() != string.Empty);
+        // One row per address, its most recent confirmation, newest first. The
+        // comparison uses the database's case-insensitive collation.
+        var latest = await confirmed
+            .Where(field => !confirmed.Any(other => other.Value.Trim() == field.Value.Trim()
+                && other.ConfirmedAtUtc > field.ConfirmedAtUtc))
+            .OrderByDescending(field => field.ConfirmedAtUtc)
+            .Select(field => field.Value)
             .ToListAsync(cancellationToken);
 
-        var previousAddresses = candidates
-            .Where(candidate => !string.IsNullOrWhiteSpace(candidate.Value))
-            .GroupBy(candidate => candidate.Value.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.OrderByDescending(candidate => candidate.ConfirmedAtUtc).First())
-            .OrderByDescending(candidate => candidate.ConfirmedAtUtc)
-            .Select(candidate => candidate.Value.Trim())
+        return latest
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-
-        return new(
-            projection.Claimant.Address.Current?.Value,
-            projection.Inspection.RepairerAddress?.Current?.Value,
-            projection.Inspection.StorageLocation?.Current?.Value,
-            previousAddresses,
-            projection.Inspection.RepairerName?.Current?.Value);
     }
 
     public async Task<IReadOnlyList<InspectionLocationChoice>> SearchAsync(

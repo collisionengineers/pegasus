@@ -391,7 +391,7 @@ public sealed class CaseDamageAndViewerWebTests
         public Task<CaseReportFreezeInputs?> GetAsync(
             Guid caseId,
             ActionActor actor,
-            CaseWorkSelector work, CancellationToken cancellationToken)
+            CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             var assessment = Assessment();
             return Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
