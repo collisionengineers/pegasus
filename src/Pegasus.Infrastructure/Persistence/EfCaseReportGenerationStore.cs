@@ -111,7 +111,7 @@ public sealed class EfCaseReportGenerationStore(
         if (request.Kind == CaseReportArtifactKind.AssessmentReport)
         {
             inputs = await snapshotSource
-                .GetAsync(request.CaseId, request.Actor, CaseWorkSelector.Current, cancellationToken)
+                .GetAsync(request.CaseId, request.Actor, CaseWorkSelector.Current, reuse: null, cancellationToken)
                 .ConfigureAwait(false);
             if (inputs is null)
             {

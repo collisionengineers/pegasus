@@ -1004,7 +1004,7 @@ public sealed partial class AssessmentReportDraftWebTests
         }
 
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
-            Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
+            Guid caseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             MetadataReads++;
             return Task.FromResult<CaseReportFreezeInputs?>(new(

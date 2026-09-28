@@ -1224,7 +1224,7 @@ public sealed partial class AssessmentReportDraftWebTests
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
             Guid caseId,
             ActionActor actor,
-            CaseWorkSelector work, CancellationToken cancellationToken) =>
+            CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportFreezeInputs?>(null);
     }
 

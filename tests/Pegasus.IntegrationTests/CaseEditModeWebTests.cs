@@ -657,12 +657,9 @@ public sealed class CaseEditModeWebTests
     {
         var store = new RecordingCaseDetailsStore
         {
-            InspectionChoices = new(
-                "8 Claimant Street",
-                "12 Kingsway, Leeds LS1 1AA",
-                "14 Storage Lane",
-                [],
-                "Kingsway Accident Repair")
+            RepairerAddress = "12 Kingsway, Leeds LS1 1AA",
+            RepairerName = "Kingsway Accident Repair",
+            PreviousInspectionAddresses = []
         };
         using var workspace = await EnterEditModeAsync(store, services =>
         {

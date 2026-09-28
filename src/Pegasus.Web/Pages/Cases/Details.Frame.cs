@@ -143,21 +143,6 @@ public sealed partial class DetailsModel
     };
 
     /// <summary>
-    /// The frame's extra reads: the Case's AI drafts and the self-assignment rule.
-    /// </summary>
-    private async Task DescribeFrameAsync(ActionActor actor, CancellationToken cancellationToken)
-    {
-        if (Case is not { } details)
-        {
-            return;
-        }
-
-        var caseId = details.Workflow.CaseId;
-        AiDrafts = await aiDrafts.ListForCaseAsync(caseId, cancellationToken);
-        CanAssignToMe = CaseLifecycleRules.CanAssignToSelf(details.Workflow);
-    }
-
-    /// <summary>
     /// The one-line Next action the aside states: the AI draft rows come first
     /// (rendered by the view), then the next permitted lifecycle action. With
     /// Engineer, while the report is not ready, it names the first blocker at

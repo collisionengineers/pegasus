@@ -294,7 +294,7 @@ internal static partial class CaseWebTestSupport
             });
 
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
-            Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
+            Guid caseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             MetadataReads++;
             var assessment = EngineeringAssessment();
