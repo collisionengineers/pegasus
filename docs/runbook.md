@@ -282,7 +282,8 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset -RunId <run-id>
 Stop retains the manifest and diagnostics. Reset first verifies that the
 manifest run ID, directory, database name, and every owned path agree; it then
 stops only matching child processes, drops only that LocalDB database, and
-removes only that run directory. A malformed or ambiguous manifest refuses
+removes only that run directory. If a log is still held, Reset retries for
+about ten seconds, then names the held files. A malformed or ambiguous manifest refuses
 action. Never manually repurpose these commands to remove another run,
 `corpus/`, tracked reference files, or an Azure resource.
 
