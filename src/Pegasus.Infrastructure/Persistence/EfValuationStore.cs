@@ -679,6 +679,12 @@ public sealed class EfValuationStore(
         CaseReportValuationDependencies Before,
         CaseReportValuationDependencies After);
 
+    /// <summary>
+    /// The history of a valuation attached without a Case edit: an AI market
+    /// research card. It records itself at the Case's current version, as an
+    /// operator note does, so the Case and any open edit session are left as
+    /// they were.
+    /// </summary>
     internal static void AddHistory(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
@@ -738,9 +744,10 @@ public sealed class EfValuationStore(
         });
 
     /// <summary>
-    /// The history a valuation command records: the replayable workflow event,
-    /// the action-history entry with its before/after payload, and the Case
-    /// history line. (A Case save's cards and adoption record only the
+    /// The history an attached valuation records: the replayable workflow
+    /// event, the action-history entry with its before/after payload, and the
+    /// Case history line, all at the Case's current version because the Case
+    /// did not change. (A Case save's cards and adoption record only the
     /// action-history entry: the save owns the workflow event.)
     /// </summary>
     private static void AddHistory(
@@ -759,7 +766,7 @@ public sealed class EfValuationStore(
         string policyVersion,
         DateTimeOffset now)
     {
-        var beforeVersion = workflow.Version - 1;
+        var beforeVersion = workflow.Version;
         var roles = JsonSerializer.Serialize(
             actor.Roles.OrderBy(role => role),
             SerializerOptions);

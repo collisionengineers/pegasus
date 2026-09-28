@@ -39,8 +39,8 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             $"ai-market-research:{command.JobId:D}",
             command.Actor,
             command.OperationKey,
-            command.ExpectedCaseVersion,
-            command.EditLeaseToken);
+            0,
+            string.Empty);
         EfDocumentCustodyStore.ValidateAddCommand(documentCommand);
         var contentHash = EfDocumentCustodyStore.ComputeSha256(command.Content.Span);
         var completionHash = Hash(command, contentHash);
@@ -76,12 +76,12 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             .Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == command.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException("The case was not found.");
-        CaseMutationGuard.Require(
-            workflow,
-            command.Actor,
-            command.ExpectedCaseVersion,
-            command.EditLeaseToken,
-            now);
+        // The result is filed without the Case edit lease. A source card and
+        // its findings file are not a Case field edit, and the Case is not
+        // moved: the Engineer may be editing right now, and holding the lease
+        // is what would otherwise stop the research returning. The open Case
+        // and its version are left as they were.
+        CaseMutationGuard.RequireOpen(workflow, command.Actor);
         // The researched card belongs to the current work.
         var workId = await CaseWorkScope.CurrentIdAsync(context, command.CaseId, cancellationToken);
         var pending = await EfDocumentCustodyStore.PrepareAddAsync(
@@ -114,14 +114,15 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
 
             var valuation = EfValuationStore.Map(valuationEntity);
 
-            CaseMutationGuard.Complete(workflow);
             EfValuationStore.AddHistory(
                 context,
                 workflow,
                 command.Actor,
                 command.OperationKey,
-                "AI market research completed.",
-                replaced is null ? "valuation_created" : "valuation_replaced",
+                replaced is null
+                    ? "AI market research attached."
+                    : "AI market research attached, replacing the card for its month.",
+                MarketResearchPolicy.AttachedEventType,
                 completionHash,
                 valuation,
                 before,
