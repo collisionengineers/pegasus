@@ -66,3 +66,21 @@ assertions are removed.
   as before; identity remains the SHA-256 of the produced artifact, re-verified
   by Core.
 - A move to a different engine again requires a new accepted ADR.
+
+## Update — 2026-09-27 page style and retries
+
+The engine decision above is unchanged. The page style clause is replaced,
+and the consequence about rendered bytes gains a note (operator, 27 September
+2026).
+
+**Page style.** The Decision's words "the existing margins, two type
+registers" no longer hold. The page style is the supplied template's,
+`reference/rendererref1` Design I: its margins, type and colours, with the
+header and the footer on every page. The Estimate document takes the same
+page style. The requirement is owned by
+[FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation).
+
+**Retries.** Rendered bytes are still not identical from one render to the
+next. A retry does not depend on that. It asks what was filed before it draws
+anything, and it never draws again a file that is already held
+([FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).

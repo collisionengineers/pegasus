@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -11,8 +12,10 @@ namespace Pegasus.Core.Assessment;
 /// Which repairer VAT position the repair spec stands on (B04), recorded on
 /// the spec itself, the only owner of the fact. Unknown is a real state: its
 /// totals charge VAT on nothing until the operator records the status or
-/// selects the categories, and it never gates Use repair spec (v28 P10). The
-/// claimant's VAT position never controls estimate VAT.
+/// selects the categories, and it never gates Use repair spec (v28 P10). It
+/// does block the report, which would otherwise understate the repair cost
+/// (operator, 27 September 2026). The claimant's VAT position never controls
+/// estimate VAT.
 /// </summary>
 public enum RepairerVatStatus
 {
@@ -257,7 +260,16 @@ public sealed record EstimatePrintedTotals(
     decimal Specialist,
     decimal Net,
     decimal Vat,
-    decimal Gross);
+    decimal Gross)
+{
+    /// <summary>
+    /// Total labour: printed panel labour plus printed paint labour. It is a
+    /// sum of printed components, so it reconciles to <see cref="Net"/> with
+    /// the parts, materials and specialist figures beside it.
+    /// </summary>
+    [JsonIgnore]
+    public decimal Labour => PanelLabour + PaintLabour;
+}
 
 /// <summary>
 /// The one classification of estimate hours. Only hours which the calculation

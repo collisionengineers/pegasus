@@ -162,7 +162,7 @@ public sealed partial class DetailsModel
     /// (rendered by the view), then the next permitted lifecycle action. With
     /// Engineer, while the report is not ready, it names the first blocker at
     /// the section that clears it, and at the Report section when that blocker
-    /// has none.
+    /// has none. Delivery is the next action only once the report is stored.
     /// </summary>
     public (string Label, string SectionKey) NextAction
     {
@@ -199,6 +199,19 @@ public sealed partial class DetailsModel
                 || CurrentReportGeneration.State == Pegasus.Core.Reports.CaseReportGenerationState.Stale)
             {
                 return (CaseWorkspaceLabels.ReportDelivery.GenerateReport, "report");
+            }
+            // A report that is not stored cannot be delivered. One on its way
+            // to Box is waited for; one never drawn, failed or not confirmed is
+            // generated again.
+            var reportFiling = CurrentReportGeneration.Artifacts
+                .FirstOrDefault(artifact => artifact.Kind == Pegasus.Core.Reports.CaseReportArtifactKind.AssessmentReport)
+                ?.Filing;
+            if (reportFiling != Pegasus.Core.Reports.CaseReportArtifactFiling.Stored)
+            {
+                return (reportFiling == Pegasus.Core.Reports.CaseReportArtifactFiling.BeingStored
+                        ? CaseWorkspaceLabels.ReportDelivery.WaitingForStorage
+                        : CaseWorkspaceLabels.ReportDelivery.GenerateReport,
+                    "report");
             }
             if (workflow.ReportSentEvidence is not null)
             {

@@ -80,8 +80,8 @@ public sealed record AssessmentReportProjectionResult(
 /// assessment plus its case-report inputs, or names the work still
 /// outstanding. Every fact the report prints is a readiness item
 /// <see cref="Prepare"/> returns (<see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/>
-/// plus the sign-off, Current repair spec and labour-rate items it shares with
-/// <see cref="CaseReportReadiness"/>), so a Case that is not ready is refused
+/// plus the sign-off, Current repair spec, labour-rate and repairer VAT items
+/// it shares with <see cref="CaseReportReadiness"/>), so a Case that is not ready is refused
 /// with named items before anything is projected; the guards in
 /// <see cref="Project"/> are invariant assertions a ready Case never reaches.
 /// </summary>
@@ -121,6 +121,10 @@ public static class AssessmentReportProjection
             if (currentEstimate.Details.HourlyRate <= 0m)
             {
                 reasons.Add(CaseReportReadiness.LabourRateMissing);
+            }
+            if (CaseReportReadiness.RepairerVatBlocker(currentEstimate) is { } repairerVat)
+            {
+                reasons.Add(repairerVat);
             }
         }
 
@@ -197,8 +201,7 @@ public static class AssessmentReportProjection
             SupplementaryStatement: input.CurrentEstimate?.Supplementary is { ExplainOnReport: true } supplementary
                 ? supplementary.Statement
                 : null,
-            Settlement: BuildSettlement(assessment, input.CurrentEstimate)
-                ?? throw new InvalidDataException("A ready report has incomplete accepted settlement inputs."),
+            Settlement: BuildSettlement(reportOutcome, fields),
             HistoryCheck: Field(assessment, AssessmentVocabulary.HistoryCheck)!,
             EngineerComments: Field(assessment, AssessmentVocabulary.EngineersComments),
             Signatory: new ReportSignatory(
@@ -242,21 +245,36 @@ public static class AssessmentReportProjection
     /// The valuation commentary the report prints when the flag is on: the
     /// Engineer's recorded commentary text when there is one, otherwise the
     /// reason recorded on the applied valuation. Both are recorded words;
-    /// nothing is inferred and no placeholder is supplied (FRD-11). Null when
-    /// neither holds any text.
+    /// nothing is inferred and no placeholder is supplied (FRD-11). The reason
+    /// the Case save records by itself
+    /// (<see cref="ValuationCalculationPolicy.AppliedReason"/>) is a screen
+    /// message, not commentary, and never prints. Null when nothing holds
+    /// commentary.
     /// </summary>
     public static string? ValuationCommentaryOf(CaseAssessmentProjection assessment, string? appliedValuationReason)
     {
         ArgumentNullException.ThrowIfNull(assessment);
         var text = Field(assessment, AssessmentVocabulary.ReportValuationCommentaryText);
-        return !string.IsNullOrWhiteSpace(text) ? text
-            : string.IsNullOrWhiteSpace(appliedValuationReason) ? null
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            return text;
+        }
+        return string.IsNullOrWhiteSpace(appliedValuationReason)
+            || string.Equals(
+                appliedValuationReason.Trim(),
+                ValuationCalculationPolicy.AppliedReason,
+                StringComparison.Ordinal)
+            ? null
             : appliedValuationReason;
     }
 
     private static string? Field(IReadOnlyDictionary<string, string?> fields, string path) =>
         fields.GetValueOrDefault(path);
 
+    /// <summary>
+    /// The vehicle facts the template prints. A Case with no mileage prints
+    /// the template's own word for it (DESIGN_SPEC.md § vehicle details).
+    /// </summary>
     private static ReportVehicle BuildVehicle(
         CaseAssessmentProjection assessment,
         IReadOnlyDictionary<string, string?> fields)
@@ -266,109 +284,48 @@ public static class AssessmentReportProjection
         var mileageUnit = assessment.CaseOwned.MileageUnit ?? "miles";
         var mileageDescription = mileage is { } value
             ? $"{value.ToString("N0", CultureInfo.GetCultureInfo("en-GB"))} {mileageUnit}"
-            : "To be confirmed";
+            : AssessmentReportWording.NoMileage;
 
-        // Temporary repairs are the unroadworthy vehicle's (Decisions shows them only then), so a roadworthy vehicle's report carries no temporary-repair value and its rows print a dash.
-        var unroadworthy = AssessmentVocabulary.TemporaryRepairsApply(Field(fields, AssessmentVocabulary.LegalStatus));
         return new ReportVehicle(
             Registration: assessment.CaseOwned.Registration ?? string.Empty,
             Make: assessment.CaseOwned.Make ?? string.Empty,
             Model: assessment.CaseOwned.Model ?? string.Empty,
             Year: assessment.CaseOwned.Year ?? string.Empty,
-            VehicleType: Field(fields, AssessmentVocabulary.VehicleType) ?? string.Empty,
             Condition: Field(fields, AssessmentVocabulary.VehicleCondition) ?? string.Empty,
             MileageDescription: mileageDescription,
             MileageSource: mileageSource,
             Vin: Field(fields, AssessmentVocabulary.VehicleVin),
             Engine: Field(fields, AssessmentVocabulary.VehicleEngineCc),
-            Fuel: Field(fields, AssessmentVocabulary.VehicleFuel),
-            Transmission: AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.VehicleTransmission)),
-            Colour: Field(fields, AssessmentVocabulary.VehicleColour),
-            Body: Field(fields, AssessmentVocabulary.VehicleBody),
-            TaxExpiry: ParseDate(Field(fields, AssessmentVocabulary.VehicleTaxExpiry)),
-            MotExpiry: ParseDate(Field(fields, AssessmentVocabulary.VehicleMotExpiry)),
-            AirbagsDeployed: Field(fields, AssessmentVocabulary.VehicleAirbagsDeployed),
-            TemporaryRepairsPossible: unroadworthy ? ParseFlag(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairsPossible)) : null,
-            TemporaryRepairMethod: unroadworthy ? Field(fields, AssessmentVocabulary.VehicleTemporaryRepairMethod) : null,
-            TemporaryRepairCost: unroadworthy ? ParseMoney(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairCost)) : null);
+            Fuel: Field(fields, AssessmentVocabulary.VehicleFuel));
     }
 
     private static ReportDamage BuildDamage(IReadOnlyDictionary<string, string?> fields)
     {
         var impacts = AssessmentPolicy.ParseImpacts(Field(fields, AssessmentVocabulary.DamageImpacts))
-            .Select(impact => new ReportImpact(
-                AssessmentReportPresentation.DamageAreas(impact.Areas),
-                AssessmentReportPresentation.DamageSeverity(impact.Severity),
-                impact.Note,
-                impact.Areas,
-                impact.Disc))
+            .Select(impact => new ReportImpact(impact.Areas, impact.Severity, impact.Disc))
             .ToArray();
-        return new(
-            impacts,
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreRightFront)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreLeftFront)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreRightRear)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreLeftRear)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltRightFront)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltLeftFront)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltRightRear)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltLeftRear)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageSpareTyre)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageCentreBelt)),
-            Field(fields, AssessmentVocabulary.DamageUnrelated),
-            ParseMoney(Field(fields, AssessmentVocabulary.DamageUnrelatedDeduction)),
-            Field(fields, AssessmentVocabulary.DamageMaterialTransfer));
+        return new(impacts, Field(fields, AssessmentVocabulary.DamageUnrelated));
     }
 
     /// <summary>
-    /// The Case display and report share the same settlement figures.
-    /// Incomplete calculation inputs withhold the projection; they never
-    /// become zero-valued facts. Repair days belong to Current.
+    /// The agreed contract repair sum, which only a contract repair carries.
+    /// Prepare named a missing sum, so a contract repair that reaches here
+    /// without a positive one is a defect for the error page.
     /// </summary>
-    public static ReportSettlement? BuildSettlement(
-        CaseAssessmentProjection assessment,
-        RepairSpecificationVersion? currentEstimate)
+    private static ReportSettlement BuildSettlement(
+        AssessmentReportOutcome outcome,
+        IReadOnlyDictionary<string, string?> fields)
     {
-        ArgumentNullException.ThrowIfNull(assessment);
-        if (currentEstimate is not { IsCurrent: true }
-            || assessment.Field(AssessmentVocabulary.ValueEngineer) is not { } value
-            || ParseMoney(value.Value) is not { } engineerValue)
+        if (outcome != AssessmentReportOutcome.ContractRepair)
         {
-            return null;
+            return new ReportSettlement();
         }
-
-        var costs = ReportRepairCosts.For(currentEstimate);
-        var betterment = ParseMoney(Field(assessment, AssessmentVocabulary.SettlementBetterment));
-        var totalLoss = string.Equals(Field(assessment, AssessmentVocabulary.Outcome), "total_loss", StringComparison.Ordinal);
-        var contractRepair = string.Equals(Field(assessment, AssessmentVocabulary.Outcome), "contract_repair", StringComparison.Ordinal);
-        var salvage = totalLoss ? ParseMoney(Field(assessment, AssessmentVocabulary.SalvageValue)) : null;
-        var contractSum = contractRepair ? ParseMoney(Field(assessment, AssessmentVocabulary.SettlementContractSum)) : null;
-        if (contractRepair && contractSum is not > 0)
+        var agreed = ParseMoney(Field(fields, AssessmentVocabulary.SettlementContractSum));
+        if (agreed is not > 0m)
         {
-            return null;
+            throw new InvalidDataException("A ready contract repair report is missing its agreed contract sum.");
         }
-
-        return new(
-            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementExcess)),
-            betterment,
-            ParseFlag(Field(assessment, AssessmentVocabulary.SettlementClaimantVatRegistered)),
-            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementReserve)),
-            engineerValue - (costs.Total - (betterment ?? 0m)) - (salvage ?? 0m),
-            Field(assessment, AssessmentVocabulary.SettlementRepairDelays),
-            Field(assessment, AssessmentVocabulary.SettlementReportDelay),
-            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementStoragePerDay)),
-            ParseMoney(Field(assessment, AssessmentVocabulary.CostRecoveryCharge)),
-            ParseDate(Field(assessment, AssessmentVocabulary.SettlementHireStart)),
-            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementHireDailyCost)),
-            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementDiminution)),
-            totalLoss ? Field(assessment, AssessmentVocabulary.SettlementSalvageAt) : null,
-            totalLoss ? Field(assessment, AssessmentVocabulary.SettlementSalvageAgent) : null,
-            totalLoss ? Field(assessment, AssessmentVocabulary.SettlementSalvageAgentReference) : null,
-            totalLoss ? ParseFlag(Field(assessment, AssessmentVocabulary.SettlementSalvageMoved)) : null,
-            totalLoss ? ParseFlag(Field(assessment, AssessmentVocabulary.SettlementSalvageOwnerRetains)) : null,
-            totalLoss ? ParseFlag(Field(assessment, AssessmentVocabulary.SettlementSalvageValueAgreed)) : null,
-            totalLoss ? ParseDate(Field(assessment, AssessmentVocabulary.SettlementSalvageSettled)) : null,
-            contractSum);
+        return new ReportSettlement(agreed);
     }
 
     /// <summary>

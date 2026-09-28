@@ -35,8 +35,11 @@ public sealed record CaseReportWording(
 /// <summary>
 /// The report's narrative blocks: which there are, what each says when nobody
 /// has written their own, and how an Engineer's changes are laid over them.
-/// The composed words are the accepted report wording, so a Case nobody has
-/// edited prints the sentences the report has always printed.
+/// Every heading and composed sentence here is copied word for word from one
+/// of two sources (operator, 27 September 2026): the template
+/// (<c>reference/rendererref1</c>) or the manager's case page
+/// (<c>design/planning-and-old-designs/v27_planning/pegasus_case_dashboard_2026-09-15.html</c>).
+/// Nothing is worded here that neither source words.
 /// </summary>
 public static class ReportWordingComposition
 {
@@ -53,16 +56,26 @@ public static class ReportWordingComposition
     public const int MaximumTitleLength = 80;
     public const int MaximumTextLength = 4000;
     public const string ManualKeyPrefix = "manual:";
-    public const string ManualTitle = "Report paragraph";
 
-    /// <summary>The blocks in the order the report prints them unless the Engineer moves one.</summary>
+    /// <summary>The heading of a paragraph the Engineer adds, as the manager's case page names it.</summary>
+    public const string ManualTitle = "New paragraph";
+
+    /// <summary>The impact location recorded when the damage names more than one area.</summary>
+    public const string SeveralAreas = "multiple";
+
+    /// <summary>
+    /// The blocks in the order the report prints them unless the Engineer
+    /// moves one. The template prints six of the headings; Supplementary
+    /// damage, PAV commentary and Unrelated damage are the manager's case
+    /// page's, as it writes them.
+    /// </summary>
     public static IReadOnlyList<(string Key, string Title)> Standard { get; } =
     [
         (NatureOfIncident, "Nature of Incident"),
         (EngineersComments, "Engineer's Comments"),
-        (SupplementaryDamage, "Supplementary Damage"),
-        (ValuationCommentary, "Valuation Commentary"),
-        (UnrelatedDamage, "Unrelated Damage"),
+        (SupplementaryDamage, "Supplementary damage"),
+        (ValuationCommentary, "PAV commentary"),
+        (UnrelatedDamage, "Unrelated damage"),
         (VehicleHistoryCheck, "Vehicle History Check"),
         (PreIncidentCondition, "Pre-Incident Condition"),
         (Settlement, "Settlement"),
@@ -167,7 +180,10 @@ public static class ReportWordingComposition
         ArgumentNullException.ThrowIfNull(presentation);
         return key switch
         {
-            NatureOfIncident => NatureOfIncidentSentence(snapshot.ImpactSeverity, snapshot.ImpactLocation),
+            NatureOfIncident => NatureOfIncidentSentence(
+                snapshot.ImpactSeverity,
+                snapshot.ImpactLocation,
+                AreasOf(snapshot.Damage.Impacts.Select(impact => impact.Codes))),
             EngineersComments => Comments(snapshot),
             SupplementaryDamage => snapshot.SupplementaryStatement ?? string.Empty,
             ValuationCommentary => snapshot.Content.IncludeValuationCommentary
@@ -176,16 +192,39 @@ public static class ReportWordingComposition
             UnrelatedDamage => Unrelated(snapshot),
             VehicleHistoryCheck => snapshot.HistoryCheck,
             PreIncidentCondition =>
-                $"The vehicle is considered to be in {Display(snapshot.Vehicle.Condition)} condition for its age and type.",
+                $"The vehicle is considered to be in {Words(snapshot.Vehicle.Condition)} condition for its age and type.",
             Settlement => presentation.SettlementText,
             Salvage => SalvageText(snapshot),
             _ => string.Empty,
         };
     }
 
-    /// <summary>The Nature of Incident block's composed sentence, from the headline impact severity and location codes.</summary>
-    public static string NatureOfIncidentSentence(string impactSeverity, string impactLocation) =>
-        $"The vehicle has suffered {Display(impactSeverity)} collision/impact damage to the {Display(impactLocation)}.";
+    /// <summary>
+    /// The Nature of Incident block's composed sentence, from the headline
+    /// impact severity and location codes. Damage to one area is the
+    /// template's sentence. Damage to several is the manager's case page's:
+    /// the areas follow the sentence, one to a line, in the order they were
+    /// recorded and named as that page names them.
+    /// </summary>
+    public static string NatureOfIncidentSentence(
+        string impactSeverity, string impactLocation, IReadOnlyList<string> areas)
+    {
+        ArgumentNullException.ThrowIfNull(impactSeverity);
+        ArgumentNullException.ThrowIfNull(impactLocation);
+        ArgumentNullException.ThrowIfNull(areas);
+        return string.Equals(impactLocation, SeveralAreas, StringComparison.Ordinal)
+            ? $"The vehicle has suffered {Words(impactSeverity)} collision/impact damage to the following areas:"
+                + string.Concat(areas.Select(area => "\n— " + LeadingWords(area)))
+            : $"The vehicle has suffered {Words(impactSeverity)} collision/impact damage to the {Words(impactLocation)}.";
+    }
+
+    /// <summary>
+    /// The contract repair sentence, as the template prints it. The Repair
+    /// Spec section shows the same sentence once a sum is agreed (v28 P35), so
+    /// the Case page and the report cannot disagree.
+    /// </summary>
+    public static string ContractRepairSentence(decimal agreedSum) =>
+        $"A contract repair has been agreed for the sum of {Money(agreedSum)} including VAT. Costs cannot increase above this figure.";
 
     /// <summary>
     /// The Nature of Incident block's text whether or not a report can yet be
@@ -200,9 +239,16 @@ public static class ReportWordingComposition
         ArgumentNullException.ThrowIfNull(input);
         var severity = input.Assessment.Field(AssessmentVocabulary.ImpactSeverity)?.Value;
         var location = input.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value;
+        // Only damage to several areas reads the recorded damages, and that
+        // location is derived from them by the save that recorded them.
+        string[] areas = string.Equals(location, SeveralAreas, StringComparison.Ordinal)
+            ? AreasOf(AssessmentPolicy
+                .ParseImpacts(input.Assessment.Field(AssessmentVocabulary.DamageImpacts)?.Value)
+                .Select(impact => impact.Areas))
+            : [];
         var composed = string.IsNullOrWhiteSpace(severity) || string.IsNullOrWhiteSpace(location)
             ? string.Empty
-            : NatureOfIncidentSentence(severity, location);
+            : NatureOfIncidentSentence(severity, location, areas);
         var change = (input.Wording ?? []).FirstOrDefault(item =>
             !item.Manual && string.Equals(item.Key, NatureOfIncident, StringComparison.Ordinal));
         var text = Worded(change, composed);
@@ -211,7 +257,9 @@ public static class ReportWordingComposition
 
     /// <summary>
     /// The one shape a stored change takes, so the record never holds a title
-    /// or text the report would refuse to print.
+    /// or text the report would refuse to print. A browser posts a line break
+    /// as two characters and a composed sentence holds one, so line breaks are
+    /// stored as the composed sentences write them.
     /// </summary>
     public static CaseReportWording Validate(CaseReportWording block)
     {
@@ -233,7 +281,7 @@ public static class ReportWordingComposition
                 "A paragraph the Engineer wrote needs its own key.", nameof(block));
         }
         var title = string.IsNullOrWhiteSpace(block.Title) ? null : block.Title.Trim();
-        var text = string.IsNullOrWhiteSpace(block.Text) ? null : block.Text.Trim();
+        var text = string.IsNullOrWhiteSpace(block.Text) ? null : LineBreaks(block.Text.Trim());
         if (title is not null && (title.Length > MaximumTitleLength || title.Any(char.IsControl)))
         {
             throw new ArgumentException(
@@ -254,19 +302,50 @@ public static class ReportWordingComposition
     }
 
     /// <summary>
-    /// The mileage sentence the report prints, by its recorded source. An
-    /// unrecognised source is refused rather than printed around.
+    /// The mileage sentence the report prints, by its recorded source. The
+    /// template prints the online data sentence; the other five are the
+    /// manager's case page's. An unrecognised source is refused rather than
+    /// printed around.
     /// </summary>
     public static string MileageSentence(string source) => source switch
     {
         "online_data" => "The mileage has been calculated from online data.",
-        "owner" => "The mileage has been provided by the owner.",
-        "repairer" => "The mileage has been provided by the repairer.",
-        "principal" => "The mileage has been provided by the instructing principal.",
-        "average" => "The mileage has been calculated from average mileage data.",
+        "owner" => "The mileage was advised by the owner.",
+        "repairer" => "The mileage was advised by the repairer/storage yard.",
+        "principal" => "The mileage was advised by our instructing principal.",
+        "average" => "The mileage has been based on average mileage for the vehicle's age and type.",
         "tbc" => "The mileage is to be confirmed.",
         _ => throw new ReportRenderRejectedException("Unsupported mileage source."),
     };
+
+    /// <summary>
+    /// A recorded code as the words a sentence carries, in small letters as
+    /// the template prints them: "right_rear" reads "right rear" and
+    /// "light_to_moderate" reads "light to moderate".
+    /// </summary>
+    public static string Words(string code)
+    {
+        ArgumentNullException.ThrowIfNull(code);
+        return code.Replace('_', ' ').ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// The same words where they open a table cell or a listed line: the
+    /// first letter is a capital and the rest are small, so "below_average"
+    /// reads "Below average" and "left_front" reads "Left front".
+    /// </summary>
+    public static string LeadingWords(string code)
+    {
+        var words = Words(code);
+        return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
+    }
+
+    /// <summary>A text with every line break written as the composed sentences write one.</summary>
+    public static string LineBreaks(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return text.ReplaceLineEndings("\n");
+    }
 
     public static int StandardIndex(string key)
     {
@@ -283,7 +362,7 @@ public static class ReportWordingComposition
     private static string Comments(AssessmentReportSnapshot snapshot)
     {
         var parts = new List<string> { MileageSentence(snapshot.Vehicle.MileageSource) };
-        if (snapshot.LegalStatus.Equals("unroadworthy", StringComparison.OrdinalIgnoreCase))
+        if (snapshot.IsUnroadworthy)
         {
             parts.Add($"Please note the vehicle is unroadworthy due to {snapshot.UnroadworthyReason}.");
         }
@@ -314,8 +393,8 @@ public static class ReportWordingComposition
         var category = (snapshot.SalvageCategory ?? string.Empty).Trim().ToUpperInvariant();
         var finding = category switch
         {
-            "A" => "this is Category A (scrap only: the vehicle must be crushed in its entirety with no parts recovery).",
-            "B" => "this is Category B (break for spare parts: the body shell must be crushed).",
+            "A" => "this is Category A (scrap only — the vehicle must be crushed in its entirety with no parts recovery).",
+            "B" => "this is Category B (break for spare parts — the body shell must be crushed).",
             "S" => "this is Category S (structural damage) and can be sold as repairable salvage. Further information is available at www.abi.org.uk.",
             "N" => "this is Category N (non-structural damage) and can be sold as repairable salvage. Further information is available at www.abi.org.uk.",
             _ => string.Empty,
@@ -332,8 +411,9 @@ public static class ReportWordingComposition
     private static string Worded(CaseReportWording? change, string composed) =>
         string.IsNullOrWhiteSpace(change?.Text) ? composed : change!.Text!.Trim();
 
-    private static string Display(string value) =>
-        CultureInfo.GetCultureInfo("en-GB").TextInfo.ToTitleCase(value.Replace('_', ' ').ToLowerInvariant());
+    /// <summary>The areas the recorded damages name, each once, in the order they were recorded.</summary>
+    private static string[] AreasOf(IEnumerable<IReadOnlyList<string>> damages) =>
+        [.. damages.SelectMany(areas => areas).Distinct(StringComparer.Ordinal)];
 
     private static string Money(decimal value) =>
         value.ToString("£#,##0.00", CultureInfo.GetCultureInfo("en-GB"));

@@ -314,7 +314,16 @@ internal sealed class EfCaseArtifactCustody(
                 cancellationToken);
         if (changed == 0)
         {
-            return Pending(version, occurrence.Id, "case_custody_pending");
+            // Reconciliation may have filed this version while the bytes were
+            // being written here, so the stored row says what happened to it.
+            var current = await db.Set<DocumentVersionEntity>().AsNoTracking()
+                .SingleAsync(value => value.Id == version.Id, cancellationToken);
+            if (current.CustodyStatus == DocumentCustodyStatus.Confirmed)
+            {
+                RequireConfirmed(current, documentContentStore is BoxDocumentContentStore);
+            }
+            await confirmation.CommitAsync(cancellationToken);
+            return Status(current, occurrence.Id);
         }
         version.BoxFileId = write.RemoteId;
         version.BoxVersionId = write.BoxVersionId;

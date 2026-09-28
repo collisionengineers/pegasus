@@ -403,7 +403,11 @@ public static class CaseWorkspaceLabels
             // signature are the account's, set in Accounts, so no Case section
             // clears those blockers (operator, 26 September 2026).
             _ when item == CaseReportReadiness.SignOffEngineerNotChosen => "overview",
-            { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
+            {
+                Requirement: CaseReportReadiness.CurrentEstimateRequirement
+                    or CaseReportReadiness.LabourRateRequirement
+                    or CaseReportReadiness.RepairerVatRequirement
+            } => "estimate",
             {
                 Requirement: CaseReportReadiness.CloseUpImageRequirement
                     or CaseReportReadiness.OverviewImageRequirement
@@ -616,8 +620,8 @@ public static class CaseWorkspaceLabels
 
         /// <summary>
         /// A Vehicle-section assessment value as a read value: a date in the
-        /// office's short form, an enumerated code in the words the report
-        /// prints, everything else as recorded.
+        /// office's short form, an enumerated code as words, everything else
+        /// as recorded.
         /// </summary>
         public static string AssessmentValue(string path, string value)
         {
@@ -893,14 +897,54 @@ public static class CaseWorkspaceLabels
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
-        public const string CurrentGeneration = "Generated";
-        public const string GenerationState = "State";
         public const string IncludeFeeNote = "Include fee note";
-        public const string DownloadReport = "Report";
+        public const string OpenReport = "Open report";
+        public const string OpenReportWithFeeNote = "Open report with fee note";
         public const string DownloadFeeNote = "Fee note";
-        public const string DownloadReportWithFeeNote = "Report with fee note";
         public const string GenerationStaleNotice =
             "A newer fact changed after this generation. Generate again before delivery.";
+
+        /// <summary>
+        /// Where a generated document's file stands, in the words Files uses
+        /// for a file's storage, so the two sections cannot name one state two
+        /// ways.
+        /// </summary>
+        public static string Filing(CaseReportArtifactFiling filing) => filing switch
+        {
+            CaseReportArtifactFiling.Stored => OperatorLabels.CustodyState(DocumentCustodyStatus.Confirmed),
+            CaseReportArtifactFiling.BeingStored => OperatorLabels.CustodyState(DocumentCustodyStatus.Pending),
+            CaseReportArtifactFiling.StorageFailed => OperatorLabels.CustodyState(DocumentCustodyStatus.Failed),
+            CaseReportArtifactFiling.Unconfirmed => "Not confirmed",
+            _ => "Not generated",
+        };
+
+        /// <summary>The Next action while the report's file is on its way to Box.</summary>
+        public const string WaitingForStorage = "Waiting for the report to be stored";
+
+        /// <summary>
+        /// Generate report was pressed over unsaved changes and the saved Case
+        /// no longer offers it.
+        /// </summary>
+        public const string NotReadyAfterSave =
+            "The report is not ready after the save. The Report section lists what is missing.";
+
+        /// <summary>The generation ran out of time.</summary>
+        public static string TookTooLong(CaseReportArtifactKind kind) =>
+            $"{Document(kind)} took too long to generate.";
+
+        /// <summary>The document was not stored because Box could not be reached or written to.</summary>
+        public static string NotStoredInBox(CaseReportArtifactKind kind) =>
+            $"{Document(kind)} could not be stored in Box just now.";
+
+        /// <summary>The document a generation makes, as a sentence about it begins.</summary>
+        private static string Document(CaseReportArtifactKind kind) => kind switch
+        {
+            CaseReportArtifactKind.AssessmentReport => "The report",
+            CaseReportArtifactKind.FeeNote => "The fee note",
+            CaseReportArtifactKind.RepairSpecification => "The Repair Spec",
+            _ => "The images",
+        };
+
         public const string PrepareDelivery = "Prepare delivery";
         public const string DeliveryPrepared = "Delivery prepared";
         public const string SendPreparedReport = "Send prepared report";
@@ -924,8 +968,6 @@ public static class CaseWorkspaceLabels
         public const string ImagesGenerated = "The images were generated.";
         public const string RepairSpecNotGenerated = "The Repair Spec could not be generated.";
         public const string ImagesNotGenerated = "The images could not be generated.";
-        public const string DownloadRepairSpec = "Repair Spec";
-        public const string DownloadImages = "Images";
         public const string PreviewRepairSpec = "Preview Repair Spec";
         public const string PreviewImages = "Preview images";
         public const string Attach = "Attach";
