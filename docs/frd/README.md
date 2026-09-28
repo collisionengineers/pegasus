@@ -24,7 +24,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-06](frd-06-vehicle-and-engineering-evidence.md) | Inspection address, image and VRM analysis, vehicle data and MOT enrichment, MOT mileage estimation | INT (image), EXT |
 | [FRD-07](frd-07-eva-and-external-engineering-handoff.md) | EVA handoff routes and the external boundary | EXT |
 | [FRD-08](frd-08-email-mailbox-and-background-processing.md) | Inbound mail identity, taxonomy, classification, Case association of mail | MAIL |
-| [FRD-09](frd-09-provider-and-intermediary-routes.md) | Route versus provider identity, provider API contract | API |
+| [FRD-09](frd-09-principal-and-intermediary-routes.md) | Route versus Principal identity, Principal API contract | API |
 | [FRD-10](frd-10-mcp-automation-and-actor-boundary.md) | Automation Actor boundary, direct-write model, tool inventory | MCP |
 | [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md) | Report outcomes, Audit parity, renderer, generation, correction and finality, estimate VAT | RPT |
 | [FRD-12](frd-12-operator-experience.md) | Shell, navigation, display labels and the page contract | UI |

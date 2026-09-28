@@ -296,7 +296,7 @@ shared `.dismiss` × so it can be put away before it expires.
 - <a id="source-tags"></a>**Source tags.** Where a value came from is one
   visible word in a small `src-tag` pill in the cell's label line, the same in
   read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
-  Provider API. Lookup reads blue, AI navy, every other source neutral. A value
+  Principal API. Lookup reads blue, AI navy, every other source neutral. A value
   staff typed or corrected carries no tag; a value staff left untouched keeps
   its tag across a Save (operator, 25 September 2026). There is no provenance icon or
   hover tooltip (operator, 23 September 2026: one tag system, the Lookup
@@ -710,7 +710,7 @@ start (28 September 2026), with no Get valuation button; "report a
 problem" opens the Report a problem dialog. It replaces the 18 September
 "Error. Contact an administrator." Received-mail chasing categories read
 "Update Request", also the operator's wording; "provider" never appears in
-operator copy (Principal is the word), except the Provider API's own name.
+operator copy (Principal is the word).
 
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
 
@@ -1013,7 +1013,7 @@ this section holds the cross-cutting rules every page is held to.
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record the aside's Next action lists each report blocker with a link to the section that clears it; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
-| Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
+| Inspection address | Principal-determined default; reasoned per-Case override; previous values selectable. |
 | Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; it does block the report (27 September 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |

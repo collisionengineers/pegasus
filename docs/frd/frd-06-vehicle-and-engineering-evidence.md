@@ -64,12 +64,12 @@ read from text.
   location at Case creation. It is kept with that person as its source. The
   ban is on Pegasus inferring an address, not on a person stating one.
 
-The provider-domain reference package holds no address and no mode default.
-No address is ever inferred from a provider or domain match.
+The Principal-domain reference package holds no address and no mode default.
+No address is ever inferred from a Principal or domain match.
 
 **Reasons and history.** Choosing `Image Based Assessment` by hand, or
 overriding the filled mode, needs a staff reason in permanent Case history.
-The automatic fill records its provider-setting source and its own permanent
+The automatic fill records its Principal-setting source and its own permanent
 history event.
 
 **Inspect at.** The Case record's Inspection section offers a quick choice:

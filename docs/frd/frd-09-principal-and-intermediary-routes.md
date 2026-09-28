@@ -1,4 +1,4 @@
-# FRD-09: Provider and intermediary routes
+# FRD-09: Principal and intermediary routes
 
 > Owner capabilities: API-01 to API-04, INT-04 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
@@ -6,7 +6,7 @@
 
 - Who sent it, which route it came by, and which Principal it is for are
   separate facts. A matching domain never picks a Principal on its own.
-- The Provider API is create-only. A provider states its instruction in JSON
+- The Principal API is create-only. A Principal states its instruction in JSON
   with its files attached; Pegasus does not read the values back out of a
   document.
 - Fifteen Principal email routes are accepted, each tied to exact domains or
@@ -18,32 +18,32 @@
 ## Purpose
 
 This document owns how work reaches Pegasus from Principals and
-intermediaries: the Provider API contract, the accepted email routes, the
+intermediaries: the Principal API contract, the accepted email routes, the
 QDOS Triage tells, and the rule that routes must not overlap. It serves the
-PRD outcomes for safe, attributable intake from every accepted provider.
+PRD outcomes for safe, attributable intake from every accepted Principal.
 
 A route reaches Unidentified only when material is kept but no unique owner
 or destination can be shown; a reasoned refusal is a closed Unidentified item
 ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
 A technical failure that can be retried stays in processing.
 
-## Provider and intermediary routes
+## Principal and intermediary routes
 
-Provider identity, intermediary identity, route identity and provider or
+Principal identity, intermediary identity, route identity and Principal or
 domain-suffix association are four separate facts. The versioned
-provider/domain package is evidence and configuration input. Its presence
+Principal/domain package is evidence and configuration input. Its presence
 does not switch on a route, choose a Principal or define an API client.
 
-Direct-provider and intermediary policies may differ, but both call the same
+Direct-Principal and intermediary policies may differ, but both call the same
 Core intake contract. Both fail closed when route identity, an enabled
 policy, the Principal or mandatory evidence is missing. The
 [capability inventory](../capabilities.md) owns the exact targets for extra
-provider routes and provider APIs.
+Principal routes and Principal APIs.
 
-### Provider API principal and contract boundary
+### Principal API and contract boundary
 
 The security boundary is the stable Pegasus Principal, not an email domain
-or an external tenant. A provider client gets a separately issued,
+or an external tenant. A Principal client gets a separately issued,
 Principal-scoped client ID and an opaque secret. Only the secret's hash is
 stored. Rotation and revocation are supported.
 
@@ -52,38 +52,38 @@ only its own Principal's receipt, processing status and resulting Case/PO.
 It gets no staff access, no general Case search or read, and no Case workflow
 changes.
 
-Provider operations use the same Core intake and authorisation policies as
+Principal operations use the same Core intake and authorisation policies as
 Web and Worker callers. Receipt, submission, status, result, source custody
-and idempotency identities stay separate per Principal. The provider client
+and idempotency identities stay separate per Principal. The Principal client
 is the recorded actor. Any cross-Principal query or disclosure fails closed.
 The transport channel never changes extraction, instruction eligibility or
-automatic allocation: a definitive Provider API instruction follows the same
+automatic allocation: a definitive Principal API instruction follows the same
 Case-creation path as an equally definitive email. API-01 is create-only. It
 never links material to, or changes, an existing Case.
 
 API-01 owns the supported routes, schemas, limits and Principal credential
 contract. Extra tenancy or identity fields need a concrete accepted consumer
-requirement; supplied provider-domain evidence does not invent one.
+requirement; supplied Principal-domain evidence does not invent one.
 
-No provider route is live until its exact capability allocation, accepted
+No Principal route is live until its exact capability allocation, accepted
 contract, credentials and scopes, failure and recovery proof, real caller and
 operator acceptance all exist.
 
 ### Accepted API-01 submission contract
 
-The Principal's Pegasus API key is the Provider API credential, delivered
-with the submission endpoint. Live activation for a named provider still
+The Principal's Pegasus API key is the Principal API credential, delivered
+with the submission endpoint. Live activation for a named Principal still
 needs exact-target approval before any credential is issued.
 
 The surface is a versioned machine surface. It exists only where the
-`Features:ProviderApi` gate is on; otherwise it is absent (404). It accepts
+`Features:PrincipalApi` gate is on; otherwise it is absent (404). It accepts
 no cookie and no staff identity. A Principal credential is accepted nowhere
 else.
 
-**The provider states its instruction.** Pegasus does not read it back out
+**The Principal states its instruction.** Pegasus does not read it back out
 of a document. An earlier draft took files only and relied on the
 Principal's extraction policy, which recognises QDOS email and so could not
-serve the providers this route is for. A provider integrating over HTTP
+serve the Principals this route is for. A Principal integrating over HTTP
 already holds the fields, so it states them.
 
 - **Credential.** `Authorization: Bearer pgs_<key id>_<secret>`, the secret
@@ -92,15 +92,15 @@ already holds the fields, so it states them.
   event names the key id when one was well-formed, and never the secret.
   Requests are rate-limited per calling address. The limiter runs before
   authentication, because a presented key id is only a claim; partitioning
-  on it would let a caller spend another provider's budget or mint a fresh
+  on it would let a caller spend another Principal's budget or mint a fresh
   budget per request.
-- **Submit.** `POST /api/provider/v1/submissions` as `application/json`,
+- **Submit.** `POST /api/principal/v1/submissions` as `application/json`,
   with a required `Idempotency-Key` header (at most 200 characters, unique
   per Principal). The body declares the instruction and carries any files
   inline as base64. An instruction with no files is accepted.
 - **Principal.** The credential establishes it. A `principal` in the body is
   compared with it, and a mismatch is refused (403, recorded). The field
-  exists to catch a provider posting to the wrong account, never to select
+  exists to catch a Principal posting to the wrong account, never to select
   one.
 - **Case type.** One of `inspection`, `audit`, `auditreport` or `triage`,
   mapping to `Inspection`, `Audit`, `InspectionAndAudit` and `Triage`.
@@ -130,20 +130,19 @@ already holds the fields, so it states them.
   attachments, the same shape an email instruction has. That is what lets an
   Audit find its original report, when attached, among its own evidence. The
   receipt enters the same durable intake path as a staff upload, on the
-  `provider_api` source channel, bound to the authenticated Principal. The submission is
-  the recorded actor in permanent history. If a process crash separates the
+  `principal_api` source channel, bound to the authenticated Principal. The
+  submission is the recorded actor in permanent history. If a process crash separates the
   accept writes, the existing reconciliation timer repairs the staged-receipt
   link and the initial `Accepted` history row once intake retention exists.
   A submission is accepted once: whichever of the request and the repair
   records it first is the one row, and a repaired row states when the
   submission was received and that recovery completed it.
 - **Provenance.** Every declared value is written to the Case with its own
-  provenance, provider API, distinct from extraction and from staff entry,
-  and shows as such on the Case. The Work Provider (the Principal) is
-  recorded from the authenticated submission binding with provider-API
-  provenance.
+  provenance, Principal API, distinct from extraction and from staff entry,
+  and shows as such on the Case. The Principal is recorded from the
+  authenticated submission binding with Principal API provenance.
 - **Receipt.** 201 with `submissionId`, `receivedAtUtc`,
-  `providerReference`, `replayed: false` and the accepted files (ordinal,
+  `principalReference`, `replayed: false` and the accepted files (ordinal,
   file name, SHA-256, duplicate flag), the moment the submission is durably
   received and before any processing. A replay of the same key with the
   same body is 200 with the same receipt and `replayed: true`. The same key
@@ -160,14 +159,14 @@ already holds the fields, so it states them.
 - **Existing-Case rejection.** The Case-match policy runs on the declared
   claim number, vehicle registration, claimant and incident date. A unique
   or ambiguous existing-Case match fails with
-  `provider_existing_case_match`; Pegasus allocates no Case or PO and
+  `principal_existing_case_match`; Pegasus allocates no Case or PO and
   neither links material to nor changes an existing Case. With no match, the
-  submission follows the ordinary creation path. Provider updates are a
+  submission follows the ordinary creation path. Principal updates are a
   separate deferred capability.
 - **Pause.** A paused credential is refused for submission before Pegasus
   reads the request body (403, recorded), but can still read its own
   receipts and results. A revoked credential is refused everywhere.
-- **Result.** `GET /api/provider/v1/submissions/{id}` returns the
+- **Result.** `GET /api/principal/v1/submissions/{id}` returns the
   submission's `status` (`Received`, `Processing`, `Complete`, `Failed`, the
   intake work vocabulary), the intake `decision`, `allocationFailure` and
   `failureCode`, and the `caseReference` once processing allocated a
@@ -180,7 +179,7 @@ already holds the fields, so it states them.
 ### Accepted principal email routes and automatic association
 
 **Fifteen routes.** The fifteen existing instruction profiles are active
-through the ordinary email path. Provider API credentials and mailbox
+through the ordinary email path. Principal API credentials and mailbox
 onboarding are separate capabilities.
 
 `PrincipalMailRoutePolicy.AcceptedIdentities` is the single runtime catalogue
@@ -292,7 +291,7 @@ subject template, which states it nowhere else.
 
 ### Triage result contract
 
-A Provider API Triage submission returns the same result shape, with the same
+A Principal API Triage submission returns the same result shape, with the same
 Principal-scoped access, as a regular Case submission. Its Case/PO is the
 Triage Case's `t.` Case/PO, read from the Triage the submission's receipt
 opened. The receipt is not linked to the Triage Case as a Case instruction
@@ -314,8 +313,8 @@ permission to guess.
 
 | Thing | States |
 | --- | --- |
-| Provider API submission | `Received`, `Processing`, `Complete`, `Failed`; a replay returns the same receipt |
-| Provider credential | active, paused (read-only on its own receipts), revoked (refused everywhere) |
+| Principal API submission | `Received`, `Processing`, `Complete`, `Failed`; a replay returns the same receipt |
+| Principal credential | active, paused (read-only on its own receipts), revoked (refused everywhere) |
 | Automatic association | one survivor associates; zero proceeds to creation; several is the Ambiguous outcome and goes to Unidentified |
 | Route outcome | allocated Case, Triage opened, Unidentified with a reason, or retryable processing failure |
 
@@ -325,7 +324,7 @@ permission to guess.
   403, recorded.
 - Same idempotency key with a different body: 409, nothing retained.
 - Envelope over the limits: 413.
-- Existing-Case match, unique or ambiguous: `provider_existing_case_match`,
+- Existing-Case match, unique or ambiguous: `principal_existing_case_match`,
   nothing allocated or changed.
 - Two matching classification categories: Ambiguous, no Triage, no Case.
 - Overlapping route predicates: fail closed with evidence.
@@ -336,8 +335,8 @@ permission to guess.
 Core tests cover the submission contract (credential, replay, validation,
 existing-Case rejection), the fifteen-route catalogue, the QDOS match keys
 and eliminator, and the two Triage tells. Integration tests cover the
-Provider API over real HTTP with the feature gate on and off. Live activation
-for a named provider needs exact-target approval and its own evidence tier
+Principal API over real HTTP with the feature gate on and off. Live activation
+for a named Principal needs exact-target approval and its own evidence tier
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
