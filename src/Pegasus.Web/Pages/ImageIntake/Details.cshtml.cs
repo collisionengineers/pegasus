@@ -94,13 +94,6 @@ public sealed class DetailsModel(
     /// </summary>
     public ImageIntakeAutomationWithheld? AutomationWithheld { get; private set; }
 
-    /// <summary>A candidate Case's Principal, named from the Principal lookup.</summary>
-    public string CandidatePrincipal(ImageIntakeCaseCandidate candidate) =>
-        candidate.PrincipalId is not { } principalId
-            ? OperatorLabels.PrincipalNotKnown
-            : PrincipalOptions.FirstOrDefault(principal => principal.Id == principalId)?.Code
-                ?? OperatorLabels.PrincipalInactive;
-
     /// <summary>
     /// The Triage opened from this record's origin receipt, if any — the same
     /// receipt-keyed lookup <c>Pegasus.Web.Pages.Intake.DetailsModel</c> uses

@@ -283,7 +283,7 @@
                         {
                             <tr>
                                 <td class="mono"><a asp-page="/Cases/Details" asp-route-id="@candidate.CaseId">@candidate.CaseReference</a></td>
-                                <td data-image-candidate-principal>@Model.CandidatePrincipal(candidate)</td>
+                                <td data-image-candidate-principal>@(candidate.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</td>
                             </tr>
                         }
                     </tbody>

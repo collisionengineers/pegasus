@@ -123,10 +123,12 @@ apart. Registration itself has no known Principal, so it scopes nothing.
 The record's page lists every eligible Case for the registration, filtered
 by nothing, and names each one's Principal. Staff may link to any of them: a
 staff decision is a reasoned override and stays authoritative. When
-automation is withheld the page says why: the recorded Principal has no
-eligible Case with the registration, or more than one Case could match. The
-reason is computed from the same policy, and nothing is stored. This is not
-a Triage, Unidentified or conflict outcome; the record stays Awaiting
+automation is withheld for a Principal or an ambiguity, the page says why:
+the recorded Principal has no eligible Case with the registration, or more
+than one Case could match. Manual-upload material waiting on staff over
+Cases that existed at registration (below) has no such notice. The reason is
+computed from the same policy, and nothing is stored. This is not a Triage,
+Unidentified or conflict outcome; the record stays Awaiting
 instruction ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
 
 Manual-upload image material needs explicit staff confirmation even for one
