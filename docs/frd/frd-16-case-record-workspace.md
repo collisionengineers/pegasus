@@ -99,10 +99,8 @@ Below 1441px the aside folds into a strip above the sections.
 
 Actions post in place and the record's parts refresh without navigation.
 Unsaved changes are confirmed before Refresh, navigation or an immediate
-action. Tagging, untagging and adding a tag on an image are the exception:
-they post at once while the Case has unsaved changes, keep those changes and
-redraw only the image's tags. A tag that also takes the image out of the
-report still asks first.
+action, except a document action (tag, New tag, In report), which posts in
+place and keeps the changes.
 
 **Edit session.** The whole record enters one edit mode over one lease
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). There is one Save
@@ -516,9 +514,8 @@ tile shows:
   a colour;
 - while the Case edit lease is held, **In report**, on or off, posted at
   once like a tag, so readiness reads it with no Case save (operator, 26
-  September 2026). A tag, New tag or In report pressed while the Case has
-  unsaved changes posts in place: no unsaved-changes question, and the
-  changes stay;
+  September 2026). A tag, New tag or In report is a document action: it
+  posts in place with no unsaved-changes question, and the changes stay;
 - Preview and, while the Case edit lease is held, Crop.
 
 The Crop lease gate is the record's whole edit mode
@@ -703,7 +700,8 @@ read-only apart from Files' and Notes' actions that need no edit lease.
   version is a non-destructive conflict showing current and proposed values.
 - A refused or unknown save response keeps the proposed values for review.
 - Unsaved changes are confirmed before Cancel, Refresh, navigation or an
-  immediate action.
+  immediate action, except a document action (tag, New tag, In report), which
+  posts in place and keeps the changes.
 - An action bar for a state with no permitted action shows the state and no
   control.
 - Crop is refused on an archived Case and in Completed or Query.

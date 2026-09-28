@@ -329,13 +329,16 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Empty(store.Saves);
         Assert.Contains("data-case-editing=\"true\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
+
     /// <summary>
     /// Tagging works while the Case is being edited (operator, 28 September
-    /// 2026). Every action on an image tile is a document action the script
-    /// posts in place: no Save question, the unsaved Case changes stay. The
-    /// server takes the tag on the lease the editing session holds, saves
-    /// nothing of the Case, and the page it returns is still editing, so the
-    /// script can carry the reclaimed lease into the Save form.
+    /// 2026). Proves two things: the tag, In report and New tag forms carry
+    /// <c>data-document-action</c>, and the server tags, untags and creates a
+    /// tag on the lease the editing session holds without saving the Case.
+    /// It does not run case-workspace.js. The in-place submit, the lease and
+    /// version carry into the Save form and the tile redraw are unverified
+    /// until the live browser walk: edit a field, tag, untag, New tag, then
+    /// Save.
     /// </summary>
     [Fact]
     public async Task ImageTagsPostAtOnceWhileEditingWithoutSavingTheCase()
