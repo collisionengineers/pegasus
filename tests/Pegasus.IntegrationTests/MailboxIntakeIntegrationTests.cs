@@ -815,7 +815,7 @@ public sealed class MailboxIntakeIntegrationTests
                     CancellationToken.None);
                 var imageQueries = scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
                 var imageIntake = Assert.Single(await imageQueries
-                    .ListAsync(associated: false, CancellationToken.None));
+                    .ListAsync(associated: false, state: null, CancellationToken.None));
                 Assert.Equal("AB12CDE-01", imageIntake.ImageIntakeReference);
                 Assert.Equal("AB12CDE", imageIntake.NormalizedVehicleRegistration);
                 Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, imageIntake.State);

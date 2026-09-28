@@ -323,7 +323,9 @@ public sealed class TriageQueuesWebTests
             state: null,
             cancellationToken: CancellationToken.None));
         Assert.Equal(1, await unidentified.CountOpenAsync(CancellationToken.None));
-        Assert.Single(await unidentified.ListClosedQueueAsync(null, CancellationToken.None));
+        Assert.Equal(
+            "No further action is required.",
+            Assert.Single(await unidentified.ListClosedQueueAsync(null, CancellationToken.None)).ResolutionReason);
 
         using var openResponse = await client.GetAsync("/Cases?tab=unidentified");
         var openHtml = await openResponse.Content.ReadAsStringAsync();
@@ -340,6 +342,8 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(HttpStatusCode.OK, closedResponse.StatusCode);
         Assert.Contains($"href=\"/Unidentified/{closed.Item.Id:D}\"", closedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain($"href=\"/Unidentified/{open.Item.Id:D}\"", closedHtml, StringComparison.Ordinal);
+        // The outcome is read from the closed row itself.
+        Assert.Contains("Closed &#xB7; No further action is required.", closedHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(closedHtml, "Unidentified"));
         Assert.Equal(2, ShellCasesCount(closedHtml));
     }
@@ -865,7 +869,7 @@ public sealed class TriageQueuesWebTests
             },
             CancellationToken.None);
 
-        var summaries = await queries.ListAsync(false, CancellationToken.None);
+        var summaries = await queries.ListAsync(associated: false, state: null, CancellationToken.None);
         Assert.Contains(summaries, item => item.PrincipalCode == "ALPHA");
         Assert.Contains(summaries, item => item.Id != first.Id && item.PrincipalCode is null);
 

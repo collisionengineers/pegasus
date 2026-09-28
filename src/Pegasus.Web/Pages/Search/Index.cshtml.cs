@@ -297,7 +297,7 @@ public sealed partial class IndexModel(
             && string.IsNullOrWhiteSpace(Registration)
             && string.IsNullOrWhiteSpace(Query))
         {
-            results.AddRange(await imageIntakeQueries.ListAsync(null, cancellationToken));
+            results.AddRange(await imageIntakeQueries.ListAsync(associated: null, state: null, cancellationToken));
         }
 
         ImageIntakeResults = results;

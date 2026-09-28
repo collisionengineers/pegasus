@@ -734,6 +734,34 @@ public sealed class ImageIntakePersistenceTests
         var forCase = await queries.ListForCaseAsync(eligibleCaseId, CancellationToken.None);
         Assert.Collection(forCase, intake => Assert.Equal(associated.Record.Id, intake.Id));
 
+        // The list filters by current Case and lifecycle state before it
+        // projects, and agrees with the projected association.
+        var unrelated = await queries.GetByOriginReceiptAsync(unrelatedImageReceiptId, CancellationToken.None);
+        Assert.Null(unrelated!.AssociatedCaseId);
+        Assert.Equal(
+            [associated.Record.Id],
+            (await queries.ListAsync(associated: true, state: null, CancellationToken.None)).Select(item => item.Id));
+        Assert.Equal(
+            [associated.Record.Id],
+            (await queries.ListAsync(
+                associated: true,
+                ImageInitiatedCaseState.MergedIntoInstructionCase,
+                CancellationToken.None)).Select(item => item.Id));
+        Assert.Empty(await queries.ListAsync(
+            associated: true,
+            ImageInitiatedCaseState.AwaitingInstruction,
+            CancellationToken.None));
+        Assert.Equal(
+            [unrelated.Record.Id],
+            (await queries.ListAsync(associated: false, state: null, CancellationToken.None)).Select(item => item.Id));
+        Assert.Equal(
+            [unrelated.Record.Id],
+            (await queries.ListAsync(
+                associated: null,
+                ImageInitiatedCaseState.AwaitingInstruction,
+                CancellationToken.None)).Select(item => item.Id));
+        Assert.Equal(2, (await queries.ListAsync(associated: null, state: null, CancellationToken.None)).Count);
+
         var unlinkLease = await ClaimLeaseAsync(
             factory.Services,
             eligibleCaseId,
@@ -754,6 +782,11 @@ public sealed class ImageIntakePersistenceTests
 
         var afterUnlink = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
         Assert.Null(afterUnlink!.AssociatedCaseId);
+        // After the reasoned reversal the record has no current Case.
+        Assert.Empty(await queries.ListAsync(associated: true, state: null, CancellationToken.None));
+        Assert.Contains(
+            await queries.ListAsync(associated: false, state: null, CancellationToken.None),
+            item => item.Id == afterUnlink.Record.Id);
         Assert.Equal("AB12CDE-01", afterUnlink.Record.ImageIntakeReference);
         Assert.Empty(await queries.ListForCaseAsync(eligibleCaseId, CancellationToken.None));
     }

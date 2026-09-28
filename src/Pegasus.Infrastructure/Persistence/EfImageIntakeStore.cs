@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -825,17 +826,38 @@ public sealed class EfImageIntakeStore(
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
         bool? associated,
+        ImageInitiatedCaseState? state,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = await ProjectAsync(
-            context.ImageIntakes.AsNoTracking().OrderByDescending(item => item.CreatedAtUtc),
+        IQueryable<ImageIntakeEntity> query = context.ImageIntakes.AsNoTracking();
+        if (state is { } lifecycleState)
+        {
+            var code = ToCode(lifecycleState);
+            query = query.Where(intake => intake.LifecycleState == code);
+        }
+        if (associated is { } wantsCase)
+        {
+            // The SQL form of CurrentCaseId: a staff association decides when
+            // one exists (active names its Case, inactive names none);
+            // otherwise an accepted Case link does.
+            Expression<Func<ImageIntakeEntity, bool>> hasCase = intake =>
+                context.IntakeManualAssociations.Any(association =>
+                    association.IntakeReceiptId == intake.OriginReceiptId && association.IsActive)
+                || (!context.IntakeManualAssociations.Any(association =>
+                        association.IntakeReceiptId == intake.OriginReceiptId)
+                    && context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == intake.OriginReceiptId));
+            query = query.Where(wantsCase
+                ? hasCase
+                : Expression.Lambda<Func<ImageIntakeEntity, bool>>(
+                    Expression.Not(hasCase.Body),
+                    hasCase.Parameters));
+        }
+
+        return await ProjectAsync(
+            query.OrderByDescending(item => item.CreatedAtUtc),
             context,
             cancellationToken);
-        return rows
-            .Where(row => associated is null
-                || (associated.Value ? row.AssociatedCaseId is not null : row.AssociatedCaseId is null))
-            .ToArray();
     }
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
