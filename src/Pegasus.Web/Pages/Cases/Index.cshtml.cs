@@ -628,7 +628,7 @@ public sealed class IndexModel(
         {
             var access = await _getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
             if (access?.CanOpen == true
-                && await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, cancellationToken) is { } reportInputs)
+                && await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, cancellationToken) is { } reportInputs)
             {
                 reportBlockers = CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons;
             }
