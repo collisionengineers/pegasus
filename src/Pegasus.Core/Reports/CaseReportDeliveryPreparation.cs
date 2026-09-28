@@ -25,6 +25,7 @@ public sealed record CaseReportDeliveryPreparation(
 public sealed record PrepareCaseReportDeliveryRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     Guid GenerationId, long ExpectedGenerationVersion, string OperationKey,
+    string CoveringMessage,
     ReportRecipientReview? ReviewedRecipients = null,
     IReadOnlyList<CaseReportArtifactKind>? Attach = null);
 public interface IPrepareCaseReportDelivery
@@ -50,7 +51,8 @@ public sealed record ReportRecipientReview(
 public sealed record ReportRecipientSuggestions(
     string CaseReference,
     PrincipalReportRecipientSettings Settings,
-    string? OriginalInstructionSender)
+    string? OriginalInstructionSender,
+    string? PrincipalName = null)
 {
     public string Fingerprint => CaseReportDeliveryPolicy.SuggestionFingerprint(this);
 }
@@ -79,16 +81,49 @@ public interface ICaseReportSendHistoryQueries
 }
 
 /// <summary>
+/// What one delivery supplies to the Case report delivery template
+/// (<see cref="EmailTemplatePurpose.CaseReportDelivery"/>). The template, its
+/// placeholders and its built-in body belong to <see cref="EmailTemplates"/>.
+/// </summary>
+/// <remarks>
+/// A fact that was not recorded has no value, so its line is left out of the
+/// rendered body. The superseded report date has a value only when a report of
+/// this Case has already been sent, so a first send carries no "supersedes"
+/// line.
+/// </remarks>
+public sealed record CaseReportDeliveryFacts(
+    string CaseReference,
+    string? Registration,
+    string? Outcome,
+    string? PrincipalName,
+    CaseReportSendHistory History)
+{
+    /// <summary>The placeholder values this delivery supplies, by placeholder name.</summary>
+    public IReadOnlyDictionary<string, string?> Values() =>
+        new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [EmailTemplates.CaseReference] = CaseReference,
+            [EmailTemplates.Registration] = Registration,
+            [EmailTemplates.Outcome] = Outcome,
+            [EmailTemplates.PrincipalName] = PrincipalName,
+            [EmailTemplates.SupersededReportDate] = History.SentCount > 0 && History.LastSentReportDate is { } superseded
+                ? superseded.ToString("d MMMM yyyy", CultureInfo.GetCultureInfo("en-GB"))
+                : null
+        };
+}
+
+/// <summary>
 /// How one delivery names what it sends (v28 P23). The attached report is
 /// named for the people who read it — the Case's reference, the registration
 /// and the outcome — and a re-issue adds one dot for each report of this Case
-/// already sent, the way the firm's own files are named. The covering line
-/// says plainly that a later report supersedes the earlier one.
+/// already sent, the way the firm's own files are named. The covering message
+/// is not named here: it is the Case report delivery template
+/// (<see cref="EmailTemplatePurpose.CaseReportDelivery"/>), rendered from
+/// <see cref="CaseReportDeliveryFacts"/>, reviewed and edited by staff, and
+/// frozen as submitted at preparation.
 /// </summary>
 public static class CaseReportDeliveryNaming
 {
-    public const string FirstMessage = "Please find attached our report.";
-
     /// <summary>The attached report's own name, without its extension.</summary>
     public static string ReportName(
         string caseReference, string? registration, string? outcome, int sentCount)
@@ -103,19 +138,6 @@ public static class CaseReportDeliveryNaming
         };
         return string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part)))
             + new string('.', sentCount);
-    }
-
-    /// <summary>The covering line the delivery carries.</summary>
-    public static string Message(CaseReportSendHistory history)
-    {
-        ArgumentNullException.ThrowIfNull(history);
-        if (history.SentCount == 0 || history.LastSentReportDate is not { } superseded)
-        {
-            return FirstMessage;
-        }
-        return "Please find attached our updated report, which supersedes our report dated "
-            + superseded.ToString("d MMMM yyyy", CultureInfo.GetCultureInfo("en-GB"))
-            + ".";
     }
 
     /// <summary>
@@ -207,6 +229,29 @@ public static class CaseReportDeliveryPolicy
     {
         StaffAuthorization.Require(actor, StaffAccessRight.AccessStaffApplication);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+    }
+
+    /// <summary>
+    /// The covering message staff reviewed, as one delivery freezes it: line
+    /// endings made plain and trailing space trimmed. A blank message, or one
+    /// past <see cref="EmailTemplates.MaximumBodyLength"/>, is refused.
+    /// </summary>
+    public static string CoveringMessage(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new ArgumentException("A covering message is required.", nameof(text));
+        }
+
+        var normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd();
+        if (normalized.Length > EmailTemplates.MaximumBodyLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(text),
+                $"A covering message cannot exceed {EmailTemplates.MaximumBodyLength} characters.");
+        }
+
+        return normalized;
     }
 
     /// <summary>
@@ -547,6 +592,13 @@ public sealed class PrepareCaseReportDelivery(
 
         CaseReportDeliveryPolicy.RequireStaff(request.Actor);
 
+        // The message staff reviewed and possibly edited is what is frozen and
+        // later sent; the template only pre-filled it.
+        request = request with
+        {
+            CoveringMessage = CaseReportDeliveryPolicy.CoveringMessage(request.CoveringMessage)
+        };
+
         // The structured contacts are read outside the store's transaction:
         // they are a Case-data read, never something the operator posts.
         var suggestions = await recipientSuggestions.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false)
@@ -555,8 +607,8 @@ public sealed class PrepareCaseReportDelivery(
             ?? CaseReportDeliveryPolicy.SuggestedReview(suggestions);
         var addressing = CaseReportDeliveryPolicy.ReviewedAddress(suggestions, review);
 
-        // v28 P23: what the Case has already sent decides the report's name
-        // and the covering line, and the preparation freezes both.
+        // v28 P23: what the Case has already sent decides the report's name,
+        // and the preparation freezes it with the reviewed covering message.
         var history = await sendHistory.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false);
 
         var record = await store

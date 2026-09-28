@@ -420,13 +420,17 @@
                             }
                         </div>
                     }
-                    @* P23: what the attached report will be called and the line
-                       that covers it, read from the same policy the preparation
-                       freezes when this form is submitted. *@
+                    @* P23: what the attached report will be called, read from
+                       the same policy the preparation freezes. The message is
+                       the Case report delivery template rendered for this Case;
+                       staff edit it here, and Prepare delivery freezes what is
+                       submitted. *@
                     <span class="lbl">@ReportLabels.FileName</span>
                     <div class="fv mono" data-report-file-name>@Model.ReportDeliveryFileName</div>
-                    <span class="lbl">@ReportLabels.Message</span>
-                    <div class="fv derived multi" data-report-message>@Model.ReportDeliveryMessage</div>
+                    <label class="lbl" for="report-message">@ReportLabels.Message</label>
+                    <textarea id="report-message" name="coveringMessage" rows="9" required
+                              maxlength="@Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength"
+                              data-report-message>@Model.ReportDeliveryMessage</textarea>
                     <button type="submit" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@ReportLabels.PrepareDelivery</span>

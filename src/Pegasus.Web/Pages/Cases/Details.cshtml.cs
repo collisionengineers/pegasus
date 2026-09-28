@@ -60,6 +60,7 @@ public sealed partial class DetailsModel(
     ICaseReportDeliveryPreparationStore deliveryPreparations,
     IReportRecipientSuggestionQueries reportRecipientSuggestions,
     ICaseReportSendHistoryQueries reportSendHistory,
+    RenderEmailTemplate renderEmailTemplate,
     IListCaseEstimates listEstimates,
     LabourRateCardAdministration labourRateCards,
     IDuplicateEstimate duplicateEstimate,
@@ -1060,6 +1061,7 @@ public sealed partial class DetailsModel(
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None
             : await history;
+        ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
         OpenDialog = dialog switch
         {
             "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
@@ -2591,6 +2593,7 @@ public sealed partial class DetailsModel(
         long expectedCaseVersion,
         Guid generationId,
         long expectedGenerationVersion,
+        string? coveringMessage,
         string[]? toRecipients,
         string[]? ccRecipients,
         CaseReportArtifactKind[]? attach,
@@ -2608,6 +2611,16 @@ public sealed partial class DetailsModel(
 
         try
         {
+            CaseReportDeliveryPolicy.CoveringMessage(coveringMessage);
+        }
+        catch (ArgumentException)
+        {
+            TempData["CaseError"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.MessageRefused;
+            return RedirectToReport(id);
+        }
+
+        try
+        {
             await prepareReportDelivery.ExecuteAsync(
                 new(
                     actor,
@@ -2617,6 +2630,7 @@ public sealed partial class DetailsModel(
                     generationId,
                     expectedGenerationVersion,
                     operationKey,
+                    coveringMessage!,
                     new(toRecipients ?? [], ccRecipients ?? []),
                     attach),
                 cancellationToken);

@@ -1897,7 +1897,8 @@ public sealed class CaseReportGenerationPersistenceTests
                         leaseToken ?? Lease.Token,
                         generation.Id,
                         generation.Version,
-                        "prepare-report"),
+                        "prepare-report",
+                        "Please find attached our report."),
                     new([new StaffMailRecipient("digital@collisionengineers.co.uk", "pegasustest")], [], "Case report"),
                     recipientSuggestionFingerprint ?? new string('a', 64),
                     CaseReportSendHistory.None), default);
