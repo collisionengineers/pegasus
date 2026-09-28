@@ -890,7 +890,7 @@ public sealed class CaseRecordGapsV26WebTests
         var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The case fixture returned no data.");
         var setting = new CaseDataSource(
-            CaseDataSourceKind.ProviderSetting, "QDOS", "Principal setting", "provider-inspection", 1);
+            CaseDataSourceKind.PrincipalSetting, "QDOS", "Principal setting", "principal-inspection", 1);
         var staff = new CaseDataSource(
             CaseDataSourceKind.StaffCorrection, "staff", "Staff correction", "case-edit", 1);
         return data with

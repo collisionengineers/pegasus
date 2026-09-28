@@ -44,7 +44,7 @@ else {
     Resolve-RepositoryPath -Path $PreviousPackagePath -RepositoryRoot $RepositoryRoot
 }
 $StagingRoot = Join-Path $RepositoryRoot "artifacts/reference-data-staging"
-$HelperPath = Join-Path $RepositoryRoot "scripts/reference_data/build_provider_reference_data.py"
+$HelperPath = Join-Path $RepositoryRoot "scripts/reference_data/build_principal_reference_data.py"
 
 # Lock proof is deliberately first. It runs before Python discovery, source
 # hashing/parsing, staging, and every output write.
@@ -67,7 +67,7 @@ catch {
 }
 
 if (-not (Test-Path -LiteralPath $HelperPath -PathType Leaf)) {
-    Stop-Authoring -Category "missing-input" -Message "The provider-domain authoring helper is missing." -ExitCode 20
+    Stop-Authoring -Category "missing-input" -Message "The principal-domain authoring helper is missing." -ExitCode 20
 }
 
 try {

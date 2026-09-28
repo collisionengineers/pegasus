@@ -16,16 +16,16 @@ from xml.sax.saxutils import escape
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-GENERATOR_PATH = REPOSITORY_ROOT / "scripts/reference_data/build_provider_reference_data.py"
-WRAPPER_PATH = REPOSITORY_ROOT / "scripts/Build-ProviderReferenceData.ps1"
-SPEC = importlib.util.spec_from_file_location("provider_reference_generator", GENERATOR_PATH)
+GENERATOR_PATH = REPOSITORY_ROOT / "scripts/reference_data/build_principal_reference_data.py"
+WRAPPER_PATH = REPOSITORY_ROOT / "scripts/Build-PrincipalReferenceData.ps1"
+SPEC = importlib.util.spec_from_file_location("principal_reference_generator", GENERATOR_PATH)
 if SPEC is None or SPEC.loader is None:
-    raise RuntimeError("Provider-domain generator module could not be loaded.")
+    raise RuntimeError("Principal-domain generator module could not be loaded.")
 GENERATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GENERATOR)
 
 
-class ProviderReferenceGeneratorTests(unittest.TestCase):
+class PrincipalReferenceGeneratorTests(unittest.TestCase):
     def test_bootstrap_moved_source_verifies_published_v1_without_republication(self) -> None:
         source_path = REPOSITORY_ROOT / GENERATOR.BOOTSTRAP_SOURCE
         package_path = REPOSITORY_ROOT / GENERATOR.BOOTSTRAP_OUTPUT
@@ -166,7 +166,7 @@ class ProviderReferenceGeneratorTests(unittest.TestCase):
             self.assertEqual(source_before_collision, source_v2.read_bytes())
             self.assertEqual(version_two_bytes, output_path.read_bytes())
 
-    def test_opaque_columns_do_not_change_provider_domain_associations(self) -> None:
+    def test_opaque_columns_do_not_change_principal_domain_associations(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             first = root / "first.xlsx"
@@ -185,8 +185,8 @@ class ProviderReferenceGeneratorTests(unittest.TestCase):
                 second_package["source"]["contentSha256"],
             )
             self.assertEqual(
-                GENERATOR.provider_pairs(first_package),
-                GENERATOR.provider_pairs(second_package),
+                GENERATOR.principal_pairs(first_package),
+                GENERATOR.principal_pairs(second_package),
             )
 
     def test_growth_contract_rejects_same_version_and_changed_historical_mapping(self) -> None:

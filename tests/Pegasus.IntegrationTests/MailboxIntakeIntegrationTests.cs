@@ -553,7 +553,7 @@ public sealed class MailboxIntakeIntegrationTests
 
         var decision = new MailRouteEvaluationResult(
             MailRouteDisposition.Accepted,
-            new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+            new("QDOS", MailRouteKind.DirectPrincipal, "QDOS"),
             [
                 new("direct.sender-exactly-one", true, "One transport sender was proved."),
                 new("forward.staff-transport", true, "The outer sender is retained staff transport."),
@@ -601,8 +601,8 @@ public sealed class MailboxIntakeIntegrationTests
             var audit = Assert.IsType<MailRouteEvaluationResult>(reloaded?.MailRouteDecision);
             Assert.Equal(MailRouteDisposition.Accepted, audit.Disposition);
             Assert.Equal("QDOS", audit.SelectedRoute?.RouteOwnerCode);
-            Assert.Equal(MailRouteKind.DirectProvider, audit.SelectedRoute?.Kind);
-            Assert.Equal("QDOS", audit.SelectedRoute?.WorkProviderCode);
+            Assert.Equal(MailRouteKind.DirectPrincipal, audit.SelectedRoute?.Kind);
+            Assert.Equal("QDOS", audit.SelectedRoute?.PrincipalCode);
             Assert.Equal("qdos_mail_route", audit.PolicyKey);
             Assert.Equal(2, audit.PolicyVersion);
             Assert.Equal(4, audit.Predicates.Count);

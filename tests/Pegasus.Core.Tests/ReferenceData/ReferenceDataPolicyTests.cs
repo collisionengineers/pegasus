@@ -6,10 +6,10 @@ using Pegasus.Core.ReferenceData;
 
 namespace Pegasus.Core.Tests.ReferenceData;
 
-public sealed class ProviderDomainPolicyTests
+public sealed class PrincipalDomainPolicyTests
 {
     [Fact]
-    public void ProviderDomainValidationAcceptsExactBoundPackageBytes()
+    public void PrincipalDomainValidationAcceptsExactBoundPackageBytes()
     {
         var package = ValidPackage();
         var bytes = JsonSerializer.SerializeToUtf8Bytes(package);
@@ -20,7 +20,7 @@ public sealed class ProviderDomainPolicyTests
     }
 
     [Fact]
-    public void ProviderDomainValidationRejectsChangedBytesAndVersion()
+    public void PrincipalDomainValidationRejectsChangedBytesAndVersion()
     {
         var package = ValidPackage();
         var originalBytes = JsonSerializer.SerializeToUtf8Bytes(package);
@@ -28,12 +28,12 @@ public sealed class ProviderDomainPolicyTests
 
         var result = ReferenceDataPolicy.Validate(Requested(package, originalBytes), changedBytes);
 
-        Assert.Contains(result.Issues, issue => issue.Code == ProviderDomainValidationIssueCode.PackageHashMismatch);
-        Assert.Contains(result.Issues, issue => issue.Code == ProviderDomainValidationIssueCode.VersionMismatch);
+        Assert.Contains(result.Issues, issue => issue.Code == PrincipalDomainValidationIssueCode.PackageHashMismatch);
+        Assert.Contains(result.Issues, issue => issue.Code == PrincipalDomainValidationIssueCode.VersionMismatch);
     }
 
     [Fact]
-    public void ProviderDomainValidationRejectsUnknownAndDuplicateJsonMembers()
+    public void PrincipalDomainValidationRejectsUnknownAndDuplicateJsonMembers()
     {
         var package = ValidPackage();
         var node = JsonSerializer.SerializeToNode(package)!.AsObject();
@@ -46,18 +46,18 @@ public sealed class ProviderDomainPolicyTests
         var unknown = ReferenceDataPolicy.Validate(Requested(package, unknownBytes), unknownBytes);
         var duplicate = ReferenceDataPolicy.Validate(Requested(package, duplicateBytes), duplicateBytes);
 
-        Assert.Contains(unknown.Issues, issue => issue.Code == ProviderDomainValidationIssueCode.InvalidJson);
-        Assert.Contains(duplicate.Issues, issue => issue.Code == ProviderDomainValidationIssueCode.InvalidJson);
+        Assert.Contains(unknown.Issues, issue => issue.Code == PrincipalDomainValidationIssueCode.InvalidJson);
+        Assert.Contains(duplicate.Issues, issue => issue.Code == PrincipalDomainValidationIssueCode.InvalidJson);
     }
 
     [Theory]
     [InlineData("{\"schemaVersion\":1,\"version\":\"provider-domains-v1\",\"source\":null,\"providers\":[]}")]
     [InlineData("{\"schemaVersion\":1,\"version\":\"provider-domains-v1\",\"source\":{\"path\":\"reference/source.xlsx\",\"contentSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sheet\":\"Sheet1\",\"rowCount\":1},\"providers\":null}")]
     [InlineData("{\"schemaVersion\":1,\"version\":\"provider-domains-v1\",\"source\":{\"path\":\"reference/source.xlsx\",\"contentSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sheet\":\"Sheet1\",\"rowCount\":1}}")]
-    public void ProviderDomainValidationRejectsNullOrMissingRequiredValues(string json)
+    public void PrincipalDomainValidationRejectsNullOrMissingRequiredValues(string json)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(JsonNode.Parse(json));
-        var requested = new ProviderDomainPackageVersion(1, "provider-domains-v1", Hash(bytes));
+        var requested = new PrincipalDomainPackageVersion(1, "provider-domains-v1", Hash(bytes));
 
         var result = ReferenceDataPolicy.Validate(requested, bytes);
 
@@ -72,7 +72,7 @@ public sealed class ProviderDomainPolicyTests
     [InlineData("QDOS-")]
     [InlineData("QDOS--LAW")]
     [InlineData("QDOS-LONGER-THAN-TWENTY")]
-    public void ProviderDomainValidationRejectsInvalidProviderCodes(string code)
+    public void PrincipalDomainValidationRejectsInvalidPrincipalCodes(string code)
     {
         var package = ValidPackage() with
         {
@@ -81,7 +81,7 @@ public sealed class ProviderDomainPolicyTests
 
         var result = Validate(package);
 
-        Assert.Contains(result.Issues, issue => issue.Code == ProviderDomainValidationIssueCode.InvalidProviderCode);
+        Assert.Contains(result.Issues, issue => issue.Code == PrincipalDomainValidationIssueCode.InvalidPrincipalCode);
     }
 
     [Theory]
@@ -96,13 +96,13 @@ public sealed class ProviderDomainPolicyTests
     [InlineData("@invalid..example")]
     [InlineData("@invalid_example.test")]
     [InlineData("@invalid.example ")]
-    public void ProviderDomainSuffixGrammarRejectsNoncanonicalValues(string? suffix)
+    public void PrincipalDomainSuffixGrammarRejectsNoncanonicalValues(string? suffix)
     {
         Assert.False(ReferenceDataPolicy.IsCanonicalDomainSuffix(suffix));
     }
 
     [Fact]
-    public void ProviderDomainValidationRejectsDuplicateCodesRowsAndPerProviderSuffixes()
+    public void PrincipalDomainValidationRejectsDuplicateCodesRowsAndPerPrincipalSuffixes()
     {
         var provider = ValidPackage().Providers[0];
         var package = ValidPackage() with
@@ -116,41 +116,41 @@ public sealed class ProviderDomainPolicyTests
 
         var result = Validate(package);
 
-        Assert.Contains(result.Issues, issue => issue.Code == ProviderDomainValidationIssueCode.DuplicateDomainSuffix);
-        Assert.Contains(result.Issues, issue => issue.Code == ProviderDomainValidationIssueCode.DuplicateProviderCode);
-        Assert.Contains(result.Issues, issue => issue.Code == ProviderDomainValidationIssueCode.DuplicateSourceRow);
+        Assert.Contains(result.Issues, issue => issue.Code == PrincipalDomainValidationIssueCode.DuplicateDomainSuffix);
+        Assert.Contains(result.Issues, issue => issue.Code == PrincipalDomainValidationIssueCode.DuplicatePrincipalCode);
+        Assert.Contains(result.Issues, issue => issue.Code == PrincipalDomainValidationIssueCode.DuplicateSourceRow);
     }
 
     [Fact]
-    public void ProviderDomainCandidateCreationReturnsSortedSharedEvidenceWithoutChoosingWinner()
+    public void PrincipalDomainCandidateCreationReturnsSortedSharedEvidenceWithoutChoosingWinner()
     {
         var result = ReferenceDataPolicy.CreateCandidates(
             "@shared.example",
             ["ZETA", "ALPHA", "ZETA"]);
 
-        Assert.Equal(ProviderDomainCandidateStatus.Ambiguous, result.Status);
+        Assert.Equal(PrincipalDomainCandidateStatus.Ambiguous, result.Status);
         Assert.Collection(
-            result.ProviderCodes,
+            result.PrincipalCodes,
             code => Assert.Equal("ALPHA", code),
             code => Assert.Equal("ZETA", code));
     }
 
     [Fact]
-    public void ProviderDomainCandidateCreationIsExactAndCaseSensitive()
+    public void PrincipalDomainCandidateCreationIsExactAndCaseSensitive()
     {
         var invalid = ReferenceDataPolicy.CreateCandidates("@QDOSASSIST.CO.UK", ["QDOS"]);
         var unknown = ReferenceDataPolicy.CreateCandidates("@unknown.invalid", []);
         var found = ReferenceDataPolicy.CreateCandidates("@qdosassist.co.uk", ["QDOS"]);
 
-        Assert.Equal(ProviderDomainCandidateStatus.InvalidSuffix, invalid.Status);
-        Assert.Empty(invalid.ProviderCodes);
-        Assert.Equal(ProviderDomainCandidateStatus.Unknown, unknown.Status);
-        Assert.Equal(ProviderDomainCandidateStatus.Found, found.Status);
-        Assert.Collection(found.ProviderCodes, code => Assert.Equal("QDOS", code));
+        Assert.Equal(PrincipalDomainCandidateStatus.InvalidSuffix, invalid.Status);
+        Assert.Empty(invalid.PrincipalCodes);
+        Assert.Equal(PrincipalDomainCandidateStatus.Unknown, unknown.Status);
+        Assert.Equal(PrincipalDomainCandidateStatus.Found, found.Status);
+        Assert.Collection(found.PrincipalCodes, code => Assert.Equal("QDOS", code));
     }
 
     [Fact]
-    public void ProviderDomainSuffixExtractionReturnsOnlyCanonicalLowercaseSuffix()
+    public void PrincipalDomainSuffixExtractionReturnsOnlyCanonicalLowercaseSuffix()
     {
         var extracted = ReferenceDataPolicy.TryExtractDomainSuffix(
             "  synthetic-local-001@EXAMPLE.INVALID  ",
@@ -167,27 +167,27 @@ public sealed class ProviderDomainPolicyTests
     [InlineData("missing-separator")]
     [InlineData("@example.invalid")]
     [InlineData("synthetic-local-001@localhost")]
-    public void ProviderDomainSuffixExtractionRejectsInvalidInput(string? input)
+    public void PrincipalDomainSuffixExtractionRejectsInvalidInput(string? input)
     {
         Assert.False(ReferenceDataPolicy.TryExtractDomainSuffix(input, out var suffix));
         Assert.Null(suffix);
     }
 
     [Fact]
-    public void ProviderDomainPackageVersionRequiresSupportedCanonicalTuple()
+    public void PrincipalDomainPackageVersionRequiresSupportedCanonicalTuple()
     {
         Assert.True(ReferenceDataPolicy.IsValidPackageVersion(
-            new ProviderDomainPackageVersion(1, "provider-domains-v1", new string('a', 64))));
+            new PrincipalDomainPackageVersion(1, "provider-domains-v1", new string('a', 64))));
         Assert.False(ReferenceDataPolicy.IsValidPackageVersion(
-            new ProviderDomainPackageVersion(2, "provider-domains-v1", new string('a', 64))));
+            new PrincipalDomainPackageVersion(2, "provider-domains-v1", new string('a', 64))));
         Assert.False(ReferenceDataPolicy.IsValidPackageVersion(
-            new ProviderDomainPackageVersion(1, "Provider-Domains-V1", new string('a', 64))));
+            new PrincipalDomainPackageVersion(1, "Provider-Domains-V1", new string('a', 64))));
         Assert.False(ReferenceDataPolicy.IsValidPackageVersion(
-            new ProviderDomainPackageVersion(1, "provider-domains-v1", new string('A', 64))));
+            new PrincipalDomainPackageVersion(1, "provider-domains-v1", new string('A', 64))));
     }
 
     [Fact]
-    public void ProviderDomainValidationRejectsInvalidSourceIdentityAndRows()
+    public void PrincipalDomainValidationRejectsInvalidSourceIdentityAndRows()
     {
         var package = ValidPackage() with
         {
@@ -202,29 +202,29 @@ public sealed class ProviderDomainPolicyTests
 
         var result = Validate(package);
 
-        Assert.Equal(4, result.Issues.Count(issue => issue.Code == ProviderDomainValidationIssueCode.InvalidSource));
-        Assert.Contains(result.Issues, issue => issue.Code == ProviderDomainValidationIssueCode.InvalidSourceRow);
+        Assert.Equal(4, result.Issues.Count(issue => issue.Code == PrincipalDomainValidationIssueCode.InvalidSource));
+        Assert.Contains(result.Issues, issue => issue.Code == PrincipalDomainValidationIssueCode.InvalidSourceRow);
     }
 
-    private static ProviderDomainValidationResult Validate(ProviderDomainPackage package)
+    private static PrincipalDomainValidationResult Validate(PrincipalDomainPackage package)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(package);
         return ReferenceDataPolicy.Validate(Requested(package, bytes), bytes);
     }
 
-    private static ProviderDomainPackageVersion Requested(ProviderDomainPackage package, byte[] bytes) =>
+    private static PrincipalDomainPackageVersion Requested(PrincipalDomainPackage package, byte[] bytes) =>
         new(package.SchemaVersion, package.Version, Hash(bytes));
 
-    private static ProviderDomainPackage ValidPackage() =>
+    private static PrincipalDomainPackage ValidPackage() =>
         new(
             ReferenceDataPolicy.SupportedSchemaVersion,
             "provider-domains-v1",
-            new ProviderDomainSource(
+            new PrincipalDomainSource(
                 "reference/workproviders-and-repairers/initial.xlsx",
                 new string('a', 64),
                 "Sheet1",
                 1),
-            [new ProviderDomainReference("QDOS", 1, ["@qdosassist.co.uk"])]);
+            [new PrincipalDomainReference("QDOS", 1, ["@qdosassist.co.uk"])]);
 
     private static string Hash(ReadOnlySpan<byte> bytes) =>
         Convert.ToHexStringLower(SHA256.HashData(bytes));

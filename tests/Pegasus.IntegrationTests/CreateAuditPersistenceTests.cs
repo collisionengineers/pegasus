@@ -129,7 +129,7 @@ public sealed class CreateAuditPersistenceTests
     [InlineData(CaseLifecycleState.Held)]
     [InlineData(CaseLifecycleState.ReportPreparation)]
     [InlineData(CaseLifecycleState.NotReady)]
-    [InlineData(CaseLifecycleState.ProviderCancelled)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
     public async Task CreateAuditIsRefusedUntilTheReportIsSentAndLeavesTheCaseUntouched(CaseLifecycleState state)
     {
         await using var harness = await Harness.CreateAsync();

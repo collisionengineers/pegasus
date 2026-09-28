@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
-public sealed class ProviderInspectionModeMigrationTests
+public sealed class PrincipalInspectionModeMigrationTests
 {
     private const string PreviousMigration = "20260801220500_GrantWebMigrationHistoryRead";
     private const string SettingMigration = "20260803014608_ProviderInspectionModeSetting";

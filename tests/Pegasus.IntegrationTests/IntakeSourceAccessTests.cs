@@ -78,7 +78,7 @@ public sealed class IntakeSourceAccessTests
         ActionActor[] forbidden =
         [
             ActionActor.SystemWorker("intake-processing"),
-            ActionActor.Provider(Guid.NewGuid())
+            ActionActor.Principal(Guid.NewGuid())
         ];
 
         foreach (var actor in forbidden)

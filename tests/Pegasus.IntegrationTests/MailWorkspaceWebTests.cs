@@ -2781,7 +2781,7 @@ public sealed class MailWorkspaceWebTests
                 Assets: [],
                 MailRouteDecision: new(
                     MailRouteDisposition.Accepted,
-                    new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+                    new("QDOS", MailRouteKind.DirectPrincipal, "QDOS"),
                     [],
                     "Fixture accepted route.",
                     "qdos_mail_route",

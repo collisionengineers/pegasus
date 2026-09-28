@@ -350,7 +350,7 @@ public sealed class ValuationCalculationTests
         Assert.Equal(2976m, result.Calculation.Proposal);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             preview.ExecuteAsync(
-                new(CaseId, ActionActor.Provider(Guid.NewGuid()), Selection()),
+                new(CaseId, ActionActor.Principal(Guid.NewGuid()), Selection()),
                 CancellationToken.None));
     }
 
@@ -524,7 +524,7 @@ public sealed class ValuationCalculationTests
         Assert.Equal("Tow bar", Assert.Single(store.Saves).Label);
         Assert.Equal([saved], await list.ExecuteAsync(Engineer, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            list.ExecuteAsync(ActionActor.Provider(Guid.NewGuid()), CancellationToken.None));
+            list.ExecuteAsync(ActionActor.Principal(Guid.NewGuid()), CancellationToken.None));
     }
 
     /// <summary>

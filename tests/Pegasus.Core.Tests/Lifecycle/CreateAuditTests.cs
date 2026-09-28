@@ -29,7 +29,7 @@ public sealed class CreateAuditTests
     [InlineData(CaseLifecycleState.ReportPreparation)]
     [InlineData(CaseLifecycleState.Review)]
     [InlineData(CaseLifecycleState.NotReady)]
-    [InlineData(CaseLifecycleState.ProviderCancelled)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
     public void CreateAuditIsRefusedBeforeTheReportIsSentOrAfterAClosedDisposition(CaseLifecycleState state)

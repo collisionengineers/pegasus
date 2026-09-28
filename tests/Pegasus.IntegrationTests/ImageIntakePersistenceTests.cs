@@ -895,7 +895,7 @@ public sealed class ImageIntakePersistenceTests
     /// </summary>
     [Theory]
     [InlineData(nameof(CaseLifecycleState.PostReport))]
-    [InlineData(nameof(CaseLifecycleState.ProviderCancelled))]
+    [InlineData(nameof(CaseLifecycleState.PrincipalCancelled))]
     public async Task StaffLinkMergesVehicleImagesIntoACaseInAnyState(string workflowState)
     {
         using var factory = new IntakeWebApplicationFactory(
@@ -1553,7 +1553,7 @@ public sealed class ImageIntakePersistenceTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"image-intake-test-reader"}, {"1"}, {"image-intake-fixture"}, {1}, {reference}, {1}, {true}, {now})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseMatchIndex (CaseId, WorkProviderCode, NormalizedVrm, MatchPolicyKey, MatchPolicyVersion, UpdatedAtUtc) VALUES ({caseId}, {reference}, {draftRegistration}, {"image-intake-fixture"}, {1}, {now})");
+            $"INSERT INTO CaseMatchIndex (CaseId, PrincipalCode, NormalizedVrm, MatchPolicyKey, MatchPolicyVersion, UpdatedAtUtc) VALUES ({caseId}, {reference}, {draftRegistration}, {"image-intake-fixture"}, {1}, {now})");
         return caseId;
     }
 }

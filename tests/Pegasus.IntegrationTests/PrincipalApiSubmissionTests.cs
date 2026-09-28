@@ -10,7 +10,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Presentation;
@@ -24,15 +24,15 @@ namespace Pegasus.IntegrationTests;
 /// intake tests do, standing in for the Worker.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class ProviderApiSubmissionTests
+public sealed class PrincipalApiSubmissionTests
 {
-    private const string Submissions = "/api/provider/v1/submissions";
+    private const string Submissions = "/api/principal/v1/submissions";
     private static readonly ActionActor Administrator = ActionActor.Staff(
         Guid.Parse("0f149cac-e1d4-4a57-925f-7c35d33d7f5b"),
         [StaffRole.Administrator]);
 
-    private static WebApplicationFactory<Program> WithProviderApi(IntakeWebApplicationFactory factory) =>
-        factory.WithWebHostBuilder(builder => builder.UseSetting("Features:ProviderApi", "true"));
+    private static WebApplicationFactory<Program> WithPrincipalApi(IntakeWebApplicationFactory factory) =>
+        factory.WithWebHostBuilder(builder => builder.UseSetting("Features:PrincipalApi", "true"));
 
     [Fact]
     public async Task SurfaceIsAbsentUntilComposed()
@@ -51,14 +51,14 @@ public sealed class ProviderApiSubmissionTests
     public async Task RefusedCredentialsAre401WithASecurityEventAndNeverASignInRedirect()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using (var anonymous = await client.GetAsync($"{Submissions}/{Guid.NewGuid():D}"))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
-            Assert.Contains("pegasus-provider-api", anonymous.Headers.WwwAuthenticate.ToString());
+            Assert.Contains("pegasus-principal-api", anonymous.Headers.WwwAuthenticate.ToString());
             Assert.Equal("application/problem+json", anonymous.Content.Headers.ContentType?.MediaType);
         }
 
@@ -78,12 +78,12 @@ public sealed class ProviderApiSubmissionTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'provider_credential_missing' AND Outcome = N'Denied'
+            WHERE ReasonCode = N'principal_credential_missing' AND Outcome = N'Denied'
             """));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'provider_credential_rejected' AND Outcome = N'Denied'
+            WHERE ReasonCode = N'principal_credential_rejected' AND Outcome = N'Denied'
               AND SubjectId = N'{secret.Substring(4, 16)}'
             """));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
@@ -104,7 +104,7 @@ public sealed class ProviderApiSubmissionTests
             true,
             TimeProvider.System,
             mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
         // A forwarded instruction whose sender is not a QDOS route: only the
@@ -121,7 +121,7 @@ public sealed class ProviderApiSubmissionTests
         var submissionId = receipt.GetProperty("submissionId").GetGuid();
         Assert.Equal($"{Submissions}/{submissionId:D}", created.Headers.Location?.OriginalString);
         Assert.False(receipt.GetProperty("replayed").GetBoolean());
-        Assert.Equal("PROV-001", receipt.GetProperty("providerReference").GetString());
+        Assert.Equal("PROV-001", receipt.GetProperty("principalReference").GetString());
         var file = Assert.Single(receipt.GetProperty("files").EnumerateArray());
         Assert.Equal("instruction.eml", file.GetProperty("fileName").GetString());
         Assert.False(file.GetProperty("duplicate").GetBoolean());
@@ -174,21 +174,21 @@ public sealed class ProviderApiSubmissionTests
         var principalId = await context.Principals.Where(item => item.Code == QdosPrincipal.Code)
             .Select(item => item.Id).SingleAsync();
         var history = await context.ActionHistory.AsNoTracking()
-            .Where(item => item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType)
+            .Where(item => item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType)
             .OrderBy(item => item.OccurredAtUtc)
             .ToListAsync();
         Assert.Equal(["Accepted", "Replayed", "Refused"], history.Select(item => item.Outcome));
         Assert.All(history, item =>
         {
-            Assert.Equal(nameof(ActorKind.Provider), item.ActorKind);
+            Assert.Equal(nameof(ActorKind.Principal), item.ActorKind);
             Assert.Equal(principalId.ToString("D"), item.ActorSubjectId);
         });
         var staged = await context.IntakeStagedReceipts.AsNoTracking().SingleAsync();
-        Assert.Equal("provider_api", staged.SourceChannel);
-        Assert.Equal($"provider:{principalId:D}", staged.Actor);
+        Assert.Equal("principal_api", staged.SourceChannel);
+        Assert.Equal($"principal:{principalId:D}", staged.Actor);
         // One submission, one receipt: the request as sent, carrying its files
         // as attachments rather than scattering them across receipts.
-        Assert.Equal(ProviderInstructionPolicy.SourceFileName, staged.SourceFileName);
+        Assert.Equal(PrincipalInstructionPolicy.SourceFileName, staged.SourceFileName);
         Assert.Equal(submissionId.ToString("N"), staged.ExternalReceiptToken);
     }
 
@@ -196,7 +196,7 @@ public sealed class ProviderApiSubmissionTests
     public async Task AcceptRecoveryRepairsTheSqlCandidateAfterAnInterruptedAccept()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -214,13 +214,13 @@ public sealed class ProviderApiSubmissionTests
         {
             var oldReceivedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-2);
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE ProviderSubmissions SET StagedReceiptId = NULL, ReceivedAtUtc = {oldReceivedAtUtc} WHERE Id = {submissionId}"));
+                $"UPDATE PrincipalSubmissions SET StagedReceiptId = NULL, ReceivedAtUtc = {oldReceivedAtUtc} WHERE Id = {submissionId}"));
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
-                $"DELETE FROM ActionHistory WHERE AggregateType = {ProviderSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
+                $"DELETE FROM ActionHistory WHERE AggregateType = {PrincipalSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
         }
 
         var result = await scope.ServiceProvider
-            .GetRequiredService<ReconcileProviderSubmissions>()
+            .GetRequiredService<ReconcilePrincipalSubmissions>()
             .ExecuteAsync(50, CancellationToken.None);
 
         Assert.Equal(1, result.Candidates);
@@ -228,18 +228,18 @@ public sealed class ProviderApiSubmissionTests
         Assert.Equal(0, result.Failures);
 
         await using var verification = await contextFactory.CreateDbContextAsync();
-        var submission = await verification.ProviderSubmissions
+        var submission = await verification.PrincipalSubmissions
             .AsNoTracking()
             .SingleAsync(item => item.Id == submissionId);
         Assert.NotNull(submission.StagedReceiptId);
         var history = await verification.ActionHistory
             .AsNoTracking()
-            .Where(item => item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+            .Where(item => item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
                 && item.AggregateId == submissionId.ToString("D"))
             .ToListAsync();
         var accepted = Assert.Single(history);
         Assert.Equal("Accepted", accepted.Outcome);
-        Assert.Equal(ProviderSubmissionPolicy.OperationKey(submissionId), accepted.CorrelationId);
+        Assert.Equal(PrincipalSubmissionPolicy.OperationKey(submissionId), accepted.CorrelationId);
     }
 
     /// <summary>
@@ -253,7 +253,7 @@ public sealed class ProviderApiSubmissionTests
     public async Task AcceptRecoveryIsNotStarvedByOlderBareReservations()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -271,25 +271,25 @@ public sealed class ProviderApiSubmissionTests
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE ProviderSubmissions SET StagedReceiptId = NULL, ReceivedAtUtc = {interruptedAtUtc} WHERE Id = {submissionId}"));
+                $"UPDATE PrincipalSubmissions SET StagedReceiptId = NULL, ReceivedAtUtc = {interruptedAtUtc} WHERE Id = {submissionId}"));
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
-                $"DELETE FROM ActionHistory WHERE AggregateType = {ProviderSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
+                $"DELETE FROM ActionHistory WHERE AggregateType = {PrincipalSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
 
             // A day older than the interrupted accept, so oldest-first
             // ordering puts every one of them ahead of it.
-            var template = await context.ProviderSubmissions
+            var template = await context.PrincipalSubmissions
                 .AsNoTracking()
                 .SingleAsync(item => item.Id == submissionId);
             for (var index = 0; index < 60; index++)
             {
-                context.ProviderSubmissions.Add(new ProviderSubmissionEntity
+                context.PrincipalSubmissions.Add(new PrincipalSubmissionEntity
                 {
                     Id = Guid.NewGuid(),
                     PrincipalId = template.PrincipalId,
                     KeyId = template.KeyId,
                     IdempotencyKey = $"bare-reservation-{index}",
                     BodySha256 = template.BodySha256,
-                    ProviderReference = template.ProviderReference,
+                    PrincipalReference = template.PrincipalReference,
                     ReceivedAtUtc = interruptedAtUtc.AddDays(-1),
                     DeclaredInstructionJson = template.DeclaredInstructionJson
                 });
@@ -299,20 +299,20 @@ public sealed class ProviderApiSubmissionTests
         }
 
         var result = await scope.ServiceProvider
-            .GetRequiredService<ReconcileProviderSubmissions>()
+            .GetRequiredService<ReconcilePrincipalSubmissions>()
             .ExecuteAsync(50, CancellationToken.None);
 
         Assert.Equal(1, result.Candidates);
         Assert.Equal(1, result.Repaired);
         Assert.Equal(0, result.Failures);
         await using var verification = await contextFactory.CreateDbContextAsync();
-        var submission = await verification.ProviderSubmissions
+        var submission = await verification.PrincipalSubmissions
             .AsNoTracking()
             .SingleAsync(item => item.Id == submissionId);
         Assert.NotNull(submission.StagedReceiptId);
         var accepted = await verification.ActionHistory
             .AsNoTracking()
-            .SingleAsync(item => item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+            .SingleAsync(item => item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
                 && item.AggregateId == submissionId.ToString("D"));
         Assert.Equal("Accepted", accepted.Outcome);
     }
@@ -326,7 +326,7 @@ public sealed class ProviderApiSubmissionTests
     public async Task ASecondAcceptedRowForOneSubmissionIsRefused()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -344,14 +344,14 @@ public sealed class ProviderApiSubmissionTests
         // arriving after the request appended its own row.
         var written = await scope.ServiceProvider.GetRequiredService<IActionHistoryWriter>().TryAppendAsync(
             new(
-                ProviderSubmissionPolicy.AcceptedHistoryId(submissionId),
-                ProviderSubmissionPolicy.ActionHistoryAggregateType,
+                PrincipalSubmissionPolicy.AcceptedHistoryId(submissionId),
+                PrincipalSubmissionPolicy.ActionHistoryAggregateType,
                 submissionId.ToString("D"),
                 "Submitted",
-                ActionActor.Provider(principalId),
+                ActionActor.Principal(principalId),
                 DateTimeOffset.UtcNow,
                 "Accepted",
-                ProviderSubmissionPolicy.OperationKey(submissionId)),
+                PrincipalSubmissionPolicy.OperationKey(submissionId)),
             CancellationToken.None);
 
         Assert.False(written);
@@ -359,19 +359,19 @@ public sealed class ProviderApiSubmissionTests
         await using var context = await contextFactory.CreateDbContextAsync();
         var accepted = await context.ActionHistory
             .AsNoTracking()
-            .SingleAsync(item => item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+            .SingleAsync(item => item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
                 && item.AggregateId == submissionId.ToString("D")
                 && item.Outcome == "Accepted");
         // The row that stands is the request's own, with the request's
         // correlation id rather than the recovery operation key.
-        Assert.NotEqual(ProviderSubmissionPolicy.OperationKey(submissionId), accepted.CorrelationId);
+        Assert.NotEqual(PrincipalSubmissionPolicy.OperationKey(submissionId), accepted.CorrelationId);
     }
 
     [Fact]
     public async Task PausedCredentialIsRefusedForSubmissionAndStillReadsItsOwnResult()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
         using var created = await SubmitAsync(client, secret, "order-2", [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
@@ -392,16 +392,16 @@ public sealed class ProviderApiSubmissionTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'provider_credential_paused' AND Outcome = N'Denied'
+            WHERE ReasonCode = N'principal_credential_paused' AND Outcome = N'Denied'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderSubmissions"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
     }
 
     [Fact]
     public async Task PausedCredentialIsRefusedBeforeTheBodyIsParsed()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -427,13 +427,13 @@ public sealed class ProviderApiSubmissionTests
     public async Task EnvelopeOverTheProviderFileBoundIs413AndAnotherPrincipalNeverSeesTheSubmission()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using (var oversize = await SubmitAsync(
                    client, secret, "order-4",
-                   [("big.pdf", "application/pdf", new byte[IntakeEnvelopeLimits.MaximumProviderApiFileLength + 1])]))
+                   [("big.pdf", "application/pdf", new byte[IntakeEnvelopeLimits.MaximumPrincipalApiFileLength + 1])]))
         {
             Assert.Equal(HttpStatusCode.RequestEntityTooLarge, oversize.StatusCode);
         }
@@ -443,7 +443,7 @@ public sealed class ProviderApiSubmissionTests
         {
             Assert.Equal(HttpStatusCode.BadRequest, missingKey.StatusCode);
         }
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderSubmissions"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
 
         using var created = await SubmitAsync(client, secret, "order-5", [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
@@ -458,7 +458,7 @@ public sealed class ProviderApiSubmissionTests
     public async Task UnsupportedAndSpoofedAttachmentsAreRefusedBeforeReservation()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -469,7 +469,7 @@ public sealed class ProviderApiSubmissionTests
         using var spoofed = await SubmitAsync(client, secret, "spoofed-file",
             [("photo.jpg", "image/jpeg", "not a JPEG"u8.ToArray())]);
         Assert.Equal(HttpStatusCode.BadRequest, spoofed.StatusCode);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderSubmissions"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
 
         using var supported = await SubmitAsync(client, secret, "supported-file",
             [("photo.jpg", "image/jpeg", new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 })]);
@@ -480,7 +480,7 @@ public sealed class ProviderApiSubmissionTests
     public async Task ADeclaredAuditTakesItsReferencePrefixFromTheDeclaredVerdict()
     {
         using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -517,7 +517,7 @@ public sealed class ProviderApiSubmissionTests
         string referencePrefix)
     {
         using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -565,7 +565,7 @@ public sealed class ProviderApiSubmissionTests
     public async Task ADeclaredTriageOpensATriageCaseAndReturnsItsTriageReference()
     {
         using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -596,7 +596,7 @@ public sealed class ProviderApiSubmissionTests
     public async Task ABodyNamingAnotherPrincipalIs403AndAMalformedFieldIs400()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -617,19 +617,19 @@ public sealed class ProviderApiSubmissionTests
         }
 
         // Nothing was retained by either refusal.
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderSubmissions"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'provider_principal_mismatch' AND Outcome = N'Denied'
+            WHERE ReasonCode = N'principal_mismatch' AND Outcome = N'Denied'
             """));
     }
 
     [Fact]
-    public async Task AProviderCreatedCaseReadsItsDataSnapshotBack()
+    public async Task APrincipalCreatedCaseReadsItsDataSnapshotBack()
     {
         // The snapshot records the origin channel exactly as the receipt wrote
-        // it — "provider_api". Reading it back is the path the EVA send page
+        // it — "principal_api". Reading it back is the path the EVA send page
         // and the assessment tools take through ICaseDataQueries, so a reader
         // that does not know the channel fails the case after allocation
         // rather than at submission, where nothing would have been retained.
@@ -638,7 +638,7 @@ public sealed class ProviderApiSubmissionTests
             true,
             TimeProvider.System,
             mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
         var email = IntakeTestEvidence.CreateEmail(
@@ -676,27 +676,27 @@ public sealed class ProviderApiSubmissionTests
             .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
 
         Assert.NotNull(projection);
-        Assert.NotNull(projection.Provider.WorkProviderCode.Current);
-        var workProviderCode = projection.Provider.WorkProviderCode.Current!;
-        Assert.Equal(QdosPrincipal.Code, workProviderCode.Value);
-        Assert.Equal(CaseDataSourceKind.ProviderApi, workProviderCode.Source.Kind);
-        Assert.Equal(ProviderInstructionPolicy.PolicyKey, workProviderCode.Source.PolicyKey);
-        Assert.Equal(ProviderInstructionPolicy.PolicyVersion, workProviderCode.Source.PolicyVersion);
+        Assert.NotNull(projection.Principal.PrincipalCode.Current);
+        var principalCode = projection.Principal.PrincipalCode.Current!;
+        Assert.Equal(QdosPrincipal.Code, principalCode.Value);
+        Assert.Equal(CaseDataSourceKind.PrincipalApi, principalCode.Source.Kind);
+        Assert.Equal(PrincipalInstructionPolicy.PolicyKey, principalCode.Source.PolicyKey);
+        Assert.Equal(PrincipalInstructionPolicy.PolicyVersion, principalCode.Source.PolicyVersion);
         var originChannel = Assert.IsType<IntakeSourceChannel>(projection.Origin.Channel);
-        Assert.Equal(IntakeSourceChannel.ProviderApi, originChannel);
-        Assert.Equal(ProviderInstructionPolicy.ReaderKey, projection.Origin.SourceReaderKey);
-        Assert.Equal(ProviderInstructionPolicy.ReaderVersion, projection.Origin.SourceReaderVersion);
+        Assert.Equal(IntakeSourceChannel.PrincipalApi, originChannel);
+        Assert.Equal(PrincipalInstructionPolicy.ReaderKey, projection.Origin.SourceReaderKey);
+        Assert.Equal(PrincipalInstructionPolicy.ReaderVersion, projection.Origin.SourceReaderVersion);
         Assert.Equal(
-            OperatorLabels.ProviderSubmissionApi.Source,
+            OperatorLabels.PrincipalSubmissionApi.Source,
             OperatorLabels.SourceChannel(originChannel));
         Assert.Equal(
-            OperatorLabels.ProviderSubmissionApi.Source,
-            OperatorLabels.SourceChannel("provider_api"));
+            OperatorLabels.PrincipalSubmissionApi.Source,
+            OperatorLabels.SourceChannel("principal_api"));
         Assert.NotNull(projection.Claimant.Name.Current);
         var claimantName = projection.Claimant.Name.Current!;
-        Assert.Equal(CaseDataSourceKind.ProviderApi, claimantName.Source.Kind);
+        Assert.Equal(CaseDataSourceKind.PrincipalApi, claimantName.Source.Kind);
         Assert.Equal(
-            new OperatorLabels.SourceTagWord(OperatorLabels.ProviderSubmissionApi.Source, string.Empty),
+            new OperatorLabels.SourceTagWord(OperatorLabels.PrincipalSubmissionApi.Source, string.Empty),
             OperatorLabels.SourceTag(claimantName.Source));
     }
 
@@ -711,14 +711,14 @@ public sealed class ProviderApiSubmissionTests
     /// H13: API-01 is create-only. A second declared instruction naming the
     /// same claim as an existing Case is durably received (201, its own
     /// submission id, its staged receipt retained), then terminates in
-    /// processing under provider_existing_case_match with no evaluation, no
+    /// processing under principal_existing_case_match with no evaluation, no
     /// second Case, no PO and no new Case association.
     /// </summary>
     [Fact]
     public async Task ASubmissionMatchingAnExistingCaseIsRejectedWithoutMutationOrDuplicateAllocation()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -764,11 +764,11 @@ public sealed class ProviderApiSubmissionTests
             // so no review fields, no draft and no allocation attempt.
             var (status, evaluation) = await DrainStagedToTerminalAsync(services, staged.Id);
             Assert.Equal(QueuedIntakeStatusKind.Failed, status.Status);
-            Assert.Equal(ProviderExistingCaseMatchException.FailureCode, status.FailureCode);
+            Assert.Equal(PrincipalExistingCaseMatchException.FailureCode, status.FailureCode);
             Assert.Null(evaluation);
         }
 
-        // Statement 5: the provider-visible result names the code.
+        // Statement 5: the Principal-visible result names the code.
         using (var refused = await SendAsync(
             client,
             HttpMethod.Get,
@@ -779,7 +779,7 @@ public sealed class ProviderApiSubmissionTests
             var result = await ReadJsonAsync(refused);
             Assert.Equal("Failed", result.GetProperty("status").GetString());
             Assert.Equal(
-                ProviderExistingCaseMatchException.FailureCode,
+                PrincipalExistingCaseMatchException.FailureCode,
                 result.GetProperty("failureCode").GetString());
             Assert.Equal(JsonValueKind.Null, result.GetProperty("caseReference").ValueKind);
         }
@@ -813,7 +813,7 @@ public sealed class ProviderApiSubmissionTests
     public async Task AnAmbiguousExistingCaseMatchIsRejectedOnTheSamePath()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -853,7 +853,7 @@ public sealed class ProviderApiSubmissionTests
             context.Set<CaseMatchIndexEntity>().Add(new CaseMatchIndexEntity
             {
                 CaseId = duplicateId,
-                WorkProviderCode = indexed.WorkProviderCode,
+                PrincipalCode = indexed.PrincipalCode,
                 DurableClaimToken = indexed.DurableClaimToken,
                 NormalizedVrm = indexed.NormalizedVrm,
                 NormalizedSurname = indexed.NormalizedSurname,
@@ -883,7 +883,7 @@ public sealed class ProviderApiSubmissionTests
             var staged = await StagedReceiptAsync(services, ambiguousId);
             var (status, evaluation) = await DrainStagedToTerminalAsync(services, staged.Id);
             Assert.Equal(QueuedIntakeStatusKind.Failed, status.Status);
-            Assert.Equal(ProviderExistingCaseMatchException.FailureCode, status.FailureCode);
+            Assert.Equal(PrincipalExistingCaseMatchException.FailureCode, status.FailureCode);
             Assert.Null(evaluation);
         }
 
@@ -910,7 +910,7 @@ public sealed class ProviderApiSubmissionTests
     public async Task ASubmissionContradictingTheExistingCaseCreatesItsOwnCase()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var api = WithProviderApi(factory);
+        using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
@@ -1052,7 +1052,7 @@ public sealed class ProviderApiSubmissionTests
             new SaveContactRequest(
                 Administrator, Guid.NewGuid(), 0, "Other Provider", null, null, null, null, null, true,
                 [ContactRole.Principal], "OTHER", CaseInspectionMode.PhysicalAddress, [],
-                "provider-api:principal:other"),
+                "principal-api:principal:other"),
             default);
         Guid principalId;
         await using (var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
@@ -1068,7 +1068,7 @@ public sealed class ProviderApiSubmissionTests
                 services,
                 principalId,
                 0,
-                "provider-api:issue:other",
+                "principal-api:issue:other",
                 "provider api test"),
             default);
         return issued.Secret ?? throw new InvalidOperationException("The issued secret was not returned.");
@@ -1113,7 +1113,7 @@ public sealed class ProviderApiSubmissionTests
         IServiceProvider services,
         Guid submissionId) =>
         await services.GetRequiredService<IIntakeWorkStore>().FindBySourceIdentityAsync(
-            new(IntakeSourceChannel.ProviderApi, ProviderSubmissionPolicy.SubmissionToken(submissionId)),
+            new(IntakeSourceChannel.PrincipalApi, PrincipalSubmissionPolicy.SubmissionToken(submissionId)),
             CancellationToken.None)
             ?? throw new InvalidOperationException("The submission was not retained as a staged receipt.");
 

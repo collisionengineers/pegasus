@@ -59,7 +59,7 @@ public sealed partial class QdosTriageIntegrationTests
         await context.Cases.Where(item => item.Id == competitorId)
             .ExecuteUpdateAsync(update => update.SetProperty(item => item.PrincipalId, otherPrincipal.Id));
         await context.CaseMatchIndex.Where(item => item.CaseId == competitorId)
-            .ExecuteUpdateAsync(update => update.SetProperty(item => item.WorkProviderCode, otherPrincipal.Code));
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.PrincipalCode, otherPrincipal.Code));
         await context.CaseWorkflows.Where(item => item.CaseId == caseId).ExecuteUpdateAsync(update =>
             update.SetProperty(item => item.State, nameof(CaseLifecycleState.CreatedInError))
                 .SetProperty(item => item.ReplacementCaseId, competitorId));
@@ -143,7 +143,7 @@ public sealed partial class QdosTriageIntegrationTests
         context.CaseWorkflows.Add(new() { CaseId = caseId, State = nameof(CaseLifecycleState.Review) });
         context.CaseMatchIndex.Add(new()
         {
-            CaseId = caseId, WorkProviderCode = principal.Code, DurableClaimToken = keys.DurableClaimToken,
+            CaseId = caseId, PrincipalCode = principal.Code, DurableClaimToken = keys.DurableClaimToken,
             NormalizedVrm = keys.NormalizedVrm, NormalizedSurname = keys.NormalizedSurname,
             NormalizedFirstInitial = keys.NormalizedFirstInitial, IncidentDate = keys.IncidentDate,
             MatchPolicyKey = policy.PolicyKey, MatchPolicyVersion = policy.PolicyVersion, UpdatedAtUtc = DateTimeOffset.UtcNow

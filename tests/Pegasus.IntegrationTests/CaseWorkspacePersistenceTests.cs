@@ -2189,7 +2189,7 @@ public sealed class CaseWorkspacePersistenceTests
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ProviderCancelled)} WHERE CaseId = {harness.CaseId}");
+            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.PrincipalCancelled)} WHERE CaseId = {harness.CaseId}");
     }
 
     private static async Task<long> WorkflowEventCountAsync(Harness harness, string eventType)

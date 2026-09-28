@@ -328,7 +328,7 @@ public sealed class ImmediateExternalPublicationTests
             Task.FromResult(new CaseWorkflowConfiguration("test", 1));
     }
 
-    private sealed class InspectionModeStore : IProviderInspectionModeStore
+    private sealed class InspectionModeStore : IPrincipalInspectionModeStore
     {
         public Task<CaseInspectionMode?> GetForPrincipalAsync(
             string principalCode,
