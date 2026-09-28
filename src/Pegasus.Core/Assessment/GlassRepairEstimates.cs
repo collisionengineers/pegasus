@@ -33,6 +33,16 @@ public static class GlassRepairEstimateSessionPolicy
         or GlassRepairEstimateSessionState.AwaitingImport or GlassRepairEstimateSessionState.Unknown;
 
     /// <summary>
+    /// The states a session holds only while provider work is running for it.
+    /// A session found in one of them with nothing running was interrupted and
+    /// is settled: Prepared stays resumable, Launching and Importing become
+    /// Unknown.
+    /// </summary>
+    public static bool AwaitsProviderWork(GlassRepairEstimateSessionState state) => state is
+        GlassRepairEstimateSessionState.Prepared or GlassRepairEstimateSessionState.Launching
+        or GlassRepairEstimateSessionState.Importing;
+
+    /// <summary>
     /// Which sessions the owning staff member may close: every one that still
     /// holds the account except one mid-import, whose claim is acting on the
     /// provider's return and must be allowed to settle.
@@ -104,16 +114,60 @@ public sealed record GlassRepairEstimateCallback(
     /// <summary>The provider query exactly as received, without normalization or re-encoding.</summary>
     public override string ToString() => nameof(GlassRepairEstimateCallback);
 }
+/// <summary>The provider work a step leaves owed to its session.</summary>
+public enum GlassRepairEstimateContinuation
+{
+    None,
+    Launch,
+    Import
+}
+
+/// <summary>
+/// A session as a launch, a resume or an accepted return leaves it once its
+/// checks and its durable claim are done, and the provider work still owed.
+/// </summary>
+public sealed record GlassRepairEstimateStep(
+    GlassRepairEstimateSession Session, GlassRepairEstimateContinuation Continuation);
+
+/// <summary>
+/// The provider work a step left owed, run for the staff member who asked for
+/// it. <paramref name="RawQuery"/> is the accepted return's own message, carried
+/// in memory only; without it an import looks the export up again and never
+/// relays.
+/// </summary>
+public sealed record GlassRepairEstimateContinueRequest(
+    ActionActor Actor, Guid SessionId, string? RawQuery = null)
+{
+    public override string ToString() => nameof(GlassRepairEstimateContinueRequest);
+}
+
+/// <summary>
+/// Every Glass's act is two halves. The prepare half proves authority,
+/// ownership and the one-use token and writes the durable claim; the staff
+/// member's request waits for it. The continue half does the provider work
+/// and may run after that request has answered.
+/// </summary>
 public interface IGlassRepairEstimateGateway
 {
-    Task<GlassRepairEstimateSession> LaunchAsync(
+    Task<GlassRepairEstimateStep> PrepareLaunchAsync(
         GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken);
-    Task<GlassRepairEstimateSession> ResumeAsync(
+    Task<GlassRepairEstimateSession> ContinueLaunchAsync(
+        GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken);
+    Task<GlassRepairEstimateStep> PrepareResumeAsync(
         GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken);
+    Task<GlassRepairEstimateStep> AcceptCallbackAsync(
+        GlassRepairEstimateCallback callback, CancellationToken cancellationToken);
+    Task<GlassRepairEstimateSession> ContinueImportAsync(
+        GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken);
+    /// <summary>
+    /// Settles a session left in a state that only running provider work
+    /// holds (<see cref="GlassRepairEstimateSessionPolicy.AwaitsProviderWork"/>)
+    /// once nothing runs for it. Any other session is returned as it stands.
+    /// </summary>
+    Task<GlassRepairEstimateSession> SettleInterruptedAsync(
+        ActionActor actor, Guid sessionId, CancellationToken cancellationToken);
     Task<GlassRepairEstimateSession> CloseAsync(
         GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken);
-    Task<GlassRepairEstimateSession> CompleteAsync(
-        GlassRepairEstimateCallback callback, CancellationToken cancellationToken);
     Task<Uri?> GetEstimatorUrlAsync(
         ActionActor actor, Guid sessionId, CancellationToken cancellationToken);
 }

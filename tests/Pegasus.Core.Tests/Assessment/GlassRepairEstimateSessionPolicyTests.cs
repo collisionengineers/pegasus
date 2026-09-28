@@ -37,6 +37,23 @@ public sealed class GlassRepairEstimateSessionPolicyTests
         }
     }
 
+    [Theory]
+    [InlineData(GlassRepairEstimateSessionState.Prepared, true)]
+    [InlineData(GlassRepairEstimateSessionState.Launching, true)]
+    [InlineData(GlassRepairEstimateSessionState.Importing, true)]
+    [InlineData(GlassRepairEstimateSessionState.Active, false)]
+    [InlineData(GlassRepairEstimateSessionState.AwaitingImport, false)]
+    [InlineData(GlassRepairEstimateSessionState.Unknown, false)]
+    [InlineData(GlassRepairEstimateSessionState.Completed, false)]
+    [InlineData(GlassRepairEstimateSessionState.Failed, false)]
+    [InlineData(GlassRepairEstimateSessionState.Expired, false)]
+    [InlineData(GlassRepairEstimateSessionState.Cancelled, false)]
+    public void OnlyTheStatesRunningProviderWorkHoldsAreSettledWhenNothingRuns(
+        GlassRepairEstimateSessionState state, bool awaits)
+    {
+        Assert.Equal(awaits, GlassRepairEstimateSessionPolicy.AwaitsProviderWork(state));
+    }
+
     [Fact]
     public void ClosureStillNeedsTheConfirmationAndAReasonFromTheOwner()
     {
