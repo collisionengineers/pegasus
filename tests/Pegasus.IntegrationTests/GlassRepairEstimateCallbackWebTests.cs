@@ -183,6 +183,37 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Empty(await workspace.SessionsAsync());
     }
 
+    /// <summary>
+    /// Issue 916: a Case that moved while the page was open (custody confirming
+    /// a file bumps its version) or whose lease ended is answered as a refusal
+    /// the operator can act on, never as a 500.
+    /// </summary>
+    [Theory]
+    [InlineData("version")]
+    [InlineData("lease-expired")]
+    [InlineData("lease-held")]
+    public async Task ACaseThatChangedRefusesTheLaunchWithAReloadAndRetryNotice(string change)
+    {
+        var caseId = Guid.NewGuid();
+        var fault = new GatewayFault
+        {
+            LaunchFailure = change switch
+            {
+                "version" => new CaseVersionConflictException(caseId, expectedVersion: 1, actualVersion: 2),
+                "lease-expired" => new CaseEditLeaseExpiredException(caseId, caseVersion: 2),
+                _ => new CaseEditLeaseConflictException(caseId, caseVersion: 2),
+            }
+        };
+        await using var workspace = await Workspace.CreateAsync(fault: fault);
+        await workspace.ClaimLeaseAsync();
+
+        using var refused = await workspace.LaunchAsync();
+
+        await AssertHandsBackToTheEstimateSectionAsync(refused, workspace.CaseId);
+        Assert.Contains("The Case changed. Reload it and retry.", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+        Assert.Empty(await workspace.SessionsAsync());
+    }
+
     [Fact]
     public async Task AnHttp200ProviderRefusalReturnsToTheCaseAndRecordsNoEstimate()
     {
@@ -389,6 +420,49 @@ public sealed class GlassRepairEstimateCallbackWebTests
         // Only landing the Draft is a staff mutation; retaining its two source
         // artifacts must not spend the authority the import still needs.
         Assert.Equal(launchVersion + 1, await workspace.CaseVersionAsync());
+    }
+
+    /// <summary>
+    /// Issue 916: a return whose export the reader refuses is kept on the Case
+    /// as a rejected export, and the Estimate section offers to fetch the same
+    /// estimate again beside a new launch. Fetching it after the export is
+    /// readable lands the repair spec without a second vehicle or estimate.
+    /// </summary>
+    [Fact]
+    public async Task AnUnreadableExportOffersAFetchAgainThatLandsTheSameEstimate()
+    {
+        await using var workspace = await Workspace.CreateAsync(role: StaffRoleNames.User);
+        await workspace.AddRateCardAsync("80", 80m);
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        workspace.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK, "<Estimation><GlobalSetting /></Estimation>", ContentType: "application/xml"));
+
+        using var returned = await workspace.ReturnAsync(correlation);
+
+        await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
+        var failed = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, failed.State);
+        Assert.Equal("glass.export.unreadable", failed.FailureCode);
+        Assert.Empty(await workspace.EstimatesAsync());
+        Assert.Equal("application/xml", Assert.Single(await workspace.RetainedMediaTypesAsync()));
+        var html = await workspace.CaseHtmlAsync();
+        Assert.Contains("Fetch again", html, StringComparison.Ordinal);
+        Assert.Contains("handler=LaunchGlass", html, StringComparison.Ordinal);
+
+        workspace.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK,
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(),
+            ContentType: "application/xml"));
+        using var fetched = await workspace.PostGlassAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
+
+        await AssertHandsBackToTheEstimateSectionAsync(fetched, workspace.CaseId);
+        var completed = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Single(await workspace.EstimatesAsync());
+        Assert.Equal(1, workspace.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
+        Assert.DoesNotContain("Fetch again", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
     }
 
     /// <summary>
