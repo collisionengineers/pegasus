@@ -20,6 +20,13 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// logged as a warning with its reason; the Glass's window then reports it.
 /// </para>
 /// <para>
+/// Work admitted to the in-memory queue but lost to a host recycle before it
+/// is picked up leaves the session as its prepare half wrote it: Prepared or
+/// Importing, which <see cref="IGlassRepairEstimateGateway.SettleInterruptedAsync"/>
+/// settles exactly as it settles work stopped mid-run, or, for a reopen, a
+/// session Resume takes again as it stands.
+/// </para>
+/// <para>
 /// <b>A held estimate lands when the Case is free.</b> When the launch's edit
 /// authority is no longer current — the Case was saved while Glass's was open —
 /// the import takes a fresh lease for the returning staff member and lands the
