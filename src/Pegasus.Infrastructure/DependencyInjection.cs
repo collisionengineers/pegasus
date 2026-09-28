@@ -684,6 +684,11 @@ public static class DependencyInjection
             // cells; acceptance takes it where it is composed (v28 P51).
             services.AddScoped<IReadOriginalReport, ReadOriginalReport>();
             services.AddScoped<MarkAsOriginalReport>();
+            // The intake filer recognises the original report among what it
+            // filed on an Audit awaiting one, where this surface is composed.
+            services.AddScoped<IRecogniseOriginalReportStore>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<RecogniseFiledOriginalReport>();
             services.AddScoped<ITagCaseImage>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IUntagCaseImage>(provider =>

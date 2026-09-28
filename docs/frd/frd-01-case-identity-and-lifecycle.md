@@ -79,11 +79,12 @@ report.
 
 If no original report is filed on the Case and no standalone-Audit evidence
 was kept at intake, the Case shows **Original report missing** as an
-outstanding requirement. It clears when staff mark a filed document as the
-original report. The assessment is a fact on the Case, not part of its
-identity. The filed report fills the Case's
-[Original report](frd-16-case-record-workspace.md#original-report) cells at
-acceptance and when a document is marked as the original report.
+outstanding requirement. It clears when a filed document is recorded as the
+original report: by Pegasus, when files added to the Case later carry
+exactly one report it recognises, or by staff marking one. The assessment is
+a fact on the Case, not part of its identity. The filed report fills the
+Case's [Original report](frd-16-case-record-workspace.md#original-report)
+cells at acceptance and when a document is recorded as the original report.
 
 **Inspection + Audit.** The Case starts as a normal Inspection Case. Once
 its Inspection report is sent, **Create audit** (in the Actions menu, inside

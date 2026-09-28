@@ -84,8 +84,10 @@ The record's photographs become Case images when the merge's fold completes
 (operator, 27 September 2026). The fold moves the record's folder into the
 Case folder
 ([FRD-05](frd-05-documents-extraction-and-custody.md#staging-and-custody))
-and files each photograph it moved as an image document of the Case.
-Each takes the next Case document number. Each is in the report, as any new
+and files each photograph it moved as an image document of the Case. A
+file the record was registered from that is not a photograph, such as the
+PDF the photographs came in, is filed as a Case document beside them
+(operator, 28 September 2026). Each takes the next Case document number. Each is in the report, as any new
 image is. The crop, rotation and tags staff gave a photograph on the record
 come with it, and one tagged Third party or Reflection arrives out of the
 report. A Triage Case takes them the same way. The record keeps its

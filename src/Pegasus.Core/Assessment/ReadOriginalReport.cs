@@ -38,7 +38,31 @@ public interface IReadOriginalReport
         Guid occurrenceId,
         Guid versionId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A file retained at intake and filed on a Case, read to learn whether it
+    /// is a report Pegasus recognises: exactly one catalogued report signature
+    /// matches it. A file whose retained bytes are missing or differ is
+    /// <see cref="OriginalReportRecognitionOutcome.Unavailable"/>, so a caller
+    /// never mistakes an unread file for one that is not a report.
+    /// </summary>
+    Task<OriginalReportRecognition> RecogniseFiledAssetAsync(
+        Guid receiptId,
+        IntakeAssetRecord asset,
+        CancellationToken cancellationToken);
 }
+
+public enum OriginalReportRecognitionOutcome
+{
+    Recognised,
+    NotRecognised,
+    Unavailable
+}
+
+/// <param name="Reading">The report's reading when it is recognised; otherwise null.</param>
+public sealed record OriginalReportRecognition(
+    OriginalReportRecognitionOutcome Outcome,
+    OriginalReportReading? Reading = null);
 
 public sealed class ReadOriginalReport(
     IIntakeSourceReader sourceReader,
@@ -53,6 +77,8 @@ public sealed class ReadOriginalReport(
     public const int MaximumDocumentBytes = ImportRawEstimate.MaximumDocumentBytes;
 
     private const string OutcomeTag = "original_report.prefill";
+
+    private const string RecognitionTag = "original_report.recognition";
 
     public async Task<OriginalReportReading?> ForIntakeAsync(
         Guid receiptId,
@@ -118,7 +144,77 @@ public sealed class ReadOriginalReport(
         }
     }
 
+    public async Task<OriginalReportRecognition> RecogniseFiledAssetAsync(
+        Guid receiptId,
+        IntakeAssetRecord asset,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (asset.ContentLength > MaximumDocumentBytes)
+        {
+            return Recognition(OriginalReportRecognitionOutcome.NotRecognised, null, "too_large");
+        }
+
+        // A fault reading the retained bytes is the caller's to retry: it is
+        // not taken here for a file that is not a report.
+        var content = await artifacts.ReadAsync(asset.StorageKey, cancellationToken);
+        if (content is not { } bytes)
+        {
+            return Recognition(OriginalReportRecognitionOutcome.Unavailable, null, "unavailable");
+        }
+
+        ReadOriginalReportExtraction extracted;
+        try
+        {
+            extracted = await ExtractAsync(
+                bytes, asset.FileName, asset.MediaType, asset.ContentHash, receiptId, cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            Activity.Current?.SetTag(RecognitionTag + ".failure_type", exception.GetType().Name);
+            return Recognition(OriginalReportRecognitionOutcome.NotRecognised, null, "failed");
+        }
+
+        return extracted switch
+        {
+            { Status: StatusHashMismatch } =>
+                Recognition(OriginalReportRecognitionOutcome.Unavailable, null, extracted.Status),
+            { Candidate: null } =>
+                Recognition(OriginalReportRecognitionOutcome.NotRecognised, null, extracted.Status),
+            _ => Recognition(
+                OriginalReportRecognitionOutcome.Recognised,
+                OriginalReportPrefillPolicy.Read(extracted.Candidate, asset.ContentHash.ToLowerInvariant()),
+                extracted.Status)
+        };
+    }
+
     private async Task<OriginalReportReading?> ReadAsync(
+        ReadOnlyMemory<byte> content,
+        string fileName,
+        string mediaType,
+        string sha256,
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        var extracted = await ExtractAsync(content, fileName, mediaType, sha256, receiptId, cancellationToken);
+        return Outcome(
+            extracted.Status is StatusRead or StatusNoSignature
+                ? OriginalReportPrefillPolicy.Read(extracted.Candidate, sha256)
+                : null,
+            extracted.Status);
+    }
+
+    private const string StatusHashMismatch = "hash_mismatch";
+    private const string StatusNotReadable = "not_readable";
+    private const string StatusNoSignature = "no_signature";
+    private const string StatusRead = "read";
+
+    /// <summary>
+    /// The report file alone, read and matched against the report catalogue:
+    /// its candidate when exactly one report signature matches, and how the
+    /// reading ended.
+    /// </summary>
+    private async Task<ReadOriginalReportExtraction> ExtractAsync(
         ReadOnlyMemory<byte> content,
         string fileName,
         string mediaType,
@@ -130,7 +226,7 @@ public sealed class ReadOriginalReport(
             || !string.Equals(
                 Convert.ToHexStringLower(SHA256.HashData(content.Span)), sha256, StringComparison.OrdinalIgnoreCase))
         {
-            return Outcome(null, "hash_mismatch");
+            return new(null, StatusHashMismatch);
         }
 
         // Read as automation, never as the Provider API channel: that reader
@@ -141,15 +237,13 @@ public sealed class ReadOriginalReport(
             cancellationToken);
         if (read.Status != IntakeSourceReadStatus.Readable)
         {
-            return Outcome(null, "not_readable");
+            return new(null, StatusNotReadable);
         }
 
         var extraction = ThirdPartyReportExtraction.Extract(
             read,
             new(receiptId, sha256, Occurrence: 0, ReaderVersion: read.ReaderVersion, SourceLabel: fileName));
-        return Outcome(
-            OriginalReportPrefillPolicy.Read(extraction.Candidate, sha256),
-            extraction.Candidate is null ? "no_signature" : "read");
+        return new(extraction.Candidate, extraction.Candidate is null ? StatusNoSignature : StatusRead);
     }
 
     private static OriginalReportReading? Outcome(OriginalReportReading? reading, string outcome)
@@ -157,6 +251,17 @@ public sealed class ReadOriginalReport(
         Activity.Current?.SetTag(OutcomeTag, outcome);
         return reading;
     }
+
+    private static OriginalReportRecognition Recognition(
+        OriginalReportRecognitionOutcome outcome,
+        OriginalReportReading? reading,
+        string status)
+    {
+        Activity.Current?.SetTag(RecognitionTag, status);
+        return new(outcome, reading);
+    }
+
+    private sealed record ReadOriginalReportExtraction(ThirdPartyReportCandidate? Candidate, string Status);
 
     private static OriginalReportReading? Failed(Exception exception)
     {
