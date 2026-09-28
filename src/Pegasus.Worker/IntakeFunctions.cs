@@ -237,6 +237,12 @@ public sealed partial class StagedArtifactReconciliationFunction(
     /// </summary>
     private const int ThumbnailsPerRun = 2;
 
+    /// <summary>
+    /// The longest the thumbnail sweep may take in one run. The intake work
+    /// above has already run; this keeps the timer from being held by Box.
+    /// </summary>
+    private static readonly TimeSpan ThumbnailBudget = TimeSpan.FromSeconds(20);
+
     [Function(nameof(StagedArtifactReconciliationFunction))]
     public async Task RunAsync(
         [TimerTrigger("%IntakeStagedArtifactReconciliationSchedule%", RunOnStartup = false)] TimerInfo timer,
@@ -347,11 +353,14 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
         // Plain gallery thumbnails of newly filed photographs, made before
         // the first view. Same existing timer trigger deliberately; this is
-        // not a new schedule. A failure here is the thumbnail's alone: the
-        // first view makes it instead.
+        // not a new schedule. It runs last, inside its own time budget, and
+        // its failure or timeout is the thumbnail's alone: it is logged, the
+        // first view makes the thumbnail instead, and the run still succeeds.
+        using var thumbnailBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        thumbnailBudget.CancelAfter(ThumbnailBudget);
         try
         {
-            var thumbnails = await prepareDocumentThumbnails.ExecuteAsync(ThumbnailsPerRun, cancellationToken);
+            var thumbnails = await prepareDocumentThumbnails.ExecuteAsync(ThumbnailsPerRun, thumbnailBudget.Token);
             if (thumbnails.Candidates > 0)
             {
                 LogDocumentThumbnailPreparation(
@@ -363,7 +372,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
                     thumbnails.FirstFailure);
             }
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             LogDocumentThumbnailPreparationFailed(logger, exception);
         }

@@ -279,6 +279,8 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 /// trashed or outside-root answer that touches a folder forgets it, and so do
 /// a folder delete and a file move. A folder moved out of the root, or
 /// trashed, outside Pegasus can therefore still be read for up to that long.
+/// A walk that succeeded at the same moment as a forget may remember the
+/// folder again, still within that ten-minute bound.
 /// </remarks>
 internal sealed class BoxContentClient(
     BoxCustodyOptions options,

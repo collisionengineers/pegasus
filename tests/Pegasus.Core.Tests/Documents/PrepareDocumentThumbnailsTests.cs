@@ -18,9 +18,8 @@ public sealed class PrepareDocumentThumbnailsTests
         var unrenderable = Candidate("image/heic");
         var notAnImage = Candidate("application/pdf");
         var thumbnails = new RecordingThumbnails(failing.VersionId, unrenderable.VersionId);
-        var sweep = new PrepareDocumentThumbnails(
-            new Candidates([made, failing, unrenderable, notAnImage]),
-            thumbnails);
+        var listed = new Candidates([made, failing, unrenderable, notAnImage]);
+        var sweep = new PrepareDocumentThumbnails(listed, thumbnails);
 
         var result = await sweep.ExecuteAsync(4);
 
@@ -33,6 +32,37 @@ public sealed class PrepareDocumentThumbnailsTests
             Assert.Equal(ActorKind.SystemWorker, request.Actor.Kind);
             Assert.False(request.IsPrepared);
         });
+        // Only what could not be made waits; the made thumbnail leaves the
+        // candidate set by itself.
+        Assert.Equal(
+            new[] { failing.VersionId, unrenderable.VersionId, notAnImage.VersionId },
+            listed.Deferred);
+    }
+
+    [Fact]
+    public async Task ATimedOutReadIsThatVersionsFailureNotTheSweeps()
+    {
+        var timedOut = Candidate("image/jpeg");
+        var next = Candidate("image/jpeg");
+        var thumbnails = new RecordingThumbnails(timedOut: timedOut.VersionId);
+        var listed = new Candidates([timedOut, next]);
+
+        var result = await new PrepareDocumentThumbnails(listed, thumbnails).ExecuteAsync(2);
+
+        Assert.Equal(new PrepareDocumentThumbnailsResult(2, 1, 0, 1, nameof(TaskCanceledException)), result);
+        Assert.Equal(new[] { timedOut.VersionId }, listed.Deferred);
+    }
+
+    [Fact]
+    public async Task ACancelledSweepStops()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        var sweep = new PrepareDocumentThumbnails(
+            new Candidates([Candidate("image/jpeg")]),
+            new RecordingThumbnails(honourCancellation: true));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sweep.ExecuteAsync(1, cancellation.Token));
     }
 
     [Fact]
@@ -53,9 +83,17 @@ public sealed class PrepareDocumentThumbnailsTests
             int maximumItems,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<DocumentThumbnailCandidate>>([.. candidates.Take(maximumItems)]);
+
+        public List<Guid> Deferred { get; } = [];
+
+        public void Defer(Guid versionId) => Deferred.Add(versionId);
     }
 
-    private sealed class RecordingThumbnails(Guid? failing = null, Guid? unrenderable = null)
+    private sealed class RecordingThumbnails(
+        Guid? failing = null,
+        Guid? unrenderable = null,
+        Guid? timedOut = null,
+        bool honourCancellation = false)
         : IReadCaseDocumentThumbnail
     {
         public List<CaseDocumentThumbnailRequest> Requests { get; } = [];
@@ -65,6 +103,15 @@ public sealed class PrepareDocumentThumbnailsTests
             CancellationToken cancellationToken)
         {
             Requests.Add(request);
+            if (honourCancellation)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            if (request.VersionId == timedOut)
+            {
+                // What an HttpClient timeout looks like to the caller.
+                throw new TaskCanceledException("The read timed out.");
+            }
             if (request.VersionId == failing)
             {
                 throw new IOException("Box said later.");

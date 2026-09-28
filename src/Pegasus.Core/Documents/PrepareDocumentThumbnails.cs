@@ -27,6 +27,13 @@ public interface IListDocumentThumbnailCandidates
     Task<IReadOnlyList<DocumentThumbnailCandidate>> ListAsync(
         int maximumItems,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A version whose thumbnail could not be made this time. It is not
+    /// listed again for a while, so it cannot take a place in every run ahead
+    /// of newer photographs.
+    /// </summary>
+    void Defer(Guid versionId);
 }
 
 public sealed record PrepareDocumentThumbnailsResult(
@@ -75,6 +82,7 @@ public sealed class PrepareDocumentThumbnails(
             if (!CaseDocumentThumbnails.IsThumbnailable(candidate.MediaType))
             {
                 unrenderable++;
+                candidates.Defer(candidate.VersionId);
                 continue;
             }
             try
@@ -92,18 +100,22 @@ public sealed class PrepareDocumentThumbnails(
                 if (thumbnail is null)
                 {
                     unrenderable++;
+                    candidates.Defer(candidate.VersionId);
                 }
                 else
                 {
                     prepared++;
                 }
             }
-            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception)
+                || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
             {
-                // One version's failure is that version's: its first view
-                // makes the thumbnail instead, and the sweep carries on.
+                // One version's failure is that version's, a timed-out read
+                // included: its first view makes the thumbnail instead, and
+                // the sweep carries on.
                 failures++;
                 firstFailure ??= exception.GetType().Name;
+                candidates.Defer(candidate.VersionId);
             }
         }
         return new(listed.Count, prepared, unrenderable, failures, firstFailure);
