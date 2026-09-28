@@ -36,6 +36,10 @@ public sealed class EfCaseReportDeliveryPreparationStore(
         var request = command.Request;
         CaseReportDeliveryPolicy.RequireStaff(request.Actor);
         var operationKey = ValidateOperationKey(request.OperationKey);
+        request = request with
+        {
+            CoveringMessage = CaseReportDeliveryPolicy.CoveringMessage(request.CoveringMessage)
+        };
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(

@@ -701,7 +701,7 @@ public sealed class SendPreparedCaseReport(
             record.Addressing.To,
             record.Addressing.Cc,
             record.Addressing.Subject,
-            // v28 P23: the covering line and the report's own name are the
+            // v28 P23: the covering message and the report's own name are the
             // ones the preparation froze, so what was reviewed is what is
             // sent. Custody keeps its own name for the same bytes.
             Body: preparation.CoveringMessage,
