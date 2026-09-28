@@ -488,6 +488,8 @@ public static class DependencyInjection
         services.AddSingleton(provider => GlassRepairEstimateOptions.Create(
             key => provider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()[key]));
         services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
+            .ConfigureHttpClient((provider, client) =>
+                client.Timeout = provider.GetRequiredService<GlassRepairEstimateOptions>().RequestTimeout)
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
                 AllowAutoRedirect = false,
