@@ -558,6 +558,54 @@ public static class EstimatePolicy
     }
 
     /// <summary>
+    /// The spec an editor save would record, unsaved: what the Target % of
+    /// value preview scales (issue 897). The edit is read on the Case save's
+    /// own terms, its content checked by <see cref="ValidateContent"/> and
+    /// its lines carried from the saved spec by <see cref="ApplyEditorEvidence"/>,
+    /// so a line keeps the Specialist sub-type the save keeps. A preview
+    /// records nothing, so it carries no command envelope.
+    /// </summary>
+    public static RepairSpecificationVersion Edited(
+        Guid caseId,
+        ActionActor actor,
+        RepairSpecificationVersion? saved,
+        EstimateDetails details,
+        IReadOnlyList<EstimateLineInput> lines,
+        IReadOnlyList<Guid?>? existingLineIds,
+        DateTimeOffset at)
+    {
+        var edit = ValidateContent(new SaveEstimateRequest(
+            caseId, 0, actor, string.Empty, string.Empty, string.Empty, saved?.SpecificationId, details, lines,
+            new(RepairSpecificationSourceRoute.Manual, null, null, null), ExistingLineIds: existingLineIds));
+        var recorded = ApplyEditorEvidence(edit, saved, at);
+        return Provisional(caseId, saved, recorded.Details, recorded.Lines, at);
+    }
+
+    /// <summary>
+    /// A spec's header and lines as an unsaved Draft of the saved spec (or of
+    /// a new one): what Supplementary compares and the preview scales.
+    /// </summary>
+    public static RepairSpecificationVersion Provisional(
+        Guid caseId,
+        RepairSpecificationVersion? saved,
+        EstimateDetails details,
+        IReadOnlyList<EstimateLineInput> lines,
+        DateTimeOffset at)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        ArgumentNullException.ThrowIfNull(lines);
+        return new(
+            saved?.SpecificationId ?? Guid.Empty, caseId, saved?.Version ?? 1, RepairSpecificationState.Draft,
+            saved?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
+            [.. lines.Select((line, index) => new CaseEstimateLineRecord(
+                Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
+                line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
+                ActorKind.Staff, string.Empty, at,
+                line.PaintWorkUnits, line.Quantity, line.Materials))],
+            string.Empty, at, details);
+    }
+
+    /// <summary>
     /// A rate-card snapshot is server evidence. An editor may carry the exact
     /// persisted snapshot through an unchanged rate, but cannot manufacture or
     /// alter it. A new card selection is resolved by the persistence store.

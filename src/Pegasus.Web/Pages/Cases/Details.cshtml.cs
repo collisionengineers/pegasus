@@ -2945,7 +2945,7 @@ public sealed partial class DetailsModel(
             return null;
         }
         var diff = RepairSpecificationComparison.Compare(
-            baseSpecification, ProvisionalSpecification(caseId, existing, details, lines));
+            baseSpecification, EstimatePolicy.Provisional(caseId, existing, details, lines, DateTimeOffset.UtcNow));
         var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
         return new(baseId, reason, explain, RepairSpecificationComparison.SupplementaryStatement(diff, reason));
     }
@@ -2991,7 +2991,11 @@ public sealed partial class DetailsModel(
             var floors = new ScalingFloors(
                 floorRate ?? ScalingFloors.Default.LabourRatePerHour,
                 floorPrice ?? ScalingFloors.Default.PricePercent);
-            var edited = ProvisionalSpecification(id, existing, EditorDetailsFrom(editor, existing), editor.Lines);
+            // The spec a Save would record: the save's own line checks and
+            // carry, so the preview never shows money the save refuses or drops.
+            var edited = EstimatePolicy.Edited(
+                id, actor, existing, EditorDetailsFrom(editor, existing), editor.Lines, editor.ExistingLineIds,
+                DateTimeOffset.UtcNow);
             var result = RepairSpecificationScaling.Scale(edited, target, floors);
             var printed = result.Totals.Printed;
             static string? Amount(decimal? value) => value?.ToString("0.00", CultureInfo.InvariantCulture);
@@ -3026,24 +3030,6 @@ public sealed partial class DetailsModel(
             return refused;
         }
     }
-
-    /// <summary>
-    /// The spec as the editor holds it, unsaved: what Supplementary compares
-    /// and what the Target % of value preview scales.
-    /// </summary>
-    private static RepairSpecificationVersion ProvisionalSpecification(
-        Guid caseId,
-        RepairSpecificationVersion? existing,
-        EstimateDetails details,
-        IReadOnlyList<EstimateLineInput> lines) => new(
-        existing?.SpecificationId ?? Guid.Empty, caseId, existing?.Version ?? 1, RepairSpecificationState.Draft,
-        existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
-        [.. lines.Select((line, index) => new CaseEstimateLineRecord(
-            Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
-            line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
-            ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow,
-            line.PaintWorkUnits, line.Quantity, line.Materials))],
-        string.Empty, DateTimeOffset.UtcNow, details);
 
     /// <summary>
     /// Apply (v28 P34): scales the saved specification. The page saves the
