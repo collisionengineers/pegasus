@@ -751,14 +751,17 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("id=\"case-edit-form\"", reading, StringComparison.Ordinal);
     }
 
-    private static string HandlerFormInputValue(string html, string handler, string name)
+    private static string HandlerFormInputValue(string html, string handler, string name) =>
+        InputValue(HandlerForm(html, handler), name);
+
+    private static string HandlerForm(string html, string handler)
     {
         var form = Regex.Match(
             html,
             $"<form[^>]*handler={Regex.Escape(handler)}[^>]*>.*?</form>",
             RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         Assert.True(form.Success, $"The workspace must render the '{handler}' form.");
-        return InputValue(form.Value, name);
+        return form.Value;
     }
 
 
@@ -1505,6 +1508,81 @@ public sealed class CaseEditModeWebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The companion documents are generated out of edit mode the way the
+    /// report is (issue 912): after a report is generated from read mode the
+    /// page offers each Generate without a lease, and the handler claims the
+    /// Case's lease for the one generation, names the confirmed generation
+    /// and releases the lease after.
+    /// </summary>
+    [Theory]
+    [InlineData("GenerateFeeNote", CaseReportArtifactKind.FeeNote)]
+    [InlineData("GenerateRepairSpec", CaseReportArtifactKind.RepairSpecification)]
+    [InlineData("GenerateImagePack", CaseReportArtifactKind.ImagePack)]
+    public async Task CompanionGenerateOutsideEditModeClaimsTheLeaseForTheGenerationAndReleasesIt(
+        string handler,
+        CaseReportArtifactKind kind)
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var generator = new RecordingGenerateReport();
+        var generation = ConfirmedSeparateGeneration(store);
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+        {
+            ReadyReportPorts(services, store, generator);
+            Substitute<ICaseReportGenerationStore>(services, generation);
+        });
+        var form = HandlerForm(await ReportSectionAsync(workspace), handler);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", form, StringComparison.Ordinal);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler={handler}&section=report",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion")),
+                ("targetGenerationId", InputValue(form, "targetGenerationId"))));
+
+        AssertPrg(response, store.CaseId, "section=report");
+        var claim = Assert.Single(store.Claims);
+        Assert.Equal(store.CaseVersion, claim.ExpectedVersion);
+        var request = Assert.Single(generator.Requests);
+        Assert.Equal(kind, request.Kind);
+        Assert.Equal(generation.Record.Id, request.TargetGenerationId);
+        Assert.False(request.IncludeFeeNote);
+        Assert.Equal(store.LeaseToken, request.LeaseToken);
+        var release = Assert.Single(store.LeaseReleases);
+        Assert.Equal(store.LeaseToken, release.LeaseToken);
+        Assert.Null(store.LeaseHolder);
+    }
+
+    /// <summary>
+    /// While a colleague holds the Case's lease no companion Generate is
+    /// offered in read mode, as Generate report is not.
+    /// </summary>
+    [Fact]
+    public async Task AColleaguesLeaseOffersNoCompanionGenerate()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            LeaseHolder = Guid.NewGuid().ToString("D")
+        };
+        var generator = new RecordingGenerateReport();
+        var generation = ConfirmedSeparateGeneration(store);
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+        {
+            ReadyReportPorts(services, store, generator);
+            Substitute<ICaseReportGenerationStore>(services, generation);
+        });
+
+        var html = await ReportSectionAsync(workspace);
+
+        Assert.DoesNotContain("handler=GenerateFeeNote", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=GenerateRepairSpec", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=GenerateImagePack", html, StringComparison.Ordinal);
+    }
+
     /// <summary>The Report not ready label and the blocker list show outside edit mode too.</summary>
     [Fact]
     public async Task TheReportNotReadyLabelAndBlockersShowOutsideEditMode()
@@ -1545,6 +1623,18 @@ public sealed class CaseEditModeWebTests
         Assert.True(form.Success, "The Report head must offer Generate report.");
         return form.Value;
     }
+
+    /// <summary>
+    /// A confirmed generation whose fee note is a separate document not yet
+    /// made; its images are retried, so all three companion Generates stand.
+    /// </summary>
+    private static AssessmentReportDraftWebTests.FakeCurrentGeneration ConfirmedSeparateGeneration(
+        RecordingCaseDetailsStore store) =>
+        new(
+            store.CaseId,
+            includeFeeNote: false,
+            imagePackStatus: CaseReportArtifactStatus.Pending,
+            imagePackOperationKey: Guid.NewGuid().ToString("N"));
 
 
     [Fact]

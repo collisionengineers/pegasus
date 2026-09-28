@@ -80,19 +80,21 @@ public sealed partial class AssessmentReportDraftWebTests
             generateReport: recorder);
         using var client = Client(factory);
         // v26: Generate report is the head's primary inside the edit session;
-        // the Include fee note choice sits in the More menu, bound to that
-        // form, so it still posts as the form's own field.
+        // the Include fee note choice sits inside that form, beside its
+        // button (issue 912), so it posts as the form's own field.
         var html = await EnterEditModeAsync(client, caseId);
+        var generateForm = FormHtml(html, "GenerateReport");
 
-        Assert.Contains("data-generate-report", html, StringComparison.Ordinal);
+        Assert.Contains("data-generate-report", generateForm, StringComparison.Ordinal);
         Assert.Contains(
-            "name=\"includeFeeNote\" value=\"true\" form=\"case-generate-report-form\" data-include-fee-note",
-            html,
+            "name=\"includeFeeNote\" value=\"true\" data-include-fee-note",
+            generateForm,
             StringComparison.Ordinal);
         Assert.Contains(
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.IncludeFeeNote,
-            html,
+            generateForm,
             StringComparison.Ordinal);
+        Assert.DoesNotContain("form=\"case-generate-report-form\"", html, StringComparison.Ordinal);
 
         List<(string Name, string Value)> fields =
         [
@@ -406,6 +408,47 @@ public sealed partial class AssessmentReportDraftWebTests
                 $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReport}</span>",
                 html,
                 StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// A confirmed separate fee note is opened from the report card, beside
+    /// Open report (issue 912); a combined report or a fee note not yet
+    /// confirmed offers no such link.
+    /// </summary>
+    [Theory]
+    [InlineData(false, CaseReportArtifactStatus.Confirmed, true)]
+    [InlineData(false, CaseReportArtifactStatus.Pending, false)]
+    [InlineData(false, null, false)]
+    [InlineData(true, null, false)]
+    public async Task TheReportCardOpensAConfirmedSeparateFeeNote(
+        bool includeFeeNote,
+        CaseReportArtifactStatus? feeNoteStatus,
+        bool offered)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generation = new FakeCurrentGeneration(caseId, includeFeeNote, feeNoteStatus);
+        using var factory = WithCurrentGeneration(baseFactory, caseId, generation);
+        using var client = Client(factory);
+
+        var card = ReportCard(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        OpenReportLink(card);
+        if (offered)
+        {
+            var feeNote = generation.Record.Artifacts.Single(artifact => artifact.Kind == CaseReportArtifactKind.FeeNote);
+            var link = CardLink(card, "data-report-fee-card", "Open fee note");
+            Assert.Contains($"artifactId={feeNote.Id:D}", link, StringComparison.Ordinal);
+            Assert.Contains("data-document-preview", link, StringComparison.Ordinal);
+            Assert.Contains(
+                $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenFeeNote}</span>",
+                link,
+                StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("data-report-fee-card", card, StringComparison.Ordinal);
         }
     }
 
@@ -919,14 +962,18 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>The card's link to the stored report.</summary>
-    private static string OpenReportLink(string card)
+    private static string OpenReportLink(string card) =>
+        CardLink(card, "data-report-artifact=\"AssessmentReport\"", "Open report");
+
+    /// <summary>The card's link carrying <paramref name="mark"/>.</summary>
+    private static string CardLink(string card, string mark, string name)
     {
         var link = System.Text.RegularExpressions.Regex.Match(
             card,
-            "<a[^>]*data-report-artifact=\"AssessmentReport\"[^>]*>.*?</a>",
+            $"<a[^>]*{mark}[^>]*>.*?</a>",
             System.Text.RegularExpressions.RegexOptions.Singleline
                 | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-        Assert.True(link.Success, "The card must offer Open report.");
+        Assert.True(link.Success, $"The card must offer {name}.");
         return link.Value;
     }
 
@@ -971,7 +1018,7 @@ public sealed partial class AssessmentReportDraftWebTests
     /// One confirmed current generation, so the card the page renders can be
     /// read. Only the reads the Case page makes are answered.
     /// </summary>
-    private sealed class FakeCurrentGeneration(
+    internal sealed class FakeCurrentGeneration(
         Guid caseId,
         bool includeFeeNote,
         CaseReportArtifactStatus? feeNoteStatus = null,
