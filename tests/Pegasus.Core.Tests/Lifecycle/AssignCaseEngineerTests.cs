@@ -193,6 +193,11 @@ public sealed class AssignCaseEngineerTests
             return Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? Current : null);
         }
 
+        public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
+            IReadOnlyCollection<Guid> caseIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<bool> HasOperationAsync(
             Guid caseId,
             string operationKey,

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Pegasus.Core.Actors;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -244,6 +245,79 @@ public sealed class DashboardBoundaryTests
             triage: new StubListTriage { Items = triageItems });
 
         Assert.Contains(snapshot.NeedsAttention, item => item.Kind == NeedsAttentionKind.Triage);
+    }
+
+    /// <summary>
+    /// Each no-finding state is read whole in one call, however long it is,
+    /// and the Triage total is the rows read rather than a separate count.
+    /// </summary>
+    [Fact]
+    public async Task EachNoFindingTriageStateIsReadOnceWholeAndCountedFromItsRows()
+    {
+        var triageItems = Enumerable.Range(1, 250)
+            .Select(index => NewTriage(Guid.NewGuid(), $"O{index:000}", TriageState.Open))
+            .Concat(Enumerable.Range(1, 3)
+                .Select(index => NewTriage(Guid.NewGuid(), $"A{index:000}", TriageState.AwaitingInformation)))
+            .Append(NewTriage(Guid.NewGuid(), "F001", TriageState.FindingRecorded))
+            .ToList();
+        var triage = new StubListTriage { Items = triageItems };
+
+        var snapshot = await ExecuteAsync(new RecordingDashboardQueries(), NowUtc, triage: triage);
+
+        Assert.Equal(
+            new TriageState?[] { TriageState.Open, TriageState.AwaitingInformation },
+            triage.ListAllStates.Order());
+        Assert.Equal(0, triage.PageReads);
+        Assert.Equal(253, snapshot.TriageCount);
+        Assert.Equal(254, snapshot.Metrics.Triages);
+        Assert.Equal(253, snapshot.Attention.KindCounts[NeedsAttentionKind.Triage]);
+    }
+
+    /// <summary>
+    /// A draft on a Case belongs to that Case's engineer, read for every draft
+    /// in one call; a draft whose Case has no workflow, or that is not on a
+    /// Case, has no owner.
+    /// </summary>
+    [Fact]
+    public async Task DraftOwnersAreTheirCasesEngineersReadInOneCall()
+    {
+        var engineerId = Guid.NewGuid();
+        var assignedCase = Guid.NewGuid();
+        var unknownCase = Guid.NewGuid();
+        var workflows = new RecordingAssignedEngineers(new Dictionary<Guid, Guid?> { [assignedCase] = engineerId });
+        var drafts = new StubAiDrafts
+        {
+            Drafts =
+            [
+                NewDraft(AiJobSubjectKind.Case, assignedCase, "D1"),
+                NewDraft(AiJobSubjectKind.Case, assignedCase, "D2"),
+                NewDraft(AiJobSubjectKind.Case, unknownCase, "D3"),
+                NewDraft(AiJobSubjectKind.Unidentified, Guid.NewGuid(), "D4")
+            ]
+        };
+
+        var snapshot = await new GetOperationsSnapshot(
+            new StubIntakeReceiptQueries(),
+            new StubListTriage(),
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries(),
+            new StubSearchCases(),
+            new StubUnidentifiedQueue(),
+            new UnknownStaffAccounts(),
+            new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new FixedTimeProvider(NowUtc),
+            drafts,
+            workflows).ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
+
+        var owners = snapshot.Attention.Items
+            .Where(item => item.Kind == NeedsAttentionKind.AiDraft)
+            .ToDictionary(item => item.Reference, item => item.OwnerStaffId);
+        Assert.Equal(engineerId, owners["D1"]);
+        Assert.Equal(engineerId, owners["D2"]);
+        Assert.Null(owners["D3"]);
+        Assert.Null(owners["D4"]);
+        var read = Assert.Single(workflows.Calls);
+        Assert.Equal(new[] { assignedCase, unknownCase }.Order(), read.Order());
     }
 
     [Fact]
@@ -660,16 +734,22 @@ public sealed class DashboardBoundaryTests
     /// Skip/Take window with the full match count — so a read that asks for
     /// one unfiltered page is truncated exactly as the real store truncates
     /// it. Rows keep insertion order; callers that need a record to survive
-    /// paging place it inside the window.
+    /// paging place it inside the window. The whole-state read records each
+    /// state it was asked for.
     /// </summary>
     private sealed class StubListTriage : IListTriage
     {
         public IReadOnlyList<TriageSummary> Items { get; init; } = [];
 
+        public List<TriageState?> ListAllStates { get; } = [];
+
+        public int PageReads { get; private set; }
+
         public Task<TriageListPage> ExecuteAsync(
             ListTriageQuery query,
             CancellationToken cancellationToken = default)
         {
+            PageReads++;
             var matches = Items
                 .Where(item => query.State is null || item.State == query.State)
                 .ToArray();
@@ -685,7 +765,71 @@ public sealed class DashboardBoundaryTests
             TriageState? state,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Items.Count(item => state is null || item.State == state));
+
+        public Task<IReadOnlyList<TriageSummary>> ListAllAsync(
+            ActionActor actor,
+            TriageState? state,
+            CancellationToken cancellationToken = default)
+        {
+            ListAllStates.Add(state);
+            return Task.FromResult<IReadOnlyList<TriageSummary>>(
+                Items.Where(item => state is null || item.State == state).ToArray());
+        }
     }
+
+    private sealed class StubAiDrafts : IAiDraftQueries
+    {
+        public IReadOnlyList<AiDraft> Drafts { get; init; } = [];
+
+        public Task<IReadOnlyList<AiDraft>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<AiDraft>> ListOpenAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(Drafts);
+    }
+
+    /// <summary>Answers only the batch engineer read, and records each set of Cases it was asked for.</summary>
+    private sealed class RecordingAssignedEngineers(IReadOnlyDictionary<Guid, Guid?> engineers) : ICaseWorkflowQueries
+    {
+        public List<IReadOnlyCollection<Guid>> Calls { get; } = [];
+
+        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
+            IReadOnlyCollection<Guid> caseIds,
+            CancellationToken cancellationToken)
+        {
+            Calls.Add(caseIds);
+            return Task.FromResult<IReadOnlyDictionary<Guid, Guid?>>(
+                engineers.Where(pair => caseIds.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
+        }
+
+        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private static AiDraft NewDraft(AiJobSubjectKind subjectKind, Guid subjectId, string reference) => new(
+        new AiJobRecord(
+            Guid.NewGuid(),
+            AiJobKind.Estimate,
+            subjectKind,
+            subjectId,
+            reference,
+            "Draft the estimate.",
+            null,
+            null,
+            AiJobState.DraftReady,
+            ActorKind.Staff,
+            "staff",
+            NowUtc.AddHours(-2),
+            NowUtc.AddDays(1),
+            null, null, null, null, null, null, null, null, null,
+            1),
+        AiDraftAction.Review,
+        $"/Cases/{subjectId:D}",
+        NowUtc.AddHours(-1),
+        NowUtc.AddHours(1));
 
     private sealed class StubDueWorkQueries : ICaseDueWorkQueries
     {
