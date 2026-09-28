@@ -1576,6 +1576,144 @@ public sealed class CaseWorkspacePersistenceTests
             item => item.Details.Source == ValuationSource.EngineersValue);
         Assert.Null(engineersValue.Details.Mileage);
     }
+
+    /// <summary>
+    /// Use this value on a guide card typed in the same edit (operator, 28
+    /// September 2026): the card has no identity yet, so the Save is told its
+    /// source and records the calculation against the card it has just
+    /// recorded, in the one Save.
+    /// </summary>
+    [Fact]
+    public async Task UsingACardTypedInTheSameSaveRecordsTheCalculationAgainstThatNewCard()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-use-new-1");
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "use-new-save-1", engineer) with
+            {
+                Valuation = new(
+                    [GuideCard(ValuationSource.Glasses, new DateOnly(2030, 4, 1), 12_500m)],
+                    new ValuationCalculationSelection(Guid.Empty, false, null, [], 0m)
+                    {
+                        GuideSource = ValuationSource.Glasses,
+                    },
+                    Values("12500", "11500", "12500"))
+            },
+            CancellationToken.None);
+
+        var valuations = new EfValuationStore(harness.Factory);
+        var card = Assert.Single(
+            await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None),
+            item => item.Details.Source == ValuationSource.Glasses);
+        var applied = Assert.Single(
+            await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        Assert.Equal(card.ValuationId, applied.GuideValuationId);
+        Assert.Equal(12_500m, applied.AcceptedEngineerValue);
+        Assert.Equal(saved.Version, applied.CaseVersion);
+    }
+
+    /// <summary>
+    /// An Engineer's Value typed over the calculated figure is the Engineer's
+    /// own: it is recorded as the staff member's value and the Save does not
+    /// attribute it to the guide card by recording the calculation.
+    /// </summary>
+    [Fact]
+    public async Task AnEngineersValueTypedOverTheCalculationIsTheEngineersOwnAndNotRecordedAgainstTheCard()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-own-value-1");
+
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "own-value-save-1", engineer) with
+            {
+                Valuation = new(
+                    [GuideCard(ValuationSource.Glasses, new DateOnly(2030, 4, 1), 12_500m)],
+                    new ValuationCalculationSelection(Guid.Empty, false, null, [], 0m)
+                    {
+                        GuideSource = ValuationSource.Glasses,
+                    },
+                    Values("12500", "11500", "14000"))
+            },
+            CancellationToken.None);
+
+        var valuations = new EfValuationStore(harness.Factory);
+        Assert.Empty(await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        Assert.DoesNotContain(
+            await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None),
+            item => item.Details.Source == ValuationSource.EngineersValue);
+        var field = (await AssessmentFieldsAsync(harness))[AssessmentVocabulary.ValueEngineer];
+        Assert.Equal("14000.00", field.Value);
+        Assert.Equal(nameof(ActorKind.Staff), field.RecordedByKind);
+        Assert.Equal(engineer.SubjectId, field.RecordedBy);
+    }
+
+    /// <summary>
+    /// The preview is what the Save uses (operator, 28 September 2026): from
+    /// the retail as typed and the claimant's VAT position as the form holds
+    /// it, the preview and the calculation the Save records are one figure,
+    /// though the recorded card and the recorded VAT position say otherwise.
+    /// </summary>
+    [Fact]
+    public async Task ThePreviewFromUnsavedFiguresIsTheCalculationTheSaveRecords()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var april = new DateOnly(2030, 4, 1);
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-preview-save-1");
+        var first = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "preview-save-1", engineer) with
+            {
+                Valuation = new([GuideCard(ValuationSource.Glasses, april, 12_500m)])
+            },
+            CancellationToken.None);
+        var valuations = new EfValuationStore(harness.Factory);
+        var card = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        var selection = new ValuationCalculationSelection(card.ValuationId, true, null, [], 0m);
+
+        // Recorded: 12,500 retail, claimant not VAT registered, so VAT is added.
+        var recorded = await new PreviewValuationCalculation(valuations).ExecuteAsync(
+            new(harness.CaseId, engineer, selection),
+            CancellationToken.None);
+        Assert.Equal(15_000m, recorded.Calculation.Proposal);
+
+        // Typed: 13,000 retail and a VAT registered claimant, neither saved yet.
+        var preview = await new PreviewValuationCalculation(valuations).ExecuteAsync(
+            new(harness.CaseId, engineer, selection)
+            {
+                GuideRetailValue = 13_000m,
+                ClaimantVatRegistered = true,
+            },
+            CancellationToken.None);
+        Assert.Equal(13_000m, preview.Calculation.Proposal);
+
+        var again = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-preview-save-2");
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, first.Version, again.Token, "preview-save-2", engineer) with
+            {
+                Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.SettlementClaimantVatRegistered] = "true",
+                }),
+                Valuation = new(
+                    [GuideCard(ValuationSource.Glasses, april, 13_000m)],
+                    selection,
+                    Values("13000", "12000", preview.Calculation.Proposal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)))
+            },
+            CancellationToken.None);
+
+        var applied = Assert.Single(await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        Assert.Equal(preview.Calculation.GuideRetailValue, applied.Calculation.GuideRetailValue);
+        Assert.Equal(preview.Calculation.Proposal, applied.Calculation.Proposal);
+        Assert.False(applied.Calculation.CommercialVatApplied);
+        Assert.Equal(13_000m, applied.AcceptedEngineerValue);
+    }
+
     [Fact]
     public async Task ReviewGatedTransitionsReadThePersistedFactsNotThePostedOnes()
     {

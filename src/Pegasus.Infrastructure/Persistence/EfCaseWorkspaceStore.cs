@@ -260,6 +260,7 @@ public sealed class EfCaseWorkspaceStore(
                     afterAssessment.GetValueOrDefault(AssessmentVocabulary.SettlementClaimantVatRegistered),
                     "true",
                     StringComparison.Ordinal),
+                afterAssessment.GetValueOrDefault(AssessmentVocabulary.ValueEngineer),
                 CaseMileageInMiles(snapshot.Fields),
                 checked(workflow.Version + 1),
                 now,

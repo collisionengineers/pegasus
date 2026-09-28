@@ -63,6 +63,13 @@ public interface IFetchGuideValuation
     Task<GuideValuationQuote> ExecuteAsync(
         FetchGuideValuationRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the source has a connected provider, so the Case can say so
+    /// before Get valuation is pressed rather than after (operator, 28
+    /// September 2026).
+    /// </summary>
+    bool IsConnected(ValuationSource source);
 }
 
 public sealed class FetchGuideValuation(
@@ -73,6 +80,9 @@ public sealed class FetchGuideValuation(
         [.. providers ?? throw new ArgumentNullException(nameof(providers))];
     private readonly ICaseDataQueries _caseData =
         caseData ?? throw new ArgumentNullException(nameof(caseData));
+
+    public bool IsConnected(ValuationSource source) =>
+        ValuationSources.IsGuide(source) && _providers.Any(candidate => candidate.Source == source);
 
     public async Task<GuideValuationQuote> ExecuteAsync(
         FetchGuideValuationRequest request,

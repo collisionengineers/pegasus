@@ -2197,8 +2197,22 @@
 // Choosing a card fills the Retail and Trade boxes in place, and each
 // calculation fills the Engineer's Value box; the operator may overtype any
 // of them (operator, 26 September 2026).
+//
+// The preview shows what the Save will use (operator, 28 September 2026): it
+// posts the chosen card's retail as typed and the claimant's VAT position as
+// the form holds it, so an unsaved figure is calculated, not the recorded one.
+// While a preview is pending the lines are dimmed, and a failed one says so;
+// a calculation Core cannot work out shows its own reason.
+//
+// Use this value on a card is the visible decision to use that card's figure:
+// it chooses the card as the basis, fills the boxes, and switches on the
+// selection.Use field so the Case Save records the calculation even when it
+// is the one the page opened on. A card typed in the same edit has no
+// identity yet, so it is named to the Save by its source.
 (function () {
     'use strict';
+
+    var VAT_FIELD = 'assessmentFields[settlement.claimant_vat_registered]';
 
     // The Case form's own fields that a request carries, chosen by name.
     function caseFields(keep) {
@@ -2222,6 +2236,8 @@
             var section = calc.closest('.record-section') || document;
             var host = section.querySelector('[data-valuation-lines-host]');
             var basisName = section.querySelector('[data-valuation-basis-name]');
+            var sourceInput = section.querySelector('[data-valuation-source-input]');
+            var useInput = section.querySelector('[data-valuation-use-input]');
             var previewUrl = calc.getAttribute('data-preview-url');
             var timer = null;
             var inFlight = null;
@@ -2233,17 +2249,60 @@
                 return !!control && isSelection(control.name);
             }
 
+            // The card the calculation starts from: the checked Basis radio, or
+            // the card named by source when it was typed in this edit.
+            function chosenCard() {
+                var checked = section.querySelector('[data-valuation-basis]:checked');
+                if (checked) {
+                    return checked.closest('[data-valuation-card]');
+                }
+                if (sourceInput && !sourceInput.disabled && sourceInput.value) {
+                    return section.querySelector('[data-valuation-source-card="' + sourceInput.value + '"]');
+                }
+                return null;
+            }
+
+            function busy(on) {
+                if (!host) { return; }
+                if (on) { host.setAttribute('aria-busy', 'true'); } else { host.removeAttribute('aria-busy'); }
+            }
+
+            // The lines could not be refreshed: say so where the figure was,
+            // rather than leaving the last figure standing as if it were current.
+            function showFailure() {
+                if (!host) { return; }
+                var lines = document.createElement('div');
+                lines.className = 'lines';
+                lines.setAttribute('data-valuation-lines', '');
+                var notice = document.createElement('div');
+                notice.className = 'notice notice--danger';
+                notice.setAttribute('role', 'alert');
+                notice.setAttribute('data-valuation-error', '');
+                notice.textContent = calc.getAttribute('data-text-preview-failed')
+                    || 'The calculation could not be updated.';
+                lines.appendChild(notice);
+                host.textContent = '';
+                host.appendChild(lines);
+            }
+
             function preview() {
                 if (!previewUrl || !host) {
                     return;
                 }
                 var body = caseFields(function (name) {
-                    return name === '__RequestVerificationToken' || isSelection(name);
+                    return name === '__RequestVerificationToken' || isSelection(name) || name === VAT_FIELD;
                 });
+                // The retail the Save will use: the chosen card's, as typed.
+                var card = chosenCard();
+                if (card) {
+                    var retail = shown(card, '[data-valuation-retail]', 'data-retail');
+                    if (retail !== '') { body.append('basisRetail', retail); }
+                }
                 if (inFlight) {
                     inFlight.abort();
                 }
                 inFlight = new AbortController();
+                busy(true);
                 fetch(previewUrl, {
                     method: 'POST',
                     body: body,
@@ -2256,29 +2315,42 @@
                     }
                     return response.text();
                 }).then(function (html) {
+                    busy(false);
                     host.innerHTML = html;
                     var proposal = host.querySelector('[data-valuation-proposal]');
                     if (proposal) {
                         fill(section, '[data-valuation-value="engineer"]', proposal.getAttribute('data-valuation-proposal'));
                     }
-                }).catch(function () {
-                    // The lines keep their last state; a refused calculation
-                    // shows on Save, which Core answers.
+                }).catch(function (error) {
+                    if (error && error.name === 'AbortError') {
+                        // A newer preview replaced this one and owns the state.
+                        return;
+                    }
+                    busy(false);
+                    showFailure();
                 });
             }
             function schedule() {
+                if (!previewUrl || !host) {
+                    return;
+                }
+                // The lines on screen are for figures that have since changed.
+                busy(true);
                 window.clearTimeout(timer);
                 timer = window.setTimeout(preview, 250);
             }
 
-            function chooseBasis(radio) {
-                section.querySelectorAll('[data-valuation-card]').forEach(function (card) {
-                    var own = card.querySelector('[data-valuation-basis]');
-                    card.classList.toggle('sel', own === radio);
+            // The chosen card is drawn selected and named in the calculator's head.
+            function markChosen(card, name) {
+                section.querySelectorAll('[data-valuation-card]').forEach(function (other) {
+                    other.classList.toggle('sel', other === card);
                 });
                 if (basisName) {
-                    basisName.textContent = 'from ' + (radio.getAttribute('data-source-name') || 'guide') + ' retail';
+                    basisName.textContent = 'from ' + (name || 'guide') + ' retail';
                 }
+            }
+            function chooseBasis(radio) {
+                markChosen(radio.closest('[data-valuation-card]'), radio.getAttribute('data-source-name'));
             }
 
             // The chosen card's figures as it shows them: an entry card's own
@@ -2287,13 +2359,26 @@
                 var input = card.querySelector(box);
                 return input ? input.value : (card.getAttribute(recorded) || '');
             }
-            function fillFromCard(radio) {
-                var card = radio.closest('[data-valuation-card]');
-                if (!card) {
-                    return;
-                }
+            function fillFromCard(card) {
                 fill(section, '[data-valuation-value="retail"]', shown(card, '[data-valuation-retail]', 'data-retail'));
                 fill(section, '[data-valuation-value="trade"]', shown(card, '[data-valuation-trade]', 'data-trade'));
+            }
+
+            // Use this value is off until pressed, and pressing another card or
+            // choosing a basis by clicking a card puts the decision back to
+            // "not yet": only the button expresses it.
+            function setUseButton(button, on) {
+                button.setAttribute('aria-pressed', on ? 'true' : 'false');
+                var label = button.querySelector('span');
+                var text = calc.getAttribute(on ? 'data-text-using' : 'data-text-use');
+                if (label && text) { label.textContent = text; }
+            }
+            function clearUse() {
+                if (useInput) { useInput.disabled = true; }
+                if (sourceInput) { sourceInput.disabled = true; sourceInput.value = ''; }
+                section.querySelectorAll('[data-valuation-use]').forEach(function (button) {
+                    setUseButton(button, false);
+                });
             }
 
             function paintAdditions() {
@@ -2309,8 +2394,9 @@
                     return;
                 }
                 if (control.matches('[data-valuation-basis]') && control.checked) {
+                    clearUse();
                     chooseBasis(control);
-                    fillFromCard(control);
+                    fillFromCard(control.closest('[data-valuation-card]'));
                 }
                 if (control.matches('[data-preset-toggle]')) {
                     paintAdditions();
@@ -2320,12 +2406,25 @@
             section.addEventListener('input', function (event) {
                 if (belongs(event.target)) {
                     schedule();
+                    return;
+                }
+                // A figure typed into the chosen card is the basis figure now.
+                var typed = event.target;
+                if (typed && typed.matches
+                    && (typed.matches('[data-valuation-retail]') || typed.matches('[data-valuation-trade]'))) {
+                    var card = typed.closest('[data-valuation-card]');
+                    if (card && card === chosenCard()) {
+                        fillFromCard(card);
+                        schedule();
+                    }
                 }
             });
             // Get valuation refilled the card that is already the basis.
             section.addEventListener('pegasus:valuation-basis-refilled', function (event) {
-                if (belongs(event.target)) {
-                    fillFromCard(event.target);
+                var card = event.target && event.target.closest ? event.target.closest('[data-valuation-card]') : null;
+                if (card) {
+                    fillFromCard(card);
+                    schedule();
                 }
             });
             // A click anywhere on a card picks it as the basis; a click on one
@@ -2355,6 +2454,70 @@
                     selectCard(card);
                 });
             });
+
+            // Use this value: choose the card, fill the boxes from it, and
+            // mark the decision for the Save. A card with no retail has no
+            // figure to use, so it says so on its own card.
+            section.querySelectorAll('[data-valuation-use]').forEach(function (button) {
+                button.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    var card = button.closest('[data-valuation-card]');
+                    if (!card || !useInput) {
+                        return;
+                    }
+                    var retail = parseFloat(shown(card, '[data-valuation-retail]', 'data-retail'));
+                    var notice = card.querySelector('[data-valuation-notice]');
+                    if (!(retail > 0)) {
+                        showNotice(notice, true, calc.getAttribute('data-text-use-needs-retail'));
+                        return;
+                    }
+                    showNotice(notice, false);
+                    clearUse();
+                    var radio = card.querySelector('[data-valuation-basis]');
+                    if (radio) {
+                        // A recorded card is chosen by its identity, as a click would.
+                        radio.checked = true;
+                        chooseBasis(radio);
+                    } else {
+                        // A card typed in this edit has no identity yet: the Save
+                        // is told its source, and no recorded card is the basis.
+                        section.querySelectorAll('[data-valuation-basis]').forEach(function (other) {
+                            other.checked = false;
+                        });
+                        if (sourceInput) {
+                            sourceInput.value = card.getAttribute('data-valuation-source-card') || '';
+                            sourceInput.disabled = false;
+                        }
+                        var name = card.querySelector('h3 > span');
+                        markChosen(card, name ? name.textContent : null);
+                    }
+                    useInput.disabled = false;
+                    setUseButton(button, true);
+                    fillFromCard(card);
+                    // The decision is a change to the Case form, so it is unsaved
+                    // until the ribbon Save records it.
+                    useInput.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+            });
+
+            // The claimant's VAT position is the Claim section's control. The
+            // calculation uses it as the form holds it, and a registered
+            // claimant never has a commercial addition.
+            var vatSelect = document.querySelector('select[name="' + VAT_FIELD + '"]');
+            if (vatSelect && vatSelect.dataset.valuationVatBound !== 'true') {
+                vatSelect.dataset.valuationVatBound = 'true';
+                vatSelect.addEventListener('change', function () {
+                    if (!section.isConnected) { return; }
+                    var addVat = section.querySelector('[data-valuation-vat-wrap] input[type="checkbox"]');
+                    if (addVat) {
+                        var registered = vatSelect.value === 'true';
+                        addVat.disabled = registered;
+                        if (registered) { addVat.checked = false; }
+                    }
+                    schedule();
+                });
+            }
+
             paintAdditions();
             var checked = section.querySelector('[data-valuation-basis]:checked');
             if (checked) {
@@ -2366,7 +2529,8 @@
         // JSON and fill the card's boxes, which belong to the Case form, so no
         // form is submitted, the page is not redrawn and nothing unsaved is put
         // at risk; the ribbon Save records the card. A source with no working
-        // provider, or a refused request, shows the card's own notice.
+        // provider, or a refused request, shows the card's own notice. A source
+        // known to have no provider offers no button at all.
         root.querySelectorAll('[data-valuation-get]').forEach(function (button) {
             if (button.dataset.valuationGetBound === 'true') {
                 return;
@@ -2403,9 +2567,8 @@
                         fill(card, '[data-valuation-entry-month]', answer.guideMonth);
                         // When this card is already the basis, its new figures
                         // are the basis figures: the Retail and Trade boxes take
-                        // them. The Engineer's Value box is left as it stands;
-                        // a calculation from the card's saved figures would
-                        // overwrite what the engineer typed.
+                        // them, and the calculation follows. The Engineer's Value
+                        // box is left as it stands until that calculation lands.
                         var basis = card.querySelector('[data-valuation-basis]');
                         if (basis && basis.checked) {
                             basis.dispatchEvent(new CustomEvent('pegasus:valuation-basis-refilled', { bubbles: true }));
@@ -2434,11 +2597,14 @@
     }
 
     // The card's notice: the approved unavailable sentence, or a refusal's own
-    // words in its place when the server gave some.
+    // words in its place when the server gave some. A source known to have no
+    // provider keeps its notice standing, and it returns to the sentence when
+    // the words go.
     function showNotice(notice, visible, message) {
         if (!notice) {
             return;
         }
+        var standing = notice.hasAttribute('data-valuation-not-connected');
         var unavailable = notice.querySelector('[data-valuation-unavailable]');
         var refused = notice.querySelector('[data-valuation-refused]');
         if (refused) {
@@ -2453,7 +2619,7 @@
         } else {
             notice.removeAttribute('role');
         }
-        notice.hidden = !visible;
+        notice.hidden = standing ? false : !visible;
     }
 
     bind(document);

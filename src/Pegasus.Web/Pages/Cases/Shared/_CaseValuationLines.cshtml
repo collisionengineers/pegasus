@@ -3,9 +3,11 @@
     Core's own calculation: guide retail, commercial VAT, previous total loss,
     each addition, the condition deduction, the proposal. The PreviewValuation
     handler returns this for every change the calculator posts, and script
-    fills the Engineer's Value box from the proposal; null means the
-    posted selection could not be calculated (no basis card, or deductions
-    beyond the value).
+    fills the Engineer's Value box from the proposal; null means there is
+    nothing to show: no basis chosen yet ("None yet"), or the posted selection
+    could not be calculated, in which case ViewData["ValuationRefusal"] holds
+    Core's own reason (deductions beyond the value, no retail to start from)
+    and it is shown as an alert, never as "None yet".
 *@
 @using System.Globalization
 @using Pegasus.Core.Assessment
@@ -15,7 +17,11 @@
     string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
 }
 <div class="lines" data-valuation-lines>
-    @if (Model is null)
+    @if (Model is null && ViewData["ValuationRefusal"] is string refusal)
+    {
+        <div class="notice notice--danger" role="alert" data-valuation-error>@refusal</div>
+    }
+    else if (Model is null)
     {
         <div class="ln"><span class="muted">@ValuationLabels.NoneYet</span></div>
     }
