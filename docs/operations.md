@@ -17,6 +17,22 @@ Release 66 deployed [PR 867](https://github.com/collisionengineers/pegasus/pull/
 | Production smoke | Passed at 13:53Z. Active Web package `20260925134718.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-09-25T13:50:03Z`; the active Graph subscription expires `2026-09-28T14:30:00Z`. No signed-in journey check was run on production; CI, the Playwright walks and the guardrail walk at the tip are the behaviour evidence. |
 | Evidence | Exact artifacts retained at ignored `artifacts/releases/release-66-f8e54e11`; driver and logs at `artifacts/releases/release-66-driver`; walk records under the `upload-flow-five-designs` worktree's `artifacts/ui-baseline-review/`. |
 
+## Intake data wipe — 28 September 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped for the maintenance window, then resumed and read back `Running`.
+  The wipe cleared 43 blobs (9,832,299 bytes) from
+  `pegcustody252ow37gij/transient-intake` and deleted 384 inventoried rows
+  from 93 non-preserved tables in `pegasus` (385 affected rows including the
+  mail-boundary update). The committed mail cutoff is
+  `2026-09-28T08:47:33.1197394+00:00`; 617 preserved rows remain. Every
+  value in `CaseSequences` (24 rows), `ImageIntakeSequences` (9 rows), and
+  `UnidentifiedSequences` (1 row) was unchanged; `ValuationPresets` remained
+  0/0. `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook,
+  and Box were untouched. No `-ResetTestEstate` was used. Post-run script
+  verification reported zero blobs remaining and zero wiped tables holding
+  rows. The Web UI reload was skipped at the operator's request.
+
 ## Release 65 — 25 September 2026 (deployment live)
 
 Release 65 deployed PRs 852, 854 and 855. Report fields now have one owning input path, vehicle lookup facts follow the Case's current registration, and the obsolete instruction-date field is retired in favour of the Case received date. The operator-approved ordinary intake wipe ran first, followed by the existing App Service destructive migration route. Web and Worker are Running on the approved release, and full production smoke passed.
