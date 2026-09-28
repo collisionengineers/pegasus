@@ -501,13 +501,16 @@ internal sealed class CachedDocumentContentStore(
             return [];
         }
         // Every argument is checked before any I/O starts.
-        var caseId = reads[0].Address.CaseId;
+        var first = reads[0].Address;
         var sources = new ResolvedSource[reads.Count];
         for (var index = 0; index < reads.Count; index++)
         {
             var read = reads[index];
             var address = read.Address;
-            if (address.CaseId != caseId || address.VersionId == Guid.Empty)
+            if (address.CaseId != first.CaseId
+                || !string.Equals(address.CaseReference, first.CaseReference, StringComparison.Ordinal)
+                || !string.Equals(address.CaseRootRemoteId, first.CaseRootRemoteId, StringComparison.Ordinal)
+                || address.VersionId == Guid.Empty)
             {
                 throw new ArgumentException("A managed content batch reads one Case only.", nameof(reads));
             }
