@@ -99,7 +99,7 @@ public static class CaseWorkspaceLabels
         public const string ContactEmail = "Contact e-mail";
         public const string ContactPhone = "Contact phone";
         public const string Address = "Address";
-        public const string VatStatus = "VAT status";
+        public const string VatStatus = "Claimant VAT status";
         public const string Notes = "Notes";
         public const string PrincipalNotes = "Principal notes";
         public const string PrincipalNotesThisCase = "Principal notes · this Case";
@@ -415,6 +415,17 @@ public static class CaseWorkspaceLabels
             } => "files",
             _ => null
         };
+
+        /// <summary>
+        /// The control on the Repair Spec section that clears a repairer VAT
+        /// blocker, as a selector: its Repairer VAT status for an unknown
+        /// status, Reset to repairer status for a hand-picked set of costs.
+        /// Null for every other blocker (issue 898).
+        /// </summary>
+        public static string? BlockerFocus(AssessmentReadinessItem item) =>
+            item == CaseReportReadiness.RepairerVatStatusUnknown ? "#estimate-vat-status"
+            : item == CaseReportReadiness.RepairerVatHandPicked ? "[data-vat-reset]"
+            : null;
     }
 
     /// <summary>

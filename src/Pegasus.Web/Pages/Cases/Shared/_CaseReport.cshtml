@@ -265,6 +265,7 @@
                     @foreach (var reason in Model.ReportDraftReasons)
                     {
                         var blockerSection = Model.BlockerSectionKey(reason);
+                        var blockerFocus = Model.BlockerEditFocus(reason);
                         <li class="blocker" data-report-blocker="@blockerSection">
                             <strong>@reason.Requirement</strong>
                             <small>
@@ -272,7 +273,13 @@
                                 <br /><b>Why:</b> @reason.WhyOutstanding
                                 <br />@reason.HowToResolve
                             </small>
-                            @if (blockerSection is not null)
+                            @if (blockerFocus is not null)
+                            {
+                                <div class="blocker-actions">
+                                    <partial name="Cases/Shared/_CaseBlockerEdit" model="new CaseBlockerEditView(Model, blockerFocus)" />
+                                </div>
+                            }
+                            else if (blockerSection is not null)
                             {
                                 <div class="blocker-actions">
                                     <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@caseId"

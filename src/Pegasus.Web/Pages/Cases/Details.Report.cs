@@ -52,6 +52,21 @@ public sealed partial class DetailsModel
             : null;
 
     /// <summary>
+    /// The control a repairer VAT blocker opens edit mode on (issue 898):
+    /// the Repair Spec section is claimed on the Current spec and the control
+    /// that clears the blocker takes focus. Null when the blocker names no
+    /// control, or this viewer cannot open the Repair Spec for editing now,
+    /// where the blocker jumps to the section instead.
+    /// </summary>
+    public string? BlockerEditFocus(AssessmentReadinessItem? item) =>
+        item is not null
+        && CurrentSpecification is not null
+        && SectionOffersEdit("estimate")
+        && SectionIsEditable("estimate")
+            ? CaseWorkspaceLabels.Report.BlockerFocus(item)
+            : null;
+
+    /// <summary>
     /// Whether a blocker sends this viewer to Accounts: the Sign-off
     /// Engineer's name and signature are set there, by an Administrator
     /// (operator, 26 September 2026). For anyone else it links nowhere.

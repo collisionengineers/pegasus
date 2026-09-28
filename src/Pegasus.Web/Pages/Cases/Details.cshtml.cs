@@ -1365,6 +1365,7 @@ public sealed partial class DetailsModel(
         string operationKey,
         bool takeOver,
         string? section,
+        Guid? estimate,
         CancellationToken cancellationToken) =>
         ClaimLeaseAsync(
             acquireLease,
@@ -1373,7 +1374,9 @@ public sealed partial class DetailsModel(
             expectedVersion,
             operationKey,
             takeOver,
-            () => RedirectToSection(id, section),
+            // A repairer VAT blocker claims on the Current spec, so the spec
+            // it opens is the one the report prints (issue 898).
+            () => RedirectToSection(id, section, estimate?.ToString("D")),
             cancellationToken);
 
     /// <summary>
@@ -3621,15 +3624,15 @@ public sealed partial class DetailsModel(
         IReadOnlyList<Guid?> ExistingLineIds)
     {
         /// <summary>
-        /// The posted VAT policy. Categories that differ from the status's
-        /// own defaults are the operator's hand-made override — which is
-        /// also the one thing that lets an Unknown status be made Current,
-        /// because an Unknown status defaults to charging nothing.
+        /// The posted VAT policy, revised from the spec's saved one
+        /// (<see cref="EstimateVatPolicy.Revised"/>): categories the operator
+        /// did not choose by hand follow a changed status; categories that
+        /// differ from the status's own are the operator's override.
         /// </summary>
-        public EstimateVatPolicy VatPolicy => new(
+        public EstimateVatPolicy VatPolicyFrom(EstimateVatPolicy? saved) => EstimateVatPolicy.Revised(
+            saved ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown),
             VatStatus,
-            VatCategories,
-            VatCategories != EstimateVatPolicy.DefaultFor(VatStatus));
+            VatCategories);
     }
 
     /// <summary>
@@ -3657,7 +3660,7 @@ public sealed partial class DetailsModel(
         editor.OtherCosts,
         editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
         editor.Discounts,
-        editor.VatPolicy,
+        editor.VatPolicyFrom(existing?.Details.VatPolicy),
         RegionalUplift: editor.RegionalUplift), existing?.Details);
 
     private EstimateEditorPost ReadEditorPost()
@@ -4475,7 +4478,7 @@ public sealed partial class DetailsModel(
         "contactName" => "Contact name",
         "contactEmailAddress" => "Contact email",
         "contactPhoneNumber" => "Contact phone",
-        "vatStatus" => "VAT status",
+        "vatStatus" => FrameLabels.VatStatus,
         "inspectionDate" => "Inspection date",
         "inspectionDeadline" => "Inspection deadline",
         "inspectionAddress" => "Inspection address",
