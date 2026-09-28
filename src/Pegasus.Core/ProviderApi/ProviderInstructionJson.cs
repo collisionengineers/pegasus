@@ -96,11 +96,11 @@ public static class ProviderInstructionJson
 
     private static ProviderSubmissionFile[] Files(IReadOnlyList<ProviderSubmissionFileBody>? files)
     {
-        if (files is null || files.Count == 0)
+        // A Principal may declare an instruction with no files at all
+        // (operator, 2026-09-28): the files are optional for every kind.
+        if (files is null)
         {
-            throw new ProviderInstructionValidationException(
-                "files",
-                "At least one file is required.");
+            return [];
         }
 
         return files

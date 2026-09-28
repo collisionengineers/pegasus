@@ -101,6 +101,18 @@ public sealed class ProviderInstructionPolicyTests
         Assert.All(required, label => Assert.Contains(label, declared));
     }
 
+    [Theory]
+    [InlineData("""{"caseType":"inspection","claimNumber":"12345/1","files":[]}""")]
+    [InlineData("""{"caseType":"audit","originalReportVerdict":"repairable","claimNumber":"12345/1"}""")]
+    public void AnInstructionParsesWithNoFiles(string body)
+    {
+        // Files are optional (operator, 2026-09-28): an empty or absent list is
+        // a complete declaration, read the same way by the endpoint and intake.
+        var (instruction, files) = ProviderInstructionJson.Parse(System.Text.Encoding.UTF8.GetBytes(body));
+        Assert.Empty(files);
+        Assert.Equal("12345/1", ProviderInstructionPolicy.Normalize(instruction).ClaimNumber);
+    }
+
     [Fact]
     public void AnInstructionDateInTheBodyIsNotAContractMemberAndIsIgnored()
     {
