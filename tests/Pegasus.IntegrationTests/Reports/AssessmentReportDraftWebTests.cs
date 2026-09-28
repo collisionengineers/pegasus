@@ -691,7 +691,7 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         var image = ReadyImage;
         var photo = new ReportImageEvidence(
-            "site.jpg", "image/jpeg", image, Convert.ToHexStringLower(SHA256.HashData(image)));
+            "site.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(image)), Convert.ToHexStringLower(SHA256.HashData(image)));
         var source = new AcceptedReportSource("instruction.pdf", "1", new string('a', 64));
         return new AssessmentReportProjectionInput(
             FullAssessmentProjection(caseId),

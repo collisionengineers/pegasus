@@ -169,7 +169,7 @@ public sealed record ReportSettlement(decimal? ContractSum = null);
 /// The bytes of one report image, opened when the renderer prints that image
 /// and not before, so a render holds one source image in memory at a time
 /// however many the report prints. An adapter that reads custody supplies
-/// <see cref="Opened"/>; bytes already in hand convert implicitly.
+/// <see cref="Opened"/>.
 /// </summary>
 public sealed class ReportImageContent
 {
@@ -177,21 +177,12 @@ public sealed class ReportImageContent
 
     private ReportImageContent(Func<CancellationToken, Task<byte[]>> open) => this.open = open;
 
-    /// <summary>Bytes the caller already holds.</summary>
-    public static ReportImageContent Held(byte[] content)
-    {
-        ArgumentNullException.ThrowIfNull(content);
-        return new(_ => Task.FromResult(content));
-    }
-
     /// <summary>Bytes read from custody each time the image is opened.</summary>
     public static ReportImageContent Opened(Func<CancellationToken, Task<byte[]>> open)
     {
         ArgumentNullException.ThrowIfNull(open);
         return new(open);
     }
-
-    public static implicit operator ReportImageContent(byte[] content) => Held(content);
 
     internal Task<byte[]> OpenAsync(CancellationToken cancellationToken) => open(cancellationToken);
 }

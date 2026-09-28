@@ -2040,7 +2040,8 @@ public sealed class CaseReportGenerationPersistenceTests
         public ReportImageEvidence[] RehydratedPhotos(
             CaseReportGenerationSnapshot snapshot) => snapshot.Images
                 .Select(image => new ReportImageEvidence(
-                    $"{image.OccurrenceId:D}.png", image.ContentType, EvidenceContent[image.Sha256],
+                    $"{image.OccurrenceId:D}.png", image.ContentType,
+                    ReportImageContent.Opened(_ => Task.FromResult(EvidenceContent[image.Sha256])),
                     image.Sha256, image.Role, image.Order, image.Rotation, image.Crop,
                     image.OccurrenceId, image.VersionId, image.BoxFileId, image.BoxVersionId,
                     image.FullPage))

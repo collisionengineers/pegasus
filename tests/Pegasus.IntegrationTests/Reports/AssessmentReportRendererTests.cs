@@ -522,7 +522,7 @@ public sealed partial class AssessmentReportRendererTests
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var tall = Bitmap(2400, 3200, SKEncodedImageFormat.Jpeg);
         var photo = new ReportImageEvidence(
-            "tall.jpg", "image/jpeg", tall, Convert.ToHexStringLower(SHA256.HashData(tall)), FullPage: true);
+            "tall.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(tall)), Convert.ToHexStringLower(SHA256.HashData(tall)), FullPage: true);
 
         var artifact = await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
             ReadySnapshot() with { Photos = [photo] }, CaseReportArtifactKind.AssessmentReport);
@@ -602,7 +602,7 @@ public sealed partial class AssessmentReportRendererTests
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var bytes = Bitmap(width, height, SKEncodedImageFormat.Png);
         var photo = new ReportImageEvidence(
-            "site.png", "image/png", bytes, Convert.ToHexStringLower(SHA256.HashData(bytes)));
+            "site.png", "image/png", ReportImageContent.Opened(_ => Task.FromResult(bytes)), Convert.ToHexStringLower(SHA256.HashData(bytes)));
 
         var artifact = await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
             ReadySnapshot() with { Photos = [photo] }, CaseReportArtifactKind.AssessmentReport);
@@ -653,7 +653,7 @@ public sealed partial class AssessmentReportRendererTests
         var source = NoiseJpeg(4000, 3000);
         Assert.True(source.Length > 8 * 1024 * 1024, $"The source image is only {source.Length} bytes.");
         var large = new ReportImageEvidence(
-            "large.jpg", "image/jpeg", source, Convert.ToHexStringLower(SHA256.HashData(source)));
+            "large.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(source)), Convert.ToHexStringLower(SHA256.HashData(source)));
 
         var artifact = await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
             ReadySnapshot() with { Photos = [large] }, CaseReportArtifactKind.AssessmentReport);
@@ -714,7 +714,7 @@ public sealed partial class AssessmentReportRendererTests
         var snapshot = ReadySnapshot();
         var garbage = new byte[] { 137, 80, 78, 71, 1, 2, 3, 4 };
         var broken = new ReportImageEvidence(
-            "broken.jpg", "image/jpeg", garbage, Convert.ToHexStringLower(SHA256.HashData(garbage)));
+            "broken.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(garbage)), Convert.ToHexStringLower(SHA256.HashData(garbage)));
 
         var rejection = await Assert.ThrowsAsync<ReportRenderRejectedException>(() =>
             renderer.RenderAsync(snapshot with { Photos = [broken] }, CaseReportArtifactKind.AssessmentReport));
@@ -747,7 +747,7 @@ public sealed partial class AssessmentReportRendererTests
             Photos =
             [
                 new ReportImageEvidence(
-                    "site.jpg", "image/jpeg", photo, Convert.ToHexStringLower(SHA256.HashData(photo))),
+                    "site.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(photo)), Convert.ToHexStringLower(SHA256.HashData(photo))),
             ],
             Signatory = snapshot.Signatory with
             {

@@ -854,7 +854,7 @@ public sealed class AssessmentReportProjectionTests
     {
         var image = new byte[] { 137, 80, 78, 71, 1, 2, 3, 4 };
         var photo = new ReportImageEvidence(
-            "site.jpg", "image/jpeg", image, Convert.ToHexStringLower(SHA256.HashData(image)));
+            "site.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(image)), Convert.ToHexStringLower(SHA256.HashData(image)));
         var source = new AcceptedReportSource("instruction.pdf", "1", new string('a', 64));
 
         var fields = new[]
