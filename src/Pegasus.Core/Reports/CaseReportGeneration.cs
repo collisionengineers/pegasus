@@ -661,13 +661,14 @@ public static class CaseReportReadiness
 
     // The repairer's VAT status decides what VAT is charged on, so a report
     // on an unknown status would understate the repair cost (operator, 27
-    // September 2026).
-    internal static readonly AssessmentReadinessItem RepairerVatStatusUnknown = new(
+    // September 2026). Both are public so the Case page can open the control
+    // each one names (issue 898).
+    public static readonly AssessmentReadinessItem RepairerVatStatusUnknown = new(
         RepairerVatRequirement, "Estimates",
         "The Current repair spec does not say whether the repairer is VAT registered, so the report cannot work out the VAT.",
         "Choose Registered or Not registered as the Repairer VAT status on the Repair Spec section.");
 
-    internal static readonly AssessmentReadinessItem RepairerVatHandPicked = new(
+    public static readonly AssessmentReadinessItem RepairerVatHandPicked = new(
         RepairerVatRequirement, "Estimates",
         "The Current repair spec charges VAT on a hand-picked set of costs, and the report has no wording for that set.",
         "Use Reset to repairer status beside VAT charged on, on the Repair Spec section.");

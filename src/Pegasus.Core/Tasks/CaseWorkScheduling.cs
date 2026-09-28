@@ -1,3 +1,5 @@
+using Pegasus.Core.AiWork;
+
 namespace Pegasus.Core.Tasks;
 
 /// <summary>
@@ -75,6 +77,14 @@ public static class CaseDuePolicy
 {
     public static DateOnly? Resolve(DateOnly? manualDueBy, DateOnly? acceptedDeadline) =>
         manualDueBy ?? acceptedDeadline;
+
+    /// <summary>
+    /// The one due instant of a Case's due work (FRD-15): the next chase time,
+    /// else the end of its Due by date in Europe/London. Null when it has
+    /// neither. Every surface that shows a Case's Due reads this.
+    /// </summary>
+    public static DateTimeOffset? DueAt(DateTimeOffset? nextChaseAtUtc, DateOnly? dueBy) =>
+        nextChaseAtUtc ?? (dueBy is { } date ? WorkTargets.EndOfDay(date) : null);
 }
 
 /// <summary>

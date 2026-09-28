@@ -117,7 +117,13 @@ assume another Case-version increment.
 value scales a spec down under the Engineer's hand: one factor lowers every
 part price, every materials figure and the labour rate, each to its floor
 (£50 an hour and 65 % of price unless the Engineer sets others); hours never
-move. Apply saves the Case first (the one Save, which records the spec as
+move. Moving the slider previews (P34; operator, 28 September 2026): Core
+scales and totals the spec as the editor holds it, read on the save's own
+terms, the changed cells show its figures in amber and cannot be typed in,
+and the rollup and the readout follow. The readout, previewed and recorded
+alike, ends `labour at floor` when the labour rate stops at its floor.
+Nothing is recorded until Apply, and any save records the spec as
+edited, not as previewed. Apply saves the Case first (the one Save, which records the spec as
 edited), then freezes the saved spec, saves the scaled specification and
 freezes it again as the scaled version; Remove scaling likewise saves first
 and returns the spec to the version frozen before. A contract repair's agreed sum is Case data the

@@ -579,7 +579,14 @@
                     }
                     <div class="next-row">
                         <span data-next-label>@next.Label</span>
-                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@next.SectionKey" asp-fragment="section-@next.SectionKey" data-section-jump="@(Model.IsInspectionView ? null : next.SectionKey)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == next.SectionKey).Label</a>
+                        @if (Model.BlockerEditFocus(next.Blocker) is { } nextFocus)
+                        {
+                            <partial name="Cases/Shared/_CaseBlockerEdit" model="new CaseBlockerEditView(Model, nextFocus)" />
+                        }
+                        else
+                        {
+                            <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@next.SectionKey" asp-fragment="section-@next.SectionKey" data-section-jump="@(Model.IsInspectionView ? null : next.SectionKey)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == next.SectionKey).Label</a>
+                        }
                     </div>
                 </div>
             </section>

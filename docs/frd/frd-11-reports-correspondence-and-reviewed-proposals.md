@@ -522,7 +522,11 @@ the selected VAT categories still govern the calculation.
 An `Unknown` status does block the report (operator, 27 September 2026). With
 no status recorded, the report would understate the repair cost. The blocker
 is named Repairer VAT status. Staff clear it on Repair Spec by choosing
-Registered or Not registered.
+Registered or Not registered. VAT categories nobody chose by hand follow the
+status, so choosing one charges what that status charges (operator, 28
+September 2026). One edge is accepted: an operator who changes the status and
+then ticks the categories back to exactly the saved set is read as having
+left them alone, so on Save they follow the new status.
 
 The report words its VAT row as the template does. The percentage shown is
 the estimate's own.
@@ -535,6 +539,12 @@ the estimate's own.
 Any other hand-picked set of VAT categories blocks the report, because no
 accepted wording exists for it. Staff clear it on Repair Spec with Reset to
 repairer status.
+
+Where the viewer can edit the Repair Spec, both blockers' links, in the
+readiness list and as the Next action, open it for editing on the Current
+spec and put the focus on the control that clears the blocker: Repairer VAT
+status for an unknown status, Reset to repairer status for a hand-picked set
+(operator, 28 September 2026). Otherwise they jump to the section.
 
 On a rendered report, VAT is `Taxable × VatPercent / 100`, where Taxable is
 the selected discounted Labour, Parts, Materials and Specialist categories.

@@ -144,71 +144,17 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The one-line Next action the aside states: the AI draft rows come first
-    /// (rendered by the view), then the next permitted lifecycle action. With
-    /// Engineer, while the report is not ready, it names the first blocker at
-    /// the section that clears it, and at the Report section when that blocker
-    /// has none. Delivery is the next action only once the report is stored.
+    /// (rendered by the view), then the Case's next permitted lifecycle action
+    /// (<see cref="CaseNextAction"/>).
     /// </summary>
-    public (string Label, string SectionKey) NextAction
-    {
-        get
-        {
-            var workflow = Case!.Workflow;
-            if (workflow.Archive is not null || CaseLifecycleRules.IsTerminal(workflow.State))
-            {
-                return ("None", "notes");
-            }
-            if (workflow.State == CaseLifecycleState.Review)
-            {
-                return (CaseWorkspaceLabels.HandToEngineer, "overview");
-            }
-            if (workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held)
-            {
-                return (OutstandingRequirements.Count > 0
-                    ? OutstandingRequirements[0].Title
-                    : OperatorLabels.CaseStage(workflow.State), "overview");
-            }
-            if (ReportDraftNotReady && ReportDraftReasons.Count > 0)
-            {
-                // One line in the aside: the first blocker and how many follow,
-                // linking to the section that clears the first (FRD-13). The
-                // Report section lists every blocker with its own link, and is
-                // the target when the first has no section.
-                var first = ReportDraftReasons[0];
-                return (ReportDraftReasons.Count > 1
-                        ? $"{first.Requirement} · {ReportDraftReasons.Count - 1} more"
-                        : first.Requirement,
-                    BlockerSectionKey(first) ?? "report");
-            }
-            if (CurrentReportGeneration is null
-                || CurrentReportGeneration.State == Pegasus.Core.Reports.CaseReportGenerationState.Stale)
-            {
-                return (CaseWorkspaceLabels.ReportDelivery.GenerateReport, "report");
-            }
-            // A report that is not stored cannot be delivered. One on its way
-            // to Box is waited for; one never drawn, failed or not confirmed is
-            // generated again.
-            var reportFiling = CurrentReportGeneration.Artifacts
-                .FirstOrDefault(artifact => artifact.Kind == Pegasus.Core.Reports.CaseReportArtifactKind.AssessmentReport)
-                ?.Filing;
-            if (reportFiling != Pegasus.Core.Reports.CaseReportArtifactFiling.Stored)
-            {
-                return (reportFiling == Pegasus.Core.Reports.CaseReportArtifactFiling.BeingStored
-                        ? CaseWorkspaceLabels.ReportDelivery.WaitingForStorage
-                        : CaseWorkspaceLabels.ReportDelivery.GenerateReport,
-                    "report");
-            }
-            if (workflow.ReportSentEvidence is not null)
-            {
-                return ("Mark completed", "overview");
-            }
-            if (CurrentDeliveryPreparation is not null)
-            {
-                return (CaseWorkspaceLabels.ReportDelivery.SendPreparedReport, "report");
-            }
-            return (CaseWorkspaceLabels.ReportDelivery.PrepareDelivery, "report");
-        }
-    }
+    public (string Label, string SectionKey, AssessmentReadinessItem? Blocker) NextAction =>
+        CaseNextAction.Of(
+            Case!.Workflow,
+            OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
+            ReportDraftReasons,
+            BlockerSectionKey,
+            CurrentReportGeneration,
+            CurrentDeliveryPreparation);
 
     /// <summary>The Figures aside's repair cost inc VAT from the current estimate.</summary>
     public decimal? RepairCostIncVat =>

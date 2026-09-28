@@ -298,7 +298,8 @@ public sealed partial class DetailsModel(
                 requirements.Add(new("Original report missing", "Audit", null));
             }
             requirements.AddRange(data.Completeness.Evaluation.MissingRequirements
-                .Select(requirement => new CaseRequirement($"{requirement} incomplete", "Case requirements", why)));
+                .Select(requirement => new CaseRequirement(
+                    Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(requirement), "Case requirements", why)));
             return requirements;
         }
     }
@@ -1509,6 +1510,7 @@ public sealed partial class DetailsModel(
         string operationKey,
         bool takeOver,
         string? section,
+        Guid? estimate,
         CancellationToken cancellationToken) =>
         ClaimLeaseAsync(
             acquireLease,
@@ -1517,7 +1519,9 @@ public sealed partial class DetailsModel(
             expectedVersion,
             operationKey,
             takeOver,
-            () => RedirectToSection(id, section),
+            // A repairer VAT blocker claims on the Current spec, so the spec
+            // it opens is the one the report prints (issue 898).
+            () => RedirectToSection(id, section, estimate?.ToString("D")),
             cancellationToken);
 
     /// <summary>
@@ -3083,18 +3087,91 @@ public sealed partial class DetailsModel(
         {
             return null;
         }
-        var provisional = new RepairSpecificationVersion(
-            existing?.SpecificationId ?? Guid.Empty, caseId, existing?.Version ?? 1, RepairSpecificationState.Draft,
-            existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
-            [.. lines.Select((line, index) => new CaseEstimateLineRecord(
-                Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
-                line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
-                ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow,
-                line.PaintWorkUnits, line.Quantity, line.Materials))],
-            string.Empty, DateTimeOffset.UtcNow, details);
-        var diff = RepairSpecificationComparison.Compare(baseSpecification, provisional);
+        var diff = RepairSpecificationComparison.Compare(
+            baseSpecification, EstimatePolicy.Provisional(caseId, existing, details, lines, DateTimeOffset.UtcNow));
         var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
         return new(baseId, reason, explain, RepairSpecificationComparison.SupplementaryStatement(diff, reason));
+    }
+
+    /// <summary>
+    /// The Target % of value preview (v28 P34, issue 897): what Apply would
+    /// make of the spec as the editor holds it, for the bar's percentage and
+    /// floors. Script calls it as the slider moves; it writes nothing. Core
+    /// scales and totals the spec; the figures come back as the editor shows
+    /// them, each line by the posted row it came from.
+    /// </summary>
+    public async Task<IActionResult> OnPostPreviewEstimateScaleAsync(
+        Guid id,
+        decimal? targetPercent,
+        decimal? floorRate,
+        decimal? floorPrice,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!await HasAssessmentAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        var refused = new JsonResult(new { status = "refused" });
+        var editor = ReadEditorPost();
+        if (editor.Lines is null || targetPercent is not { } percent)
+        {
+            return refused;
+        }
+        try
+        {
+            var existing = await ResolveEstimateAsync(id, editor.EstimateId, cancellationToken);
+            var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
+            decimal? engineerValue = workspace?.Assessment.Field(AssessmentVocabulary.ValueEngineer) is { } field
+                && decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var recorded)
+                    ? recorded
+                    : null;
+            var target = RepairSpecificationScaling.TargetGross(engineerValue, percent);
+            var floors = new ScalingFloors(
+                floorRate ?? ScalingFloors.Default.LabourRatePerHour,
+                floorPrice ?? ScalingFloors.Default.PricePercent);
+            // The spec a Save would record: the save's own line checks and
+            // carry, so the preview never shows money the save refuses or drops.
+            var edited = EstimatePolicy.Edited(
+                id, actor, existing, EditorDetailsFrom(editor, existing), editor.Lines, editor.ExistingLineIds,
+                DateTimeOffset.UtcNow);
+            var result = RepairSpecificationScaling.Scale(edited, target, floors);
+            var printed = result.Totals.Printed;
+            static string? Amount(decimal? value) => value?.ToString("0.00", CultureInfo.InvariantCulture);
+            return new JsonResult(new
+            {
+                status = "ok",
+                readout = RepairSpecificationWording.ScaleReadout(result, percent),
+                labourRate = Amount(result.Details.LabourRate),
+                lines = editor.LineRows.Select((row, index) => new
+                {
+                    row,
+                    price = Amount(result.Lines[index].Price),
+                    materials = Amount(result.Lines[index].Materials),
+                }),
+                rollup = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["parts"] = RepairSpecificationWording.Money(printed.Parts),
+                    ["panelLabour"] = RepairSpecificationWording.Money(printed.PanelLabour),
+                    ["paintLabour"] = RepairSpecificationWording.Money(printed.PaintLabour),
+                    ["materials"] = RepairSpecificationWording.Money(printed.Materials),
+                    ["specialist"] = RepairSpecificationWording.Money(printed.Specialist),
+                    ["offPattern"] = RepairSpecificationWording.Money(
+                        decimal.Round(result.Totals.Raw.OffPattern, 2, MidpointRounding.AwayFromZero)),
+                    ["net"] = RepairSpecificationWording.Money(printed.Net),
+                    ["vat"] = RepairSpecificationWording.Money(printed.Vat),
+                    ["gross"] = RepairSpecificationWording.Money(printed.Gross),
+                },
+            });
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            return refused;
+        }
     }
 
     /// <summary>
@@ -3798,18 +3875,19 @@ public sealed partial class DetailsModel(
         Guid? EstimateId,
         IReadOnlyList<EstimateEditorLine> Rows,
         IReadOnlyList<EstimateLineInput>? Lines,
-        IReadOnlyList<Guid?> ExistingLineIds)
+        IReadOnlyList<Guid?> ExistingLineIds,
+        IReadOnlyList<int> LineRows)
     {
         /// <summary>
-        /// The posted VAT policy. Categories that differ from the status's
-        /// own defaults are the operator's hand-made override — which is
-        /// also the one thing that lets an Unknown status be made Current,
-        /// because an Unknown status defaults to charging nothing.
+        /// The posted VAT policy, revised from the spec's saved one
+        /// (<see cref="EstimateVatPolicy.Revised"/>): categories the operator
+        /// did not choose by hand follow a changed status; categories that
+        /// differ from the status's own are the operator's override.
         /// </summary>
-        public EstimateVatPolicy VatPolicy => new(
+        public EstimateVatPolicy VatPolicyFrom(EstimateVatPolicy? saved) => EstimateVatPolicy.Revised(
+            saved ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown),
             VatStatus,
-            VatCategories,
-            VatCategories != EstimateVatPolicy.DefaultFor(VatStatus));
+            VatCategories);
     }
 
     /// <summary>
@@ -3837,7 +3915,7 @@ public sealed partial class DetailsModel(
         editor.OtherCosts,
         editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
         editor.Discounts,
-        editor.VatPolicy,
+        editor.VatPolicyFrom(existing?.Details.VatPolicy),
         RegionalUplift: editor.RegionalUplift), existing?.Details);
 
     private EstimateEditorPost ReadEditorPost()
@@ -3872,6 +3950,8 @@ public sealed partial class DetailsModel(
         var rows = new List<EstimateEditorLine>(operations.Length);
         var lines = new List<EstimateLineInput>(operations.Length);
         var existingLineIds = new List<Guid?>(operations.Length);
+        // The posted row each line came from: blank rows are not lines.
+        var lineRows = new List<int>(operations.Length);
         var linesAreValid = true;
         static string Field(string?[] values, int index) =>
             index >= 0 && index < values.Length && values[index] is not null ? values[index]! : string.Empty;
@@ -3903,6 +3983,7 @@ public sealed partial class DetailsModel(
                 continue;
             }
             existingLineIds.Add(existingLineId);
+            lineRows.Add(index);
 
             var typed = EstimateOperations.TryParse(operation, out var parsedOperation);
             var workUnits = Money(labourHours);
@@ -3986,7 +4067,8 @@ public sealed partial class DetailsModel(
             estimateId,
             rows,
             linesAreValid ? lines : null,
-            existingLineIds);
+            existingLineIds,
+            lineRows);
     }
 
     /// <summary>
@@ -4648,7 +4730,7 @@ public sealed partial class DetailsModel(
         "contactName" => "Contact name",
         "contactEmailAddress" => "Contact email",
         "contactPhoneNumber" => "Contact phone",
-        "vatStatus" => "VAT status",
+        "vatStatus" => FrameLabels.VatStatus,
         "inspectionDate" => "Inspection date",
         "inspectionDeadline" => "Inspection deadline",
         "inspectionAddress" => "Inspection address",

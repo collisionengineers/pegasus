@@ -362,7 +362,7 @@ public sealed partial class IndexModel(
                 item.EditingStaffId is { } editing
                     ? ActorDisplayNames.Resolve(ActorKind.Staff, editing.ToString("D"), engineerNames)
                     : string.Empty,
-                item.NextChaseAtUtc is { } chase ? OperatorLabels.OfficeDate(chase) : "Not recorded",
+                item.DueAtUtc is { } due ? OperatorLabels.DueDate(due) : "Not recorded",
                 outstanding.Count > 0 ? outstanding[0].Resolve : "Not recorded",
                 outstanding);
         }

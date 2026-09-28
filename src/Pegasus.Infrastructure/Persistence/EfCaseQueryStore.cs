@@ -791,6 +791,7 @@ public sealed class EfCaseQueryStore(
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
             NextChaseAtUtc = workflow == null || workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
+            DueBy = workflow == null || workflow.DueWork == null ? null : workflow.DueWork!.DueBy,
             InstructionComplete = caseEntity.InstructionComplete,
             ImagesComplete = caseEntity.ImagesComplete,
             HoldReviewOn = workflow == null ? null : workflow.HoldReviewOn,
@@ -864,6 +865,7 @@ public sealed class EfCaseQueryStore(
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
             NextChaseAtUtc = workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
+            DueBy = workflow.DueWork == null ? null : workflow.DueWork!.DueBy,
             InstructionComplete = caseEntity.InstructionComplete,
             ImagesComplete = caseEntity.ImagesComplete,
             HoldReviewOn = workflow.HoldReviewOn,
@@ -1146,7 +1148,7 @@ public sealed class EfCaseQueryStore(
         item.ReceivedAtUtc,
         item.Origin,
         item.CreatedAtUtc,
-        item.NextChaseAtUtc,
+        CaseDuePolicy.DueAt(item.NextChaseAtUtc, item.DueBy),
         item.VehicleMake,
         item.VehicleModel,
         item.AccidentCircumstances)
@@ -1363,6 +1365,7 @@ public sealed class EfCaseQueryStore(
         public required string Origin { get; init; }
         public DateTimeOffset CreatedAtUtc { get; init; }
         public DateTimeOffset? NextChaseAtUtc { get; init; }
+        public DateOnly? DueBy { get; init; }
         public string? VehicleMake { get; init; }
         public string? VehicleModel { get; init; }
         public string? AccidentCircumstances { get; init; }

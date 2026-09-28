@@ -186,7 +186,7 @@ public sealed class EfRepairSpecificationStore(
 
         var result = RepairSpecificationScaling.Scale(
             edited,
-            engineerValue * request.TargetPercentOfValue / 100m,
+            RepairSpecificationScaling.TargetGross(engineerValue, request.TargetPercentOfValue),
             request.Floors);
         var reason = RepairSpecificationWording.Scaled(result, request.TargetPercentOfValue);
 

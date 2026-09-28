@@ -71,7 +71,7 @@ public sealed record CaseSearchItem(
     DateTimeOffset ReceivedAtUtc,
     string Origin,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? NextChaseAtUtc = null,
+    DateTimeOffset? DueAtUtc = null,
     string? VehicleMake = null,
     string? VehicleModel = null,
     string? AccidentCircumstances = null)
