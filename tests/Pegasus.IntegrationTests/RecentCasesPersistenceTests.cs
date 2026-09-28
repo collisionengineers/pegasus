@@ -56,7 +56,7 @@ public sealed class RecentCasesPersistenceTests
         // creation event and version-0 guidance never appear.
         Assert.Equal(12, whole.TotalCount);
         Assert.Equal(12, whole.Items.Count);
-        Assert.DoesNotContain(whole.Items, item => item.Reference.StartsWith("T", StringComparison.Ordinal));
+        Assert.DoesNotContain(whole.Items, item => item.Reference.StartsWith('T'));
         Assert.DoesNotContain(
             whole.Items,
             item => item.ChangeKind is "manual_case_created" or "case_guidance_applied");
