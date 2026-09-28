@@ -1911,6 +1911,10 @@ public sealed class GlassRepairEstimateGatewayTests
         public Task<PerUserExternalCredentialMaterial?> GetEnabledAsync(
             ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken) =>
             Task.FromResult(held.GetValueOrDefault(actor.SubjectId));
+
+        public Task<bool> IsEnabledAsync(
+            ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken) =>
+            Task.FromResult(held.ContainsKey(actor.SubjectId));
     }
 
     private sealed class CustodyDouble : ICaseArtifactCustody, ICaseArtifactCustodyStatus

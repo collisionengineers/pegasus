@@ -33,6 +33,7 @@ public sealed class ExternalCredentialIsolationTests
             {
                 var store = new EfPerUserExternalCredentialStore(
                     context,
+                    ContextFactoryOf(database),
                     protection,
                     TimeProvider.System);
                 var status = await store.ReplaceAsync(
@@ -52,12 +53,17 @@ public sealed class ExternalCredentialIsolationTests
                     otherEngineer,
                     ExternalCredentialProvider.GlassRepairEstimate,
                     default));
+                Assert.False(await store.IsEnabledAsync(
+                    otherEngineer,
+                    ExternalCredentialProvider.GlassRepairEstimate,
+                    default));
             }
 
             await using (var restartedContext = await database.CreateContextAsync())
             {
                 var restartedStore = new EfPerUserExternalCredentialStore(
                     restartedContext,
+                    ContextFactoryOf(database),
                     protection,
                     TimeProvider.System);
                 var material = await restartedStore.GetEnabledAsync(
@@ -67,6 +73,10 @@ public sealed class ExternalCredentialIsolationTests
 
                 Assert.NotNull(material);
                 Assert.Equal("alex.glass", material.Username);
+                Assert.True(await restartedStore.IsEnabledAsync(
+                    engineer,
+                    ExternalCredentialProvider.GlassRepairEstimate,
+                    default));
                 Assert.True(SecretEquals("provider-password", material.Password));
                 Assert.Equal(
                     nameof(PerUserExternalCredentialMaterial),
@@ -99,6 +109,7 @@ public sealed class ExternalCredentialIsolationTests
         await CreateEnabledUsersAsync(database, administratorId, engineerId);
         var store = new EfPerUserExternalCredentialStore(
             context,
+            ContextFactoryOf(database),
             new EphemeralDataProtectionProvider(),
             TimeProvider.System);
         var administrator = ActionActor.Staff(administratorId, [StaffRole.Administrator]);
@@ -172,6 +183,7 @@ public sealed class ExternalCredentialIsolationTests
             engineerId);
         var store = new EfPerUserExternalCredentialStore(
             context,
+            ContextFactoryOf(database),
             new EphemeralDataProtectionProvider(),
             TimeProvider.System);
         var administrator = ActionActor.Staff(administratorId, [StaffRole.Administrator]);
@@ -308,4 +320,11 @@ public sealed class ExternalCredentialIsolationTests
         System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
             System.Text.Encoding.UTF8.GetBytes(expected),
             System.Text.Encoding.UTF8.GetBytes(actual));
+
+    /// <summary>The database's context factory, which the store's reader half uses.</summary>
+    private static IDbContextFactory<PegasusDbContext> ContextFactoryOf(LocalDbTestDatabase database)
+    {
+        using var scope = database.CreateAsyncScope();
+        return scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+    }
 }

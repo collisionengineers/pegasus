@@ -204,8 +204,7 @@ public sealed class EfCaseReportGenerationStore(
         // v28 P40: a report generated without an overridden date is dated
         // today, and the record says so rather than leaving the cell empty.
         await StampReportDateAsync(context, workId, request, reportDate, now, cancellationToken).ConfigureAwait(false);
-        var profiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken).ConfigureAwait(false);
+        var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken).ConfigureAwait(false);
         if (!SignatoryMatches(snapshot, CaseSignOffEngineerResolver.Resolve(
                 workflow.SignOffEngineerId, workflow.AssignedEngineerId, profiles)))
         {
@@ -845,8 +844,7 @@ public sealed class EfCaseReportGenerationStore(
     internal static async Task MarkChangedSignatoriesStaleAsync(
         PegasusDbContext context, DateTimeOffset nowUtc, CancellationToken cancellationToken)
     {
-        var profiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken);
+        var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
         var currentWorkIds = CaseWorkScope.CurrentWorkIds(context);
         var current = await (
             from generation in context.Set<CaseReportGenerationEntity>()
