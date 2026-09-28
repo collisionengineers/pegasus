@@ -586,6 +586,21 @@ public sealed partial class DetailsModel(
     /// </summary>
     public CaseReportGenerationRecord? CurrentReportGeneration { get; private set; }
 
+    private const string OpenReportKey = "CaseOpenReport";
+
+    /// <summary>
+    /// The report Generate report has just stored, carried to the one page
+    /// that follows so that page opens it in the viewer. Null on every later
+    /// read of the Case.
+    /// </summary>
+    public Guid? OpenReportArtifactId => TempData[OpenReportKey] switch
+    {
+        // TempData materializes Guid-shaped strings as Guid values.
+        Guid artifactId => artifactId,
+        string text when Guid.TryParse(text, out var artifactId) => artifactId,
+        _ => null,
+    };
+
     /// <summary>
     /// The current generation's latest delivery preparation (B07), if one
     /// exists.
@@ -2369,6 +2384,15 @@ public sealed partial class DetailsModel(
                 return RedirectToReport(id);
             default:
                 ClearLeaseState();
+                if (kind == CaseReportArtifactKind.AssessmentReport
+                    && result.Generation?.Artifacts.FirstOrDefault(artifact => artifact is
+                    {
+                        Kind: CaseReportArtifactKind.AssessmentReport,
+                        Filing: CaseReportArtifactFiling.Stored,
+                    }) is { } stored)
+                {
+                    TempData[OpenReportKey] = stored.Id.ToString("D");
+                }
                 TempData["CaseStatus"] = kind switch
                 {
                     CaseReportArtifactKind.AssessmentReport =>

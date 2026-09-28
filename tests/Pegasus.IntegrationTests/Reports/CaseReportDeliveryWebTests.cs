@@ -394,16 +394,16 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
-        var combined = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DownloadReportWithFeeNote;
+        var combined = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReportWithFeeNote;
         if (includeFeeNote)
         {
-            Assert.Contains(combined, html, StringComparison.Ordinal);
+            Assert.Contains($"<span>{combined}</span>", html, StringComparison.Ordinal);
         }
         else
         {
             Assert.DoesNotContain(combined, html, StringComparison.Ordinal);
             Assert.Contains(
-                $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DownloadReport}</span>",
+                $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReport}</span>",
                 html,
                 StringComparison.Ordinal);
         }
@@ -458,6 +458,136 @@ public sealed partial class AssessmentReportDraftWebTests
         {
             Assert.DoesNotContain(name, read, StringComparison.Ordinal);
         }
+    }
+
+    /// <summary>
+    /// Open report is offered only for a stored report, and opens it in the
+    /// page's document viewer as Preview opens the draft: the same viewer
+    /// attributes and the eye glyph, the file name the viewer titles it with,
+    /// and a real link for a browser without script.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseReportArtifactStatus.Confirmed, true, true)]
+    [InlineData(CaseReportArtifactStatus.Pending, true, false)]
+    [InlineData(CaseReportArtifactStatus.Pending, false, false)]
+    [InlineData(CaseReportArtifactStatus.Failed, true, false)]
+    [InlineData(CaseReportArtifactStatus.Unknown, true, false)]
+    public async Task OpenReportOpensTheStoredReportInTheViewer(
+        CaseReportArtifactStatus status, bool filed, bool offered)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generation = new FakeCurrentGeneration(caseId, includeFeeNote: false, reportStatus: status, reportFiled: filed);
+        using var factory = WithCurrentGeneration(baseFactory, caseId, generation);
+        using var client = Client(factory);
+
+        var card = ReportCard(WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report")));
+
+        if (!offered)
+        {
+            Assert.DoesNotContain("data-report-artifact", card, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReport, card, StringComparison.Ordinal);
+            return;
+        }
+
+        var link = OpenReportLink(card);
+        var report = Assert.Single(generation.Record.Artifacts);
+        Assert.Contains($"href=\"/Cases/{caseId:D}?", link, StringComparison.Ordinal);
+        Assert.Contains("handler=GeneratedArtifact", link, StringComparison.Ordinal);
+        Assert.Contains($"generationId={generation.Record.Id:D}", link, StringComparison.Ordinal);
+        Assert.Contains($"artifactId={report.Id:D}", link, StringComparison.Ordinal);
+        Assert.Contains("target=\"_blank\"", link, StringComparison.Ordinal);
+        Assert.Contains("data-document-preview", link, StringComparison.Ordinal);
+        Assert.Contains("data-no-inplace", link, StringComparison.Ordinal);
+        Assert.Contains("data-file-name=\"CE_100_assessment.pdf\"", link, StringComparison.Ordinal);
+        Assert.Contains("<use href=\"#icon-eye\" />", link, StringComparison.Ordinal);
+        Assert.DoesNotContain("#icon-download", link, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReport}</span>",
+            link,
+            StringComparison.Ordinal);
+        // Only the draft's link carries the mark that names the viewer's Download draft.
+        Assert.DoesNotMatch("data-report-preview(?![-\\w])", link);
+        // Reading the Case is not arriving from a generation.
+        Assert.DoesNotContain("data-open-on-arrival", link, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The page that follows a successful Generate report marks the report it
+    /// has just stored, so the script opens it in the viewer. The mark is on
+    /// that one page: reading the Case again does not carry it.
+    /// </summary>
+    [Fact]
+    public async Task ThePageThatFollowsGenerateReportMarksTheReportToOpenOnce()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generator = new RecordingGenerationJourney(caseId, failFirst: false);
+        using var factory = WithGenerationJourney(baseFactory, caseId, generator);
+        using var client = Client(factory);
+        var initialHtml = await EnterEditModeAsync(client, caseId);
+        var form = FormHtml(initialHtml, "GenerateReport");
+
+        using var generated = await PostGenerateReportAsync(client, caseId, initialHtml, form);
+
+        Assert.Equal(HttpStatusCode.Redirect, generated.StatusCode);
+        var arrived = WebUtility.HtmlDecode(await GetHtmlAsync(client, generated.Headers.Location!.OriginalString));
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportGenerated, arrived, StringComparison.Ordinal);
+        var link = OpenReportLink(ReportCard(arrived));
+        Assert.Contains("data-open-on-arrival=\"true\"", link, StringComparison.Ordinal);
+        Assert.Contains("data-document-preview", link, StringComparison.Ordinal);
+
+        var later = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+        Assert.DoesNotContain("data-open-on-arrival", later, StringComparison.Ordinal);
+        Assert.Contains("data-document-preview", OpenReportLink(ReportCard(later)), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A generation that stored nothing leaves nothing to open: the page that
+    /// follows a failed Generate report carries no mark.
+    /// </summary>
+    [Fact]
+    public async Task AGenerationThatStoredNothingMarksNothingToOpen()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generator = new RecordingGenerationJourney(caseId, failFirst: true);
+        using var factory = WithGenerationJourney(baseFactory, caseId, generator);
+        using var client = Client(factory);
+        var initialHtml = await EnterEditModeAsync(client, caseId);
+        var form = FormHtml(initialHtml, "GenerateReport");
+
+        using var failed = await PostGenerateReportAsync(client, caseId, initialHtml, form);
+
+        Assert.Equal(HttpStatusCode.Redirect, failed.StatusCode);
+        var arrived = await GetHtmlAsync(client, failed.Headers.Location!.OriginalString);
+        Assert.DoesNotContain("data-open-on-arrival", arrived, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-artifact", arrived, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Generate report downloads nothing, so its button carries the glyph the
+    /// other Generate actions carry.
+    /// </summary>
+    [Fact]
+    public async Task GenerateReportCarriesTheGenerateGlyph()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]));
+        using var client = Client(factory);
+
+        var form = FormHtml(await EnterEditModeAsync(client, caseId), "GenerateReport");
+
+        Assert.Contains("<use href=\"#icon-file-text\" />", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("#icon-download", form, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -692,6 +822,36 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.AddSingleton<ICaseReportGenerationStore>(generation);
             }));
 
+    /// <summary>The Case page over a generation the page itself asks for and then reads back.</summary>
+    private static WebApplicationFactory<Program> WithGenerationJourney(
+        IntakeWebApplicationFactory baseFactory,
+        Guid caseId,
+        RecordingGenerationJourney generator) =>
+        Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            generateReport: generator)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(generator);
+            }));
+
+    /// <summary>Generate report as the page's own form posts it.</summary>
+    private static Task<HttpResponseMessage> PostGenerateReportAsync(
+        HttpClient client, Guid caseId, string html, string form) =>
+        client.PostAsync(
+            $"/Cases/{caseId:D}?handler=GenerateReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("editLeaseToken", InputValue(form, "editLeaseToken")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+
     /// <summary>The Report section's card: its title, its status line and Open report.</summary>
     private static string ReportCard(string html)
     {
@@ -700,6 +860,18 @@ public sealed partial class AssessmentReportDraftWebTests
         var end = html.IndexOf("<div class=\"fg g4\">", start, StringComparison.Ordinal);
         Assert.True(end > start, "The report's fields must follow its card.");
         return html[start..end];
+    }
+
+    /// <summary>The card's link to the stored report.</summary>
+    private static string OpenReportLink(string card)
+    {
+        var link = System.Text.RegularExpressions.Regex.Match(
+            card,
+            "<a[^>]*data-report-artifact=\"AssessmentReport\"[^>]*>.*?</a>",
+            System.Text.RegularExpressions.RegexOptions.Singleline
+                | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        Assert.True(link.Success, "The card must offer Open report.");
+        return link.Value;
     }
 
     private static string InputValue(string html, string name)
