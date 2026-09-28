@@ -474,7 +474,7 @@ internal sealed class CachedDocumentContentStore(
     /// object is read, and cleanup claims only expired entries, so an entry
     /// being served always has most of a day left: cleanup cannot remove the
     /// object under the read. An entry that expired, or that cleanup has
-    /// already claimed, is a miss.
+    /// claimed, is a miss.
     /// </remarks>
     private async Task<Stream?> TryOpenCachedAsync(
         ResolvedSource source,
@@ -541,7 +541,6 @@ internal sealed class CachedDocumentContentStore(
                 address.CaseRootRemoteId);
         }
 
-        var now = timeProvider.GetUtcNow();
         Dictionary<Guid, DocumentContentCacheEntryEntity> entries;
         await using (var db = await dbContextFactory.CreateDbContextAsync(cancellationToken))
         {
@@ -568,26 +567,36 @@ internal sealed class CachedDocumentContentStore(
             {
                 var source = sources[index];
                 if (entries.TryGetValue(source.DocumentVersionId!.Value, out var entry)
-                    && await TryReadCachedBytesAsync(entry, source, now, token) is { } cached)
+                    && await TryReadCachedBytesAsync(entry, source, token) is { } cached)
                 {
                     metrics?.RecordHit();
                     contents[index] = cached;
                     return;
                 }
                 metrics?.RecordMiss();
-                var downloaded = await BoxDocumentContentStore.ReadGatedWithRetryAsync(
-                    async attemptToken =>
-                    {
-                        await using var remote = await box.OpenOwnedVersionReadAsync(
-                            source.BoxFileId,
-                            source.BoxVersionId,
-                            source.ExpectedParentId,
-                            source.Length,
-                            attemptToken);
-                        return await ReadVerifiedBytesAsync(
-                            remote, source.Length, source.Sha256, attemptToken);
-                    },
-                    token);
+                byte[] downloaded;
+                try
+                {
+                    downloaded = await BoxDocumentContentStore.ReadGatedWithRetryAsync(
+                        async attemptToken =>
+                        {
+                            await using var remote = await box.OpenOwnedVersionReadAsync(
+                                source.BoxFileId,
+                                source.BoxVersionId,
+                                source.ExpectedParentId,
+                                source.Length,
+                                attemptToken);
+                            return await ReadVerifiedBytesAsync(
+                                remote, source.Length, source.Sha256, attemptToken);
+                        },
+                        token);
+                }
+                catch (HttpRequestException exception)
+                    when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // The same answer the uncached batch gives for a missing version.
+                    throw new FileNotFoundException("The exact managed Box version is unavailable.", exception);
+                }
                 contents[index] = downloaded;
                 try
                 {
@@ -606,31 +615,52 @@ internal sealed class CachedDocumentContentStore(
         return contents;
     }
 
+    /// <summary>
+    /// One batch version from its cached object, or <c>null</c> for a miss.
+    /// </summary>
+    /// <remarks>
+    /// The time is taken when this version is read, not when the batch
+    /// started. The entry was read with the batch, but its expiry only ever
+    /// moves later and the touch is decided by the row itself, so an entry
+    /// that has since expired or been claimed by cleanup is a miss. Any
+    /// failure of the cached copy is a miss too: a lost or changed object, a
+    /// broken stream, or bytes that fail verification. That version is then
+    /// read from Box.
+    /// </remarks>
     private async Task<byte[]?> TryReadCachedBytesAsync(
         DocumentContentCacheEntryEntity entry,
         ResolvedSource source,
-        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        if (entry.ExpiresAtUtc <= now)
+        var now = timeProvider.GetUtcNow();
+        if (entry.ExpiresAtUtc <= now || entry.ReadLeaseExpiresAtUtc > now)
         {
             return null;
         }
-        if (NeedsTouch(entry, IdleLifetime, now))
+        try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            if (!await TryTouchAsync(db, entry, IdleLifetime, now, cancellationToken))
+            if (NeedsTouch(entry, IdleLifetime, now))
+            {
+                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                if (!await TryTouchAsync(db, entry, IdleLifetime, now, cancellationToken))
+                {
+                    return null;
+                }
+            }
+            var response = await TryDownloadAsync(entry, cancellationToken);
+            if (response is null)
             {
                 return null;
             }
+            await using var content = response.Value.Content;
+            return await ReadVerifiedBytesAsync(content, source.Length, source.Sha256, cancellationToken);
         }
-        var response = await TryDownloadAsync(entry, cancellationToken);
-        if (response is null)
+        catch (Exception exception) when (exception is RequestFailedException
+            or IOException
+            or InvalidDataException)
         {
             return null;
         }
-        await using var content = response.Value.Content;
-        return await ReadVerifiedBytesAsync(content, source.Length, source.Sha256, cancellationToken);
     }
 
     private async Task<Response<BlobDownloadStreamingResult>?> TryDownloadAsync(
@@ -665,10 +695,11 @@ internal sealed class CachedDocumentContentStore(
         entry.ExpiresAtUtc - idleLifetime <= now - TouchInterval;
 
     /// <summary>
-    /// Whether an entry may be served: it has not expired, and when its expiry
-    /// is due to be pushed out, one conditional update did so. The update
-    /// matches only an entry that has not expired, which is also the only kind
-    /// cleanup never claims.
+    /// Whether an entry may be served: it has not expired, cleanup has not
+    /// claimed it, and when its expiry is due to be pushed out, one
+    /// conditional update did so. The update matches only an unexpired,
+    /// unclaimed row, so a claim that landed after the entry was read makes
+    /// the read a miss.
     /// </summary>
     internal static async Task<bool> TryTouchAsync(
         PegasusDbContext db,
@@ -677,7 +708,7 @@ internal sealed class CachedDocumentContentStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        if (entry.ExpiresAtUtc <= now)
+        if (entry.ExpiresAtUtc <= now || entry.ReadLeaseExpiresAtUtc > now)
         {
             return false;
         }
@@ -686,7 +717,9 @@ internal sealed class CachedDocumentContentStore(
             return true;
         }
         var touched = await db.Set<DocumentContentCacheEntryEntity>()
-            .Where(value => value.Id == entry.Id && value.ExpiresAtUtc > now)
+            .Where(value => value.Id == entry.Id
+                && value.ExpiresAtUtc > now
+                && (value.ReadLeaseExpiresAtUtc == null || value.ReadLeaseExpiresAtUtc <= now))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(value => value.ExpiresAtUtc, now.Add(idleLifetime))
                 .SetProperty(value => value.LastCleanupOutcome, (string?)null),

@@ -14,7 +14,12 @@ namespace Pegasus.IntegrationTests;
 /// an in-memory Box: the managed layout, hash/length verification, replay
 /// semantics, delete idempotence, and durable case-root addressing. No
 /// network call is made.
+///
+/// The Box read gate is one per process, and the gate and retry tests here
+/// time how reads share it, so the class runs alone rather than beside other
+/// classes reading through that gate.
 /// </summary>
+[Collection(BoxReadGateCollection.Name)]
 public sealed class BoxDocumentContentStoreTests
 {
     private const string BoxConfigJson = """
@@ -1117,4 +1122,14 @@ public sealed class BoxDocumentContentStoreTests
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
+}
+
+/// <summary>
+/// Tests that time the process-wide Box read gate. xUnit runs a collection
+/// that disables parallelization after, and apart from, every parallel one.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class BoxReadGateCollection
+{
+    public const string Name = "Box read gate";
 }

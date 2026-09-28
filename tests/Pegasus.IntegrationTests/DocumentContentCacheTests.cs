@@ -286,14 +286,15 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 entry.ExpiresAtUtc = estate.Clock.GetUtcNow().AddMinutes(1);
                 await db.SaveChangesAsync();
             }
-            estate.Box.Unavailable = true;
-            await using (var concurrentWarm = await estate.Reader.OpenAsync(
+            // A claimed entry is never served from the cache, whatever its
+            // expiry says: the read goes to Box.
+            await using (var claimed = await estate.Reader.OpenAsync(
                              estate.Request,
                              CancellationToken.None))
             {
-                Assert.Equal(bytes, await ReadAsync(concurrentWarm.Content));
+                Assert.Equal(bytes, await ReadAsync(claimed.Content));
             }
-            Assert.Equal(1, estate.Box.Downloads);
+            Assert.Equal(2, estate.Box.Downloads);
 
             await using (var db = await estate.Database.CreateContextAsync())
             {
@@ -966,6 +967,14 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             var warm = await estate.Reader.ReadVersionsAsync(reads, default);
             Assert.Equal(bytes, Assert.Single(warm).ToArray());
             Assert.Equal(1, estate.Box.Downloads);
+
+            // A cached copy that fails verification is a miss, not a failed
+            // export: that version is read from Box instead.
+            estate.Box.Unavailable = false;
+            estate.Blob.Content = "corrupt"u8.ToArray();
+            var recovered = await estate.Reader.ReadVersionsAsync(reads, default);
+            Assert.Equal(bytes, Assert.Single(recovered).ToArray());
+            Assert.Equal(2, estate.Box.Downloads);
         }
     }
 

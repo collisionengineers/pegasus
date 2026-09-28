@@ -294,6 +294,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             MaximumItems = maximumItems;
             return Task.FromResult<IReadOnlyList<DocumentThumbnailCandidate>>([]);
         }
+
+        public void Defer(Guid versionId) =>
+            throw new InvalidOperationException("Nothing is deferred without a candidate.");
     }
 
     private sealed class UnreachableDocumentThumbnails : IReadCaseDocumentThumbnail
