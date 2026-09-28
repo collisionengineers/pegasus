@@ -35,17 +35,13 @@ public sealed class RowListAndGalleryScriptContractTests
     [Fact]
     public void TheGalleryRetryBinderIsNotInsideTheEvidenceViewerBlock()
     {
-        var site = Read("src/Pegasus.Web/wwwroot/js/site.js").Replace("
-", "
-", StringComparison.Ordinal);
+        var site = Read("src/Pegasus.Web/wwwroot/js/site.js").Replace("\r\n", "\n", StringComparison.Ordinal);
         var viewerStart = site.IndexOf("var viewer = document.querySelector('[data-evidence-viewer]');", StringComparison.Ordinal);
         var binder = site.IndexOf("function bindGalleryImages(root)", StringComparison.Ordinal);
 
         Assert.True(viewerStart >= 0 && binder > viewerStart, "Expected the viewer block and then the gallery binder.");
         // The viewer block closes with its own IIFE terminator before the binder starts.
-        Assert.Contains("
-    })();
-", site[viewerStart..binder], StringComparison.Ordinal);
+        Assert.Contains("\n    })();\n", site[viewerStart..binder], StringComparison.Ordinal);
         Assert.Contains(
             "(window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindGalleryImages);",
             site,
