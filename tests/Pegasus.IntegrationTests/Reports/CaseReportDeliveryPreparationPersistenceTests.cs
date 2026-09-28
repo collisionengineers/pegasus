@@ -96,6 +96,17 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
     }
 
     [Fact]
+    public async Task PrepareRefusesABlankCoveringMessageAtTheStore()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var command = harness.PrepareCommand();
+        command = command with { Request = command.Request with { CoveringMessage = "  " } };
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => harness.Store.PrepareAsync(command, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task TheSameOperationKeyReplaysAndADifferentPayloadConflicts()
     {
         await using var harness = await Harness.CreateAsync();
@@ -224,6 +235,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         Assert.NotNull(suggestions);
         Assert.True(suggestions!.Settings.IncludeOriginalInstructionSender);
         Assert.Equal("origin-sender@principal.example", suggestions.OriginalInstructionSender);
+        Assert.Equal("Delivery preparation test", suggestions.PrincipalName);
     }
 
     private static async Task AssertThrowsAsyncAny<T1, T2>(Func<Task> action)

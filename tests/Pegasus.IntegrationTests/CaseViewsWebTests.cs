@@ -234,6 +234,7 @@ public sealed class CaseViewsWebTests
         Assert.Matches(
             "<textarea[^>]*name=\"coveringMessage\"[^>]*data-report-message>[^<]*Kind regards\\s+Collision Engineers</textarea>",
             auditReport);
+        Assert.Matches("<textarea[^>]*data-report-message>[^<]*Our reference: \\S+", auditReport);
         Assert.Contains(reports.Audit.Id.ToString("D"), auditReport, StringComparison.Ordinal);
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
