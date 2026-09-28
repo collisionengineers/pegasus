@@ -596,8 +596,12 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompre
     options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
 builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(
     options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
+// A new instance warms its hot reads before it reports ready (at most 45 s).
+builder.Services.AddSingleton<StartupWarmupState>();
+builder.Services.AddHostedService<StartupWarmup>();
 builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
+    .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"])
+    .AddCheck<StartupWarmupHealthCheck>("warmup", tags: ["ready"]);
 builder.Services.Configure<FormOptions>(options =>
 {
     // Bounded for a whole Upload batch, not one file: IntakeEnvelopeLimits
