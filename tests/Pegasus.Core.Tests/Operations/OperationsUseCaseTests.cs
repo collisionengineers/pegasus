@@ -37,7 +37,7 @@ public sealed class OperationsUseCaseTests
             ActionActor.Automation("automation")));
         Assert.False(NeedsAttentionPolicy.CanTake(
             NeedsAttentionKind.Triage,
-            ActionActor.Provider(Guid.NewGuid())));
+            ActionActor.Principal(Guid.NewGuid())));
         Assert.False(NeedsAttentionPolicy.CanTake(
             NeedsAttentionKind.Triage,
             ActionActor.SystemWorker("worker")));

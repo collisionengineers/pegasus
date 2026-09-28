@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build immutable cumulative provider-domain packages from one approved XLSX source."""
+"""Build immutable cumulative principal-domain packages from one approved XLSX source."""
 
 from __future__ import annotations
 
@@ -282,7 +282,7 @@ def literal_cell_value(
     )
 
 
-def is_canonical_provider_code(value: str) -> bool:
+def is_canonical_principal_code(value: str) -> bool:
     return len(value) <= 20 and CODE_PATTERN.fullmatch(value) is not None
 
 
@@ -379,7 +379,7 @@ def parse_source(
         ) from error
 
     providers: list[dict[str, Any]] = []
-    provider_codes: set[str] = set()
+    principal_codes: set[str] = set()
     source_rows: set[int] = set()
     highest_contract_row = 0
 
@@ -436,24 +436,24 @@ def parse_source(
             )
 
         code = values["A"]
-        if not is_canonical_provider_code(code):
+        if not is_canonical_principal_code(code):
             raise AuthoringError(
                 "source-contract",
-                "provider-code-invalid",
+                "principal-code-invalid",
                 source=source_name,
                 row=row_number,
                 column="A",
             )
-        if code in provider_codes:
+        if code in principal_codes:
             raise AuthoringError(
                 "source-contract",
-                "provider-code-duplicate",
+                "principal-code-duplicate",
                 source=source_name,
                 row=row_number,
                 column="A",
                 code=code,
             )
-        provider_codes.add(code)
+        principal_codes.add(code)
 
         suffixes: set[str] = set()
         for observation in values["E"].split(";"):
@@ -487,7 +487,7 @@ def parse_source(
         )
 
     if not providers or highest_contract_row <= 0:
-        raise AuthoringError("count-drift", "empty-provider-package", source=source_name)
+        raise AuthoringError("count-drift", "empty-principal-package", source=source_name)
 
     providers.sort(key=lambda provider: provider["code"])
     return {
@@ -543,17 +543,17 @@ def validate_package_object(package: Any, source_name: str) -> None:
 
     providers = package["providers"]
     if not isinstance(providers, list) or not providers:
-        raise AuthoringError("source-contract", "previous-providers-invalid", source=source_name)
+        raise AuthoringError("source-contract", "previous-principals-invalid", source=source_name)
     codes: set[str] = set()
     rows: set[int] = set()
     for provider in providers:
         if not require_exact_keys(provider, {"code", "sourceRow", "domainSuffixes"}):
-            raise AuthoringError("source-contract", "previous-provider-contract", source=source_name)
+            raise AuthoringError("source-contract", "previous-principal-contract", source=source_name)
         code = provider["code"]
         row = provider["sourceRow"]
         suffixes = provider["domainSuffixes"]
-        if not isinstance(code, str) or not is_canonical_provider_code(code) or code in codes:
-            raise AuthoringError("source-contract", "previous-provider-code", source=source_name)
+        if not isinstance(code, str) or not is_canonical_principal_code(code) or code in codes:
+            raise AuthoringError("source-contract", "previous-principal-code", source=source_name)
         if (
             not isinstance(row, int)
             or isinstance(row, bool)
@@ -590,7 +590,7 @@ def load_previous_package(path: Path, repository_root: Path) -> tuple[dict[str, 
     return package, data
 
 
-def provider_pairs(package: dict[str, Any]) -> set[tuple[str, str]]:
+def principal_pairs(package: dict[str, Any]) -> set[tuple[str, str]]:
     return {
         (provider["code"], suffix)
         for provider in package["providers"]
@@ -608,7 +608,7 @@ def enforce_growth(
         or package["source"]["contentSha256"] == previous["source"]["contentSha256"]
     ):
         raise AuthoringError("source-contract", "new-source-required", source=source_name)
-    if not provider_pairs(previous).issubset(provider_pairs(package)):
+    if not principal_pairs(previous).issubset(principal_pairs(package)):
         raise AuthoringError("non-monotonic-source", "prior-pair-removed", source=source_name)
 
 

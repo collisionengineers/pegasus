@@ -49,7 +49,7 @@ public sealed class AssignToMeTests
     [InlineData(CaseLifecycleState.NotReady)]
     [InlineData(CaseLifecycleState.Held)]
     [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.ProviderCancelled)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
     public async Task OnlyAReviewCaseCanBeTaken(CaseLifecycleState state)
     {
         var assign = new RecordingAssign();

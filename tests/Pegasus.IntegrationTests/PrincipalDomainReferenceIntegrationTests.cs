@@ -19,10 +19,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
-public sealed class ProviderDomainReferenceIntegrationTests
+public sealed class PrincipalDomainReferenceIntegrationTests
 {
     private const string PackageResourceName =
-        "Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json";
+        "Pegasus.Infrastructure.Persistence.ReferenceData.principal-domains.v1.json";
     private const string PackageVersion = "provider-domains-v1";
     private const string PackageSha256 = "f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3";
     private const string HistoricalWorkbookPath =
@@ -47,13 +47,13 @@ public sealed class ProviderDomainReferenceIntegrationTests
 
         Assert.Equal(package.Source.RowCount, workbook.HighestContractRow);
         Assert.Equal(package.Source.ContentSha256, workbook.ContentSha256);
-        Assert.Equal(11, package.Providers.Length);
-        Assert.Equal(16, package.Providers.Sum(provider => provider.DomainSuffixes.Length));
+        Assert.Equal(11, package.Principals.Length);
+        Assert.Equal(16, package.Principals.Sum(provider => provider.DomainSuffixes.Length));
         Assert.Equal(
             workbook.DomainEvidence.ToArray(),
-            package.Providers
+            package.Principals
                 .SelectMany(provider => provider.DomainSuffixes.Select(suffix =>
-                    new ProviderEvidence(provider.Code, provider.SourceRow, suffix)))
+                    new PrincipalEvidence(provider.Code, provider.SourceRow, suffix)))
                 .OrderBy(item => item.Code, StringComparer.Ordinal)
                 .ThenBy(item => item.DomainSuffix, StringComparer.Ordinal)
                 .ToArray());
@@ -64,7 +64,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
     public void CoreAcceptedQdosRouteSetMatchesTheReferenceSnapshotExactly()
     {
         var package = DeserializePackage(LoadEmbeddedPackageBytes());
-        var qdos = Assert.Single(package.Providers, provider => provider.Code == "QDOS");
+        var qdos = Assert.Single(package.Principals, provider => provider.Code == "QDOS");
 
         Assert.Equal(
             qdos.DomainSuffixes
@@ -94,17 +94,17 @@ public sealed class ProviderDomainReferenceIntegrationTests
         }
 
         var package = DeserializePackage(LoadEmbeddedPackageBytes());
-        Assert.Equal(package.Providers.Length, await ScalarAsync<long>(connection, "SELECT COUNT(*) FROM ProviderReferences"));
+        Assert.Equal(package.Principals.Length, await ScalarAsync<long>(connection, "SELECT COUNT(*) FROM PrincipalReferences"));
         Assert.Equal(
-            package.Providers.Sum(provider => provider.DomainSuffixes.Length),
-            await ScalarAsync<long>(connection, "SELECT COUNT(*) FROM ProviderDomainEvidence"));
+            package.Principals.Sum(provider => provider.DomainSuffixes.Length),
+            await ScalarAsync<long>(connection, "SELECT COUNT(*) FROM PrincipalDomainEvidence"));
         Assert.Equal(
             PackageSha256,
             await ScalarAsync<string>(connection,
-                "SELECT PackageSha256 FROM ProviderDomainPackages WHERE Version = 'provider-domains-v1'"));
+                "SELECT PackageSha256 FROM PrincipalDomainPackages WHERE Version = 'provider-domains-v1'"));
 
         Assert.Equal(
-            new ProviderPackageRow(
+            new PrincipalPackageRow(
                 package.Version,
                 package.SchemaVersion,
                 PackageSha256,
@@ -112,34 +112,34 @@ public sealed class ProviderDomainReferenceIntegrationTests
                 package.Source.ContentSha256,
                 package.Source.Sheet,
                 package.Source.RowCount),
-            await ProviderPackageRowAsync(connection));
+            await PrincipalPackageRowAsync(connection, "PrincipalDomainPackages"));
         Assert.Equal(
-            package.Providers
+            package.Principals
                 .SelectMany(provider => provider.DomainSuffixes.Select(suffix =>
-                    new ProviderEvidence(provider.Code, provider.SourceRow, suffix)))
+                    new PrincipalEvidence(provider.Code, provider.SourceRow, suffix)))
                 .OrderBy(item => item.Code, StringComparer.Ordinal)
                 .ThenBy(item => item.DomainSuffix, StringComparer.Ordinal)
                 .ToArray(),
-            (await ProviderEvidenceRowsAsync(connection)).ToArray());
+            (await PrincipalEvidenceRowsAsync(connection)).ToArray());
 
         await SeedSharedDomainFixtureAsync(connection);
 
 
         await using var scope = database.CreateAsyncScope();
-        var catalog = scope.ServiceProvider.GetRequiredService<IProviderReferenceCatalog>();
+        var catalog = scope.ServiceProvider.GetRequiredService<IPrincipalReferenceCatalog>();
 
         commandCounter.Reset();
         var found = await catalog.FindCandidatesByDomainSuffixAsync(
             ExactPackageVersion(), "@qdosassist.co.uk", CancellationToken.None);
-        Assert.Equal(ProviderDomainCandidateStatus.Found, found.Status);
-        Assert.Equal("QDOS", Assert.Single(found.ProviderCodes));
+        Assert.Equal(PrincipalDomainCandidateStatus.Found, found.Status);
+        Assert.Equal("QDOS", Assert.Single(found.PrincipalCodes));
         Assert.Equal(1, commandCounter.ExecutedReaderCommands);
 
         commandCounter.Reset();
         var unknown = await catalog.FindCandidatesByDomainSuffixAsync(
             ExactPackageVersion(), "@unknown.invalid", CancellationToken.None);
-        Assert.Equal(ProviderDomainCandidateStatus.Unknown, unknown.Status);
-        Assert.Empty(unknown.ProviderCodes);
+        Assert.Equal(PrincipalDomainCandidateStatus.Unknown, unknown.Status);
+        Assert.Empty(unknown.PrincipalCodes);
         Assert.Equal(1, commandCounter.ExecutedReaderCommands);
 
         commandCounter.Reset();
@@ -147,18 +147,18 @@ public sealed class ProviderDomainReferenceIntegrationTests
             ExactPackageVersion() with { PackageSha256 = new string('0', 64) },
             "@qdosassist.co.uk",
             CancellationToken.None);
-        Assert.Equal(ProviderDomainCandidateStatus.PackageRejected, rejected.Status);
-        Assert.Empty(rejected.ProviderCodes);
+        Assert.Equal(PrincipalDomainCandidateStatus.PackageRejected, rejected.Status);
+        Assert.Empty(rejected.PrincipalCodes);
         Assert.Equal(1, commandCounter.ExecutedReaderCommands);
 
         commandCounter.Reset();
         var ambiguous = await catalog.FindCandidatesByDomainSuffixAsync(
-            new ProviderDomainPackageVersion(1, "provider-domains-test", new string('1', 64)),
+            new PrincipalDomainPackageVersion(1, "provider-domains-test", new string('1', 64)),
             "@shared.example",
             CancellationToken.None);
-        Assert.Equal(ProviderDomainCandidateStatus.Ambiguous, ambiguous.Status);
+        Assert.Equal(PrincipalDomainCandidateStatus.Ambiguous, ambiguous.Status);
         Assert.Collection(
-            ambiguous.ProviderCodes,
+            ambiguous.PrincipalCodes,
             code => Assert.Equal("ALPHA", code),
             code => Assert.Equal("ZETA", code));
         Assert.Equal(1, commandCounter.ExecutedReaderCommands);
@@ -168,15 +168,15 @@ public sealed class ProviderDomainReferenceIntegrationTests
             ExactPackageVersion() with { Version = "provider-domains-v2" },
             "@qdosassist.co.uk",
             CancellationToken.None);
-        Assert.Equal(ProviderDomainCandidateStatus.PackageNotFound, missing.Status);
-        Assert.Empty(missing.ProviderCodes);
+        Assert.Equal(PrincipalDomainCandidateStatus.PackageNotFound, missing.Status);
+        Assert.Empty(missing.PrincipalCodes);
         Assert.Equal(1, commandCounter.ExecutedReaderCommands);
 
         commandCounter.Reset();
         var invalid = await catalog.FindCandidatesByDomainSuffixAsync(
             ExactPackageVersion(), "qdosassist.co.uk", CancellationToken.None);
-        Assert.Equal(ProviderDomainCandidateStatus.InvalidSuffix, invalid.Status);
-        Assert.Empty(invalid.ProviderCodes);
+        Assert.Equal(PrincipalDomainCandidateStatus.InvalidSuffix, invalid.Status);
+        Assert.Empty(invalid.PrincipalCodes);
         Assert.Equal(0, commandCounter.ExecutedReaderCommands);
 
         commandCounter.Reset();
@@ -184,8 +184,8 @@ public sealed class ProviderDomainReferenceIntegrationTests
             ExactPackageVersion() with { SchemaVersion = 2 },
             "@qdosassist.co.uk",
             CancellationToken.None);
-        Assert.Equal(ProviderDomainCandidateStatus.PackageRejected, invalidPackage.Status);
-        Assert.Empty(invalidPackage.ProviderCodes);
+        Assert.Equal(PrincipalDomainCandidateStatus.PackageRejected, invalidPackage.Status);
+        Assert.Empty(invalidPackage.PrincipalCodes);
         Assert.Equal(0, commandCounter.ExecutedReaderCommands);
 
         commandCounter.Reset();
@@ -197,7 +197,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
     }
 
     [Fact]
-    public async Task ExistingProviderSnapshotMigratesForwardWithoutRepublishingV1()
+    public async Task ExistingPrincipalSnapshotMigratesForwardWithoutRepublishingV1()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         await using var connection = database.CreateConnection();
@@ -208,7 +208,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
         var migrator = context.GetService<IMigrator>();
         await migrator.MigrateAsync(PreInspectionModeMigration);
 
-        var priorSchemaPackage = await ProviderPackageRowAsync(connection);
+        var priorSchemaPackage = await PrincipalPackageRowAsync(connection, "ProviderDomainPackages");
         Assert.Equal(ExpectedPackageRow(package), priorSchemaPackage);
         Assert.Equal(1, await ScalarAsync<long>(
             connection,
@@ -217,30 +217,30 @@ public sealed class ProviderDomainReferenceIntegrationTests
         await migrator.MigrateAsync();
 
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
-        Assert.Equal(priorSchemaPackage, await ProviderPackageRowAsync(connection));
+        Assert.Equal(priorSchemaPackage, await PrincipalPackageRowAsync(connection, "PrincipalDomainPackages"));
         Assert.Equal(1, await ScalarAsync<long>(
             connection,
-            "SELECT COUNT(*) FROM ProviderDomainPackages WHERE Version = 'provider-domains-v1'"));
+            "SELECT COUNT(*) FROM PrincipalDomainPackages WHERE Version = 'provider-domains-v1'"));
         Assert.Contains(
             "20260803014608_ProviderInspectionModeSetting",
             await context.Database.GetAppliedMigrationsAsync());
     }
 
-    private static ProviderDomainPackageVersion ExactPackageVersion() =>
+    private static PrincipalDomainPackageVersion ExactPackageVersion() =>
         new(ReferenceDataPolicy.SupportedSchemaVersion, PackageVersion, PackageSha256);
 
     private static byte[] LoadEmbeddedPackageBytes()
     {
         using var stream = typeof(InfrastructureAssembly).Assembly.GetManifestResourceStream(PackageResourceName)
-            ?? throw new InvalidOperationException("Provider-domain package resource was not found.");
+            ?? throw new InvalidOperationException("Principal-domain package resource was not found.");
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         return buffer.ToArray();
     }
 
-    private static ProviderDomainPackage DeserializePackage(ReadOnlySpan<byte> packageBytes) =>
-        JsonSerializer.Deserialize<ProviderDomainPackage>(packageBytes, JsonSerializerOptions.Strict)
-        ?? throw new InvalidDataException("Provider-domain package deserialized to null.");
+    private static PrincipalDomainPackage DeserializePackage(ReadOnlySpan<byte> packageBytes) =>
+        JsonSerializer.Deserialize<PrincipalDomainPackage>(packageBytes, JsonSerializerOptions.Strict)
+        ?? throw new InvalidDataException("Principal-domain package deserialized to null.");
 
     private static WorkbookEvidence ReadApprovedWorkbook(string repositoryPath, string sheetName)
     {
@@ -263,7 +263,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
             sheet.Id?.Value ?? throw new InvalidDataException("Approved workbook sheet has no relationship."));
         var sharedStrings = workbookPart.SharedStringTablePart?.SharedStringTable;
 
-        var evidence = ImmutableArray.CreateBuilder<ProviderEvidence>();
+        var evidence = ImmutableArray.CreateBuilder<PrincipalEvidence>();
         var highestContractRow = 0;
         var worksheet = worksheetPart.Worksheet
             ?? throw new InvalidDataException("Approved workbook sheet has no worksheet.");
@@ -293,7 +293,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
                 }
 
                 var suffix = string.Concat("@", address.AsSpan(separator + 1)).ToLowerInvariant();
-                evidence.Add(new ProviderEvidence(code, rowNumber, suffix));
+                evidence.Add(new PrincipalEvidence(code, rowNumber, suffix));
             }
         }
 
@@ -334,7 +334,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            INSERT INTO ProviderDomainPackages
+            INSERT INTO PrincipalDomainPackages
                 (Version, SchemaVersion, PackageSha256, SourcePath,
                  SourceContentSha256, SourceSheet, SourceRowCount)
             VALUES
@@ -343,11 +343,11 @@ public sealed class ProviderDomainReferenceIntegrationTests
                  'tests/provider-domains-test.xlsx',
                  '2222222222222222222222222222222222222222222222222222222222222222',
                  'Sheet1', 2);
-            INSERT INTO ProviderReferences (Version, Code, SourceRow)
+            INSERT INTO PrincipalReferences (Version, Code, SourceRow)
             VALUES
                 ('provider-domains-test', 'ZETA', 1),
                 ('provider-domains-test', 'ALPHA', 2);
-            INSERT INTO ProviderDomainEvidence (Version, Code, DomainSuffix)
+            INSERT INTO PrincipalDomainEvidence (Version, Code, DomainSuffix)
             VALUES
                 ('provider-domains-test', 'ZETA', '@shared.example'),
                 ('provider-domains-test', 'ALPHA', '@shared.example');
@@ -355,22 +355,23 @@ public sealed class ProviderDomainReferenceIntegrationTests
         await command.ExecuteNonQueryAsync();
     }
 
-    private static async Task<ProviderPackageRow> ProviderPackageRowAsync(
-        SqlConnection connection)
+    private static async Task<PrincipalPackageRow> PrincipalPackageRowAsync(
+        SqlConnection connection,
+        string packageTable)
     {
         await using var command = connection.CreateCommand();
         command.CommandText =
-            """
+            $"""
             SELECT Version, SchemaVersion, PackageSha256, SourcePath,
                    SourceContentSha256, SourceSheet, SourceRowCount
-            FROM ProviderDomainPackages
+            FROM {packageTable}
             """;
         await using var reader = await command.ExecuteReaderAsync();
         if (!await reader.ReadAsync())
         {
-            throw new InvalidOperationException("Expected the provider-domain package row.");
+            throw new InvalidOperationException("Expected the principal-domain package row.");
         }
-        var package = new ProviderPackageRow(
+        var package = new PrincipalPackageRow(
             reader.GetString(0),
             reader.GetInt32(1),
             reader.GetString(2),
@@ -380,12 +381,12 @@ public sealed class ProviderDomainReferenceIntegrationTests
             reader.GetInt32(6));
         if (await reader.ReadAsync())
         {
-            throw new InvalidOperationException("Expected exactly one provider-domain package row.");
+            throw new InvalidOperationException("Expected exactly one principal-domain package row.");
         }
         return package;
     }
 
-    private static ProviderPackageRow ExpectedPackageRow(ProviderDomainPackage package) =>
+    private static PrincipalPackageRow ExpectedPackageRow(PrincipalDomainPackage package) =>
         new(
             package.Version,
             package.SchemaVersion,
@@ -395,23 +396,23 @@ public sealed class ProviderDomainReferenceIntegrationTests
             package.Source.Sheet,
             package.Source.RowCount);
 
-    private static async Task<ImmutableArray<ProviderEvidence>> ProviderEvidenceRowsAsync(
+    private static async Task<ImmutableArray<PrincipalEvidence>> PrincipalEvidenceRowsAsync(
         SqlConnection connection)
     {
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT reference.Code, reference.SourceRow, evidence.DomainSuffix
-            FROM ProviderReferences AS reference
-            INNER JOIN ProviderDomainEvidence AS evidence
+            FROM PrincipalReferences AS reference
+            INNER JOIN PrincipalDomainEvidence AS evidence
                 ON evidence.Version = reference.Version AND evidence.Code = reference.Code
             ORDER BY reference.Code, evidence.DomainSuffix
             """;
         await using var reader = await command.ExecuteReaderAsync();
-        var evidence = ImmutableArray.CreateBuilder<ProviderEvidence>();
+        var evidence = ImmutableArray.CreateBuilder<PrincipalEvidence>();
         while (await reader.ReadAsync())
         {
-            evidence.Add(new ProviderEvidence(
+            evidence.Add(new PrincipalEvidence(
                 reader.GetString(0),
                 reader.GetInt32(1),
                 reader.GetString(2)));
@@ -441,9 +442,9 @@ public sealed class ProviderDomainReferenceIntegrationTests
 
 
 
-    private sealed record ProviderEvidence(string Code, int SourceRow, string DomainSuffix);
+    private sealed record PrincipalEvidence(string Code, int SourceRow, string DomainSuffix);
 
-    private sealed record ProviderPackageRow(
+    private sealed record PrincipalPackageRow(
         string Version,
         int SchemaVersion,
         string PackageSha256,
@@ -455,7 +456,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
     private sealed record WorkbookEvidence(
         string ContentSha256,
         int HighestContractRow,
-        ImmutableArray<ProviderEvidence> DomainEvidence);
+        ImmutableArray<PrincipalEvidence> DomainEvidence);
 
     private sealed class ReaderCommandCounter : DbCommandInterceptor
     {

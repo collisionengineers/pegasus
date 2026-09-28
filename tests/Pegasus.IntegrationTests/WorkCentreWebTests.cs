@@ -205,7 +205,7 @@ public sealed class WorkCentreWebTests
             LastSeen = lastSeen,
             Rows =
             [
-                new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "QDOS26100", "AB12CDE", "Mr A Claimant", "QDOS", Now.AddHours(-1), CaseArrival.ProviderApi),
+                new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "QDOS26100", "AB12CDE", "Mr A Claimant", "QDOS", Now.AddHours(-1), CaseArrival.PrincipalApi),
                 new(RecentCaseRowKind.ChangedByAutomation, Guid.NewGuid(), "QDOS26101", "CD34EFG", "Ms B Claimant", "QDOS", Now.AddHours(-2), CaseArrival.Automation, "case_workspace_saved"),
                 new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "PCH26102", "EF56GHJ", "Mr C Claimant", "PCH", Now.AddDays(-2), CaseArrival.Email)
             ]
@@ -220,7 +220,7 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-tab-link=\"new-cases\"\n               aria-selected=\"true\"", html.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains("New cases<span class=\"tab-count\">3</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-outcome=\"current\" data-wc-tab=\"new-cases\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-wc-arrival>Provider API</span>", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-arrival>Principal API</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>Automation</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>E-mail</span>", html, StringComparison.Ordinal);
         Assert.Contains("QDOS26101 &#xB7; Changed by automation", html, StringComparison.Ordinal);

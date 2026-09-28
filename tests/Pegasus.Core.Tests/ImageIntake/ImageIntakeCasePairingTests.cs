@@ -198,7 +198,7 @@ public sealed class ImageIntakeCasePairingTests
     [InlineData(IntakeSourceChannel.ManualUpload, 0, false)]
     [InlineData(IntakeSourceChannel.ManualUpload, 1, true)]
     [InlineData(IntakeSourceChannel.Mailbox, -1, true)]
-    [InlineData(IntakeSourceChannel.ProviderApi, -1, true)]
+    [InlineData(IntakeSourceChannel.PrincipalApi, -1, true)]
     public void AManualUploadSelectsOnlyACaseCreatedAfterItRegistered(
         IntakeSourceChannel channel, int caseCreatedMinutesAfterRegistration, bool selected)
     {

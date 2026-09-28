@@ -258,20 +258,20 @@ public sealed class EvaBundleContractTests
     }
 
     [Fact]
-    public void TheArchiveIsNamedByTheCaseNotByTheProvidersOwnReference()
+    public void TheArchiveIsNamedByTheCaseNotByThePrincipalsOwnReference()
     {
         // The Reference field now carries the work provider's own
         // reference, which repeats across cases and can contain path
         // separators — "AKH//47743/1" would reduce to "1" and collide. The
         // archive is named by the Pegasus case reference instead.
-        const string providerReference = "AKH//47743/1";
+        const string principalReference = "AKH//47743/1";
         var source = Source();
         var bundle = EvaBundleSchema.CreateOfflineReplay(
             source with
             {
-                Fields = source.Fields with { Reference = providerReference },
+                Fields = source.Fields with { Reference = principalReference },
                 Provenance = [.. source.Provenance.Select(field => field.Name == "Reference"
-                    ? field with { Value = providerReference }
+                    ? field with { Value = principalReference }
                     : field)]
             },
             Images(),
@@ -279,7 +279,7 @@ public sealed class EvaBundleContractTests
 
         Assert.Equal("EVA-QDOS26015.zip", bundle.FileName);
         using var parsed = JsonDocument.Parse(bundle.JsonContent);
-        Assert.Equal(providerReference, parsed.RootElement.GetProperty("Reference").GetString());
+        Assert.Equal(principalReference, parsed.RootElement.GetProperty("Reference").GetString());
     }
 
     private static EvaBundleSource Source()
@@ -301,7 +301,7 @@ public sealed class EvaBundleContractTests
         var normalized = CaseEvaMapping.MapOfflineReplay(fields);
         var values = new[]
         {
-            normalized.WorkProvider,
+            normalized.WorkPrincipal,
             normalized.Vrm,
             normalized.VehicleModel,
             normalized.ClaimantName,

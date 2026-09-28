@@ -25,7 +25,7 @@ public sealed class PrincipalCaseMatchPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         var sut = new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy());
-        Assert.Equal("QDOS", sut.WorkProviderCode);
+        Assert.Equal("QDOS", sut.PrincipalCode);
         Assert.Equal("principal_case_match", sut.PolicyKey);
         Assert.Equal(1, sut.PolicyVersion);
     }

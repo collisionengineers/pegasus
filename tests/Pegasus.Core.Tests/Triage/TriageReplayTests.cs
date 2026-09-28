@@ -11,7 +11,7 @@ public sealed class TriageReplayTests
     [InlineData(CaseLifecycleState.PostReport, false, false, true)]
     [InlineData(CaseLifecycleState.Review, true, false, false)]
     [InlineData(CaseLifecycleState.Review, false, true, false)]
-    [InlineData(CaseLifecycleState.ProviderCancelled, false, false, false)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, false, false, false)]
     public void AutomaticTriageLinkKeepsTheExistingTargetBoundary(
         CaseLifecycleState state, bool archived, bool leased, bool expected)
     {

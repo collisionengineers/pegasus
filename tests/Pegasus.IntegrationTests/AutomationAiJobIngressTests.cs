@@ -898,7 +898,7 @@ public sealed class AutomationAiJobIngressTests
 
         await factory.Database.ExecuteAsync(closure == "archived"
             ? $"UPDATE CaseWorkflows SET ArchivedAtUtc = SYSDATETIMEOFFSET(), ArchivedByKind = N'Staff', ArchivedBySubjectId = N'staff', ArchivedByRolesJson = N'[]', ArchiveReason = N'Test archive' WHERE CaseId = '{caseId:D}'"
-            : $"UPDATE CaseWorkflows SET State = '{nameof(Pegasus.Core.Lifecycle.CaseLifecycleState.ProviderCancelled)}' WHERE CaseId = '{caseId:D}'");
+            : $"UPDATE CaseWorkflows SET State = '{nameof(Pegasus.Core.Workflow.CaseLifecycleState.PrincipalCancelled)}' WHERE CaseId = '{caseId:D}'");
 
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, JobsScope);

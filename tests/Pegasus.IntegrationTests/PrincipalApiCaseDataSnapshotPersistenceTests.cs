@@ -4,14 +4,14 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
-public sealed class ProviderApiCaseDataSnapshotPersistenceTests
+public sealed class PrincipalApiCaseDataSnapshotPersistenceTests
 {
     private static readonly DateTimeOffset StartUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
@@ -24,7 +24,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
     /// Only that path may claim the "authenticated credential binding" label.
     /// </summary>
     [Fact]
-    public async Task AcceptanceRecordsWorkProviderFromAuthenticatedCredentialBinding()
+    public async Task AcceptanceRecordsPrincipalCodeFromAuthenticatedCredentialBinding()
     {
         await using var harness = await Harness.CreateAsync();
 
@@ -33,7 +33,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
                 harness.ReceiptId,
                 0,
                 harness.WorkerActor,
-                "accept-provider-api-1",
+                "accept-principal-api-1",
                 CaseType.Inspection,
                 "QDOS",
                 new(true, true)),
@@ -44,14 +44,14 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
             CancellationToken.None);
 
         Assert.NotNull(projection);
-        var workProvider = projection.Provider.WorkProviderCode.Current;
-        Assert.NotNull(workProvider);
-        Assert.Equal("QDOS", workProvider.Value);
-        Assert.Equal(CaseDataValueKind.Fact, workProvider.Kind);
-        Assert.Equal(CaseDataSourceKind.ProviderApi, workProvider.Source.Kind);
-        Assert.Equal("authenticated credential binding", workProvider.Source.Label);
-        Assert.Equal(ProviderInstructionPolicy.PolicyKey, workProvider.Source.PolicyKey);
-        Assert.Equal(ProviderInstructionPolicy.PolicyVersion, workProvider.Source.PolicyVersion);
+        var workPrincipal = projection.Principal.PrincipalCode.Current;
+        Assert.NotNull(workPrincipal);
+        Assert.Equal("QDOS", workPrincipal.Value);
+        Assert.Equal(CaseDataValueKind.Fact, workPrincipal.Kind);
+        Assert.Equal(CaseDataSourceKind.PrincipalApi, workPrincipal.Source.Kind);
+        Assert.Equal("authenticated credential binding", workPrincipal.Source.Label);
+        Assert.Equal(PrincipalInstructionPolicy.PolicyKey, workPrincipal.Source.PolicyKey);
+        Assert.Equal(PrincipalInstructionPolicy.PolicyVersion, workPrincipal.Source.PolicyVersion);
     }
 
     /// <summary>
@@ -75,7 +75,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
                 harness.ReceiptId,
                 0,
                 harness.StaffActor,
-                "accept-provider-api-staff-1",
+                "accept-principal-api-staff-1",
                 CaseType.Inspection,
                 "QDOS",
                 new(true, true)),
@@ -86,14 +86,14 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
             CancellationToken.None);
 
         Assert.NotNull(projection);
-        var workProvider = projection.Provider.WorkProviderCode.Current;
-        Assert.NotNull(workProvider);
-        Assert.Equal("QDOS", workProvider.Value);
-        Assert.Equal(CaseDataValueKind.Confirmed, workProvider.Kind);
-        Assert.Equal(CaseDataSourceKind.CaseAcceptance, workProvider.Source.Kind);
-        Assert.Equal("staff-accepted principal allocation", workProvider.Source.Label);
-        Assert.Equal(harness.StaffActor.SubjectId, workProvider.ConfirmedByActor);
-        Assert.Null(projection.Provider.WorkProviderCode.Fact);
+        var workPrincipal = projection.Principal.PrincipalCode.Current;
+        Assert.NotNull(workPrincipal);
+        Assert.Equal("QDOS", workPrincipal.Value);
+        Assert.Equal(CaseDataValueKind.Confirmed, workPrincipal.Kind);
+        Assert.Equal(CaseDataSourceKind.CaseAcceptance, workPrincipal.Source.Kind);
+        Assert.Equal("staff-accepted principal allocation", workPrincipal.Source.Label);
+        Assert.Equal(harness.StaffActor.SubjectId, workPrincipal.ConfirmedByActor);
+        Assert.Null(projection.Principal.PrincipalCode.Fact);
     }
 
     private sealed class Harness : IAsyncDisposable
@@ -144,7 +144,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
                     new AcceptIntake(
                         acceptanceStore,
                         new FixedConfiguration(),
-                        new EfProviderInspectionModeStore(factory),
+                        new EfPrincipalInspectionModeStore(factory),
                         new DiscardingCommittedWorkPublisher(),
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], TimeProvider.System))),
@@ -170,12 +170,12 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
             var principalId = principal.Id;
             var sourceHash = new string('b', 64);
             var fieldsJson =
-                """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Jane Example","candidates":[{"value":"Jane Example","source":"provider_declaration","sourceLabel":"claimant.name"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"QDOS-123","candidates":[{"value":"QDOS-123","source":"provider_declaration","sourceLabel":"claimNumber"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"provider_declaration","sourceLabel":"vehicle.registration"}],"isDefaulted":false,"hasConflict":false}]}""";
+                """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Jane Example","candidates":[{"value":"Jane Example","source":"principal_declaration","sourceLabel":"claimant.name"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"QDOS-123","candidates":[{"value":"QDOS-123","source":"principal_declaration","sourceLabel":"claimNumber"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"principal_declaration","sourceLabel":"vehicle.registration"}],"isDefaulted":false,"hasConflict":false}]}""";
             var emptyEnvelope = """{"version":1,"data":[]}""";
-            var sourceChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ProviderApi);
+            var sourceChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PrincipalApi);
 
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {ProviderInstructionPolicy.SourceFileName}, {ProviderInstructionPolicy.SourceMediaType}, {100L}, {sourceHash}, {sourceChannel}, {Guid.NewGuid().ToString("N")}, {StartUtc}, {StartUtc}, {ProviderInstructionPolicy.ReaderKey}, {ProviderInstructionPolicy.ReaderVersion}, {ProviderInstructionPolicy.PolicyKey}, {ProviderInstructionPolicy.PolicyVersion}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
+                $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {PrincipalInstructionPolicy.SourceFileName}, {PrincipalInstructionPolicy.SourceMediaType}, {100L}, {sourceHash}, {sourceChannel}, {Guid.NewGuid().ToString("N")}, {StartUtc}, {StartUtc}, {PrincipalInstructionPolicy.ReaderKey}, {PrincipalInstructionPolicy.ReaderVersion}, {PrincipalInstructionPolicy.PolicyKey}, {PrincipalInstructionPolicy.PolicyVersion}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration) VALUES ({receiptId}, {"QDOS"}, {"Jane Example"}, {"QDOS-123"}, {"AB12CDE"})");
         }

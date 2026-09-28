@@ -12,14 +12,14 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
-public sealed class ProviderInspectionModeAcceptanceTests
+public sealed class PrincipalInspectionModeAcceptanceTests
 {
     private static readonly DateTimeOffset StartUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private static readonly DateOnly FixtureInspectionDate = new(2031, 5, 20);
 
     [Fact]
-    public async Task ImageBasedPrincipalAutofillsExactValueWithProviderSettingProvenance()
+    public async Task ImageBasedPrincipalAutofillsExactValueWithPrincipalSettingProvenance()
     {
         await using var harness = await Harness.CreateAsync();
 
@@ -33,19 +33,19 @@ public sealed class ProviderInspectionModeAcceptanceTests
             CaseInspectionMode.ImageBasedAssessment,
             projection.Inspection.Mode.Confirmed?.Value);
         Assert.Equal(
-            CaseDataSourceKind.ProviderSetting,
+            CaseDataSourceKind.PrincipalSetting,
             projection.Inspection.Address.Confirmed?.Source.Kind);
         Assert.Equal(
-            ProviderInspectionModePolicy.PolicyKey,
+            PrincipalInspectionModePolicy.PolicyKey,
             projection.Inspection.Address.Confirmed?.Source.PolicyKey);
         Assert.Equal(
-            ProviderInspectionModePolicy.PolicyVersion,
+            PrincipalInspectionModePolicy.PolicyVersion,
             projection.Inspection.Address.Confirmed?.Source.PolicyVersion);
         Assert.Equal(
             harness.StaffActor.SubjectId,
             projection.Inspection.Address.Confirmed?.ConfirmedByActor);
         Assert.Equal(
-            CaseDataSourceKind.ProviderSetting,
+            CaseDataSourceKind.PrincipalSetting,
             projection.Inspection.Mode.Confirmed?.Source.Kind);
 
         Assert.Equal(
@@ -56,7 +56,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
             1,
             await harness.CaseHistoryCountAsync(
                 outcome.Identity.CaseId,
-                "provider_inspection_mode_applied"));
+                "principal_inspection_mode_applied"));
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
             Ext18InspectionAddressPolicy.ImageBasedAssessment,
             projection.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
-            CaseDataSourceKind.ProviderSetting,
+            CaseDataSourceKind.PrincipalSetting,
             projection.Inspection.Address.Confirmed?.Source.Kind);
         Assert.Equal(
             CaseInspectionMode.ImageBasedAssessment,
@@ -255,7 +255,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
                 var acceptIntake = new AcceptIntake(
                     acceptanceStore,
                     new FixedConfiguration(),
-                    new EfProviderInspectionModeStore(factory),
+                    new EfPrincipalInspectionModeStore(factory),
                     new DiscardingCommittedWorkPublisher(),
                     new TriageCasePairing(new EfTriageStore(factory,
                         [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider)));
@@ -346,7 +346,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Jane Example"}, {"QDOS-123"}, {"AB12CDE"}, {"1 Test Street, London"}, {FixtureInspectionDate})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, WorkProviderCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_work_provider"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {2}, {emptyEnvelope}, {emptyEnvelope})");
+                $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, PrincipalCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_principal"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {2}, {emptyEnvelope}, {emptyEnvelope})");
         }
     }
 

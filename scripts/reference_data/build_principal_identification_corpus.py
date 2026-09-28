@@ -1377,7 +1377,7 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
                 "billing": ["payment-notification", "remittance", "invoice-request", "billing-query", "general-billing"],
                 "new-instruction-received": ["audit", "diminution", "inspection", "new-client", "website-enquiry"],
                 "non-client-related": [],
-                "in-progress-cases": ["cancellation", "case-update", "client-chasing-for-update", "provider-chasing-for-update", "ongoing-correspondence"],
+                "in-progress-cases": ["cancellation", "case-update", "client-chasing-for-update", "principal-chasing-for-update", "ongoing-correspondence"],
                 "post-report-emails": ["query", "dispute", "amendment-request"],
                 "pre-instruction-emails": ["triage-request", "pre-formal-instruction-request", "images-received"],
                 "internal-cc": [],

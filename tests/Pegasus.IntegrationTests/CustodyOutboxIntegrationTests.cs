@@ -782,7 +782,7 @@ public sealed class CustodyOutboxIntegrationTests
 
     [Theory]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
-    [InlineData(CaseLifecycleState.ProviderCancelled)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.CreatedInError)]
     public async Task EveryTerminalCaseStateRejectsNewCustodyMutationsButPreservesExactReplay(
@@ -2686,7 +2686,7 @@ public sealed class CustodyOutboxIntegrationTests
             .ExecuteAsync(source.Source, CancellationToken.None);
         Assert.True(
             receipt.Decision == IntakeDecision.CaseCreated,
-            $"decision={receipt.Decision}; reason={receipt.DecisionReason}; route={receipt.MailRouteDecision?.Disposition}/{receipt.MailRouteDecision?.SelectedRoute?.WorkProviderCode}; sender={receipt.MailRouteDecision?.EffectiveSender?.Address}");
+            $"decision={receipt.Decision}; reason={receipt.DecisionReason}; route={receipt.MailRouteDecision?.Disposition}/{receipt.MailRouteDecision?.SelectedRoute?.PrincipalCode}; sender={receipt.MailRouteDecision?.EffectiveSender?.Address}");
         var outcome = await AcceptAsync(services, receipt.Id);
         return new(
             outcome.Identity.CaseId,
@@ -2881,7 +2881,7 @@ public sealed class CustodyOutboxIntegrationTests
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
         const string organizationName = "Custody test organization";
-        const string organizationRole = "work_provider";
+        const string organizationRole = "principal";
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         if (await context.Principals

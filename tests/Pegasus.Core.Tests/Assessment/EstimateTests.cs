@@ -1147,7 +1147,7 @@ public sealed class EstimateTests
         // Non-staff actors, malformed mutation envelopes and stale persisted
         // authority all fail before consulting a source-hash replay.
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => import.ExecuteAsync(
-            ImportRequest(actor: ActionActor.Provider(Guid.NewGuid())), CancellationToken.None));
+            ImportRequest(actor: ActionActor.Principal(Guid.NewGuid())), CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => import.ExecuteAsync(
             ImportRequest(expectedVersion: -1), CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() => import.ExecuteAsync(

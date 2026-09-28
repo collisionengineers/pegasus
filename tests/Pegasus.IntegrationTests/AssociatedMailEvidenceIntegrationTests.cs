@@ -574,7 +574,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             },
             new CaseMatchIndexEntity
             {
-                CaseId = id, WorkProviderCode = "QDOS", DurableClaimToken = "48450/1",
+                CaseId = id, PrincipalCode = "QDOS", DurableClaimToken = "48450/1",
                 MatchPolicyKey = "principal_case_match", MatchPolicyVersion = 1, UpdatedAtUtc = now
             });
         await db.SaveChangesAsync();

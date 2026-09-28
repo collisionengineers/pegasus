@@ -132,11 +132,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         OrganizationAdministrationOperations
         OrganizationRoles
         Organizations
-        PrincipalDomainEvidence
-        PrincipalDomainPackages
-        PrincipalReferences
         PrincipalSequenceLineages
         Principals
+        ProviderDomainEvidence
+        ProviderDomainPackages
+        ProviderReferences
         RequestUploadLinks
         RequestUploadReceipts
         SecurityEvents
@@ -251,9 +251,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         IntakeReceipts:SELECT,INSERT,UPDATE
         IntakeStagedReceipts:SELECT,INSERT,UPDATE
         IntakeWorkItems:SELECT,INSERT,UPDATE
-        PrincipalDomainEvidence:SELECT
-        PrincipalDomainPackages:SELECT
-        PrincipalReferences:SELECT
+        ProviderDomainEvidence:SELECT
+        ProviderDomainPackages:SELECT
+        ProviderReferences:SELECT
         RequestUploadLinks:SELECT
         SentEmailEvidence:SELECT,INSERT,UPDATE
         Triage:SELECT,INSERT,UPDATE

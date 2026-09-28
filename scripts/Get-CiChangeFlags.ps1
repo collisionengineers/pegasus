@@ -32,9 +32,9 @@ $infrastructurePattern = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Per
 # the LocalDB lifecycle classifier contract turns on for that pair alone. The
 # shared platform script deliberately routes to this lane and to infrastructure.
 $localDevelopmentPattern = '^scripts/(PegasusPlatform|Test-PegasusPlatform|Clear-BuildOutput|Test-ClearBuildOutput)\.ps1$'
-# The provider-reference generator and its tests share one scripts-owned
+# The principal-reference generator and its tests share one scripts-owned
 # component; the two PowerShell wrappers are its only other callers.
-$referenceDataPattern = '^scripts/reference_data/|^scripts/Build-(ProviderReferenceData|PrincipalIdentificationCorpus)\.ps1$'
+$referenceDataPattern = '^scripts/reference_data/|^scripts/Build-(PrincipalReferenceData|PrincipalIdentificationCorpus)\.ps1$'
 
 function Test-AnyPath {
     param(

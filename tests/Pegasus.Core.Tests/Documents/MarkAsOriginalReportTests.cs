@@ -20,7 +20,7 @@ public sealed class MarkAsOriginalReportTests
         var sut = new MarkAsOriginalReport(store, reader);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => sut.ExecuteAsync(
-            Request() with { Actor = ActionActor.Provider(Guid.NewGuid()) }));
+            Request() with { Actor = ActionActor.Principal(Guid.NewGuid()) }));
 
         Assert.Empty(store.Commands);
         Assert.Empty(reader.Reads);
@@ -44,7 +44,7 @@ public sealed class MarkAsOriginalReportTests
         Assert.Throws<InvalidOperationException>(() =>
             OriginalReportPolicy.RequireEligible(
                 CaseType.Audit,
-                CaseLifecycleState.ProviderCancelled,
+                CaseLifecycleState.PrincipalCancelled,
                 DocumentSemanticRole.Instruction));
     }
 
@@ -125,7 +125,7 @@ public sealed class MarkAsOriginalReportTests
     [InlineData(CaseLifecycleState.NotReady, false, true)]
     [InlineData(CaseLifecycleState.Review, false, true)]
     [InlineData(CaseLifecycleState.PostReportComplete, false, false)]
-    [InlineData(CaseLifecycleState.ProviderCancelled, false, false)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, false, false)]
     [InlineData(CaseLifecycleState.NotReady, true, false)]
     public void OnlyAnOpenAuditMissingItsReportAwaitsRecognition(
         CaseLifecycleState state, bool archived, bool awaits)

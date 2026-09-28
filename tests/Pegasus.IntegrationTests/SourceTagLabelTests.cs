@@ -18,7 +18,7 @@ public sealed class SourceTagLabelTests
     [InlineData(CaseDataSourceKind.IntakeEvidence, "PdfContent:claim details", "Extracted", "")]
     [InlineData(CaseDataSourceKind.MailRoute, "mail route", "E-mail", "")]
     [InlineData(CaseDataSourceKind.VehicleLookup, "dvla", "Lookup", "lookup")]
-    [InlineData(CaseDataSourceKind.ProviderSetting, "provider setting:QDOS", "Principal", "")]
+    [InlineData(CaseDataSourceKind.PrincipalSetting, "provider setting:QDOS", "Principal", "")]
     [InlineData(CaseDataSourceKind.CaseAcceptance, "accepted case review", "Automatic", "")]
     public void EachCaseDataSourceReadsItsOneWord(CaseDataSourceKind kind, string label, string word, string tone)
     {

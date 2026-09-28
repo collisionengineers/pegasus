@@ -12,7 +12,7 @@ public sealed class RecentCasesTests
 
     [Theory]
     [InlineData(IntakeSourceChannel.Mailbox, false, CaseArrival.Email)]
-    [InlineData(IntakeSourceChannel.ProviderApi, false, CaseArrival.ProviderApi)]
+    [InlineData(IntakeSourceChannel.PrincipalApi, false, CaseArrival.PrincipalApi)]
     [InlineData(IntakeSourceChannel.Automation, false, CaseArrival.Automation)]
     [InlineData(IntakeSourceChannel.ManualUpload, true, CaseArrival.Manual)]
     [InlineData(null, false, CaseArrival.Manual)]

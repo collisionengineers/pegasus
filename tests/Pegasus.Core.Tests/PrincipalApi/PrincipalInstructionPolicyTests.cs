@@ -1,13 +1,13 @@
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 
-namespace Pegasus.Core.Tests.ProviderApi;
+namespace Pegasus.Core.Tests.PrincipalApi;
 
-public sealed class ProviderInstructionPolicyTests
+public sealed class PrincipalInstructionPolicyTests
 {
-    private static ProviderInstruction Complete(
-        ProviderInstructionKind kind = ProviderInstructionKind.Inspection,
+    private static PrincipalInstruction Complete(
+        PrincipalInstructionKind kind = PrincipalInstructionKind.Inspection,
         AuditAssessment? verdict = null) =>
         new(
             kind,
@@ -34,7 +34,7 @@ public sealed class ProviderInstructionPolicyTests
     [Fact]
     public void NormalisationMatchesTheCaseStoreRatherThanInventingItsOwn()
     {
-        var normalized = ProviderInstructionPolicy.Normalize(Complete());
+        var normalized = PrincipalInstructionPolicy.Normalize(Complete());
 
         // Whitespace collapsed, registration compacted and uppercased, address
         // line breaks kept — the same shapes CaseDataPolicy applies, so a value
@@ -47,8 +47,8 @@ public sealed class ProviderInstructionPolicyTests
     [Fact]
     public void AnInvalidRegistrationIsNamedByItsFieldPath()
     {
-        var error = Assert.Throws<ProviderInstructionValidationException>(
-            () => ProviderInstructionPolicy.Normalize(Complete() with { VehicleRegistration = "AB12/CDE" }));
+        var error = Assert.Throws<PrincipalInstructionValidationException>(
+            () => PrincipalInstructionPolicy.Normalize(Complete() with { VehicleRegistration = "AB12/CDE" }));
 
         Assert.Equal("vehicle.registration", error.Field);
     }
@@ -56,9 +56,9 @@ public sealed class ProviderInstructionPolicyTests
     [Fact]
     public void AnOverlongValueIsNamedByItsFieldPath()
     {
-        var error = Assert.Throws<ProviderInstructionValidationException>(
-            () => ProviderInstructionPolicy.Normalize(
-                Complete() with { ClaimNumber = new string('9', ProviderInstructionPolicy.MaximumClaimNumberLength + 1) }));
+        var error = Assert.Throws<PrincipalInstructionValidationException>(
+            () => PrincipalInstructionPolicy.Normalize(
+                Complete() with { ClaimNumber = new string('9', PrincipalInstructionPolicy.MaximumClaimNumberLength + 1) }));
 
         Assert.Equal("claimNumber", error.Field);
     }
@@ -66,8 +66,8 @@ public sealed class ProviderInstructionPolicyTests
     [Fact]
     public void TheDraftCarriesEveryDeclaredValue()
     {
-        var draft = ProviderInstructionPolicy.ToDraft(
-            ProviderInstructionPolicy.Normalize(Complete()),
+        var draft = PrincipalInstructionPolicy.ToDraft(
+            PrincipalInstructionPolicy.Normalize(Complete()),
             "qdos");
 
         Assert.Equal("QDOS", draft.SuggestedPrincipalCode);
@@ -91,9 +91,9 @@ public sealed class ProviderInstructionPolicyTests
         var empty = new InstructionDraft(
             null, null, null, null, null, null, null, null, null, null);
         var required = InstructionDraftCompleteness.MissingFieldNames(empty);
-        var declared = ProviderInstructionPolicy
-            .ReviewFields(ProviderInstructionPolicy.ToDraft(
-                ProviderInstructionPolicy.Normalize(Complete()),
+        var declared = PrincipalInstructionPolicy
+            .ReviewFields(PrincipalInstructionPolicy.ToDraft(
+                PrincipalInstructionPolicy.Normalize(Complete()),
                 "QDOS"))
             .Select(field => field.Name)
             .ToHashSet(StringComparer.Ordinal);
@@ -108,59 +108,59 @@ public sealed class ProviderInstructionPolicyTests
     {
         // Files are optional (operator, 2026-09-28): an empty or absent list is
         // a complete declaration, read the same way by the endpoint and intake.
-        var (instruction, files) = ProviderInstructionJson.Parse(System.Text.Encoding.UTF8.GetBytes(body));
+        var (instruction, files) = PrincipalInstructionJson.Parse(System.Text.Encoding.UTF8.GetBytes(body));
         Assert.Empty(files);
-        Assert.Equal("12345/1", ProviderInstructionPolicy.Normalize(instruction).ClaimNumber);
+        Assert.Equal("12345/1", PrincipalInstructionPolicy.Normalize(instruction).ClaimNumber);
     }
 
     [Fact]
     public void AnInstructionDateInTheBodyIsNotAContractMemberAndIsIgnored()
     {
-        var (instruction, files) = ProviderInstructionJson.Parse(System.Text.Encoding.UTF8.GetBytes(
+        var (instruction, files) = PrincipalInstructionJson.Parse(System.Text.Encoding.UTF8.GetBytes(
             """{"caseType":"inspection","claimNumber":"12345/1","instructionDate":"2031-05-01","files":[{"fileName":"instruction.pdf","mediaType":"application/pdf","contentBase64":"JVBERi0="}]}"""));
         Assert.Single(files);
         Assert.DoesNotContain(
-            ProviderInstructionPolicy.ReviewFields(ProviderInstructionPolicy.ToDraft(ProviderInstructionPolicy.Normalize(instruction), "QDOS")),
+            PrincipalInstructionPolicy.ReviewFields(PrincipalInstructionPolicy.ToDraft(PrincipalInstructionPolicy.Normalize(instruction), "QDOS")),
             field => field.Name == "Instruction date");
         // A declaration stored before the member was retired still reads.
-        Assert.NotNull(ProviderInstructionJson.Deserialize("""{"kind":"Inspection","instructionDate":"2031-05-01"}"""));
+        Assert.NotNull(PrincipalInstructionJson.Deserialize("""{"kind":"Inspection","instructionDate":"2031-05-01"}"""));
     }
 
     [Fact]
     public void TheWireVocabularyMapsOntoTheDomainsOwnCaseTypes()
     {
-        Assert.Equal(CaseType.Inspection, ProviderInstructionKinds.ToCaseType(ProviderInstructionKind.Inspection));
-        Assert.Equal(CaseType.Audit, ProviderInstructionKinds.ToCaseType(ProviderInstructionKind.Audit));
+        Assert.Equal(CaseType.Inspection, PrincipalInstructionKinds.ToCaseType(PrincipalInstructionKind.Inspection));
+        Assert.Equal(CaseType.Audit, PrincipalInstructionKinds.ToCaseType(PrincipalInstructionKind.Audit));
         // The operator's own word for Inspection + Audit.
         Assert.Equal(
             CaseType.InspectionAndAudit,
-            ProviderInstructionKinds.ToCaseType(ProviderInstructionKind.AuditReport));
+            PrincipalInstructionKinds.ToCaseType(PrincipalInstructionKind.AuditReport));
         // Triage is pre-case work and allocates no Case/PO.
-        Assert.Null(ProviderInstructionKinds.ToCaseType(ProviderInstructionKind.Triage));
+        Assert.Null(PrincipalInstructionKinds.ToCaseType(PrincipalInstructionKind.Triage));
 
-        Assert.Equal(ProviderInstructionKind.AuditReport, ProviderInstructionKinds.Parse("AuditReport"));
-        Assert.Throws<ArgumentException>(() => ProviderInstructionKinds.Parse("diminution"));
+        Assert.Equal(PrincipalInstructionKind.AuditReport, PrincipalInstructionKinds.Parse("AuditReport"));
+        Assert.Throws<ArgumentException>(() => PrincipalInstructionKinds.Parse("diminution"));
     }
 
     [Fact]
     public void OnlyAStandaloneAuditCarriesAnIncomingReport()
     {
-        Assert.True(ProviderInstructionKinds.RequiresOriginalReport(ProviderInstructionKind.Audit));
+        Assert.True(PrincipalInstructionKinds.RequiresOriginalReport(PrincipalInstructionKind.Audit));
         // Inspection + Audit audits Collision Engineers' own report (FRD-01).
-        Assert.False(ProviderInstructionKinds.RequiresOriginalReport(ProviderInstructionKind.AuditReport));
-        Assert.False(ProviderInstructionKinds.RequiresOriginalReport(ProviderInstructionKind.Inspection));
+        Assert.False(PrincipalInstructionKinds.RequiresOriginalReport(PrincipalInstructionKind.AuditReport));
+        Assert.False(PrincipalInstructionKinds.RequiresOriginalReport(PrincipalInstructionKind.Inspection));
     }
 
     [Fact]
     public void ADeclaredTriageCarriesTheEvidenceTheTriageGateReads()
     {
-        var evidence = ProviderInstructionPolicy.TriageEvidence();
+        var evidence = PrincipalInstructionPolicy.TriageEvidence();
 
         // CreateTriageIfQualifyingAsync reads exactly one Strong
         // AcceptedTriageMatch with a matcher key and a positive version.
         Assert.Equal(IntakeEvidenceFinding.AcceptedTriageMatch, evidence.Finding);
         Assert.Equal(IntakeEvidenceStrength.Strong, evidence.Strength);
-        Assert.Equal(IntakeEvidenceSource.ProviderDeclaration, evidence.Source);
+        Assert.Equal(IntakeEvidenceSource.PrincipalDeclaration, evidence.Source);
         Assert.False(string.IsNullOrWhiteSpace(evidence.MatcherKey));
         Assert.True(evidence.MatcherVersion > 0);
     }

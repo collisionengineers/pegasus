@@ -503,8 +503,8 @@ It ignores columns B–D and all later columns. It never edits the workbook or e
 Close the workbook, then run from PowerShell 7 at the repository root:
 
 ```powershell
-pwsh ./scripts/Build-ProviderReferenceData.ps1
-pwsh ./scripts/Build-ProviderReferenceData.ps1 -Verify
+pwsh ./scripts/Build-PrincipalReferenceData.ps1
+pwsh ./scripts/Build-PrincipalReferenceData.ps1 -Verify
 ```
 
 Before discovering Python or reading source bytes, the wrapper rejects:
@@ -539,7 +539,7 @@ Publication rules are immutable:
 Future versions use a new cumulative workbook, version, output, and the previously validated package:
 
 ```powershell
-pwsh ./scripts/Build-ProviderReferenceData.ps1 `
+pwsh ./scripts/Build-PrincipalReferenceData.ps1 `
   -SourcePath ./reference/workproviders-and-repairers/provider-domains-v2.xlsx `
   -Version provider-domains-v2 `
   -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v2.json `

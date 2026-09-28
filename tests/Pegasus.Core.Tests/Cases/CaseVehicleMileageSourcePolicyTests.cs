@@ -75,8 +75,8 @@ public sealed class CaseVehicleMileageSourcePolicyTests
     [InlineData(CaseDataSourceKind.IntakeEvidence)]
     [InlineData(CaseDataSourceKind.MailRoute)]
     [InlineData(CaseDataSourceKind.CaseAcceptance)]
-    [InlineData(CaseDataSourceKind.ProviderApi)]
-    [InlineData(CaseDataSourceKind.ProviderSetting)]
+    [InlineData(CaseDataSourceKind.PrincipalApi)]
+    [InlineData(CaseDataSourceKind.PrincipalSetting)]
     public void EveryOtherProvenanceCameThroughThePrincipal(CaseDataSourceKind provenance) =>
         Assert.Equal(
             "principal",

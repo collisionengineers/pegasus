@@ -229,7 +229,7 @@ public sealed class AiJobTests
     [InlineData(CaseLifecycleState.Held, false)]
     [InlineData(CaseLifecycleState.Review, false)]
     [InlineData(CaseLifecycleState.PostReportComplete, false)]
-    [InlineData(CaseLifecycleState.ProviderCancelled, false)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, false)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked, false)]
