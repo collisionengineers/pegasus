@@ -28,8 +28,30 @@ public sealed class CaseReportFreshnessTests
         Assert.Null(decision.ReasonCode);
     }
 
+    /// <summary>
+    /// Every assessment fact the report's snapshot carries: the template's
+    /// vehicle facts, the damage its diagram and narrative read, the three
+    /// values, the outcome and its salvage, roadworthiness, the history check
+    /// and the agreed contract sum.
+    /// </summary>
     [Theory]
+    [InlineData(AssessmentVocabulary.VehicleVin)]
+    [InlineData(AssessmentVocabulary.VehicleEngineCc)]
+    [InlineData(AssessmentVocabulary.VehicleFuel)]
+    [InlineData(AssessmentVocabulary.VehicleCondition)]
+    [InlineData(AssessmentVocabulary.ImpactSeverity)]
+    [InlineData(AssessmentVocabulary.ImpactLocation)]
+    [InlineData(AssessmentVocabulary.DamageImpacts)]
+    [InlineData(AssessmentVocabulary.DamageUnrelated)]
+    [InlineData(AssessmentVocabulary.ValueRetail)]
+    [InlineData(AssessmentVocabulary.ValueTrade)]
     [InlineData(AssessmentVocabulary.ValueEngineer)]
+    [InlineData(AssessmentVocabulary.Outcome)]
+    [InlineData(AssessmentVocabulary.LegalStatus)]
+    [InlineData(AssessmentVocabulary.UnroadworthyReason)]
+    [InlineData(AssessmentVocabulary.SalvageCategory)]
+    [InlineData(AssessmentVocabulary.SalvageValue)]
+    [InlineData(AssessmentVocabulary.HistoryCheck)]
     [InlineData(AssessmentVocabulary.SettlementContractSum)]
     public void PrintedAssessmentFactChangesStaleWithTheAssessmentReason(string path)
     {
@@ -46,6 +68,75 @@ public sealed class CaseReportFreshnessTests
 
         Assert.True(decision.IsStale);
         Assert.Equal(CaseReportStaleReasons.AssessmentFactsChanged, decision.ReasonCode);
+    }
+
+    /// <summary>
+    /// The report prints only what the template prints (operator, 27
+    /// September 2026). The tyres and belts, the airbags, the temporary
+    /// repairs, the vehicle's type, colour, body, transmission and expiry
+    /// dates, the unrelated damage deduction, the material transfer, the
+    /// recovery charge and the settlement facts beyond the agreed contract sum
+    /// stay on the Case, so changing one leaves a generated report current.
+    /// </summary>
+    [Theory]
+    [InlineData(AssessmentVocabulary.VehicleType)]
+    [InlineData(AssessmentVocabulary.VehicleTransmission)]
+    [InlineData(AssessmentVocabulary.VehicleColour)]
+    [InlineData(AssessmentVocabulary.VehicleBody)]
+    [InlineData(AssessmentVocabulary.VehicleTaxExpiry)]
+    [InlineData(AssessmentVocabulary.VehicleMotExpiry)]
+    [InlineData(AssessmentVocabulary.VehicleAirbagsDeployed)]
+    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairsPossible)]
+    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairMethod)]
+    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairCost)]
+    [InlineData(AssessmentVocabulary.DamageTyreRightFront)]
+    [InlineData(AssessmentVocabulary.DamageTyreLeftFront)]
+    [InlineData(AssessmentVocabulary.DamageTyreRightRear)]
+    [InlineData(AssessmentVocabulary.DamageTyreLeftRear)]
+    [InlineData(AssessmentVocabulary.DamageBeltRightFront)]
+    [InlineData(AssessmentVocabulary.DamageBeltLeftFront)]
+    [InlineData(AssessmentVocabulary.DamageBeltRightRear)]
+    [InlineData(AssessmentVocabulary.DamageBeltLeftRear)]
+    [InlineData(AssessmentVocabulary.DamageSpareTyre)]
+    [InlineData(AssessmentVocabulary.DamageCentreBelt)]
+    [InlineData(AssessmentVocabulary.DamageUnrelatedDeduction)]
+    [InlineData(AssessmentVocabulary.DamageMaterialTransfer)]
+    [InlineData(AssessmentVocabulary.CostRecoveryCharge)]
+    [InlineData(AssessmentVocabulary.CostStorageCharge)]
+    [InlineData(AssessmentVocabulary.SettlementExcess)]
+    [InlineData(AssessmentVocabulary.SettlementBetterment)]
+    [InlineData(AssessmentVocabulary.SettlementClaimantVatRegistered)]
+    [InlineData(AssessmentVocabulary.SettlementReserve)]
+    [InlineData(AssessmentVocabulary.SettlementRepairDelays)]
+    [InlineData(AssessmentVocabulary.SettlementReportDelay)]
+    [InlineData(AssessmentVocabulary.SettlementStoragePerDay)]
+    [InlineData(AssessmentVocabulary.SettlementHireStart)]
+    [InlineData(AssessmentVocabulary.SettlementHireDailyCost)]
+    [InlineData(AssessmentVocabulary.SettlementDiminution)]
+    [InlineData(AssessmentVocabulary.SettlementSalvageAt)]
+    [InlineData(AssessmentVocabulary.SettlementSalvageAgent)]
+    [InlineData(AssessmentVocabulary.SettlementSalvageAgentReference)]
+    [InlineData(AssessmentVocabulary.SettlementSalvageMoved)]
+    [InlineData(AssessmentVocabulary.SettlementSalvageOwnerRetains)]
+    [InlineData(AssessmentVocabulary.SettlementSalvageValueAgreed)]
+    [InlineData(AssessmentVocabulary.SettlementSalvageSettled)]
+    public void AFactTheReportDoesNotPrintDoesNotStale(string path)
+    {
+        var before = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [path] = "before",
+        };
+        var after = new Dictionary<string, string?>(before, StringComparer.Ordinal)
+        {
+            [path] = "after",
+        };
+
+        var decision = CaseReportFreshness.ClassifyAssessment(before, after);
+
+        Assert.False(decision.IsStale);
+        Assert.Null(decision.ReasonCode);
+        Assert.False(CaseReportFreshness.ClassifyAssessment(
+            new Dictionary<string, string?>(StringComparer.Ordinal), after).IsStale);
     }
 
     [Theory]
