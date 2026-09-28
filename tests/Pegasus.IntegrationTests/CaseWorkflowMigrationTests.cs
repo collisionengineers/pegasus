@@ -432,7 +432,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260927002303_EmailTemplates",
                 "20260927004150_ImageInReport",
                 "20260928090000_GrantWorkerGeneratedCaseArtifactUpdate",
-                "20260928100000_WorkCentreQueryIndexes"
+                "20260928100000_WorkCentreQueryIndexes",
+                "20260928160000_GrantWorkerDocumentOccurrenceUpdate"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

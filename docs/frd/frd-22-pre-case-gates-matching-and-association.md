@@ -68,8 +68,10 @@ For a standalone Audit, a missing original report is a Case requirement, not
 a pre-Case gate. Once the Principal and identity-critical gates pass, the
 instruction creates the `a.` Case/PO. The Case shows **Original report
 missing** only while it has neither a filed original report nor
-standalone-Audit evidence retained at intake. Staff clear it by marking a
-filed document as the original report. A readable report records the
+standalone-Audit evidence retained at intake. It clears when Pegasus
+recognises the report among files added to the Case later, or when staff
+mark a filed document as the original report
+([FRD-16](frd-16-case-record-workspace.md#original-report)). A readable report records the
 assessment at intake, and its own reading fills the Case's
 [Original report](frd-16-case-record-workspace.md#original-report) cells at
 acceptance. A manual proposal may create an Audit from a receipt
@@ -187,7 +189,10 @@ files it on its next pass over the receipt. A destination declared before
 the upload (Add evidence on a Case page,
 [FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) is a staff
 decision made first: processing records it as that member of staff's
-association and files the material in the same pass. Automatic Image-initiated
+association and files the material in the same pass. Filed on an open Audit
+awaiting its original report, the material is read for that report, however
+it was associated ([FRD-16](frd-16-case-record-workspace.md#original-report)).
+Automatic Image-initiated
 association checks the current Case version and yields to an active staff
 lease; the later image merge also yields to a live lease and rechecks the
 current associations in its own transaction. Filing the associated mail's

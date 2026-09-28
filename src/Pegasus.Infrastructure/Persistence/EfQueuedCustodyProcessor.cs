@@ -1226,8 +1226,10 @@ internal sealed class EfQueuedCustodyProcessor(
             intake.CustodyMergedAtUtc ??= now;
             var beforeVersion = authority.Version;
             // The photographs are Case images from here (operator, 27
-            // September 2026). Filed by this completion, under its version.
-            var filed = await RecordFoldedPhotographsAsync(
+            // September 2026), and the files they came in are Case
+            // documents (operator, 28 September 2026). Filed by this
+            // completion, under its version.
+            var filed = await RecordFoldedFilesAsync(
                 context, intake, authority.Case, work.OperationKey, moved, now, cancellationToken);
             if (filed > 0 && authority.Workflow is { } workflow && !authority.Case.ImagesComplete)
             {
@@ -1300,14 +1302,16 @@ internal sealed class EfQueuedCustodyProcessor(
     }
 
     /// <summary>
-    /// Records each photograph the fold moved as an image document of the
-    /// Case (FRD-19), and returns how many it moved. The fold left each file
-    /// in the Case folder under the file and version identity its asset
-    /// already carries, so this writes records only. Each takes the next Case
-    /// document number, and its own operation key under the fold's, so a
-    /// replay adds nothing.
+    /// Records what the fold moved as documents of the Case (FRD-19): the
+    /// record's received files and their attachments — a report PDF the
+    /// photographs came out of, which staff may then mark as the original
+    /// report — and each photograph as an image. Returns how many photographs
+    /// it recorded. The fold left each file in the Case folder under the file
+    /// and version identity its asset already carries, so this writes records
+    /// only. Each takes the next Case document number, and its own operation
+    /// key under the fold's, so a replay adds nothing.
     /// </summary>
-    internal static async Task<int> RecordFoldedPhotographsAsync(
+    internal static async Task<int> RecordFoldedFilesAsync(
         PegasusDbContext context,
         ImageIntakeEntity intake,
         CaseEntity caseEntity,
@@ -1316,14 +1320,43 @@ internal sealed class EfQueuedCustodyProcessor(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        // A photograph the record shows is filed only when the record's
-        // folder held it: nothing else has a file in the Case folder.
+        // A file the record shows is filed only when the record's folder held
+        // it: nothing else has a file in the Case folder.
         var folded = moved.ToDictionary(asset => asset.Id);
         var photographs = await EfImageIntakeStore.ListPhotographsAsync(
             context, intake.OriginReceiptId, intake.SubmissionGroupId, cancellationToken);
+        var photographIds = photographs.Select(item => item.Asset.Id).ToHashSet();
         var ordinal = await EfDocumentCustodyStore.NextDocumentOrdinalAsync(
             context, caseEntity.Id, cancellationToken);
         var files = new List<RetainedCaseFile>(folded.Count);
+        var documents = moved
+            .Where(asset => !photographIds.Contains(asset.Id))
+            .Select(asset => (Entity: asset, Record: EfIntakeReceiptStore.MapAsset(asset)))
+            .Where(asset => (asset.Record.Kind == IntakeAssetKind.Source
+                    && asset.Record.Disposition == IntakeAssetDisposition.Source
+                    || asset.Record.Kind == IntakeAssetKind.Attachment
+                    && asset.Record.Disposition == IntakeAssetDisposition.Attachment)
+                && !InstructionEvidenceImages.IsImage(asset.Record.MediaType))
+            .OrderBy(asset => asset.Record.Kind == IntakeAssetKind.Source ? 0 : 1)
+            .ThenBy(asset => asset.Record.FileName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(asset => asset.Record.Id);
+        foreach (var (file, document) in documents)
+        {
+            files.Add(new(
+                ordinal++,
+                document.FileName,
+                document.MediaType,
+                document.ContentLength,
+                document.ContentHash,
+                IntakeCaseEvidenceRoles.For(document.Kind, document.MediaType),
+                $"{foldOperationKey}:document:{document.Id:N}",
+                file.BoxFileId
+                    ?? throw new InvalidDataException("A folded file has no recorded file identity."),
+                file.BoxVersionId,
+                document.Id));
+        }
+
+        var photographCount = 0;
         foreach (var (_, photograph) in photographs)
         {
             if (!folded.TryGetValue(photograph.Id, out var file))
@@ -1343,6 +1376,7 @@ internal sealed class EfQueuedCustodyProcessor(
                     ?? throw new InvalidDataException("A folded photograph has no recorded file identity."),
                 file.BoxVersionId,
                 photograph.Id));
+            photographCount++;
         }
 
         await RecordRetainedCaseFilesAsync(
@@ -1353,7 +1387,7 @@ internal sealed class EfQueuedCustodyProcessor(
             files,
             now,
             cancellationToken);
-        return files.Count;
+        return photographCount;
     }
 
     /// <summary>

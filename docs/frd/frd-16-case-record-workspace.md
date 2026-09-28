@@ -247,6 +247,14 @@ A filed original report fills them (#840). Pegasus reads the report file
 itself, never the e-mail it arrived in:
 
 - when a standalone Audit is accepted, from the report retained at intake;
+- when files reach an open Audit that lists **Original report missing** —
+  through Add evidence, through Upload and Add to an existing case, or by
+  e-mail, matched or linked by staff — and exactly one of them is a report
+  Pegasus recognises, from that file (#901, operator 28 September 2026).
+  Pegasus records it as the original report in its own name. It recognises
+  only the report layouts its third-party report profiles know; when none of
+  the files is recognised, two or more are, or one could not be read,
+  nothing is recorded and staff mark the report;
 - when staff **Mark as original report**, from that document.
 
 A filled cell is tagged **Extracted** until staff change it. A fill lands
@@ -464,8 +472,9 @@ confirmed**, **Box audit folder: preparing** while it is being created, or
 **Documents** lists every live file as a row: filename, role, size, origin,
 recorded time and custody-state chip, with Preview, Save as and, while
 editing, delete. When an Audit lists **Original report missing**, each
-non-image row also offers **Mark as original report** while editing. That
-action assigns the Audit report role, clears the requirement and fills the
+non-image row also offers **Mark as original report** while editing: the
+route for a report Pegasus did not recognise when it was filed. That action
+assigns the Audit report role, clears the requirement and fills the
 [Original report](#original-report) cells from that document. While the
 Engineer sections are editable, a confirmed row that exactly one estimate
 format recognises — an Audatex that arrived by email, say — also offers
@@ -688,7 +697,8 @@ Save. It also covers the views: no Views card without an Audit; after Create
 audit the card and the Audit view by default; the Inspection view read-only
 with its label on each editable head, including for the lease holder; Report
 in each view; the audit folder chip in each state; the Create audit dialog;
-and a standalone Audit's single view with its Original report. Web tests
+and a standalone Audit's single view with its Original report, recorded from
+a report added later through Add evidence, Upload or a matched e-mail. Web tests
 cover the Vehicle section's read-only lookup facts beside Transmission edited
 in place, and the Damage Incident narrative and Report Statement of truth
 reading their report owners. Authenticated Web tests cover server-owned
