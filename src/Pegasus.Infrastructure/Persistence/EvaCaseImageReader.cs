@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 public sealed class EvaCaseImageReader(
     IDocumentContentStore contentStore,
-    Pegasus.Infrastructure.Custody.IReadCachedDocumentVersions? cachedVersions = null)
+    IReadCachedDocumentVersions? cachedVersions = null)
 {
     public async Task<List<EvaBundleImage>> LoadEligibleImagesAsync(
         PegasusDbContext context,

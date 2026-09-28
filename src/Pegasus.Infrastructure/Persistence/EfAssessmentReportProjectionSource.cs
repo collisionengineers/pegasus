@@ -31,7 +31,7 @@ internal sealed class EfAssessmentReportProjectionSource(
     IStaffAccountQueries staffAccountQueries,
     ICaseAssetPreparationQueries assetPreparationQueries,
     IListAppliedValuations listAppliedValuations,
-    Pegasus.Infrastructure.Custody.IReadCachedDocumentVersions? cachedVersions = null)
+    IReadCachedDocumentVersions? cachedVersions = null)
     : IAssessmentReportProjectionSource, ICaseReportSnapshotSource
 {
     /// <summary>The preview path: the same facts, with image bytes read.</summary>
