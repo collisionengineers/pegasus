@@ -507,6 +507,52 @@ public sealed class ProviderApiSubmissionTests
         Assert.StartsWith("a.", caseReference, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("inspection", null, "")]
+    [InlineData("audit", "repairable", "a.")]
+    public async Task AnInstructionWithNoFilesIsAcceptedAndAllocatesItsCase(
+        string caseType,
+        string? originalReportVerdict,
+        string referencePrefix)
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        // Files are optional for every kind, an Audit included (operator,
+        // 2026-09-28): the declaration alone opens the Case.
+        using var created = await SubmitAsync(
+            client,
+            secret,
+            "fileless-1",
+            [],
+            caseType: caseType,
+            originalReportVerdict: originalReportVerdict);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var receipt = await ReadJsonAsync(created);
+        Assert.Empty(receipt.GetProperty("files").EnumerateArray());
+        var submissionId = receipt.GetProperty("submissionId").GetGuid();
+
+        await DrainAsync(api, submissionId);
+
+        using var complete = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{submissionId:D}", secret);
+        var caseReference = (await ReadJsonAsync(complete)).GetProperty("caseReference").GetString();
+        Assert.StartsWith(referencePrefix, caseReference, StringComparison.Ordinal);
+
+        // No report was retained, so no Audit evidence or assessment is
+        // recorded: an Audit Case shows Original report missing until the
+        // report is filed.
+        await using var scope = api.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var allocated = await context.Cases.AsNoTracking().SingleAsync();
+        Assert.EndsWith(allocated.Reference, caseReference, StringComparison.Ordinal);
+        Assert.Null(allocated.StandaloneAuditEvidenceId);
+        Assert.Null(allocated.StandaloneAuditAssessment);
+    }
+
     [Fact]
     public async Task ADeclaredTriageOpensATriageCaseAndReturnsItsTriageReference()
     {

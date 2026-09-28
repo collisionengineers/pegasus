@@ -740,7 +740,8 @@ public sealed class ProcessIntake(
         // classification; a Provider API Audit has it declared, and the verdict
         // with it (operator decision, 2026-08-28). Either way exactly one
         // retained attachment is the original report and one AuditAssessment
-        // is recorded separately from the a. reference.
+        // is recorded separately from the a. reference. A Provider API Audit
+        // sent without its report records nothing here.
         var report = classification?.StandaloneAuditReport
             ?? await DeclaredAuditReportAsync(receipt, cancellationToken);
         if (report is null)
@@ -768,15 +769,21 @@ public sealed class ProcessIntake(
 
     /// <summary>
     /// The original report a Provider API Audit declared, or null when the
-    /// receipt is not one. The verdict is the Principal's own: the operator
-    /// ruled on 2026-08-28 that a declared verdict decides the reference,
-    /// replacing the read of the report's literal outcome for this route.
+    /// receipt is not one or carries no report. The verdict is the
+    /// Principal's own (operator, 2026-08-28), replacing the read of the
+    /// report's literal outcome for this route. The report file is optional
+    /// (operator, 2026-09-28): an Audit sent without one keeps Original report
+    /// missing until the report arrives.
     /// </summary>
     private async Task<StandaloneAuditReportEvaluation?> DeclaredAuditReportAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
-        if (receipt.SourceIdentity.Channel != IntakeSourceChannel.ProviderApi)
+        if (receipt.SourceIdentity.Channel != IntakeSourceChannel.ProviderApi
+            || !receipt.AssetRecords.Any(asset => string.Equals(
+                asset.SourceLabel,
+                ProviderInstructionPolicy.OriginalReportSourceLabel,
+                StringComparison.Ordinal)))
         {
             return null;
         }
