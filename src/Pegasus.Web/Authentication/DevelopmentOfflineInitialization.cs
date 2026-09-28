@@ -125,16 +125,23 @@ internal static class DevelopmentOfflineInitialization
                 StaffRoleNames.Administrator,
                 StringComparison.Ordinal))
             .ToArray();
+        var addAdministrator = !roleNames.Contains(StaffRoleNames.Administrator, StringComparer.Ordinal);
         if (rolesToRemove.Length > 0)
         {
             ThrowIfFailed(await userManager.RemoveFromRolesAsync(user, rolesToRemove));
         }
 
-        if (!roleNames.Contains(StaffRoleNames.Administrator, StringComparer.Ordinal))
+        if (addAdministrator)
         {
             ThrowIfFailed(await userManager.AddToRoleAsync(
                 user,
                 StaffRoleNames.Administrator));
+        }
+
+        // A role change rotates the stamp, as every staff authority change does.
+        if (rolesToRemove.Length > 0 || addAdministrator)
+        {
+            ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
         }
     }
 

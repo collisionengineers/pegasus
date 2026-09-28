@@ -180,7 +180,10 @@ The temporary secret is never emailed, logged, stored in raw form or sent to
 analytics.
 
 Disable, a role change, a reset and Force logout revoke the account's
-sessions and tokens. The next request sees the current authority. Delete
+sessions and tokens. The next request sees the current authority. Every
+change to an account's role, enabled state or password rotates its security
+stamp, and each request checks the stamp. A session is never refreshed into
+new authority: it is refused and signs in again. Delete
 removes active access, the role and credential material, but keeps the
 minimal actor identity that business history and printed reports need. It
 never deletes a Case. Disable and Delete act at once from the Settings
