@@ -15,9 +15,12 @@ namespace Pegasus.Infrastructure.Persistence;
 ///
 /// Eligibility itself stays in Core with
 /// <see cref="EvaHandoffPolicy.SelectEligibleImages"/>; this reads what that
-/// policy chose.
+/// policy chose. Where the document content cache is composed the bytes are
+/// read through it first, so a repeat export does not ask Box again.
 /// </summary>
-public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
+public sealed class EvaCaseImageReader(
+    IDocumentContentStore contentStore,
+    IReadCachedDocumentVersions? cachedVersions = null)
 {
     public async Task<List<EvaBundleImage>> LoadEligibleImagesAsync(
         PegasusDbContext context,
@@ -114,7 +117,9 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
                 selected.Sha256,
                 selected.ContentLength))
             .ToArray();
-        var contents = await contentStore.ReadVersionsAsync(reads, cancellationToken);
+        var contents = cachedVersions is null
+            ? await contentStore.ReadVersionsAsync(reads, cancellationToken)
+            : await cachedVersions.ReadVersionsAsync(reads, cancellationToken);
 
         var images = new List<EvaBundleImage>(selectedImages.Length);
         for (var index = 0; index < selectedImages.Length; index++)
