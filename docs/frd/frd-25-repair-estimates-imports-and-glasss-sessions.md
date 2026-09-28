@@ -203,6 +203,26 @@ running for it is settled when the window next asks:
   back to Glass's had not begun, Resume makes it once. If it had begun,
   Resume looks the export up again and never relays again.
 
+**A return that cannot be brought in (issue 916, operator ruling).** Three
+things follow when the return is accepted but the estimate does not land:
+
+- If Pegasus's own reader refuses the export, the session is `Failed` with
+  `glass.export.unreadable`, and the downloaded XML is kept on the Case first,
+  as a rejected Glass's export. It is not a Draft's source. The PDF sheet is
+  inside that XML. The host log names the position or field the reader refused,
+  in position numbers, field names and short code values only, never the
+  registration, a token or a URL. Once the reader accepts the file, staff can
+  import the kept XML from Files.
+- A session that failed only for that reason offers **Fetch again** beside
+  Glass's in the Case's Glass's controls. It signs in, selects the recorded
+  vehicle and fetches the export for the same estimate. It makes no vehicle
+  and starts no estimate. It is refused while the account holds another live
+  session.
+- If custody cannot store the export, the session is `Unknown` with
+  `glass.custody.failed`, holds the account and can be resumed. Resume fetches
+  the export again and does not relay Save & Exit again. It is never reported
+  as interrupted.
+
 Every Resume presents the current Case version and live edit lease, including
 preparation, an active estimate and a waiting import. The current registration
 (normalized for spacing and case) and whole-mile mileage must match the
@@ -291,7 +311,7 @@ the same import. A staff Import makes the imported spec Current.
 | Thing | States |
 | --- | --- |
 | Repair specification | Draft (live) or Discarded. At most one live spec is Current: a staff-created spec is Current at once, and Use repair spec switches. Edits keep the spec; imports, scales, restores and sent reports freeze numbered versions |
-| Glass's session | prepared (work running in the background), launched, `Unknown` (holds the account), resumed, closed by the owning staff member with a reason. Interrupted work settles Prepared as resumable and anything past it as `Unknown` |
+| Glass's session | prepared (work running in the background), launched, `Unknown` (holds the account), resumed, closed by the owning staff member with a reason. Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable can fetch that estimate again |
 
 ## Edge cases and fail-closed behaviour
 
@@ -302,6 +322,9 @@ the same import. A staff Import makes the imported spec Current.
 - The Current repair spec cannot be discarded; switch to another one first.
 - A lost Glass's answer stays `Unknown` and holds the account until the
   owning staff member closes it with a reason.
+- A Launch or Resume against a Case that changed since the page rendered, or
+  whose edit lease ended, is refused with "The Case changed. Reload it and
+  retry." It is not an error page.
 
 ## Acceptance evidence
 
