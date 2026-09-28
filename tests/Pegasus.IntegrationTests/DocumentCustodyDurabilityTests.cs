@@ -222,6 +222,81 @@ public sealed class DocumentCustodyDurabilityTests
     }
 
     /// <summary>
+    /// A fileless Provider API Audit keeps its declared verdict on the Case and
+    /// its Repairable status cell from creation (#919). Marking its report later
+    /// fills the other cells and never clears that one: a report that printed no
+    /// outcome, or one that disagrees, leaves the declared verdict standing.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("repairable")]
+    public async Task MarkingAFilelessAuditsReportLeavesItsDeclaredVerdictStanding(string? printedOutcome)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            var occurrenceId = await SeedCurrentDocumentAsync(database, caseId, 0, "laird-report.pdf");
+            var versionId = await VersionIdAsync(database, occurrenceId);
+            await using (var context = await database.CreateContextAsync())
+            {
+                // As acceptance leaves a fileless Audit whose declared verdict is total loss.
+                (await context.Cases.SingleAsync(item => item.Id == caseId)).StandaloneAuditAssessment = "total_loss";
+                context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
+                {
+                    WorkId = caseId,
+                    FieldPath = AssessmentVocabulary.OriginalReportOutcome,
+                    Value = "total_loss",
+                    RecordedByKind = nameof(ActorKind.Automation),
+                    RecordedBy = OriginalReportPrefillPolicy.RecorderId,
+                    RecordedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero)
+                });
+                await context.SaveChangesAsync();
+            }
+
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var reading = new OriginalReportReading(
+                new string('a', 64), "Laird Assessors", "2026-09-01", "roadworthy", printedOutcome, false);
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(caseId, 0, actor, $"fileless-mark-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                await scope.ServiceProvider.GetRequiredService<IMarkAsOriginalReportStore>()
+                    .MarkAsOriginalReportAsync(
+                        new MarkAsOriginalReportCommand(
+                            caseId,
+                            lease.Version,
+                            actor,
+                            $"fileless-mark:{Guid.NewGuid():N}",
+                            lease.Token,
+                            occurrenceId,
+                            versionId),
+                        reading,
+                        CancellationToken.None);
+            }
+
+            await using var verification = await database.CreateContextAsync();
+            var cells = await verification.CaseAssessmentFields
+                .Where(item => item.WorkId == caseId)
+                .ToDictionaryAsync(item => item.FieldPath);
+            Assert.Equal("total_loss", cells[AssessmentVocabulary.OriginalReportOutcome].Value);
+            Assert.Equal("Laird Assessors", cells[AssessmentVocabulary.OriginalReportAssessor].Value);
+            Assert.Equal("roadworthy", cells[AssessmentVocabulary.OriginalReportRoadworthiness].Value);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// A reading of bytes other than the marked version's fills nothing: the
     /// role is still recorded and the cells stay hand-entered.
     /// </summary>
