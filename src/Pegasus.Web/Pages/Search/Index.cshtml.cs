@@ -132,7 +132,7 @@ public sealed partial class IndexModel(
         string Muted,
         string Chip,
         string Vehicle,
-        string ProviderReference,
+        string PrincipalReference,
         string Engineer,
         string Editing,
         string Due,

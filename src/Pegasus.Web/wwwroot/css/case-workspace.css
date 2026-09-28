@@ -110,7 +110,7 @@
 .record-section>.panel-head>.meta.empty{color:var(--quiet)}
 .record-section>.panel-head>.meta[data-vehicle-lookup-line]{flex:1 1 auto;text-align:right;padding-right:6px}
 .vehicle-history .fc .fv.multi{white-space:pre-wrap}
-[data-inspection-provider-default][hidden]{display:none}
+[data-inspection-principal-default][hidden]{display:none}
 @media(max-width:1180px){.record-section>.panel-head>.meta[data-vehicle-lookup-line]{flex-basis:100%;text-align:left;padding-right:0}}
 
 

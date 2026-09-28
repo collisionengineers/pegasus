@@ -34,7 +34,7 @@ PEGASUS_POLICY_SNAPSHOTS = (
     ("principal-case-match-v1", "src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs"),
     (
         "qdos-extraction-policy-v9",
-        "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs",
+        "src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs",
     ),
     ("shared-mail-taxonomy", "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs"),
 )

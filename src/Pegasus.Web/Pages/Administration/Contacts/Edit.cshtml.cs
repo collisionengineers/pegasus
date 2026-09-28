@@ -273,7 +273,7 @@ public sealed class EditModel(
                     "revoke" => await revokeCredential.ExecuteAsync(request, cancellationToken),
                     _ => throw new InvalidOperationException("Unknown credential action.")
                 };
-                TempData["AdministrationStatus"] = "The provider credential was updated.";
+                TempData["AdministrationStatus"] = "The principal credential was updated.";
                 return RedirectToPage(new { id = ContactId });
             }
             catch (PrincipalCredentialException exception)

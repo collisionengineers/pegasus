@@ -5,17 +5,17 @@ using Microsoft.Extensions.Options;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
-namespace Pegasus.Web.ProviderApi;
+namespace Pegasus.Web.PrincipalApi;
 
 /// <summary>
 /// Authenticates <c>Authorization: Bearer pgs_&lt;key id&gt;_&lt;secret&gt;</c>
 /// through <see cref="IAuthenticatePrincipalCredential"/>. No
 /// cookie, no session, no antiforgery: a staff browser cookie is never
-/// accepted here and a provider secret is never accepted anywhere else.
+/// accepted here and a principal secret is never accepted anywhere else.
 /// Every refused presentation is a security event that names the key id
 /// when one was well-formed and never the secret.
 /// </summary>
-internal sealed class ProviderApiAuthenticationHandler(
+internal sealed class PrincipalApiAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
     UrlEncoder encoder,
@@ -32,23 +32,23 @@ internal sealed class ProviderApiAuthenticationHandler(
             return AuthenticateResult.NoResult();
         }
 
-        var keyId = ProviderApi.TryReadKeyId(header);
-        var secret = ProviderApi.TryReadSecret(header);
+        var keyId = PrincipalApi.TryReadKeyId(header);
+        var secret = PrincipalApi.TryReadSecret(header);
         var credential = keyId is null || secret is null
             ? null
             : await authenticate.ExecuteAsync(keyId, secret, Context.RequestAborted);
         if (credential is null)
         {
-            await DenyAsync(keyId ?? "anonymous", "provider_credential_rejected");
-            return AuthenticateResult.Fail("The provider credential is not valid.");
+            await DenyAsync(keyId ?? "anonymous", "principal_credential_rejected");
+            return AuthenticateResult.Fail("The principal credential is not valid.");
         }
 
         var identity = new ClaimsIdentity(
             [
                 new Claim(ClaimTypes.NameIdentifier, credential.PrincipalId.ToString("D")),
-                new Claim(ProviderApi.PrincipalIdClaim, credential.PrincipalId.ToString("D")),
-                new Claim(ProviderApi.KeyIdClaim, credential.KeyId),
-                new Claim(ProviderApi.CredentialStateClaim, credential.State.ToString())
+                new Claim(PrincipalApi.PrincipalIdClaim, credential.PrincipalId.ToString("D")),
+                new Claim(PrincipalApi.KeyIdClaim, credential.KeyId),
+                new Claim(PrincipalApi.CredentialStateClaim, credential.State.ToString())
             ],
             Scheme.Name);
         return AuthenticateResult.Success(
@@ -59,21 +59,21 @@ internal sealed class ProviderApiAuthenticationHandler(
     {
         if (string.IsNullOrEmpty(Request.Headers.Authorization.ToString()))
         {
-            await DenyAsync("anonymous", "provider_credential_missing");
+            await DenyAsync("anonymous", "principal_credential_missing");
         }
 
         Response.StatusCode = StatusCodes.Status401Unauthorized;
-        Response.Headers.WWWAuthenticate = $"Bearer realm=\"{ProviderApi.Realm}\"";
+        Response.Headers.WWWAuthenticate = $"Bearer realm=\"{PrincipalApi.Realm}\"";
         await Results.Problem(
                 statusCode: StatusCodes.Status401Unauthorized,
-                title: "The provider credential is missing or not valid.")
+                title: "The principal credential is missing or not valid.")
             .ExecuteAsync(Context);
     }
 
     protected override Task HandleForbiddenAsync(AuthenticationProperties properties) =>
         Results.Problem(
                 statusCode: StatusCodes.Status403Forbidden,
-                title: "The provider credential may not perform this operation.")
+                title: "The principal credential may not perform this operation.")
             .ExecuteAsync(Context);
 
     /// <summary>
@@ -83,9 +83,9 @@ internal sealed class ProviderApiAuthenticationHandler(
     /// </summary>
     internal static PrincipalCredentialAuthentication? ReadCredential(ClaimsPrincipal user)
     {
-        var principalId = user.FindFirstValue(ProviderApi.PrincipalIdClaim);
-        var keyId = user.FindFirstValue(ProviderApi.KeyIdClaim);
-        var state = user.FindFirstValue(ProviderApi.CredentialStateClaim);
+        var principalId = user.FindFirstValue(PrincipalApi.PrincipalIdClaim);
+        var keyId = user.FindFirstValue(PrincipalApi.KeyIdClaim);
+        var state = user.FindFirstValue(PrincipalApi.CredentialStateClaim);
         return Guid.TryParse(principalId, out var id)
             && keyId is not null
             && Enum.TryParse<PrincipalCredentialState>(state, out var parsedState)
