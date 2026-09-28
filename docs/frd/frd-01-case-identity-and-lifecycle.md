@@ -74,7 +74,8 @@ report.
 - On the email route, a readable original report records the assessment at
   intake.
 - On the Provider API route, the authenticated Principal declares the verdict
-  and attaches the original report. The declaration records the assessment.
+  and may attach the original report. With the report, the declaration
+  records the assessment.
 - On manual upload, a staff member must accept the proposal first.
 
 If no original report is filed on the Case and no standalone-Audit evidence
