@@ -68,7 +68,8 @@ internal sealed partial class StartupWarmup(
         try
         {
             await WarmAsync(bounded.Token);
-            LogWarmupFinished(logger, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            LogWarmupFinished(logger, elapsedMs);
         }
         catch (OperationCanceledException) when (bounded.IsCancellationRequested)
         {
