@@ -729,6 +729,12 @@
             var text = confirmation.querySelector('span');
             if (text) { window.pegasusToast(text.textContent.trim()); }
         }
+        // Work the server reports as not yet finished is announced in amber.
+        var warning = document.querySelector('[data-case-notices] [data-case-warning]');
+        if (warning && typeof window.pegasusToast === 'function') {
+            var warningText = warning.querySelector('span');
+            if (warningText) { window.pegasusToast(warningText.textContent.trim(), 'warning'); }
+        }
         // Only a refusal the server rendered into the swapped-in notices;
         // showActionError has already toasted its own [data-inplace-error].
         var alertNotice = document.querySelector('[data-case-notices] [role="alert"]:not([data-inplace-error])');
@@ -1165,7 +1171,9 @@
     }
     // The action's form is found again after the save's swap, which renders
     // it afresh with the Case's new version and a new operation key, and the
-    // operator's choices in it are put back before it is sent.
+    // operator's choices in it are put back before it is sent. A form that
+    // says what to tell the operator when the saved Case no longer offers it
+    // (data-save-first-dropped) has that said rather than the press lost.
     function again(form, submitter) {
         var id = form.getAttribute('id');
         var action = form.getAttribute('action');
@@ -1173,11 +1181,15 @@
         var name = submitter ? submitter.name : '';
         var value = submitter ? submitter.value : '';
         var formaction = submitter ? submitter.getAttribute('formaction') : null;
+        var dropped = form.getAttribute('data-save-first-dropped');
         return function () {
             var next = id ? document.getElementById(id) : Array.prototype.find.call(
                 record.querySelectorAll('form[action]'),
                 function (candidate) { return candidate.getAttribute('action') === action; });
-            if (!next) { return; }
+            if (!next) {
+                if (dropped) { showActionError(dropped); }
+                return;
+            }
             restoreChoices(next, choices);
             var button = submitter ? Array.prototype.find.call(next.elements, function (element) {
                 return element.type === 'submit' && element.name === name && element.value === value
@@ -3289,45 +3301,75 @@
         return 'Preview unavailable';
     }
 
+    function currentViewer() {
+        var viewer = window.pegasusCaseViewer;
+        return viewer && typeof viewer.openDocument === 'function' ? viewer : null;
+    }
+
+    async function openInViewer(trigger, viewer) {
+        var menu = trigger.closest('details[data-menu]');
+        if (menu) { menu.open = false; }
+        var response;
+        var message = 'Preview unavailable';
+        try {
+            response = await fetch(trigger.href, {
+                credentials: 'same-origin',
+                headers: { 'X-Pegasus-Document-Preview': '1' }
+            });
+            if (!response.ok || mediaType(response) !== 'application/pdf') {
+                message = await failureMessage(response);
+                throw new Error(message);
+            }
+            var url = URL.createObjectURL(await response.blob());
+            viewer.openDocument({
+                href: url,
+                name: fileName(response, trigger.getAttribute('data-file-name') || 'Estimate PDF'),
+                download: url,
+                downloadLabel: trigger.hasAttribute('data-report-preview') ? 'Download draft' : 'Download',
+                revoke: url,
+                invoker: trigger
+            });
+        } catch (error) {
+            if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
+            else { window.alert(message); }
+        }
+    }
+
     function bind(root) {
         root.querySelectorAll('[data-document-preview]').forEach(function (trigger) {
             if (trigger.dataset.documentPreviewBound === 'true') { return; }
             trigger.dataset.documentPreviewBound = 'true';
-            trigger.addEventListener('click', async function (event) {
-                var viewer = window.pegasusCaseViewer;
-                if (!viewer || typeof viewer.openDocument !== 'function') { return; }
+            trigger.addEventListener('click', function (event) {
+                var viewer = currentViewer();
+                if (!viewer) { return; }
                 event.preventDefault();
-                var menu = trigger.closest('details[data-menu]');
-                if (menu) { menu.open = false; }
-                var response;
-                var message = 'Preview unavailable';
-                try {
-                    response = await fetch(trigger.href, {
-                        credentials: 'same-origin',
-                        headers: { 'X-Pegasus-Document-Preview': '1' }
-                    });
-                    if (!response.ok || mediaType(response) !== 'application/pdf') {
-                        message = await failureMessage(response);
-                        throw new Error(message);
-                    }
-                    var url = URL.createObjectURL(await response.blob());
-                    viewer.openDocument({
-                        href: url,
-                        name: fileName(response, trigger.getAttribute('data-file-name') || 'Estimate PDF'),
-                        download: url,
-                        downloadLabel: trigger.hasAttribute('data-report-preview') ? 'Download draft' : 'Download',
-                        revoke: url,
-                        invoker: trigger
-                    });
-                } catch (error) {
-                    if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
-                    else { window.alert(message); }
-                }
+                openInViewer(trigger, viewer);
             });
         });
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+
+    // The report Generate report has just stored opens by itself, once: the
+    // page that follows the generation carries the mark on its Open report
+    // link, whether it was swapped in or loaded whole. The mark is taken off
+    // as it is read, so a section kept across a later swap cannot open the
+    // report again, and no later page carries it.
+    function openOnArrival() {
+        var trigger = document.querySelector('[data-document-preview][data-open-on-arrival="true"]');
+        if (!trigger) { return; }
+        trigger.removeAttribute('data-open-on-arrival');
+        var viewer = currentViewer();
+        if (viewer) { openInViewer(trigger, viewer); }
+    }
+    document.addEventListener('pegasus:case-swapped', openOnArrival);
+    // The viewer is bound further down this file, so a whole page is read
+    // once every block has run.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', openOnArrival);
+    } else {
+        window.setTimeout(openOnArrival, 0);
+    }
 })();
 
 

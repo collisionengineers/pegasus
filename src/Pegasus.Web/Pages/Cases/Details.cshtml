@@ -133,6 +133,15 @@
         <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
     </div>
 }
+@if (TempData["CaseWarning"] is string caseWarning)
+{
+    @* Work that is not yet finished: amber, never the green of a confirmation. *@
+    <div class="notice notice--warning mb-2" role="status" data-case-warning>
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>@caseWarning</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+}
 @if (TempData["CaseError"] is string caseError)
 {
     <div class="notice notice--danger mb-2" role="alert">
