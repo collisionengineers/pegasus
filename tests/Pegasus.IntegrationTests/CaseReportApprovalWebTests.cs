@@ -36,6 +36,7 @@ public sealed class CaseReportApprovalWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 Substitute<IGeneratedCaseArtifactStore>(services, artifacts);
@@ -82,6 +83,7 @@ public sealed class CaseReportApprovalWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: false));
                 Substitute<IGeneratedCaseArtifactStore>(services, artifacts);
@@ -161,6 +163,7 @@ public sealed class CaseReportApprovalWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<IRecordCaseReportApproval>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 services.AddSingleton<IGetCasePageFrame>(store);
                 services.AddSingleton<IGetAssessmentWorkspace>(store);
                 services.AddSingleton<IGetCaseVehicleSection>(store);
@@ -260,7 +263,7 @@ public sealed class CaseReportApprovalWebTests
             ("approvedAtUtc", "2099-01-01T00:00:00.0000000+00:00"));
 
     private sealed class ApprovalCaseDetailsStore :
-        IGetCase,
+        IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetAssessmentWorkspace,
         IGetCaseVehicleSection,
@@ -327,6 +330,10 @@ public sealed class CaseReportApprovalWebTests
             };
             return details;
         }
+
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
 
         public Task<CaseDetails?> ExecuteAsync(
             GetCaseQuery query,

@@ -43,6 +43,7 @@ internal static partial class CaseWebTestSupport
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -218,6 +219,7 @@ internal static partial class CaseWebTestSupport
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -776,7 +778,7 @@ internal static partial class CaseWebTestSupport
     /// </summary>
 
     internal sealed partial class RecordingCaseDetailsStore :
-        IGetCase,
+        IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
@@ -885,6 +887,19 @@ internal static partial class CaseWebTestSupport
         public string? RepairerAddress { get; init; }
 
         public string? RepairerName { get; init; }
+
+        /// <summary>How many times a Save or a reclaim read the Case's edit basis.</summary>
+        public int EditBasisReads { get; private set; }
+
+        Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken)
+        {
+            EditBasisReads++;
+            var workflow = CreateWorkflow();
+            return Task.FromResult<CaseEditBasis?>(new(
+                new CaseSectionFrame(CreateSummary(workflow), workflow, ActiveLease()),
+                DataOverride ?? CreateData()));
+        }
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
@@ -1327,6 +1342,7 @@ internal static partial class CaseWebTestSupport
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -1346,4 +1362,15 @@ internal static partial class CaseWebTestSupport
         client.DefaultRequestHeaders.Add("X-Test-Roles", role.ToString());
         return (baseFactory, factory, client);
     }
+}
+
+/// <summary>A test double's full Case read, narrowed to what a Case edit reads.</summary>
+internal static class CaseEditBasisTestData
+{
+    public static CaseEditBasis? Of(CaseDetails? details) =>
+        details is null
+            ? null
+            : new(
+                new CaseSectionFrame(details.Summary, details.Workflow, details.ActiveEditLease),
+                details.Data ?? throw new InvalidOperationException("The test Case has no data."));
 }

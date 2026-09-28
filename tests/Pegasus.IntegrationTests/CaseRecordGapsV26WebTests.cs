@@ -593,6 +593,7 @@ public sealed class CaseRecordGapsV26WebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
             }));
@@ -787,6 +788,7 @@ public sealed class CaseRecordGapsV26WebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
@@ -844,6 +846,7 @@ public sealed class CaseRecordGapsV26WebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
             }));

@@ -38,6 +38,7 @@ namespace Pegasus.Web.Pages.Cases;
 [RequestSizeLimit(ImportRawEstimate.MaximumDocumentBytes + 64 * 1024)]
 public sealed partial class DetailsModel(
     IGetCase getCase,
+    IGetCaseEditBasis getCaseEditBasis,
     IGetCasePageFrame getCasePageFrame,
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
@@ -1795,10 +1796,9 @@ public sealed partial class DetailsModel(
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
                     || damageSubmitted || wordingSubmitted || guideEntries is { Length: > 0 }
                     || estimate is not null || adoption is not null;
-                var current = await getCase.ExecuteAsync(new(id, actor), cancellationToken)
+                var current = await getCaseEditBasis.ExecuteAsync(new(id, actor), cancellationToken)
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
-                var data = current.Data
-                    ?? throw new InvalidOperationException("The Case data is unavailable.");
+                var data = current.Data;
                 // This read supplies unshown values, never new write authority.
                 // The transaction still receives the submitted version and lease.
                 if (engineeringSubmitted

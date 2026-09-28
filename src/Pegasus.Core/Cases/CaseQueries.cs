@@ -446,6 +446,58 @@ public interface IGetCasePageFrame
 }
 
 /// <summary>
+/// What a Case edit reads beside the operator's submitted values: the Case's
+/// frame and its current work's data. It supplies unshown values and state
+/// checks, never write authority; the write still carries the submitted
+/// version and lease.
+/// </summary>
+public sealed record CaseEditBasis(CaseSectionFrame Frame, CaseDataProjection Data)
+{
+    public CaseSearchItem Summary => Frame.Summary;
+
+    public CaseWorkflowRecord Workflow => Frame.Workflow;
+}
+
+/// <summary>
+/// The bounded read a Save, and a lease reclaimed after an immediate post,
+/// need: the frame and the data, not documents, history or tasks.
+/// </summary>
+public interface IGetCaseEditBasis
+{
+    Task<CaseEditBasis?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken);
+}
+
+public sealed class GetCaseEditBasis(
+    ICaseQueryStore store,
+    ICaseDataQueries caseDataQueries) : IGetCaseEditBasis
+{
+    public async Task<CaseEditBasis?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+
+        var frame = await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        if (frame is null)
+        {
+            return null;
+        }
+
+        var data = await caseDataQueries.GetAsync(query.CaseId, CaseWorkSelector.Current, cancellationToken)
+            ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
+        if (data.Identity.CaseId != frame.Workflow.CaseId)
+        {
+            throw new InvalidDataException("A composed case projection belongs to another case.");
+        }
+
+        return new(frame, data);
+    }
+}
+
+/// <summary>
 /// The persistence half of <see cref="CaseFilesSection"/>. It contains only
 /// Files-owned rows; the page frame supplies the already-rendered documents.
 /// </summary>

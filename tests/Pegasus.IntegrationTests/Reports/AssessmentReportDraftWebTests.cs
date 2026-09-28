@@ -865,7 +865,7 @@ public sealed partial class AssessmentReportDraftWebTests
     private static partial Regex SectionJumpRegex();
 
     private sealed class FakeGetCase(Guid caseId) :
-        IGetCase,
+        IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetCaseVehicleSection,
         IGetCaseValuationSection,
@@ -885,6 +885,10 @@ public sealed partial class AssessmentReportDraftWebTests
                 request.CaseId, "held-report-lease", request.Actor.SubjectId, request.ExpectedVersion,
                 DateTimeOffset.UtcNow.AddMinutes(5)));
         }
+
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
             => Task.FromResult(Details(query.CaseId));
