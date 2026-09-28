@@ -932,6 +932,16 @@ function Test-OwnedProcessIdentity {
 
     try {
         $process.Refresh()
+        # Windows publishes the main module shortly after Start-Process, so an
+        # empty Path is not yet a mismatch. Wait a bounded time for it; a
+        # published Path that differs still fails closed below.
+        $pathDeadline = [DateTimeOffset]::UtcNow.AddSeconds(5)
+        while ([string]::IsNullOrWhiteSpace($process.Path) -and
+            [DateTimeOffset]::UtcNow -lt $pathDeadline -and
+            -not $process.HasExited) {
+            Start-Sleep -Milliseconds 100
+            $process.Refresh()
+        }
         $actualStart = $process.StartTime.ToUniversalTime().ToString('O')
         $actualExecutable = [System.IO.Path]::GetFullPath($process.Path)
         $commandLine = Get-PegasusProcessCommandLine -ProcessId ([int]$Record.pid)
@@ -1653,7 +1663,7 @@ try {
             if ($ownedPids.Count -gt 0) {
                 Wait-OwnedProcessExit -ProcessIds $ownedPids
             }
-            $resetContext =Get-RunDatabaseContext -Manifest $manifest
+            $resetContext = Get-RunDatabaseContext -Manifest $manifest
             $instance = $resetContext.InstanceName
             if ($manifest.resources.database.created -and
                 (Test-RunDatabaseExists -Manifest $manifest -Tools $tools)) {
