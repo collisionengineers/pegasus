@@ -195,7 +195,7 @@ public sealed class CaseEstimateScalingWebTests
         Assert.Contains("data-rollup=\"gross\"", html, StringComparison.Ordinal);
         var draft = store.WorkingEstimate;
 
-        async Task<JsonElement> PreviewAsync(string percent)
+        async Task<JsonElement> PreviewAsync(string percent, string partPounds = "620.20")
         {
             var fields = AssessmentEstimateImportWebTests.NewEnumerable(
                 ("__RequestVerificationToken", AssessmentEstimateImportWebTests.AntiforgeryValue(html)),
@@ -214,7 +214,7 @@ public sealed class CaseEstimateScalingWebTests
                 ("lineMaterials", ""),
                 ("lineId", draft.Lines[0].Id.ToString("D")), ("lineOperation", "Replace"),
                 ("lineDescription", "FRONT BUMPER"), ("linePartNumber", ""), ("lineQuantity", "1"),
-                ("linePartPounds", "620.20"), ("lineLabourHours", ""), ("linePaintHours", ""), ("lineMaterials", ""),
+                ("linePartPounds", partPounds), ("lineLabourHours", ""), ("linePaintHours", ""), ("lineMaterials", ""),
                 ("targetPercent", percent),
                 ("floorRate", "50"),
                 ("floorPrice", "65")).ToArray();
@@ -233,7 +233,20 @@ public sealed class CaseEstimateScalingWebTests
         Assert.Equal("403.13", line.GetProperty("price").GetString());
         Assert.Equal("£403.13", preview.GetProperty("rollup").GetProperty("parts").GetString());
         Assert.Equal("£483.76", preview.GetProperty("rollup").GetProperty("gross").GetString());
-        Assert.StartsWith("£744.24 ", preview.GetProperty("readout").GetString(), StringComparison.Ordinal);
+        var readout = preview.GetProperty("readout").GetString();
+        Assert.StartsWith("£744.24 ", readout, StringComparison.Ordinal);
+        // The readout states the share asked for, as Apply records it, and
+        // that the labour rate stopped at its floor.
+        Assert.Contains("(45.0 % of value)", readout, StringComparison.Ordinal);
+        Assert.EndsWith(" · labour at floor", readout, StringComparison.Ordinal);
+
+        // The spec as edited, not as saved: a part typed at £500 totals
+        // £600.00 before scaling.
+        var edited = await PreviewAsync("45", "500.00");
+        Assert.Equal("ok", edited.GetProperty("status").GetString());
+        Assert.StartsWith("£600.00 ", edited.GetProperty("readout").GetString(), StringComparison.Ordinal);
+        // A line the save refuses is refused by the preview.
+        Assert.Equal("refused", (await PreviewAsync("45", "500.005")).GetProperty("status").GetString());
 
         // A percentage Apply would refuse is refused here too.
         Assert.Equal("refused", (await PreviewAsync("0.5")).GetProperty("status").GetString());
