@@ -402,8 +402,7 @@ public sealed class PrincipalMailClassificationPolicyTests
                 new(
                     IntakeEvidenceSource.DocumentContent,
                     "message, attachment 1, audit-instructions.pdf",
-                    "AUDIT REPORT NOTIFICATION
-Our Ref: 12345/1"),
+                    "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1"),
                 new(
                     IntakeEvidenceSource.PdfContent,
                     "message, attachment 2, original-report.pdf, page 1",
