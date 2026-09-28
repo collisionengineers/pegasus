@@ -17,7 +17,7 @@ public enum CaseLifecycleState
     PostReport,
     PostReportComplete,
     Query,
-    ProviderCancelled,
+    PrincipalCancelled,
     CollisionEngineersRejected,
     CreatedInError,
     SourceEmailUnlinked
@@ -26,7 +26,7 @@ public enum CaseLifecycleState
 public enum CaseClosureOutcome
 {
     PostReportComplete,
-    ProviderCancelled,
+    PrincipalCancelled,
     CollisionEngineersRejected,
     CreatedInError,
     SourceEmailUnlinked

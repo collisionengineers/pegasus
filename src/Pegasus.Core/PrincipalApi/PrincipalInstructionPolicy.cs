@@ -3,14 +3,14 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 
-namespace Pegasus.Core.ProviderApi;
+namespace Pegasus.Core.PrincipalApi;
 
 /// <summary>
-/// The instruction a provider declared, normalised. Every value here was stated
+/// The instruction a Principal declared, normalised. Every value here was stated
 /// by the authenticated Principal; none was read out of a document.
 /// </summary>
-public sealed record ProviderInstruction(
-    ProviderInstructionKind Kind,
+public sealed record PrincipalInstruction(
+    PrincipalInstructionKind Kind,
     AuditAssessment? OriginalReportVerdict = null,
     string? DeclaredPrincipalCode = null,
     string? ClaimNumber = null,
@@ -33,13 +33,13 @@ public sealed record ProviderInstruction(
     string? Notes = null);
 
 /// <summary>
-/// One declared field the provider got wrong, named by its path in the request
+/// One declared field the Principal got wrong, named by its path in the request
 /// body so the refusal can say which field and why. This is deliberately not an
 /// <see cref="ArgumentException"/>: the fault is in a submitted document's
 /// field, not in a method parameter, and reporting it as the latter both
 /// misnames the fault and misleads the caller.
 /// </summary>
-public sealed class ProviderInstructionValidationException(string field, string message)
+public sealed class PrincipalInstructionValidationException(string field, string message)
     : Exception(message)
 {
     public string Field { get; } = field;
@@ -54,16 +54,16 @@ public sealed class ProviderInstructionValidationException(string field, string 
 /// restated here — <see cref="InstructionDraftCompleteness"/> already owns both
 /// the required and the identity-critical lists, and callers ask it.
 /// </summary>
-public static class ProviderInstructionPolicy
+public static class PrincipalInstructionPolicy
 {
-    public const string PolicyKey = "provider_api_declared_instruction";
+    public const string PolicyKey = "principal_api_declared_instruction";
     public const int PolicyVersion = 1;
 
     /// <summary>
     /// The reader identity a declared instruction is recorded under. No file was
     /// parsed to obtain these values and the receipt must not claim one was.
     /// </summary>
-    public const string ReaderKey = "provider_api_declaration";
+    public const string ReaderKey = "principal_api_declaration";
     public const string ReaderVersion = "1";
 
     /// <summary>The retained source's own name and type: the request as sent.</summary>
@@ -75,13 +75,13 @@ public static class ProviderInstructionPolicy
     /// fixed name rather than an ordinal so that the Audit evidence can find the
     /// report without a second record of which file it was.
     /// </summary>
-    public const string OriginalReportSourceLabel = "provider-original-report";
+    public const string OriginalReportSourceLabel = "principal-original-report";
 
     /// <summary>Every other submitted file, labelled by its declared ordinal.</summary>
     public static string AssetSourceLabel(int ordinal, DocumentSemanticRole? role) =>
         role == DocumentSemanticRole.AuditReport
             ? OriginalReportSourceLabel
-            : $"provider-file:{ordinal}";
+            : $"principal-file:{ordinal}";
 
     public const int MaximumClaimantNameLength = 300;
     public const int MaximumClaimNumberLength = 100;
@@ -124,26 +124,26 @@ public static class ProviderInstructionPolicy
         public const string FileHandlerPhoneNumber = "Contact phone";
     }
 
-    public static ProviderInstruction Normalize(ProviderInstruction instruction)
+    public static PrincipalInstruction Normalize(PrincipalInstruction instruction)
     {
         ArgumentNullException.ThrowIfNull(instruction);
         if (instruction.VehicleMileage is < 0)
         {
-            throw new ProviderInstructionValidationException(
+            throw new PrincipalInstructionValidationException(
                 "vehicle.mileage",
                 "The vehicle mileage cannot be negative.");
         }
-        if (ProviderInstructionKinds.RequiresOriginalReport(instruction.Kind)
+        if (PrincipalInstructionKinds.RequiresOriginalReport(instruction.Kind)
             && instruction.OriginalReportVerdict is null)
         {
-            throw new ProviderInstructionValidationException(
+            throw new PrincipalInstructionValidationException(
                 "originalReportVerdict",
                 "An Audit instruction must state the original report verdict.");
         }
-        if (!ProviderInstructionKinds.RequiresOriginalReport(instruction.Kind)
+        if (!PrincipalInstructionKinds.RequiresOriginalReport(instruction.Kind)
             && instruction.OriginalReportVerdict is not null)
         {
-            throw new ProviderInstructionValidationException(
+            throw new PrincipalInstructionValidationException(
                 "originalReportVerdict",
                 "Only an Audit instruction carries an original report verdict.");
         }
@@ -173,9 +173,9 @@ public static class ProviderInstructionPolicy
     /// The Principal the credential established, checked against the one the
     /// body claims. FRD-09 is explicit that content never selects a Principal,
     /// so a mismatch is refused rather than honoured — the field exists to catch
-    /// a provider posting to the wrong account, not to choose an account.
+    /// a Principal posting to the wrong account, not to choose an account.
     /// </summary>
-    public static bool DeclaredPrincipalMatches(ProviderInstruction instruction, string principalCode)
+    public static bool DeclaredPrincipalMatches(PrincipalInstruction instruction, string principalCode)
     {
         ArgumentNullException.ThrowIfNull(instruction);
         ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
@@ -192,7 +192,7 @@ public static class ProviderInstructionPolicy
     /// the Case's Received date, which is its instruction date (operator,
     /// 24 September 2026).
     /// </summary>
-    public static InstructionDraft ToDraft(ProviderInstruction instruction, string principalCode)
+    public static InstructionDraft ToDraft(PrincipalInstruction instruction, string principalCode)
     {
         ArgumentNullException.ThrowIfNull(instruction);
         ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
@@ -222,7 +222,7 @@ public static class ProviderInstructionPolicy
     /// One review field per declared value, each with exactly one candidate
     /// naming the declaration as its source. The case snapshot refuses a draft
     /// value with no unambiguous provenance, and this is that provenance: the
-    /// provider said so.
+    /// Principal said so.
     /// </summary>
     public static IReadOnlyList<InstructionReviewField> ReviewFields(InstructionDraft draft)
     {
@@ -256,21 +256,21 @@ public static class ProviderInstructionPolicy
     /// </summary>
     public static IntakeEvidence TriageEvidence() =>
         new(
-            IntakeEvidenceSource.ProviderDeclaration,
+            IntakeEvidenceSource.PrincipalDeclaration,
             IntakeEvidenceStrength.Strong,
             IntakeEvidenceFinding.AcceptedTriageMatch,
-            ProviderInstructionKinds.Triage,
+            PrincipalInstructionKinds.Triage,
             "The authenticated Principal declared this submission a Triage request.",
             PolicyKey,
             PolicyVersion);
 
-    public static IntakeEvidence DeclarationEvidence(ProviderInstructionKind kind) =>
+    public static IntakeEvidence DeclarationEvidence(PrincipalInstructionKind kind) =>
         new(
-            IntakeEvidenceSource.ProviderDeclaration,
+            IntakeEvidenceSource.PrincipalDeclaration,
             IntakeEvidenceStrength.Strong,
             IntakeEvidenceFinding.Information,
-            ProviderInstructionKinds.Format(kind),
-            "The authenticated Principal declared this instruction over the Provider API.",
+            PrincipalInstructionKinds.Format(kind),
+            "The authenticated Principal declared this instruction over the Principal API.",
             PolicyKey,
             PolicyVersion);
 
@@ -284,7 +284,7 @@ public static class ProviderInstructionPolicy
         fields.Add(new(
             name,
             value,
-            [new(value, IntakeEvidenceSource.ProviderDeclaration, PolicyKey)],
+            [new(value, IntakeEvidenceSource.PrincipalDeclaration, PolicyKey)],
             IsDefaulted: false,
             HasConflict: false));
     }
@@ -300,7 +300,7 @@ public static class ProviderInstructionPolicy
         if (normalized is not null
             && normalized.Any(character => !char.IsAsciiLetterOrDigit(character)))
         {
-            throw new ProviderInstructionValidationException(
+            throw new PrincipalInstructionValidationException(
                 "vehicle.registration",
                 "The vehicle registration can contain only letters, digits and spaces.");
         }
@@ -317,7 +317,7 @@ public static class ProviderInstructionPolicy
         }
         if (normalized.Length > maximumLength)
         {
-            throw new ProviderInstructionValidationException(
+            throw new PrincipalInstructionValidationException(
                 field,
                 $"The value of '{field}' is at most {maximumLength} characters.");
         }

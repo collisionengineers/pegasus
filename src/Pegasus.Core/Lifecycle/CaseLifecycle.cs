@@ -547,7 +547,7 @@ public static class CaseLifecycleRules
     }
 
     public static bool IsTerminal(CaseLifecycleState state) => state is
-        CaseLifecycleState.ProviderCancelled or
+        CaseLifecycleState.PrincipalCancelled or
         CaseLifecycleState.CollisionEngineersRejected or
         CaseLifecycleState.CreatedInError or
         CaseLifecycleState.SourceEmailUnlinked;

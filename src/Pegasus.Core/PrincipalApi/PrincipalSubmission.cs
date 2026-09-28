@@ -5,17 +5,17 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
-namespace Pegasus.Core.ProviderApi;
+namespace Pegasus.Core.PrincipalApi;
 
 /// <summary>
-/// API-01 (FRD-09 § Provider API principal and contract boundary; ADR-0004):
+/// API-01 (FRD-09 § Principal API principal and contract boundary; ADR-0004):
 /// an authenticated Principal submits one instruction envelope — zero or more
 /// files — that enters the ordinary grouped durable intake path bound to
 /// that Principal, and reads back only its own submission's receipt and
-/// result. The Provider actor is the Principal; the credential only proves
+/// result. The Principal actor is the Principal; the credential only proves
 /// who is calling.
 /// </summary>
-public enum ProviderSubmissionError
+public enum PrincipalSubmissionError
 {
     CredentialPaused,
     EnvelopeExceeded,
@@ -29,18 +29,18 @@ public enum ProviderSubmissionError
     PrincipalMismatch
 }
 
-public sealed class ProviderSubmissionException(ProviderSubmissionError error)
-    : Exception("The provider submission could not be completed.")
+public sealed class PrincipalSubmissionException(PrincipalSubmissionError error)
+    : Exception("The Principal submission could not be completed.")
 {
-    public ProviderSubmissionError Error { get; } = error;
+    public PrincipalSubmissionError Error { get; } = error;
 }
 
 /// <summary>
-/// One submitted file. <paramref name="Role"/> is what the provider says the
+/// One submitted file. <paramref name="Role"/> is what the Principal says the
 /// file is; it is optional, and when absent nothing is inferred — the file is
 /// retained as an ordinary attachment (operator decision, 2026-08-28).
 /// </summary>
-public sealed record ProviderSubmissionFile(
+public sealed record PrincipalSubmissionFile(
     int Ordinal,
     string FileName,
     string MediaType,
@@ -48,34 +48,34 @@ public sealed record ProviderSubmissionFile(
     DocumentSemanticRole? Role = null);
 
 /// <summary>
-/// One submission. <paramref name="Instruction"/> is what the provider
+/// One submission. <paramref name="Instruction"/> is what the Principal
 /// declared; <paramref name="RawBody"/> is the request exactly as it arrived and
 /// is what Pegasus retains as the source, so the case's origin is the
-/// provider's own words rather than a rendering of them.
+/// Principal's own words rather than a rendering of them.
 /// </summary>
-public sealed record ProviderSubmissionRequest(
+public sealed record PrincipalSubmissionRequest(
     PrincipalCredentialAuthentication Credential,
     string IdempotencyKey,
-    ProviderInstruction Instruction,
-    IReadOnlyList<ProviderSubmissionFile> Files,
+    PrincipalInstruction Instruction,
+    IReadOnlyList<PrincipalSubmissionFile> Files,
     ReadOnlyMemory<byte> RawBody,
     string CorrelationId);
 
 /// <summary>
 /// The durable submission row. It is the Principal binding processing reads
-/// (<see cref="IProviderSubmissionBindings"/>) and the idempotency record a
+/// (<see cref="IPrincipalSubmissionBindings"/>) and the idempotency record a
 /// replay resolves to; the files themselves are the intake submission group
 /// whose token is <see cref="Id"/>.
 /// </summary>
-public sealed record ProviderSubmissionRecord(
+public sealed record PrincipalSubmissionRecord(
     Guid Id,
     Guid PrincipalId,
     string KeyId,
     string IdempotencyKey,
-    string? ProviderReference,
+    string? PrincipalReference,
     DateTimeOffset ReceivedAtUtc,
     string BodySha256,
-    ProviderInstruction? Instruction = null,
+    PrincipalInstruction? Instruction = null,
     Guid? StagedReceiptId = null);
 
 /// <summary>
@@ -85,7 +85,7 @@ public sealed record ProviderSubmissionRecord(
 /// accept would have written back; a bare reservation, whose retention never
 /// happened, is not a candidate at all.
 /// </summary>
-public sealed record ProviderSubmissionAcceptCandidate(
+public sealed record PrincipalSubmissionAcceptCandidate(
     Guid SubmissionId,
     Guid PrincipalId,
     DateTimeOffset ReceivedAtUtc,
@@ -98,13 +98,13 @@ public sealed record ProviderSubmissionAcceptCandidate(
 /// Principal it was bound to and what that Principal declared. Both come from
 /// the retained submission row, never from the submitted content.
 /// </summary>
-public sealed record ProviderSubmissionBinding(
+public sealed record PrincipalSubmissionBinding(
     Guid SubmissionId,
     Guid PrincipalId,
     string PrincipalCode,
-    ProviderInstruction Instruction);
+    PrincipalInstruction Instruction);
 
-public sealed record ProviderSubmissionAcceptedFile(
+public sealed record PrincipalSubmissionAcceptedFile(
     int Ordinal,
     string FileName,
     string Sha256,
@@ -115,45 +115,45 @@ public sealed record ProviderSubmissionAcceptedFile(
 /// about processing (operator decision): the result is
 /// read separately.
 /// </summary>
-public sealed record ProviderSubmissionReceipt(
+public sealed record PrincipalSubmissionReceipt(
     Guid SubmissionId,
     DateTimeOffset ReceivedAtUtc,
-    string? ProviderReference,
-    IReadOnlyList<ProviderSubmissionAcceptedFile> Files,
+    string? PrincipalReference,
+    IReadOnlyList<PrincipalSubmissionAcceptedFile> Files,
     bool Replayed);
 
 /// <summary>
 /// The submission's own result: the Case/PO once processing allocated one,
 /// otherwise the intake pipeline's own decision and failure vocabulary (never a
-/// provider-only list). One submission is one receipt, so there is one outcome
+/// Principal-only list). One submission is one receipt, so there is one outcome
 /// rather than a per-file table.
 /// </summary>
-public sealed record ProviderSubmissionResult(
+public sealed record PrincipalSubmissionResult(
     Guid SubmissionId,
     DateTimeOffset ReceivedAtUtc,
-    string? ProviderReference,
+    string? PrincipalReference,
     QueuedIntakeStatusKind Status,
     IntakeDecision? Decision,
     IntakeAllocationFailureKind? AllocationFailure,
     string? FailureCode,
     string? CaseReference);
 
-public interface IProviderSubmissionStore
+public interface IPrincipalSubmissionStore
 {
     /// <summary>
     /// Inserts the submission row. A second row for the same Principal and
     /// idempotency key is refused with
-    /// <see cref="ProviderSubmissionError.OperationConflict"/>; the caller
+    /// <see cref="PrincipalSubmissionError.OperationConflict"/>; the caller
     /// re-reads and treats it as a replay.
     /// </summary>
-    Task CreateAsync(ProviderSubmissionRecord record, CancellationToken cancellationToken);
+    Task CreateAsync(PrincipalSubmissionRecord record, CancellationToken cancellationToken);
 
-    Task<ProviderSubmissionRecord?> FindByIdempotencyKeyAsync(
+    Task<PrincipalSubmissionRecord?> FindByIdempotencyKeyAsync(
         Guid principalId,
         string idempotencyKey,
         CancellationToken cancellationToken);
 
-    Task<ProviderSubmissionRecord?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<PrincipalSubmissionRecord?> GetAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
     /// The authenticated Principal's code, or null when it no longer exists or
@@ -181,62 +181,62 @@ public interface IProviderSubmissionStore
     /// oldest-first window that admitted them would fill with rows it can
     /// never repair and starve the ones it can.
     /// </summary>
-    Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
+    Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
         int maximumItems,
         CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// Read by <c>ProcessIntake</c> for a <see cref="IntakeSourceChannel.ProviderApi"/>
+/// Read by <c>ProcessIntake</c> for a <see cref="IntakeSourceChannel.PrincipalApi"/>
 /// source: the Principal code the submission was bound to, or null when the
 /// source belongs to no retained submission.
 /// </summary>
-public interface IProviderSubmissionBindings
+public interface IPrincipalSubmissionBindings
 {
-    Task<ProviderSubmissionBinding?> FindAsync(
+    Task<PrincipalSubmissionBinding?> FindAsync(
         IntakeSourceIdentity sourceIdentity,
         CancellationToken cancellationToken);
 }
 
-public interface ISubmitProviderInstruction
+public interface ISubmitPrincipalInstruction
 {
-    Task<ProviderSubmissionReceipt> ExecuteAsync(
-        ProviderSubmissionRequest request,
+    Task<PrincipalSubmissionReceipt> ExecuteAsync(
+        PrincipalSubmissionRequest request,
         CancellationToken cancellationToken);
 }
 
-public interface IProviderAttachmentAdmission
+public interface IPrincipalAttachmentAdmission
 {
     Task RequireSupportedAsync(
-        IReadOnlyList<ProviderSubmissionFile> files,
+        IReadOnlyList<PrincipalSubmissionFile> files,
         CancellationToken cancellationToken);
 }
 
-public interface IGetProviderSubmissionResult
+public interface IGetPrincipalSubmissionResult
 {
     /// <summary>
     /// Null when the submission does not exist or belongs to another
     /// Principal — the two are indistinguishable to the caller (FRD-09:
     /// cross-principal disclosure fails closed).
     /// </summary>
-    Task<ProviderSubmissionResult?> ExecuteAsync(
+    Task<PrincipalSubmissionResult?> ExecuteAsync(
         PrincipalCredentialAuthentication credential,
         Guid submissionId,
         CancellationToken cancellationToken);
 }
 
-public static class ProviderSubmissionPolicy
+public static class PrincipalSubmissionPolicy
 {
     public const int MaximumIdempotencyKeyLength = 200;
-    public const int MaximumProviderReferenceLength = 200;
+    public const int MaximumPrincipalReferenceLength = 200;
     public const int MaximumFileNameLength = 260;
     public const int MaximumMediaTypeLength = 200;
-    public const string ActionHistoryAggregateType = "ProviderSubmission";
+    public const string ActionHistoryAggregateType = "PrincipalSubmission";
 
     public static ActionActor Actor(PrincipalCredentialAuthentication credential)
     {
         ArgumentNullException.ThrowIfNull(credential);
-        return ActionActor.Provider(credential.PrincipalId);
+        return ActionActor.Principal(credential.PrincipalId);
     }
 
     public static void RequireMaySubmit(PrincipalCredentialAuthentication credential)
@@ -244,7 +244,7 @@ public static class ProviderSubmissionPolicy
         ArgumentNullException.ThrowIfNull(credential);
         if (!credential.MaySubmit)
         {
-            throw new ProviderSubmissionException(ProviderSubmissionError.CredentialPaused);
+            throw new PrincipalSubmissionException(PrincipalSubmissionError.CredentialPaused);
         }
     }
 
@@ -262,31 +262,31 @@ public static class ProviderSubmissionPolicy
     }
 
     /// <summary>
-    /// The envelope bound is the Provider API's own
-    /// (<see cref="IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength"/>):
+    /// The envelope bound is the Principal API's own
+    /// (<see cref="IntakeEnvelopeLimits.MaximumPrincipalApiEnvelopeLength"/>):
     /// every file arrives inline as base64 in one request body, so the whole
     /// submission is bounded together rather than only file by file.
     ///
     /// The per-file bound is the channel's own
-    /// (<see cref="IntakeEnvelopeLimits.MaximumProviderApiFileLength"/>) and
-    /// not the manual channel's larger cap: one Provider API file may never be
+    /// (<see cref="IntakeEnvelopeLimits.MaximumPrincipalApiFileLength"/>) and
+    /// not the manual channel's larger cap: one Principal API file may never be
     /// allowed past the envelope that carries it (C07 item 5).
     ///
     /// No file is required: an instruction may be declared on its own.
     /// </summary>
-    public static IReadOnlyList<ProviderSubmissionFile> RequireEnvelope(
-        IReadOnlyList<ProviderSubmissionFile>? files)
+    public static IReadOnlyList<PrincipalSubmissionFile> RequireEnvelope(
+        IReadOnlyList<PrincipalSubmissionFile>? files)
     {
         if (files is null)
         {
             return [];
         }
         if (files.Count > IntakeEnvelopeLimits.MaximumBatchFileCount
-            || files.Any(file => file.Content.Length > IntakeEnvelopeLimits.MaximumProviderApiFileLength)
+            || files.Any(file => file.Content.Length > IntakeEnvelopeLimits.MaximumPrincipalApiFileLength)
             || files.Sum(file => (long)file.Content.Length)
-                > IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength)
+                > IntakeEnvelopeLimits.MaximumPrincipalApiEnvelopeLength)
         {
-            throw new ProviderSubmissionException(ProviderSubmissionError.EnvelopeExceeded);
+            throw new PrincipalSubmissionException(PrincipalSubmissionError.EnvelopeExceeded);
         }
 
         var ordered = files.OrderBy(file => file.Ordinal).ToArray();
@@ -328,9 +328,9 @@ public static class ProviderSubmissionPolicy
         {
             throw new ArgumentException("The submitted request body is required.", nameof(body));
         }
-        if (body.Length > IntakeEnvelopeLimits.MaximumProviderApiRequestLength)
+        if (body.Length > IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength)
         {
-            throw new ProviderSubmissionException(ProviderSubmissionError.EnvelopeExceeded);
+            throw new PrincipalSubmissionException(PrincipalSubmissionError.EnvelopeExceeded);
         }
     }
 
@@ -338,19 +338,19 @@ public static class ProviderSubmissionPolicy
     /// An original report is optional, even for an Audit (operator,
     /// 2026-09-28): an Audit sent without one waits on Original report
     /// missing until the report arrives. At most one file may claim the role.
-    /// Two would both take the fixed <c>provider-original-report</c> label,
+    /// Two would both take the fixed <c>principal-original-report</c> label,
     /// and the single-match lookup downstream would then fail the whole
-    /// accepted intake instead of telling the provider which field was wrong.
+    /// accepted intake instead of telling the Principal which field was wrong.
     /// </summary>
-    public static void RequireAtMostOneOriginalReport(IReadOnlyList<ProviderSubmissionFile> files)
+    public static void RequireAtMostOneOriginalReport(IReadOnlyList<PrincipalSubmissionFile> files)
     {
         ArgumentNullException.ThrowIfNull(files);
         if (files.Count(file => file.Role == DocumentSemanticRole.AuditReport) > 1)
         {
-            throw new ProviderInstructionValidationException(
+            throw new PrincipalInstructionValidationException(
                 "files",
                 "A submission may attach at most one original report, with its role stated as "
-                + $"'{ProviderFileRoles.OriginalReport}'.");
+                + $"'{PrincipalFileRoles.OriginalReport}'.");
         }
     }
 
@@ -359,8 +359,8 @@ public static class ProviderSubmissionPolicy
     /// one envelope is named as the duplicate it is rather than silently
     /// counted twice.
     /// </summary>
-    public static IReadOnlyList<ProviderSubmissionAcceptedFile> AcceptedFiles(
-        IReadOnlyList<ProviderSubmissionFile> files)
+    public static IReadOnlyList<PrincipalSubmissionAcceptedFile> AcceptedFiles(
+        IReadOnlyList<PrincipalSubmissionFile> files)
     {
         ArgumentNullException.ThrowIfNull(files);
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -369,7 +369,7 @@ public static class ProviderSubmissionPolicy
             .Select(file =>
             {
                 var hash = Sha256(file.Content);
-                return new ProviderSubmissionAcceptedFile(
+                return new PrincipalSubmissionAcceptedFile(
                     file.Ordinal,
                     file.FileName,
                     hash,
@@ -380,7 +380,7 @@ public static class ProviderSubmissionPolicy
 
     public static string SubmissionToken(Guid submissionId) => submissionId.ToString("N");
 
-    public static string OperationKey(Guid submissionId) => $"provider-submission:{submissionId:N}";
+    public static string OperationKey(Guid submissionId) => $"principal-submission:{submissionId:N}";
 
     /// <summary>
     /// The identity of a submission's one <c>Accepted</c> history row, derived
@@ -400,49 +400,49 @@ public static class ProviderSubmissionPolicy
         Convert.ToHexString(SHA256.HashData(content.Span));
 }
 
-public sealed class SubmitProviderInstruction(
-    IProviderSubmissionStore store,
+public sealed class SubmitPrincipalInstruction(
+    IPrincipalSubmissionStore store,
     IIntakeSubmission intakeSubmission,
-    IProviderAttachmentAdmission attachmentAdmission,
+    IPrincipalAttachmentAdmission attachmentAdmission,
     IActionHistoryWriter actionHistory,
-    TimeProvider timeProvider) : ISubmitProviderInstruction
+    TimeProvider timeProvider) : ISubmitPrincipalInstruction
 {
-    public async Task<ProviderSubmissionReceipt> ExecuteAsync(
-        ProviderSubmissionRequest request,
+    public async Task<PrincipalSubmissionReceipt> ExecuteAsync(
+        PrincipalSubmissionRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Credential);
         ArgumentNullException.ThrowIfNull(request.Instruction);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.CorrelationId);
-        var actor = ProviderSubmissionPolicy.Actor(request.Credential);
-        StaffAuthorization.Require(actor, StaffAccessRight.SubmitProviderInstruction);
-        ProviderSubmissionPolicy.RequireMaySubmit(request.Credential);
+        var actor = PrincipalSubmissionPolicy.Actor(request.Credential);
+        StaffAuthorization.Require(actor, StaffAccessRight.SubmitPrincipalInstruction);
+        PrincipalSubmissionPolicy.RequireMaySubmit(request.Credential);
 
-        var idempotencyKey = ProviderSubmissionPolicy.NormalizeIdempotencyKey(request.IdempotencyKey);
-        var instruction = ProviderInstructionPolicy.Normalize(request.Instruction);
-        var files = ProviderSubmissionPolicy.RequireEnvelope(request.Files);
-        ProviderSubmissionPolicy.RequireRetainableBody(request.RawBody);
-        ProviderSubmissionPolicy.RequireAtMostOneOriginalReport(files);
-        var bodySha256 = ProviderSubmissionPolicy.Sha256(request.RawBody);
+        var idempotencyKey = PrincipalSubmissionPolicy.NormalizeIdempotencyKey(request.IdempotencyKey);
+        var instruction = PrincipalInstructionPolicy.Normalize(request.Instruction);
+        var files = PrincipalSubmissionPolicy.RequireEnvelope(request.Files);
+        PrincipalSubmissionPolicy.RequireRetainableBody(request.RawBody);
+        PrincipalSubmissionPolicy.RequireAtMostOneOriginalReport(files);
+        var bodySha256 = PrincipalSubmissionPolicy.Sha256(request.RawBody);
         var principalId = request.Credential.PrincipalId;
 
         // The credential establishes the Principal. A body that names a
         // different one is refused rather than honoured: FRD-09 is explicit that
         // content never selects a Principal, so the field can only ever catch a
-        // provider posting to the wrong account.
+        // Principal posting to the wrong account.
         var principalCode = await store.FindPrincipalCodeAsync(principalId, cancellationToken)
-            ?? throw new ProviderSubmissionException(ProviderSubmissionError.CredentialPaused);
-        if (!ProviderInstructionPolicy.DeclaredPrincipalMatches(instruction, principalCode))
+            ?? throw new PrincipalSubmissionException(PrincipalSubmissionError.CredentialPaused);
+        if (!PrincipalInstructionPolicy.DeclaredPrincipalMatches(instruction, principalCode))
         {
-            throw new ProviderSubmissionException(ProviderSubmissionError.PrincipalMismatch);
+            throw new PrincipalSubmissionException(PrincipalSubmissionError.PrincipalMismatch);
         }
         await attachmentAdmission.RequireSupportedAsync(files, cancellationToken);
 
         var existing = await store.FindByIdempotencyKeyAsync(principalId, idempotencyKey, cancellationToken);
         if (existing is null)
         {
-            var record = new ProviderSubmissionRecord(
+            var record = new PrincipalSubmissionRecord(
                 Guid.NewGuid(),
                 principalId,
                 request.Credential.KeyId,
@@ -456,13 +456,13 @@ public sealed class SubmitProviderInstruction(
                 await store.CreateAsync(record, cancellationToken);
                 existing = record;
             }
-            catch (ProviderSubmissionException conflict)
-                when (conflict.Error == ProviderSubmissionError.OperationConflict)
+            catch (PrincipalSubmissionException conflict)
+                when (conflict.Error == PrincipalSubmissionError.OperationConflict)
             {
                 // A concurrent request with the same key won the insert; it is
                 // now a replay of that request, resolved below.
                 existing = await store.FindByIdempotencyKeyAsync(principalId, idempotencyKey, cancellationToken)
-                    ?? throw new ProviderSubmissionException(ProviderSubmissionError.OperationConflict);
+                    ?? throw new PrincipalSubmissionException(PrincipalSubmissionError.OperationConflict);
             }
         }
 
@@ -472,11 +472,11 @@ public sealed class SubmitProviderInstruction(
                 SubmissionHistory(Guid.NewGuid(), actor, existing.Id, "Refused", request.CorrelationId,
                     "The idempotency key was reused with a different submission."),
                 cancellationToken);
-            throw new ProviderSubmissionException(ProviderSubmissionError.IdempotencyKeyConflict);
+            throw new PrincipalSubmissionException(PrincipalSubmissionError.IdempotencyKeyConflict);
         }
 
         // One submission is one receipt, and the retained source is the request
-        // as it arrived — the provider's own instruction, carrying its files
+        // as it arrived — the Principal's own instruction, carrying its files
         // exactly as an e-mail carries its attachments. Retaining each file as
         // its own receipt instead would scatter one instruction across many, and
         // an Audit could not then find its original report on its own receipt.
@@ -485,15 +485,15 @@ public sealed class SubmitProviderInstruction(
         {
             received = await intakeSubmission.ExecuteAsync(
                 new(
-                    ProviderInstructionPolicy.SourceFileName,
-                    ProviderInstructionPolicy.SourceMediaType,
+                    PrincipalInstructionPolicy.SourceFileName,
+                    PrincipalInstructionPolicy.SourceMediaType,
                     request.RawBody,
                     existing.ReceivedAtUtc,
                     MailClassificationActor.Format(actor),
                     new(
-                        IntakeSourceChannel.ProviderApi,
-                        ProviderSubmissionPolicy.SubmissionToken(existing.Id))),
-                ProviderSubmissionPolicy.OperationKey(existing.Id),
+                        IntakeSourceChannel.PrincipalApi,
+                        PrincipalSubmissionPolicy.SubmissionToken(existing.Id))),
+                PrincipalSubmissionPolicy.OperationKey(existing.Id),
                 cancellationToken);
         }
         catch (IntakeSourceIdentityConflictException)
@@ -502,7 +502,7 @@ public sealed class SubmitProviderInstruction(
                 SubmissionHistory(Guid.NewGuid(), actor, existing.Id, "Refused", request.CorrelationId,
                     "The idempotency key was reused with a different submission."),
                 cancellationToken);
-            throw new ProviderSubmissionException(ProviderSubmissionError.IdempotencyKeyConflict);
+            throw new PrincipalSubmissionException(PrincipalSubmissionError.IdempotencyKeyConflict);
         }
 
         await store.RecordStagedReceiptAsync(existing.Id, received.StagedReceiptId, cancellationToken);
@@ -524,7 +524,7 @@ public sealed class SubmitProviderInstruction(
             // the acceptance is recorded, which is all the receipt claims.
             _ = await actionHistory.TryAppendAsync(
                 SubmissionHistory(
-                    ProviderSubmissionPolicy.AcceptedHistoryId(existing.Id),
+                    PrincipalSubmissionPolicy.AcceptedHistoryId(existing.Id),
                     actor,
                     existing.Id,
                     "Accepted",
@@ -535,8 +535,8 @@ public sealed class SubmitProviderInstruction(
         return new(
             existing.Id,
             existing.ReceivedAtUtc,
-            existing.ProviderReference,
-            ProviderSubmissionPolicy.AcceptedFiles(files),
+            existing.PrincipalReference,
+            PrincipalSubmissionPolicy.AcceptedFiles(files),
             received.IsDuplicate);
     }
 
@@ -549,7 +549,7 @@ public sealed class SubmitProviderInstruction(
         string? reason) =>
         new(
             id,
-            ProviderSubmissionPolicy.ActionHistoryAggregateType,
+            PrincipalSubmissionPolicy.ActionHistoryAggregateType,
             submissionId.ToString("D"),
             "Submitted",
             actor,
@@ -559,21 +559,21 @@ public sealed class SubmitProviderInstruction(
             reason);
 }
 
-public sealed class GetProviderSubmissionResult(
-    IProviderSubmissionStore store,
+public sealed class GetPrincipalSubmissionResult(
+    IPrincipalSubmissionStore store,
     IQueuedIntakeStatusQueries statusQueries,
     IIntakeReceiptQueries receiptQueries,
-    Pegasus.Core.Triage.ITriageQueries triageQueries) : IGetProviderSubmissionResult
+    Pegasus.Core.Triage.ITriageQueries triageQueries) : IGetPrincipalSubmissionResult
 {
-    public async Task<ProviderSubmissionResult?> ExecuteAsync(
+    public async Task<PrincipalSubmissionResult?> ExecuteAsync(
         PrincipalCredentialAuthentication credential,
         Guid submissionId,
         CancellationToken cancellationToken)
     {
-        var actor = ProviderSubmissionPolicy.Actor(credential);
+        var actor = PrincipalSubmissionPolicy.Actor(credential);
         // A paused credential still reads its own receipts and results
         // (operator decision); only MaySubmit is withheld.
-        StaffAuthorization.Require(actor, StaffAccessRight.SubmitProviderInstruction);
+        StaffAuthorization.Require(actor, StaffAccessRight.SubmitPrincipalInstruction);
         if (submissionId == Guid.Empty)
         {
             return null;
@@ -601,7 +601,7 @@ public sealed class GetProviderSubmissionResult(
         return new(
             record.Id,
             record.ReceivedAtUtc,
-            record.ProviderReference,
+            record.PrincipalReference,
             status?.Status ?? QueuedIntakeStatusKind.Received,
             receipt?.Decision,
             receipt?.AllocationState?.FailureKind,

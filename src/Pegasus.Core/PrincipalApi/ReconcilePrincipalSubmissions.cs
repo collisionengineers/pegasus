@@ -1,7 +1,7 @@
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
-namespace Pegasus.Core.ProviderApi;
+namespace Pegasus.Core.PrincipalApi;
 
 /// <summary>
 /// <paramref name="FirstFailure"/> is the type and message of the first
@@ -10,22 +10,22 @@ namespace Pegasus.Core.ProviderApi;
 /// runs every ten seconds: without the cause, a deployment that skipped a
 /// migration reads as a steady stream of healthy-looking zeros.
 /// </summary>
-public sealed record ReconcileProviderSubmissionsResult(
+public sealed record ReconcilePrincipalSubmissionsResult(
     int Candidates,
     int Repaired,
     int Failures,
     string? FirstFailure);
 
 /// <summary>
-/// The one owner of the Provider API accept-recovery rule: a submission whose
-/// durable intake receipt exists but whose provider row or initial Accepted
+/// The one owner of the Principal API accept-recovery rule: a submission whose
+/// durable intake receipt exists but whose Principal row or initial Accepted
 /// history write was interrupted is completed by the existing intake
 /// reconciliation timer. A bare submission reservation is not a candidate at
 /// all — the store excludes it — because a retry still owns its intake
 /// attempt and no sweep can ever complete it.
 /// </summary>
-public sealed class ReconcileProviderSubmissions(
-    IProviderSubmissionStore submissionStore,
+public sealed class ReconcilePrincipalSubmissions(
+    IPrincipalSubmissionStore submissionStore,
     IActionHistoryWriter actionHistory,
     TimeProvider timeProvider)
 {
@@ -33,7 +33,7 @@ public sealed class ReconcileProviderSubmissions(
     /// Lets the inline request finish its separate writes before the sweep
     /// touches the same submission. It is not what keeps the acceptance
     /// single — the derived history identity
-    /// (<see cref="ProviderSubmissionPolicy.AcceptedHistoryId"/>) is, and it
+    /// (<see cref="PrincipalSubmissionPolicy.AcceptedHistoryId"/>) is, and it
     /// holds however long a request runs — it just leaves a request that is
     /// still in flight to record its own correlation id.
     /// </summary>
@@ -47,7 +47,7 @@ public sealed class ReconcileProviderSubmissions(
     private const string RecoveredAcceptReason =
         "Completed by accept recovery; this row carries the submission's own operation key rather than a request correlation id.";
 
-    public async Task<ReconcileProviderSubmissionsResult> ExecuteAsync(
+    public async Task<ReconcilePrincipalSubmissionsResult> ExecuteAsync(
         int maximumItems,
         CancellationToken cancellationToken = default)
     {
@@ -97,14 +97,14 @@ public sealed class ReconcileProviderSubmissions(
                     // fact is hidden.
                     wasRepaired |= await actionHistory.TryAppendAsync(
                         new(
-                            ProviderSubmissionPolicy.AcceptedHistoryId(candidate.SubmissionId),
-                            ProviderSubmissionPolicy.ActionHistoryAggregateType,
+                            PrincipalSubmissionPolicy.AcceptedHistoryId(candidate.SubmissionId),
+                            PrincipalSubmissionPolicy.ActionHistoryAggregateType,
                             candidate.SubmissionId.ToString("D"),
                             "Submitted",
-                            ActionActor.Provider(candidate.PrincipalId),
+                            ActionActor.Principal(candidate.PrincipalId),
                             candidate.ReceivedAtUtc.ToUniversalTime(),
                             "Accepted",
-                            ProviderSubmissionPolicy.OperationKey(candidate.SubmissionId),
+                            PrincipalSubmissionPolicy.OperationKey(candidate.SubmissionId),
                             RecoveredAcceptReason),
                         cancellationToken);
                 }

@@ -58,7 +58,7 @@ public sealed record EvaInstructionFile(
 ///
 /// Two mapped values have no EVA instruction field at all — EVA's model
 /// carries no inspection date and no mileage — so they travel in
-/// <see cref="Notes"/> as labelled lines. So does the work provider, which
+/// <see cref="Notes"/> as labelled lines. So does the Principal ("Work Provider"), which
 /// lost <c>InsName</c> to the claimant name. See
 /// <see cref="CaseEvaApiMapping"/> for why each.
 /// </summary>
@@ -73,7 +73,7 @@ public sealed record EvaInstructionPayload(
     /// field that varies by Principal.
     ///
     /// Taken from the case's allocated Principal rather than its extracted
-    /// work-provider field, because the allocation is immutable and always
+    /// "Work Provider" field, because the allocation is immutable and always
     /// present. EVA caps the field at 10 characters where Pegasus allows 20;
     /// a longer code is sent unchanged and refused by EVA, rather than
     /// truncated into a different Principal.

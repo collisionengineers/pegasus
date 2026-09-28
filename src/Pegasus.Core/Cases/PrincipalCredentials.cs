@@ -5,7 +5,7 @@ namespace Pegasus.Core.Cases;
 
 /// <summary>
 /// API-04 (FRD-09, FRD-04 § Principals administration): one
-/// Provider API credential per Principal. The clear secret exists only in
+/// Principal API credential per Principal. The clear secret exists only in
 /// the outcome of the issue/reset command; the store keeps a one-way
 /// verifier and nothing here ever carries it.
 /// </summary>
@@ -164,7 +164,7 @@ public interface IGetPrincipalCredential
 }
 
 /// <summary>
-/// The Provider API authentication decision (the Provider API
+/// The Principal API authentication decision (the Principal API
 /// composes the transport). Unknown key, wrong secret, revoked credential and inactive
 /// Principal all refuse with null; a paused credential authenticates with
 /// <see cref="PrincipalCredentialAuthentication.MaySubmit"/> false.

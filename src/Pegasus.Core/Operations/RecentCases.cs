@@ -5,14 +5,14 @@ namespace Pegasus.Core.Operations;
 
 /// <summary>
 /// How a Case arrived (Work Centre D8): created by hand, by the e-mail route,
-/// by the Provider API, or by the Automation actor. Derived from the accepted
+/// by the Principal API, or by the Automation actor. Derived from the accepted
 /// receipt's channel, and from the creating actor where no receipt started it.
 /// </summary>
 public enum CaseArrival
 {
     Manual,
     Email,
-    ProviderApi,
+    PrincipalApi,
     Automation
 }
 
@@ -85,7 +85,7 @@ public static class RecentCasesPolicy
     public static CaseArrival Arrival(IntakeSourceChannel? channel, bool createdByAutomation) => channel switch
     {
         IntakeSourceChannel.Mailbox => CaseArrival.Email,
-        IntakeSourceChannel.ProviderApi => CaseArrival.ProviderApi,
+        IntakeSourceChannel.PrincipalApi => CaseArrival.PrincipalApi,
         IntakeSourceChannel.Automation => CaseArrival.Automation,
         IntakeSourceChannel.ManualUpload => CaseArrival.Manual,
         _ => createdByAutomation ? CaseArrival.Automation : CaseArrival.Manual

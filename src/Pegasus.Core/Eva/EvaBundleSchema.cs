@@ -11,7 +11,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Eva;
 
 public sealed record EvaReplayFields(
-    string? WorkProvider,
+    string? WorkPrincipal,
     string? Vrm,
     string? VehicleModel,
     string? ClaimantName,
@@ -210,7 +210,7 @@ public static class EvaBundleSchema
     /// <paramref name="fileNameReference"/> names the archive and the JSON
     /// inside it. It is the Pegasus case reference, which is unique and
     /// already file-safe — deliberately not the <c>Reference</c> field, which
-    /// now carries the work provider's own reference. Those can
+    /// now carries the Principal's own reference. Those can
     /// repeat across cases and contain path separators ("AKH//47743/1"), which
     /// <see cref="SafeFileComponent"/> would reduce to "1". Omitted, the
     /// reference field still names the bundle, which is what an offline replay
@@ -449,7 +449,7 @@ public static class EvaBundleSchema
 
     private static IEnumerable<(string Name, string? Value)> OrderedFields(EvaReplayFields fields)
     {
-        yield return ("Work Provider", fields.WorkProvider);
+        yield return ("Work Provider", fields.WorkPrincipal);
         yield return ("VRM", fields.Vrm);
         yield return ("Vehicle Model", fields.VehicleModel);
         yield return ("Claimant Name", fields.ClaimantName);
@@ -484,7 +484,7 @@ public static class EvaBundleSchema
 
     private static string? GetValue(this EvaReplayFields fields, string name) => name switch
     {
-        "Work Provider" => fields.WorkProvider,
+        "Work Provider" => fields.WorkPrincipal,
         "VRM" => fields.Vrm,
         "Vehicle Model" => fields.VehicleModel,
         "Claimant Name" => fields.ClaimantName,

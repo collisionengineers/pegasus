@@ -87,7 +87,7 @@ public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
     }
 
     public static async Task<Guid?> MatchAsync(
-        IProviderCaseMatchPolicy policy,
+        IPrincipalCaseMatchPolicy policy,
         ICaseMatchCandidateQueries candidates,
         string acceptedRegistration,
         CaseMatchSourceData source,
@@ -103,7 +103,7 @@ public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
         }
 
         var result = await new EvaluateIntakeCaseMatch([policy], candidates).ExecuteDeclaredAsync(
-            policy.WorkProviderCode, source with { VehicleRegistration = acceptedRegistration }, cancellationToken);
+            policy.PrincipalCode, source with { VehicleRegistration = acceptedRegistration }, cancellationToken);
         return result is { Outcome: CaseMatchOutcome.UniqueMatch } ? result.MatchedCaseId : null;
     }
 

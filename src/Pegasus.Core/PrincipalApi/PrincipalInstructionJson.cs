@@ -2,17 +2,17 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Pegasus.Core.Documents;
 
-namespace Pegasus.Core.ProviderApi;
+namespace Pegasus.Core.PrincipalApi;
 
 /// <summary>
-/// The Provider API's wire schema and its one parser (API-01).
+/// The Principal API's wire schema and its one parser (API-01).
 ///
 /// It lives in Core, and there is exactly one of it, because two owners read
 /// the same bytes: the endpoint parses the incoming request, and intake parses
 /// the retained body again to recover the files as attachments. A second copy
 /// of this shape would let those two disagree about what a submission said.
 /// </summary>
-public static class ProviderInstructionJson
+public static class PrincipalInstructionJson
 {
     public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
@@ -30,38 +30,38 @@ public static class ProviderInstructionJson
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public static string Serialize(ProviderInstruction instruction) =>
+    public static string Serialize(PrincipalInstruction instruction) =>
         JsonSerializer.Serialize(instruction, StorageOptions);
 
-    public static ProviderInstruction? Deserialize(string? json) =>
+    public static PrincipalInstruction? Deserialize(string? json) =>
         string.IsNullOrWhiteSpace(json)
             ? null
-            : JsonSerializer.Deserialize<ProviderInstruction>(json, StorageOptions);
+            : JsonSerializer.Deserialize<PrincipalInstruction>(json, StorageOptions);
 
     /// <summary>
     /// The declared instruction and its files, or a
-    /// <see cref="ProviderInstructionValidationException"/> naming the field at
+    /// <see cref="PrincipalInstructionValidationException"/> naming the field at
     /// fault. Malformed JSON is reported as the body being unreadable rather
     /// than as a field.
     /// </summary>
-    public static (ProviderInstruction Instruction, IReadOnlyList<ProviderSubmissionFile> Files) Parse(
+    public static (PrincipalInstruction Instruction, IReadOnlyList<PrincipalSubmissionFile> Files) Parse(
         ReadOnlyMemory<byte> body)
     {
-        ProviderSubmissionBody? parsed;
+        PrincipalSubmissionBody? parsed;
         try
         {
-            parsed = JsonSerializer.Deserialize<ProviderSubmissionBody>(body.Span, Options);
+            parsed = JsonSerializer.Deserialize<PrincipalSubmissionBody>(body.Span, Options);
         }
         catch (JsonException exception)
         {
-            throw new ProviderInstructionValidationException(
+            throw new PrincipalInstructionValidationException(
                 "body",
                 $"The submission is not valid JSON: {exception.Message}");
         }
 
         if (parsed is null)
         {
-            throw new ProviderInstructionValidationException("body", "The submission body is empty.");
+            throw new PrincipalInstructionValidationException("body", "The submission body is empty.");
         }
 
         var claimant = parsed.Claimant ?? new();
@@ -69,9 +69,9 @@ public static class ProviderInstructionJson
         var vehicle = parsed.Vehicle ?? new();
         var incident = parsed.Incident ?? new();
         var inspection = parsed.Inspection ?? new();
-        var instruction = new ProviderInstruction(
-            ProviderInstructionKinds.Parse(parsed.CaseType),
-            ProviderReportVerdicts.Parse(parsed.OriginalReportVerdict),
+        var instruction = new PrincipalInstruction(
+            PrincipalInstructionKinds.Parse(parsed.CaseType),
+            PrincipalReportVerdicts.Parse(parsed.OriginalReportVerdict),
             parsed.Principal,
             parsed.ClaimNumber,
             claimant.Name,
@@ -94,7 +94,7 @@ public static class ProviderInstructionJson
         return (instruction, Files(parsed.Files));
     }
 
-    private static ProviderSubmissionFile[] Files(IReadOnlyList<ProviderSubmissionFileBody>? files)
+    private static PrincipalSubmissionFile[] Files(IReadOnlyList<PrincipalSubmissionFileBody>? files)
     {
         // A Principal may declare an instruction with no files at all
         // (operator, 2026-09-28): the files are optional for every kind.
@@ -110,15 +110,15 @@ public static class ProviderInstructionJson
                 var field = $"files[{ordinal}]";
                 if (string.IsNullOrWhiteSpace(file.FileName))
                 {
-                    throw new ProviderInstructionValidationException($"{field}.fileName", "A file name is required.");
+                    throw new PrincipalInstructionValidationException($"{field}.fileName", "A file name is required.");
                 }
                 if (string.IsNullOrWhiteSpace(file.MediaType))
                 {
-                    throw new ProviderInstructionValidationException($"{field}.mediaType", "A media type is required.");
+                    throw new PrincipalInstructionValidationException($"{field}.mediaType", "A media type is required.");
                 }
                 if (string.IsNullOrWhiteSpace(file.ContentBase64))
                 {
-                    throw new ProviderInstructionValidationException($"{field}.contentBase64", "File content is required.");
+                    throw new PrincipalInstructionValidationException($"{field}.contentBase64", "File content is required.");
                 }
 
                 byte[] content;
@@ -128,7 +128,7 @@ public static class ProviderInstructionJson
                 }
                 catch (FormatException)
                 {
-                    throw new ProviderInstructionValidationException(
+                    throw new PrincipalInstructionValidationException(
                         $"{field}.contentBase64",
                         "The file content is not valid base64.");
                 }
@@ -136,48 +136,48 @@ public static class ProviderInstructionJson
                 DocumentSemanticRole? role;
                 try
                 {
-                    role = ProviderFileRoles.Parse(file.Role);
+                    role = PrincipalFileRoles.Parse(file.Role);
                 }
                 catch (ArgumentException exception)
                 {
-                    throw new ProviderInstructionValidationException($"{field}.role", exception.Message);
+                    throw new PrincipalInstructionValidationException($"{field}.role", exception.Message);
                 }
 
-                return new ProviderSubmissionFile(ordinal, file.FileName, file.MediaType, content, role);
+                return new PrincipalSubmissionFile(ordinal, file.FileName, file.MediaType, content, role);
             })
             .ToArray();
     }
 }
 
-public sealed record ProviderSubmissionFileBody(
+public sealed record PrincipalSubmissionFileBody(
     int? Ordinal = null,
     string? FileName = null,
     string? MediaType = null,
     string? Role = null,
     [property: JsonPropertyName("contentBase64")] string? ContentBase64 = null);
 
-public sealed record ProviderInstructionClaimantBody(
+public sealed record PrincipalInstructionClaimantBody(
     string? Name = null,
     string? ContactNumber = null,
     string? Address = null);
 
-public sealed record ProviderInstructionPartyBody(
+public sealed record PrincipalInstructionPartyBody(
     string? Name = null,
     string? EmailAddress = null,
     string? PhoneNumber = null);
 
-public sealed record ProviderInstructionVehicleBody(
+public sealed record PrincipalInstructionVehicleBody(
     string? Registration = null,
     string? Make = null,
     string? Model = null,
     long? Mileage = null,
     string? MileageUnit = null);
 
-public sealed record ProviderInstructionIncidentBody(
+public sealed record PrincipalInstructionIncidentBody(
     DateOnly? DateOfIncident = null,
     string? Circumstances = null);
 
-public sealed record ProviderInstructionInspectionBody(
+public sealed record PrincipalInstructionInspectionBody(
     DateOnly? DateRequested = null,
     string? Location = null);
 
@@ -186,21 +186,21 @@ public sealed record ProviderInstructionInspectionBody(
 /// the submission is the Case's Received date, which is its instruction date
 /// (operator, 24 September 2026). A member this contract does not name,
 /// including the retired <c>instructionDate</c>, is ignored rather than
-/// refused: <see cref="ProviderInstructionJson.Options"/> and
-/// <see cref="ProviderInstructionJson.StorageOptions"/> keep System.Text.Json's
+/// refused: <see cref="PrincipalInstructionJson.Options"/> and
+/// <see cref="PrincipalInstructionJson.StorageOptions"/> keep System.Text.Json's
 /// default unmapped-member handling, so retained request bodies (re-read by
-/// ProviderApiIntakeSourceReader) and stored declarations keep parsing.
+/// PrincipalApiIntakeSourceReader) and stored declarations keep parsing.
 /// </summary>
-public sealed record ProviderSubmissionBody(
+public sealed record PrincipalSubmissionBody(
     string? Principal = null,
     string? ClaimNumber = null,
     string? CaseType = null,
     string? OriginalReportVerdict = null,
-    ProviderInstructionClaimantBody? Claimant = null,
-    ProviderInstructionPartyBody? FileHandler = null,
-    ProviderInstructionVehicleBody? Vehicle = null,
-    ProviderInstructionIncidentBody? Incident = null,
-    ProviderInstructionInspectionBody? Inspection = null,
+    PrincipalInstructionClaimantBody? Claimant = null,
+    PrincipalInstructionPartyBody? FileHandler = null,
+    PrincipalInstructionVehicleBody? Vehicle = null,
+    PrincipalInstructionIncidentBody? Incident = null,
+    PrincipalInstructionInspectionBody? Inspection = null,
     string? VatStatus = null,
     string? Notes = null,
-    IReadOnlyList<ProviderSubmissionFileBody>? Files = null);
+    IReadOnlyList<PrincipalSubmissionFileBody>? Files = null);
