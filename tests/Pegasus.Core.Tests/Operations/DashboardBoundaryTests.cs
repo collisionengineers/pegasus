@@ -108,7 +108,8 @@ public sealed class DashboardBoundaryTests
                     new(
                         unidentifiedId, "U1042", UnidentifiedMediaKind.Image,
                         FileName: "IMG_4418.jpg", EmailSubject: null, EmailSender: null,
-                        ReceivedAtUtc: NowUtc, UnidentifiedReasonCode.NoUsableIdentification)
+                        ReceivedAtUtc: NowUtc, UnidentifiedReasonCode.NoUsableIdentification,
+                        ResolutionReason: null)
                 ],
             },
             triage: new StubListTriage
