@@ -267,7 +267,7 @@ Triage behaviour is owned by
 section records which tells are accepted and what they may not do.
 
 QDOS sends Triage requests in two disjoint generated templates. Both are
-tells of the same one category (`principal_mail_classification` v1): the
+tells of the same one category (`principal_mail_classification` v2): the
 body phrase `Triage Only Request`, and a subject opening with
 `Engineer Triage` after any forward or reply prefix. Both are matched
 case-exactly, because the casing is part of the generated tell; a human

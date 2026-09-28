@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Intake;
 
@@ -22,13 +24,17 @@ namespace Pegasus.Core.Intake;
 public sealed partial class PrincipalMailClassificationPolicy(string workProviderCode) : IMailClassificationPolicy
 {
     public const string Key = "principal_mail_classification";
-    public const int Version = 1;
+    public const int Version = 2;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
     private const string AuditNotificationTitle = "AUDIT REPORT NOTIFICATION";
     private const string EngineerNotificationTitle = "ENGINEER NOTIFICATION";
     private const string ReportPlusAuditMarker = "REPORT + AUDIT REPORT";
+
+    // The extraction is pure and reads text only, so no retained bytes stand
+    // behind this reading; the placeholder only satisfies its provenance field.
+    private const string ExtractionSha256 = "audit-mail-classification";
 
     public string WorkProviderCode { get; } = workProviderCode;
     public string PolicyKey => Key;
@@ -330,7 +336,8 @@ public sealed partial class PrincipalMailClassificationPolicy(string workProvide
                         InstructionExtractionPolicySelector.DocumentIdentity(fragment.SourceLabel), group.Key,
                         StringComparison.Ordinal)),
                 HasRepairable = group.Any(fragment => ContainsRepairable(fragment.Text)),
-                HasTotalLoss = group.Any(fragment => ContainsTotalLoss(fragment.Text))
+                HasTotalLoss = group.Any(fragment => ContainsTotalLoss(fragment.Text)),
+                Fragments = group.ToArray()
             })
             .ToArray();
 
@@ -338,19 +345,44 @@ public sealed partial class PrincipalMailClassificationPolicy(string workProvide
         // notification.  It requires two distinct document attachments: the
         // generated Audit instruction and the original report being audited.
         // The report itself must say one, and only one, of the two outcomes.
+        // A report that prints both words (a repairable supplement citing a
+        // previous total loss) is read by the report extraction instead (#864).
         if (attachments.Length < 2 || attachments.Count(group => group.HasInstruction) != 1)
         {
             return null;
         }
 
         var outcomes = attachments
-            .Where(group => !group.HasInstruction && group.HasRepairable != group.HasTotalLoss)
+            .Where(group => !group.HasInstruction)
+            .Select(group => (
+                group.AssetSourceLabel,
+                Assessment: group.HasRepairable != group.HasTotalLoss
+                    ? group.HasRepairable ? AuditAssessment.Repairable : AuditAssessment.TotalLoss
+                    : group.HasRepairable
+                        ? ExtractedAssessment(group.Fragments)
+                        : (AuditAssessment?)null))
+            .Where(group => group.Assessment is not null)
             .ToArray();
 
         return outcomes.Length == 1
-            ? new(
-                outcomes[0].AssetSourceLabel,
-                outcomes[0].HasRepairable ? AuditAssessment.Repairable : AuditAssessment.TotalLoss)
+            ? new(outcomes[0].AssetSourceLabel, outcomes[0].Assessment!.Value)
+            : null;
+    }
+
+    /// <summary>
+    /// The outcome the third-party report extraction reads off one attachment
+    /// that prints both literals, through the same reading the Original report
+    /// cells use. Null when no report signature matches or the report prints
+    /// no single readable outcome, so the attachment stays out of the verdict.
+    /// </summary>
+    private static AuditAssessment? ExtractedAssessment(IReadOnlyList<IntakeContentFragment> fragments)
+    {
+        var extraction = ThirdPartyReportExtraction.Extract(
+            new(IntakeSourceReadStatus.Readable, fragments, [], [], RequiresOcr: false),
+            new(Guid.Empty, ExtractionSha256, Occurrence: 0));
+        return OriginalReportPrefillPolicy.Read(extraction.Candidate, ExtractionSha256) is
+            { OutcomeUnreadable: false, Outcome: { } code }
+            ? AuditAssessmentCode.Parse(code)
             : null;
     }
 
