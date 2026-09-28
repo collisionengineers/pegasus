@@ -912,6 +912,7 @@ public static class CaseWorkspaceLabels
         public const string IncludeFeeNote = "Include fee note";
         public const string OpenReport = "Open report";
         public const string OpenReportWithFeeNote = "Open report with fee note";
+        public const string OpenFeeNote = "Open fee note";
         public const string DownloadFeeNote = "Fee note";
         public const string GenerationStaleNotice =
             "A newer fact changed after this generation. Generate again before delivery.";
