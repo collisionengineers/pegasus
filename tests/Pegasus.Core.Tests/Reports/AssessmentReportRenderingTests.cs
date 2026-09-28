@@ -597,7 +597,7 @@ public sealed class AssessmentReportRenderingTests
             HistoryCheck: "History clear", EngineerComments: null,
             Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"),
             AgreedFee: 120m, FeeDescriptionLines: ["Engineering assessment"],
-            Photos: [new ReportImageEvidence("box://case/photo-1", "image/png", image, Convert.ToHexStringLower(SHA256.HashData(image)))],
+            Photos: [new ReportImageEvidence("box://case/photo-1", "image/png", ReportImageContent.Opened(_ => Task.FromResult(image)), Convert.ToHexStringLower(SHA256.HashData(image)))],
             Sources: [new AcceptedReportSource("assessment", "7", new string('a', 64))],
             Content: CaseReportContentSwitches.None,
             Guides: ReportGuideSources.None);

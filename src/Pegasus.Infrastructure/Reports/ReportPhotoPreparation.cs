@@ -38,10 +38,11 @@ internal static class ReportPhotoPreparation
 
     /// <summary>
     /// The pixel count above which a PNG is read by scanline instead of
-    /// decoded whole: 16 million pixels is 64 MiB of RGBA, well past any print
-    /// square. A smaller PNG decodes whole, which is quicker.
+    /// decoded whole: a square of the full-page class, 2000 by 2000, so a PNG
+    /// larger than any print square never decodes whole. A smaller PNG decodes
+    /// whole, which is quicker and at most 16 MB of RGBA.
     /// </summary>
-    internal const long ScanlineFromPixels = 16_000_000;
+    internal const long ScanlineFromPixels = (long)FullPagePixels * FullPagePixels;
 
     private const int PhotoJpegQuality = 85;
     private const int CancellationRowInterval = 64;
@@ -339,7 +340,6 @@ internal static class ReportPhotoPreparation
         private readonly float[] columnFirstWeight;
         private readonly float[] columnNextWeight;
         private readonly double rowsPerSourceRow;
-        private readonly float normalize;
         private readonly float[] reduced;
         private readonly SKBitmap target;
         private float[] current;
@@ -369,7 +369,6 @@ internal static class ReportPhotoPreparation
                     ? (float)(end - (first + 1))
                     : 0f;
             }
-            normalize = (float)(columnsPerSourceColumn * rowsPerSourceRow);
             reduced = new float[targetWidth * 4];
             current = new float[targetWidth * 4];
             following = new float[targetWidth * 4];
@@ -466,6 +465,6 @@ internal static class ReportPhotoPreparation
             currentRow++;
         }
 
-        private byte ToByte(float sum) => (byte)Math.Clamp((int)(sum / normalize + 0.5f), 0, 255);
+        private static byte ToByte(float sum) => (byte)Math.Clamp((int)(sum + 0.5f), 0, 255);
     }
 }

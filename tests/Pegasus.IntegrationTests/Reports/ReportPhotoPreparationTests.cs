@@ -228,6 +228,32 @@ public sealed class ReportPhotoPreparationTests
         AssertQuadrants(scanned, "B", "R", "Y", "G");
     }
 
+    /// <summary>
+    /// A flat colour stays that colour when the scanline read averages it
+    /// down, so the averaging cannot brighten or darken a print.
+    /// </summary>
+    [Fact]
+    public void AScanlineReadKeepsAFlatColourTheSame()
+    {
+        var colour = new SKColor(200, 100, 50);
+        using var bitmap = new SKBitmap(new SKImageInfo(3000, 2000, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        bitmap.Erase(colour);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
+        var source = encoded.ToArray();
+
+        using var scanned = Print(source, CaseAssetRotation.None, CaseAssetCrop.Full, slot: null, scanlineFrom: 0);
+
+        Assert.Equal((2000, 1333), (scanned.Width, scanned.Height));
+        foreach (var (x, y) in new[] { (5, 5), (1000, 660), (1990, 1320) })
+        {
+            var pixel = scanned.GetPixel(x, y);
+            Assert.InRange((int)pixel.Red, colour.Red - 3, colour.Red + 3);
+            Assert.InRange((int)pixel.Green, colour.Green - 3, colour.Green + 3);
+            Assert.InRange((int)pixel.Blue, colour.Blue - 3, colour.Blue + 3);
+        }
+    }
+
     [Fact]
     public void ACropOfAHugeImagePrintsOnlyTheKeptPart()
     {
