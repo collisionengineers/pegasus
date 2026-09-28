@@ -33,17 +33,9 @@ public static class CaseNextAction
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(reportBlockers);
         ArgumentNullException.ThrowIfNull(blockerSection);
-        if (workflow.Archive is not null || CaseLifecycleRules.IsTerminal(workflow.State))
+        if (BeforeTheReport(workflow, firstRequirement) is { } early)
         {
-            return ("None", "notes", null);
-        }
-        if (workflow.State == CaseLifecycleState.Review)
-        {
-            return (CaseWorkspaceLabels.HandToEngineer, "overview", null);
-        }
-        if (workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held)
-        {
-            return (firstRequirement ?? OperatorLabels.CaseStage(workflow.State), "overview", null);
+            return early;
         }
         if (reportBlockers.Count > 0)
         {
@@ -85,5 +77,34 @@ public static class CaseNextAction
             return (CaseWorkspaceLabels.ReportDelivery.SendPreparedReport, "report", null);
         }
         return (CaseWorkspaceLabels.ReportDelivery.PrepareDelivery, "report", null);
+    }
+
+    /// <summary>
+    /// Whether the Next action reads the report's readiness, the current
+    /// report and its delivery; a caller that has not loaded them need not.
+    /// </summary>
+    public static bool ReadsTheReport(CaseWorkflowRecord workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        return BeforeTheReport(workflow, null) is null;
+    }
+
+    // The steps the Case takes before the report is its next concern.
+    private static (string Label, string SectionKey, AssessmentReadinessItem? Blocker)? BeforeTheReport(
+        CaseWorkflowRecord workflow, string? firstRequirement)
+    {
+        if (workflow.Archive is not null || CaseLifecycleRules.IsTerminal(workflow.State))
+        {
+            return ("None", "notes", null);
+        }
+        if (workflow.State == CaseLifecycleState.Review)
+        {
+            return (CaseWorkspaceLabels.HandToEngineer, "overview", null);
+        }
+        if (workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held)
+        {
+            return (firstRequirement ?? OperatorLabels.CaseStage(workflow.State), "overview", null);
+        }
+        return null;
     }
 }

@@ -276,15 +276,10 @@ public sealed class ScaleRepairSpecification(
             && decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var recorded)
                 ? recorded
                 : null;
-        var targetPercent = request.TargetPercentOfValue;
-        RepairSpecificationScaling.TargetGross(engineerValue, targetPercent);
+        // Refused here, before the store's transaction, on the store's own terms.
+        RepairSpecificationScaling.TargetGross(engineerValue, request.TargetPercentOfValue);
 
-        return await store.ScaleAsync(
-            request with
-            {
-                TargetPercentOfValue = targetPercent,
-                EngineerValue = engineerValue,
-            }, cancellationToken);
+        return await store.ScaleAsync(request with { EngineerValue = engineerValue }, cancellationToken);
     }
 }
 

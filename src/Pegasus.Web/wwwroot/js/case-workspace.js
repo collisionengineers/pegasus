@@ -2581,8 +2581,14 @@
             function set(input, value) {
                 if (!input) { return; }
                 var original = shown.cells.filter(function (cell) { return cell.input === input; })[0];
+                if (!original) {
+                    // A line typed in since the preview began.
+                    original = { input: input, value: input.value, readOnly: input.readOnly };
+                    shown.cells.push(original);
+                    input.readOnly = true;
+                }
                 input.value = value === null ? '' : value;
-                input.classList.toggle('is-previewed', !!original && input.value !== original.value);
+                input.classList.toggle('is-previewed', Number(input.value) !== Number(original.value));
             }
             var prices = field('linePartPounds');
             var materials = field('lineMaterials');
@@ -2621,15 +2627,17 @@
                 if (inFlight !== request) { return; }
                 inFlight = null;
                 if (result.status === 'ok') { paint(result); } else { end(); }
-            }).catch(function (error) {
-                // An aborted request was replaced; any other failure leaves
-                // the spec as edited, and Apply still asks Core.
-                if (error && error.name === 'AbortError') { return; }
+            }).catch(function () {
+                // A replaced request is the newer one's to settle; any other
+                // failure leaves the spec as edited, and Apply still asks Core.
+                if (inFlight !== request) { return; }
                 end();
             });
         }
         function schedule() {
             window.clearTimeout(timer);
+            // A submit from here on cancels the preview on its way.
+            scalePreview = end;
             timer = window.setTimeout(preview, 250);
         }
         range.addEventListener('input', function () {
@@ -2775,7 +2783,7 @@
             return;
         }
         function defaults(value) {
-            return vatDefaults[value === undefined ? status.value : value] || [];
+            return vatDefaults[value] || [];
         }
         function overridden(value) {
             var expected = defaults(value);
@@ -2784,13 +2792,13 @@
             });
         }
         function tickDefaults() {
-            var expected = defaults();
+            var expected = defaults(status.value);
             boxes.forEach(function (box) {
                 box.checked = expected.indexOf(box.getAttribute('data-vat-category')) >= 0;
             });
         }
         function paint() {
-            var over = overridden();
+            var over = overridden(status.value);
             if (chip) { chip.hidden = !over; }
             if (reset) { reset.hidden = !over; }
         }
@@ -2808,7 +2816,6 @@
         if (reset) {
             reset.addEventListener('click', function () {
                 tickDefaults();
-                paint();
                 status.dispatchEvent(new Event('change', { bubbles: true }));
             });
         }

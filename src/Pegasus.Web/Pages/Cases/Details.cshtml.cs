@@ -296,7 +296,8 @@ public sealed partial class DetailsModel(
                 requirements.Add(new("Original report missing", "Audit", null));
             }
             requirements.AddRange(data.Completeness.Evaluation.MissingRequirements
-                .Select(requirement => new CaseRequirement($"{requirement} incomplete", "Case requirements", why)));
+                .Select(requirement => new CaseRequirement(
+                    Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(requirement), "Case requirements", why)));
             return requirements;
         }
     }
@@ -2943,16 +2944,8 @@ public sealed partial class DetailsModel(
         {
             return null;
         }
-        var provisional = new RepairSpecificationVersion(
-            existing?.SpecificationId ?? Guid.Empty, caseId, existing?.Version ?? 1, RepairSpecificationState.Draft,
-            existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
-            [.. lines.Select((line, index) => new CaseEstimateLineRecord(
-                Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
-                line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
-                ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow,
-                line.PaintWorkUnits, line.Quantity, line.Materials))],
-            string.Empty, DateTimeOffset.UtcNow, details);
-        var diff = RepairSpecificationComparison.Compare(baseSpecification, provisional);
+        var diff = RepairSpecificationComparison.Compare(
+            baseSpecification, ProvisionalSpecification(caseId, existing, details, lines));
         var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
         return new(baseId, reason, explain, RepairSpecificationComparison.SupplementaryStatement(diff, reason));
     }
@@ -2998,22 +2991,14 @@ public sealed partial class DetailsModel(
             var floors = new ScalingFloors(
                 floorRate ?? ScalingFloors.Default.LabourRatePerHour,
                 floorPrice ?? ScalingFloors.Default.PricePercent);
-            var edited = new RepairSpecificationVersion(
-                existing?.SpecificationId ?? Guid.Empty, id, existing?.Version ?? 1, RepairSpecificationState.Draft,
-                existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
-                [.. editor.Lines.Select((line, index) => new CaseEstimateLineRecord(
-                    Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
-                    line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
-                    ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow,
-                    line.PaintWorkUnits, line.Quantity, line.Materials))],
-                string.Empty, DateTimeOffset.UtcNow, EditorDetailsFrom(editor, existing));
+            var edited = ProvisionalSpecification(id, existing, EditorDetailsFrom(editor, existing), editor.Lines);
             var result = RepairSpecificationScaling.Scale(edited, target, floors);
             var printed = result.Totals.Printed;
             static string? Amount(decimal? value) => value?.ToString("0.00", CultureInfo.InvariantCulture);
             return new JsonResult(new
             {
                 status = "ok",
-                readout = RepairSpecificationWording.ScaleReadout(result, result.GrossAfter / engineerValue!.Value * 100m),
+                readout = RepairSpecificationWording.ScaleReadout(result, percent),
                 labourRate = Amount(result.Details.LabourRate),
                 lines = editor.LineRows.Select((row, index) => new
                 {
@@ -3041,6 +3026,24 @@ public sealed partial class DetailsModel(
             return refused;
         }
     }
+
+    /// <summary>
+    /// The spec as the editor holds it, unsaved: what Supplementary compares
+    /// and what the Target % of value preview scales.
+    /// </summary>
+    private static RepairSpecificationVersion ProvisionalSpecification(
+        Guid caseId,
+        RepairSpecificationVersion? existing,
+        EstimateDetails details,
+        IReadOnlyList<EstimateLineInput> lines) => new(
+        existing?.SpecificationId ?? Guid.Empty, caseId, existing?.Version ?? 1, RepairSpecificationState.Draft,
+        existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
+        [.. lines.Select((line, index) => new CaseEstimateLineRecord(
+            Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
+            line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
+            ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow,
+            line.PaintWorkUnits, line.Quantity, line.Materials))],
+        string.Empty, DateTimeOffset.UtcNow, details);
 
     /// <summary>
     /// Apply (v28 P34): scales the saved specification. The page saves the

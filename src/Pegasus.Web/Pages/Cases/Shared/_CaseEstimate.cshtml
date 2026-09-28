@@ -372,7 +372,7 @@
                     {
                         <input type="range" min="1" max="100" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
                         <span class="dsc"><input type="number" name="targetPercent" form="case-estimate-scale-form" min="1" max="100" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
-                        <span class="mono est-scale-read" data-scale-read aria-live="polite"></span>
+                        <span class="mono" data-scale-read aria-live="polite"></span>
                         <span class="status status--navy status--plain" data-scale-preview hidden>@EstimateLabels.ScalePreview</span>
                     }
                     <span class="est-floors">@EstimateLabels.Floors
