@@ -90,7 +90,8 @@ public static class RepairSpecificationScaling
 {
     /// <summary>
     /// The scaled header and lines, and the scaled spec's totals, which a
-    /// preview shows and Apply records.
+    /// preview shows and Apply records. <see cref="LabourAtFloor"/>: the
+    /// labour rate was lowered as far as its floor allows (v28 P34).
     /// </summary>
     public sealed record Result(
         EstimateDetails Details,
@@ -98,7 +99,8 @@ public static class RepairSpecificationScaling
         decimal Factor,
         decimal PriceFactor,
         decimal GrossBefore,
-        EstimateTotals Totals)
+        EstimateTotals Totals,
+        bool LabourAtFloor)
     {
         public decimal GrossAfter => Totals.Printed.Gross;
     }
@@ -157,13 +159,15 @@ public static class RepairSpecificationScaling
         }
         var factor = low;
         var scaled = Scaled(specification, factor, floors);
+        var scaledRate = scaled.Details.BaseHourlyRate;
         return new(
             scaled.Details,
             scaled.Lines.Select(ToInput).ToArray(),
             decimal.Round(factor, 6),
             decimal.Round(Math.Max(floors.PricePercent / 100m, factor), 6),
             top,
-            EstimateTotals.Compute(scaled));
+            EstimateTotals.Compute(scaled),
+            scaledRate < specification.Details.BaseHourlyRate && scaledRate <= floors.LabourRatePerHour);
     }
 
     private static RepairSpecificationVersion Scaled(RepairSpecificationVersion specification, decimal factor, ScalingFloors floors)
@@ -335,8 +339,9 @@ public static class RepairSpecificationWording
 
     /// <summary>
     /// The Target % of value readout (v28 P34): what the spec totals before
-    /// and after, the share of value and the price factor. The preview shows
-    /// it while the slider moves and Apply records it.
+    /// and after, the share of value and the price factor, and whether the
+    /// labour rate stopped at its floor. The preview shows it while the slider
+    /// moves and Apply records it.
     /// </summary>
     public static string ScaleReadout(RepairSpecificationScaling.Result result, decimal? percentOfValue)
     {
@@ -344,7 +349,8 @@ public static class RepairSpecificationWording
         var share = percentOfValue is { } percent
             ? " (" + percent.ToString("0.0", CultureInfo.InvariantCulture) + " % of value)"
             : string.Empty;
-        return $"{Money(result.GrossBefore)} \u2192 {Money(result.GrossAfter)}{share} \u00b7 prices \u00d7{result.PriceFactor.ToString("0.00", CultureInfo.InvariantCulture)}";
+        var floor = result.LabourAtFloor ? " \u00b7 labour at floor" : string.Empty;
+        return $"{Money(result.GrossBefore)} \u2192 {Money(result.GrossAfter)}{share} \u00b7 prices \u00d7{result.PriceFactor.ToString("0.00", CultureInfo.InvariantCulture)}{floor}";
     }
 }
 
