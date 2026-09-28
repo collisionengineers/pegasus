@@ -66,6 +66,10 @@ internal sealed class EfAssessmentReportProjectionSource(
                 item.SignOffEngineerId,
                 item.Version,
                 PrincipalCode = item.Case.Principal.Code,
+                // The report is addressed to the Principal's organisation.
+                PrincipalName = item.Case.Principal.Organization.Name,
+                PrincipalAddress = item.Case.Principal.Organization.Address,
+                PrincipalPostcode = item.Case.Principal.Organization.Postcode,
                 item.Case.Year,
                 item.Case.Sequence,
                 item.Case.Reference,
@@ -177,7 +181,8 @@ internal sealed class EfAssessmentReportProjectionSource(
         var projection = new AssessmentReportProjectionInput(
             workspace.Assessment,
             reportReference,
-            [workspace.Header.Principal],
+            AssessmentReportWording.ReportFor(
+                workflow.PrincipalName, workflow.PrincipalAddress, workflow.PrincipalPostcode),
             ReportDate: null,
             photos,
             sources,

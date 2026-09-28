@@ -25,7 +25,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseReportWordingWebTests
 {
     private const string NatureSentence =
-        "The vehicle has suffered Moderate collision/impact damage to the Right Rear.";
+        "The vehicle has suffered moderate collision/impact damage to the right rear.";
 
     [Fact]
     public async Task TheReportSectionOffersEveryWordingBlockThroughTheOneSaveForm()
@@ -98,7 +98,7 @@ public sealed class CaseReportWordingWebTests
             ("wordingEdits[0].Manual", "false"),
             ("wordingEdits[1].Key", "condition"),
             ("wordingEdits[1].Title", "Pre-Incident Condition"),
-            ("wordingEdits[1].Text", "The vehicle is considered to be in Good condition for its age and type."),
+            ("wordingEdits[1].Text", "The vehicle is considered to be in good condition for its age and type."),
             ("wordingEdits[1].Order", "6"),
             ("wordingEdits[1].Included", "false"),
             ("wordingEdits[1].Manual", "false"));

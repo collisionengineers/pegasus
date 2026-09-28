@@ -567,6 +567,7 @@ public static class CaseReportReadiness
     public const string SignatoryRequirement = "Sign-off Engineer";
     public const string CurrentEstimateRequirement = "Current repair spec";
     public const string LabourRateRequirement = "Repair spec labour rate";
+    public const string RepairerVatRequirement = "Repairer VAT status";
     public const string CloseUpImageRequirement = "Close-up image";
     public const string OverviewImageRequirement = "Overview image";
     public const string ImageSourceRequirement = "Report image sources";
@@ -612,6 +613,37 @@ public static class CaseReportReadiness
         "The Current repair spec has no labour rate, and the report prints the hourly rate.",
         "Record the labour rate on the Repair Spec section.");
 
+    // The repairer's VAT status decides what VAT is charged on, so a report
+    // on an unknown status would understate the repair cost (operator, 27
+    // September 2026).
+    internal static readonly AssessmentReadinessItem RepairerVatStatusUnknown = new(
+        RepairerVatRequirement, "Estimates",
+        "The Current repair spec does not say whether the repairer is VAT registered, so the report cannot work out the VAT.",
+        "Choose Registered or Not registered as the Repairer VAT status on the Repair Spec section.");
+
+    internal static readonly AssessmentReadinessItem RepairerVatHandPicked = new(
+        RepairerVatRequirement, "Estimates",
+        "The Current repair spec charges VAT on a hand-picked set of costs, and the report has no wording for that set.",
+        "Use Reset to repairer status beside VAT charged on, on the Repair Spec section.");
+
+    /// <summary>
+    /// The repairer VAT blocker, or none when the report has wording for what
+    /// the Current repair spec charges VAT on. The preview and generation
+    /// both name it, so neither prints a VAT row the template cannot word.
+    /// </summary>
+    internal static AssessmentReadinessItem? RepairerVatBlocker(RepairSpecificationVersion currentEstimate)
+    {
+        ArgumentNullException.ThrowIfNull(currentEstimate);
+        var policy = currentEstimate.Details.VatPolicy;
+        if (policy.RepairerStatus == RepairerVatStatus.Unknown)
+        {
+            return RepairerVatStatusUnknown;
+        }
+        return ReportRepairCosts.VatLabelOf(policy, currentEstimate.Details.VatPercent) is null
+            ? RepairerVatHandPicked
+            : null;
+    }
+
     public static CaseReportReadinessResult Evaluate(CaseReportReadinessInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -643,6 +675,10 @@ public static class CaseReportReadiness
         Require(
             input.CurrentEstimate is null || input.CurrentEstimate.Details.HourlyRate > 0m,
             LabourRateMissing);
+        if (input.CurrentEstimate is { } estimate && RepairerVatBlocker(estimate) is { } repairerVat)
+        {
+            reasons.Add(repairerVat);
+        }
 
         // The image tag decides how an image in the report prints (operator,
         // 26 September 2026), so each blocker asks for a tag.

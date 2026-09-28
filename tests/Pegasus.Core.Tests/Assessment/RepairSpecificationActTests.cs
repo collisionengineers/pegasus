@@ -151,12 +151,13 @@ public sealed class RepairSpecificationActTests
         Assert.Contains("reduced from", statement, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The sentence that names the sum is the report's own
+    /// (<c>ReportWordingTests</c>); the sum itself is money on the Case.
+    /// </summary>
     [Fact]
-    public void TheContractRepairSentenceNamesTheAgreedSumAsTheCap()
+    public void TheAgreedContractSumIsRecordedAsMoney()
     {
-        Assert.Equal(
-            "A contract repair has been agreed for the total sum of £1,250.00. Costs cannot increase above this figure.",
-            RepairSpecificationWording.ContractRepair(1_250m));
         Assert.Equal(AssessmentFieldType.Money,
             AssessmentVocabulary.Definitions[AssessmentVocabulary.SettlementContractSum].Type);
     }

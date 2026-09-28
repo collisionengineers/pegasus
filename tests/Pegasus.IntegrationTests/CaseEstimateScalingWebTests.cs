@@ -234,6 +234,14 @@ public sealed class CaseEstimateScalingWebTests
             $"?section=estimate&estimate={store.WorkingEstimate.SpecificationId:D}");
         var draft = store.WorkingEstimate;
         Assert.Contains("Agreed sum suggests 45%.", html, StringComparison.Ordinal);
+        // The section shows the contract repair sentence the report prints:
+        // the template's (Sample - Contract Repair Report.pdf, page 2).
+        Assert.Contains("A contract repair has been agreed for the sum of ", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "450.00 including VAT. Costs cannot increase above this figure.",
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("for the total sum of", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"contractTarget\"", html, StringComparison.Ordinal);
         var fields = AssessmentEstimateImportWebTests.NewEnumerable(
             ("__RequestVerificationToken", AssessmentEstimateImportWebTests.AntiforgeryValue(html)),

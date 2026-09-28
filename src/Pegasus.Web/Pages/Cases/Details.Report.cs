@@ -150,9 +150,12 @@ public sealed partial class DetailsModel
             ? value
             : null;
 
-    /// <summary>The Current estimate's labour hours (panel and paint), for the figures strip.</summary>
+    /// <summary>
+    /// The Current estimate's labour hours (panel and paint), for the figures
+    /// strip: the figure the report prints as Labour Hours.
+    /// </summary>
     public decimal? LabourHours => CurrentSpecification is { } estimate
-        ? EstimateHours.Of(estimate).PricedTotal
+        ? ReportRepairCosts.For(estimate).TotalLabourHours
         : null;
 
     /// <summary>The report's title as the preview card and the draft file name it: "Total Loss Report — MA59BDY".</summary>

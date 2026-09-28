@@ -577,9 +577,11 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal(1, source.PreviewReads);
         var snapshot = Assert.IsType<AssessmentReportSnapshot>(renderer.Snapshot);
-        Assert.Equal(AssessmentReportProjection.BuildSettlement(persisted, input.CurrentEstimate), snapshot.Settlement);
-        Assert.Equal(250m, snapshot.Settlement.Excess);
-        Assert.False(snapshot.Settlement.ClaimantVatRegistered);
+        // The excess, betterment and the claimant's VAT answer are saved on
+        // the Case and are no part of the report; only a contract repair
+        // carries an agreed sum.
+        Assert.Equal("250.00", persisted.Field(AssessmentVocabulary.SettlementExcess)?.Value);
+        Assert.Equal(new ReportSettlement(), snapshot.Settlement);
         Assert.Equal("History clear", snapshot.HistoryCheck);
         Assert.Equal("Scuffed", snapshot.EngineerComments);
         Assert.Equal(120m, snapshot.AgreedFee);
@@ -703,7 +705,9 @@ public sealed partial class AssessmentReportDraftWebTests
 
     /// <summary>
     /// The Current estimate the ready fixture prices from: 50 parts, five
-    /// panel hours at 30, 20 materials and 5 specialist, at 20 per cent VAT.
+    /// panel hours at 30, 20 materials and 5 specialist, at 20 per cent VAT
+    /// for a VAT registered repairer. A report is not ready until the
+    /// repairer's VAT status is recorded.
     /// </summary>
     internal static RepairSpecificationVersion CurrentEstimate() => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
@@ -713,7 +717,9 @@ public sealed partial class AssessmentReportDraftWebTests
             EstimateLine(2, "new_part", "Door skin", null, 50m) with { Materials = 20m },
         ],
         "engineer-1", ReportFixtureAtUtc,
-        new EstimateDetails("Repairer", 30m, 5m, 20m), IsCurrent: true);
+        new EstimateDetails(
+            "Repairer", 30m, 5m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+        IsCurrent: true);
 
     private static CaseEstimateLineRecord EstimateLine(
         int position, string type, string description, decimal? workUnits, decimal? price) => new(

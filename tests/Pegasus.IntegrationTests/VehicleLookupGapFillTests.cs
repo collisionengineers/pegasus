@@ -173,13 +173,14 @@ public sealed class VehicleLookupGapFillTests
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
         var changedAtUtc = FixedUtcNow.AddMinutes(1);
 
-        await RecordLookupAsync(database, caseId, colour: "RED", recordedAtUtc: changedAtUtc);
+        // The report prints the fuel beside the engine size.
+        await RecordLookupAsync(database, caseId, fuel: "PETROL", recordedAtUtc: changedAtUtc);
 
-        var colour = Assert.Single(
+        var fuel = Assert.Single(
             await DerivedFactRowsAsync(database, caseId),
-            item => item.FieldPath == AssessmentVocabulary.VehicleColour);
-        Assert.Equal("RED", colour.Value);
-        Assert.Equal(changedAtUtc, colour.RecordedAtUtc);
+            item => item.FieldPath == AssessmentVocabulary.VehicleFuel);
+        Assert.Equal("PETROL", fuel.Value);
+        Assert.Equal(changedAtUtc, fuel.RecordedAtUtc);
         Assert.Equal("Stale", await database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
         Assert.Equal(1, await StaleRowCountAsync(database, caseId));
@@ -187,6 +188,32 @@ public sealed class VehicleLookupGapFillTests
             CaseReportStaleReasons.AssessmentFactsChanged,
             await database.ScalarAsync<string>(
                 $"SELECT Reason FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId:D}' AND EventKind = 'case_report_generation_stale'"));
+    }
+
+    /// <summary>
+    /// The colour is recorded on the Case and the report does not print it
+    /// (operator, 27 September 2026), so a changed colour replaces the earlier
+    /// one and leaves the report current.
+    /// </summary>
+    [Fact]
+    public async Task AChangedDerivedFactTheReportDoesNotPrintLeavesTheReportCurrent()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        var (currentId, _) = await SeedGenerationsAsync(database, caseId);
+        var changedAtUtc = FixedUtcNow.AddMinutes(1);
+
+        await RecordLookupAsync(database, caseId, colour: "RED", recordedAtUtc: changedAtUtc);
+
+        var colour = Assert.Single(
+            await DerivedFactRowsAsync(database, caseId),
+            item => item.FieldPath == AssessmentVocabulary.VehicleColour);
+        Assert.Equal("RED", colour.Value);
+        Assert.Equal(changedAtUtc, colour.RecordedAtUtc);
+        Assert.Equal("Confirmed", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal(0, await StaleRowCountAsync(database, caseId));
     }
 
     /// <summary>

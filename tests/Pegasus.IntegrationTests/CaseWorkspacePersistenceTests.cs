@@ -597,21 +597,47 @@ public sealed class CaseWorkspacePersistenceTests
             CaseReportGenerationState.Confirmed,
             expectedStaleEvents: 0);
 
+        // The body type is recorded on the Case and the report no longer
+        // prints it (operator, 27 September 2026), so it leaves a report current.
         var bodyLease = await harness.AcquireLeaseAsync(
             unprinted.CaseVersion,
             actor,
             "direct-assessment-body-lease");
-        await assessmentStore.SaveAsync(
+        var body = await assessmentStore.SaveAsync(
             new(
                 harness.CaseId,
                 unprinted.CaseVersion,
                 actor,
                 "direct-assessment-body-save",
-                "Corrected the printed body type.",
+                "Recorded the body type.",
                 bodyLease.Token,
                 new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     [AssessmentVocabulary.VehicleBody] = "Hatchback",
+                }),
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Confirmed,
+            expectedStaleEvents: 0);
+
+        var vinLease = await harness.AcquireLeaseAsync(
+            body.CaseVersion,
+            actor,
+            "direct-assessment-vin-lease");
+        await assessmentStore.SaveAsync(
+            new(
+                harness.CaseId,
+                body.CaseVersion,
+                actor,
+                "direct-assessment-vin-save",
+                "Corrected the printed VIN.",
+                vinLease.Token,
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.VehicleVin] = "KNABX312LCT122784",
                 }),
             CancellationToken.None);
 

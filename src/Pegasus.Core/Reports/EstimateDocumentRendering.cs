@@ -8,7 +8,11 @@ namespace Pegasus.Core.Reports;
 public static class EstimateDocumentContract
 {
     public const string PayloadVersion = "estimate-payload-v1";
-    public const string TemplateVersion = "estimate-v1";
+    /// <summary>
+    /// v2 (27 September 2026): the Repair Spec printout takes the report's
+    /// header, footer, margins and heading style.
+    /// </summary>
+    public const string TemplateVersion = "estimate-v2";
     public const int MaximumLines = 250;
     public const int MaximumAggregateCharacters = 80_000;
     public const int MaximumFieldCharacters = 4_000;

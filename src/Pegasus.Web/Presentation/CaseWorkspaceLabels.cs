@@ -403,7 +403,11 @@ public static class CaseWorkspaceLabels
             // signature are the account's, set in Accounts, so no Case section
             // clears those blockers (operator, 26 September 2026).
             _ when item == CaseReportReadiness.SignOffEngineerNotChosen => "overview",
-            { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
+            {
+                Requirement: CaseReportReadiness.CurrentEstimateRequirement
+                    or CaseReportReadiness.LabourRateRequirement
+                    or CaseReportReadiness.RepairerVatRequirement
+            } => "estimate",
             {
                 Requirement: CaseReportReadiness.CloseUpImageRequirement
                     or CaseReportReadiness.OverviewImageRequirement
@@ -616,8 +620,8 @@ public static class CaseWorkspaceLabels
 
         /// <summary>
         /// A Vehicle-section assessment value as a read value: a date in the
-        /// office's short form, an enumerated code in the words the report
-        /// prints, everything else as recorded.
+        /// office's short form, an enumerated code as words, everything else
+        /// as recorded.
         /// </summary>
         public static string AssessmentValue(string path, string value)
         {
