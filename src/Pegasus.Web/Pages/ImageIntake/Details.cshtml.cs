@@ -89,6 +89,19 @@ public sealed class DetailsModel(
     public IReadOnlyList<Principal> PrincipalOptions { get; private set; } = [];
 
     /// <summary>
+    /// Why automatic association leaves this record to staff, from the same
+    /// Core policy the pairing applies; null when there is nothing to explain.
+    /// </summary>
+    public ImageIntakeAutomationWithheld? AutomationWithheld { get; private set; }
+
+    /// <summary>A candidate Case's Principal, named from the Principal lookup.</summary>
+    public string CandidatePrincipal(ImageIntakeCaseCandidate candidate) =>
+        candidate.PrincipalId is not { } principalId
+            ? OperatorLabels.PrincipalNotKnown
+            : PrincipalOptions.FirstOrDefault(principal => principal.Id == principalId)?.Code
+                ?? OperatorLabels.PrincipalInactive;
+
+    /// <summary>
     /// The Triage opened from this record's origin receipt, if any — the same
     /// receipt-keyed lookup <c>Pegasus.Web.Pages.Intake.DetailsModel</c> uses
     /// (<see cref="ITriageQueries.GetByOriginReceiptAsync"/>), so this page can
@@ -170,6 +183,13 @@ public sealed class DetailsModel(
                 cancellationToken)
             : [];
         PrincipalOptions = await imageIntakeStore.ListActivePrincipalsAsync(cancellationToken);
+        AutomationWithheld = detail.State == ImageInitiatedCaseState.AwaitingInstruction
+            ? ImageIntakeCasePairing.ExplainWithheld(
+                AssociationCandidates,
+                detail.Record.NormalizedVehicleRegistration,
+                detail.Record.PrincipalId,
+                detail.GroupExpectedMemberCount)
+            : null;
         Triage = await triageQueries.GetByOriginReceiptAsync(
             detail.Record.Origin.ReceiptId,
             cancellationToken);
