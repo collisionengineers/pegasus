@@ -862,6 +862,32 @@ public sealed class CaseReportGenerationTests
     }
 
     /// <summary>
+    /// Custody holds a record of the file though it cannot say what became
+    /// of it. A second drawing would still be refused against that record, so
+    /// the retry keeps the outcome and draws nothing.
+    /// </summary>
+    [Fact]
+    public async Task AFileCustodyCannotAccountForIsRecordedWithoutRenderingAgain()
+    {
+        var store = new FakeStore();
+        var renderer = new RecordingRenderer();
+        var custody = new RecordingCustody();
+        var held = new CaseArtifactCustodyResult(
+            CaseArtifactCustodyDisposition.Unknown, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            null, null, null, null, null, null, null);
+        var status = new RecordingCustodyStatus { Result = held };
+
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Pending, result.Outcome);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        var recorded = Assert.Single(store.Outcomes);
+        Assert.Equal(CaseReportArtifactStatus.Unknown, recorded.Status);
+        Assert.Equal(held.VersionId, recorded.VersionId);
+    }
+
+    /// <summary>
     /// The fee note, the Repair Spec and the image pack retry as the report
     /// does: a stored file is confirmed under its own name and nothing is
     /// drawn, the Repair Spec's own document included.
