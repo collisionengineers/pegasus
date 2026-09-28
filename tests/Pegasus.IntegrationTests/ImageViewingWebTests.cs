@@ -158,6 +158,10 @@ public sealed class ImageViewingWebTests
         // fallback, is the stable identity shared by both gallery surfaces.
         var imageAssetId = Assert.IsType<Guid>(galleryImage.AssetId);
         var expectedSource = $"/Received/{receiptId:D}/Asset/{imageAssetId:D}";
+        // Both galleries link the address that names the content, so a
+        // browser may keep the image.
+        var contentHash = Assert.IsType<string>(galleryImage.ContentHash);
+        var expectedHref = $"{expectedSource}?v={contentHash}";
         var imageCasePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
         Assert.Contains(expectedSource, imageCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("alt=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
@@ -167,7 +171,7 @@ public sealed class ImageViewingWebTests
         Assert.Contains("data-evidence-set", imageCasePage, StringComparison.Ordinal);
         Assert.Contains("data-evidence-item", imageCasePage, StringComparison.Ordinal);
         Assert.Contains("data-file-name=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
-        Assert.Contains($"<a href=\"{expectedSource}\"", imageCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<a href=\"{expectedHref}\"", imageCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-evidence-viewer", imageCasePage, StringComparison.Ordinal);
         // The viewer's whole copy budget. Anything beyond this is explanatory
         // copy, which docs/design/README.md forbids.
@@ -180,6 +184,7 @@ public sealed class ImageViewingWebTests
             client,
             $"/Cases/{caseId:D}?section=files");
         Assert.Contains(expectedSource, casePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<a href=\"{expectedHref}\"", casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AB12CDE-01", casePage, StringComparison.Ordinal);
         // v26 § Image viewer: the Case record carries its own full-screen
         // viewer rather than the shell's dialog; the intake photographs join
