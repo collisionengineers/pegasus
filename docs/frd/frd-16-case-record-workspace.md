@@ -590,7 +590,9 @@ Type in the editor's words; a scaled spec's Target % of value bar stands in
 its place with the Scaled state; the tools (add and delete lines, the Target
 % of value controls, Reset to repairer status) are drawn only while the spec
 edits. The spec has no save of its own: the ribbon Save records it, and a
-spec left unchanged is not rewritten. Apply and Remove scaling save first and
+spec left unchanged is not rewritten. Moving the Target % of value slider
+previews the scaled spec in amber cells, the rollup and the readout, and
+records nothing (issue 897). Apply and Remove scaling save first and
 then scale the saved spec. The More menu holds New repair spec
 (editing, recorded by the Save and starting on the one enabled labour-rate
 card), **Print Repair Spec** for a saved spec with lines, and Compare,

@@ -83,17 +83,43 @@ public sealed record ScalingFloors(decimal LabourRatePerHour, decimal PricePerce
 /// the record). One factor lowers every part price, every materials figure
 /// and the labour rate, each down to its floor; hours are never touched. The
 /// factor is found by bisection so the printed total inc VAT meets the
-/// target as closely as the floors allow.
+/// target as closely as the floors allow. Moving the slider previews the
+/// same result (issue 897); only Apply records it.
 /// </summary>
 public static class RepairSpecificationScaling
 {
+    /// <summary>
+    /// The scaled header and lines, and the scaled spec's totals, which a
+    /// preview shows and Apply records.
+    /// </summary>
     public sealed record Result(
         EstimateDetails Details,
         IReadOnlyList<EstimateLineInput> Lines,
         decimal Factor,
         decimal PriceFactor,
         decimal GrossBefore,
-        decimal GrossAfter);
+        EstimateTotals Totals)
+    {
+        public decimal GrossAfter => Totals.Printed.Gross;
+    }
+
+    /// <summary>
+    /// The total inc VAT a percentage of the Engineer's Value asks for. The
+    /// Engineer's Value must be recorded and the percentage between 1 and 100.
+    /// </summary>
+    public static decimal TargetGross(decimal? engineerValue, decimal targetPercent)
+    {
+        if (engineerValue is not { } value || value <= 0m)
+        {
+            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
+        }
+        if (targetPercent is < 1m or > 100m)
+        {
+            throw new ArgumentException(
+                "The target must be between 1 and 100 percent of the Engineer's Value.", nameof(targetPercent));
+        }
+        return value * targetPercent / 100m;
+    }
 
     public static decimal GrossAt(RepairSpecificationVersion specification, decimal factor, ScalingFloors floors) =>
         EstimateTotals.Compute(Scaled(specification, factor, floors)).Printed.Gross;
@@ -137,7 +163,7 @@ public static class RepairSpecificationScaling
             decimal.Round(factor, 6),
             decimal.Round(Math.Max(floors.PricePercent / 100m, factor), 6),
             top,
-            EstimateTotals.Compute(scaled).Printed.Gross);
+            EstimateTotals.Compute(scaled));
     }
 
     private static RepairSpecificationVersion Scaled(RepairSpecificationVersion specification, decimal factor, ScalingFloors floors)
@@ -246,19 +272,12 @@ public sealed class ScaleRepairSpecification(
         RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         var projection = await assessment.GetAsync(request.CaseId, cancellationToken);
         var field = projection?.Field(AssessmentVocabulary.ValueEngineer);
-        if (field is null
-            || !decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var engineerValue)
-            || engineerValue <= 0m)
-        {
-            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
-        }
-
+        decimal? engineerValue = field is not null
+            && decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var recorded)
+                ? recorded
+                : null;
         var targetPercent = request.TargetPercentOfValue;
-
-        if (targetPercent is < 1m or > 100m)
-        {
-            throw new ArgumentException("The target must be between 1 and 100 percent of the Engineer's Value.", nameof(request));
-        }
+        RepairSpecificationScaling.TargetGross(engineerValue, targetPercent);
 
         return await store.ScaleAsync(
             request with
@@ -316,13 +335,21 @@ public static class RepairSpecificationWording
 
     public static string Money(decimal value) => "£" + value.ToString("N2", Gb);
 
-    public static string Scaled(RepairSpecificationScaling.Result result, decimal? percentOfValue)
+    public static string Scaled(RepairSpecificationScaling.Result result, decimal? percentOfValue) =>
+        "Repair spec scaled: " + ScaleReadout(result, percentOfValue);
+
+    /// <summary>
+    /// The Target % of value readout (v28 P34): what the spec totals before
+    /// and after, the share of value and the price factor. The preview shows
+    /// it while the slider moves and Apply records it.
+    /// </summary>
+    public static string ScaleReadout(RepairSpecificationScaling.Result result, decimal? percentOfValue)
     {
         ArgumentNullException.ThrowIfNull(result);
         var share = percentOfValue is { } percent
             ? " (" + percent.ToString("0.0", CultureInfo.InvariantCulture) + " % of value)"
             : string.Empty;
-        return $"Repair spec scaled: {Money(result.GrossBefore)} \u2192 {Money(result.GrossAfter)}{share} \u00b7 prices \u00d7{result.PriceFactor.ToString("0.00", CultureInfo.InvariantCulture)}";
+        return $"{Money(result.GrossBefore)} \u2192 {Money(result.GrossAfter)}{share} \u00b7 prices \u00d7{result.PriceFactor.ToString("0.00", CultureInfo.InvariantCulture)}";
     }
 }
 

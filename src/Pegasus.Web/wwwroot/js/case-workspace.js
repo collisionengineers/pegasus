@@ -2492,8 +2492,16 @@
     }
 
     // Target % of value (v28 P34): the browser carries only scaling intent.
-    // Core owns the Engineer's Value,
-    // floors and all monetary arithmetic when Apply is posted.
+    // Core owns the Engineer's Value, floors and all monetary arithmetic.
+    // Moving the slider previews (issue 897): Core scales and totals the spec
+    // as the editor holds it, and the changed cells show its figures in amber,
+    // read-only, with the rollup and the readout following. Any submit puts
+    // the cells back first, so a Save records the spec as edited; only Apply
+    // records a scaled spec.
+    var scalePreview = null;
+    document.addEventListener('submit', function () {
+        if (scalePreview) { scalePreview(); }
+    }, true);
     function bindScale(form) {
         var bar = form.querySelector('[data-estimate-scale]');
         if (!bar) {
@@ -2511,13 +2519,137 @@
         function reveal() {
             if (apply) { apply.hidden = false; }
         }
+        var section = form.closest('[data-estimate-section]') || form;
+        var url = bar.getAttribute('data-scale-preview-url');
+        var read = bar.querySelector('[data-scale-read]');
+        var chip = bar.querySelector('[data-scale-preview]');
+        var floors = [bar.querySelector('[data-scale-floor-rate]'), bar.querySelector('[data-scale-floor-price]')];
+        var timer = null;
+        var inFlight = null;
+        // What the preview changed, to put back: each cell's value and
+        // read-only state, and each rollup figure.
+        var shown = null;
+
+        function field(name) {
+            return Array.prototype.slice.call(section.querySelectorAll('input[name="' + name + '"][form="case-edit-form"]'));
+        }
+        function end() {
+            window.clearTimeout(timer);
+            if (inFlight) { inFlight.abort(); inFlight = null; }
+            if (shown) {
+                shown.cells.forEach(function (cell) {
+                    cell.input.value = cell.value;
+                    cell.input.readOnly = cell.readOnly;
+                    cell.input.classList.remove('is-previewed');
+                });
+                shown.figures.forEach(function (figure) { figure.node.textContent = figure.text; });
+                shown = null;
+            }
+            if (read) { read.textContent = ''; }
+            if (chip) { chip.hidden = true; }
+            if (scalePreview === end) { scalePreview = null; }
+        }
+        // The request carries the spec as edited, never as previewed.
+        function body() {
+            var caseForm = document.getElementById('case-edit-form');
+            var previewed = shown ? shown.cells.map(function (cell) {
+                var value = cell.input.value;
+                cell.input.value = cell.value;
+                return value;
+            }) : null;
+            var data = new FormData(caseForm);
+            if (previewed) {
+                shown.cells.forEach(function (cell, index) { cell.input.value = previewed[index]; });
+            }
+            data.set('targetPercent', percent.value);
+            data.set('floorRate', floors[0] ? floors[0].value : '');
+            data.set('floorPrice', floors[1] ? floors[1].value : '');
+            return data;
+        }
+        function paint(result) {
+            if (!shown) {
+                shown = { cells: [], figures: [] };
+                field('linePartPounds').concat(field('lineMaterials'), field('estimateLabourRate')).forEach(function (input) {
+                    shown.cells.push({ input: input, value: input.value, readOnly: input.readOnly });
+                    input.readOnly = true;
+                });
+                section.querySelectorAll('[data-rollup]').forEach(function (node) {
+                    shown.figures.push({ node: node, text: node.textContent });
+                });
+                scalePreview = end;
+            }
+            function set(input, value) {
+                if (!input) { return; }
+                var original = shown.cells.filter(function (cell) { return cell.input === input; })[0];
+                input.value = value === null ? '' : value;
+                input.classList.toggle('is-previewed', !!original && input.value !== original.value);
+            }
+            var prices = field('linePartPounds');
+            var materials = field('lineMaterials');
+            result.lines.forEach(function (line) {
+                set(prices[line.row], line.price);
+                set(materials[line.row], line.materials);
+            });
+            set(field('estimateLabourRate')[0], result.labourRate);
+            shown.figures.forEach(function (figure) {
+                var text = result.rollup[figure.node.getAttribute('data-rollup')];
+                if (typeof text === 'string') { figure.node.textContent = text; }
+            });
+            if (read) { read.textContent = result.readout; }
+            if (chip) { chip.hidden = false; }
+        }
+        function preview() {
+            var caseForm = document.getElementById('case-edit-form');
+            if (!url || !caseForm) {
+                return;
+            }
+            if (inFlight) { inFlight.abort(); }
+            var request = new AbortController();
+            inFlight = request;
+            fetch(url, {
+                method: 'POST',
+                body: body(),
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' },
+                signal: request.signal
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error('scale preview: ' + response.status);
+                }
+                return response.json();
+            }).then(function (result) {
+                if (inFlight !== request) { return; }
+                inFlight = null;
+                if (result.status === 'ok') { paint(result); } else { end(); }
+            }).catch(function (error) {
+                // An aborted request was replaced; any other failure leaves
+                // the spec as edited, and Apply still asks Core.
+                if (error && error.name === 'AbortError') { return; }
+                end();
+            });
+        }
+        function schedule() {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(preview, 250);
+        }
         range.addEventListener('input', function () {
             percent.value = range.value;
             reveal();
+            schedule();
         });
         percent.addEventListener('input', function () {
             range.value = percent.value;
             reveal();
+            schedule();
+        });
+        floors.forEach(function (input) {
+            if (input) {
+                input.addEventListener('input', function () { if (shown) { schedule(); } });
+            }
+        });
+        // A header change while previewing (VAT, discounts) is previewed too.
+        section.addEventListener('change', function (event) {
+            if (shown && !bar.contains(event.target)) { schedule(); }
         });
     }
 
