@@ -917,6 +917,13 @@ public static class CaseWorkspaceLabels
         /// <summary>The Next action while the report's file is on its way to Box.</summary>
         public const string WaitingForStorage = "Waiting for the report to be stored";
 
+        /// <summary>
+        /// Generate report was pressed over unsaved changes and the saved Case
+        /// no longer offers it.
+        /// </summary>
+        public const string NotReadyAfterSave =
+            "The report is not ready after the save. The Report section lists what is missing.";
+
         /// <summary>The generation ran out of time.</summary>
         public static string TookTooLong(CaseReportArtifactKind kind) =>
             $"{Document(kind)} took too long to generate.";

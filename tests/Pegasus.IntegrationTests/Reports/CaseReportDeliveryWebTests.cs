@@ -591,6 +591,33 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
+    /// Pressed over unsaved changes, Generate report saves the Case first. Its
+    /// form holds the words the script says when the saved Case no longer
+    /// offers it, so the press is never lost without a word.
+    /// </summary>
+    [Fact]
+    public async Task GenerateReportHoldsTheWordsForAPressTheSaveLeftNotReady()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]));
+        using var client = Client(factory);
+
+        var form = WebUtility.HtmlDecode(FormHtml(await EnterEditModeAsync(client, caseId), "GenerateReport"));
+
+        Assert.Contains("data-case-save-first", form, StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-save-first-dropped=\"{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.NotReadyAfterSave}\"",
+            form,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Delivery is the next action only once the report is stored. While its
     /// file is on its way to Box the aside says it is waited for; a report
     /// never drawn, failed or not confirmed is generated again.

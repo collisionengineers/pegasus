@@ -121,8 +121,12 @@
         <div class="panel-actions">
             @if (canGenerate)
             {
+                @* Pressed over unsaved changes, the script saves first and posts
+                   the form the save renders; when that page no longer offers
+                   it, the script says so in these words. *@
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
-                      asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report data-case-save-first>
+                      asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report data-case-save-first
+                      data-save-first-dropped="@ReportLabels.NotReadyAfterSave">
                     <input type="hidden" name="operationKey" value="@reportOperationKey" />
                     @if (editing)
                     {

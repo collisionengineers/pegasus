@@ -1171,7 +1171,9 @@
     }
     // The action's form is found again after the save's swap, which renders
     // it afresh with the Case's new version and a new operation key, and the
-    // operator's choices in it are put back before it is sent.
+    // operator's choices in it are put back before it is sent. A form that
+    // says what to tell the operator when the saved Case no longer offers it
+    // (data-save-first-dropped) has that said rather than the press lost.
     function again(form, submitter) {
         var id = form.getAttribute('id');
         var action = form.getAttribute('action');
@@ -1179,11 +1181,15 @@
         var name = submitter ? submitter.name : '';
         var value = submitter ? submitter.value : '';
         var formaction = submitter ? submitter.getAttribute('formaction') : null;
+        var dropped = form.getAttribute('data-save-first-dropped');
         return function () {
             var next = id ? document.getElementById(id) : Array.prototype.find.call(
                 record.querySelectorAll('form[action]'),
                 function (candidate) { return candidate.getAttribute('action') === action; });
-            if (!next) { return; }
+            if (!next) {
+                if (dropped) { showActionError(dropped); }
+                return;
+            }
             restoreChoices(next, choices);
             var button = submitter ? Array.prototype.find.call(next.elements, function (element) {
                 return element.type === 'submit' && element.name === name && element.value === value
