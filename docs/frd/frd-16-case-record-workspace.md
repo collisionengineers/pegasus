@@ -105,7 +105,9 @@ from it (Apply or Remove scaling, Generate report while editing, and the
 unsaved-changes question's Save).
 Pressing a section's Edit enters edit mode in place: the section stays where
 it was on the screen. Selecting a tab also updates the section that Refresh
-submits; after a refresh its active lazy body loads.
+submits; after a refresh its active lazy body loads. While editing, Files and
+Notes still load when they come into view, because neither has a field in
+the one Save. Every other section renders with the page.
 
 Reading and editing show the same fields in the same places (operator, 23
 September 2026): every value is a box, greyed where it cannot be edited and a

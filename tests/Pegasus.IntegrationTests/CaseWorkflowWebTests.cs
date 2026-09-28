@@ -191,6 +191,7 @@ public sealed class CaseWorkflowWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -306,6 +307,7 @@ public sealed class CaseWorkflowWebTests
                 services.RemoveAll<ITransitionCase>();
                 services.RemoveAll<IAssignCaseEngineer>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IHoldCase>(store);

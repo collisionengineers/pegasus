@@ -121,6 +121,7 @@ public sealed class AssessmentCopyWebTests
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.AddSingleton<IGetCase>(fakeSource);
+                services.AddSingleton<IGetCaseEditBasis>(fakeSource);
                 services.AddSingleton<IGetCasePageFrame>(fakeSource);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(fakeSource);
@@ -160,8 +161,12 @@ public sealed class AssessmentCopyWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
-    private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetCasePageFrame, IGetAssessmentWorkspace
+    private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetCaseEditBasis, IGetCasePageFrame, IGetAssessmentWorkspace
     {
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
+
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
             if (query.CaseId != caseId)

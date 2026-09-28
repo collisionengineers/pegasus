@@ -1,7 +1,7 @@
 # Source architecture
 
 Source structure includes ADR-0049's Linux App Service Web composition: the
-Web host is a framework-dependent Linux x64 `web.zip` deployed to a
+Web host is a framework-dependent, ReadyToRun Linux x64 `web.zip` deployed to a
 `DOTNETCORE|10.0` App Service Web App, while the Worker remains a Flex
 Consumption Function App. `infra/modules/platform.bicep` supplies the Web
 plan, App Service configuration and managed identity; the release route deploys
@@ -94,6 +94,8 @@ flowchart LR
 | EF image-intake persistence | `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` |
 | Database model and migrations | `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/` |
 | Web composition, feature gates and route safety | `src/Pegasus.Web/Program.cs` |
+| Staff cookie check, page compression and startup readiness | `src/Pegasus.Web/Authentication/StaffPrincipalValidator.cs` checks the account's security stamp, absolute lifetime and enabled state on every request without rebuilding the principal; `tests/Pegasus.ArchitectureTests/StaffAuthorityStampRotationTests.cs` keeps staff authority changes with the owners that rotate the stamp. `Program.cs` compresses `text/html` responses (ADR-0057). `src/Pegasus.Web/Health/StartupWarmup.cs` warms the hot reads once at start and holds the `ready` health check, and `/health/warm` (the App Service start-up ping, with no database check), until it ends or 45 s pass. The `/health` endpoints are not redirected to HTTPS. |
+| Concurrent page reads | `src/Pegasus.Web/Presentation/BoundedReads.cs` runs one request's independent reads, at most four at a time; only readers on their own context-factory context use it. Callers: the Case page phases in `Pages/Cases/Details.cshtml.cs` and the Work Centre sections in `Pages/Index.cshtml.cs` (which start their three sections together without it). |
 | Core retained-mail read model, use cases and freshness policy | `src/Pegasus.Core/Intake/RetainedMail.cs` |
 | EF retained-mail store (poll write path and workspace read path) | `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` |
 | Canonical Operations and retained-file viewer callers | `src/Pegasus.Web/Pages/Operations/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs`; a Draft ready job's review link is Core's `StaffNotificationPolicy.AiDraftRoute`, the route the Work Centre and the Case Next action use |

@@ -279,7 +279,7 @@ public sealed class CaseDamageAndViewerWebTests
     /// without a lease so the Damage section renders its read view.
     /// </summary>
     private sealed class DamageSource(string impacts) :
-        IGetCase,
+        IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetAssessmentAccess,
         IGetAssessmentWorkspace,
@@ -297,6 +297,7 @@ public sealed class CaseDamageAndViewerWebTests
             services.RemoveAll<ICaseReportSnapshotSource>();
             services.RemoveAll<IListCaseEstimates>();
             services.AddSingleton<IGetCase>(this);
+            services.AddSingleton<IGetCaseEditBasis>(this);
             services.AddSingleton<IGetCasePageFrame>(this);
             services.AddSingleton<IGetAssessmentAccess>(this);
             services.AddSingleton<IGetAssessmentWorkspace>(this);
@@ -349,6 +350,10 @@ public sealed class CaseDamageAndViewerWebTests
             };
         }
 
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
+
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? Details() : null);
 
@@ -391,7 +396,7 @@ public sealed class CaseDamageAndViewerWebTests
         public Task<CaseReportFreezeInputs?> GetAsync(
             Guid caseId,
             ActionActor actor,
-            CaseWorkSelector work, CancellationToken cancellationToken)
+            CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             var assessment = Assessment();
             return Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
@@ -417,6 +422,7 @@ public sealed class CaseDamageAndViewerWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);

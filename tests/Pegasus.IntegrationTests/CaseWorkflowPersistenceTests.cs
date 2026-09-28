@@ -892,12 +892,11 @@ public sealed class CaseWorkflowPersistenceTests
             new(harness.CaseId, before.Version, actor, "claim-ineligible-assignment"),
             default);
         var operationKey = $"assign-ineligible-{role}-{isEnabled}-{createAccount}";
-        await using var staffContext = await harness.Factory.CreateDbContextAsync();
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
             harness.EngineerEligibility,
-            new EfStaffAccountQueries(staffContext));
+            new EfStaffAccountQueries(harness.Factory));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(
@@ -944,12 +943,11 @@ public sealed class CaseWorkflowPersistenceTests
             lease.Token,
             engineerId,
             new(true, true, "accepted-readiness"));
-        await using var staffContext = await harness.Factory.CreateDbContextAsync();
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
             harness.EngineerEligibility,
-            new EfStaffAccountQueries(staffContext));
+            new EfStaffAccountQueries(harness.Factory));
 
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
             sut.ExecuteAsync(request with { ExpectedVersion = before.Version + 1 }, default));
@@ -1030,10 +1028,9 @@ public sealed class CaseWorkflowPersistenceTests
             "Select report signatory",
             lease.Token,
             signOffEngineerId);
-        await using var staffContext = await harness.Factory.CreateDbContextAsync();
         var sut = new SetCaseSignOffEngineer(
             harness.Store,
-            new EfStaffAccountQueries(staffContext));
+            new EfStaffAccountQueries(harness.Factory));
 
         var selected = await sut.ExecuteAsync(request, default);
         var replay = await sut.ExecuteAsync(request, default);

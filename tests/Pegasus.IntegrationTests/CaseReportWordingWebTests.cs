@@ -172,6 +172,7 @@ public sealed class CaseReportWordingWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -223,7 +224,7 @@ public sealed class CaseReportWordingWebTests
         : ICaseReportSnapshotSource
     {
         public Task<CaseReportFreezeInputs?> GetAsync(
-            Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
+            Guid caseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             var projection = AssessmentReportDraftWebTests.ReadyInput(caseId);
             if (!currentEstimate)
