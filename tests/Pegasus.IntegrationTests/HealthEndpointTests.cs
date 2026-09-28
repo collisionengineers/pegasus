@@ -1,4 +1,9 @@
+using System.Net;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Pegasus.Web.Health;
 
 namespace Pegasus.IntegrationTests;
 
@@ -25,6 +30,48 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
         using var response = await client.GetAsync(path);
 
         response.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task ReadinessWaitsForTheStartupWarmup()
+    {
+        var state = new StartupWarmupState();
+        var check = new StartupWarmupHealthCheck(state);
+
+        Assert.Equal(HealthStatus.Unhealthy, (await check.CheckHealthAsync(new HealthCheckContext())).Status);
+        state.Complete();
+        Assert.Equal(HealthStatus.Healthy, (await check.CheckHealthAsync(new HealthCheckContext())).Status);
+    }
+
+    [Fact]
+    public async Task AWarmingInstanceBecomesReadyOnceItsWarmupEnds()
+    {
+        using var warming = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Startup:Warmup"] = "true"
+                })));
+        using var client = warming.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // The warm-up is bounded, so readiness arrives well inside a minute.
+        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(1);
+        HttpStatusCode status;
+        do
+        {
+            using var response = await client.GetAsync("/health/ready");
+            status = response.StatusCode;
+            if (status != HttpStatusCode.OK)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250));
+            }
+        }
+        while (status != HttpStatusCode.OK && DateTimeOffset.UtcNow < deadline);
+
+        Assert.Equal(HttpStatusCode.OK, status);
     }
 
     [Fact]

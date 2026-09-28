@@ -289,7 +289,10 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
             ["Glass:RepairProfileId"] = "4063",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
-            ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
+            ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports",
+            // The startup warm-up reads in the background; a test host skips
+            // it so readiness answers for the database alone.
+            ["Startup:Warmup"] = "false"
         };
         foreach (var setting in settings)
         {
