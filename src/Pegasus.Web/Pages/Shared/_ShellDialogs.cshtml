@@ -157,13 +157,6 @@
                 <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
                 <span><strong>@OperatorLabels.Nav.Search</strong></span>
             </button>
-            @if (inboxEnabled)
-            {
-                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Operations">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
-                    <span><strong>@OperatorLabels.Nav.Operations</strong></span>
-                </button>
-            }
             @if (isAdministrator)
             {
                 <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Administration">

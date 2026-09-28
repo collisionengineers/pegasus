@@ -44,28 +44,17 @@ public sealed class OperationsUseCaseTests
     }
 
     [Fact]
-    public async Task RequestProjectionAndExternalRetryAreStaffBounded()
+    public async Task RequestProjectionIsStaffBounded()
     {
         var projectionStore = new RecordingRequestStore(EmptyRequestProjection());
-        var retryStore = new RecordingExternalRetryStore();
         var timeProvider = new FixedTimeProvider(FixedUtcNow);
         var query = new GetRequestOperations(projectionStore, timeProvider);
-        var retry = new RetryExternalWork(retryStore, timeProvider);
-        var actor = StaffActor();
-        var workId = Guid.NewGuid();
 
-        var projection = await query.ExecuteAsync(actor, cancellationToken: CancellationToken.None);
-        var result = await retry.ExecuteAsync(
-            new(workId, 4, actor, "external-retry"),
-            CancellationToken.None);
+        var projection = await query.ExecuteAsync(StaffActor(), cancellationToken: CancellationToken.None);
 
         Assert.Empty(projection.Items);
         Assert.Equal(GetRequestOperations.MaximumItems, projectionStore.MaximumItems);
         Assert.Equal(FixedUtcNow, projectionStore.AsOfUtc);
-        Assert.False(result.IsReplay);
-        Assert.Equal(workId, retryStore.Command?.WorkItemId);
-        Assert.Equal(4, retryStore.Command?.ExpectedAttemptCount);
-        Assert.Equal(FixedUtcNow, retryStore.RetryAtUtc);
     }
 
     [Fact]
@@ -124,27 +113,6 @@ public sealed class OperationsUseCaseTests
             MaximumItems = maximumItems;
             AsOfUtc = nowUtc;
             return Task.FromResult(result);
-        }
-
-        public Task<int> CountRetryableExternalFailuresAsync(
-            DateTimeOffset nowUtc,
-            CancellationToken cancellationToken) => Task.FromResult(0);
-    }
-
-    private sealed class RecordingExternalRetryStore : IExternalWorkRetryStore
-    {
-        public RetryExternalWorkCommand? Command { get; private set; }
-
-        public DateTimeOffset? RetryAtUtc { get; private set; }
-
-        public Task<OperationsRetryResult> RetryAsync(
-            RetryExternalWorkCommand command,
-            DateTimeOffset retryAtUtc,
-            CancellationToken cancellationToken)
-        {
-            Command = command;
-            RetryAtUtc = retryAtUtc;
-            return Task.FromResult(new OperationsRetryResult(IsReplay: false));
         }
     }
 

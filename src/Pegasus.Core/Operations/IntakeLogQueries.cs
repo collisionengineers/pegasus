@@ -85,8 +85,7 @@ public sealed record IntakeLogPage(
 /// <summary>
 /// The tab's head-line counts. <see cref="FailedIntake"/> counts every receipt
 /// whose outcome is a retryable failure (<see cref="IntakeLogPolicy.RetryableFailures"/>):
-/// the same rows Operations lists under Attention required, each with its own
-/// retry.
+/// the rows the Intake log lists as retryable, each with its own retry.
 /// </summary>
 public sealed record IntakeLogCounts(int FailedIntake, DateTimeOffset? OldestPendingIntakeDueAtUtc);
 
@@ -110,8 +109,8 @@ public sealed record IntakeLogDetail(
     IntakeLogActions Actions);
 
 /// <summary>
-/// The bounded Operations attention projection. It carries exactly the action
-/// facts that surface needs, without opening every failed receipt's full Log
+/// The bounded retryable-failure projection. It carries exactly the action
+/// facts a failure needs, without opening every failed receipt's full Log
 /// drawer independently.
 /// </summary>
 public sealed record IntakeLogActionableFailure(
@@ -138,7 +137,7 @@ public static class IntakeLogPolicy
     public const int MaximumTextLength = 200;
 
     /// <summary>
-    /// The intake failures a person can retry, in the order Operations lists
+    /// The intake failures a person can retry, in the order the log lists
     /// them: failed allocation (Retry allocation), failed OCR (Retry OCR) and
     /// any other processing failure (Re-evaluate). The Intake log's Failed
     /// intake count is the number of receipts in these outcomes.

@@ -55,8 +55,8 @@ public enum ServiceHealthDependency
 }
 
 /// <summary>
-/// Exactly the identity <see cref="RetryExternalWorkCommand"/> needs; the
-/// Retry column is that command and nothing else.
+/// The identity of a retryable external-work failure: the work item and its
+/// attempt count.
 /// </summary>
 public sealed record ServiceHealthRetryTarget(Guid WorkItemId, int ExpectedAttemptCount);
 

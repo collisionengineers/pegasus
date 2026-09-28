@@ -92,7 +92,7 @@ public sealed record WorkCentreMetrics(int NotReady, int Review, int Held, int U
 /// screen with no link to the receipt, work item or failure behind any of them
 /// — a diagnostic nobody on that screen could act on. Reconciliation itself is
 /// unchanged and remains the Worker's job. Failed external work is absent too
-/// (D1): it lives on Operations, whose rail badge counts it.
+/// (D1): it is retried in the record it belongs to.
 /// </remarks>
 public sealed record OperationsSnapshot(
     DateTimeOffset AsOfUtc,
@@ -135,34 +135,6 @@ public interface IGetAttentionRows
     Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAsync(
         ActionActor actor,
         CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// The Operations rail badge (Work Centre D1): how many failed external
-/// work items can be retried. Nothing else counts towards it.
-/// </summary>
-public interface IGetOperationsBadge
-{
-    Task<int> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken = default);
-}
-
-public sealed class GetOperationsBadge(
-    IRequestOperationsProjectionStore requestOperations,
-    TimeProvider timeProvider) : IGetOperationsBadge
-{
-    private readonly IRequestOperationsProjectionStore _requestOperations =
-        requestOperations ?? throw new ArgumentNullException(nameof(requestOperations));
-    private readonly TimeProvider _timeProvider =
-        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
-
-    public async Task<int> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        return await _requestOperations.CountRetryableExternalFailuresAsync(
-            _timeProvider.GetUtcNow(),
-            cancellationToken);
-    }
 }
 
 /// <summary>
@@ -668,7 +640,7 @@ public sealed class GetOperationsSnapshot(
                 Received: draft.DraftWrittenAtUtc)
             {
                 OwnerStaffId = owner,
-                Route = draft.Route
+                Route = draft.Route ?? string.Empty
             });
         }
 

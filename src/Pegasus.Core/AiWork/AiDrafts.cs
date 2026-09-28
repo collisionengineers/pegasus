@@ -17,13 +17,14 @@ public enum AiDraftAction
 
 /// <summary>
 /// A Draft ready job as the Case record's Next action panel and the Work Centre
-/// see it: the job, where its action opens, when the draft was written and when
+/// see it: the job, where its action opens (none for a queue pass or Market
+/// research without a record page), when the draft was written and when
 /// it is due under the AI draft target. Market research is never a draft.
 /// </summary>
 public sealed record AiDraft(
     AiJobRecord Job,
     AiDraftAction Action,
-    string Route,
+    string? Route,
     DateTimeOffset DraftWrittenAtUtc,
     DateTimeOffset DueAtUtc);
 
@@ -71,7 +72,7 @@ public static class AiDraftPolicy
             return null;
         }
 
-        var route = StaffNotificationPolicy.AiDraftRoute(job) ?? "/Operations";
+        var route = StaffNotificationPolicy.AiDraftRoute(job);
         var written = job.DraftReadyAtUtc ?? job.TakenAtUtc ?? job.CreatedAtUtc;
         return new AiDraft(job, ActionFor(job.Kind), route, written, DueAt(written, targetDays));
     }

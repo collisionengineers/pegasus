@@ -205,8 +205,7 @@ public sealed class CaseCustodyWebTests
         // Add evidence opens Upload for this Case: the destination is declared
         // before the upload (FRD-18).
         Assert.Contains($"href=\"/Upload?caseId={store.CaseId:D}\"", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(OperatorLabels.CaseWorkspace.OpenOperations, html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/Operations\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href=\"/Operations\"", html, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

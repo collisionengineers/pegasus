@@ -350,17 +350,13 @@ public static class DependencyInjection
         services.AddScoped<EfOperationsStore>();
         services.AddScoped<IRequestOperationsProjectionStore>(
             provider => provider.GetRequiredService<EfOperationsStore>());
-        services.AddScoped<IExternalWorkRetryStore>(
-            provider => provider.GetRequiredService<EfOperationsStore>());
         services.AddScoped<GetRequestOperations>();
-        services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
         services.AddScoped<GetOperationsSnapshot>();
         services.AddScoped<IGetOperationsSnapshot>(provider =>
             provider.GetRequiredService<GetOperationsSnapshot>());
         services.AddScoped<IGetAttentionRows>(provider =>
             provider.GetRequiredService<GetOperationsSnapshot>());
-        services.AddScoped<IGetOperationsBadge, GetOperationsBadge>();
         services.AddScoped<IRecentCaseQueries, EfRecentCaseQueries>();
         services.AddScoped<IWorkCentreVisitStore, EfWorkCentreVisitStore>();
         services.AddScoped<IListRecentCases, ListRecentCases>();

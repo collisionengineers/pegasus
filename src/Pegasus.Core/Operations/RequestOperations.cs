@@ -35,15 +35,6 @@ public interface IRequestOperationsProjectionStore
         int maximumItems,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Counts every retryable external-work failure. This is deliberately
-    /// separate from <see cref="GetAsync"/>'s bounded operator list: the rail
-    /// badge is a total, not a count of the first page.
-    /// </summary>
-    Task<int> CountRetryableExternalFailuresAsync(
-        DateTimeOffset nowUtc,
-        CancellationToken cancellationToken);
 }
 
 public sealed class GetRequestOperations(
@@ -97,53 +88,5 @@ public sealed class GetRequestOperations(
         }
 
         return projection;
-    }
-}
-
-public sealed record RetryExternalWorkCommand(
-    Guid WorkItemId,
-    int ExpectedAttemptCount,
-    ActionActor Actor,
-    string OperationKey);
-
-public sealed record OperationsRetryResult(bool IsReplay);
-
-public interface IExternalWorkRetryStore
-{
-    Task<OperationsRetryResult> RetryAsync(
-        RetryExternalWorkCommand command,
-        DateTimeOffset retryAtUtc,
-        CancellationToken cancellationToken);
-}
-
-public sealed class RetryExternalWork(
-    IExternalWorkRetryStore store,
-    TimeProvider timeProvider)
-{
-    private readonly IExternalWorkRetryStore store =
-        store ?? throw new ArgumentNullException(nameof(store));
-    private readonly TimeProvider timeProvider =
-        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
-
-    public Task<OperationsRetryResult> ExecuteAsync(
-        RetryExternalWorkCommand command,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        StaffAuthorization.Require(command.Actor, StaffAccessRight.PerformCasework);
-        if (command.WorkItemId == Guid.Empty)
-        {
-            throw new ArgumentException("An external work identifier is required.", nameof(command));
-        }
-        ArgumentOutOfRangeException.ThrowIfNegative(command.ExpectedAttemptCount);
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.OperationKey);
-        if (command.OperationKey.Trim().Length > 100)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(command),
-                "The operation key cannot exceed 100 characters.");
-        }
-
-        return store.RetryAsync(command, timeProvider.GetUtcNow(), cancellationToken);
     }
 }

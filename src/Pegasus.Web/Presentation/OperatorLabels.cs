@@ -342,7 +342,6 @@ public static class OperatorLabels
         public const string Upload = "Upload";
         public const string Cases = "Cases";
         public const string Search = "Search";
-        public const string Operations = "Operations";
         public const string Administration = "Administration";
     }
 
@@ -1668,7 +1667,8 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// The AI job ledger's words on the Operations AI Job List.
+    /// The AI job ledger's words on the Work Centre's AI jobs pane, Administration
+    /// AI jobs and the message page.
     /// </summary>
     /// <remarks>
     /// The kind and state wordings are FRD-27 &#167; AI Job List's own; the Core
@@ -1684,7 +1684,6 @@ public static class OperatorLabels
         public const string PanelTitle = "AI Job List";
         public const string SendUnidentified = "Send Unidentified to AI";
         public const string CompleteJob = "Complete job";
-        public const string Cancel = "Cancel";
         public const string ReviewEstimate = "Review estimate";
         public const string OpenQuery = "Open query";
         public const string Review = "Review";
@@ -1728,30 +1727,6 @@ public static class OperatorLabels
             Pegasus.Core.AiWork.AiJobState.Taken => "navy",
             _ => null
         };
-
-        /// <summary>The panel meta.</summary>
-        public static string Count(int jobs) => jobs == 1
-            ? "1 job"
-            : string.Create(CultureInfo.InvariantCulture, $"{jobs} jobs");
-    }
-
-    // Operations partial-data notices.
-    public static class OperationsNotices
-    {
-        public const string PartialData = "Partial data";
-    }
-
-    /// <summary>
-    /// The recorded EVA facts available to the Operations panel.
-    /// </summary>
-    public static class EvaHandoffs
-    {
-        public const string PanelTitle = "EVA handoffs";
-        public const string LatestActivity = "Latest activity";
-        public const string Failures = "Failures";
-        public const string Failure = "Failure";
-        public const string Submitted = "Submitted";
-        public const string Failed = "Failed";
     }
 
     /// <summary>The provider-submission API's operator vocabulary — one list.</summary>
@@ -2085,7 +2060,6 @@ public static class OperatorLabels
         // End of the Inspect-at and repairer labels.
         public const string FilesPanel = "Files";
         public const string AddEvidence = "Add evidence";
-        public const string OpenOperations = "Open Operations";
         public const string SaveAs = "Save as";
 
         /// <summary>One section of the Case record, as the jump-nav names it.</summary>
@@ -2504,14 +2478,6 @@ public static class OperatorLabels
             IntakeLogOutcome.AllocationFailed => "Allocation failed",
             IntakeLogOutcome.OcrFailed => "OCR failed",
             _ => Humanise(outcome.ToString())
-        };
-
-        /// <summary>The Operations failure kind a failed outcome is listed under, as its row hook.</summary>
-        public static string FailureKindSlug(IntakeLogOutcome outcome) => outcome switch
-        {
-            IntakeLogOutcome.AllocationFailed => "allocation",
-            IntakeLogOutcome.OcrFailed => "ocr",
-            _ => "processing"
         };
 
         /// <summary>The page a produced record opens.</summary>
