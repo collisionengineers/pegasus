@@ -907,13 +907,17 @@ A recovery, restore, failover, or retirement exercise requires exact target appr
 For the deterministic browser regression, run
 `node scripts/Test-GlassBrowser.mjs` with Chrome installed, or pass the absolute
 Chrome/Edge executable path as its first argument. It uses isolated browser
-profiles and local scripted responses, exercises the production workspace and
-handoff scripts, and records JSON under `artifacts/issue-861/browser/`. It makes
+profiles and local scripted responses, exercises the production workspace,
+Glass's window and return scripts, and records JSON under
+`artifacts/issue-861/browser/`. It makes
 no provider requests. This check covers browser behavior; the .NET suites run
 in CI and the live provider journey has its own acceptance below.
 
 Use the Case's Repair Spec Glass's controls. Launch/Resume saves pending Case
-edits first. An issued estimator URL is a transport milestone; it does not
+edits first. The provider work then runs in the background while the Glass's
+window waits; a restart or the time cap settles it as interrupted work
+([FRD-25](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-interrupted-sessions)).
+Its stages are logged by the Web host, not by the request. An issued estimator URL is a transport milestone; it does not
 prove the provider editor loaded. Session/version identifies the attempt in
 structured logs; stages record elapsed milliseconds and safe outcome codes.
 Provider cookies, credentials and callback URLs are not diagnostic references.
