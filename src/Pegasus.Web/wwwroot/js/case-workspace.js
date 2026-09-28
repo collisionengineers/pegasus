@@ -729,6 +729,12 @@
             var text = confirmation.querySelector('span');
             if (text) { window.pegasusToast(text.textContent.trim()); }
         }
+        // Work the server reports as not yet finished is announced in amber.
+        var warning = document.querySelector('[data-case-notices] [data-case-warning]');
+        if (warning && typeof window.pegasusToast === 'function') {
+            var warningText = warning.querySelector('span');
+            if (warningText) { window.pegasusToast(warningText.textContent.trim(), 'warning'); }
+        }
         // Only a refusal the server rendered into the swapped-in notices;
         // showActionError has already toasted its own [data-inplace-error].
         var alertNotice = document.querySelector('[data-case-notices] [role="alert"]:not([data-inplace-error])');

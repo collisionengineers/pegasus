@@ -893,14 +893,27 @@ public static class CaseWorkspaceLabels
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
-        public const string CurrentGeneration = "Generated";
-        public const string GenerationState = "State";
         public const string IncludeFeeNote = "Include fee note";
         public const string DownloadReport = "Report";
         public const string DownloadFeeNote = "Fee note";
         public const string DownloadReportWithFeeNote = "Report with fee note";
         public const string GenerationStaleNotice =
             "A newer fact changed after this generation. Generate again before delivery.";
+
+        /// <summary>
+        /// Where a generated document's file stands, in the words Files uses
+        /// for a file's storage, so the two sections cannot name one state two
+        /// ways.
+        /// </summary>
+        public static string Filing(CaseReportArtifactFiling filing) => filing switch
+        {
+            CaseReportArtifactFiling.Stored => OperatorLabels.CustodyState(DocumentCustodyStatus.Confirmed),
+            CaseReportArtifactFiling.BeingStored => OperatorLabels.CustodyState(DocumentCustodyStatus.Pending),
+            CaseReportArtifactFiling.StorageFailed => OperatorLabels.CustodyState(DocumentCustodyStatus.Failed),
+            CaseReportArtifactFiling.Unconfirmed => "Not confirmed",
+            _ => "Not generated",
+        };
+
         public const string PrepareDelivery = "Prepare delivery";
         public const string DeliveryPrepared = "Delivery prepared";
         public const string SendPreparedReport = "Send prepared report";
