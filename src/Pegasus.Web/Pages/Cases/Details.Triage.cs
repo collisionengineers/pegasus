@@ -80,7 +80,7 @@ public sealed class TriageCaseView(TriageDetail triage)
     public IReadOnlyList<string> SelectedAttachments { get; set; } = [];
 
     /// <summary>
-    /// The photographs the provider attached to the Triage request: the origin
+    /// The photographs the Principal attached to the Triage request: the origin
     /// receipt's own retained assets. A Triage Case staff created directly has
     /// no origin receipt, so none.
     /// </summary>

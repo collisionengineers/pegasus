@@ -163,7 +163,7 @@ exclusion.
 | CASE-23 | Post-report query and dispute work on the existing Case | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | UI-10 | Full email-management workspace | [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | UI-14 | Categorised email views by destination and classification | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
-| API-01 | Principal-scoped Principal submission API | [Accepted API-01 submission contract](frd/frd-09-principal-and-intermediary-routes.md#accepted-api-01-submission-contract) |
+| API-01 | Principal-scoped submission API | [Accepted API-01 submission contract](frd/frd-09-principal-and-intermediary-routes.md#accepted-api-01-submission-contract) |
 | API-02 | Principal API receipt and processing-status lookup | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | API-03 | Principal API resulting Case/PO lookup | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | API-04 | Principal API credential issue, reset, revoke, pause, and resume | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
