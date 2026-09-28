@@ -2285,6 +2285,21 @@
                 host.appendChild(lines);
             }
 
+            // The Engineer's Value box holds the last calculated figure until
+            // the Engineer types over it. When a calculation cannot be worked
+            // out or refreshed, that figure is out of date: the box goes back to
+            // the recorded value and any Use this value decision is withdrawn,
+            // so nothing stale is saved as if it were current.
+            var lastProposal = null;
+            function invalidate() {
+                var box = section.querySelector('[data-valuation-value="engineer"]');
+                if (box && lastProposal !== null && box.value === lastProposal) {
+                    fill(section, '[data-valuation-value="engineer"]', box.defaultValue);
+                }
+                lastProposal = null;
+                clearUse();
+            }
+
             function preview() {
                 if (!previewUrl || !host) {
                     return;
@@ -2295,8 +2310,9 @@
                 // The retail the Save will use: the chosen card's, as typed.
                 var card = chosenCard();
                 if (card) {
-                    var retail = shown(card, '[data-valuation-retail]', 'data-retail');
-                    if (retail !== '') { body.append('basisRetail', retail); }
+                    // Posted even when empty: an empty box is "no retail", which
+                    // the Save reads the same way, never the recorded card.
+                    body.append('basisRetail', shown(card, '[data-valuation-retail]', 'data-retail'));
                 }
                 if (inFlight) {
                     inFlight.abort();
@@ -2319,7 +2335,10 @@
                     host.innerHTML = html;
                     var proposal = host.querySelector('[data-valuation-proposal]');
                     if (proposal) {
-                        fill(section, '[data-valuation-value="engineer"]', proposal.getAttribute('data-valuation-proposal'));
+                        lastProposal = proposal.getAttribute('data-valuation-proposal');
+                        fill(section, '[data-valuation-value="engineer"]', lastProposal);
+                    } else {
+                        invalidate();
                     }
                 }).catch(function (error) {
                     if (error && error.name === 'AbortError') {
@@ -2328,6 +2347,7 @@
                     }
                     busy(false);
                     showFailure();
+                    invalidate();
                 });
             }
             function schedule() {
@@ -2404,6 +2424,14 @@
                 schedule();
             });
             section.addEventListener('input', function (event) {
+                if (event.isTrusted && event.target && event.target.matches
+                    && event.target.matches('[data-valuation-value="engineer"]')) {
+                    // Typed over by the Engineer: that figure is their own, so
+                    // the decision to use the calculated one is withdrawn.
+                    lastProposal = null;
+                    clearUse();
+                    return;
+                }
                 if (belongs(event.target)) {
                     schedule();
                     return;
