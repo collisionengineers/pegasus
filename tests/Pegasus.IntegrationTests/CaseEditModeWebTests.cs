@@ -1257,8 +1257,9 @@ public sealed class CaseEditModeWebTests
 
     /// <summary>
     /// A generation that fails says so in staff's words. A render refusal
-    /// shows its own reason, as the preview does; any other failure names the
-    /// document that was not generated and keeps the fault's own text back.
+    /// shows its own reason, as the preview does; a file that does not read
+    /// back as it was stored names the document that was not generated and
+    /// keeps the fault's own text back.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -1266,31 +1267,75 @@ public sealed class CaseEditModeWebTests
     public async Task AFailedGenerationShowsTheRefusalsReasonOrNamesTheDocument(bool renderRefusal)
     {
         const string Reason = "The stored version of page-1-image-2.jpg has changed.";
-        const string Fault = "The connection was reset.";
+        const string Fault = "The content hash does not match.";
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
         var generator = new RecordingGenerateReport
         {
-            Failure = renderRefusal ? new ReportRenderRejectedException(Reason) : new IOException(Fault)
+            Failure = renderRefusal ? new ReportRenderRejectedException(Reason) : new InvalidDataException(Fault)
         };
         using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
             ReadyReportPorts(services, store, generator));
-        var form = GenerateReportForm(await ReportSectionAsync(workspace));
 
-        using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=GenerateReport&section=report",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("operationKey", InputValue(form, "operationKey")),
-                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+        var after = await GenerateReportAndReadTheCaseAsync(workspace);
 
-        AssertPrg(response, store.CaseId, "section=report");
-        var after = await workspace.GetWorkspaceAsync();
         Assert.Contains(
             renderRefusal ? Reason : CaseWorkspaceLabels.ReportDelivery.ReportNotGenerated,
             after,
             StringComparison.Ordinal);
         Assert.DoesNotContain(Fault, after, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A generation that ran out of time, or whose file Box would not take or
+    /// give, comes back to the Case with a plain sentence of its own rather
+    /// than the page's "could not confirm the action". The fault's own text is
+    /// kept back, and the one-off lease is released.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(OperationCanceledException), true)]
+    [InlineData(typeof(TaskCanceledException), true)]
+    [InlineData(typeof(TimeoutException), true)]
+    [InlineData(typeof(HttpRequestException), false)]
+    [InlineData(typeof(IOException), false)]
+    public async Task AGenerationThatRanOutOfTimeOrCouldNotReachBoxSaysSo(Type fault, bool ranOutOfTime)
+    {
+        const string Fault = "The connection was reset.";
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var generator = new RecordingGenerateReport
+        {
+            Failure = Assert.IsAssignableFrom<Exception>(Activator.CreateInstance(fault, Fault))
+        };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+            ReadyReportPorts(services, store, generator));
+
+        var after = await GenerateReportAndReadTheCaseAsync(workspace);
+
+        var expected = ranOutOfTime
+            ? CaseWorkspaceLabels.ReportDelivery.TookTooLong(CaseReportArtifactKind.AssessmentReport)
+            : CaseWorkspaceLabels.ReportDelivery.NotStoredInBox(CaseReportArtifactKind.AssessmentReport);
+        var notices = Notices(after);
+        Assert.Contains($"<span>{expected}</span>", notices, StringComparison.Ordinal);
+        Assert.Contains("notice--danger", notices, StringComparison.Ordinal);
+        Assert.DoesNotContain(Fault, after, StringComparison.Ordinal);
+        Assert.Single(generator.Requests);
+        Assert.Single(store.LeaseReleases);
+        Assert.Null(store.LeaseHolder);
+    }
+
+    /// <summary>The sentences name the document that was asked for, in staff's words.</summary>
+    [Theory]
+    [InlineData(CaseReportArtifactKind.AssessmentReport, "The report")]
+    [InlineData(CaseReportArtifactKind.FeeNote, "The fee note")]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, "The Repair Spec")]
+    [InlineData(CaseReportArtifactKind.ImagePack, "The images")]
+    public void TheFailureSentencesNameTheDocument(CaseReportArtifactKind kind, string document)
+    {
+        Assert.Equal(
+            $"{document} took too long to generate.",
+            CaseWorkspaceLabels.ReportDelivery.TookTooLong(kind));
+        Assert.Equal(
+            $"{document} could not be stored in Box just now.",
+            CaseWorkspaceLabels.ReportDelivery.NotStoredInBox(kind));
     }
 
     /// <summary>

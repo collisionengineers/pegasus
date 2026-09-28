@@ -917,6 +917,23 @@ public static class CaseWorkspaceLabels
         /// <summary>The Next action while the report's file is on its way to Box.</summary>
         public const string WaitingForStorage = "Waiting for the report to be stored";
 
+        /// <summary>The generation ran out of time.</summary>
+        public static string TookTooLong(CaseReportArtifactKind kind) =>
+            $"{Document(kind)} took too long to generate.";
+
+        /// <summary>The document was not stored because Box could not be reached or written to.</summary>
+        public static string NotStoredInBox(CaseReportArtifactKind kind) =>
+            $"{Document(kind)} could not be stored in Box just now.";
+
+        /// <summary>The document a generation makes, as a sentence about it begins.</summary>
+        private static string Document(CaseReportArtifactKind kind) => kind switch
+        {
+            CaseReportArtifactKind.AssessmentReport => "The report",
+            CaseReportArtifactKind.FeeNote => "The fee note",
+            CaseReportArtifactKind.RepairSpecification => "The Repair Spec",
+            _ => "The images",
+        };
+
         public const string PrepareDelivery = "Prepare delivery";
         public const string DeliveryPrepared = "Delivery prepared";
         public const string SendPreparedReport = "Send prepared report";
