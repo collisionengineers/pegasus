@@ -33,7 +33,7 @@ context, no desk noise) is owned by the Mail pages and
 
 Owner:
 `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`
-(`principal_mail_classification`, Version 1).
+(`principal_mail_classification`, Version 2).
 
 Built **only on operator-guaranteed generated tells**, matched
 case-sensitively (the casing is part of the tell — a human sentence mentioning
@@ -49,6 +49,13 @@ being chased, not a new instruction.
 | `subject.engineer-triage` | `Engineer Triage`, opening the subject past any forward or reply prefix | Subject |
 | `attachment.audit-report-notification` | `AUDIT REPORT NOTIFICATION` | An attached document's text |
 | `attachment.engineer-notification` | `ENGINEER NOTIFICATION` (with or without the `REPORT + AUDIT REPORT` marker) | An attached document's text |
+
+An Audit's automatic assessment (Version 2, #864) reads the second attached
+document for exactly one unnegated "repairable" or "total loss". When that
+document prints both words, the third-party report extraction's printed outcome
+decides, as the Original report cells read it
+([FRD-16](../frd/frd-16-case-record-workspace.md#original-report)). If the
+extraction reads no single outcome, the message gets no automatic Audit.
 
 QDOS sends triage requests in two reviewed templates and the templates are
 disjoint in the evaluated corpus. The two tells therefore feed **one** triage
