@@ -43,12 +43,12 @@ public sealed class ProviderSubmissionTests
         string key = "order-1",
         ProviderInstruction? instruction = null,
         byte body = 9,
-        params ProviderSubmissionFile[] files) =>
+        ProviderSubmissionFile[]? files = null) =>
         new(
             credential,
             key,
             instruction ?? Instruction(),
-            files.Length == 0 ? [File(0)] : files,
+            files ?? [File(0)],
             Encoding.UTF8.GetBytes($"{{\"body\":{body}}}"),
             "trace-1");
 
@@ -142,6 +142,27 @@ public sealed class ProviderSubmissionTests
         Assert.Equal(2, receipt.Files.Count);
         Assert.All(receipt.Files, file => Assert.False(file.IsDuplicate));
         Assert.Equal(ActorKind.Provider, Assert.Single(history.Entries).Actor.Kind);
+    }
+
+    [Theory]
+    [InlineData(ProviderInstructionKind.Inspection, null)]
+    [InlineData(ProviderInstructionKind.AuditReport, null)]
+    [InlineData(ProviderInstructionKind.Triage, null)]
+    [InlineData(ProviderInstructionKind.Audit, AuditAssessment.Repairable)]
+    public async Task AnInstructionIsAcceptedWithNoFiles(ProviderInstructionKind kind, AuditAssessment? verdict)
+    {
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+
+        // The files are optional for every kind, an Audit included: the
+        // declaration alone is a complete submission (operator, 2026-09-28).
+        var receipt = await Submit(store, intake).ExecuteAsync(
+            Request(Active, instruction: Instruction(kind, verdict), files: []),
+            CancellationToken.None);
+
+        Assert.Empty(receipt.Files);
+        Assert.Single(intake.Sources);
+        Assert.Equal(kind, Assert.Single(store.Records.Values).Instruction?.Kind);
     }
 
     [Fact]
@@ -324,22 +345,13 @@ public sealed class ProviderSubmissionTests
     }
 
     [Fact]
-    public async Task AnAuditMustAttachItsOriginalReportAndOnlyAnAuditCarriesAVerdict()
+    public async Task AnAuditStatesItsVerdictAndAttachesAtMostOneOriginalReport()
     {
         var store = new FakeStore();
         var intake = new FakeIntakeSubmission();
         var submit = Submit(store, intake);
 
-        // The declared verdict decides the reference (operator, 2026-08-28), but
-        // the Engineer still needs the report they are auditing.
-        var missingReport = await Assert.ThrowsAsync<ProviderInstructionValidationException>(
-            () => submit.ExecuteAsync(
-                Request(
-                    Active,
-                    instruction: Instruction(ProviderInstructionKind.Audit, AuditAssessment.Repairable)),
-                CancellationToken.None));
-        Assert.Equal("files", missingReport.Field);
-
+        // The report is optional (operator, 2026-09-28); the verdict is not.
         var noVerdict = await Assert.ThrowsAsync<ProviderInstructionValidationException>(
             () => submit.ExecuteAsync(
                 Request(Active, instruction: Instruction(ProviderInstructionKind.Audit)),
@@ -356,9 +368,9 @@ public sealed class ProviderSubmissionTests
                 CancellationToken.None));
         Assert.Equal("originalReportVerdict", strayVerdict.Field);
 
-        // Two files claiming the role is as unusable as none: both would take
-        // the one fixed label and the downstream single-match lookup would fail
-        // the accepted intake rather than name the field.
+        // Two files claiming the role both take the one fixed label, and the
+        // downstream single-match lookup would fail the accepted intake rather
+        // than name the field.
         var twoReports = await Assert.ThrowsAsync<ProviderInstructionValidationException>(
             () => submit.ExecuteAsync(
                 Request(
@@ -379,6 +391,17 @@ public sealed class ProviderSubmissionTests
                 files: [File(0), File(1, value: 7, role: DocumentSemanticRole.AuditReport)]),
             CancellationToken.None);
         Assert.NotEqual(Guid.Empty, accepted.SubmissionId);
+
+        // Files that are not the report are accepted without one.
+        var withoutReport = await submit.ExecuteAsync(
+            Request(
+                Active,
+                key: "order-2",
+                instruction: Instruction(ProviderInstructionKind.Audit, AuditAssessment.Repairable),
+                body: 10,
+                files: [File(0)]),
+            CancellationToken.None);
+        Assert.NotEqual(accepted.SubmissionId, withoutReport.SubmissionId);
     }
 
     [Fact]

@@ -82,8 +82,9 @@ public static class ProviderInstructionKinds
     };
 
     /// <summary>
-    /// Whether the kind carries an incoming original report, and therefore a
-    /// verdict on it.
+    /// Whether the kind audits an incoming original report, and therefore must
+    /// state a verdict on it. The report file itself is optional at submission
+    /// and may arrive later.
     ///
     /// Only a standalone Audit does. Inspection + Audit is Collision Engineers
     /// inspecting and then auditing its <em>own</em> report (FRD-01 § Case
