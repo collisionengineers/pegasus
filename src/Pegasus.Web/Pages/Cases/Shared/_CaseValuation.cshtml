@@ -18,9 +18,13 @@
     research job. The calculator's controls and the Basis radios belong to
     the same form (one Save, 23 September 2026): the ribbon Save records the
     calculation against its basis card when it differs from the one the page
-    opened on (selection.Opening). The preview lines are Core's own
-    arithmetic, fetched by script from the PreviewValuation handler; without
-    script the applied calculation is shown after the Save.
+    opened on (selection.Opening), or when the Engineer pressed Use this value
+    on a card (selection.Use, 28 September 2026; a card typed in the same
+    edit is named by selection.GuideSource). The preview lines are Core's own
+    arithmetic over the figures the Save will use, fetched by script from the
+    PreviewValuation handler; without script the applied calculation is shown
+    after the Save. A source with no connected provider says so on its card
+    before anything is pressed and offers no Get valuation.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -218,13 +222,30 @@
                            source has no working provider, or with the refusal's
                            own words when the request was refused. It becomes an
                            alert only when it shows. *@
-                        <div class="notice notice--danger" data-valuation-notice hidden>
-                            <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
-                            <span data-valuation-refused hidden></span>
-                        </div>
+                        var connected = Model.GuideSourceConnected(source);
+                        if (connected)
+                        {
+                            <div class="notice notice--danger" data-valuation-notice hidden>
+                                <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
+                                <span data-valuation-refused hidden></span>
+                            </div>
+                        }
+                        else
+                        {
+                            @* No provider is connected: the card says so now, and
+                               offers no Get valuation that could not work. *@
+                            <div class="notice notice--info" data-valuation-notice data-valuation-not-connected>
+                                <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
+                                <span data-valuation-refused hidden></span>
+                            </div>
+                        }
                         <div class="entry-actions">
-                            <button type="button" class="btn btn--small" data-valuation-get data-valuation-source="@slug"
-                                    data-valuation-url="@GetValuationAction(source)"><span>@ValuationLabels.GetValuation</span></button>
+                            @if (connected)
+                            {
+                                <button type="button" class="btn btn--small" data-valuation-get data-valuation-source="@slug"
+                                        data-valuation-url="@GetValuationAction(source)"><span>@ValuationLabels.GetValuation</span></button>
+                            }
+                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>@ValuationLabels.UseThisValue</span></button>
                         </div>
                     }
                 </div>
@@ -264,6 +285,7 @@
                             {
                                 <button type="submit" form="case-market-research-form" class="btn btn--small btn--ghost" data-valuation-card-get="@ValuationLabels.SourceSlug(valuation.Details.Source)"><span>@ValuationLabels.GetValuation</span></button>
                             }
+                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>@ValuationLabels.UseThisValue</span></button>
                         }
                     </h3>
                     <div class="figs fg g2">
@@ -282,18 +304,33 @@
                         <div class="fc ro"><span class="lbl">@ValuationLabels.Trade</span><div class="fv mono derived">—</div></div>
                     </div>
                     <div class="meta">@ValuationLabels.Researching · @Model.PendingMarketResearchMonth</div>
+                    @if (editable)
+                    {
+                        @* The result is filed without the Case edit lease, so it
+                           returns while the Engineer is still editing. *@
+                        <div class="muted" data-valuation-pending-note>@ValuationLabels.ResearchFiledNote</div>
+                    }
                 </div>
             }
         </div>
 
         <div class="calc" data-valuation-calc
              data-valuation-form="@(editable ? "true" : null)"
-             data-preview-url="@(editable ? Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId }) : null)">
+             data-preview-url="@(editable ? Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId }) : null)"
+             data-text-use="@(editable ? ValuationLabels.UseThisValue : null)"
+             data-text-using="@(editable ? ValuationLabels.UsingThisValue : null)"
+             data-text-use-needs-retail="@(editable ? ValuationLabels.UseNeedsRetail : null)"
+             data-text-preview-failed="@(editable ? ValuationLabels.PreviewFailed : null)">
             @if (editable)
             {
-                @* The calculation the page opened on: the Save adopts only one
-                   that differs from it. *@
+                @* The calculation the page opened on: the Save records one
+                   that differs from it, or one the Engineer chose to use.
+                   Use this value switches the two hidden fields on (a card
+                   typed in this edit has no identity, so it is named by its
+                   source); they post nothing until then. *@
                 <input type="hidden" name="selection.Opening" value="@Model.OpeningValuationCanonical" form="case-edit-form" />
+                <input type="hidden" name="selection.GuideSource" value="" form="case-edit-form" disabled data-valuation-source-input />
+                <input type="hidden" name="selection.Use" value="true" form="case-edit-form" disabled data-valuation-use-input />
             }
             @* On the report (v28 P38): the three content switches, decided beside
                the valuation they describe. One cell, so editing shows the

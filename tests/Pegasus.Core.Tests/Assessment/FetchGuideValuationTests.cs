@@ -31,6 +31,22 @@ public sealed class FetchGuideValuationTests
             fetch.ExecuteAsync(Request(source), default));
     }
 
+    /// <summary>
+    /// The Case says which sources are connected before Get valuation is
+    /// pressed (operator, 28 September 2026): only a guide source with a
+    /// registered provider is.
+    /// </summary>
+    [Fact]
+    public void OnlyAGuideSourceWithAProviderIsConnected()
+    {
+        var fetch = new FetchGuideValuation([new StubProvider(ValuationSource.Brego)], new RecordingCaseData());
+
+        Assert.True(fetch.IsConnected(ValuationSource.Brego));
+        Assert.False(fetch.IsConnected(ValuationSource.Glasses));
+        Assert.False(fetch.IsConnected(ValuationSource.EngineersValue));
+        Assert.False(new FetchGuideValuation([], new RecordingCaseData()).IsConnected(ValuationSource.Brego));
+    }
+
     [Fact]
     public async Task AnActorWithoutCaseworkOrAnEmptyKeyIsRefused()
     {
@@ -51,6 +67,14 @@ public sealed class FetchGuideValuationTests
         "opaque-live-case-lease",
         source,
         new DateOnly(2026, 9, 14));
+
+    private sealed class StubProvider(ValuationSource source) : IGuideValuationProvider
+    {
+        public ValuationSource Source => source;
+
+        public Task<GuideValuationQuote> GetAsync(GuideValuationRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class RecordingCaseData : ICaseDataQueries
     {
