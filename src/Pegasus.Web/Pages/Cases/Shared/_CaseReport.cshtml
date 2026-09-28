@@ -2,11 +2,12 @@
     Report (v26 § Report). Head: one primary (Generate report, gated by the
     readiness the projection states) and one More menu (Preview draft,
     Generate fee note, Include fee note). Body: the readiness list (each
-    blocker linked to the section that clears it), the preview card, the
-    generation facts and artifacts, the stale notice, the reviewed
-    recipients and delivery, and the report fields. Mark report sent is the
-    ribbon's Actions item and Unlink report evidence is Overview's Lifecycle
-    actions; neither is repeated here.
+    blocker linked to the section that clears it), the preview card (when
+    the report was generated, where its file stands, and Open report once it
+    is stored), the stale notice, the reviewed recipients and delivery, and
+    the report fields. Mark report sent is the ribbon's Actions item and
+    Unlink report evidence is Overview's Lifecycle actions; neither is
+    repeated here.
 *@
 @using System.Globalization
 @using Pegasus.Core.Assessment
@@ -37,6 +38,8 @@
     var offersHead = !Model.AssessmentIsReadOnly && Model.ReportDraftPreparation is not null;
     var reportArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
         artifact.Kind == CaseReportArtifactKind.AssessmentReport);
+    // Where the report's file stands, as Core reads it from the row.
+    var reportFiling = reportArtifact?.Filing ?? CaseReportArtifactFiling.NotProduced;
     var reportRetryArtifact = generation is not { State: CaseReportGenerationState.Stale }
         && reportArtifact?.Status != CaseReportArtifactStatus.Confirmed
         ? reportArtifact
@@ -118,8 +121,12 @@
         <div class="panel-actions">
             @if (canGenerate)
             {
+                @* Pressed over unsaved changes, the script saves first and posts
+                   the form the save renders; when that page no longer offers
+                   it, the script says so in these words. *@
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
-                      asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report data-case-save-first>
+                      asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report data-case-save-first
+                      data-save-first-dropped="@ReportLabels.NotReadyAfterSave">
                     <input type="hidden" name="operationKey" value="@reportOperationKey" />
                     @if (editing)
                     {
@@ -131,7 +138,7 @@
                         <input type="hidden" name="includeFeeNote" value="@(generation!.Snapshot.Report.IncludeFeeNote ? "true" : "false")" />
                     }
                     <button type="submit" class="btn btn--small btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                         <span>@ReportLabels.GenerateReport</span>
                     </button>
                 </form>
@@ -322,46 +329,41 @@
                         }
                         else
                         {
-                            <span>@Words.Generated <b>@generatedAt</b> · @ReportLabels.GenerationState @generation.State</span>
+                            @* When it was generated and where its file stands.
+                               A report that was never drawn has no date to give. *@
+                            @if (reportFiling != CaseReportArtifactFiling.NotProduced)
+                            {
+                                <span>@Words.Generated <b>@generatedAt</b> · </span>
+                            }
+                            <span class="status status--plain @FilingTone(reportFiling)" data-report-filing>@ReportLabels.Filing(reportFiling)</span>
                         }
                     }
                 </div>
             </div>
-            @if (generation is not null)
+            @if (generation is not null && reportArtifact is { Filing: CaseReportArtifactFiling.Stored } storedReport)
             {
+                @* The stored report in the page's document viewer, as Preview
+                   opens the draft; without script the link itself gives the
+                   file. The report Generate has just made is opened once, by
+                   the script, on the page that follows. *@
                 <div class="cluster">
-                    @foreach (var artifact in generation.Artifacts.Where(artifact =>
-                        artifact is { Kind: CaseReportArtifactKind.AssessmentReport, Status: CaseReportArtifactStatus.Confirmed }))
-                    {
-                        if (artifact.Status == CaseReportArtifactStatus.Confirmed)
-                        {
-                            <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
-                               asp-route-id="@caseId" asp-route-generationId="@generation.Id"
-                               asp-route-artifactId="@artifact.Id" asp-route-view="@Model.ViewRoute"
-                               target="_blank" rel="noopener" data-report-artifact="@artifact.Kind">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                                <span>@(artifact.Kind switch
-                                    {
-                                        CaseReportArtifactKind.FeeNote => ReportLabels.DownloadFeeNote,
-                                        CaseReportArtifactKind.RepairSpecification => ReportLabels.DownloadRepairSpec,
-                                        CaseReportArtifactKind.ImagePack => ReportLabels.DownloadImages,
-                                        _ => generation.Snapshot.Report.IncludeFeeNote
-                                            ? ReportLabels.DownloadReportWithFeeNote
-                                            : ReportLabels.DownloadReport,
-                                    })</span>
-                            </a>
-                        }
-                    }
+                    <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
+                       asp-route-id="@caseId" asp-route-generationId="@generation.Id"
+                       asp-route-artifactId="@storedReport.Id" asp-route-view="@Model.ViewRoute"
+                       target="_blank" rel="noopener" data-report-artifact="@storedReport.Kind"
+                       data-document-preview data-file-name="@storedReport.FileName" data-no-inplace
+                       data-open-on-arrival="@(Model.OpenReportArtifactId == storedReport.Id ? "true" : null)">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                        <span>@(generation.Snapshot.Report.IncludeFeeNote
+                            ? ReportLabels.OpenReportWithFeeNote
+                            : ReportLabels.OpenReport)</span>
+                    </a>
                 </div>
             }
         </div>
 
         @if (generation is not null)
         {
-            <dl class="detail-list" data-report-generation>
-                <div><dt>@ReportLabels.CurrentGeneration</dt><dd>@generatedAt</dd></div>
-                <div><dt>@ReportLabels.GenerationState</dt><dd>@generation.State</dd></div>
-            </dl>
             @if (isStale)
             {
                 <div class="notice notice--warning" role="status" data-dismissable data-report-stale>
@@ -588,6 +590,16 @@
 </section>
 
 @functions {
+    // The chip tone for where the report's file stands: green only once it is
+    // stored, amber while it is not there yet, red for a failure.
+    private static string FilingTone(CaseReportArtifactFiling filing) => filing switch
+    {
+        CaseReportArtifactFiling.Stored => "status--green",
+        CaseReportArtifactFiling.StorageFailed => "status--red",
+        CaseReportArtifactFiling.Unconfirmed => "status--neutral",
+        _ => "status--amber"
+    };
+
     // Which source a block's wording came from, as the chip states it.
     private static string WordingChip(ReportWordingBlock block) => block.Manual
         ? WordingLabels.ManualBlock

@@ -394,19 +394,256 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
-        var combined = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DownloadReportWithFeeNote;
+        var combined = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReportWithFeeNote;
         if (includeFeeNote)
         {
-            Assert.Contains(combined, html, StringComparison.Ordinal);
+            Assert.Contains($"<span>{combined}</span>", html, StringComparison.Ordinal);
         }
         else
         {
             Assert.DoesNotContain(combined, html, StringComparison.Ordinal);
             Assert.Contains(
-                $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DownloadReport}</span>",
+                $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReport}</span>",
                 html,
                 StringComparison.Ordinal);
         }
+    }
+
+    /// <summary>
+    /// The card says when the report was generated and where its file stands,
+    /// in the words Files uses for a file, on a chip whose colour is green only
+    /// once the file is stored. A report that was never drawn gives no date. No
+    /// state name from the code reaches the card.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseReportArtifactStatus.Confirmed, true, "Stored", "status--green", true)]
+    [InlineData(CaseReportArtifactStatus.Pending, true, "Storing", "status--amber", true)]
+    [InlineData(CaseReportArtifactStatus.Pending, false, "Not generated", "status--amber", false)]
+    [InlineData(CaseReportArtifactStatus.Failed, true, "Storage failed", "status--red", true)]
+    [InlineData(CaseReportArtifactStatus.Unknown, true, "Not confirmed", "status--neutral", true)]
+    public async Task TheReportCardSaysWhereTheReportStandsInPlainWords(
+        CaseReportArtifactStatus status, bool filed, string words, string tone, bool datesTheGeneration)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = WithCurrentGeneration(baseFactory, caseId, status, filed);
+        using var client = Client(factory);
+
+        var card = ReportCard(WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report")));
+
+        Assert.Contains(
+            $"<span class=\"status status--plain {tone}\" data-report-filing>{words}</span>",
+            card,
+            StringComparison.Ordinal);
+        var generated = Pegasus.Core.LondonCalendar.TimeAt(ReportFixtureAtUtc)
+            .ToString("d MMMM yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        var dated = $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.Report.Generated} <b>{generated}</b> · </span>";
+        if (datesTheGeneration)
+        {
+            Assert.Contains(dated, card, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain(Pegasus.Web.Presentation.CaseWorkspaceLabels.Report.Generated, card, StringComparison.Ordinal);
+        }
+
+        // The card holds both facts; no list below repeats them.
+        Assert.DoesNotContain("data-report-generation", card, StringComparison.Ordinal);
+        var read = CaseWebTestSupport.VisibleText(card);
+        Assert.DoesNotContain("State", read, StringComparison.Ordinal);
+        foreach (var name in Enum.GetNames<CaseReportArtifactStatus>()
+            .Concat(Enum.GetNames<CaseReportGenerationState>())
+            .Concat(Enum.GetNames<CaseReportArtifactFiling>())
+            .Where(name => name != words))
+        {
+            Assert.DoesNotContain(name, read, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// Open report is offered only for a stored report, and opens it in the
+    /// page's document viewer as Preview opens the draft: the same viewer
+    /// attributes and the eye glyph, the file name the viewer titles it with,
+    /// and a real link for a browser without script.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseReportArtifactStatus.Confirmed, true, true)]
+    [InlineData(CaseReportArtifactStatus.Pending, true, false)]
+    [InlineData(CaseReportArtifactStatus.Pending, false, false)]
+    [InlineData(CaseReportArtifactStatus.Failed, true, false)]
+    [InlineData(CaseReportArtifactStatus.Unknown, true, false)]
+    public async Task OpenReportOpensTheStoredReportInTheViewer(
+        CaseReportArtifactStatus status, bool filed, bool offered)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generation = new FakeCurrentGeneration(caseId, includeFeeNote: false, reportStatus: status, reportFiled: filed);
+        using var factory = WithCurrentGeneration(baseFactory, caseId, generation);
+        using var client = Client(factory);
+
+        var card = ReportCard(WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report")));
+
+        if (!offered)
+        {
+            Assert.DoesNotContain("data-report-artifact", card, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReport, card, StringComparison.Ordinal);
+            return;
+        }
+
+        var link = OpenReportLink(card);
+        var report = Assert.Single(generation.Record.Artifacts);
+        Assert.Contains($"href=\"/Cases/{caseId:D}?", link, StringComparison.Ordinal);
+        Assert.Contains("handler=GeneratedArtifact", link, StringComparison.Ordinal);
+        Assert.Contains($"generationId={generation.Record.Id:D}", link, StringComparison.Ordinal);
+        Assert.Contains($"artifactId={report.Id:D}", link, StringComparison.Ordinal);
+        Assert.Contains("target=\"_blank\"", link, StringComparison.Ordinal);
+        Assert.Contains("data-document-preview", link, StringComparison.Ordinal);
+        Assert.Contains("data-no-inplace", link, StringComparison.Ordinal);
+        Assert.Contains("data-file-name=\"CE_100_assessment.pdf\"", link, StringComparison.Ordinal);
+        Assert.Contains("<use href=\"#icon-eye\" />", link, StringComparison.Ordinal);
+        Assert.DoesNotContain("#icon-download", link, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReport}</span>",
+            link,
+            StringComparison.Ordinal);
+        // Only the draft's link carries the mark that names the viewer's Download draft.
+        Assert.DoesNotMatch("data-report-preview(?![-\\w])", link);
+        // Reading the Case is not arriving from a generation.
+        Assert.DoesNotContain("data-open-on-arrival", link, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The page that follows a successful Generate report marks the report it
+    /// has just stored, so the script opens it in the viewer. The mark is on
+    /// that one page: reading the Case again does not carry it.
+    /// </summary>
+    [Fact]
+    public async Task ThePageThatFollowsGenerateReportMarksTheReportToOpenOnce()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generator = new RecordingGenerationJourney(caseId, failFirst: false);
+        using var factory = WithGenerationJourney(baseFactory, caseId, generator);
+        using var client = Client(factory);
+        var initialHtml = await EnterEditModeAsync(client, caseId);
+        var form = FormHtml(initialHtml, "GenerateReport");
+
+        using var generated = await PostGenerateReportAsync(client, caseId, initialHtml, form);
+
+        Assert.Equal(HttpStatusCode.Redirect, generated.StatusCode);
+        var arrived = WebUtility.HtmlDecode(await GetHtmlAsync(client, generated.Headers.Location!.OriginalString));
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportGenerated, arrived, StringComparison.Ordinal);
+        var link = OpenReportLink(ReportCard(arrived));
+        Assert.Contains("data-open-on-arrival=\"true\"", link, StringComparison.Ordinal);
+        Assert.Contains("data-document-preview", link, StringComparison.Ordinal);
+
+        var later = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+        Assert.DoesNotContain("data-open-on-arrival", later, StringComparison.Ordinal);
+        Assert.Contains("data-document-preview", OpenReportLink(ReportCard(later)), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A generation that stored nothing leaves nothing to open: the page that
+    /// follows a failed Generate report carries no mark.
+    /// </summary>
+    [Fact]
+    public async Task AGenerationThatStoredNothingMarksNothingToOpen()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generator = new RecordingGenerationJourney(caseId, failFirst: true);
+        using var factory = WithGenerationJourney(baseFactory, caseId, generator);
+        using var client = Client(factory);
+        var initialHtml = await EnterEditModeAsync(client, caseId);
+        var form = FormHtml(initialHtml, "GenerateReport");
+
+        using var failed = await PostGenerateReportAsync(client, caseId, initialHtml, form);
+
+        Assert.Equal(HttpStatusCode.Redirect, failed.StatusCode);
+        var arrived = await GetHtmlAsync(client, failed.Headers.Location!.OriginalString);
+        Assert.DoesNotContain("data-open-on-arrival", arrived, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-artifact", arrived, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Generate report downloads nothing, so its button carries the glyph the
+    /// other Generate actions carry.
+    /// </summary>
+    [Fact]
+    public async Task GenerateReportCarriesTheGenerateGlyph()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]));
+        using var client = Client(factory);
+
+        var form = FormHtml(await EnterEditModeAsync(client, caseId), "GenerateReport");
+
+        Assert.Contains("<use href=\"#icon-file-text\" />", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("#icon-download", form, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Pressed over unsaved changes, Generate report saves the Case first. Its
+    /// form holds the words the script says when the saved Case no longer
+    /// offers it, so the press is never lost without a word.
+    /// </summary>
+    [Fact]
+    public async Task GenerateReportHoldsTheWordsForAPressTheSaveLeftNotReady()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]));
+        using var client = Client(factory);
+
+        var form = WebUtility.HtmlDecode(FormHtml(await EnterEditModeAsync(client, caseId), "GenerateReport"));
+
+        Assert.Contains("data-case-save-first", form, StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-save-first-dropped=\"{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.NotReadyAfterSave}\"",
+            form,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Delivery is the next action only once the report is stored. While its
+    /// file is on its way to Box the aside says it is waited for; a report
+    /// never drawn, failed or not confirmed is generated again.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseReportArtifactStatus.Confirmed, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.PrepareDelivery)]
+    [InlineData(CaseReportArtifactStatus.Pending, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.WaitingForStorage)]
+    [InlineData(CaseReportArtifactStatus.Pending, false, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport)]
+    [InlineData(CaseReportArtifactStatus.Failed, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport)]
+    [InlineData(CaseReportArtifactStatus.Unknown, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport)]
+    public async Task TheNextActionIsDeliveryOnlyOnceTheReportIsStored(
+        CaseReportArtifactStatus status, bool filed, string expected)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = WithCurrentGeneration(baseFactory, caseId, status, filed);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var nextAction = NextActionRegex().Match(html);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        Assert.Equal(expected, NextLabelRegex().Match(nextAction.Value).Groups["label"].Value);
+        var link = SectionJumpRegex().Match(nextAction.Value);
+        Assert.True(link.Success, "The Next action must link to a section.");
+        Assert.Equal("report", link.Groups["key"].Value);
     }
 
     [Fact]
@@ -614,6 +851,85 @@ public sealed partial class AssessmentReportDraftWebTests
         return editing;
     }
 
+    /// <summary>The Case page over one current generation whose report stands as given.</summary>
+    private static WebApplicationFactory<Program> WithCurrentGeneration(
+        IntakeWebApplicationFactory baseFactory,
+        Guid caseId,
+        CaseReportArtifactStatus status,
+        bool filed) =>
+        WithCurrentGeneration(
+            baseFactory,
+            caseId,
+            new FakeCurrentGeneration(caseId, includeFeeNote: false, reportStatus: status, reportFiled: filed));
+
+    private static WebApplicationFactory<Program> WithCurrentGeneration(
+        IntakeWebApplicationFactory baseFactory,
+        Guid caseId,
+        FakeCurrentGeneration generation) =>
+        Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(generation);
+            }));
+
+    /// <summary>The Case page over a generation the page itself asks for and then reads back.</summary>
+    private static WebApplicationFactory<Program> WithGenerationJourney(
+        IntakeWebApplicationFactory baseFactory,
+        Guid caseId,
+        RecordingGenerationJourney generator) =>
+        Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            generateReport: generator)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(generator);
+            }));
+
+    /// <summary>Generate report as the page's own form posts it.</summary>
+    private static Task<HttpResponseMessage> PostGenerateReportAsync(
+        HttpClient client, Guid caseId, string html, string form) =>
+        client.PostAsync(
+            $"/Cases/{caseId:D}?handler=GenerateReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("editLeaseToken", InputValue(form, "editLeaseToken")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+
+    /// <summary>The Report section's card: its title, its status line and Open report.</summary>
+    private static string ReportCard(string html)
+    {
+        var start = html.IndexOf("<div class=\"pv\" data-report-preview-card>", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Report section must render its card.");
+        var end = html.IndexOf("<div class=\"fg g4\">", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The report's fields must follow its card.");
+        return html[start..end];
+    }
+
+    /// <summary>The card's link to the stored report.</summary>
+    private static string OpenReportLink(string card)
+    {
+        var link = System.Text.RegularExpressions.Regex.Match(
+            card,
+            "<a[^>]*data-report-artifact=\"AssessmentReport\"[^>]*>.*?</a>",
+            System.Text.RegularExpressions.RegexOptions.Singleline
+                | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        Assert.True(link.Success, "The card must offer Open report.");
+        return link.Value;
+    }
+
     private static string InputValue(string html, string name)
     {
         var tag = System.Text.RegularExpressions.Regex.Match(
@@ -665,7 +981,8 @@ public sealed partial class AssessmentReportDraftWebTests
         CaseReportArtifactStatus? repairSpecStatus = null,
         string? repairSpecOperationKey = null,
         CaseReportArtifactStatus? imagePackStatus = null,
-        string? imagePackOperationKey = null)
+        string? imagePackOperationKey = null,
+        bool reportFiled = false)
         : ICaseReportGenerationStore
     {
         private readonly CaseReportGenerationRecord record = GenerationRecord(
@@ -678,7 +995,8 @@ public sealed partial class AssessmentReportDraftWebTests
             repairSpecStatus,
             repairSpecOperationKey,
             imagePackStatus,
-            imagePackOperationKey);
+            imagePackOperationKey,
+            reportFiled);
 
         public CaseReportGenerationRecord Record => record;
 
@@ -797,7 +1115,8 @@ public sealed partial class AssessmentReportDraftWebTests
         CaseReportArtifactStatus? repairSpecStatus = null,
         string? repairSpecOperationKey = null,
         CaseReportArtifactStatus? imagePackStatus = null,
-        string? imagePackOperationKey = null)
+        string? imagePackOperationKey = null,
+        bool reportFiled = false)
     {
         reportOperationKey ??= "operation-1";
         var input = ReadyInput(caseId);
@@ -815,18 +1134,22 @@ public sealed partial class AssessmentReportDraftWebTests
             CurrentEstimate = input.CurrentEstimate
         };
         var reportConfirmed = reportStatus == CaseReportArtifactStatus.Confirmed;
+        // A report that is not confirmed may still have a file: custody gave
+        // it a version, which carries the document's own facts.
+        var reportHasFile = reportConfirmed || reportFiled;
         List<CaseReportArtifactRecord> artifacts =
         [
             new(
                 Guid.NewGuid(), generationId, CaseReportArtifactKind.AssessmentReport,
                 reportStatus, reportOperationKey,
-                reportConfirmed ? Guid.NewGuid() : null,
-                reportConfirmed ? Guid.NewGuid() : null,
+                reportHasFile ? Guid.NewGuid() : null,
+                reportHasFile ? Guid.NewGuid() : null,
                 reportConfirmed ? new string('c', 64) : null,
-                reportConfirmed ? 3 : null,
-                reportConfirmed ? "CE_100_assessment.pdf" : null,
-                reportConfirmed ? "application/pdf" : null,
-                null, null, null,
+                reportHasFile ? 3 : null,
+                reportHasFile ? "CE_100_assessment.pdf" : null,
+                reportHasFile ? "application/pdf" : null,
+                null, null,
+                reportHasFile && !reportConfirmed ? "pending/ce-100-assessment" : null,
                 reportStatus == CaseReportArtifactStatus.Failed ? "transient_failure" : null),
         ];
         if (feeNoteStatus is { } status)

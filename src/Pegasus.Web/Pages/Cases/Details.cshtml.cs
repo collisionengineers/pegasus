@@ -586,6 +586,21 @@ public sealed partial class DetailsModel(
     /// </summary>
     public CaseReportGenerationRecord? CurrentReportGeneration { get; private set; }
 
+    private const string OpenReportKey = "CaseOpenReport";
+
+    /// <summary>
+    /// The report Generate report has just stored, carried to the one page
+    /// that follows so that page opens it in the viewer. Null on every later
+    /// read of the Case.
+    /// </summary>
+    public Guid? OpenReportArtifactId => TempData[OpenReportKey] switch
+    {
+        // TempData materializes Guid-shaped strings as Guid values.
+        Guid artifactId => artifactId,
+        string text when Guid.TryParse(text, out var artifactId) => artifactId,
+        _ => null,
+    };
+
     /// <summary>
     /// The current generation's latest delivery preparation (B07), if one
     /// exists.
@@ -2335,17 +2350,19 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or IOException
-            or TimeoutException
-            or ReportRenderRejectedException)
+        catch (Exception exception) when (IsGenerationFailure(exception))
         {
             LogCaseCommandFailed(logger, id, "generate_report", exception);
-            // A render refusal says what stopped it, as the preview does.
-            TempData["CaseError"] = exception is ReportRenderRejectedException
-                ? exception.Message
-                : MutationRefusalMessage(exception, NotGenerated(kind));
+            TempData["CaseError"] = exception switch
+            {
+                // A render refusal says what stopped it, as the preview does.
+                ReportRenderRejectedException => exception.Message,
+                OperationCanceledException or TimeoutException =>
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.TookTooLong(kind),
+                HttpRequestException or IOException =>
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.NotStoredInBox(kind),
+                _ => MutationRefusalMessage(exception, NotGenerated(kind)),
+            };
             return RedirectToReport(id);
         }
 
@@ -2361,13 +2378,23 @@ public sealed partial class DetailsModel(
                         $"{reason.Requirement}: {reason.WhyOutstanding}")));
                 return RedirectToReport(id);
             case CaseReportGenerationOutcome.Pending:
-                TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationPending;
+                // Not yet stored is not success: the page says so in amber.
+                TempData["CaseWarning"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationPending;
                 return RedirectToReport(id);
             case CaseReportGenerationOutcome.Failed:
                 TempData["CaseError"] = NotGenerated(kind);
                 return RedirectToReport(id);
             default:
                 ClearLeaseState();
+                if (kind == CaseReportArtifactKind.AssessmentReport
+                    && result.Generation?.Artifacts.FirstOrDefault(artifact => artifact is
+                    {
+                        Kind: CaseReportArtifactKind.AssessmentReport,
+                        Filing: CaseReportArtifactFiling.Stored,
+                    }) is { } stored)
+                {
+                    TempData[OpenReportKey] = stored.Id.ToString("D");
+                }
                 TempData["CaseStatus"] = kind switch
                 {
                     CaseReportArtifactKind.AssessmentReport =>
@@ -2381,6 +2408,24 @@ public sealed partial class DetailsModel(
                 return RedirectToReport(id);
         }
     }
+
+    /// <summary>
+    /// The faults a generation tells staff about: a refusal, a file that could
+    /// not be read or stored, and a generation that ran out of time. A request
+    /// the browser abandoned is none of them, and goes on as cancelled.
+    /// </summary>
+    private bool IsGenerationFailure(Exception exception) => exception switch
+    {
+        OperationCanceledException => !HttpContext.RequestAborted.IsCancellationRequested,
+        ArgumentException
+            or InvalidOperationException
+            or IOException
+            or InvalidDataException
+            or TimeoutException
+            or HttpRequestException
+            or ReportRenderRejectedException => true,
+        _ => false,
+    };
 
     /// <summary>The document that was not generated, named as staff know it.</summary>
     private static string NotGenerated(CaseReportArtifactKind kind) => kind switch
