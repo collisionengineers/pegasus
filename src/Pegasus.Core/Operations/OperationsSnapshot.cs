@@ -2,6 +2,7 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Notifications;
@@ -405,8 +406,9 @@ public sealed class GetOperationsSnapshot(
         var draftsRead = aiDrafts is null
             ? Task.FromResult<IReadOnlyList<AiDraft>>([])
             : aiDrafts.ListOpenAsync(cancellationToken);
+        var pairedRead = dashboardQueries.ListPairedVehicleImagesAwaitingStaffAsync(cancellationToken);
         await Task.WhenAll(openRead, awaitingRead, dueRead, heldRead, reviewRead,
-            configurationRead, unidentifiedRead, draftsRead);
+            configurationRead, unidentifiedRead, draftsRead, pairedRead);
         var (openTriage, openTriageCount) = await openRead;
         var (awaitingTriage, awaitingTriageCount) = await awaitingRead;
         var dueWork = await dueRead;
@@ -415,6 +417,7 @@ public sealed class GetOperationsSnapshot(
         var configuration = await configurationRead;
         var unidentified = await unidentifiedRead;
         var drafts = await draftsRead;
+        var paired = await pairedRead;
 
         var reviewPartitions = review
             .Select(item => new
@@ -436,7 +439,8 @@ public sealed class GetOperationsSnapshot(
             unidentified,
             [.. openTriage, .. awaitingTriage],
             openTriageCount + awaitingTriageCount,
-            drafts);
+            drafts,
+            paired);
     }
 
     private async Task<(IReadOnlyList<TriageSummary> Items, int TotalCount)> ReadTriageAsync(
@@ -507,7 +511,8 @@ public sealed class GetOperationsSnapshot(
         IReadOnlyList<UnidentifiedQueueRow> Unidentified,
         IReadOnlyList<TriageSummary> Triage,
         int TriageTotalCount,
-        IReadOnlyList<AiDraft> Drafts);
+        IReadOnlyList<AiDraft> Drafts,
+        IReadOnlyList<PairedVehicleImagesCase> PairedVehicleImages);
 
     /// <summary>
     /// Every needs-attention row, each read from the query that already backs
@@ -526,7 +531,8 @@ public sealed class GetOperationsSnapshot(
             staffAccounts,
             inputs.Held.Select(item => item.EngineerId ?? Guid.Empty)
                 .Concat(inputs.Triage.Select(record => record.AssigneeId ?? Guid.Empty))
-                .Concat(draftOwners.Values.Select(id => id ?? Guid.Empty)),
+                .Concat(draftOwners.Values.Select(id => id ?? Guid.Empty))
+                .Concat(inputs.PairedVehicleImages.Select(row => row.EngineerId ?? Guid.Empty)),
             cancellationToken);
 
         var items = new List<NeedsAttentionItem>();
@@ -685,6 +691,28 @@ public sealed class GetOperationsSnapshot(
             {
                 OwnerStaffId = owner,
                 Route = draft.Route
+            });
+        }
+
+        foreach (var paired in inputs.PairedVehicleImages)
+        {
+            items.Add(new(
+                NeedsAttentionKind.VehicleImagesPaired,
+                paired.CaseId,
+                paired.Reference,
+                paired.ImageReference,
+                paired.Principal,
+                nameof(ImageInitiatedCaseState.MergedIntoInstructionCase),
+                NeedsAttentionPolicy.Priority(paired.PairedAtUtc, asOfUtc, dayEndUtc),
+                OwnerName(paired.EngineerId, staffNames),
+                paired.PairedAtUtc,
+                LastOutcome: null,
+                Source: null,
+                Attempts: null,
+                Received: paired.ImagesRegisteredAtUtc)
+            {
+                OwnerStaffId = paired.EngineerId,
+                Route = StaffNotificationPolicy.CaseRoute(paired.CaseId)
             });
         }
 

@@ -120,8 +120,9 @@ The submission decision never hides a per-file outcome.
 
 Once a manually uploaded file's processing resolves, the operator sees an
 explicit destination decision, not a passive status label. Manual upload
-keeps the source and its extraction but never associates it automatically,
-never allocates a Case/PO, and never treats a unique match as consent.
+keeps the source and its extraction but never associates it automatically
+with a Case that existed when it was registered, never allocates a Case/PO,
+and never treats a unique match as consent.
 Mailbox and Provider routes keep their own automatic policy.
 
 The decision table, judged against the current retained material:
@@ -143,7 +144,9 @@ The decision table, judged against the current retained material:
    existing case** (below). That decision links the registration's origin
    receipt, which carries the Image-initiated Case through its normal merge
    ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
-   Once merged, the surface reports the destination Case instead.
+   A Case created after the registration pairs with it automatically under
+   the same FRD-19 rules. Once merged, the surface reports the destination
+   Case instead.
 3. **A manual non-image file that could become a Case.** Staff must either
    confirm one existing Case or open the extracted new-Case proposal.
    A unique match is one suggestion, not a selection. The proposal is

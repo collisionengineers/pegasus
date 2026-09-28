@@ -662,6 +662,7 @@ public static class OperatorLabels
         Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
         Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review Case",
         Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
+        Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => WorkCentre.VehicleImagesPaired,
         _ => Humanise(kind.ToString())
     };
 
@@ -765,6 +766,12 @@ public static class OperatorLabels
             return days <= 0 ? "Today" : string.Create(CultureInfo.InvariantCulture, $"{days} d ago");
         }
 
+        /// <summary>
+        /// Early vehicle images paired with their Case (FRD-19, operator,
+        /// 28 September 2026): the chip, the row's kind and its bold line.
+        /// </summary>
+        public const string VehicleImagesPaired = "Vehicle images paired";
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -772,6 +779,7 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionKind.HeldDecision => "Held",
             Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review",
             Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Unassigned",
+            Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => VehicleImagesPaired,
             Pegasus.Core.Operations.NeedsAttentionKind.Unidentified => "Unidentified",
             Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
             Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",

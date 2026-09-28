@@ -134,6 +134,36 @@ public sealed class DashboardBoundaryTests
             snapshot.NeedsAttention.Select(item => item.Kind).ToArray());
     }
 
+    /// <summary>
+    /// FRD-19 (INT-32): early vehicle images paired with their Case put the
+    /// Case in Needs attention, due at the pairing, so staff see it is ready.
+    /// </summary>
+    [Fact]
+    public async Task NeedsAttentionListsACaseItsVehicleImagesPairedIntoDueAtThePairing()
+    {
+        var caseId = Guid.NewGuid();
+        var pairedAt = NowUtc.AddMinutes(-20);
+        var registeredAt = NowUtc.AddHours(-2);
+        var snapshot = await ExecuteAsync(
+            new RecordingDashboardQueries
+            {
+                Paired = [new(caseId, "a.QDOS26028", "GJ13EVC-01", "QDOS", null, pairedAt, registeredAt)]
+            },
+            NowUtc);
+
+        var item = Assert.Single(snapshot.NeedsAttention);
+        Assert.Equal(NeedsAttentionKind.VehicleImagesPaired, item.Kind);
+        Assert.Equal(caseId, item.Id);
+        Assert.Equal("a.QDOS26028", item.Reference);
+        Assert.Equal("GJ13EVC-01", item.Title);
+        Assert.Equal("QDOS", item.Detail);
+        Assert.Equal(pairedAt, item.Due);
+        Assert.Equal(registeredAt, item.Received);
+        Assert.Equal(NeedsAttentionPriority.Overdue, item.Priority);
+        Assert.Null(item.OwnerStaffId);
+        Assert.Equal($"/Cases/{caseId:D}", item.Route);
+    }
+
     [Fact]
     public async Task NeedsAttentionPartitionsReviewCasesUsingTheCurrentCompletenessConfiguration()
     {
@@ -629,8 +659,13 @@ public sealed class DashboardBoundaryTests
 
     private sealed class RecordingDashboardQueries : IDashboardQueries
     {
+        public IReadOnlyList<PairedVehicleImagesCase> Paired { get; init; } = [];
+
         public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new CaseStageCounts(0, 0, 0, 0));
+
+        public Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
+            CancellationToken cancellationToken) => Task.FromResult(Paired);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset nowUtc) : TimeProvider

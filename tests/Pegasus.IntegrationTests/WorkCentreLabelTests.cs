@@ -62,9 +62,28 @@ public sealed class WorkCentreLabelTests
     [InlineData(NeedsAttentionKind.UnassignedEngineer, "/Cases/Details")]
     [InlineData(NeedsAttentionKind.Unidentified, "/Unidentified/Details")]
     [InlineData(NeedsAttentionKind.Triage, "/Cases/Details")]
+    [InlineData(NeedsAttentionKind.VehicleImagesPaired, "/Cases/Details")]
     public void EveryRecordPageNamesARealPage(NeedsAttentionKind kind, string expected)
     {
         Assert.Equal(expected, NeedsAttentionPresentation.RecordPage(kind));
+    }
+
+    [Fact]
+    public void PairedVehicleImagesReadAsTheirImageReferenceAndPrincipal()
+    {
+        var item = NewItem(
+            NeedsAttentionKind.VehicleImagesPaired,
+            title: "GJ13EVC-01",
+            attempts: null,
+            detail: "QDOS");
+
+        Assert.Equal("Vehicle images paired", OperatorLabels.WorkCentre.KindChip(item.Kind));
+        Assert.Equal("Vehicle images paired", NeedsAttentionPresentation.RowTitle(item));
+        Assert.Equal("images", NeedsAttentionPresentation.KindSlug(item.Kind));
+        Assert.Equal("Open Case", NeedsAttentionPresentation.ActionLabel(item));
+        var facts = NeedsAttentionPresentation.Facts(item, DateTimeOffset.UtcNow);
+        Assert.Equal(new WorkCentreFact("Image reference", "GJ13EVC-01", Mono: true), facts[1]);
+        Assert.Equal(new WorkCentreFact("Principal", "QDOS"), facts[2]);
     }
 
     private static NeedsAttentionItem NewItem(
