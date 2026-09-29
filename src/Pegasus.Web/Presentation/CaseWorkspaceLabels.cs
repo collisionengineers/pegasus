@@ -728,6 +728,21 @@ public static class CaseWorkspaceLabels
         public const string GuideRetail = "Guide retail";
         public const string ProposedEngineersValue = "Proposed Engineer's Value";
 
+        // Use this value (operator, 28 September 2026): the visible action that
+        // says "use this card's figure". The Save records it on the one Case Save.
+        public const string UseThisValue = "Use this value";
+        public const string UsingThisValue = "Using this value";
+        public const string UseNeedsRetail = "Enter the retail value on this card to use it.";
+
+        // The calculation lines say why they cannot show a figure, never "None yet".
+        public const string PreviewFailed = "The calculation could not be updated. Change a figure to try again.";
+        public const string PresetChanged = "A value increase changed since the page opened. Refresh the page.";
+        public const string BasisGone = "The chosen card is no longer on the Case. Refresh the page.";
+        public const string CannotCalculate = "The calculation could not be worked out. Check the figures.";
+
+        // Research is filed without ending the edit (FRD-24).
+        public const string ResearchFiledNote = "The result is filed here without ending your edit. Save or refresh to see it.";
+
         public static string SourceLabel(ValuationSource source) => ValuationPolicy.SourceName(source);
 
         /// <summary>The hook slug for a source, one list beside its label.</summary>

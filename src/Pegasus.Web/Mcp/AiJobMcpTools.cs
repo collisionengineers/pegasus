@@ -264,13 +264,11 @@ internal sealed class AiJobMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Completes this client's MarketResearch job as Draft ready with one retained findings document and one AI market research valuation. Requires automation.jobs; first claim case edit authority with pegasus_case_edit_begin under automation.cases and present that lease here. Nothing is accepted automatically.")]
+    [Description("Completes this client's MarketResearch job as Draft ready with one retained findings document and one AI market research valuation. Requires automation.jobs only: it takes no Case edit lease and no Case version, because a source card is not a Case field edit and the Engineer is usually still editing the Case, so it never waits on or ends their session. Nothing is accepted automatically.")]
     public async Task<MarketResearchCompletionToolResult> CompleteMarketResearchAsync(
         Guid jobId,
         long expectedJobVersion,
         Guid caseId,
-        long expectedCaseVersion,
-        string editLeaseToken,
         string operationKey,
         [Description("Leaf name for the findings document, at most 255 characters.")] string fileName,
         [Description("Media type for the findings document, at most 200 characters.")] string mediaType,
@@ -297,8 +295,6 @@ internal sealed class AiJobMcpTools(
                         RequireJobId(jobId),
                         expectedJobVersion,
                         AutomationMcpErrors.RequireId(caseId, "case identifier"),
-                        expectedCaseVersion,
-                        editLeaseToken,
                         context.Actor,
                         key,
                         AutomationMcpErrors.RequireFileName(fileName),

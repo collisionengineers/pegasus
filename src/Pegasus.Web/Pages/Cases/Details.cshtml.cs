@@ -1782,7 +1782,7 @@ public sealed partial class DetailsModel(
                     ? await listCaseValuations.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken)
                     : [];
                 var adoption = carriesCalculator
-                    ? ChangedCalculation(selection, guideEntries ?? [], recordedCards)
+                    ? ChosenCalculation(selection, guideEntries ?? [], recordedCards)
                     : null;
                 var preparationSubmitted = preparationEdits is { Length: > 0 };
                 var wordingSubmitted = wordingEdits is { Length: > 0 };

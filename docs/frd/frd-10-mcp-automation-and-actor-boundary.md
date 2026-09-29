@@ -153,6 +153,7 @@ stopped automation client is refused before any tool runs.
 | `pegasus_ai_job_take` | `automation.jobs` | Claim one queued job under a bounded lease held by the client's name; refused when the job is not queued or the kill switch is on |
 | `pegasus_ai_job_progress` | `automation.jobs` | Renew the lease and record a short progress note; refused after cancellation or lease expiry |
 | `pegasus_ai_job_complete` | `automation.jobs` | Complete MarketResearch after its retained Case files are attached; other proposal kinds become `Draft ready`, naming their result |
+| `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document and one AI market research card and mark the client's MarketResearch job `Draft ready`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or completed Case (operator, 28 September 2026) |
 | `pegasus_ai_job_fail` | `automation.jobs` | Mark the job `Failed` with a reason |
 | `pegasus_ai_job_release` | `automation.jobs` | Return a taken job to `Queued` before the lease ends |
 | `pegasus_estimate_save` | `automation.assessment` | Save an AI-draft estimate on a Case; must cite the Estimate job it fulfils and always lands as `Draft` |

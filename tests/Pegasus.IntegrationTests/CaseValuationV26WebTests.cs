@@ -23,6 +23,10 @@ namespace Pegasus.IntegrationTests;
 /// job for the month, a pending job shows as a Researching card, and the Save
 /// posts a changed calculation to the Core policy shape. The Retail, Trade and
 /// Engineer's value boxes open the section (operator, 26 September 2026).
+/// Use this value is the visible decision to use a card's figure, a source
+/// with no connected provider says so before anything is pressed, and the
+/// preview answers with the figures the Save will use or with its own reason
+/// (operator, 28 September 2026).
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseValuationV26WebTests
@@ -40,7 +44,9 @@ public sealed class CaseValuationV26WebTests
     /// The edit session renders the month input on the research form, the AI
     /// market research button, and one card per guide source whose month,
     /// mileage, retail and trade boxes join the Case form, with a Get
-    /// valuation button that asks by script and the card's hidden notice.
+    /// valuation button that asks by script and the card's hidden notice when
+    /// its provider is connected, or the card's standing notice and no button
+    /// when it is not (all five, here). Every card offers Use this value.
     /// There is no card Save and no Add valuation dialog.
     /// </summary>
     [Fact]
@@ -81,15 +87,21 @@ public sealed class CaseValuationV26WebTests
                 Assert.Contains("form=\"case-edit-form\"", input.Value, StringComparison.Ordinal);
                 Assert.DoesNotContain("required", input.Value, StringComparison.Ordinal);
             }
-            var button = ButtonTag(html, source);
-            Assert.Contains("type=\"button\"", button, StringComparison.Ordinal);
-            Assert.Contains("data-valuation-get", button, StringComparison.Ordinal);
-            Assert.Contains("handler=GetValuation", button, StringComparison.Ordinal);
-            Assert.Contains("source=" + name, button, StringComparison.Ordinal);
-            Assert.DoesNotContain("form=", button, StringComparison.Ordinal);
-            Assert.Contains("data-valuation-notice hidden", card, StringComparison.Ordinal);
+            // No provider is connected: the card says so now and offers no Get valuation.
+            Assert.DoesNotContain("data-valuation-get", card, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-valuation-notice hidden", card, StringComparison.Ordinal);
+            Assert.Contains("data-valuation-not-connected", card, StringComparison.Ordinal);
+            Assert.Contains(
+                CaseWorkspaceLabels.Valuation.UnavailableLead(Enum.Parse<ValuationSource>(name)),
+                WebUtility.HtmlDecode(card),
+                StringComparison.Ordinal);
             Assert.Contains("data-dialog-open=\"problem-dialog\"", card, StringComparison.Ordinal);
             Assert.Contains(CaseWorkspaceLabels.Valuation.ReportAProblem, card, StringComparison.Ordinal);
+            // The visible decision to use the card's figure, off until pressed.
+            var use = ButtonTagByHook(card, "data-valuation-use");
+            Assert.Contains("type=\"button\"", use, StringComparison.Ordinal);
+            Assert.Contains("aria-pressed=\"false\"", use, StringComparison.Ordinal);
+            Assert.Contains(CaseWorkspaceLabels.Valuation.UseThisValue, card, StringComparison.Ordinal);
         }
         Assert.DoesNotContain("data-valuation-save", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=SaveValuation", html, StringComparison.Ordinal);
@@ -134,6 +146,8 @@ public sealed class CaseValuationV26WebTests
             CaseWorkspaceLabels.Valuation.Researching + " · Sep 2026",
             html,
             StringComparison.Ordinal);
+        // The result is filed without ending the edit, and the card says so.
+        Assert.Contains(CaseWorkspaceLabels.Valuation.ResearchFiledNote, html, StringComparison.Ordinal);
         Assert.Contains($"data-valuation-card=\"{glasses.ValuationId:D}\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain($"data-valuation-card=\"{earlierResearch.ValuationId:D}\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"2026-09\"", InputTag(html, "guideMonth", "data-valuation-month"), StringComparison.Ordinal);
@@ -358,6 +372,234 @@ public sealed class CaseValuationV26WebTests
                     ("guideEntries[0].TradeValue", "10250.00"))));
         AssertPrg(echoedCard, store.CaseId);
         Assert.Null(store.Saves[3].Valuation);
+    }
+
+    /// <summary>
+    /// A source with a connected provider is offered Get valuation and keeps
+    /// its notice hidden until the request is refused; the sources without one
+    /// say so on their cards now.
+    /// </summary>
+    [Fact]
+    public async Task OnlyAConnectedSourceIsOfferedGetValuationBeforeAnyClick()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            services.AddSingleton<IGuideValuationProvider>(new FakeGuideValuationProvider(ValuationSource.Brego, 13_250m, 11_000m));
+        });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+
+        var brego = EntryCard(html, "brego");
+        Assert.Contains("data-valuation-get", brego, StringComparison.Ordinal);
+        Assert.Contains("data-valuation-notice hidden", brego, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-not-connected", brego, StringComparison.Ordinal);
+        foreach (var slug in new[] { "glasses", "super-cap", "cap", "cazana" })
+        {
+            var card = EntryCard(html, slug);
+            Assert.DoesNotContain("data-valuation-get", card, StringComparison.Ordinal);
+            Assert.Contains("data-valuation-not-connected", card, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// Use this value (operator, 28 September 2026): the calculation is
+    /// recorded against its basis card when the Engineer pressed it, even
+    /// when nothing changed since the page opened; a save that does not post
+    /// it still records nothing. The two fields it switches on are on the
+    /// page and post nothing until then.
+    /// </summary>
+    [Fact]
+    public async Task UsingAnUnchangedDefaultValueIsRecordedAndAnUnrelatedSaveIsNot()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        var opening = WebUtility.HtmlDecode(InputValue(html, "selection.Opening"));
+        // Both fields are switched off until the button is pressed.
+        Assert.Matches("<input type=\"hidden\" name=\"selection[.]Use\"[^>]* disabled", html);
+        Assert.Matches("<input type=\"hidden\" name=\"selection[.]GuideSource\"[^>]* disabled", html);
+        (string, string)[] Untouched(params (string, string)[] more) =>
+        [
+            ("selection.Opening", opening),
+            ("selection.GuideValuationId", glasses.ValuationId.ToString("D")),
+            ("selection.PriorTotalLossPercentage", ""),
+            ("selection.ConditionDeduction", ""),
+            .. more,
+        ];
+
+        using var unrelated = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(DetailsModelOperationKey, "Saved the claim", Untouched(("claimNumber", "CLM-42"))));
+        AssertPrg(unrelated, store.CaseId);
+        Assert.Null(Assert.Single(store.Saves).Valuation);
+
+        using var used = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "5f5e5d5c5b5a59585756555453525150",
+                "Used the Glass's figure",
+                Untouched(("selection.Use", "true"))));
+        AssertPrg(used, store.CaseId);
+        var adoption = Assert.IsType<ValuationCalculationSelection>(store.Saves[1].Valuation!.Adoption);
+        Assert.Equal(glasses.ValuationId, adoption.GuideValuationId);
+        Assert.Null(adoption.GuideSource);
+    }
+
+    /// <summary>
+    /// A guide card typed in the same edit has no identity yet, so Use this
+    /// value names it by its source and the Save carries the typed card with
+    /// the calculation. A card with no retail has nothing to use, and the Save
+    /// is refused rather than recording nothing silently.
+    /// </summary>
+    [Fact]
+    public async Task UsingACardTypedInTheSameEditNamesItBySource()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
+        var valuation = new RecordingValuationSection(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        var opening = WebUtility.HtmlDecode(InputValue(html, "selection.Opening"));
+
+        using var typed = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey,
+                "Used a typed Brego figure",
+                ("selection.Opening", opening),
+                ("selection.GuideSource", nameof(ValuationSource.Brego)),
+                ("selection.Use", "true"),
+                ("selection.PriorTotalLossPercentage", ""),
+                ("selection.ConditionDeduction", ""),
+                ("guideEntries[0].Source", nameof(ValuationSource.Brego)),
+                ("guideEntries[0].GuideMonth", "2031-05"),
+                ("guideEntries[0].RetailValue", "9800.00"),
+                ("guideEntries[0].TradeValue", "")));
+        AssertPrg(typed, store.CaseId);
+        var saved = Assert.Single(store.Saves);
+        Assert.Equal(9_800m, Assert.Single(saved.Valuation!.GuideEntries!).RetailValue);
+        var adoption = Assert.IsType<ValuationCalculationSelection>(saved.Valuation.Adoption);
+        Assert.Equal(Guid.Empty, adoption.GuideValuationId);
+        Assert.Equal(ValuationSource.Brego, adoption.GuideSource);
+
+        // Nothing typed on the card: there is no figure to use.
+        using var empty = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "6f6e6d6c6b6a69686766656463626160",
+                "Used an empty Cap card",
+                ("selection.Opening", opening),
+                ("selection.GuideSource", nameof(ValuationSource.Cap)),
+                ("selection.Use", "true"),
+                ("selection.PriorTotalLossPercentage", ""),
+                ("selection.ConditionDeduction", "")));
+        Assert.Single(store.Saves);
+    }
+
+    /// <summary>
+    /// The preview is what the Save uses (operator, 28 September 2026): the
+    /// retail as typed and the claimant's VAT position as the form holds it
+    /// reach the port, which is the one Core owner.
+    /// </summary>
+    [Fact]
+    public async Task ThePreviewCarriesTheUnsavedRetailAndTheClaimantVatTheFormHolds()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        var preview = new RecordingPreview();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<IPreviewValuationCalculation>(services, preview);
+        });
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=PreviewValuation",
+            Form(
+                workspace.AntiforgeryToken,
+                ("selection.GuideValuationId", glasses.ValuationId.ToString("D")),
+                ("selection.CommercialVat", "true"),
+                ("basisRetail", "13000.00"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementClaimantVatRegistered), "true")));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var asked = Assert.Single(preview.Requests);
+        Assert.Equal(13_000m, asked.GuideRetailValue);
+        Assert.True(asked.ClaimantVatRegistered);
+        Assert.Equal(glasses.ValuationId, asked.Selection.GuideValuationId);
+
+        // Left out, the preview reads what is recorded.
+        using var recorded = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=PreviewValuation",
+            Form(workspace.AntiforgeryToken, ("selection.GuideValuationId", glasses.ValuationId.ToString("D"))));
+        Assert.Equal(HttpStatusCode.OK, recorded.StatusCode);
+        Assert.Null(preview.Requests[1].GuideRetailValue);
+        Assert.Null(preview.Requests[1].ClaimantVatRegistered);
+
+        // A retail box the Engineer cleared is posted empty and means "no
+        // retail", as the Save reads it: never the recorded card's figure.
+        using var cleared = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=PreviewValuation",
+            Form(
+                workspace.AntiforgeryToken,
+                ("selection.GuideValuationId", glasses.ValuationId.ToString("D")),
+                ("basisRetail", "")));
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        Assert.Equal(0m, preview.Requests[2].GuideRetailValue);
+    }
+
+    /// <summary>
+    /// A calculation that cannot be worked out answers with Core's own
+    /// reason as an alert, never as "None yet" (operator, 28 September 2026);
+    /// with no basis chosen there is honestly nothing yet.
+    /// </summary>
+    [Fact]
+    public async Task APreviewThatCannotBeWorkedOutSaysWhyAndNoBasisSaysNoneYet()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 1_000m, 800m);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<IPreviewValuationCalculation>(
+                services,
+                new RefusingPreview(new InvalidOperationException(
+                    "The valuation deductions exceed the value, so there is no figure to apply.")));
+        });
+
+        using var refused = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=PreviewValuation",
+            Form(
+                workspace.AntiforgeryToken,
+                ("selection.GuideValuationId", glasses.ValuationId.ToString("D")),
+                ("selection.ConditionDeduction", "5000")));
+        var refusedHtml = await refused.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("data-valuation-error", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("role=\"alert\"", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("deductions exceed the value", refusedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Valuation.NoneYet, refusedHtml, StringComparison.Ordinal);
+
+        using var noBasis = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=PreviewValuation",
+            Form(workspace.AntiforgeryToken, ("selection.ConditionDeduction", "")));
+        var noBasisHtml = await noBasis.Content.ReadAsStringAsync();
+        Assert.Contains(CaseWorkspaceLabels.Valuation.NoneYet, noBasisHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-error", noBasisHtml, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -758,6 +1000,28 @@ public sealed class CaseValuationV26WebTests
             Requests.Add(request);
             return Task.FromResult(new GuideValuationQuote(retail, trade, request.GuideMonth, request.Mileage));
         }
+    }
+
+    /// <summary>A preview that records what it was asked and answers a fixed calculation.</summary>
+    private sealed class RecordingPreview : IPreviewValuationCalculation
+    {
+        public List<PreviewValuationRequest> Requests { get; } = [];
+
+        public Task<ValuationPreview> ExecuteAsync(PreviewValuationRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new ValuationPreview(
+                request.Selection.GuideValuationId,
+                ValuationCalculationPolicy.Calculate(new ValuationCalculationInput(
+                    request.GuideRetailValue ?? 12_500m, false, false, null, [], 0m))));
+        }
+    }
+
+    /// <summary>A preview that Core would refuse, with the reason it gives.</summary>
+    private sealed class RefusingPreview(Exception refusal) : IPreviewValuationCalculation
+    {
+        public Task<ValuationPreview> ExecuteAsync(PreviewValuationRequest request, CancellationToken cancellationToken) =>
+            throw refusal;
     }
 
     /// <summary>The calculator's arithmetic over one basis retail, as Core computes it.</summary>

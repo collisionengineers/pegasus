@@ -34,12 +34,19 @@ public sealed class EfValuationStore(
     /// rechecked here — the form is the request, never the authority. The
     /// basis is the card as this save leaves it: when the save recorded the
     /// basis source's card for a new guide month, that new card is the one on
-    /// screen. The claimant's VAT position is the one this save records. The
-    /// Case save owns the version, the workflow event and the history line.
-    /// No stamp is checked: every writer of a guide card moves the Case
-    /// version, which the save has already checked.
+    /// screen, and a card typed in this same edit is chosen by its source.
+    /// The claimant's VAT position is the one this save records. The Case
+    /// save owns the version, the workflow event and the history line.
+    /// No stamp is checked: the calculation is worked out here from the card
+    /// as it is now, and the Engineer's Value box must still hold that figure.
+    /// A card changed underneath the page (an AI research result is filed
+    /// without the Case edit lease) therefore fails that check.
+    /// Null when the Engineer typed a different figure over the Engineer's
+    /// Value box: that figure is the Engineer's own, so it is not recorded as
+    /// this card's calculation. When Use this value was pressed the same
+    /// mismatch is refused instead.
     /// </summary>
-    internal static async Task<AppliedValuation> AdoptAsync(
+    internal static async Task<AppliedValuation?> AdoptAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
         ActionActor actor,
@@ -47,6 +54,7 @@ public sealed class EfValuationStore(
         ValuationCalculationSelection selection,
         IReadOnlyList<CaseValuationEntity> writtenBySave,
         bool claimantVatRegistered,
+        string? engineerValueBox,
         long? caseMileageInMiles,
         long resultingCaseVersion,
         DateTimeOffset now,
@@ -54,12 +62,32 @@ public sealed class EfValuationStore(
     {
         // The adoption belongs to the Case's current work: the Audit once it exists.
         var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
-        var posted = await RequiredGuideAsync(
-            context,
-            workId,
-            selection.GuideValuationId,
-            cancellationToken);
-        var guideEntity = writtenBySave.LastOrDefault(item => item.Source == posted.Source) ?? posted;
+        CaseValuationEntity guideEntity;
+        if (selection.GuideValuationId != Guid.Empty)
+        {
+            var posted = await RequiredGuideAsync(
+                context,
+                workId,
+                selection.GuideValuationId,
+                cancellationToken);
+            guideEntity = writtenBySave.LastOrDefault(item => item.Source == posted.Source) ?? posted;
+        }
+        else
+        {
+            // A card typed in this edit is chosen by its source: the card this
+            // save recorded, else that source's latest recorded card.
+            var source = (selection.GuideSource
+                ?? throw new InvalidOperationException("A guide valuation must be selected as the basis."))
+                .ToString();
+            guideEntity = writtenBySave.LastOrDefault(item => item.Source == source)
+                ?? (await context.CaseValuations
+                    .Where(item => item.WorkId == workId && item.Source == source)
+                    .ToArrayAsync(cancellationToken))
+                    .OrderByDescending(OrderKey)
+                    .FirstOrDefault()
+                ?? throw new InvalidOperationException(
+                    "Enter the retail value on the card you chose to use.");
+        }
         var basis = await ReadBasisAsync(
             context,
             workId,
@@ -69,6 +97,14 @@ public sealed class EfValuationStore(
         var calculation = ValuationCalculationPolicy.Calculate(
             ValuationCalculationPolicy.Resolve(selection, basis));
         var accepted = ValuationCalculationPolicy.AcceptedValue(calculation);
+        if (!ValuationCalculationPolicy.IsEngineerValueBox(accepted, engineerValueBox))
+        {
+            // A figure typed over a changed calculation is the Engineer's own.
+            // An explicit Use is a decision, so it is refused, never dropped.
+            return selection.Use
+                ? throw new InvalidOperationException(ValuationCalculationPolicy.UseFigureChanged)
+                : null;
+        }
 
         // The calculated value, with the Case's own mileage when it has one:
         // a guide card carries none, and a value from a card needs none
@@ -216,7 +252,33 @@ public sealed class EfValuationStore(
             cancellationToken);
     }
 
-    private static async Task<ValuationCalculationBasis> ReadBasisAsync(
+    public async Task<ValuationCalculationBasis> ReadCalculationContextAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        var claimantVatField = await context.CaseAssessmentFields.AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.WorkId == workId
+                    && item.FieldPath == AssessmentVocabulary.SettlementClaimantVatRegistered,
+                cancellationToken);
+        return await ReadBasisAsync(
+            context,
+            workId,
+            Guid.Empty,
+            DateTimeOffset.MinValue,
+            0m,
+            string.Equals(claimantVatField?.Value, "true", StringComparison.Ordinal),
+            cancellationToken);
+    }
+
+    private static Task<ValuationCalculationBasis> ReadBasisAsync(
         PegasusDbContext context,
         Guid workId,
         CaseValuationEntity guideEntity,
@@ -224,6 +286,28 @@ public sealed class EfValuationStore(
         CancellationToken cancellationToken)
     {
         var guide = Map(guideEntity);
+        return ReadBasisAsync(
+            context,
+            workId,
+            guide.ValuationId,
+            StampOf(guide),
+            // The calculation starts from retail; a card recorded without one
+            // is never offered as the basis, so this refuses only a stale page.
+            guide.Details.RetailValue
+                ?? throw new ArgumentException("The chosen guide valuation has no retail value to calculate from."),
+            claimantVatRegistered,
+            cancellationToken);
+    }
+
+    private static async Task<ValuationCalculationBasis> ReadBasisAsync(
+        PegasusDbContext context,
+        Guid workId,
+        Guid guideValuationId,
+        DateTimeOffset guideStamp,
+        decimal guideRetail,
+        bool claimantVatRegistered,
+        CancellationToken cancellationToken)
+    {
         // Every preset row, disabled and removed included: the selection
         // rules that refuse them live in Core, so the read stays a read.
         var presets = await context.Set<ValuationPresetEntity>()
@@ -234,12 +318,9 @@ public sealed class EfValuationStore(
             .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
         return new(
-            guide.ValuationId,
-            StampOf(guide),
-            // The calculation starts from retail; a card recorded without one
-            // is never offered as the basis, so this refuses only a stale page.
-            guide.Details.RetailValue
-                ?? throw new ArgumentException("The chosen guide valuation has no retail value to calculate from."),
+            guideValuationId,
+            guideStamp,
+            guideRetail,
             claimantVatRegistered,
             [.. presets.Select(EfValuationPresetStore.Map)])
         {
@@ -605,6 +686,12 @@ public sealed class EfValuationStore(
         CaseReportValuationDependencies Before,
         CaseReportValuationDependencies After);
 
+    /// <summary>
+    /// The history of a valuation attached without a Case edit: an AI market
+    /// research card. It records itself at the Case's current version, as an
+    /// operator note does, so the Case and any open edit session are left as
+    /// they were.
+    /// </summary>
     internal static void AddHistory(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
@@ -664,9 +751,10 @@ public sealed class EfValuationStore(
         });
 
     /// <summary>
-    /// The history a valuation command records: the replayable workflow event,
-    /// the action-history entry with its before/after payload, and the Case
-    /// history line. (A Case save's cards and adoption record only the
+    /// The history an attached valuation records: the replayable workflow
+    /// event, the action-history entry with its before/after payload, and the
+    /// Case history line, all at the Case's current version because the Case
+    /// did not change. (A Case save's cards and adoption record only the
     /// action-history entry: the save owns the workflow event.)
     /// </summary>
     private static void AddHistory(
@@ -685,7 +773,7 @@ public sealed class EfValuationStore(
         string policyVersion,
         DateTimeOffset now)
     {
-        var beforeVersion = workflow.Version - 1;
+        var beforeVersion = workflow.Version;
         var roles = JsonSerializer.Serialize(
             actor.Roles.OrderBy(role => role),
             SerializerOptions);

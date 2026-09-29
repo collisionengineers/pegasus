@@ -22,6 +22,20 @@ internal static class CaseMutationGuard
         string editLeaseToken,
         DateTimeOffset nowUtc)
     {
+        RequireOpen(workflow, actor);
+        RequireVersion(workflow, expectedCaseVersion);
+        RequireLease(workflow, actor, editLeaseToken, nowUtc);
+    }
+
+    /// <summary>
+    /// The refusals every write shares, with no claim on the edit lease or the
+    /// Case version: the actor may do casework, and the Case is neither
+    /// archived nor complete. A write that is not a Case field edit and does
+    /// not move the Case (a research result filed while the Engineer edits)
+    /// asks only this.
+    /// </summary>
+    public static void RequireOpen(CaseWorkflowEntity workflow, ActionActor actor)
+    {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
@@ -38,9 +52,6 @@ internal static class CaseMutationGuard
         {
             throw new CaseTerminalMutationException(workflow.CaseId);
         }
-
-        RequireVersion(workflow, expectedCaseVersion);
-        RequireLease(workflow, actor, editLeaseToken, nowUtc);
     }
 
     public static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion)
