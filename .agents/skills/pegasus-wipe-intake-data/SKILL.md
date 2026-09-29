@@ -58,7 +58,9 @@ zero, so the next allocation is `QDOSyy001`.
   and work identifiers do live here; the wipe leaves them intact. On resume,
   queued mail notifications must use the new persisted receive-time cutoff.
 - **For an ordinary wipe, the SQL preserve list** — identity/auth
-  (`AspNet*`, `OpenIddict*`), mailbox configuration and Graph subscriptions,
+  (`AspNet*`, `OpenIddict*`), each staff member's stored external credential
+  (`UserExternalCredentials`, e.g. the Glass's login, which only its owner can
+  re-enter), mailbox configuration and Graph subscriptions,
   `Organizations*`/`Principals*`, `PrincipalDomain*`/
   `PrincipalReferences`, `WorkflowConfigurations`, `SendToAiControl`,
   `SecurityEvents`, `ValuationPresets` and `EmailTemplates`
