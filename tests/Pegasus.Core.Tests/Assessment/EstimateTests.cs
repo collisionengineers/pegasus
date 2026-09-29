@@ -108,6 +108,37 @@ public sealed class EstimateTests
         Assert.Equal(50m, totals.Printed.Gross);
     }
 
+    /// <summary>
+    /// The editor offers one Specialist operation, which lands as a fixed
+    /// price. A stored Specialist line it leaves Specialist keeps its own
+    /// kind, so hours priced by work units stay priced; a changed operation
+    /// is the editor's.
+    /// </summary>
+    [Theory]
+    [InlineData("specialist_fixed", "specialist_wu", "specialist_wu")]
+    [InlineData("specialist_fixed", "specialist_fixed", "specialist_fixed")]
+    [InlineData("check_labour", "specialist_wu", "check_labour")]
+    [InlineData("specialist_fixed", "check_labour", "specialist_fixed")]
+    [InlineData("paint_repair", "paint_new", "paint_repair")]
+    public void AnEditedSpecialistLineKeepsItsStoredKind(string edited, string stored, string expected) =>
+        Assert.Equal(expected, EstimateOperations.Carry(edited, stored));
+
+    /// <summary>
+    /// A Specialist line with hours is priced by work units; one without, or
+    /// any other operation, lands as its usual line type.
+    /// </summary>
+    [Theory]
+    [InlineData(EstimateOperation.Specialist, "1.00", "specialist_wu")]
+    [InlineData(EstimateOperation.Specialist, "0", "specialist_fixed")]
+    [InlineData(EstimateOperation.Specialist, null, "specialist_fixed")]
+    [InlineData(EstimateOperation.Other, "1.00", "check_labour")]
+    [InlineData(EstimateOperation.Replace, "0.50", "new_part")]
+    public void ASpecialistLineWithHoursIsPricedByWorkUnits(EstimateOperation operation, string? hours, string expected) =>
+        Assert.Equal(
+            expected,
+            EstimateOperations.ToLineType(
+                operation, hours is null ? null : decimal.Parse(hours, System.Globalization.CultureInfo.InvariantCulture)));
+
     [Fact]
     public void EveryLineTypeMapsToExactlyOneOperationAndBack()
     {

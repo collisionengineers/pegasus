@@ -9,6 +9,7 @@ namespace Pegasus.Infrastructure.Assessment;
 /// <summary>
 /// Reads Glass's printed calculation tables, not flattened text. Included work
 /// and the two appendices remain evidence; only the main rows carry charges.
+/// Auxiliary work (EC) is Specialist, as the XML reader files it.
 /// Printed PDF hours are already net and never use the XML overlap rule.
 /// Printed section labour is section hours multiplied by the printed rate and
 /// rounded once, while each printed row must still reconcile to that rate.
@@ -358,17 +359,22 @@ internal static class GlassEstimatePdfParser
                 "B" => "paint_blend", "I" or "K1R" => "paint_new", null => "paint_prep", _ => "paint_repair",
             } : row.Operation switch
             {
-                "RP" => "new_part", "R" or "PR" => "repair", "UI" => "rnr", _ => "check_labour",
+                "RP" => "new_part", "R" or "PR" => "repair", "UI" => "rnr",
+                "EC" => EstimateOperations.ToLineType(EstimateOperation.Specialist, row.Hours),
+                _ => "check_labour",
             };
+            // A part and an additional operation print their amount as a unit
+            // amount; every other row's printed material is row materials.
+            var priced = row.Operation is "RP" or "EC";
             List<string> notes = [.. row.Notes];
             if (row.Parent is { } parent) notes.Insert(0, $"Included in {parent.Section} row {parent.Position}; no separate charge.");
             if (row.Operation is { } operation) notes.Insert(0, $"Printed {(paint ? "paint level" : "operation")}: {operation}.");
             if (row.Overlap is { } overlap) notes.Add(FormattableString.Invariant($"Printed overlap: {overlap:0.00} h (net hours retained)."));
             if (row.Labour is { } labour) notes.Add(FormattableString.Invariant($"Printed labour: {labour:0.00} GBP."));
             return new(type, row.Guide, row.Description, paint ? null : row.Hours,
-                row.Operation == "RP" ? row.Material : null, false, row.PartNumber, null, "reference",
+                priced ? row.Material : null, false, row.PartNumber, null, "reference",
                 notes.Count == 0 ? null : string.Join(' ', notes), PaintWorkUnits: paint ? row.Hours : null,
-                Materials: row.Operation == "RP" ? null : row.Material,
+                Materials: priced ? null : row.Material,
                 SourceRowIdentity: FormattableString.Invariant($"{row.Section.ToString().ToLowerInvariant()}:p{row.Page}:r{row.Position}:{row.Guide}"));
         }
     }

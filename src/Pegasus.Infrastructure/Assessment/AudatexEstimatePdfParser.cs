@@ -24,10 +24,9 @@ namespace Pegasus.Infrastructure.Assessment;
 ///
 /// Those same printed totals are returned as
 /// <see cref="ParsedEstimate.SourceTotals"/>. They are the document's own
-/// arithmetic, kept as evidence beside the estimate Pegasus costs from the
-/// rows at its own rate, discounts and VAT categories: a figure that
-/// disagrees with the calculation is recorded, never dropped and never
-/// allowed to overrule <see cref="EstimateTotals"/>.
+/// arithmetic and never overrule <see cref="EstimateTotals"/>, which costs
+/// the estimate from the rows at Pegasus's own rate, discounts and VAT
+/// categories; the import does not store them.
 /// </summary>
 internal static class AudatexEstimatePdfParser
 {

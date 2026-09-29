@@ -97,6 +97,19 @@ the printed rate × section hours as the source computes it. Missing or
 ambiguous required evidence refuses the whole import. Source rates and VAT do
 not select a Pegasus rate card or decide a repairer's VAT status.
 
+**Glass's rows, both routes (operator, 29 September 2026).** The Glass's XML
+export and the calculation PDF land the same spec:
+
+- An additional operation (the XML's `Extra costs`, the PDF's Auxiliary `EC`
+  row) is a Specialist line, as EVA files it. With hours it is priced by work
+  units at the spec's rate; with none, its amount is a fixed Specialist sum.
+- An included operation is a no-charge Other line, with neither hours nor a
+  price, noted as included in its row. It is never a new part.
+- A part's side prints after its description, `(L)` or `(R)`, as Glass's
+  sheet prints it.
+- A guide time or price the engineer changed in Glass's, and Glass's reason
+  for it, are the line's note.
+
 **Labour rate on a new spec.** A new repair spec — imported, returned from
 Glass's, or started with **New repair spec** — takes the one enabled Pegasus
 labour-rate card. With no enabled card, or several, the rate stays blank and
@@ -143,7 +156,8 @@ report replaced. There is no separate supersede step (operator,
 25 September 2026). A Case with no Current spec cannot generate a report. The
 specification uses one line vocabulary and one calculation basis. The three assessment-report lists (new parts, repairs
 and additional operations) are one deterministic names-only projection of
-those ordered lines, not a second renderer-owned specification.
+those ordered lines, not a second renderer-owned specification. Repairs lists
+repair and R&I lines, as the Case page does.
 
 **Replay in the estimate editor.** The editor has no save of its own: the
 Case's one Save carries the specification with the rest of the Case

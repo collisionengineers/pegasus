@@ -67,11 +67,18 @@ public sealed record GlassEstimateExport(
 /// this row shares with another and <c>Part_InclusiveSparePart</c> is an
 /// operation whose time is already inside its parent row's. Pegasus costs an
 /// estimate from its own rows, so a row carries the time it actually adds:
-/// <c>Time − OverlapTime</c>, and zero for an inclusive row. The same two
-/// reference exports prove that rule against the figure Glass's printed —
-/// 6.1 − 0 − 0 = 6.1 hours and 27.3 − 3.1 − 4.5 = 19.7 hours, at 80.00 the
-/// printed 488.00 and 1,576.00. The gross figures stay in the document; the
-/// import records the row values as read here.
+/// <c>Time − OverlapTime</c>. The same two reference exports prove that rule
+/// against the figure Glass's printed — 6.1 − 0 − 0 = 6.1 hours and
+/// 27.3 − 3.1 − 4.5 = 19.7 hours, at 80.00 the printed 488.00 and 1,576.00.
+/// The gross figures stay in the document; the import records the row values
+/// as read here.
+/// </para>
+///
+/// <para><b>Included operations.</b> An inclusive row charges nothing of its
+/// own, so it lands as a no-charge Other line with neither hours nor a price,
+/// noted as included in the nearest part row before it — Glass's lists an
+/// inclusive row after its parent. That keeps an included Front Grille out of
+/// the new parts, and is how the Glass's calculation PDF reader lands the same row.
 /// </para>
 ///
 /// <para><b>Parts and paint.</b> <c>PosType</c> owns the split, not
@@ -83,12 +90,28 @@ public sealed record GlassEstimateExport(
 /// prices and <c>TotalAmountPaint</c> the sum of the <c>Paint_*</c> prices.
 /// </para>
 ///
-/// <para><b>Totals are evidence.</b> <c>ExclVatStatisticResults</c> and
+/// <para><b>Additional operations.</b> Glass's writes a user-defined
+/// additional operation — a road test, a sundries charge, a collection — as a
+/// <c>Free_Part</c> row, read the same way as a part row, whose
+/// <c>RepairKind</c> is <c>Extra costs</c>. It is a Specialist line, as EVA
+/// files it: a row with hours costs them at the estimate's rate, and a row
+/// without prices a fixed Specialist amount. Glass's counts those amounts in
+/// <c>TotalAmountParts</c>; Pegasus does not.
+/// </para>
+///
+/// <para><b>What the figures do not say.</b> The side Glass's prints beside a
+/// part (<c>Place</c>, <c>L</c> or <c>R</c>) follows the description as the
+/// calculation sheet prints it, so a left and a right part are two different
+/// lines. A guide time or price the engineer changed (<c>TimeMarker</c>,
+/// <c>PriceMarker</c>) and Glass's own reason for it are kept as the line's
+/// note, in the wording the calculation PDF reader uses.
+/// </para>
+///
+/// <para><b>Totals are not stored.</b> <c>ExclVatStatisticResults</c> and
 /// <c>Result</c> are returned as <see cref="ParsedEstimate.SourceTotals"/> and
 /// never reconciled against the rows: Pegasus costs the estimate from its own
-/// rows at its own rate, discounts and VAT categories, and a printed figure
-/// that disagrees is retained beside that calculation rather than dropped or
-/// forced to agree.
+/// rows at its own rate, discounts and VAT categories. The import stores none
+/// of them.
 /// </para>
 ///
 /// <para><b>Zero positions.</b> An ERE calculation saved before any damage was
@@ -129,6 +152,9 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     /// <summary>An operation whose time its parent position already carries.</summary>
     private const string InclusivePosition = "Part_InclusiveSparePart";
 
+    /// <summary>A user-defined operation, read the same way as a part row.</summary>
+    private const string FreePosition = "Free_Part";
+
     /// <summary>
     /// A general entity cannot be declared without a DTD, which is prohibited
     /// above; the cap is stated anyway so the reader refuses expansion even if
@@ -138,6 +164,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
 
     private const int MoneyDecimals = 2;
     private const int MaximumDescriptionLength = 300;
+    private const int MaximumNoteLength = 500;
     private const int MaximumGuideCodeLength = 50;
     private const int MaximumPartNumberLength = 100;
     private const int MaximumSourceVersionLength = 100;
@@ -190,9 +217,16 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         }
 
         var lines = new List<EstimateLineInput>(positions.Length);
+        int? parent = null;
         for (var index = 0; index < positions.Length; index++)
         {
-            lines.Add(ReadPosition(positions[index], index + 1));
+            var ordinal = index + 1;
+            var (line, charge) = ReadPosition(positions[index], ordinal, parent);
+            lines.Add(line);
+            if (charge == Charge.Part)
+            {
+                parent = ordinal;
+            }
         }
 
         return new GlassEstimateExport(
@@ -260,29 +294,43 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         }
     }
 
-    private static EstimateLineInput ReadPosition(XElement position, int ordinal)
+    /// <summary>What a position charges, which decides the figures its line carries.</summary>
+    private enum Charge
+    {
+        /// <summary>A part or operation row: panel hours and a unit amount.</summary>
+        Part,
+
+        /// <summary>An operation its parent row already carries: nothing of its own.</summary>
+        Included,
+
+        /// <summary>A paint row: paint hours and paint materials.</summary>
+        Paint,
+    }
+
+    /// <param name="parent">The row an included operation belongs to: the nearest part row before it.</param>
+    private static (EstimateLineInput Line, Charge Charge) ReadPosition(XElement position, int ordinal, int? parent)
     {
         var posType = Text(position.Element("PosType"))
             ?? throw Reject(ordinal, "names no position type");
         var operation = Operation(Text(position.Element("RepairKind")), ordinal);
-        var description = Bounded(
-                Text(position.Element("Text")), MaximumDescriptionLength, ordinal, "description")
+        var description = Bounded(Description(position), MaximumDescriptionLength, ordinal, "description")
             ?? throw Reject(ordinal, "carries no description");
 
         var price = Money(position.Element("Price"), ordinal, "price");
-        var hours = ChargeableHours(position, posType, ordinal);
-        var (type, isPaint) = LineShape(posType, operation, ordinal);
+        var time = Hours(position.Element("Time"), ordinal, "time") ?? 0m;
+        var hours = ChargeableHours(position, time, posType, ordinal);
+        var (type, charge) = LineShape(posType, operation, hours, ordinal);
         var guideCode = Bounded(Text(position.Element("MCode")), MaximumGuideCodeLength, ordinal, "MCode");
+        var isPaint = charge == Charge.Paint;
+        var isPart = charge == Charge.Part;
 
-        return new EstimateLineInput(
+        return (new EstimateLineInput(
             type,
             guideCode,
             description,
-            // A Paint_* row prices paint material and states paint time; a
-            // Part_* row prices the part and states panel time.
-            WorkUnits: isPaint ? null : hours,
-            Price: isPaint ? null : price,
-            Unpriced: !isPaint && price is null && type == "new_part",
+            WorkUnits: isPart ? hours : null,
+            Price: isPart ? price : null,
+            Unpriced: isPart && price is null && type == "new_part",
             PartNumber: Bounded(
                 Text(position.Element("OEMPartNo")) ?? Text(position.Element("ManPartNo")),
                 MaximumPartNumberLength,
@@ -291,24 +339,74 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             Betterment: null,
             // The Audatex report's own evidence label, because this is the same claim.
             EvidenceLabel: "case",
-            Justification: null,
+            Justification: Note(position, ordinal, charge == Charge.Included, parent, time, price),
             PaintWorkUnits: isPaint ? hours : null,
             Quantity: null,
             Materials: isPaint ? price : null,
             SourceRowIdentity: guideCode is null
                 ? ordinal.ToString(CultureInfo.InvariantCulture)
-                : string.Create(CultureInfo.InvariantCulture, $"{ordinal}:{guideCode}"));
+                : string.Create(CultureInfo.InvariantCulture, $"{ordinal}:{guideCode}")), charge);
     }
+
+    /// <summary>The row's text, followed by the side Glass's prints beside it.</summary>
+    private static string? Description(XElement position)
+    {
+        var text = Text(position.Element("Text"));
+        var place = Text(position.Element("Place"));
+        return text is null || place is null ? text : $"{text} ({place})";
+    }
+
+    /// <summary>The line's note; see the class remarks. The markers are written true or false.</summary>
+    private static string? Note(XElement position, int ordinal, bool included, int? parent, decimal time, decimal? price)
+    {
+        List<string> notes = [];
+        if (included)
+        {
+            notes.Add(parent is { } row
+                ? string.Create(CultureInfo.InvariantCulture, $"Included in row {row}; no separate charge.")
+                : "Included; no separate charge.");
+        }
+        if (Marked(position.Element("TimeMarker")))
+        {
+            notes.Add(Modified(
+                "time",
+                time,
+                Hours(position.Element("EtgTime"), ordinal, "guide time"),
+                "h"));
+        }
+        if (Marked(position.Element("PriceMarker")))
+        {
+            notes.Add(Modified(
+                "price",
+                price,
+                Money(position.Element("EtgPrice"), ordinal, "guide price"),
+                "GBP"));
+        }
+        if (Text(position.Element("Reason")) is { } reason)
+        {
+            notes.Add(reason);
+        }
+        return notes.Count == 0
+            ? null
+            : Bounded(string.Join(' ', notes), MaximumNoteLength, ordinal, "note");
+    }
+
+    private static string Modified(string field, decimal? stated, decimal? guide, string unit) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"Modified source value: {field} {(stated ?? 0m):0.00} {unit}, guide {(guide ?? 0m):0.00} {unit}.");
+
+    private static bool Marked(XElement? marker) =>
+        string.Equals(Text(marker), "true", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The time this row adds to the repair: its stated time less the time it
-    /// shares with another row, and none at all for an operation whose time
-    /// its parent row already carries. See the class remarks for the two
+    /// shares with another row, and none at all for an included operation,
+    /// which charges nothing of its own. See the class remarks for the two
     /// exports that prove the rule against Glass's own printed labour.
     /// </summary>
-    private static decimal ChargeableHours(XElement position, string posType, int ordinal)
+    private static decimal ChargeableHours(XElement position, decimal time, string posType, int ordinal)
     {
-        var time = Hours(position.Element("Time"), ordinal, "time") ?? 0m;
         var overlap = Hours(position.Element("OverlapTime"), ordinal, "overlap time") ?? 0m;
         if (posType == InclusivePosition)
         {
@@ -321,18 +419,19 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
 
     /// <summary>
     /// The one place a position type is read: the estimate line type it lands
-    /// as, and whether it prices paint rather than a part. An unknown type is
-    /// refused here rather than guessed at in either answer.
+    /// as, and what it charges. An unknown type is refused here rather than
+    /// guessed at in either answer.
     /// </summary>
-    private static (string Type, bool IsPaint) LineShape(
-        string posType, EstimateOperation operation, int ordinal) => posType switch
+    private static (string Type, Charge Charge) LineShape(
+        string posType, EstimateOperation operation, decimal hours, int ordinal) => posType switch
     {
-        "Part_SparePart" or InclusivePosition => (EstimateOperations.ToLineType(operation), false),
+        "Part_SparePart" or FreePosition => (EstimateOperations.ToLineType(operation, hours), Charge.Part),
+        InclusivePosition => (EstimateOperations.ToLineType(EstimateOperation.Other), Charge.Included),
         // Painting a replaced panel and painting a repaired one are the same
         // operation at different labels; the repair kind chooses between them.
-        "Paint_Part" => (operation == EstimateOperation.Replace ? "paint_new" : "paint_repair", true),
+        "Paint_Part" => (operation == EstimateOperation.Replace ? "paint_new" : "paint_repair", Charge.Paint),
         "Paint_PreparationMetal" or "Paint_PreparationPlastic"
-            or "Paint_ColourMixing" or "Paint_ColourSample" => ("paint_prep", true),
+            or "Paint_ColourMixing" or "Paint_ColourSample" => ("paint_prep", Charge.Paint),
         _ => throw Reject(ordinal, $"carries the unknown position type '{posType}'"),
     };
 
@@ -342,6 +441,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         "Repair" => EstimateOperation.Repair,
         "Uninstall and install" => EstimateOperation.RemoveAndRefit,
         "Control" or "Sealing" or "Adjust" or "Air out" => EstimateOperation.Other,
+        "Extra costs" => EstimateOperation.Specialist,
         null => throw Reject(ordinal, "names no repair kind"),
         _ => throw Reject(ordinal, $"carries the unknown repair kind '{repairKind}'"),
     };
