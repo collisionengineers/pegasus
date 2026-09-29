@@ -116,7 +116,10 @@ fields, the Repair Spec, the guide cards and the valuation calculation as
 they are, under one version, and the session keeps its lease. The Repair
 Spec and the Valuation calculator have no save of their own. One save is in
 flight at a time; a change made during it is saved when it lands, and an
-action, Refresh or a link away waits for it. The page never redraws what the
+action (Done included) or a link away waits for it and goes ahead only once
+it has landed; a Refresh pressed during a save is declined. A save that is
+refused or lost stops what waited on it. A value the browser cannot accept
+is not sent: the status word says so. The page never redraws what the
 operator is typing in: after a save the notices, the ribbon, the aside and
 the dialogs are drawn afresh and every section stays as it is, so a blocker
 clears, the state chip moves and a newly permitted action appears within the
