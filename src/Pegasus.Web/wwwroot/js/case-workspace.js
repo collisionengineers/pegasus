@@ -719,11 +719,14 @@
     // form into the one the operator keeps typing in, so the next commit
     // carries the Case's new version, lease and operation key. An input may
     // sit in its section and belong to the form by its form attribute (the
-    // valuation's opening calculation), so both sides go by ownership.
+    // valuation's opening calculation), so both sides go by ownership. The
+    // form's id is read as its attribute: the form posts a control named id,
+    // which form.id would return instead.
     function carryForward(parsed) {
         var form = caseForm();
-        if (!form || !parsed.getElementById(form.id)) { return; }
-        var owned = '#' + form.id + ' [data-carry-forward], [data-carry-forward][form="' + form.id + '"]';
+        var id = form ? form.getAttribute('id') : null;
+        if (!form || !parsed.getElementById(id)) { return; }
+        var owned = '#' + id + ' [data-carry-forward], [data-carry-forward][form="' + id + '"]';
         Array.prototype.forEach.call(parsed.querySelectorAll(owned), function (input) {
             var current = form.elements.namedItem(input.name);
             if (current && current.hasAttribute && current.hasAttribute('data-carry-forward')) { current.value = input.value; }
