@@ -70,7 +70,7 @@ internal static partial class CaseWebTestSupport
             ConsumeLease();
             return Task.FromResult(CreateWorkflow() with
             {
-                State = CaseLifecycleState.ProviderCancelled,
+                State = CaseLifecycleState.PrincipalCancelled,
                 ClosureOutcome = request.Outcome
             });
         }

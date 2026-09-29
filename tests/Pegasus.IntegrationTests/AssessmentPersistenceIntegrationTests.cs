@@ -245,7 +245,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             (CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, "miles"),
             (CaseDataFieldNames.IncidentDate, CaseDataCodes.Date, "2031-04-01"),
             (CaseDataFieldNames.InspectionMode, CaseDataCodes.InspectionMode,
-                ProviderInspectionModePolicy.ImageBasedAssessmentCode),
+                PrincipalInspectionModePolicy.ImageBasedAssessmentCode),
             (CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, "1 Test Street, London"),
             (CaseDataFieldNames.InspectionDate, CaseDataCodes.Date, "2031-05-06")
         };
@@ -2118,7 +2118,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     new AcceptIntake(
                         acceptanceStore,
                         new FixedConfiguration(),
-                        new EfProviderInspectionModeStore(factory),
+                        new EfPrincipalInspectionModeStore(factory),
                         new DiscardingCommittedWorkPublisher(),
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
@@ -2182,7 +2182,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, DateOfIncident, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Mrs Jane Example"}, {"ABC/DEF/12345/1"}, {"AB12CDE"}, {new DateOnly(2031, 4, 1)}, {"1 Test Street, London"}, {new DateOnly(2031, 5, 20)})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, WorkProviderCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_work_provider"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {3}, {emptyEnvelope}, {emptyEnvelope})");
+                $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, PrincipalCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_principal"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {3}, {emptyEnvelope}, {emptyEnvelope})");
         }
     }
 

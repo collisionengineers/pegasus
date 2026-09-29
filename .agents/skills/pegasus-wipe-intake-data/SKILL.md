@@ -59,8 +59,8 @@ zero, so the next allocation is `QDOSyy001`.
   queued mail notifications must use the new persisted receive-time cutoff.
 - **For an ordinary wipe, the SQL preserve list** — identity/auth
   (`AspNet*`, `OpenIddict*`), mailbox configuration and Graph subscriptions,
-  `Organizations*`/`Principals*`, `ProviderDomain*`/
-  `ProviderReferences`, `WorkflowConfigurations`, `SendToAiControl`,
+  `Organizations*`/`Principals*`, `PrincipalDomain*`/
+  `PrincipalReferences`, `WorkflowConfigurations`, `SendToAiControl`,
   `SecurityEvents`, `ValuationPresets` and `EmailTemplates`
   (administrator-managed configuration),
   and the reference-sequence tables `CaseSequences`, `ImageIntakeSequences`

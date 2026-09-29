@@ -43,7 +43,7 @@ public sealed class EvaApiMappingTests
     /// reference and can repeat across cases.
     /// </summary>
     [Fact]
-    public void TheExternalReferenceIsThePegasusCaseReferenceNotTheProvidersOwn()
+    public void TheExternalReferenceIsThePegasusCaseReferenceNotThePrincipalsOwn()
     {
         var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", ClaimantAddress, Settings, []);
 
@@ -274,7 +274,7 @@ public sealed class EvaApiMappingTests
     public void TheWorkProviderIsNotNotedWhenItIsSimplyThePrincipal()
     {
         var payload = CaseEvaApiMapping.Map(
-            Fields() with { WorkProvider = "QDOS" },
+            Fields() with { WorkPrincipal = "QDOS" },
             "QDOS26031",
             "QDOS",
             ClaimantAddress,
@@ -340,7 +340,7 @@ public sealed class EvaApiMappingTests
     }
 
     private static EvaReplayFields Fields() => new(
-        WorkProvider: "Connexus",
+        WorkPrincipal: "Connexus",
         Vrm: "MT15OYK",
         VehicleModel: "Land Rover Defender 110",
         ClaimantName: "A Smith",

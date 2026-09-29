@@ -160,7 +160,7 @@ jobs:
         if: needs.changes.outputs.referenceData == 'true'
         with:
           python-version: '3.13'
-      - name: Provider-reference generator tests
+      - name: Principal-reference generator tests
         # The generator and its tests share one scripts-owned component. This
         # step is their executable gate; no application caller or production
         # import is implied.

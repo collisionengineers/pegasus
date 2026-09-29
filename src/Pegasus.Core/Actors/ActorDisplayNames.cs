@@ -22,7 +22,7 @@ public static class ActorDisplayNames
     public const string FormerStaff = "Former staff";
     public const string SystemWorker = "System";
     public const string Automation = "Automation";
-    public const string Provider = "Provider API";
+    public const string Principal = "Principal API";
 
     /// <summary>
     /// Resolves the distinct staff subject ids referenced by a set of actors into
@@ -69,7 +69,7 @@ public static class ActorDisplayNames
                     : FormerStaff,
             ActorKind.SystemWorker => SystemWorker,
             ActorKind.Automation => Automation,
-            ActorKind.Provider => Provider,
+            ActorKind.Principal => Principal,
             _ => UnknownStaff
         };
     }

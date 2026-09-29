@@ -4,21 +4,21 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// The operator-accepted eliminator procedure (decision 2026-08-03) in one Core owner:
-/// candidates are every provider case matching ANY key; a candidate contradicted by the
+/// candidates are every Principal case matching ANY key; a candidate contradicted by the
 /// message's incident date or another present identity key is eliminated; exactly one
 /// survivor is an automatic association, none is no match, and several fail closed as
 /// Ambiguous with the candidates recorded. A CreatedInError survivor is replaced by its
 /// linked replacement case and never associated itself. No numeric confidence exists.
 /// </summary>
 public sealed class EvaluateIntakeCaseMatch(
-    IEnumerable<IProviderCaseMatchPolicy> policies,
+    IEnumerable<IPrincipalCaseMatchPolicy> policies,
     ICaseMatchCandidateQueries candidateQueries)
 {
     public const string ClaimReferenceKey = "claim-reference";
     public const string VehicleRegistrationKey = "vehicle-registration";
     public const string ClaimantNameKey = "claimant-name";
 
-    private readonly IEnumerable<IProviderCaseMatchPolicy> policies =
+    private readonly IEnumerable<IPrincipalCaseMatchPolicy> policies =
         policies ?? throw new ArgumentNullException(nameof(policies));
     private readonly ICaseMatchCandidateQueries candidateQueries =
         candidateQueries ?? throw new ArgumentNullException(nameof(candidateQueries));
@@ -37,8 +37,8 @@ public sealed class EvaluateIntakeCaseMatch(
 
         var policy = policies.SingleOrDefault(candidate =>
             string.Equals(
-                candidate.WorkProviderCode,
-                route.WorkProviderCode,
+                candidate.PrincipalCode,
+                route.PrincipalCode,
                 StringComparison.Ordinal));
         if (policy is null)
         {
@@ -47,32 +47,32 @@ public sealed class EvaluateIntakeCaseMatch(
 
         var keys = policy.ExtractMatchKeys(readResult);
         ArgumentNullException.ThrowIfNull(keys);
-        return await EvaluateAsync(route.WorkProviderCode, policy, keys, cancellationToken);
+        return await EvaluateAsync(route.PrincipalCode, policy, keys, cancellationToken);
     }
 
     /// <summary>
     /// The same accepted eliminator procedure applied to a Principal's own
     /// DECLARED identity facts (API-01), rather than to facts read out of a
     /// message. Nothing is parsed from the submitted files: the four declared
-    /// values are normalized by the provider's own <see
-    /// cref="IProviderCaseMatchPolicy.DeriveIndexKeys"/> — the very method the
+    /// values are normalized by the Principal's own <see
+    /// cref="IPrincipalCaseMatchPolicy.DeriveIndexKeys"/> — the very method the
     /// write side uses to index cases — so read and write can never drift into
     /// two grammars, and the shared eliminator below is the only decision
     /// procedure. Returns null when no policy owns the Principal's code; the
     /// caller treats that exactly as a no-match.
     /// </summary>
     public async Task<CaseMatchEvaluationResult?> ExecuteDeclaredAsync(
-        string workProviderCode,
+        string principalCode,
         CaseMatchSourceData sourceData,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workProviderCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
         ArgumentNullException.ThrowIfNull(sourceData);
 
         var policy = policies.SingleOrDefault(candidate =>
             string.Equals(
-                candidate.WorkProviderCode,
-                workProviderCode,
+                candidate.PrincipalCode,
+                principalCode,
                 StringComparison.Ordinal));
         if (policy is null)
         {
@@ -87,12 +87,12 @@ public sealed class EvaluateIntakeCaseMatch(
             derived.NormalizedSurname,
             derived.NormalizedFirstInitial,
             derived.IncidentDate);
-        return await EvaluateAsync(workProviderCode, policy, keys, cancellationToken);
+        return await EvaluateAsync(principalCode, policy, keys, cancellationToken);
     }
 
     private async Task<CaseMatchEvaluationResult> EvaluateAsync(
-        string workProviderCode,
-        IProviderCaseMatchPolicy policy,
+        string principalCode,
+        IPrincipalCaseMatchPolicy policy,
         CaseMatchKeys keys,
         CancellationToken cancellationToken)
     {
@@ -110,7 +110,7 @@ public sealed class EvaluateIntakeCaseMatch(
         }
 
         var candidates = await candidateQueries.FindByAnyKeyAsync(
-            workProviderCode,
+            principalCode,
             keys,
             cancellationToken);
 
@@ -136,7 +136,7 @@ public sealed class EvaluateIntakeCaseMatch(
                 keys,
                 evaluations,
                 evaluations.Count == 0
-                    ? "No case of the provider matches any extracted key."
+                    ? "No case of the Principal matches any extracted key."
                     : "Every candidate case was eliminated by contradictory identity evidence.",
                 policy.PolicyKey,
                 policy.PolicyVersion),

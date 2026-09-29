@@ -695,7 +695,7 @@ public sealed class DashboardBoundaryTests
         CreatedAtUtc: NowUtc,
         Version: 1,
         Reference: "t.QDOS26001",
-        Provider: "QDOS");
+        PrincipalCode: "QDOS");
 
     private static UnidentifiedQueueRow NewUnidentified(Guid id, string reference) => new(
         id,

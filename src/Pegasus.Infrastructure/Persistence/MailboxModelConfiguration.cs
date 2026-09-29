@@ -226,7 +226,7 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.Disposition).HasMaxLength(40).IsRequired();
             entity.Property(item => item.RouteOwnerCode).HasMaxLength(100);
             entity.Property(item => item.RouteKind).HasMaxLength(40);
-            entity.Property(item => item.WorkProviderCode).HasMaxLength(100);
+            entity.Property(item => item.PrincipalCode).HasMaxLength(100);
             entity.Property(item => item.PredicatesJson).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.PolicyKey).HasMaxLength(100).IsRequired();

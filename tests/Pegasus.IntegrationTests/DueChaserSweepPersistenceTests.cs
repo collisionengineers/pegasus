@@ -188,23 +188,23 @@ public sealed class DueChaserSweepPersistenceTests
         await using var harness = await DueChaserHarness.CreateAsync(StartUtc.AddDays(1));
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var lease = await harness.WorkflowStore.ClaimAsync(
-            new(harness.CaseId, 0, actor, "claim-provider-cancel"),
+            new(harness.CaseId, 0, actor, "claim-principal-cancel"),
             default);
         var closed = await new CloseCase(harness.WorkflowStore).ExecuteAsync(
             new(
                 harness.CaseId,
                 0,
                 actor,
-                "provider-cancel-before-chase",
+                "principal-cancel-before-chase",
                 "The provider cancelled the instruction",
                 lease.Token,
-                CaseClosureOutcome.ProviderCancelled),
+                CaseClosureOutcome.PrincipalCancelled),
             default);
 
         harness.TimeProvider.Advance(TimeSpan.FromDays(14));
         var result = await harness.Runner.ExecuteAsync(50, default);
 
-        Assert.Equal(CaseLifecycleState.ProviderCancelled, closed.State);
+        Assert.Equal(CaseLifecycleState.PrincipalCancelled, closed.State);
         Assert.Equal(CaseDueWorkState.Stopped, closed.DueWork?.State);
         Assert.Equal(0, result.GeneratedCount);
         Assert.Equal(0L, await harness.CountAsync("CaseDueChasers"));

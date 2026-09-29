@@ -146,7 +146,7 @@ editing from it, and otherwise they claim a lease again. There is no merge
 and no forced save.
 
 The following do not exist: an Administrator bypass, collaborative merge,
-bulk Case edits, editing lifecycle from a queue row, a provider Case-edit
+bulk Case edits, editing lifecycle from a queue row, a Principal Case-edit
 route, or a direct edit through an external system or adapter.
 
 **Lost release.** Leaving an Image Intake page releases its scope through a

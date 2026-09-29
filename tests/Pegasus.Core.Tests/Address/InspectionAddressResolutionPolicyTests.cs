@@ -23,7 +23,7 @@ public sealed class InspectionAddressResolutionPolicyTests
         Assert.False(
             InspectionAddressResolutionPolicy.SatisfiesCaseCreation(
                 state,
-                providerIsImageBased: false));
+                principalIsImageBased: false));
     }
 
     [Theory]
@@ -41,11 +41,11 @@ public sealed class InspectionAddressResolutionPolicyTests
         Assert.True(
             InspectionAddressResolutionPolicy.SatisfiesCaseCreation(
                 state,
-                providerIsImageBased: false));
+                principalIsImageBased: false));
     }
 
     [Fact]
-    public void AnImageBasedProviderNeedsNothingSettledFirst()
+    public void AnImageBasedPrincipalNeedsNothingSettledFirst()
     {
         // The mode is the address for these providers, and the case records it
         // on creation, so there is nothing for a person to confirm beforehand.
@@ -54,7 +54,7 @@ public sealed class InspectionAddressResolutionPolicyTests
             state => Assert.True(
                 InspectionAddressResolutionPolicy.SatisfiesCaseCreation(
                     state,
-                    providerIsImageBased: true)));
+                    principalIsImageBased: true)));
     }
 
     [Fact]

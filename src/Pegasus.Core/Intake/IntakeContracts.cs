@@ -17,9 +17,9 @@ public static class IntakeEnvelopeLimits
     /// 100 MiB). This class is the one owner of that figure: host and ingress
     /// limits may tighten it and may never raise it.
     ///
-    /// The Provider API does not follow this cap. Its files arrive inline as
+    /// The Principal API does not follow this cap. Its files arrive inline as
     /// base64 in one request body, so they are bounded by
-    /// <see cref="MaximumProviderApiFileLength"/> instead.
+    /// <see cref="MaximumPrincipalApiFileLength"/> instead.
     /// </remarks>
     public const int MaximumContentLength = 100_000_000;
 
@@ -58,7 +58,7 @@ public static class IntakeEnvelopeLimits
     public const int MaximumBatchFileCount = 20;
 
     /// <summary>
-    /// One Provider API submission, decoded: every attached file together.
+    /// One Principal API submission, decoded: every attached file together.
     ///
     /// It is not the mailbox bound, because the whole envelope arrives inline
     /// as base64 in one request body and is held in memory to be decoded. It
@@ -67,23 +67,23 @@ public static class IntakeEnvelopeLimits
     /// records a genuine 16.69 MB QDOS instruction, so this is set comfortably
     /// above that. C07 item 5 left it unchanged.
     /// </summary>
-    public const int MaximumProviderApiEnvelopeLength = 30 * 1024 * 1024;
+    public const int MaximumPrincipalApiEnvelopeLength = 30 * 1024 * 1024;
 
     /// <summary>
-    /// One file inside a Provider API submission.
+    /// One file inside a Principal API submission.
     /// </summary>
     /// <remarks>
-    /// FRD-09 limits each Provider file to 10 MiB while the decoded envelope
+    /// FRD-09 limits each Principal file to 10 MiB while the decoded envelope
     /// can hold up to 30 MiB across files. This is separate from the larger
     /// staff Upload per-file bound.
     /// </remarks>
-    public const int MaximumProviderApiFileLength = 10 * 1024 * 1024;
+    public const int MaximumPrincipalApiFileLength = 10 * 1024 * 1024;
 
     /// <summary>
     /// The request body that carries it. Base64 costs a third again, plus the
     /// declared fields and JSON structure around them.
     /// </summary>
-    public const int MaximumProviderApiRequestLength = 42 * 1024 * 1024;
+    public const int MaximumPrincipalApiRequestLength = 42 * 1024 * 1024;
 
     /// <summary>
     /// The aggregate file content in one staff Upload submission, excluding
@@ -127,7 +127,7 @@ public static class IntakeEnvelopeLimits
 /// The requirements are explicit that definitive authorised intake
 /// creates exactly one instructed Case idempotently and that the allocation
 /// decision adds no universal manual acceptance gate, and the operator notes
-/// send only ambiguous provider, instruction-type or case evidence — and any
+/// send only ambiguous Principal, instruction-type or case evidence — and any
 /// unidentified e-mail — to <see cref="NeedsSorting"/>. So a definitive
 /// instruction is <see cref="CaseCreated"/> with the reference already
 /// allocated, ambiguity is <see cref="NeedsSorting"/>. A reasoned refusal is
@@ -161,11 +161,11 @@ public enum IntakeEvidenceSource
     SystemDefault,
 
     /// <summary>
-    /// A value the authenticated Principal stated over the Provider API
+    /// A value the authenticated Principal stated over the Principal API
     /// (API-01). It is neither something a document said nor something a person
     /// here keyed, and the case record must not report it as either.
     /// </summary>
-    ProviderDeclaration
+    PrincipalDeclaration
 }
 
 public enum IntakeEvidenceStrength
@@ -249,7 +249,7 @@ public enum IntakeSourceChannel
     ManualUpload,
     Mailbox,
     Automation,
-    ProviderApi
+    PrincipalApi
 }
 
 public enum InstructionPolicyApplicability
@@ -268,7 +268,7 @@ public enum MailRouteDisposition
 
 public enum MailRouteKind
 {
-    DirectProvider,
+    DirectPrincipal,
     Intermediary
 }
 
@@ -284,7 +284,7 @@ public sealed record MailRouteIdentity(
 public sealed record MailRouteSelection(
     string RouteOwnerCode,
     MailRouteKind Kind,
-    string WorkProviderCode);
+    string PrincipalCode);
 
 public sealed record MailRouteEvaluationResult(
     MailRouteDisposition Disposition,
@@ -705,7 +705,7 @@ public sealed record InstructionDraft(
     DateOnly? DateOfIncident,
     string? InspectionAddress,
     DateOnly? InspectionDate = null,
-    // Below here: fields no extraction policy reads today. A provider that
+    // Below here: fields no extraction policy reads today. A Principal that
     // declares its instruction over the API (API-01) states them directly, and
     // the draft is the one carrier every downstream owner already reads, so
     // they belong here rather than in a second pre-case record.
@@ -1277,17 +1277,17 @@ public sealed class IntakeDependencyUnavailableException(string message, Excepti
 public sealed class IntakeAssociationConflictException(string message) : Exception(message);
 
 /// <summary>
-/// API-01 is create-only: a declared provider instruction whose identity facts
+/// API-01 is create-only: a declared Principal instruction whose identity facts
 /// match existing Case work is refused rather than allocated or associated. The
 /// envelope is still durably received — the refusal happens in processing, so
 /// the submission terminates under this one code and no Case, PO, association
 /// or Case mutation is produced. Updating an existing Case through the API
 /// awaits a separate authorised contract (FRD-09, operator decision 2026-09-02).
 /// </summary>
-public sealed class ProviderExistingCaseMatchException()
-    : Exception("The provider submission matches existing Case work; API-01 cannot update it.")
+public sealed class PrincipalExistingCaseMatchException()
+    : Exception("The Principal submission matches existing Case work; API-01 cannot update it.")
 {
-    public const string FailureCode = "provider_existing_case_match";
+    public const string FailureCode = "principal_existing_case_match";
 }
 
 public interface IResolveIntake

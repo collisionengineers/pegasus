@@ -53,7 +53,7 @@ public sealed class RetainedMailTests
             false);
         var route = new MailRouteEvaluationResult(
             MailRouteDisposition.Accepted,
-            new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+            new("QDOS", MailRouteKind.DirectPrincipal, "QDOS"),
             [],
             "Accepted.",
             "policy",
@@ -132,7 +132,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new ListRetainedMail(queries).ExecuteAsync(
-                ActionActor.Provider(Guid.NewGuid()),
+                ActionActor.Principal(Guid.NewGuid()),
                 new(null, MailFolderScope.Inbox),
                 1,
                 25,
@@ -182,7 +182,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new ListRetainedMail(queries).CountAsync(
-                ActionActor.Provider(Guid.NewGuid()),
+                ActionActor.Principal(Guid.NewGuid()),
                 new(null, MailFolderScope.Inbox),
                 CancellationToken.None));
 
@@ -324,7 +324,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new SearchDeletedMail(source).ExecuteAsync(
-                ActionActor.Provider(Guid.NewGuid()),
+                ActionActor.Principal(Guid.NewGuid()),
                 null,
                 "estimate",
                 1,
@@ -353,7 +353,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore()).ExecuteAsync(
-                ActionActor.Provider(Guid.NewGuid()),
+                ActionActor.Principal(Guid.NewGuid()),
                 Guid.NewGuid(),
                 CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() =>
@@ -364,7 +364,7 @@ public sealed class RetainedMailTests
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore())
                 .ExecuteByOriginReceiptAsync(
-                    ActionActor.Provider(Guid.NewGuid()),
+                    ActionActor.Principal(Guid.NewGuid()),
                     Guid.NewGuid(),
                     CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() =>
@@ -593,7 +593,7 @@ public sealed class RetainedMailTests
     public async Task CorrectionPreservesEvidenceAndAppendsAnAttributedBeforeAfterEntry()
     {
         var original = MailClassificationResult.Unclassified(
-            [new("provider-route", false, "No accepted provider route matched.")],
+            [new("principal-route", false, "No accepted Principal route matched.")],
             "No supported category matched.",
             "shared-mail-policy",
             7);

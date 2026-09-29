@@ -144,7 +144,7 @@ Owner: `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`
   fragments, month names, postcode outward codes).
 - **Claim reference**: durable identity is the `NNNNN/N` tail, so
   `ABC/DEF/12345/1` and a bare `12345/1` hit the same claim; `qdoslaw.co.uk`
-  references keep their own letters-only grammar under the same provider.
+  references keep their own letters-only grammar under the same Principal.
 - **Vehicle registration**: labelled VRM only, with **TP-prefixed labels
   skipped** — only the client vehicle is a key, keeping two claimants from one
   accident apart. **Name** and **incident date** are labelled keys with the
@@ -155,8 +155,8 @@ Owner: `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`
 ## 5. Field extraction — populating the instruction draft
 
 Owners: `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` (the
-provider-neutral `InstructionFieldEngine`) and
-`src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs`
+Principal-neutral `InstructionFieldEngine`) and
+`src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs`
 (the QDOS grammar, `Version 11`). The engine carries no QDOS knowledge; every
 QDOS-specific label, guard, and synthesis rule is supplied by the policy.
 
@@ -197,7 +197,7 @@ QDOS grammar (policy):
   circumstances?"), terminated at the next block (`Damage Area`,
   `Pre-existing damage`, `TP `, `If you need`). Audit letters carry no prompt
   — circumstances legitimately stay empty.
-- **Subject facts last**: settled facts in the provider's own subject grammar
+- **Subject facts last**: settled facts in the Principal's own subject grammar
   rank below every document: `Our Ref`, `RTA on DD_MM_YYYY`, the titled client
   name, the vehicle description, and the `Vehicle Registration` label. The
   registration rule accepts both recorded spacings (`Vehicle Registration
@@ -234,7 +234,7 @@ body-display policy; the Mail pages and
 
 - `SplitForwardedHeader` — the forwarded `From:/Sent:/To:/Subject:` block is
   shown structured, never as body text.
-- `TrimProviderFooter` — cuts at the earliest footer marker (image/cid
+- `TrimPrincipalFooter` — cuts at the earliest footer marker (image/cid
   placeholders, tel/mailto/http wrappers, confidentiality/disclaimer/
   registered-office lines), **failing open** to the whole body when trimming
   would leave nothing.
@@ -262,7 +262,7 @@ render on the case Evidence tab and are retained in Box.
 | What type of message is it? | `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs` |
 | Which case does it belong to? | `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs` + `docs/adr/0020-accepted-qdos-case-association-predicates.md` |
 | What case type is allocated? | `src/Pegasus.Core/Intake/IntakeAllocation.cs` (from the classification decision) |
-| What fields are extracted, and how? | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` + `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` |
+| What fields are extracted, and how? | `src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs` + `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` |
 | What does the operator see? | `src/Pegasus.Web/Presentation/OperatorLabels.cs`, `MailClassificationSelection.cs`, `MailBodyPresentation.cs`, `src/Pegasus.Core/Intake/StaffForwardBodyCleaner.cs` |
 | Which images become evidence? | `src/Pegasus.Core/Intake/InstructionEvidenceImages.cs` |
 | Behaviour owners | `docs/frd/frd-02-intake-and-source-identity.md`, `docs/frd/frd-05-documents-extraction-and-custody.md`, `docs/frd/frd-08-email-mailbox-and-background-processing.md` |

@@ -387,7 +387,7 @@ public sealed record TriageHistoryEntry(
 /// <summary>
 /// A Triage queue row. <see cref="Reference"/> is the Triage Case's own
 /// <c>t.</c> Case/PO; <see cref="ClaimNumber"/> is the originating instruction
-/// draft's provider claim number, which is a fact about the sender and not an
+/// draft's Principal claim number, which is a fact about the sender and not an
 /// identifier of this Triage Case.
 /// </summary>
 public sealed record TriageSummary(
@@ -399,7 +399,7 @@ public sealed record TriageSummary(
     DateTimeOffset CreatedAtUtc,
     long Version,
     string Reference,
-    string? Provider,
+    string? PrincipalCode,
     string? ClaimNumber = null,
     Guid? PrincipalId = null);
 

@@ -19,7 +19,7 @@ public sealed class VehicleWorkflowTerminalTests
         ActionActor.Staff(Guid.Parse("11111111-1111-1111-1111-111111111111"), [StaffRole.User]);
 
     [Theory]
-    [InlineData(CaseLifecycleState.ProviderCancelled)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.CreatedInError)]
     public async Task TerminalCaseRejectsVehicleRequest(CaseLifecycleState terminalState)

@@ -32,8 +32,8 @@ public sealed class PrincipalMailRoutePolicyTests
                 : [new(IntakeEvidenceSource.Sender, address, IntakeSenderIdentityKind.Transport, "outer")];
             var result = new PrincipalMailRoutePolicy().Evaluate(Readable(transport: transport));
             Assert.Equal(MailRouteDisposition.Accepted, result.Disposition);
-            Assert.Equal(principal, result.SelectedRoute?.WorkProviderCode);
-            Assert.Equal(MailRouteKind.DirectProvider, result.SelectedRoute?.Kind);
+            Assert.Equal(principal, result.SelectedRoute?.PrincipalCode);
+            Assert.Equal(MailRouteKind.DirectPrincipal, result.SelectedRoute?.Kind);
             Assert.Equal(address.ToLowerInvariant(), result.EffectiveSender?.Address.ToLowerInvariant());
         }
     }
@@ -65,7 +65,7 @@ public sealed class PrincipalMailRoutePolicyTests
         var accepted = sut.Evaluate(read, selection);
         Assert.Equal(MailRouteDisposition.Accepted, accepted.Disposition);
         Assert.Equal(MailRouteKind.Intermediary, accepted.SelectedRoute?.Kind);
-        Assert.Equal("PCH", accepted.SelectedRoute?.WorkProviderCode);
+        Assert.Equal("PCH", accepted.SelectedRoute?.PrincipalCode);
         Assert.NotEqual(MailRouteDisposition.Accepted,
             sut.Evaluate(read, selection with { Policy = new QdosInstructionExtractionPolicy() }).Disposition);
     }
@@ -103,8 +103,8 @@ public sealed class PrincipalMailRoutePolicyTests
 
         Assert.Equal(MailRouteDisposition.Accepted, result.Disposition);
         var route = Assert.IsType<MailRouteSelection>(result.SelectedRoute);
-        Assert.Equal(MailRouteKind.DirectProvider, route.Kind);
-        Assert.Equal("QDOS", route.WorkProviderCode);
+        Assert.Equal(MailRouteKind.DirectPrincipal, route.Kind);
+        Assert.Equal("QDOS", route.PrincipalCode);
         Assert.Equal(1, result.PolicyVersion);
     }
 
@@ -203,10 +203,10 @@ public sealed class PrincipalMailRoutePolicyTests
                 ]));
 
         Assert.Equal(principal is null ? MailRouteDisposition.NoMatch : MailRouteDisposition.Accepted, result.Disposition);
-        Assert.Equal(principal, result.SelectedRoute?.WorkProviderCode);
+        Assert.Equal(principal, result.SelectedRoute?.PrincipalCode);
         if (principal is not null)
         {
-            Assert.Equal(MailRouteKind.DirectProvider, result.SelectedRoute?.Kind);
+            Assert.Equal(MailRouteKind.DirectPrincipal, result.SelectedRoute?.Kind);
             Assert.Equal($"claims@{domain}", result.EffectiveSender?.Address);
             Assert.Contains(result.Predicates, predicate => predicate.Key == "direct.principal-identity" && predicate.Matched);
         }
@@ -233,9 +233,9 @@ public sealed class PrincipalMailRoutePolicyTests
 
         Assert.Equal(MailRouteDisposition.Accepted, result.Disposition);
         var route = Assert.IsType<MailRouteSelection>(result.SelectedRoute);
-        Assert.Equal(MailRouteKind.DirectProvider, route.Kind);
+        Assert.Equal(MailRouteKind.DirectPrincipal, route.Kind);
         Assert.Equal("QDOS", route.RouteOwnerCode);
-        Assert.Equal("QDOS", route.WorkProviderCode);
+        Assert.Equal("QDOS", route.PrincipalCode);
         Assert.Equal("staff@collisionengineers.co.uk", Assert.Single(result.TransportIdentities).Address);
         Assert.Equal("instructions@qdosassist.co.uk", Assert.Single(result.OriginalIdentities).Address);
         Assert.Equal("instructions@qdosassist.co.uk", result.EffectiveSender?.Address);

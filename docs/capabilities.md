@@ -39,7 +39,7 @@ exclusion.
 | INT-18 | Bounded, fail-closed processing for unreadable, oversized, or incomplete sources | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
 | INT-19 | Typed, editable, operator-reviewable extracted case draft | [Field provenance and value kinds](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds); [Upload confirmation surface](frd/frd-18-manual-upload.md#upload-confirmation-surface) |
 | INT-20 | Field provenance, validation, missing-value, and contradiction display | [Field provenance and value kinds](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds) |
-| INT-22 | Automatic identification of the correct principal/provider | [Matching conflicts and reversible association](frd/frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association) |
+| INT-22 | Automatic identification of the correct Principal | [Matching conflicts and reversible association](frd/frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association) |
 | INT-23 | Unidentified queue with immutable U-references | [Unidentified destination and reference](frd/frd-02-intake-and-source-identity.md#unidentified-destination-and-reference) |
 | INT-24 | Unidentified Close, Reopen, Could not be read and retry actions | [Mandatory pre-case gates](frd/frd-22-pre-case-gates-matching-and-association.md#mandatory-pre-case-gates) |
 | INT-25 | Automatic case creation from definitive authorised intake | [Matching conflicts and reversible association](frd/frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association) |
@@ -68,7 +68,7 @@ exclusion.
 | CASE-08 | One `a.` Audit reference prefix, independent of assessment outcome | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-09 | Case principal and reference immutability after allocation | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-10 | Wrong-principal `Created in error` closure and linked replacement case | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
-| CASE-11 | Typed provider, claimant, claim, vehicle, accident, contact, and inspection data | [Case types and accepted Case projection](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
+| CASE-11 | Typed Principal, claimant, claim, vehicle, accident, contact, and inspection data | [Case types and accepted Case projection](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-12 | Relationships to Engineer, repairer and contacts | [Principal and historical case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-13 | Instruction and image completeness as separate named blockers | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
 | CASE-14 | Mandatory instruction-completeness and image-completeness gate before Engineers-queue eligibility | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
@@ -79,7 +79,7 @@ exclusion.
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-20 | General Case tasks (back end only, no screen; deferred) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-21 | Replay-safe EVA export history and First sent to Engineer | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) |
-| CASE-24 | Post-report completion, provider cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
+| CASE-24 | Post-report completion, Principal cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |
 | CASE-26 | Archive without permanent case deletion | [Archive](frd/frd-13-case-lifecycle-and-workflow.md#archive) |
 | CASE-27 | Exclusive edit lease and stale-write protection | [Case edit lease](frd/frd-14-record-edit-leases.md#case-edit-lease) |
@@ -137,11 +137,11 @@ exclusion.
 | OPS-14 | Production cutover and previous-artifact rollback procedure | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
 | OPS-20 | Capacity for about eight concurrent staff and 2,000 new cases per month | [ADR-0002 context](adr/0002-dotnet-modular-monolith-on-azure.md#context) |
 | OPS-24 | Direct production deployment from an authorised terminal using committed Bicep through `azd` | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
-| DATA-01 | Publish immutable cumulative provider-domain reference snapshots from approved spreadsheets | [Provider-domain reference authoring](runbook.md#provider-domain-reference-authoring) |
+| DATA-01 | Publish immutable cumulative Principal-domain reference snapshots from approved spreadsheets | [Principal-domain reference authoring](runbook.md#principal-domain-reference-authoring) |
 | OPS-23 | Operator acceptance against the real end-to-end workflow | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
 | OPS-25 | Collision Engineers management approval before production release | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
 | DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
-| INT-04 | Activate additional providers through the shared workflow | [Provider and intermediary routes](frd/frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes) |
+| INT-04 | Activate additional Principals through the shared workflow | [Principal and intermediary routes](frd/frd-09-principal-and-intermediary-routes.md#principal-and-intermediary-routes) |
 | INT-05 | Automatic ingestion from `desk@collisionengineers.co.uk` | [Mailbox allowlist, activation and wipe](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe) |
 | INT-06 | Automatic ingestion from `engineers@collisionengineers.co.uk` | [Mailbox allowlist, activation and wipe](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe) |
 | INT-07 | Automatic ingestion from `info@collisionengineers.co.uk` | [Mailbox allowlist, activation and wipe](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe) |
@@ -163,10 +163,10 @@ exclusion.
 | CASE-23 | Post-report query and dispute work on the existing Case | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | UI-10 | Full email-management workspace | [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | UI-14 | Categorised email views by destination and classification | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
-| API-01 | Principal-scoped provider submission API | [Accepted API-01 submission contract](frd/frd-09-provider-and-intermediary-routes.md#accepted-api-01-submission-contract) |
-| API-02 | Provider API receipt and processing-status lookup | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) |
-| API-03 | Provider API resulting Case/PO lookup | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) |
-| API-04 | Provider API credential issue, reset, revoke, pause, and resume | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) |
+| API-01 | Principal-scoped submission API | [Accepted API-01 submission contract](frd/frd-09-principal-and-intermediary-routes.md#accepted-api-01-submission-contract) |
+| API-02 | Principal API receipt and processing-status lookup | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
+| API-03 | Principal API resulting Case/PO lookup | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
+| API-04 | Principal API credential issue, reset, revoke, pause, and resume | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | MCP-05 | Automation Actor actions for the broader classified-email workspace | [MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) |
 | AI-05 | Automatic AI-assisted image readiness assessment of the current Case image set | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) |
 | MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |

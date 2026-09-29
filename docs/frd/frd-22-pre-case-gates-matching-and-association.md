@@ -29,7 +29,7 @@ and Unidentified are owned by
 the global checks are owned by
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md). The
 principal email routes are owned by
-[FRD-09](frd-09-provider-and-intermediary-routes.md), manual upload by
+[FRD-09](frd-09-principal-and-intermediary-routes.md), manual upload by
 [FRD-18](frd-18-manual-upload.md), image pairing by
 [FRD-19](frd-19-image-led-intake-and-pairing.md), and edit leases by
 [FRD-14](frd-14-record-edit-leases.md).
@@ -44,7 +44,7 @@ Before creating a Case or allocating a reference, Pegasus must have:
   receipts;
 - an authenticated Principal identity, and the staff actor where the route
   needs staff;
-- the provider or intermediary route identity and an enabled policy, where
+- the Principal or intermediary route identity and an enabled policy, where
   relevant;
 - an unambiguous Case type and Principal association;
 - processing, size, and format limits satisfied;
@@ -90,7 +90,7 @@ None of these allocates a reusable identity for convenience.
 
 ### Matching conflicts and reversible association
 
-Matching uses evidence it can explain. Message identifiers, provider and
+Matching uses evidence it can explain. Message identifiers, Principal and
 domain policy, route identity, accepted reference tokens, registration,
 party identity, and operator confirmation may all contribute. A weak,
 ambiguous, or contradictory signal never silently attaches material to a
@@ -110,7 +110,7 @@ is current material, not discarded quoted history. Unrelated reports and old
 thread content can neither supply nor veto a current instruction's profile.
 The accepted identities, work-type predicates, preserved QDOS body and Triage
 rules, and the shared fail-closed procedure are owned by
-[FRD-09](frd-09-provider-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
+[FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
 
 Acceptance joins a profile's typed instruction values to the canonical Case
 field identity, not to another principal's printed labels. The original
@@ -250,7 +250,7 @@ any state. Deployment and live evidence are separate tiers
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-18](frd-18-manual-upload.md),

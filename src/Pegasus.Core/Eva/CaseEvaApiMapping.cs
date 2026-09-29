@@ -35,7 +35,7 @@ public static class EvaInstructionDefaults
 ///
 /// 1. **The claimant name is sent as <c>InsName</c>.** EVA documents that
 ///    field as the insurer name; the operator's EVA instance uses it for the
-///    claimant, and they own that answer. This displaces the work provider,
+///    claimant, and they own that answer. This displaces the Principal (EVA's "Work Provider" field),
 ///    which has no other field of its own and so moves into the note.
 /// 2. **The instruction date is not sent.** EVA's instruction model has no
 ///    field for it and EVA stamps its own on arrival (operator, 2026-08-27).
@@ -60,7 +60,7 @@ public static class CaseEvaApiMapping
     /// order they are written into the note. Named once, here, so the note
     /// builder and its tests cannot drift.
     ///
-    /// The work provider is here because the claimant name took
+    /// The Principal is here (as EVA's "Work Provider") because the claimant name took
     /// <c>InsName</c>; inspection date and mileage are here because EVA has no
     /// field for either.
     /// </summary>
@@ -166,7 +166,7 @@ public static class CaseEvaApiMapping
     {
         var values = new[]
         {
-            NotableWorkProvider(fields.WorkProvider, principalCode),
+            NotableWorkPrincipal(fields.WorkPrincipal, principalCode),
             fields.InspectionDate,
             Mileage(fields)
         };
@@ -184,20 +184,20 @@ public static class CaseEvaApiMapping
     /// and the case is required to save them together.
     /// </summary>
     /// <summary>
-    /// The work provider, but only where it says something the Agent code
+    /// The "Work Provider" line (the Principal), but only where it says something the Agent code
     /// does not.
     ///
-    /// Since the claimant name took InsName, the work provider has no field of
+    /// Since the claimant name took InsName, the Principal has no field of
     /// its own. Agent now carries the Principal the case was allocated to, and
     /// repeating that same value as a note line is noise, so it is named only
-    /// where the case's own work-provider code differs from that Principal -
+    /// where the case's own Principal code differs from that Principal -
     /// which is the case actually worth an assessor reading.
     /// </summary>
-    private static string? NotableWorkProvider(string? workProvider, string principalCode) =>
-        string.IsNullOrWhiteSpace(workProvider)
-        || workProvider.Trim().Equals(principalCode.Trim(), StringComparison.OrdinalIgnoreCase)
+    private static string? NotableWorkPrincipal(string? workPrincipal, string principalCode) =>
+        string.IsNullOrWhiteSpace(workPrincipal)
+        || workPrincipal.Trim().Equals(principalCode.Trim(), StringComparison.OrdinalIgnoreCase)
             ? null
-            : workProvider;
+            : workPrincipal;
 
     private static string? Mileage(EvaReplayFields fields)
     {

@@ -90,9 +90,9 @@ public sealed class CaseWorkflowPersistenceTests
                 sent.Version,
                 actor,
                 "close-post-report",
-                "Provider cancelled after report delivery",
+                "Principal cancelled after report delivery",
                 closeLease.Token,
-                CaseClosureOutcome.ProviderCancelled),
+                CaseClosureOutcome.PrincipalCancelled),
             default);
         var reopenLease = await harness.Store.ClaimAsync(
             new(harness.CaseId, closed.Version, actor, "claim-post-report-reopen"),
@@ -729,7 +729,7 @@ public sealed class CaseWorkflowPersistenceTests
                         staff,
                         "claim-close-before-auto-unlink"),
                     default)).Token,
-                CaseClosureOutcome.ProviderCancelled),
+                CaseClosureOutcome.PrincipalCancelled),
             default);
         var reopened = await new ReopenCase(harness.Store).ExecuteAsync(
             new(
@@ -1277,9 +1277,9 @@ public sealed class CaseWorkflowPersistenceTests
                 linked.Version,
                 actor,
                 "close-before-unlink",
-                "Provider cancelled after the report",
+                "Principal cancelled after the report",
                 postReportLease.Token,
-                CaseClosureOutcome.ProviderCancelled),
+                CaseClosureOutcome.PrincipalCancelled),
             default);
         var reopened = await new ReopenCase(harness.Store).ExecuteAsync(
             new(
@@ -1464,10 +1464,10 @@ public sealed class CaseWorkflowPersistenceTests
                 harness.SecondCaseId,
                 0,
                 actor,
-                "close-provider",
-                "Provider cancelled before report delivery",
+                "close-principal",
+                "Principal cancelled before report delivery",
                 closeLease.Token,
-                CaseClosureOutcome.ProviderCancelled),
+                CaseClosureOutcome.PrincipalCancelled),
             default);
         var reopenLease = await harness.Store.ClaimAsync(
             new(harness.SecondCaseId, closed.Version, actor, "claim-reopen"),
@@ -1486,7 +1486,7 @@ public sealed class CaseWorkflowPersistenceTests
             default));
 
         var persisted = await harness.Store.GetAsync(harness.SecondCaseId, default);
-        Assert.Equal(CaseLifecycleState.ProviderCancelled, persisted?.State);
+        Assert.Equal(CaseLifecycleState.PrincipalCancelled, persisted?.State);
         Assert.Equal(closed.Version, persisted?.Version);
         Assert.Null(persisted?.ReportSentEvidence);
     }
@@ -2422,18 +2422,18 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(originalDataBefore.Claimant.Name, originalDataAfter?.Claimant.Name);
 
         // Wrong-Principal correction: the replacement's reference and sequence
-        // are allocated under QDOS, so its work_provider_code must name QDOS
+        // are allocated under QDOS, so its principal_code must name QDOS
         // too, as a staff-confirmed value, even though every other cloned
         // field carried the original's provenance verbatim. The projected
         // CaseMatchIndex row must follow suit, while the original — still
         // CreatedInError, keeping its own history — is unaffected.
-        var replacementProvider = replacementData!.Provider.WorkProviderCode.Current;
+        var replacementProvider = replacementData!.Principal.PrincipalCode.Current;
         Assert.Equal(CaseDataValueKind.Confirmed, replacementProvider?.Kind);
         Assert.Equal("QDOS", replacementProvider?.Value);
         var originalIndexRowAfter = await harness.FindMatchIndexRowAsync(harness.CaseId);
-        Assert.Equal(originalIndexRowBefore?.WorkProviderCode, originalIndexRowAfter?.WorkProviderCode);
+        Assert.Equal(originalIndexRowBefore?.PrincipalCode, originalIndexRowAfter?.PrincipalCode);
         var replacementIndexRow = await harness.FindMatchIndexRowAsync(allocated.Identity.CaseId);
-        Assert.Equal("QDOS", replacementIndexRow?.WorkProviderCode);
+        Assert.Equal("QDOS", replacementIndexRow?.PrincipalCode);
 
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {

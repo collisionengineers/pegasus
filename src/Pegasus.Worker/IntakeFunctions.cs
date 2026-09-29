@@ -6,7 +6,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Transport;
 using Pegasus.Infrastructure.Custody;
@@ -226,7 +226,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ITriageCasePairing triageCasePairing,
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
     ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
-    ReconcileProviderSubmissions reconcileProviderSubmissions,
+    ReconcilePrincipalSubmissions reconcilePrincipalSubmissions,
     PurgeStaffNotifications purgeStaffNotifications,
     PrepareDocumentThumbnails prepareDocumentThumbnails,
     ILogger<StagedArtifactReconciliationFunction> logger)
@@ -333,17 +333,17 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
         // Repairs the staged-receipt back-reference and the missing
         // first Accepted history row after a process loss between the
-        // Provider API's separate writes. Same existing timer trigger
+        // Principal API's separate writes. Same existing timer trigger
         // deliberately; this is not a new schedule.
-        var providerSubmissions = await reconcileProviderSubmissions.ExecuteAsync(
+        var principalSubmissions = await reconcilePrincipalSubmissions.ExecuteAsync(
             50,
             cancellationToken);
-        LogProviderSubmissionReconciliation(
+        LogPrincipalSubmissionReconciliation(
             logger,
-            providerSubmissions.Candidates,
-            providerSubmissions.Repaired,
-            providerSubmissions.Failures,
-            providerSubmissions.FirstFailure);
+            principalSubmissions.Candidates,
+            principalSubmissions.Repaired,
+            principalSubmissions.Failures,
+            principalSubmissions.FirstFailure);
 
         // Work Centre D10: personal notifications past their 30-day retention drop
         // off. Reads already filter on the window, so this is housekeeping on the
@@ -467,8 +467,8 @@ public sealed partial class StagedArtifactReconciliationFunction(
     // because tests run full-privilege and the deployed roles do not.
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Reconciled provider submission accepts: {Candidates} candidates, {Repaired} repaired, {Failures} failures. First failure: {FirstFailure}")]
-    private static partial void LogProviderSubmissionReconciliation(
+        Message = "Reconciled principal submission accepts: {Candidates} candidates, {Repaired} repaired, {Failures} failures. First failure: {FirstFailure}")]
+    private static partial void LogPrincipalSubmissionReconciliation(
         ILogger logger,
         int candidates,
         int repaired,

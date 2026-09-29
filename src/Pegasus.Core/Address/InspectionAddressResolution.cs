@@ -126,14 +126,14 @@ public static class InspectionAddressResolutionPolicy
     /// Whether the inspection address permits case creation.
     /// </summary>
     /// <remarks>
-    /// An Image Based Assessment provider records the mode itself as the
+    /// An Image Based Assessment Principal records the mode itself as the
     /// address when the case is created, so there is nothing for a person to
-    /// settle first; every other provider needs a settled physical location.
+    /// settle first; every other Principal needs a settled physical location.
     /// </remarks>
     public static bool SatisfiesCaseCreation(
         InspectionAddressResolutionState state,
-        bool providerIsImageBased) =>
-        providerIsImageBased || IsStaffResolved(state);
+        bool principalIsImageBased) =>
+        principalIsImageBased || IsStaffResolved(state);
 }
 
 public interface IInspectionAddressResolutionStore

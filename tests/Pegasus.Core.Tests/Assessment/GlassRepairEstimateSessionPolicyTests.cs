@@ -86,7 +86,7 @@ public sealed class GlassRepairEstimateSessionPolicyTests
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
             ActionActor.Automation("pegasus-automation"),
             ActionActor.SystemWorker("worker"),
-            ActionActor.Provider(Guid.NewGuid())
+            ActionActor.Principal(Guid.NewGuid())
         })
         {
             Assert.Throws<GlassRepairEstimateRefusalException>(() =>

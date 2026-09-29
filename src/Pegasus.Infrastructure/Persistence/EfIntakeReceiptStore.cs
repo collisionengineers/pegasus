@@ -658,7 +658,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             Disposition = ToCode(decision.Disposition),
             RouteOwnerCode = decision.SelectedRoute?.RouteOwnerCode,
             RouteKind = decision.SelectedRoute is null ? null : ToCode(decision.SelectedRoute.Kind),
-            WorkProviderCode = decision.SelectedRoute?.WorkProviderCode,
+            PrincipalCode = decision.SelectedRoute?.PrincipalCode,
             PredicatesJson = SerializeEnvelope(decision.Predicates),
             Reason = decision.Reason,
             PolicyKey = decision.PolicyKey,
@@ -977,7 +977,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.Disposition = replacement.Disposition;
         entity.RouteOwnerCode = replacement.RouteOwnerCode;
         entity.RouteKind = replacement.RouteKind;
-        entity.WorkProviderCode = replacement.WorkProviderCode;
+        entity.PrincipalCode = replacement.PrincipalCode;
         entity.PredicatesJson = replacement.PredicatesJson;
         entity.Reason = replacement.Reason;
         entity.PolicyKey = replacement.PolicyKey;
@@ -1037,10 +1037,10 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     {
         var hasAnySelectionValue = entity.RouteOwnerCode is not null
             || entity.RouteKind is not null
-            || entity.WorkProviderCode is not null;
+            || entity.PrincipalCode is not null;
         var hasCompleteSelection = entity.RouteOwnerCode is not null
             && entity.RouteKind is not null
-            && entity.WorkProviderCode is not null;
+            && entity.PrincipalCode is not null;
         if (hasAnySelectionValue != hasCompleteSelection)
         {
             throw new InvalidDataException(
@@ -1063,7 +1063,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 ? new(
                     entity.RouteOwnerCode!,
                     ParseMailRouteKind(entity.RouteKind!),
-                    entity.WorkProviderCode!)
+                    entity.PrincipalCode!)
                 : null,
             DeserializeEnvelope<IReadOnlyList<MailRoutePredicateResult>>(entity.PredicatesJson),
             entity.Reason,
@@ -1258,14 +1258,14 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
 
     private static string ToCode(MailRouteKind value) => value switch
     {
-        MailRouteKind.DirectProvider => "direct_provider",
+        MailRouteKind.DirectPrincipal => "direct_principal",
         MailRouteKind.Intermediary => "intermediary",
         _ => throw UnknownEnum(value)
     };
 
     private static MailRouteKind ParseMailRouteKind(string value) => value switch
     {
-        "direct_provider" => MailRouteKind.DirectProvider,
+        "direct_principal" => MailRouteKind.DirectPrincipal,
         "intermediary" => MailRouteKind.Intermediary,
         _ => throw UnknownCode("mail-route kind", value)
     };
@@ -1302,7 +1302,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
         IntakeSourceChannel.Automation => "automation",
-        IntakeSourceChannel.ProviderApi => "provider_api",
+        IntakeSourceChannel.PrincipalApi => "principal_api",
         _ => throw UnknownEnum(value)
     };
 
@@ -1316,7 +1316,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
         "automation" => IntakeSourceChannel.Automation,
-        "provider_api" => IntakeSourceChannel.ProviderApi,
+        "principal_api" => IntakeSourceChannel.PrincipalApi,
         _ => throw UnknownCode("source channel", value)
     };
 

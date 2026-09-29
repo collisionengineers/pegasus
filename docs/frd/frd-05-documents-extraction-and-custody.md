@@ -21,8 +21,8 @@ This document says which files Pegasus accepts, how it extracts text and
 images from them, where the files are kept, and how images are read back and
 tagged. Upload limits are in
 [FRD-18](frd-18-manual-upload.md#upload-limits).
-The Provider API envelope is owned by
-[FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
+The Principal API envelope is owned by
+[FRD-09](frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary).
 
 ## Behaviour
 
@@ -348,7 +348,7 @@ test subtree. Deployment and live acceptance are separate evidence tiers
   `INT-10`–`INT-12`, `INT-14`–`INT-16` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-18](frd-18-manual-upload.md),
   [FRD-19](frd-19-image-led-intake-and-pairing.md).

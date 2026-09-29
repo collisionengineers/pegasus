@@ -28,10 +28,10 @@
     var address = data?.Inspection.Address;
     var recorded = address?.Current;
     // The Principal's own setting reaches the case as a field value sourced
-    // ProviderSetting (CaseDataSnapshotFactory); it is the default until a
+    // PrincipalSetting (CaseDataSnapshotFactory); it is the default until a
     // member of staff records something else.
-    var providerDefault = new[] { address?.Confirmed, address?.Fact, address?.Suggestion }
-        .FirstOrDefault(value => value?.Source.Kind == CaseDataSourceKind.ProviderSetting);
+    var principalDefault = new[] { address?.Confirmed, address?.Fact, address?.Suggestion }
+        .FirstOrDefault(value => value?.Source.Kind == CaseDataSourceKind.PrincipalSetting);
     var mode = data?.Inspection.Mode.Current;
     var inspectionDateValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.InspectionDate);
     var inspectionDate = inspectionDateValue?.Value;
@@ -47,8 +47,8 @@
         ?? choices.FirstOrDefault(choice => choice.Kind == InspectionAddressChoiceKind.ManualEntry);
     // One row per fact: the Principal's default only where the Case does not
     // already hold it. The mode reads once, in Inspection type.
-    var showProviderDefault = providerDefault is not null
-        && !string.Equals(providerDefault.Value, recorded?.Value, StringComparison.OrdinalIgnoreCase);
+    var showPrincipalDefault = principalDefault is not null
+        && !string.Equals(principalDefault.Value, recorded?.Value, StringComparison.OrdinalIgnoreCase);
     var modeLabel = mode is null ? null : OperatorLabels.InspectionMode(mode.Value);
     var storagePerDay = Model.AssessmentEditorValue(AssessmentVocabulary.SettlementStoragePerDay);
     var recoveryCharge = Model.AssessmentEditorValue(AssessmentVocabulary.CostRecoveryCharge);
@@ -124,9 +124,9 @@
             </div>
             @* Rendered whenever the Principal has a default; shown, reading and
                editing alike, only where the recorded address differs from it. *@
-            <div class="fc ro" data-inspection-provider-default hidden="@(showProviderDefault ? null : "hidden")">
+            <div class="fc ro" data-inspection-principal-default hidden="@(showPrincipalDefault ? null : "hidden")">
                 <span class="lbl">@OperatorLabels.CaseWorkspace.PrincipalDefaultInspectionAddress</span>
-                <div class="@ValueClass(providerDefault?.Value)">@Value(providerDefault?.Value)</div>
+                <div class="@ValueClass(principalDefault?.Value)">@Value(principalDefault?.Value)</div>
             </div>
         </div>
 

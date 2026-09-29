@@ -27,7 +27,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Web.Mcp;
-using Pegasus.Web.ProviderApi;
+using Pegasus.Web.PrincipalApi;
 using Pegasus.Web;
 using Azure.Core;
 using Azure.Identity;
@@ -268,9 +268,9 @@ var localDocumentCustodyConfigured =
 // exists. An explicitly configured deployment may enable it in Production.
 var automationMcpOptions = AutomationMcpOptions.TryCreate(builder.Configuration);
 
-// The Provider API (API-01) is gated the same way: off by default, and
-// without the flag no /api/provider route, scheme or policy exists.
-var providerApiEnabled = builder.Configuration.GetValue<bool>(ProviderApi.FeatureFlag);
+// The Principal API (API-01) is gated the same way: off by default, and
+// without the flag no /api/principal route, scheme or policy exists.
+var principalApiEnabled = builder.Configuration.GetValue<bool>(PrincipalApi.FeatureFlag);
 
 // RailCountsPageFilter supplies ViewData["RailCounts"] on authenticated full
 // page results — the rail shipped with the badge
@@ -347,8 +347,8 @@ builder.Services.AddRateLimiter(options =>
                     AutomationMcp.TokenEndpointPath,
                     StringComparison.OrdinalIgnoreCase)
                 ? "automation_rate_limited"
-                : rejectedPath.StartsWithSegments(ProviderApi.BasePath)
-                    ? "provider_api_rate_limited"
+                : rejectedPath.StartsWithSegments(PrincipalApi.BasePath)
+                    ? "principal_api_rate_limited"
                     : rejectedPath.StartsWithSegments("/Integrations/Glass/Callback")
                         ? "glass_callback_rate_limited"
                     : "authentication_rate_limited";
@@ -381,7 +381,7 @@ builder.Services.AddRateLimiter(options =>
             }));
     // The limiter runs before authentication, so a presented key id is a claim
     // and not an identity, and it cannot be the partition: naming another
-    // provider's key id would spend that provider's budget with forged
+    // principal's key id would spend that principal's budget with forged
     // secrets, and minting a fresh well-formed key id per request would hand
     // the caller a fresh budget each time and bound nothing at all. The
     // partition is the calling address, as it already is for staff sign-in and
@@ -398,13 +398,13 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1)
             }));
     options.AddPolicy(
-        ProviderApi.RateLimitPolicy,
+        PrincipalApi.RateLimitPolicy,
         context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = ProviderApi.RequestsPerCallerPerMinute,
+                PermitLimit = PrincipalApi.RequestsPerCallerPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -684,7 +684,7 @@ builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
 builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
-builder.Services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
+builder.Services.AddScoped<IPrincipalInspectionModeStore, EfPrincipalInspectionModeStore>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
 builder.Services.AddScoped<EfIntakeWorkStore>();
 builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
@@ -774,9 +774,9 @@ if (automationMcpOptions is not null)
         productVersion,
         automationMcpCredential);
 }
-if (providerApiEnabled)
+if (principalApiEnabled)
 {
-    builder.Services.AddPegasusProviderApi();
+    builder.Services.AddPegasusPrincipalApi();
 }
 
 startupTimeline.Mark("services composed");
@@ -974,15 +974,15 @@ if (!intakeSurfaceEnabled)
     });
 }
 
-// The Provider API joins the same absence gates. Answering 404 before routing
+// The Principal API joins the same absence gates. Answering 404 before routing
 // matters: the static-assets fallback owns a GET/HEAD-only catch-all over
 // every file-shaped path, so an uncomposed POST here would otherwise surface
 // as a 405 that discloses the route's shape instead of its absence.
-if (!providerApiEnabled)
+if (!principalApiEnabled)
 {
     app.Use(async (context, next) =>
     {
-        if (context.Request.Path.StartsWithSegments(ProviderApi.BasePath))
+        if (context.Request.Path.StartsWithSegments(PrincipalApi.BasePath))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -1172,9 +1172,9 @@ if (automationMcpOptions is not null)
 {
     app.MapPegasusAutomationMcp();
 }
-if (providerApiEnabled)
+if (principalApiEnabled)
 {
-    app.MapPegasusProviderApi();
+    app.MapPegasusPrincipalApi();
 }
 
 startupTimeline.Mark("pipeline built, starting to listen");
@@ -1199,7 +1199,7 @@ static bool IsMachineSurface(PathString path) =>
     || path.StartsWithSegments("/diagnostics")
     || path.StartsWithSegments(AutomationMcp.McpEndpointPath)
     || path.Equals(AutomationMcp.TokenEndpointPath, StringComparison.OrdinalIgnoreCase)
-    || path.StartsWithSegments(ProviderApi.BasePath);
+    || path.StartsWithSegments(PrincipalApi.BasePath);
 
 /// <summary>
 /// Creates, updates, or removes the disposable UI-verification Administrator.
