@@ -286,7 +286,7 @@
                         <span>@Frame.Done</span>
                     </button>
                 }
-                else if (!Model.IsInspectionView && !Model.IsPostReportReadOnly
+                else if (!Model.IsInspectionView && (!Model.IsPostReportReadOnly || Model.ColleagueIsEditing)
                     && (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff))
                 {
                     @* A colleague's staff lease can be taken over by an authorised
@@ -294,7 +294,10 @@
                        holder. The viewer's own lease is resumed, never taken over.
                        The Inspection view offers no Edit (v29 P3), and neither does
                        a Completed or Query Case: its sections read, and Return to
-                       Engineer is an Actions-menu item that needs no session. *@
+                       Engineer is an Actions-menu item that needs no session. A
+                       colleague's lease there is still offered Take over
+                       (operator, 29 September 2026), since the Actions menu is
+                       withheld while it holds the Case. *@
                     <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />

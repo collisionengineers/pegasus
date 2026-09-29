@@ -193,66 +193,27 @@ public sealed partial class DetailsModel
     /// other Actions-menu lifecycle actions and lands back on this Case's
     /// default view with no notice; a refusal states Core's reason.
     /// </summary>
-    public async Task<IActionResult> OnPostCreateAuditAsync(
+    public Task<IActionResult> OnPostCreateAuditAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string? editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        // Outside a session the Audit is created under a lease claimed for it.
-        CaseEditLease? claimed = null;
-        var lease = editLeaseToken;
-        if (string.IsNullOrWhiteSpace(lease))
-        {
-            var (claim, claimRefusal) = await ClaimLeaseForCommandAsync(id, expectedVersion, actor, RedirectToDetails);
-            if (claimRefusal is not null)
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandUnderLeaseAsync(
+            id,
+            expectedVersion,
+            editLeaseToken,
+            "create_audit",
+            async (actor, lease) =>
             {
-                return claimRefusal;
-            }
-            claimed = claim;
-            lease = claimed!.Token;
-        }
-
-        try
-        {
-            await createAudit.ExecuteAsync(
-                new(id, expectedVersion, actor, RequireOperationKey(operationKey), lease),
-                cancellationToken);
-            ClearLeaseState();
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            if (claimed is not null)
-            {
-                await ReleaseCommandLeaseQuietlyAsync(id, actor, claimed);
-            }
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "create_audit", exception);
-            if (claimed is not null)
-            {
-                await ReleaseCommandLeaseQuietlyAsync(id, actor, claimed);
-            }
-            else
-            {
-                HandleLeaseFailure(id, editLeaseToken, exception);
-            }
-            TempData["CaseError"] = exception is AuditCreationException refusal
+                await createAudit.ExecuteAsync(
+                    new(id, expectedVersion, actor, RequireOperationKey(operationKey), lease),
+                    cancellationToken);
+                return null;
+            },
+            exception => exception is AuditCreationException refusal
                 ? refusal.Message
-                : CaseCommandRefused;
-        }
-
-        return RedirectToDetails(id);
-    }
+                : CaseCommandRefused);
 
     /// <summary>
     /// Every lease-carrying store mutation consumes the lease. An immediate

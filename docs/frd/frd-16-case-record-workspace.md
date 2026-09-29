@@ -204,10 +204,11 @@ current state, in and out of an edit session (operator, 29 September 2026).
 An item taken outside a session runs under a lease claimed for that one
 action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
-frees the lease it claimed. While a colleague holds the lease the menu
-offers nothing that needs one: the ribbon names them and offers Take over.
-A Completed or Query Case offers no Edit, since its sections read and
-Return to Engineer needs no session. The rules behind each action are in
+frees the lease it claimed, as does a request abandoned mid-action. While a
+colleague holds the lease the menu offers nothing that needs one: the ribbon
+names them and offers Take over, a Completed or Query Case included. A
+Completed or Query Case offers no Edit, since its sections read and Return
+to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
 - **Hand to Engineer**, in Review. Its dialog selects an

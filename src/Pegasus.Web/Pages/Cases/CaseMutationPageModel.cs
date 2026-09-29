@@ -355,13 +355,40 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// live lease refuses states the claim's own wording, and the claimed
     /// token never reaches the browser: the page reads on afterwards.
     /// </summary>
-    protected async Task<IActionResult> ExecuteCaseCommandUnderLeaseAsync(
+    protected Task<IActionResult> ExecuteCaseCommandUnderLeaseAsync(
         Guid id,
         long expectedVersion,
         string? editLeaseToken,
         string commandName,
         Func<ActionActor, string, Task> execute,
         string successMessage,
+        Func<Guid, RedirectToPageResult>? redirect = null) =>
+        ExecuteCaseCommandUnderLeaseAsync(
+            id,
+            expectedVersion,
+            editLeaseToken,
+            commandName,
+            async (actor, lease) =>
+            {
+                await execute(actor, lease);
+                return successMessage;
+            },
+            _ => CaseCommandRefused,
+            redirect);
+
+    /// <summary>
+    /// The same, for a command whose notice comes from its result (null for
+    /// none) and whose refusal is worded from the exception. A request the
+    /// browser abandons mid-command releases a lease claimed for it, so the
+    /// Case is not held until the lease lapses.
+    /// </summary>
+    protected async Task<IActionResult> ExecuteCaseCommandUnderLeaseAsync(
+        Guid id,
+        long expectedVersion,
+        string? editLeaseToken,
+        string commandName,
+        Func<ActionActor, string, Task<string?>> execute,
+        Func<Exception, string> failureMessage,
         Func<Guid, RedirectToPageResult>? redirect = null)
     {
         if (!string.IsNullOrWhiteSpace(editLeaseToken))
@@ -371,9 +398,9 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
                 editLeaseToken,
                 commandName,
                 actor => execute(actor, editLeaseToken),
-                successMessage,
-                CaseCommandRefused,
-                redirect);
+                failureMessage,
+                redirect,
+                keepEditing: false);
         }
 
         redirect ??= RedirectToDetails;
@@ -390,8 +417,11 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
         try
         {
-            await execute(actor, lease!.Token);
-            TempData[StatusTempDataKey] = successMessage;
+            var message = await execute(actor, lease!.Token);
+            if (message is not null)
+            {
+                TempData[StatusTempDataKey] = message;
+            }
         }
         catch (StaffAuthorizationException)
         {
@@ -399,12 +429,17 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             RetainProposedValues(id);
             return Forbid();
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            await ReleaseCommandLeaseQuietlyAsync(id, actor, lease!);
+            throw;
+        }
+        catch (Exception exception)
         {
             LogCaseCommandFailed(logger, id, commandName, exception);
             await ReleaseCommandLeaseQuietlyAsync(id, actor, lease!);
             RetainProposedValues(id);
-            TempData[ErrorTempDataKey] = CaseCommandRefused;
+            TempData[ErrorTempDataKey] = failureMessage(exception);
         }
 
         return redirect(id);
@@ -496,7 +531,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         }
     }
 
-    private async Task<IActionResult> ExecuteCommandAsync(
+    private Task<IActionResult> ExecuteCommandAsync(
         Guid id,
         string editLeaseToken,
         string commandName,
@@ -504,7 +539,28 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         string successMessage,
         string failureMessage,
         Func<Guid, RedirectToPageResult>? redirect = null,
-        bool keepEditing = false)
+        bool keepEditing = false) =>
+        ExecuteCommandAsync(
+            id,
+            editLeaseToken,
+            commandName,
+            async actor =>
+            {
+                await execute(actor);
+                return successMessage;
+            },
+            _ => failureMessage,
+            redirect,
+            keepEditing);
+
+    private async Task<IActionResult> ExecuteCommandAsync(
+        Guid id,
+        string editLeaseToken,
+        string commandName,
+        Func<ActionActor, Task<string?>> execute,
+        Func<Exception, string> failureMessage,
+        Func<Guid, RedirectToPageResult>? redirect,
+        bool keepEditing)
     {
         redirect ??= RedirectToDetails;
         if (!TryGetActor(out var actor))
@@ -514,13 +570,16 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
         try
         {
-            await execute(actor);
+            var message = await execute(actor);
             ClearLeaseState();
             if (keepEditing)
             {
                 await ReclaimLeaseAsync(id, CancellationToken.None);
             }
-            TempData[StatusTempDataKey] = successMessage;
+            if (message is not null)
+            {
+                TempData[StatusTempDataKey] = message;
+            }
         }
         catch (StaffAuthorizationException)
         {
@@ -533,7 +592,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             LogCaseCommandFailed(logger, id, commandName, exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
             RetainProposedValues(id);
-            TempData[ErrorTempDataKey] = failureMessage;
+            TempData[ErrorTempDataKey] = failureMessage(exception);
         }
 
         return redirect(id);
