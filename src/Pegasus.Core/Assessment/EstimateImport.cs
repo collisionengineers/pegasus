@@ -34,12 +34,11 @@ public interface IImportRawEstimate
 public sealed record EstimateImportResult(Guid EstimateId);
 
 /// <summary>
-/// The totals a source document prints for itself. They are reconciliation
+/// The totals a source document prints for itself. They are parse-time
 /// evidence and never an authority: Pegasus costs the estimate from its own
-/// rows through <see cref="EstimateTotals"/>, and a printed figure that
-/// disagrees is retained beside the calculation rather than dropped or
-/// forced to agree. Every member is optional because a document prints only
-/// the totals its own format carries.
+/// rows through <see cref="EstimateTotals"/>. The import does not store
+/// them; the retained source document still prints them. Every member is
+/// optional because a document prints only the totals its own format carries.
 /// </summary>
 public sealed record EstimateSourceTotals(
     decimal? Parts = null,
