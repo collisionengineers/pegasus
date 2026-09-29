@@ -6,8 +6,9 @@
 // Usage: node scripts/Test-CaseRefreshBrowser.mjs <base-url> <case-id> <triage-case-id> [absolute-path-to-browser.exe]
 //        or PEGASUS_URL, PEGASUS_CASE_ID, PEGASUS_TRIAGE_CASE_ID and CHROME in the environment.
 //        PEGASUS_USER and PEGASUS_PASSWORD sign in first; a DevelopmentOffline run needs neither.
-// The Case is put into edit and saved once with its own values, so the run
-// leaves one save on it. Evidence is written under artifacts/case-refresh/browser/.
+// The Case is put into edit and one cell is committed with its own value
+// (save as you go), so the run leaves one save on it. Evidence is written
+// under artifacts/case-refresh/browser/.
 import { spawn } from 'node:child_process';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -41,7 +42,7 @@ const STATE = `(function () {
     var label = form.querySelector('[data-refresh-label]');
     var record = document.querySelector('[data-case-record]');
     var error = document.querySelector('[data-inplace-error]');
-    var dialog = document.getElementById('edit-finish-confirm');
+    var status = document.querySelector('[data-lease-line]');
     return {
         label: label ? label.textContent.trim() : null,
         disabled: !!(button && button.disabled),
@@ -49,7 +50,7 @@ const STATE = `(function () {
         refreshing: !!(region && region.classList.contains('is-refreshing')),
         editing: record ? record.getAttribute('data-case-editing') : null,
         error: error ? error.textContent : null,
-        dialog: !!(dialog && !dialog.hidden)
+        status: status && !status.hidden ? status.textContent.trim() : null
     };
 })()`;
 const PRESS = "document.querySelector('[data-refresh-form] button').click()";
@@ -134,7 +135,7 @@ try {
 
     // The Case: its Refresh is intercepted and swapped in place.
     await navigate(`/Cases/${caseId}`);
-    assert.equal(await evaluate('typeof window.pegasusDirtyEditForm'), 'function', 'The Case page runs the workspace script');
+    assert.equal(await evaluate('typeof window.pegasusGlassReturn'), 'function', 'The Case page runs the workspace script');
     assertIdle(await state(), 'Case opened');
     for (const press of [1, 2]) {
         // A marker on the window survives only an in-place swap, never a
@@ -148,45 +149,45 @@ try {
         record(`Case press ${press} returns to idle after the in-place swap`, settled);
     }
 
-    // Edit the Case, mark it dirty with its own values, and press Refresh over
-    // the unsaved changes (Keep editing), during the save, and after it.
+    // Edit the Case, leave one cell with its own value (which commits it at
+    // once, save as you go), and press Refresh during that commit, after it,
+    // and after Done.
     assert.ok(await evaluate("(function (b) { if (!b) { return false; } b.click(); return true; })(document.querySelector('[data-case-edit]'))"), 'Edit Case is offered');
-    await waitFor("document.querySelector('[data-case-record]').getAttribute('data-case-editing') === 'true' && !!document.querySelector('[data-case-save]')", 'Entering edit');
-    assert.ok(await evaluate(`(function (form) {
+    await waitFor("document.querySelector('[data-case-record]').getAttribute('data-case-editing') === 'true' && !!document.querySelector('[data-case-done]')", 'Entering edit');
+    assert.equal(await evaluate("document.querySelector('[data-case-save-now]').hidden"), true, 'The script hides the no-script Save now');
+    const during = await evaluate(`(function (form) {
         var control = Array.prototype.find.call(form.elements, function (c) { return c.type === 'text' && !c.disabled && !c.readOnly && c.offsetParent !== null; });
-        if (!control) { return false; }
-        control.dispatchEvent(new Event('input', { bubbles: true }));
-        return true;
-    })(document.getElementById('case-edit-form'))`), 'A text control of the Case form is editable');
-    assert.equal(await evaluate('!!window.pegasusDirtyEditForm()'), true, 'The Case is dirty');
-    let pressed = await evaluate(`${PRESS}; ${STATE}`);
-    assert.equal(pressed.dialog, true, 'Refresh over unsaved changes asks first');
-    assert.equal(pressed.label, 'Refreshing', 'Keep editing: the press was taken');
-    await evaluate("document.querySelector('[data-edit-finish-keep]').click()");
-    const kept = await waitIdle('Keep editing');
-    assert.equal(kept.dialog, false, 'Keep editing: the question closed');
-    assert.equal(kept.editing, 'true', 'Keep editing: still editing');
-    assert.equal(await evaluate('!!window.pegasusDirtyEditForm()'), true, 'Keep editing: the changes are still there');
-    record('Keep editing returns Refresh to idle without leaving edit', kept);
-
-    assert.equal(await evaluate("document.getElementById('case-edit-form').checkValidity()"), true, 'The Case form is valid, so Save can start');
-    const during = await evaluate(`document.querySelector('[data-case-save]').click(); ${PRESS}; ${STATE}`);
-    assert.equal(during.dialog, false, 'Refresh during a save: declined, not asked');
-    assert.equal(during.editing, 'true', 'Refresh during a save: the save is still in flight');
-    assertIdle(during, 'Refresh during a save');
-    record('Refresh pressed while a save is in flight is declined and idle at once', during);
-    await waitFor("document.querySelector('[data-case-record]').getAttribute('data-case-editing') === 'false'", 'The save landing');
+        if (!control) { return null; }
+        control.dispatchEvent(new Event('change', { bubbles: true }));
+        ${PRESS};
+        return ${STATE};
+    })(document.getElementById('case-edit-form'))`);
+    assert.ok(during, 'A text control of the Case form is editable');
+    assert.equal(during.status, 'Saving…', 'Leaving the cell commits it: the ribbon says Saving');
+    assert.equal(during.editing, 'true', 'Refresh during a commit: the commit is still in flight');
+    assertIdle(during, 'Refresh during a commit');
+    record('Refresh pressed while a commit is in flight is declined and idle at once', during);
+    await waitFor("(function (l) { return !!l && !l.hidden && l.textContent.indexOf('Saved') === 0; })(document.querySelector('[data-lease-line]'))", 'The commit landing');
     const landed = await state();
-    assertIdle(landed, 'After the save');
+    assert.equal(landed.editing, 'true', 'After the commit: still editing');
+    assertIdle(landed, 'After the commit');
+    record('The commit lands and the ribbon says Saved', landed);
+    let pressed = await evaluate(`${PRESS}; ${STATE}`);
+    assert.equal(pressed.label, 'Refreshing', 'After the commit: the press was taken');
+    record('Refresh works again once the commit has landed', await waitIdle('After the commit'));
+
+    await evaluate("document.querySelector('[data-case-done]').click()");
+    await waitFor("document.querySelector('[data-case-record]').getAttribute('data-case-editing') === 'false'", 'Done ending the session');
+    assertIdle(await state(), 'After Done');
     pressed = await evaluate(`${PRESS}; ${STATE}`);
-    assert.equal(pressed.label, 'Refreshing', 'After the save: the press was taken');
-    record('Refresh works again once the save has landed', await waitIdle('After the save'));
+    assert.equal(pressed.label, 'Refreshing', 'After Done: the press was taken');
+    record('Refresh works again after Done', await waitIdle('After Done'));
 
     // The Triage Case: no workspace script, so its Refresh navigates and the
     // new document arrives idle.
     await navigate(`/Cases/${triageCaseId}`);
     assert.ok(await evaluate("!!document.querySelector('[data-triage-record]')"), 'The Triage Case renders its Triage record');
-    assert.equal(await evaluate('typeof window.pegasusDirtyEditForm'), 'undefined', 'The Triage page runs no workspace script');
+    assert.equal(await evaluate('typeof window.pegasusGlassReturn'), 'undefined', 'The Triage page runs no workspace script');
     assertIdle(await state(), 'Triage opened');
     for (const press of [1, 2]) {
         const pressedTriage = await evaluate(`${LEAVING}; ${PRESS}; ${STATE}`);

@@ -297,7 +297,7 @@ than creating a second entry.
 
 Tagging works while the Case is being edited (operator, 28 September 2026).
 Apply, remove and New tag post at once, in place. They never ask the operator
-to save the Case, and they leave the Case's unsaved changes as they are.
+to save the Case, and they leave the sections as the operator has them.
 Apply and remove move the Case version and the edit lease, so the page
 carries the new version and lease into the Save form, and the next Save
 still holds the operator's changes. New tag moves neither: it adds to the
