@@ -41,9 +41,21 @@ internal sealed class EfRetainedMailDismissalStore(
     {
         var eventKind = dismiss ? DismissedEventKind : RestoredEventKind;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // Read committed, not serializable. The message row is taken UPDLOCK, HOLDLOCK
+        // first, so every act on one message queues on it and a retried key then reads
+        // the committed history. Nothing takes a key-range lock on ActionHistory: a
+        // serializable read of an operation key that is not there holds RangeS-S over the
+        // gap, and the insert behind it converts to RangeI-N, so two acts deadlocked on
+        // one another whichever messages they carried (issue 835).
         await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+            IsolationLevel.ReadCommitted,
             cancellationToken);
+
+        var message = await FindForUpdateAsync(context, messageId, cancellationToken);
+        if (message is null)
+        {
+            return null;
+        }
 
         var replay = await context.ActionHistory.AsNoTracking()
             .SingleOrDefaultAsync(
@@ -63,13 +75,6 @@ internal sealed class EfRetainedMailDismissalStore(
                 ?? throw new InvalidDataException("The persisted dismissal replay is invalid.");
             await transaction.CommitAsync(cancellationToken);
             return new(messageId, state.DismissedAtUtc is not null, state.DismissedAtUtc, state.DismissedBy, IsReplay: true);
-        }
-
-        var message = await context.RetainedMailboxMessages
-            .SingleOrDefaultAsync(item => item.Id == messageId, cancellationToken);
-        if (message is null)
-        {
-            return null;
         }
 
         var now = timeProvider.GetUtcNow();
@@ -107,6 +112,19 @@ internal sealed class EfRetainedMailDismissalStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(messageId, after.DismissedAtUtc is not null, after.DismissedAtUtc, after.DismissedBy, IsReplay: false);
+    }
+
+    private static Task<RetainedMailboxMessageEntity?> FindForUpdateAsync(
+        PegasusDbContext context,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
+        var messages = context.RetainedMailboxMessages;
+        return context.Database.IsSqlServer()
+            ? messages.FromSqlInterpolated(
+                    $"SELECT * FROM [dbo].[RetainedMailboxMessages] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {messageId}")
+                .SingleOrDefaultAsync(cancellationToken)
+            : messages.SingleOrDefaultAsync(item => item.Id == messageId, cancellationToken);
     }
 
     private sealed record DismissalState(DateTimeOffset? DismissedAtUtc, string? DismissedBy);

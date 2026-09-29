@@ -47,7 +47,7 @@ public static class MailTaxonomy
                 ["audit", "diminution", "inspection", "new-client", "website-enquiry"],
             [ReceivedMailFamily.NonClientRelated] = [],
             [ReceivedMailFamily.InProgressCases] =
-                ["cancellation", "case-update", "client-chasing-for-update", "provider-chasing-for-update", "ongoing-correspondence"],
+                ["cancellation", "case-update", "client-chasing-for-update", "principal-chasing-for-update", "ongoing-correspondence"],
             [ReceivedMailFamily.PostReportEmails] =
                 ["query", "dispute", "amendment-request"],
             [ReceivedMailFamily.PreInstructionEmails] =
@@ -103,7 +103,7 @@ public sealed record MailCategory
     public const int OtherReasoningMaxLength = 1000;
 
     /// <summary>
-    /// The subtype that means "this provider is asking for a Triage, not
+    /// The subtype that means "this Principal is asking for a Triage, not
     /// instructing a case". Named here, once, because three surfaces ask the
     /// question: the classification policy that produces it, the operational
     /// destination policy that routes it to the Triage view, and intake
@@ -315,12 +315,12 @@ public sealed record MailClassificationResult(
 
 /// <summary>
 /// A route-owned classification policy. The applicable route is the only policy owner for
-/// message-type classification (ADR-0008), so a policy names the provider route it serves
-/// and is selected by the accepted route's work-provider code.
+/// message-type classification (ADR-0008), so a policy names the Principal route it serves
+/// and is selected by the accepted route's Principal code.
 /// </summary>
 public interface IMailClassificationPolicy
 {
-    string WorkProviderCode { get; }
+    string PrincipalCode { get; }
     string PolicyKey { get; }
     int PolicyVersion { get; }
     MailClassificationResult Classify(

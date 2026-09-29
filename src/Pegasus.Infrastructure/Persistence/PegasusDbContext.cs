@@ -31,8 +31,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<VehicleLookupRequestEntity>();
     internal DbSet<VehicleLookupObservationEntity> VehicleLookupObservations =>
         Set<VehicleLookupObservationEntity>();
-    internal DbSet<VehicleConfirmationEntity> VehicleConfirmations =>
-        Set<VehicleConfirmationEntity>();
     internal DbSet<ImageIntakeEntity> ImageIntakes => Set<ImageIntakeEntity>();
     internal DbSet<ImageIntakeSequenceEntity> ImageIntakeSequences =>
         Set<ImageIntakeSequenceEntity>();
@@ -79,11 +77,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<UnroadworthyReasonEntity> UnroadworthyReasons => Set<UnroadworthyReasonEntity>();
 
     internal DbSet<CaseReportWordingEntity> CaseReportWordings => Set<CaseReportWordingEntity>();
-    internal DbSet<AiWorkRequestEntity> AiWorkRequests => Set<AiWorkRequestEntity>();
     internal DbSet<SendToAiControlEntity> SendToAiControl => Set<SendToAiControlEntity>();
     internal DbSet<AiJobEntity> AiJobs => Set<AiJobEntity>();
     internal DbSet<PrincipalApiCredentialEntity> PrincipalApiCredentials => Set<PrincipalApiCredentialEntity>();
-    internal DbSet<ProviderSubmissionEntity> ProviderSubmissions => Set<ProviderSubmissionEntity>();
+    internal DbSet<PrincipalSubmissionEntity> PrincipalSubmissions => Set<PrincipalSubmissionEntity>();
     internal DbSet<LabourRateCardEntity> LabourRateCards => Set<LabourRateCardEntity>();
 
 
@@ -141,11 +138,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
 
 
-    internal DbSet<ProviderDomainPackageEntity> ProviderDomainPackages => Set<ProviderDomainPackageEntity>();
+    internal DbSet<PrincipalDomainPackageEntity> PrincipalDomainPackages => Set<PrincipalDomainPackageEntity>();
 
-    internal DbSet<ProviderReferenceEntity> ProviderReferences => Set<ProviderReferenceEntity>();
+    internal DbSet<PrincipalReferenceEntity> PrincipalReferences => Set<PrincipalReferenceEntity>();
 
-    internal DbSet<ProviderDomainEvidenceEntity> ProviderDomainEvidence => Set<ProviderDomainEvidenceEntity>();
+    internal DbSet<PrincipalDomainEvidenceEntity> PrincipalDomainEvidence => Set<PrincipalDomainEvidenceEntity>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -234,7 +231,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         CaseWorkModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
         PrincipalCredentialModelConfiguration.Configure(builder);
-        ProviderSubmissionModelConfiguration.Configure(builder);
+        PrincipalSubmissionModelConfiguration.Configure(builder);
         IntakeAllocationModelConfiguration.Configure(builder);
 
         builder.Entity<PegasusIdentityUser>(entity =>
@@ -506,7 +503,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.ToTable("OrganizationRoles", table =>
                 table.HasCheckConstraint(
                     "CK_OrganizationRoles_Role",
-                    "[Role] IN ('work_provider', 'instruction_intermediary')"));
+                    "[Role] IN ('principal', 'instruction_intermediary')"));
             entity.HasKey(item => new { item.OrganizationId, item.Role });
             entity.Property(item => item.Role).HasMaxLength(40).IsRequired();
             entity.HasOne(item => item.Organization)
@@ -616,6 +613,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.Reference).IsUnique();
             entity.HasIndex(item => item.AuditReference).IsUnique();
             entity.HasIndex(item => item.OriginIntakeReceiptId);
+            // The Work Centre's New cases feed reads Cases by creation time.
+            entity.HasIndex(item => item.CreatedAtUtc).IncludeProperties(item => item.Type);
             entity.HasIndex(item => new { item.SequenceLineageId, item.Year, item.Sequence })
                 .IsUnique();
             entity.HasOne(item => item.Principal)
@@ -1113,12 +1112,12 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        builder.Entity<ProviderDomainPackageEntity>(entity =>
+        builder.Entity<PrincipalDomainPackageEntity>(entity =>
         {
-            entity.ToTable("ProviderDomainPackages", table =>
+            entity.ToTable("PrincipalDomainPackages", table =>
             {
-                table.HasCheckConstraint("CK_ProviderDomainPackages_SchemaVersion", "[SchemaVersion] > 0");
-                table.HasCheckConstraint("CK_ProviderDomainPackages_SourceRowCount", "[SourceRowCount] > 0");
+                table.HasCheckConstraint("CK_PrincipalDomainPackages_SchemaVersion", "[SchemaVersion] > 0");
+                table.HasCheckConstraint("CK_PrincipalDomainPackages_SourceRowCount", "[SourceRowCount] > 0");
             });
             entity.HasKey(item => item.Version);
             entity.Property(item => item.Version).HasMaxLength(64).IsRequired();
@@ -1126,28 +1125,28 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.SourcePath).HasMaxLength(512).IsRequired();
             entity.Property(item => item.SourceContentSha256).HasMaxLength(64).IsRequired();
             entity.Property(item => item.SourceSheet).HasMaxLength(31).IsRequired();
-            entity.HasMany(item => item.Providers)
+            entity.HasMany(item => item.Principals)
                 .WithOne(item => item.Package)
                 .HasForeignKey(item => item.Version)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        builder.Entity<ProviderReferenceEntity>(entity =>
+        builder.Entity<PrincipalReferenceEntity>(entity =>
         {
-            entity.ToTable("ProviderReferences", table =>
-                table.HasCheckConstraint("CK_ProviderReferences_SourceRow", "[SourceRow] > 0"));
+            entity.ToTable("PrincipalReferences", table =>
+                table.HasCheckConstraint("CK_PrincipalReferences_SourceRow", "[SourceRow] > 0"));
             entity.HasKey(item => new { item.Version, item.Code });
             entity.Property(item => item.Version).HasMaxLength(64).IsRequired();
             entity.Property(item => item.Code).HasMaxLength(20).IsRequired();
             entity.HasMany(item => item.DomainEvidence)
-                .WithOne(item => item.Provider)
+                .WithOne(item => item.Principal)
                 .HasForeignKey(item => new { item.Version, item.Code })
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        builder.Entity<ProviderDomainEvidenceEntity>(entity =>
+        builder.Entity<PrincipalDomainEvidenceEntity>(entity =>
         {
-            entity.ToTable("ProviderDomainEvidence");
+            entity.ToTable("PrincipalDomainEvidence");
             entity.HasKey(item => new { item.Version, item.Code, item.DomainSuffix });
             entity.Property(item => item.Version).HasMaxLength(64).IsRequired();
             entity.Property(item => item.Code).HasMaxLength(20).IsRequired();
@@ -1627,7 +1626,7 @@ internal sealed class InstructionDraftEntity
     public string? InspectionAddress { get; set; }
 
     // Declared-instruction fields (API-01). No extraction policy reads these
-    // today; a provider that states its instruction over the API supplies them
+    // today; a Principal that states its instruction over the API supplies them
     // directly.
     public string? VehicleMileageUnit { get; set; }
     public string? VatStatus { get; set; }
@@ -1782,7 +1781,7 @@ internal sealed class IntakeEvaluationEntity
     public DateTimeOffset EvaluatedAtUtc { get; set; }
 }
 
-internal sealed class ProviderDomainPackageEntity
+internal sealed class PrincipalDomainPackageEntity
 {
     public required string Version { get; set; }
     public int SchemaVersion { get; set; }
@@ -1791,22 +1790,22 @@ internal sealed class ProviderDomainPackageEntity
     public required string SourceContentSha256 { get; set; }
     public required string SourceSheet { get; set; }
     public int SourceRowCount { get; set; }
-    public List<ProviderReferenceEntity> Providers { get; set; } = [];
+    public List<PrincipalReferenceEntity> Principals { get; set; } = [];
 }
 
-internal sealed class ProviderReferenceEntity
+internal sealed class PrincipalReferenceEntity
 {
     public required string Version { get; set; }
     public required string Code { get; set; }
     public int SourceRow { get; set; }
-    public ProviderDomainPackageEntity Package { get; set; } = null!;
-    public List<ProviderDomainEvidenceEntity> DomainEvidence { get; set; } = [];
+    public PrincipalDomainPackageEntity Package { get; set; } = null!;
+    public List<PrincipalDomainEvidenceEntity> DomainEvidence { get; set; } = [];
 }
 
-internal sealed class ProviderDomainEvidenceEntity
+internal sealed class PrincipalDomainEvidenceEntity
 {
     public required string Version { get; set; }
     public required string Code { get; set; }
     public required string DomainSuffix { get; set; }
-    public ProviderReferenceEntity Provider { get; set; } = null!;
+    public PrincipalReferenceEntity Principal { get; set; } = null!;
 }

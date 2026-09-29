@@ -143,85 +143,39 @@ public sealed partial class DetailsModel
     };
 
     /// <summary>
-    /// The frame's extra reads: the Case's AI drafts and the self-assignment rule.
+    /// The report blockers the Next action lists (issue 899): while the
+    /// report is not ready and this view's assessment is writable, every
+    /// blocker, each linking to the section that clears it (FRD-13). Empty
+    /// otherwise, and always in the read-only Inspection view.
     /// </summary>
-    private async Task DescribeFrameAsync(ActionActor actor, CancellationToken cancellationToken)
-    {
-        if (Case is not { } details)
-        {
-            return;
-        }
-
-        var caseId = details.Workflow.CaseId;
-        AiDrafts = await aiDrafts.ListForCaseAsync(caseId, cancellationToken);
-        CanAssignToMe = CaseLifecycleRules.CanAssignToSelf(details.Workflow);
-    }
+    public IReadOnlyList<AssessmentReadinessItem> NextActionBlockers =>
+        !AssessmentIsReadOnly && ReportDraftNotReady ? ReportDraftReasons : [];
 
     /// <summary>
     /// The one-line Next action the aside states: the AI draft rows come first
-    /// (rendered by the view), then the next permitted lifecycle action. With
-    /// Engineer, while the report is not ready, it names the first blocker at
-    /// the section that clears it, and at the Report section when that blocker
-    /// has none. Delivery is the next action only once the report is stored.
+    /// (rendered by the view), then the Case's next permitted lifecycle action
+    /// (<see cref="CaseNextAction"/>). With Engineer, while the report is not
+    /// ready, there is no line: the <see cref="NextActionBlockers"/> list is the
+    /// next action (in the Inspection view, which lists none, the line names
+    /// Report not ready).
     /// </summary>
-    public (string Label, string SectionKey) NextAction
+    public (string Label, string SectionKey)? NextAction
     {
         get
         {
-            var workflow = Case!.Workflow;
-            if (workflow.Archive is not null || CaseLifecycleRules.IsTerminal(workflow.State))
+            var next = CaseNextAction.Of(
+                Case!.Workflow,
+                OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
+                ReportDraftNotReady ? ReportDraftReasons : [],
+                BlockerSectionKey,
+                CurrentReportGeneration,
+                CurrentDeliveryPreparation);
+            if (next.Blocker is null)
             {
-                return ("None", "notes");
+                return (next.Label, next.SectionKey);
             }
-            if (workflow.State == CaseLifecycleState.Review)
-            {
-                return (CaseWorkspaceLabels.HandToEngineer, "overview");
-            }
-            if (workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held)
-            {
-                return (OutstandingRequirements.Count > 0
-                    ? OutstandingRequirements[0].Title
-                    : OperatorLabels.CaseStage(workflow.State), "overview");
-            }
-            if (ReportDraftNotReady && ReportDraftReasons.Count > 0)
-            {
-                // One line in the aside: the first blocker and how many follow,
-                // linking to the section that clears the first (FRD-13). The
-                // Report section lists every blocker with its own link, and is
-                // the target when the first has no section.
-                var first = ReportDraftReasons[0];
-                return (ReportDraftReasons.Count > 1
-                        ? $"{first.Requirement} · {ReportDraftReasons.Count - 1} more"
-                        : first.Requirement,
-                    BlockerSectionKey(first) ?? "report");
-            }
-            if (CurrentReportGeneration is null
-                || CurrentReportGeneration.State == Pegasus.Core.Reports.CaseReportGenerationState.Stale)
-            {
-                return (CaseWorkspaceLabels.ReportDelivery.GenerateReport, "report");
-            }
-            // A report that is not stored cannot be delivered. One on its way
-            // to Box is waited for; one never drawn, failed or not confirmed is
-            // generated again.
-            var reportFiling = CurrentReportGeneration.Artifacts
-                .FirstOrDefault(artifact => artifact.Kind == Pegasus.Core.Reports.CaseReportArtifactKind.AssessmentReport)
-                ?.Filing;
-            if (reportFiling != Pegasus.Core.Reports.CaseReportArtifactFiling.Stored)
-            {
-                return (reportFiling == Pegasus.Core.Reports.CaseReportArtifactFiling.BeingStored
-                        ? CaseWorkspaceLabels.ReportDelivery.WaitingForStorage
-                        : CaseWorkspaceLabels.ReportDelivery.GenerateReport,
-                    "report");
-            }
-            if (workflow.ReportSentEvidence is not null)
-            {
-                return ("Mark completed", "overview");
-            }
-            if (CurrentDeliveryPreparation is not null)
-            {
-                return (CaseWorkspaceLabels.ReportDelivery.SendPreparedReport, "report");
-            }
-            return (CaseWorkspaceLabels.ReportDelivery.PrepareDelivery, "report");
+            // A writable view lists the blockers in place of this line.
+            return AssessmentIsReadOnly ? (CaseWorkspaceLabels.Report.NotReady, "report") : null;
         }
     }
 
@@ -279,5 +233,5 @@ public sealed partial class DetailsModel
     /// operator's edit session (v25 decision F), so after one succeeds the
     /// base reclaims a fresh lease with these two readers.
     /// </summary>
-    protected override (IGetCase Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCase, acquireLease);
+    protected override (IGetCaseEditBasis Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCaseEditBasis, acquireLease);
 }

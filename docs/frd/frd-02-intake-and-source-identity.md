@@ -54,7 +54,7 @@ Every intake path must:
 
 ### Ways intake starts
 
-Intake can start from staff-forwarded email, provider material, manually
+Intake can start from staff-forwarded email, Principal material, manually
 supplied files, images, correspondence, or a future approved API route. Receiving something does not create a Case.
 
 **Tractable capture (`EXT-17`).** Guided image capture happens outside
@@ -77,8 +77,8 @@ its Principal and registration, starts `Open` and follows the Triage states
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
 A staff-created Case, and any other staff acceptance with no accepted mail
-route or Provider API credential to name the Principal, records
-`work_provider_code` as a Confirmed value from the accepted Principal with
+route or Principal API credential to name the Principal, records
+`principal_code` as a Confirmed value from the accepted Principal with
 source kind case acceptance. Match indexing and EVA export then name the
 Principal instead of an empty value.
 
@@ -91,7 +91,7 @@ reason.
 ### Unidentified destination and reference
 
 Unidentified is the one place for material that Pegasus has safely kept but
-cannot place. It is the pre-Case outcome for every route: email, provider
+cannot place. It is the pre-Case outcome for every route: email, Principal
 and intermediary routes, manual upload, image groups, and Triage requests.
 There is no separate "blocked" outcome anywhere.
 
@@ -123,7 +123,7 @@ bounded safe detail:
 **Per route.** Unidentified mail keeps its classification record and links
 to the same item rather than a second queue row. The Inbox Unidentified
 scope lists retained mail whose item is still open; the message leaves that
-scope when the item resolves. A provider or intermediary route reaches
+scope when the item resolves. A Principal or intermediary route reaches
 Unidentified only when the material is kept but no unique owner or
 destination can be shown; a reasoned policy refusal is an Unidentified item
 closed with that reason. Triage is separate: a Triage Case follows the
@@ -246,11 +246,11 @@ it became, and its attempt counts. A row drawer shows the retained original
 and the processing evidence: decision, failure, registration readings,
 suggested fields, decision evidence, and allocation attempts. The head-line
 Failed intake count is the number of files whose outcome is a retryable
-failure (Allocation failed, OCR failed, or Processing failed), the same set
-Operations lists.
+failure (Allocation failed, OCR failed, or Processing failed). The Intake
+log alone owns that set and its actions.
 
-Three technical actions live in the Intake log drawer and on the matching
-Operations Attention required row, Administrators only. Each needs a reason
+Three technical actions live in the Intake log drawer, Administrators only.
+Each needs a reason
 and is offered only where it applies:
 
 - **Retry allocation** when the last allocation attempt failed and can be
@@ -316,7 +316,7 @@ and live evidence are separate tiers
   [FRD-05](frd-05-documents-extraction-and-custody.md),
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
   [FRD-08](frd-08-email-mailbox-and-background-processing.md),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-10](frd-10-mcp-automation-and-actor-boundary.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),

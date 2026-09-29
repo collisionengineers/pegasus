@@ -9,8 +9,8 @@ A permanent record of Collision Engineers work. An Instruction-initiated Case is
 _Avoid_: Job
 
 **Principal**:
-The organisation that instructs Collision Engineers and pays for the work.
-_Avoid_: Client, Work Provider, sender
+The organisation that instructs Collision Engineers and pays for the work. Its machine surface is the Principal API ([FRD-09](docs/frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary)); EVA export still names the field `Work Provider`.
+_Avoid_: Client, Provider, Work Provider, sender
 
 **Case/PO**:
 Collision Engineers’ immutable internal reference, allocated from the accepted Principal’s sequence to a Case: no prefix for an Inspection or Inspection + Audit Case (`QDOS26001`), `a.` for a standalone Audit (`a.QDOS26002`) and `t.` for a Triage (`t.QDOS26003`). The Audit reference of an Inspection + Audit Case (`a.QDOS26001`) names its Audit report; it is not a Case/PO and consumes no number.
@@ -50,8 +50,10 @@ report. A standalone Audit Case's Case/PO is `a.` plus its own number from
 the Principal's sequence, for example `a.QDOS26002`. It is created with or
 without that report. The assessment outcome is recorded on the Case, not in
 its identity. When no original report is filed and none was kept at intake,
-**Original report missing** stays outstanding until staff mark a filed
-document as the original report ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
+**Original report missing** stays outstanding until a filed document is
+recorded as the original report: by Pegasus when it recognises the report
+among files added later, or by staff marking one
+([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
 The Audit of an Inspection + Audit Case is part of that Case, not an Audit
 Case (below).
 _Avoid_: Triage, sorting
@@ -111,7 +113,7 @@ A named non-human principal that performs one explicitly authorised Pegasus acti
 _Avoid_: Service account, staff impersonation, background task
 
 **Send to AI**:
-The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed writes through Core, each the Case's value shown with its AI source tag. It never records professional findings or sends outward correspondence. AiWork push and AiJobs pull remain distinct accepted transports.
+The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed writes through Core, each the Case's value shown with its AI source tag. It never records professional findings or sends outward correspondence. The AI job ledger (AiJobs, pull) is the one transport.
 _Avoid_: Send to Claude, AI assessment, automatic report
 
 **First sent to Engineer**:
@@ -119,11 +121,11 @@ The once-per-Case handoff proxy governed by [FRD-07](docs/frd/frd-07-eva-and-ext
 _Avoid_: Sent to Engineer (the activity count), report sent
 
 **Sent to Engineer today/week**:
-The Operations activity count of `First sent to Engineer` proxy events within the Europe/London day or Monday-based week. A count of events is not the once-per-Case proxy itself.
+The Work Centre activity count of `First sent to Engineer` proxy events within the Europe/London day or Monday-based week. A count of events is not the once-per-Case proxy itself.
 _Avoid_: First sent to Engineer (the per-Case event), reports sent
 
 **New cases today**:
-The Operations metric for instructed Cases created since Europe/London midnight, including Cases later completed or given a cancellation/rejection disposition that day and excluding Image intakes, Triage Cases and `Unidentified`.
+The Work Centre metric for instructed Cases created since Europe/London midnight, including Cases later completed or given a cancellation/rejection disposition that day and excluding Image intakes, Triage Cases and `Unidentified`.
 _Avoid_: In today, Due today, received today
 
 **Not ready**:

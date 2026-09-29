@@ -200,7 +200,7 @@ public sealed class CaseReportDeliveryPreparationTests
                 new RefusingStore(), new NoSendHistory(), new RefusingSuggestions())
             .ExecuteAsync(
                 new(ActionActor.SystemWorker("delivery-test"), Guid.NewGuid(), 1, "lease", Guid.NewGuid(), 1,
-                    "prepare-1"),
+                    "prepare-1", "Message"),
                 CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => new ReportSendReadiness(
                 new RefusingStore())
@@ -215,12 +215,52 @@ public sealed class CaseReportDeliveryPreparationTests
         var actor = Staff();
 
         await Assert.ThrowsAsync<ArgumentException>(() => prepare.ExecuteAsync(
-            new(actor, Guid.NewGuid(), 1, " ", Guid.NewGuid(), 1, "prepare-1"), CancellationToken.None));
+            new(actor, Guid.NewGuid(), 1, " ", Guid.NewGuid(), 1, "prepare-1", "Message"), CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() => prepare.ExecuteAsync(
-            new(actor, Guid.NewGuid(), 1, "lease", Guid.Empty, 1, "prepare-1"), CancellationToken.None));
+            new(actor, Guid.NewGuid(), 1, "lease", Guid.Empty, 1, "prepare-1", "Message"), CancellationToken.None));
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => prepare.ExecuteAsync(
-            new(actor, Guid.NewGuid(), 1, "lease", Guid.NewGuid(), 1, "prepare-1"), CancellationToken.None));
+            new(actor, Guid.NewGuid(), 1, "lease", Guid.NewGuid(), 1, "prepare-1", "Message"), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The template only pre-fills the message: preparation hands the store
+    /// what staff submitted, with plain line endings, and that is what freezes.
+    /// </summary>
+    [Fact]
+    public async Task PreparationFreezesTheMessageStaffSubmitted()
+    {
+        var store = new RecordingPrepareStore();
+        var prepare = new PrepareCaseReportDelivery(
+            store, new NoSendHistory(), new FixedSuggestions(Suggestions(["handler@principal.example"])));
+
+        await prepare.ExecuteAsync(
+            new(Staff(), CaseId, 1, "lease", GenerationId, 1, "prepare-1",
+                "Edited by staff.\r\n\r\nKind regards\r\n"),
+            CancellationToken.None);
+
+        Assert.Equal(
+            "Edited by staff.\n\nKind regards",
+            Assert.Single(store.Commands).Request.CoveringMessage);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  \r\n ")]
+    public async Task PreparationRefusesABlankMessageBeforeTheStoreIsReached(string message)
+    {
+        var store = new RecordingPrepareStore();
+        var prepare = new PrepareCaseReportDelivery(
+            store, new NoSendHistory(), new FixedSuggestions(Suggestions(["handler@principal.example"])));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => prepare.ExecuteAsync(
+            new(Staff(), CaseId, 1, "lease", GenerationId, 1, "prepare-1", message),
+            CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => prepare.ExecuteAsync(
+            new(Staff(), CaseId, 1, "lease", GenerationId, 1, "prepare-1",
+                new string('a', EmailTemplates.MaximumBodyLength + 1)),
+            CancellationToken.None));
+        Assert.Empty(store.Commands);
     }
 
     [Fact]
@@ -454,6 +494,26 @@ public sealed class CaseReportDeliveryPreparationTests
     {
         public Task<CaseReportSendHistory> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult(CaseReportSendHistory.None);
+    }
+
+    private sealed class RecordingPrepareStore : ICaseReportDeliveryPreparationStore
+    {
+        public List<PrepareCaseReportDeliveryCommand> Commands { get; } = [];
+
+        public Task<CaseReportDeliveryPreparationRecord> PrepareAsync(
+            PrepareCaseReportDeliveryCommand command, CancellationToken cancellationToken)
+        {
+            Commands.Add(command);
+            return Task.FromResult(Record());
+        }
+
+        public Task<CaseReportDeliveryPreparationRecord?> GetAsync(
+            ActionActor actor, Guid caseId, Guid preparationId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
+            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RefusingStore : ICaseReportDeliveryPreparationStore

@@ -241,7 +241,7 @@ internal static class AutomationMcpTestSupport
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"MCP ingress organization"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO OrganizationRoles (OrganizationId, Role) VALUES ({organizationId}, {"work_provider"})");
+            $"INSERT INTO OrganizationRoles (OrganizationId, Role) VALUES ({organizationId}, {"principal"})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {SeedUtcNow})");
         await context.Database.ExecuteSqlInterpolatedAsync(

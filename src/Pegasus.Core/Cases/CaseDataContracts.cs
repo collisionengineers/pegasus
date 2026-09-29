@@ -19,14 +19,14 @@ public enum CaseDataSourceKind
     CaseAcceptance,
     StaffCorrection,
     VehicleLookup,
-    ProviderSetting,
+    PrincipalSetting,
 
     /// <summary>
-    /// Stated by the instructing Principal over the Provider API. FRD-23 already
-    /// names the provider API as a field provenance in its own right, distinct
+    /// Stated by the instructing Principal over the Principal API. FRD-23 already
+    /// names the Principal API as a field provenance in its own right, distinct
     /// from extraction and from staff entry.
     /// </summary>
-    ProviderApi
+    PrincipalApi
 }
 
 public enum CaseInspectionMode
@@ -73,7 +73,7 @@ public sealed record CaseOriginIdentity(
     string? ExtractionPolicyKey,
     int? ExtractionPolicyVersion);
 
-public sealed record CaseProviderData(CaseField<string> WorkProviderCode);
+public sealed record CasePrincipalData(CaseField<string> PrincipalCode);
 
 /// <summary>
 /// The claimant. <see cref="ContactNumber"/> and <see cref="Address"/> are the
@@ -172,7 +172,7 @@ public sealed record CaseDataProjection(
     long Version,
     CaseLifecycleState State,
     CaseCompletenessProjection Completeness,
-    CaseProviderData Provider,
+    CasePrincipalData Principal,
     CaseClaimantData Claimant,
     CaseClaimData Claim,
     CaseVehicleData Vehicle,

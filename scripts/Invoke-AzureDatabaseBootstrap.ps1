@@ -59,7 +59,8 @@ function Get-MigrationPermissionMatrix {
         '20260814094632_DropBoxFileRequests.cs',
         '20260824123336_DropEvaHandoffTables.cs',
         '20260917161519_RemovePublicUploadLinks.cs',
-        '20260924180000_CaseWorksAndTriageCases.cs'
+        '20260924180000_CaseWorksAndTriageCases.cs',
+        '20260929090000_RetireUnusedTables.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -154,15 +155,16 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseAssessmentFields")
     }
-    foreach ($table in @('AiWorkRequests', 'SendToAiControl')) {
-        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
-        }
-        $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
-        $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
+    # AiWorkRequests went with 20260929090000_RetireUnusedTables; only the
+    # SendToAiControl switch row is left.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|SendToAiControl")
     }
-    # 20260805223036_RetainedMailboxMessages: retained evidence is immutable;
-    # Web reads it and Worker can only append it.
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|SendToAiControl')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|SendToAiControl')
+    # 20260805223036_RetainedMailboxMessages: retained evidence is append-only for
+    # the Worker, which reads and appends it. Web reads it and, from
+    # 20260929091000_GrantWebRetainedMailDismissal below, updates the dismissal cells.
     foreach ($table in @('RetainedMailboxMessages', 'RetainedMailboxAttachments')) {
         $expected.Add("pegasus_web_runtime_role|G|SELECT|$table")
         $expected.Add("pegasus_worker_runtime_role|G|SELECT|$table")
@@ -190,6 +192,8 @@ function Get-MigrationPermissionMatrix {
     foreach ($grant in [regex]::Matches(
         $workerGrantBlock.Groups['body'].Value,
         '\("(?<table>[A-Za-z0-9]+)", "(?<permissions>[A-Z, ]+)"\)')) {
+        # The migration still names tables a later migration dropped.
+        if ($grant.Groups['table'].Value -in $removedTables) { continue }
         foreach ($permission in $grant.Groups['permissions'].Value.Split(',').Trim()) {
             $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
         }
@@ -374,21 +378,22 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|AiJobs")
     }
-    # 20260828104139_GrantPrincipalApiCredentials: one Provider API credential
+    # 20260828104139_GrantPrincipalApiCredentials: one Principal API credential
     # per Principal (API-04). Only Web touches it —
     # Administrators issue, reset, pause, resume and revoke from the
-    # application and the Provider API verifies a presented secret in the
-    # same process; the Worker never authenticates a provider. A row is
+    # application and the Principal API verifies a presented secret in the
+    # same process; the Worker never authenticates a Principal. A row is
     # created once and then rotated or moved through its states in place, so
     # Web holds SELECT, INSERT and UPDATE. A revoked credential stays as the
     # record of what was revoked: no DELETE, and the Worker is granted nothing.
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
     }
-    # 20260828111732_GrantProviderSubmissions: the Provider API submission
+    # 20260828111732_GrantProviderSubmissions (table renamed to PrincipalSubmissions
+    # by 20260929120000_PrincipalVocabulary): the Principal API submission
     # record (API-01). Web hosts the API: it inserts one row per
     # accepted submission and reads rows back for idempotent replay and the
-    # provider's own result lookup. The Worker processes the staged files and
+    # Principal's own result lookup. The Worker processes the staged files and
     # reads the row to bind each one to the Principal whose credential
     # submitted it; it never writes one. The row is created when the
     # submission is received and completed in place once the request has been
@@ -396,9 +401,9 @@ function Get-MigrationPermissionMatrix {
     # so Web also holds UPDATE. A submission is never removed: no DELETE for
     # either role.
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|ProviderSubmissions")
+        $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalSubmissions")
     }
-    $expected.Add('pegasus_worker_runtime_role|G|SELECT|ProviderSubmissions')
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|PrincipalSubmissions')
     # 20260829212237_GrantProviderSubmissionAcceptRecovery: the accept path
     # was made recoverable. Web writes the four accept records in four
     # separate transactions, so a process loss between them used to leave a
@@ -407,7 +412,7 @@ function Get-MigrationPermissionMatrix {
     # never appended. A Worker reconciliation pass now completes those records
     # in place, which is why the Worker holds UPDATE here and no longer only
     # SELECT. It still never inserts a submission and never removes one.
-    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|ProviderSubmissions')
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|PrincipalSubmissions')
     # 20260829095336_CaseValuations: the Web Case workspace creates and edits
     # valuation rows, and the Assessment workspace reads the current Engineer
     # value in the same process. Worker has no caller and no grant. Valuations
@@ -581,7 +586,31 @@ function Get-MigrationPermissionMatrix {
     # records a generated report file as stored once custody has filed it, so
     # it updates the row it could only read before. It never inserts one.
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|GeneratedCaseArtifacts')
-    return @($expected | Sort-Object -Unique)
+    # 20260928160000_GrantWorkerDocumentOccurrenceUpdate: the Worker recognises
+    # the original report among the files it filed on an Audit, and gives that
+    # occurrence the Audit report role. It never deletes one.
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|DocumentOccurrences')
+    # 20260929091000_GrantWebRetainedMailDismissal: Web's Inbox Dismiss and Restore
+    # write the dismissed-at and dismissed-by cells of the retained message row.
+    # The grant is table-level (the audit rejects column grants); neither role
+    # deletes a message.
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|RetainedMailboxMessages')
+    # 20260929120000_PrincipalVocabulary renames these tables. The earlier
+    # migrations this matrix reads still name them, and SQL Server keeps a
+    # table's permission rows across a rename, so the rows read here are the
+    # same grants under the new names.
+    $renamedTables = @{
+        ProviderSubmissions = 'PrincipalSubmissions'
+        ProviderDomainPackages = 'PrincipalDomainPackages'
+        ProviderReferences = 'PrincipalReferences'
+        ProviderDomainEvidence = 'PrincipalDomainEvidence'
+    }
+    $renamed = foreach ($row in $expected) {
+        $parts = $row.Split('|')
+        if ($renamedTables.ContainsKey($parts[3])) { $parts[3] = $renamedTables[$parts[3]] }
+        $parts -join '|'
+    }
+    return @($renamed | Sort-Object -Unique)
 }
 
 $values = Get-AzdValues $Environment

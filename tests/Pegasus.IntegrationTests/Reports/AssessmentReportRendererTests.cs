@@ -25,67 +25,61 @@ namespace Pegasus.IntegrationTests.Reports;
 public sealed partial class AssessmentReportRendererTests
 {
     /// <summary>
-    /// The damage diagram (23 September 2026): a drawn disc prints as drawn,
-    /// however wide, and every disc is clipped to the body so none paints off
-    /// the vehicle.
+    /// The damage diagram (28 September 2026): each damage prints as the one
+    /// yellow comic burst over its disc, as drawn however wide, unclipped and
+    /// unnumbered, whatever its severity.
     /// </summary>
     [Fact]
-    public void TheDamageDiagramClipsEveryDiscToTheBody()
+    public void EachDamagePrintsAsTheOneUnclippedBurst()
     {
         var wide = new ReportImpact(
             ["left_side", "right_side"], "moderate", new DamageDisc(0.5, 0.5, DamageAreaGeometry.MaxRadius));
+        var light = new ReportImpact(["left_front"], "light");
+        var heavy = new ReportImpact(["right_rear"], "heavy");
 
-        var svg = DamagePlanDrawing.Svg([wide]);
+        var svg = DamagePlanDrawing.Svg(DamagePlanGeometry.Car, [wide, light, heavy]);
 
-        Assert.Contains(
-            $"<clipPath id=\"plan-body\"><path d=\"{DamagePlanGeometry.BodyPath}\"/></clipPath>",
-            svg,
-            StringComparison.Ordinal);
-        var disc = Assert.Single(Regex.Matches(svg, "<circle clip-path=\"url\\(#plan-body\\)\"[^>]* r=\"([0-9.]+)\"/>"));
-        Assert.Equal("78", disc.Groups[1].Value);
-        // The disc and the dot at its centre, and no other mark.
-        Assert.Equal(2, Regex.Count(svg, "<circle "));
+        foreach (var impact in new[] { wide, light, heavy })
+        {
+            var disc = DamagePlanGeometry.Disc(impact.Codes, impact.Disc)!;
+            Assert.Contains(
+                $"<path fill=\"#ffeb69\" fill-opacity=\"0.96\" stroke=\"#1d1d1d\" stroke-width=\"3.2\" stroke-linejoin=\"round\" d=\"{DamagePlanGeometry.BurstPath(disc)}\"/>",
+                svg,
+                StringComparison.Ordinal);
+        }
+        foreach (var banned in new[] { "clip-path", "clipPath", "<circle", "<text" })
+        {
+            Assert.DoesNotContain(banned, svg, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
-    /// One vehicle drawing (operator, 27 September 2026): the report draws
-    /// the Case page's plan from Core's geometry, turned on its side with the
-    /// front at the left, in flat colours and with no words.
+    /// The drawing is the recorded vehicle's (28 September 2026): the report
+    /// draws the Case page's plan of the car, the van or the motorbike in its
+    /// flat colours, turned on its side with the front at the left, with no
+    /// words.
     /// </summary>
-    [Fact]
-    public void TheDamageDiagramIsTheCasePagesPlanTurnedOnItsSide()
+    [Theory]
+    [InlineData(DamagePlanGeometry.Car)]
+    [InlineData(DamagePlanGeometry.Van)]
+    [InlineData(DamagePlanGeometry.Motorbike)]
+    public void TheDamageDiagramIsTheVehiclesPlanTurnedOnItsSide(string profile)
     {
-        var svg = DamagePlanDrawing.Svg([new ReportImpact(["right_rear"], "moderate")]);
+        var svg = DamagePlanDrawing.Svg(profile, [new ReportImpact(["right_rear"], "moderate")]);
 
         // The plan is 240 wide and 434 tall; turned, it is 434 by 240.
         Assert.Equal("0 0 240 434", DamagePlanGeometry.ViewBox);
         Assert.Contains("viewBox=\"0 0 434 240\"", svg, StringComparison.Ordinal);
         // A quarter turn and nothing else, so left stays left.
-        Assert.Contains("<g transform=\"translate(0 240) rotate(-90)\">", svg, StringComparison.Ordinal);
-        Assert.DoesNotContain("scale(", svg, StringComparison.Ordinal);
-        foreach (var path in new[]
-        {
-            DamagePlanGeometry.BodyPath, DamagePlanGeometry.FrontGlassPath, DamagePlanGeometry.RearGlassPath,
-            DamagePlanGeometry.SeamPath, DamagePlanGeometry.SoftSeamPath,
-        }.Concat(DamagePlanGeometry.FrontLampPaths).Concat(DamagePlanGeometry.RearLampPaths))
-        {
-            Assert.Contains($" d=\"{path}\"/>", svg, StringComparison.Ordinal);
-        }
-        Assert.Equal(
-            DamagePlanGeometry.Wheels.Count + DamagePlanGeometry.Mirrors.Count,
-            Regex.Count(svg, "<rect "));
-        foreach (var banned in new[] { "<text", "Gradient", "<filter", "filter=", "url(#damage", "FRONT", "REAR" })
+        Assert.StartsWith(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 434 240\"><g transform=\"translate(0 240) rotate(-90)\">",
+            svg,
+            StringComparison.Ordinal);
+        Assert.Contains(DamagePlanGeometry.FlatArtwork(profile), svg, StringComparison.Ordinal);
+        foreach (var banned in new[] { "<text", "Gradient", "<filter", "filter=", "url(#", "FRONT", "REAR" })
         {
             Assert.DoesNotContain(banned, svg, StringComparison.OrdinalIgnoreCase);
         }
-        // The disc stands where the Case page draws it, in the Case page's
-        // colour for the severity: its red, 58 parts in 100, on white.
-        var disc = DamagePlanGeometry.Disc(["right_rear"], null)!;
-        Assert.Contains(
-            FormattableString.Invariant(
-                $"fill=\"#e07f84\" fill-opacity=\"0.32\" stroke=\"#d9646b\" stroke-width=\"1.6\" cx=\"{disc.CentreX:0.#}\" cy=\"{disc.CentreY:0.#}\" r=\"{disc.Radius:0.#}\""),
-            svg,
-            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -95,35 +89,11 @@ public sealed partial class AssessmentReportRendererTests
     [Fact]
     public void ADamageThatNamesNoPlanAreaLeavesThePlanUnmarked()
     {
-        var svg = DamagePlanDrawing.Svg([new ReportImpact(["underside"], "light")]);
+        var svg = DamagePlanDrawing.Svg(DamagePlanGeometry.Van, [new ReportImpact(["underside"], "light")]);
 
-        Assert.DoesNotContain("<circle", svg, StringComparison.Ordinal);
-        Assert.Contains(DamagePlanGeometry.BodyPath, svg, StringComparison.Ordinal);
-        Assert.Equal(svg, DamagePlanDrawing.Svg([]));
-    }
-
-    /// <summary>
-    /// Each disc is shaded by its own damage's severity, as the Case page
-    /// shades it (coordinator, 28 September 2026): two damages of different
-    /// severities draw two different shades, and the heaviest draws in the
-    /// Case page's darker red.
-    /// </summary>
-    [Fact]
-    public void EachDiscTakesItsOwnDamagesSeverityShade()
-    {
-        var svg = DamagePlanDrawing.Svg(
-        [
-            new ReportImpact(["left_front"], "light"),
-            new ReportImpact(["right_rear"], "heavy"),
-        ]);
-
-        var discs = Regex.Matches(svg, "<circle clip-path=[^>]* fill=\"(#[0-9a-f]{6})\" fill-opacity=\"0.32\" stroke=\"(#[0-9a-f]{6})\"");
-        Assert.Equal(2, discs.Count);
-        // Light: the Case page's red at 22 parts in 100 on white, outlined at 40.
-        Assert.Equal(("#f3ced0", "#e9a7aa"), (discs[0].Groups[1].Value, discs[0].Groups[2].Value));
-        // Heavy: the Case page's darker red, filled and outlined.
-        Assert.Equal(("#9e1720", "#9e1720"), (discs[1].Groups[1].Value, discs[1].Groups[2].Value));
-        Assert.NotEqual(discs[0].Groups[1].Value, discs[1].Groups[1].Value);
+        Assert.DoesNotContain(DamageBurst.Fill, svg, StringComparison.Ordinal);
+        Assert.Contains(DamagePlanGeometry.FlatArtwork(DamagePlanGeometry.Van), svg, StringComparison.Ordinal);
+        Assert.Equal(svg, DamagePlanDrawing.Svg(DamagePlanGeometry.Van, []));
     }
 
     [Fact]
@@ -501,7 +471,7 @@ public sealed partial class AssessmentReportRendererTests
         ReportImageEvidence Photo(int index, bool fullPage = false) => new(
             $"site-{index}.jpg",
             "image/jpeg",
-            bytes,
+            ReportImageContent.Opened(_ => Task.FromResult(bytes)),
             hash,
             CaseAssetReportRole.Supporting,
             index,
@@ -552,7 +522,7 @@ public sealed partial class AssessmentReportRendererTests
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var tall = Bitmap(2400, 3200, SKEncodedImageFormat.Jpeg);
         var photo = new ReportImageEvidence(
-            "tall.jpg", "image/jpeg", tall, Convert.ToHexStringLower(SHA256.HashData(tall)), FullPage: true);
+            "tall.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(tall)), Convert.ToHexStringLower(SHA256.HashData(tall)), FullPage: true);
 
         var artifact = await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
             ReadySnapshot() with { Photos = [photo] }, CaseReportArtifactKind.AssessmentReport);
@@ -583,7 +553,7 @@ public sealed partial class AssessmentReportRendererTests
         {
             var bytes = Bitmap(width, height, SKEncodedImageFormat.Jpeg);
             return new(
-                name, "image/jpeg", bytes, Convert.ToHexStringLower(SHA256.HashData(bytes)), role, order);
+                name, "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(bytes)), Convert.ToHexStringLower(SHA256.HashData(bytes)), role, order);
         }
 
         // Out of order, and each of a size of its own, so each can be told apart in print.
@@ -632,7 +602,7 @@ public sealed partial class AssessmentReportRendererTests
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var bytes = Bitmap(width, height, SKEncodedImageFormat.Png);
         var photo = new ReportImageEvidence(
-            "site.png", "image/png", bytes, Convert.ToHexStringLower(SHA256.HashData(bytes)));
+            "site.png", "image/png", ReportImageContent.Opened(_ => Task.FromResult(bytes)), Convert.ToHexStringLower(SHA256.HashData(bytes)));
 
         var artifact = await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
             ReadySnapshot() with { Photos = [photo] }, CaseReportArtifactKind.AssessmentReport);
@@ -683,7 +653,7 @@ public sealed partial class AssessmentReportRendererTests
         var source = NoiseJpeg(4000, 3000);
         Assert.True(source.Length > 8 * 1024 * 1024, $"The source image is only {source.Length} bytes.");
         var large = new ReportImageEvidence(
-            "large.jpg", "image/jpeg", source, Convert.ToHexStringLower(SHA256.HashData(source)));
+            "large.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(source)), Convert.ToHexStringLower(SHA256.HashData(source)));
 
         var artifact = await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
             ReadySnapshot() with { Photos = [large] }, CaseReportArtifactKind.AssessmentReport);
@@ -744,7 +714,7 @@ public sealed partial class AssessmentReportRendererTests
         var snapshot = ReadySnapshot();
         var garbage = new byte[] { 137, 80, 78, 71, 1, 2, 3, 4 };
         var broken = new ReportImageEvidence(
-            "broken.jpg", "image/jpeg", garbage, Convert.ToHexStringLower(SHA256.HashData(garbage)));
+            "broken.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(garbage)), Convert.ToHexStringLower(SHA256.HashData(garbage)));
 
         var rejection = await Assert.ThrowsAsync<ReportRenderRejectedException>(() =>
             renderer.RenderAsync(snapshot with { Photos = [broken] }, CaseReportArtifactKind.AssessmentReport));
@@ -777,7 +747,7 @@ public sealed partial class AssessmentReportRendererTests
             Photos =
             [
                 new ReportImageEvidence(
-                    "site.jpg", "image/jpeg", photo, Convert.ToHexStringLower(SHA256.HashData(photo))),
+                    "site.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(photo)), Convert.ToHexStringLower(SHA256.HashData(photo))),
             ],
             Signatory = snapshot.Signatory with
             {

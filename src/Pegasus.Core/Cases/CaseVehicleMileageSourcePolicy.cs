@@ -50,7 +50,7 @@ public static class CaseVehicleMileageSourcePolicy
             CaseDataSourceKind.StaffCorrection or null => StaffChoice(staffChoice),
             // Everything else reached the case through the instructing
             // Principal's own paperwork: the instruction itself, the mail route
-            // that carried it, the acceptance that read it, or a provider API.
+            // that carried it, the acceptance that read it, or a Principal API.
             _ => Principal
         };
     }

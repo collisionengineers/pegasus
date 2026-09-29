@@ -117,7 +117,7 @@ internal static class TemplateSampleJobs
             NewParts: Lines(worklists, "new_parts"),
             Repairs: Lines(worklists, "repairs"),
             Operations: Lines(worklists, "operations"),
-            Damage: new ReportDamage([new ReportImpact([location], Text(assessment, "impact_severity"))], null),
+            Damage: new ReportDamage([new ReportImpact([location], Text(assessment, "impact_severity"))], null, DamagePlanGeometry.Car),
             Settlement: outcome == AssessmentReportOutcome.ContractRepair
                 ? new ReportSettlement(costs.Total)
                 : new ReportSettlement(),
@@ -206,7 +206,7 @@ internal static class TemplateSampleJobs
             return new ReportImageEvidence(
                 $"sample-{index + 1}.jpg",
                 "image/jpeg",
-                content,
+                ReportImageContent.Opened(_ => Task.FromResult(content)),
                 Convert.ToHexStringLower(SHA256.HashData(content)),
                 photo.Role,
                 photo.Order);

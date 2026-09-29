@@ -146,7 +146,7 @@ public sealed class ValuationTests
             });
         Assert.Throws<StaffAuthorizationException>(() =>
             ValuationPolicy.ValidateGuideEntry(
-                ActionActor.Provider(Guid.NewGuid()),
+                ActionActor.Principal(Guid.NewGuid()),
                 Details(guideMonth: new DateOnly(2030, 4, 1))));
     }
 

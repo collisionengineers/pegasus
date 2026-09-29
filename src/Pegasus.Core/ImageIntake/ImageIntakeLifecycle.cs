@@ -176,8 +176,7 @@ public static class ImageIntakeLifecycleRules
     private static bool IsSupportedImageEvidenceSource(string mediaType) =>
         InstructionEvidenceImages.IsImage(mediaType)
         || mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
-        || mediaType.Equals(EmailSourceFormat.MediaType, StringComparison.OrdinalIgnoreCase)
-        || mediaType.Equals("application/vnd.ms-outlook", StringComparison.OrdinalIgnoreCase);
+        || EmailSourceFormat.IsMailMessage(fileName: null, mediaType);
 
     public static bool IsImageOnlyMaterial(
         bool hasInstructionDraft,

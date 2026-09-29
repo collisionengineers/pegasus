@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -45,7 +46,8 @@ namespace Pegasus.IntegrationTests;
 public sealed class GlassRepairEstimateCallbackWebTests
 {
     private const string PegasusOrigin = "https://localhost:7139/";
-    private const string CallbackRoute = "/Integrations/Glass/Callback/";
+    internal const string CallbackRoute = "/Integrations/Glass/Callback/";
+    internal const string OpeningRoute = "/Integrations/Glass/Opening/";
     private const string FixtureAccount = "glass-fixture-account";
     private const string FixtureSecret = "glass-fixture-value-not-a-secret";
 
@@ -73,8 +75,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var launched = await workspace.LaunchAsync();
 
-        Assert.Equal(HttpStatusCode.OK, launched.StatusCode);
-        var estimator = await ReadEstimatorAsync(launched);
+        var estimator = ReadEstimator(launched);
         Assert.Equal(GlassProviderFixture.EstimatorBase.Host, estimator.Host);
         var caller = new Uri(Query(estimator.Query)["caller"], UriKind.Absolute);
         Assert.Equal(new Uri(PegasusOrigin).Host, caller.Host);
@@ -101,11 +102,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
         await workspace.ClaimLeaseAsync();
         var form = await workspace.LaunchFormAsync();
 
-        using var first = await workspace.PostAsync("LaunchGlass", form);
-        using var second = await workspace.PostAsync("LaunchGlass", form);
+        using var first = await workspace.PostGlassAsync("LaunchGlass", form);
+        using var second = await workspace.PostGlassAsync("LaunchGlass", form);
 
-        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
-        Assert.Equal(await ReadEstimatorAsync(first), await ReadEstimatorAsync(second));
+        Assert.Equal(ReadEstimator(first), ReadEstimator(second));
         Assert.Single(await workspace.SessionsAsync());
         Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
     }
@@ -183,6 +183,69 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Empty(await workspace.SessionsAsync());
     }
 
+    /// <summary>
+    /// Issue 916: a Case that moved while the page was open (custody confirming
+    /// a file bumps its version) or whose lease ended is answered as a refusal
+    /// the operator can act on, never as a 500.
+    /// </summary>
+    [Theory]
+    [InlineData("version")]
+    [InlineData("lease-expired")]
+    [InlineData("lease-held")]
+    public async Task ACaseThatChangedRefusesTheLaunchWithAReloadAndRetryNotice(string change)
+    {
+        var caseId = Guid.NewGuid();
+        var fault = new GatewayFault
+        {
+            LaunchFailure = change switch
+            {
+                "version" => new CaseVersionConflictException(caseId, expectedVersion: 1, actualVersion: 2),
+                "lease-expired" => new CaseEditLeaseExpiredException(caseId, caseVersion: 2),
+                _ => new CaseEditLeaseConflictException(caseId, caseVersion: 2),
+            }
+        };
+        await using var workspace = await Workspace.CreateAsync(fault: fault);
+        await workspace.ClaimLeaseAsync();
+
+        using var refused = await workspace.LaunchAsync();
+
+        await AssertHandsBackToTheEstimateSectionAsync(refused, workspace.CaseId);
+        Assert.Contains("The Case changed. Reload it and retry.", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+        Assert.Empty(await workspace.SessionsAsync());
+    }
+
+    /// <summary>
+    /// Issue 916: Resume and Fetch again post the same handler, so a Case that
+    /// moved or lost its lease is refused with the same reload notice there.
+    /// </summary>
+    [Theory]
+    [InlineData("version")]
+    [InlineData("lease-expired")]
+    [InlineData("lease-held")]
+    public async Task ACaseThatChangedRefusesTheResumeWithAReloadAndRetryNotice(string change)
+    {
+        var caseId = Guid.NewGuid();
+        var fault = new GatewayFault();
+        await using var workspace = await Workspace.CreateAsync(fault: fault);
+        workspace.Mva.Set("POST /ere/start-ere", new(HttpStatusCode.OK,
+            GlassProviderFixture.StartEre(GlassProviderFixture.LaunchUrl().Replace(
+                "&EuComp=1005_1005_powered_by_eucomp", string.Empty, StringComparison.Ordinal))));
+        await workspace.ClaimLeaseAsync();
+        using var launch = await workspace.LaunchAsync();
+        var form = FormFor(await workspace.CaseHtmlAsync(), "ResumeGlass");
+        fault.ResumeFailure = change switch
+        {
+            "version" => new CaseVersionConflictException(caseId, expectedVersion: 1, actualVersion: 2),
+            "lease-expired" => new CaseEditLeaseExpiredException(caseId, caseVersion: 2),
+            _ => new CaseEditLeaseConflictException(caseId, caseVersion: 2),
+        };
+
+        using var refused = await workspace.PostGlassAsync("ResumeGlass", form);
+
+        await AssertHandsBackToTheEstimateSectionAsync(refused, workspace.CaseId);
+        Assert.Contains("The Case changed. Reload it and retry.", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AnHttp200ProviderRefusalReturnsToTheCaseAndRecordsNoEstimate()
     {
@@ -229,9 +292,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
         // session holds the account — so the second launch is the form the
         // page rendered before the first, posted again as its own action.
         var launchForm = await workspace.LaunchFormAsync();
-        using (var first = await workspace.PostAsync("LaunchGlass", launchForm))
+        using (var first = await workspace.PostGlassAsync("LaunchGlass", launchForm))
         {
-            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            _ = ReadEstimator(first);
         }
         var liveHtml = await workspace.CaseHtmlAsync();
         Assert.DoesNotContain("handler=LaunchGlass", liveHtml, StringComparison.Ordinal);
@@ -241,7 +304,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         {
             ["operationKey"] = Guid.NewGuid().ToString("N"),
         };
-        using var second = await workspace.PostAsync("LaunchGlass", secondForm);
+        using var second = await workspace.PostGlassAsync("LaunchGlass", secondForm);
 
         // Back to the Estimate section, not out to the provider.
         await AssertHandsBackToTheEstimateSectionAsync(second, workspace.CaseId);
@@ -266,7 +329,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var html = await workspace.CaseHtmlAsync();
         Assert.Contains("handler=ResumeGlass", html, StringComparison.Ordinal);
         Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
-        using var resumed = await workspace.PostAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
+        using var resumed = await workspace.PostGlassAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
         await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
         Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
 
@@ -315,7 +378,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         await workspace.ClaimLeaseAsync();
         using (var launched = await workspace.LaunchAsync())
         {
-            Assert.Equal(HttpStatusCode.OK, launched.StatusCode);
+            _ = ReadEstimator(launched);
         }
         Assert.Equal(GlassRepairEstimateSessionState.Active, Assert.Single(await workspace.SessionsAsync()).State);
         var html = await workspace.CaseHtmlAsync();
@@ -332,7 +395,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var next = await workspace.LaunchAsync();
 
-        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+        _ = ReadEstimator(next);
         Assert.Equal(2, (await workspace.SessionsAsync()).Count);
     }
 
@@ -389,6 +452,99 @@ public sealed class GlassRepairEstimateCallbackWebTests
         // Only landing the Draft is a staff mutation; retaining its two source
         // artifacts must not spend the authority the import still needs.
         Assert.Equal(launchVersion + 1, await workspace.CaseVersionAsync());
+    }
+
+    /// <summary>
+    /// Issue 916: a return whose export the reader refuses is kept on the Case
+    /// as a rejected export, and the Estimate section offers to fetch the same
+    /// estimate again beside a new launch. Fetching it after the export is
+    /// readable lands the repair spec without a second vehicle or estimate.
+    /// </summary>
+    [Fact]
+    public async Task AnUnreadableExportOffersAFetchAgainThatLandsTheSameEstimate()
+    {
+        await using var workspace = await Workspace.CreateAsync(role: StaffRoleNames.User);
+        await workspace.AddRateCardAsync("80", 80m);
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        workspace.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK, "<Estimation><GlobalSetting /></Estimation>", ContentType: "application/xml"));
+
+        using var returned = await workspace.ReturnAsync(correlation);
+
+        await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
+        var failed = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, failed.State);
+        Assert.Equal("glass.export.unreadable", failed.FailureCode);
+        Assert.Empty(await workspace.EstimatesAsync());
+        Assert.Equal("application/xml", Assert.Single(await workspace.RetainedMediaTypesAsync()));
+        var html = await workspace.CaseHtmlAsync();
+        Assert.Contains("Fetch again", html, StringComparison.Ordinal);
+        Assert.Contains("handler=LaunchGlass", html, StringComparison.Ordinal);
+
+        workspace.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK,
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(),
+            ContentType: "application/xml"));
+        using var fetched = await workspace.PostGlassAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
+
+        await AssertHandsBackToTheEstimateSectionAsync(fetched, workspace.CaseId);
+        var completed = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Single(await workspace.EstimatesAsync());
+        Assert.Equal(1, workspace.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
+        Assert.DoesNotContain("Fetch again", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The return is claimed at once and its import runs in the background:
+    /// the window waits on the Glass's window, which says the estimate is being
+    /// brought back. The same return again while the import runs waits on the
+    /// same work and relays nothing a second time.
+    /// </summary>
+    [Fact]
+    public async Task TheReturnWaitsOnItsBackgroundImportAndARepeatWaitsOnTheSameWork()
+    {
+        var importGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fault = new GatewayFault { ImportGate = importGate };
+        await using var workspace = await Workspace.CreateAsync(fault: fault);
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+
+        using var returned = await workspace.Client.GetAsync(
+            CallbackRoute + correlation + GlassProviderFixture.SavedQuery);
+
+        var opening = AssertWaitsOnTheGlassWindow(returned);
+        var claimed = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Importing, claimed.State);
+        Assert.NotNull(claimed.CallbackConsumedAtUtc);
+        using (var page = await workspace.Client.GetAsync(opening))
+        {
+            Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+            Assert.Contains(
+                Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.BringingBack,
+                WebUtility.HtmlDecode(await page.Content.ReadAsStringAsync()),
+                StringComparison.Ordinal);
+        }
+        Assert.True(await workspace.PendingAsync(opening));
+        using (var early = await workspace.Client.GetAsync(opening + "?handler=Go"))
+        {
+            Assert.Equal(opening, AssertWaitsOnTheGlassWindow(early));
+        }
+        using (var repeated = await workspace.Client.GetAsync(
+            CallbackRoute + correlation + GlassProviderFixture.SavedQuery))
+        {
+            Assert.Equal(opening, AssertWaitsOnTheGlassWindow(repeated));
+        }
+
+        importGate.SetResult();
+        using var finished = await workspace.FollowAsync(opening);
+
+        await AssertHandsBackToTheEstimateSectionAsync(finished, workspace.CaseId);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, Assert.Single(await workspace.SessionsAsync()).State);
+        Assert.Equal(1, workspace.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Single(await workspace.EstimatesAsync());
     }
 
     [Fact]
@@ -681,7 +837,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         // rather than asking Glass's for a second copy.
         Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
 
-        using var resumed = await workspace.PostAsync("ResumeGlass", await workspace.ResumeFormAsync());
+        using var resumed = await workspace.PostGlassAsync("ResumeGlass", await workspace.ResumeFormAsync());
 
         await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
         var session = Assert.Single(await workspace.SessionsAsync());
@@ -724,24 +880,32 @@ public sealed class GlassRepairEstimateCallbackWebTests
     // -------------------------------------------------------------- the shape
 
     /// <summary>
-    /// Every Glass's answer but the estimator itself: the window Glass's ran
-    /// in hands the Estimate section back to the Case window rather than
-    /// rendering it, so the response is that hand-back document naming the
-    /// section, not a redirect to it.
+    /// The estimator, as the Glass's window reaches it once its work is done:
+    /// a redirect, so the address that carries the one-use callback token is
+    /// never rendered into a page or a state answer.
     /// </summary>
-    private static async Task<Uri> ReadEstimatorAsync(HttpResponseMessage response)
+    internal static Uri ReadEstimator(HttpResponseMessage response)
     {
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Null(response.Headers.Location);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.True(response.Headers.CacheControl?.NoStore);
-        var html = await response.Content.ReadAsStringAsync();
-        var attribute = Regex.Match(html, "data-glass-launch=\"([^\"]+)\"", RegexOptions.CultureInvariant);
-        Assert.True(attribute.Success, "A successful launch renders the same-origin handoff.");
-        // MapStaticAssets fingerprints the file name in the rendered script URL.
-        Assert.Matches(
-            """<script\b[^>]*\bsrc="/js/glass-return(?:\.[A-Za-z0-9]+)?\.js(?:\?v=[^"]*)?"[^>]*></script>""",
-            html);
-        return new Uri(WebUtility.HtmlDecode(attribute.Groups[1].Value), UriKind.Absolute);
+        var location = response.Headers.Location;
+        Assert.NotNull(location);
+        Assert.True(location.IsAbsoluteUri, "A launch that opened continues to the provider's estimator.");
+        return location;
+    }
+
+    /// <summary>
+    /// A launch, a resume or an accepted return answers at once and sends the
+    /// window to wait in the Glass's window while its provider work runs.
+    /// </summary>
+    internal static string AssertWaitsOnTheGlassWindow(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        var location = response.Headers.Location?.OriginalString;
+        Assert.NotNull(location);
+        Assert.StartsWith(OpeningRoute, location, StringComparison.Ordinal);
+        return location;
     }
 
     [Fact]
@@ -750,8 +914,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
         var initial = await workspace.LaunchFormAsync();
-        using var launched = await workspace.PostAsync("LaunchGlass", initial);
-        await ReadEstimatorAsync(launched);
+        using var launched = await workspace.PostGlassAsync("LaunchGlass", initial);
+        _ = ReadEstimator(launched);
         var session = Assert.Single(await workspace.SessionsAsync());
         var count = workspace.Mva.Requests.Count;
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/Cases/{workspace.CaseId:D}?handler=GlassSession");
@@ -780,11 +944,11 @@ public sealed class GlassRepairEstimateCallbackWebTests
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
         using var launched = await workspace.LaunchAsync();
-        await ReadEstimatorAsync(launched);
+        _ = ReadEstimator(launched);
         var html = await workspace.CaseHtmlAsync();
         var staleClose = FormFor(html, "CloseGlass");
-        using var resumed = await workspace.PostAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
-        await ReadEstimatorAsync(resumed);
+        using var resumed = await workspace.PostGlassAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
+        _ = ReadEstimator(resumed);
         var current = Assert.Single(await workspace.SessionsAsync());
         staleClose["reason"] = "Confirmed closed externally";
         staleClose["externalSessionClosed"] = "true";
@@ -824,7 +988,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Empty(workspace.Mva.Requests);
     }
 
-    private static async Task AssertHandsBackToTheEstimateSectionAsync(HttpResponseMessage response, Guid caseId)
+    internal static async Task AssertHandsBackToTheEstimateSectionAsync(HttpResponseMessage response, Guid caseId)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(
@@ -833,7 +997,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             StringComparison.Ordinal);
     }
 
-    private static string NewCorrelation() =>
+    internal static string NewCorrelation() =>
         Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
 
     private static Dictionary<string, string> Query(string query)
@@ -854,7 +1018,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     /// the tag helper writes. Reading the form the operator would submit is
     /// what makes these tests drive the page rather than the handler.
     /// </summary>
-    private static Dictionary<string, string> FormFor(string html, string handler)
+    internal static Dictionary<string, string> FormFor(string html, string handler)
     {
         var form = Regex.Match(
             html,
@@ -879,15 +1043,23 @@ public sealed class GlassRepairEstimateCallbackWebTests
         return fields;
     }
 
-    private sealed class GatewayFault
+    internal sealed class GatewayFault
     {
         public Exception? LaunchFailure { get; set; }
 
+        public Exception? ResumeFailure { get; set; }
+
         public bool OnComplete { get; set; }
+
+        /// <summary>Holds every background import until the test releases it.</summary>
+        public TaskCompletionSource? ImportGate { get; set; }
+
+        /// <summary>Holds every background launch until the test releases it.</summary>
+        public TaskCompletionSource? LaunchGate { get; set; }
     }
 
     /// <summary>A switch the test flips to make the host's Case read fault.</summary>
-    private sealed class CaseReadFault
+    internal sealed class CaseReadFault
     {
         public bool Armed { get; set; }
     }
@@ -901,28 +1073,60 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 : inner.ExecuteAsync(query, cancellationToken);
     }
 
-    /// <summary>The real gateway with one fault a test can switch on: an unrelated failure inside a return.</summary>
+    /// <summary>
+    /// The real gateway with faults a test can switch on: an unrelated failure
+    /// inside a launch or a return, and background launch or import work held
+    /// at its start.
+    /// </summary>
     private sealed class FaultingGateway(IGlassRepairEstimateGateway inner, GatewayFault fault) : IGlassRepairEstimateGateway
     {
-        public Task<GlassRepairEstimateSession> LaunchAsync(
+        public Task<GlassRepairEstimateStep> PrepareLaunchAsync(
             GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken) =>
             fault.LaunchFailure is { } failure
-                ? Task.FromException<GlassRepairEstimateSession>(failure)
-                : inner.LaunchAsync(request, cancellationToken);
+                ? Task.FromException<GlassRepairEstimateStep>(failure)
+                : inner.PrepareLaunchAsync(request, cancellationToken);
 
-        public Task<GlassRepairEstimateSession> ResumeAsync(
+        public async Task<GlassRepairEstimateSession> ContinueLaunchAsync(
+            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
+        {
+            if (fault.LaunchGate is { } gate)
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+
+            return await inner.ContinueLaunchAsync(request, cancellationToken);
+        }
+
+        public Task<GlassRepairEstimateStep> PrepareResumeAsync(
             GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken) =>
-            inner.ResumeAsync(request, cancellationToken);
+            fault.ResumeFailure is { } failure
+                ? Task.FromException<GlassRepairEstimateStep>(failure)
+                : inner.PrepareResumeAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateStep> AcceptCallbackAsync(
+            GlassRepairEstimateCallback callback, CancellationToken cancellationToken) =>
+            fault.OnComplete
+                ? throw new InvalidOperationException("An unrelated failure inside the gateway.")
+                : inner.AcceptCallbackAsync(callback, cancellationToken);
+
+        public async Task<GlassRepairEstimateSession> ContinueImportAsync(
+            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
+        {
+            if (fault.ImportGate is { } gate)
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+
+            return await inner.ContinueImportAsync(request, cancellationToken);
+        }
+
+        public Task<GlassRepairEstimateSession> SettleInterruptedAsync(
+            ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
+            inner.SettleInterruptedAsync(actor, sessionId, cancellationToken);
 
         public Task<GlassRepairEstimateSession> CloseAsync(
             GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken) =>
             inner.CloseAsync(request, cancellationToken);
-
-        public Task<GlassRepairEstimateSession> CompleteAsync(
-            GlassRepairEstimateCallback callback, CancellationToken cancellationToken) =>
-            fault.OnComplete
-                ? throw new InvalidOperationException("An unrelated failure inside the gateway.")
-                : inner.CompleteAsync(callback, cancellationToken);
 
         public Task<Uri?> GetEstimatorUrlAsync(
             ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
@@ -933,7 +1137,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     /// One Case, one Engineer with a Glass's account, and the scripted provider
     /// on the named client the gateway resolves.
     /// </summary>
-    private sealed class Workspace : IAsyncDisposable
+    internal sealed class Workspace : IAsyncDisposable
     {
         private readonly IntakeWebApplicationFactory baseFactory;
         private readonly WebApplicationFactory<Program> factory;
@@ -1135,7 +1339,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             FormFor(await CaseHtmlAsync(), "ResumeGlass");
 
         public async Task<HttpResponseMessage> LaunchAsync() =>
-            await PostAsync("LaunchGlass", await LaunchFormAsync());
+            await PostGlassAsync("LaunchGlass", await LaunchFormAsync());
 
         /// <summary>
         /// The one-use token the provider will return with, read where the
@@ -1144,18 +1348,113 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public async Task<string> LaunchAndReadCorrelationAsync()
         {
             using var launched = await LaunchAsync();
-            Assert.Equal(HttpStatusCode.OK, launched.StatusCode);
-            var estimator = await ReadEstimatorAsync(launched);
+            var estimator = ReadEstimator(launched);
             return new Uri(Query(estimator.Query)["caller"], UriKind.Absolute).Segments[^1];
         }
 
-        public Task<HttpResponseMessage> ReturnAsync(string correlation) =>
-            Client.GetAsync(CallbackRoute + correlation + GlassProviderFixture.SavedQuery);
+        /// <summary>The provider's return, followed through the Glass's window as the browser follows it.</summary>
+        public async Task<HttpResponseMessage> ReturnAsync(string correlation) =>
+            await SettleAsync(await Client.GetAsync(CallbackRoute + correlation + GlassProviderFixture.SavedQuery));
 
         public Task<HttpResponseMessage> PostAsync(string handler, Dictionary<string, string> fields) =>
             Client.PostAsync(
                 $"/Cases/{CaseId:D}?section=estimate&handler={handler}",
                 new FormUrlEncodedContent(fields));
+
+        /// <summary>A Glass's form posted from the Case, followed through the Glass's window.</summary>
+        public async Task<HttpResponseMessage> PostGlassAsync(string handler, Dictionary<string, string> fields) =>
+            await SettleAsync(await PostAsync(handler, fields));
+
+        /// <summary>
+        /// Where a Glass's answer finally leaves the window: an answer that
+        /// waits in the Glass's window is followed until its work is done;
+        /// any other answer is the answer.
+        /// </summary>
+        public async Task<HttpResponseMessage> SettleAsync(HttpResponseMessage response)
+        {
+            if (response.StatusCode != HttpStatusCode.Redirect
+                || response.Headers.Location?.OriginalString is not { } location
+                || !location.StartsWith(OpeningRoute, StringComparison.Ordinal))
+            {
+                return response;
+            }
+
+            var opening = AssertWaitsOnTheGlassWindow(response);
+            response.Dispose();
+            using (var page = await Client.GetAsync(opening))
+            {
+                Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+            }
+
+            return await FollowAsync(opening);
+        }
+
+        /// <summary>Whether the Glass's window still waits on background work, as its script asks.</summary>
+        public async Task<bool> PendingAsync(string opening)
+        {
+            using var state = await Client.GetAsync(opening + "?handler=State");
+            Assert.Equal(HttpStatusCode.OK, state.StatusCode);
+            Assert.True(state.Headers.CacheControl?.NoStore);
+            using var json = JsonDocument.Parse(await state.Content.ReadAsStringAsync());
+            return json.RootElement.GetProperty("pending").GetBoolean();
+        }
+
+        /// <summary>Waits in the Glass's window as its script does, then continues.</summary>
+        public async Task<HttpResponseMessage> FollowAsync(string opening)
+        {
+            for (var attempt = 0; await PendingAsync(opening); attempt++)
+            {
+                Assert.True(attempt < 300, "The Glass's background work did not finish.");
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+            }
+
+            return await Client.GetAsync(opening + "?handler=Go");
+        }
+
+        /// <summary>
+        /// A launch prepared through the host's own gateway whose provider work
+        /// never ran, as a host that stopped straight after the claim leaves it.
+        /// </summary>
+        public async Task<GlassRepairEstimateSession> PrepareLaunchWithoutWorkAsync()
+        {
+            var form = await LaunchFormAsync();
+            await using var scope = factory.Services.CreateAsyncScope();
+            var step = await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateGateway>()
+                .PrepareLaunchAsync(
+                    new GlassRepairEstimateLaunchRequest(
+                        Owner,
+                        CaseId,
+                        await CaseVersionAsync(),
+                        form["editLeaseToken"],
+                        Guid.NewGuid().ToString("N"),
+                        Guid.NewGuid()),
+                    CancellationToken.None);
+            Assert.Equal(GlassRepairEstimateContinuation.Launch, step.Continuation);
+            return step.Session;
+        }
+
+        /// <summary>
+        /// A return accepted through the host's own gateway whose import never
+        /// ran, as a host that stopped straight after the claim leaves it.
+        /// </summary>
+        public async Task<GlassRepairEstimateSession> AcceptReturnWithoutWorkAsync(string correlation)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var session = await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionReader>()
+                .FindByCallbackAsync(correlation, CancellationToken.None);
+            Assert.NotNull(session);
+            var step = await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateGateway>()
+                .AcceptCallbackAsync(
+                    new GlassRepairEstimateCallback(
+                        Owner, session.Id, session.Version, correlation, GlassProviderFixture.SavedQuery),
+                    CancellationToken.None);
+            Assert.Equal(GlassRepairEstimateContinuation.Import, step.Continuation);
+            return step.Session;
+        }
+
+        /// <summary>The signed-in staff member every request of this workspace is made as.</summary>
+        private static ActionActor Owner =>
+            ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
 
         public async Task<IReadOnlyList<GlassRepairEstimateSession>> SessionsAsync()
         {

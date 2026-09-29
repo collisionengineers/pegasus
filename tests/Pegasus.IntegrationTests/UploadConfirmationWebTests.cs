@@ -266,6 +266,62 @@ public sealed class UploadConfirmationWebTests
         Assert.Contains("data-upload-phase=\"attached\"", afterPage, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// An Audit created without its original report, given the report later
+    /// through Add evidence on the Case or through Upload and Add to an
+    /// existing case (#901): the filed report is recognised as the Audit's
+    /// original report and Original report missing clears.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AReportAddedToAnAuditMissingItIsRecognisedAsItsOriginalReport(bool fromTheCase)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", fromTheCase ? "AUDIT-REPORT-01" : "AUDIT-REPORT-02");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        await using (var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            (await db.Cases.SingleAsync(value => value.Id == caseId)).Type = "audit";
+            await db.SaveChangesAsync();
+        }
+        Assert.Contains(
+            "Original report missing",
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"),
+            StringComparison.Ordinal);
+
+        var report = IntakeTestEvidence.CreatePdf(
+            "Engineer Repairable Report Our Ref: 00077570/PK Roadworthy: No Connexus Vehicle Assessors");
+        var upload = await IntakeWebDriver.UploadAsync(
+            client, "connexus-report.pdf", "application/pdf", report,
+            declaredCaseId: fromTheCase ? caseId : null);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        if (!fromTheCase)
+        {
+            var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
+            var (receiptVersion, caseVersion) = await AttachmentVersionsAsync(factory, receiptId, caseId);
+            Assert.Equal(HttpStatusCode.Redirect, await PostAttachAsync(
+                client,
+                $"/Upload/Status/{stagedReceiptId:D}?handler=Attach",
+                receiptId,
+                caseId: caseId,
+                operationId: Guid.NewGuid(),
+                receiptVersion: receiptVersion,
+                caseVersion: caseVersion));
+        }
+
+        var filed = Assert.Single(await FiledDocumentsAsync(factory, receiptId, caseId));
+        Assert.Equal(Pegasus.Core.Documents.DocumentSemanticRole.AuditReport, filed.SemanticRole);
+        Assert.DoesNotContain(
+            "Original report missing",
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"),
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AddEvidenceRefusesAnUnknownCaseAndStagesNothing()
     {

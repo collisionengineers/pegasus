@@ -47,7 +47,7 @@ public static class OperatorLabels
 
     /// <summary>
     /// The Triage's own permanent reference, distinct from the originating
-    /// provider claim number.
+    /// principal claim number.
     /// </summary>
     public const string TriageReference = "Triage reference";
 
@@ -139,6 +139,14 @@ public static class OperatorLabels
         };
 
     /// <summary>
+    /// The one-press Attach form on the Cases page has no suggestions list, and
+    /// a second press of an attach that already worked also reaches here, so the
+    /// notice names both possibilities.
+    /// </summary>
+    public const string AttachOnePressNotFound =
+        "No single Case matched that reference, or this image was already added. Check the reference and the Cases list.";
+
+    /// <summary>
     /// The case lifecycle stage as the operator reads it (operator decision D3): a
     /// display mapping only. <see cref="CaseLifecycleState.ReportPreparation"/>
     /// and <see cref="CaseLifecycleState.PostReport"/> both read "With
@@ -154,7 +162,7 @@ public static class OperatorLabels
         CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => "With Engineer",
         CaseLifecycleState.PostReportComplete => "Completed",
         CaseLifecycleState.Query => "Query",
-        CaseLifecycleState.ProviderCancelled => "Closed · Cancelled",
+        CaseLifecycleState.PrincipalCancelled => "Closed · Cancelled",
         CaseLifecycleState.CollisionEngineersRejected => "Closed · Collision Engineers rejected",
         CaseLifecycleState.CreatedInError => "Closed · Created in error",
         CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
@@ -169,7 +177,7 @@ public static class OperatorLabels
     public static string CaseClosure(CaseClosureOutcome outcome) => outcome switch
     {
         CaseClosureOutcome.PostReportComplete => "Completed",
-        CaseClosureOutcome.ProviderCancelled => "Cancelled",
+        CaseClosureOutcome.PrincipalCancelled => "Cancelled",
         CaseClosureOutcome.CollisionEngineersRejected => "Collision Engineers rejected",
         CaseClosureOutcome.CreatedInError => "Created in error",
         CaseClosureOutcome.SourceEmailUnlinked => "E-mail unlinked",
@@ -280,6 +288,7 @@ public static class OperatorLabels
         public static string Name(EmailTemplatePurpose purpose) => purpose switch
         {
             EmailTemplatePurpose.TriageOutcomeReply => "Triage outcome reply",
+            EmailTemplatePurpose.CaseReportDelivery => "Case report delivery",
             _ => throw new InvalidOperationException($"Unknown e-mail template purpose '{(int)purpose}'.")
         };
     }
@@ -303,6 +312,9 @@ public static class OperatorLabels
     /// case's recorded completeness facts, never from a sentence written here.
     /// </summary>
     public sealed record CaseRequirement(string Requirement, string Resolve);
+
+    /// <summary>A missing completeness requirement as the Next action names it.</summary>
+    public static string RequirementIncomplete(string requirement) => $"{requirement} incomplete";
 
     public static IReadOnlyList<CaseRequirement> CaseRequirements(bool instructionsMissing, bool imagesMissing)
     {
@@ -339,7 +351,6 @@ public static class OperatorLabels
         public const string Upload = "Upload";
         public const string Cases = "Cases";
         public const string Search = "Search";
-        public const string Operations = "Operations";
         public const string Administration = "Administration";
     }
 
@@ -364,12 +375,12 @@ public static class OperatorLabels
     /// <summary>
     /// A received-mail subtype in operator words. The two chasing subtypes are
     /// one category to the operator, "Update Request" (18 September 2026), and
-    /// "provider" never appears on the front end.
+    /// its slug never appears on the front end.
     /// </summary>
     private static string SubtypeWord(string subtype) => subtype switch
     {
-        "client-chasing-for-update" or "provider-chasing-for-update" => "Update Request",
-        _ => HumanizeSlug(subtype).Replace("Provider", "Principal", StringComparison.Ordinal)
+        "client-chasing-for-update" or "principal-chasing-for-update" => "Update Request",
+        _ => HumanizeSlug(subtype)
     };
 
     /// <summary>Release notes (FRD-12 What's new; FRD-17): the labels, statuses and acknowledgements.</summary>
@@ -662,6 +673,7 @@ public static class OperatorLabels
         Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
         Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review Case",
         Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
+        Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => WorkCentre.VehicleImagesPaired,
         _ => Humanise(kind.ToString())
     };
 
@@ -765,6 +777,12 @@ public static class OperatorLabels
             return days <= 0 ? "Today" : string.Create(CultureInfo.InvariantCulture, $"{days} d ago");
         }
 
+        /// <summary>
+        /// Early vehicle images paired with their Case (FRD-19, operator,
+        /// 28 September 2026): the chip, the row's kind and its bold line.
+        /// </summary>
+        public const string VehicleImagesPaired = "Vehicle images paired";
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -772,6 +790,7 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionKind.HeldDecision => "Held",
             Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review",
             Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Unassigned",
+            Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => VehicleImagesPaired,
             Pegasus.Core.Operations.NeedsAttentionKind.Unidentified => "Unidentified",
             Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
             Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
@@ -839,7 +858,7 @@ public static class OperatorLabels
         {
             CaseArrival.Manual => "Manual",
             CaseArrival.Email => "E-mail",
-            CaseArrival.ProviderApi => "Provider API",
+            CaseArrival.PrincipalApi => "Principal API",
             CaseArrival.Automation => "Automation",
             _ => Humanise(arrival.ToString())
         };
@@ -847,7 +866,7 @@ public static class OperatorLabels
         public static string ArrivalTone(CaseArrival arrival) => arrival switch
         {
             CaseArrival.Automation => "blue",
-            CaseArrival.ProviderApi => "navy",
+            CaseArrival.PrincipalApi => "navy",
             _ => "neutral"
         };
 
@@ -978,6 +997,19 @@ public static class OperatorLabels
         var label = ImageIntakeLifecycleState(state);
         return string.Concat(char.ToLowerInvariant(label[0]).ToString(), label.AsSpan(1));
     }
+
+    /// <summary>
+    /// Why an Image-initiated Case is not linked automatically. The wording
+    /// says who decides, not how the policy counts.
+    /// </summary>
+    public static string ImageIntakeWithheldReason(ImageIntakeAutomationWithheld reason) => reason switch
+    {
+        ImageIntakeAutomationWithheld.PrincipalDisagrees =>
+            "Not linked automatically. No eligible Case with this registration belongs to the recorded Principal, so staff decide.",
+        ImageIntakeAutomationWithheld.RegistrationAmbiguous =>
+            "Not linked automatically. More than one eligible Case could match this registration, so staff decide.",
+        _ => Humanise(reason.ToString())
+    };
 
     public static string CustodyState(DocumentCustodyStatus status) => status switch
     {
@@ -1171,7 +1203,7 @@ public static class OperatorLabels
         "case_document_removed" => "File removed",
         "custody_confirmed" => "Document stored",
         "custody_failed" => "Document storage failed",
-        "provider_inspection_mode_applied" => "Inspection mode taken from the principal",
+        "principal_inspection_mode_applied" => "Inspection mode taken from the principal",
         "principal_guidance_applied" => "Principal guidance applied",
         "case_guidance_applied" => "Guidance applied",
         "claim_source_guidance_applied" => "Claim source guidance applied",
@@ -1212,6 +1244,14 @@ public static class OperatorLabels
     /// </summary>
     public static string OfficeDate(DateTimeOffset value) =>
         LondonCalendar.DateAt(value).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The date a due instant falls due. A Due by date's instant is the
+    /// midnight that ends it (<see cref="Pegasus.Core.Tasks.CaseDuePolicy.DueAt"/>),
+    /// so the day named is the one just before the instant, as the Work
+    /// Centre's due text reads it; a chase time names its own day.
+    /// </summary>
+    public static string DueDate(DateTimeOffset due) => OfficeDate(due.AddTicks(-1));
 
     /// <summary>
     /// The time of day in the office's zone, for the two-line surfaces that
@@ -1296,7 +1336,7 @@ public static class OperatorLabels
             "with engineer" => "navy",
             "held" => "amber",
             "complete" or "completed" or "post report completion" => "green",
-            "cancelled" or "provider cancellation" or "archived" => "neutral",
+            "cancelled" or "principal cancellation" or "archived" => "neutral",
             "created in error" => "neutral",
             "reopened" or "open" => "navy",
 
@@ -1480,7 +1520,7 @@ public static class OperatorLabels
     /// The Action logs Actor type filter. One option per actor class an
     /// operator distinguishes, each carrying the recorded
     /// <see cref="ActorKind"/> name as its value so the filter needs no second
-    /// vocabulary. The Provider actor is deliberately absent: it is an
+    /// vocabulary. The Principal actor is deliberately absent: it is an
     /// attribution on an external caller, not a class of work an operator
     /// reviews here.
     /// </summary>
@@ -1513,7 +1553,7 @@ public static class OperatorLabels
         IntakeSourceChannel.ManualUpload => "Manual upload",
         IntakeSourceChannel.Mailbox => "E-mail",
         IntakeSourceChannel.Automation => "Automation",
-        IntakeSourceChannel.ProviderApi => ProviderSubmissionApi.Source,
+        IntakeSourceChannel.PrincipalApi => PrincipalSubmissionApi.Source,
         _ => throw new InvalidOperationException(
             $"Unknown intake source channel value '{(int)channel}'.")
     };
@@ -1524,7 +1564,7 @@ public static class OperatorLabels
         "manual_upload" => "Manual upload",
         "mailbox" => "E-mail",
         "automation" => "Automation",
-        "provider_api" => ProviderSubmissionApi.Source,
+        "principal_api" => PrincipalSubmissionApi.Source,
         _ => Humanise(code)
     };
 
@@ -1540,8 +1580,8 @@ public static class OperatorLabels
         CaseDataSourceKind.IntakeEvidence => SourceTagWord.Extracted,
         CaseDataSourceKind.MailRoute => SourceTagWord.Email,
         CaseDataSourceKind.VehicleLookup => SourceTagWord.Lookup,
-        CaseDataSourceKind.ProviderSetting => SourceTagWord.Principal,
-        CaseDataSourceKind.ProviderApi => SourceTagWord.ProviderApi,
+        CaseDataSourceKind.PrincipalSetting => SourceTagWord.Principal,
+        CaseDataSourceKind.PrincipalApi => SourceTagWord.PrincipalApi,
         CaseDataSourceKind.CaseAcceptance => SourceTagWord.Automatic,
         _ => null
     };
@@ -1568,7 +1608,7 @@ public static class OperatorLabels
         public static readonly SourceTagWord Email = new("E-mail", string.Empty);
         public static readonly SourceTagWord Lookup = new("Lookup", "lookup");
         public static readonly SourceTagWord Principal = new("Principal", string.Empty);
-        public static readonly SourceTagWord ProviderApi = new(ProviderSubmissionApi.Source, string.Empty);
+        public static readonly SourceTagWord PrincipalApi = new(PrincipalSubmissionApi.Source, string.Empty);
         public static readonly SourceTagWord Automatic = new("Automatic", string.Empty);
         public static readonly SourceTagWord Ai = new("AI", "ai");
 
@@ -1649,7 +1689,8 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// The AI job ledger's words on the Operations AI Job List.
+    /// The AI job ledger's words on the Work Centre's AI jobs pane, Administration
+    /// AI jobs and the message page.
     /// </summary>
     /// <remarks>
     /// The kind and state wordings are FRD-27 &#167; AI Job List's own; the Core
@@ -1665,7 +1706,6 @@ public static class OperatorLabels
         public const string PanelTitle = "AI Job List";
         public const string SendUnidentified = "Send Unidentified to AI";
         public const string CompleteJob = "Complete job";
-        public const string Cancel = "Cancel";
         public const string ReviewEstimate = "Review estimate";
         public const string OpenQuery = "Open query";
         public const string Review = "Review";
@@ -1709,36 +1749,12 @@ public static class OperatorLabels
             Pegasus.Core.AiWork.AiJobState.Taken => "navy",
             _ => null
         };
-
-        /// <summary>The panel meta.</summary>
-        public static string Count(int jobs) => jobs == 1
-            ? "1 job"
-            : string.Create(CultureInfo.InvariantCulture, $"{jobs} jobs");
     }
 
-    // Operations partial-data notices.
-    public static class OperationsNotices
+    /// <summary>The principal-submission API's operator vocabulary — one list.</summary>
+    public static class PrincipalSubmissionApi
     {
-        public const string PartialData = "Partial data";
-    }
-
-    /// <summary>
-    /// The recorded EVA facts available to the Operations panel.
-    /// </summary>
-    public static class EvaHandoffs
-    {
-        public const string PanelTitle = "EVA handoffs";
-        public const string LatestActivity = "Latest activity";
-        public const string Failures = "Failures";
-        public const string Failure = "Failure";
-        public const string Submitted = "Submitted";
-        public const string Failed = "Failed";
-    }
-
-    /// <summary>The provider-submission API's operator vocabulary — one list.</summary>
-    public static class ProviderSubmissionApi
-    {
-        public const string Source = "Provider API";
+        public const string Source = "Principal API";
     }
 
     private static string HumanizeSlug(string slug)
@@ -1785,7 +1801,7 @@ public static class OperatorLabels
         public const string Code = "Principal code";
         public const string State = "State";
         public const string ReplaceCode = "Replace code";
-        public const string ProviderApi = "Provider API";
+        public const string PrincipalApi = "Principal API";
     }
 
     /// <summary>The Mail settings area labels and status values — one list.</summary>
@@ -1969,16 +1985,8 @@ public static class OperatorLabels
         public const string StopConsequence =
             "In-flight work remains visible and no result is discarded.";
 
-        public const string ChannelToken = "Channel token";
-        public const string ChannelTokenEntered = "Entered from Administration";
-        public const string ChannelTokenStandard = "Standard setting";
-        public const string ChannelTokenChanged = "Changed";
-        public const string ChannelAddress = "Channel address";
-        public const string Timeout = "Timeout in seconds";
-        public const string NewChannelToken = "New channel token";
         public const string SendToAiEnabled = "Reviewed AI proposals enabled";
         public const string Save = "Save AI settings";
-        public const string RemoveChannelToken = "Remove the channel token";
 
         /// <summary>The state word for a switch an administrator holds.</summary>
         public static string SwitchState(bool enabled) => enabled ? Enabled : Stopped;
@@ -2074,7 +2082,6 @@ public static class OperatorLabels
         // End of the Inspect-at and repairer labels.
         public const string FilesPanel = "Files";
         public const string AddEvidence = "Add evidence";
-        public const string OpenOperations = "Open Operations";
         public const string SaveAs = "Save as";
 
         /// <summary>One section of the Case record, as the jump-nav names it.</summary>
@@ -2493,14 +2500,6 @@ public static class OperatorLabels
             IntakeLogOutcome.AllocationFailed => "Allocation failed",
             IntakeLogOutcome.OcrFailed => "OCR failed",
             _ => Humanise(outcome.ToString())
-        };
-
-        /// <summary>The Operations failure kind a failed outcome is listed under, as its row hook.</summary>
-        public static string FailureKindSlug(IntakeLogOutcome outcome) => outcome switch
-        {
-            IntakeLogOutcome.AllocationFailed => "allocation",
-            IntakeLogOutcome.OcrFailed => "ocr",
-            _ => "processing"
         };
 
         /// <summary>The page a produced record opens.</summary>

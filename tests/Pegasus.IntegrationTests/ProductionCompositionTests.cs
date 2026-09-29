@@ -59,7 +59,6 @@ public sealed class ProductionCompositionTests
         "web.case.section.result",
         "web.auth.validation",
         "web.shell.counts",
-        "web.shell.operations",
         "web.shell.notifications",
         "report.renderer.initialize"
     ];
@@ -164,6 +163,9 @@ public sealed class ProductionCompositionTests
         var primary = Assert.IsType<HttpClientHandler>(handler);
         Assert.False(primary.AllowAutoRedirect);
         Assert.False(primary.UseCookies);
+        using var client = provider.GetRequiredService<IHttpClientFactory>()
+            .CreateClient(GlassRepairEstimateOptions.HttpClientName);
+        Assert.Equal(TimeSpan.FromSeconds(30), client.Timeout);
     }
 
     [Fact]
@@ -279,13 +281,13 @@ public sealed class ProductionCompositionTests
 
         var classifiers = provider.GetServices<IMailClassificationPolicy>().ToArray();
         Assert.Equal(provider.GetServices<IInstructionExtractionPolicy>().Select(policy => policy.PrincipalCode).Order(),
-            classifiers.Select(policy => policy.WorkProviderCode).Order());
-        var classification = Assert.Single(classifiers, policy => policy.WorkProviderCode == "QDOS");
+            classifiers.Select(policy => policy.PrincipalCode).Order());
+        var classification = Assert.Single(classifiers, policy => policy.PrincipalCode == "QDOS");
         Assert.IsType<PrincipalMailClassificationPolicy>(classification);
         Assert.Equal(PrincipalMailClassificationPolicy.Key, classification.PolicyKey);
         Assert.Equal(PrincipalMailClassificationPolicy.Version, classification.PolicyVersion);
-        Assert.Equal(classifiers.Select(policy => policy.WorkProviderCode).Order(),
-            provider.GetServices<IProviderCaseMatchPolicy>().Select(policy => policy.WorkProviderCode).Order());
+        Assert.Equal(classifiers.Select(policy => policy.PrincipalCode).Order(),
+            provider.GetServices<IPrincipalCaseMatchPolicy>().Select(policy => policy.PrincipalCode).Order());
     }
 
     [Fact]

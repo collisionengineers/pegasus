@@ -1,5 +1,6 @@
 using Pegasus.Core.Cases;
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -80,19 +81,21 @@ public sealed partial class AssessmentReportDraftWebTests
             generateReport: recorder);
         using var client = Client(factory);
         // v26: Generate report is the head's primary inside the edit session;
-        // the Include fee note choice sits in the More menu, bound to that
-        // form, so it still posts as the form's own field.
+        // the Include fee note choice sits inside that form, beside its
+        // button (issue 912), so it posts as the form's own field.
         var html = await EnterEditModeAsync(client, caseId);
+        var generateForm = FormHtml(html, "GenerateReport");
 
-        Assert.Contains("data-generate-report", html, StringComparison.Ordinal);
+        Assert.Contains("data-generate-report", generateForm, StringComparison.Ordinal);
         Assert.Contains(
-            "name=\"includeFeeNote\" value=\"true\" form=\"case-generate-report-form\" data-include-fee-note",
-            html,
+            "name=\"includeFeeNote\" value=\"true\" data-include-fee-note",
+            generateForm,
             StringComparison.Ordinal);
         Assert.Contains(
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.IncludeFeeNote,
-            html,
+            generateForm,
             StringComparison.Ordinal);
+        Assert.DoesNotContain("form=\"case-generate-report-form\"", html, StringComparison.Ordinal);
 
         List<(string Name, string Value)> fields =
         [
@@ -410,6 +413,47 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
+    /// A confirmed separate fee note is opened from the report card, beside
+    /// Open report (issue 912); a combined report or a fee note not yet
+    /// confirmed offers no such link.
+    /// </summary>
+    [Theory]
+    [InlineData(false, CaseReportArtifactStatus.Confirmed, true)]
+    [InlineData(false, CaseReportArtifactStatus.Pending, false)]
+    [InlineData(false, null, false)]
+    [InlineData(true, null, false)]
+    public async Task TheReportCardOpensAConfirmedSeparateFeeNote(
+        bool includeFeeNote,
+        CaseReportArtifactStatus? feeNoteStatus,
+        bool offered)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generation = new FakeCurrentGeneration(caseId, includeFeeNote, feeNoteStatus);
+        using var factory = WithCurrentGeneration(baseFactory, caseId, generation);
+        using var client = Client(factory);
+
+        var card = ReportCard(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        OpenReportLink(card);
+        if (offered)
+        {
+            var feeNote = generation.Record.Artifacts.Single(artifact => artifact.Kind == CaseReportArtifactKind.FeeNote);
+            var link = CardLink(card, "data-report-fee-card", "Open fee note");
+            Assert.Contains($"artifactId={feeNote.Id:D}", link, StringComparison.Ordinal);
+            Assert.Contains("data-document-preview", link, StringComparison.Ordinal);
+            Assert.Contains(
+                $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenFeeNote}</span>",
+                link,
+                StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("data-report-fee-card", card, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     /// The card says when the report was generated and where its file stands,
     /// in the words Files uses for a file, on a chip whose colour is green only
     /// once the file is stored. A report that was never drawn gives no date. No
@@ -638,12 +682,42 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
 
-        var nextAction = NextActionRegex().Match(html);
+        var nextAction = CaseWebTestSupport.NextActionRegex().Match(html);
         Assert.True(nextAction.Success, "The Case aside must state its Next action.");
         Assert.Equal(expected, NextLabelRegex().Match(nextAction.Value).Groups["label"].Value);
         var link = SectionJumpRegex().Match(nextAction.Value);
         Assert.True(link.Success, "The Next action must link to a section.");
         Assert.Equal("report", link.Groups["key"].Value);
+    }
+
+    /// <summary>
+    /// A stale generation is stated once, in the aside's Next action above its
+    /// Generate report line (issue 899): no page-wide bar and no second
+    /// notice in the Report section.
+    /// </summary>
+    [Fact]
+    public async Task AStaleGenerationIsStatedOnceInTheNextAction()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = WithCurrentGeneration(
+            baseFactory, caseId, new FakeCurrentGeneration(caseId, includeFeeNote: false, stale: true));
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var nextAction = CaseWebTestSupport.NextActionRegex().Match(html);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        Assert.Contains("data-report-stale", nextAction.Value, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice,
+            nextAction.Value,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport,
+            NextLabelRegex().Match(nextAction.Value).Groups["label"].Value);
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Count(html, "data-report-stale"));
+        Assert.DoesNotContain("data-stale-bar", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -710,6 +784,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("expectedCaseVersion", "0"),
                 ("generationId", generationId.ToString("D")),
                 ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "Edited by staff.\r\n\r\nKind regards"),
                 ("toRecipients", "reviewed@recipient.example"),
                 ("ccRecipients", "copy@recipient.example")));
 
@@ -721,6 +796,9 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(generationId, request.GenerationId);
         Assert.Equal(13, request.ExpectedGenerationVersion);
         Assert.Equal(operationKey, request.OperationKey);
+        // The message the operator submitted goes to preparation as posted;
+        // Core freezes it.
+        Assert.Equal("Edited by staff.\r\n\r\nKind regards", request.CoveringMessage);
         Assert.Equal(ActorKind.Staff, request.Actor.Kind);
         Assert.Equal("reviewed@recipient.example", Assert.Single(request.ReviewedRecipients!.To));
         Assert.Equal("copy@recipient.example", Assert.Single(request.ReviewedRecipients.Cc));
@@ -758,6 +836,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("expectedCaseVersion", "0"),
                 ("generationId", generationId.ToString("D")),
                 ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "Edited by staff.\r\n\r\nKind regards"),
                 ("toRecipients", "reviewed@recipient.example"),
                 ("attach", nameof(CaseReportArtifactKind.AssessmentReport)),
                 ("attach", nameof(CaseReportArtifactKind.ImagePack))));
@@ -767,6 +846,44 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(
             [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.ImagePack],
             request.Attach);
+    }
+
+    /// <summary>
+    /// The message is what staff review before Prepare delivery: a blank one
+    /// never reaches preparation and the operator is told why.
+    /// </summary>
+    [Fact]
+    public async Task PrepareDeliveryRefusesABlankMessage()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var prepare = new RecordingPrepareDelivery(caseId, generationId);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            prepareDelivery: prepare);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=PrepareReportDelivery&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", generationId.ToString("D")),
+                ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "  "),
+                ("toRecipients", "reviewed@recipient.example")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Empty(prepare.Requests);
     }
 
     [Theory]
@@ -919,14 +1036,18 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>The card's link to the stored report.</summary>
-    private static string OpenReportLink(string card)
+    private static string OpenReportLink(string card) =>
+        CardLink(card, "data-report-artifact=\"AssessmentReport\"", "Open report");
+
+    /// <summary>The card's link carrying <paramref name="mark"/>.</summary>
+    private static string CardLink(string card, string mark, string name)
     {
         var link = System.Text.RegularExpressions.Regex.Match(
             card,
-            "<a[^>]*data-report-artifact=\"AssessmentReport\"[^>]*>.*?</a>",
+            $"<a[^>]*{mark}[^>]*>.*?</a>",
             System.Text.RegularExpressions.RegexOptions.Singleline
                 | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-        Assert.True(link.Success, "The card must offer Open report.");
+        Assert.True(link.Success, $"The card must offer {name}.");
         return link.Value;
     }
 
@@ -971,7 +1092,7 @@ public sealed partial class AssessmentReportDraftWebTests
     /// One confirmed current generation, so the card the page renders can be
     /// read. Only the reads the Case page makes are answered.
     /// </summary>
-    private sealed class FakeCurrentGeneration(
+    internal sealed class FakeCurrentGeneration(
         Guid caseId,
         bool includeFeeNote,
         CaseReportArtifactStatus? feeNoteStatus = null,
@@ -982,7 +1103,8 @@ public sealed partial class AssessmentReportDraftWebTests
         string? repairSpecOperationKey = null,
         CaseReportArtifactStatus? imagePackStatus = null,
         string? imagePackOperationKey = null,
-        bool reportFiled = false)
+        bool reportFiled = false,
+        bool stale = false)
         : ICaseReportGenerationStore
     {
         private readonly CaseReportGenerationRecord record = GenerationRecord(
@@ -996,7 +1118,9 @@ public sealed partial class AssessmentReportDraftWebTests
             repairSpecOperationKey,
             imagePackStatus,
             imagePackOperationKey,
-            reportFiled);
+            reportFiled) is var generation && stale
+                ? generation with { State = CaseReportGenerationState.Stale }
+                : generation;
 
         public CaseReportGenerationRecord Record => record;
 
@@ -1224,7 +1348,7 @@ public sealed partial class AssessmentReportDraftWebTests
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
             Guid caseId,
             ActionActor actor,
-            CaseWorkSelector work, CancellationToken cancellationToken) =>
+            CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportFreezeInputs?>(null);
     }
 
@@ -1319,4 +1443,28 @@ public sealed partial class AssessmentReportDraftWebTests
             Guid caseId, Guid snapshotId, CancellationToken cancellationToken) =>
             Task.FromResult<RepairSpecificationSnapshot?>(null);
     }
+
+    private static FormUrlEncodedContent Form(
+        string antiforgeryToken, params (string Name, string Value)[] values)
+    {
+        var fields = values
+            .Select(item => new KeyValuePair<string, string>(item.Name, item.Value))
+            .Append(new("__RequestVerificationToken", antiforgeryToken));
+        return new(fields);
+    }
+
+    private static string AntiforgeryValue(string html)
+    {
+        var tag = AntiforgeryTagRegex().Match(html);
+        Assert.True(tag.Success, "The case action must render an antiforgery token.");
+        var value = ValueRegex().Match(tag.Value);
+        Assert.True(value.Success, "The case antiforgery token must have a value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
+    [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex AntiforgeryTagRegex();
+
+    [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ValueRegex();
 }

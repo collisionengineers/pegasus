@@ -226,7 +226,7 @@ public sealed class DependencyDirectionTests
     }
 
     [Fact]
-    public void ProviderReferenceRuntimeKeepsWorkbookAuthoringOutsideApplicationProjects()
+    public void PrincipalReferenceRuntimeKeepsWorkbookAuthoringOutsideApplicationProjects()
     {
         var root = FindRepositoryRoot();
         var runtimeProjects = new[]
@@ -250,22 +250,22 @@ public sealed class DependencyDirectionTests
 
         var resources = typeof(InfrastructureAssembly).Assembly.GetManifestResourceNames();
         Assert.Contains(
-            "Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json",
+            "Pegasus.Infrastructure.Persistence.ReferenceData.principal-domains.v1.json",
             resources);
         Assert.DoesNotContain(resources, name => name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public void ProviderReferenceCatalogBoundaryHasOneInfrastructureImplementation()
+    public void PrincipalReferenceCatalogBoundaryHasOneInfrastructureImplementation()
     {
-        Assert.Equal(typeof(CoreAssembly).Assembly, typeof(IProviderReferenceCatalog).Assembly);
+        Assert.Equal(typeof(CoreAssembly).Assembly, typeof(IPrincipalReferenceCatalog).Assembly);
 
         var implementations = typeof(InfrastructureAssembly).Assembly.GetTypes()
-            .Where(type => !type.IsAbstract && typeof(IProviderReferenceCatalog).IsAssignableFrom(type))
+            .Where(type => !type.IsAbstract && typeof(IPrincipalReferenceCatalog).IsAssignableFrom(type))
             .ToArray();
         var implementation = Assert.Single(implementations);
         Assert.False(implementation.IsPublic);
-        Assert.Equal("EfProviderReferenceCatalog", implementation.Name);
+        Assert.Equal("EfPrincipalReferenceCatalog", implementation.Name);
     }
 
     [Fact]

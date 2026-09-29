@@ -1,7 +1,7 @@
 ﻿namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// A versioned signature by which a document says which provider's instruction
+/// A versioned signature by which a document says which Principal's instruction
 /// it is, independently of how it arrived. Every required signal must be
 /// present in the readable content and no negative signal may be; nothing else
 /// takes part. There is deliberately no score, no priority, no weighting and no
@@ -256,7 +256,7 @@ public sealed class InstructionExtractionPolicySelector(
 
     /// <summary>
     /// Signals are matched case-insensitively against the document's readable
-    /// content — the labels a provider prints vary in case between templates,
+    /// content — the labels a Principal prints vary in case between templates,
     /// and the corpus records them as printed rather than as a canonical form.
     /// Transport evidence is deliberately excluded: a sender address is route
     /// identity, which is the very thing this selection must not rely on.

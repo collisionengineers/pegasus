@@ -150,6 +150,58 @@ public sealed class AudatexEstimatePdfParserTests
     }
 
     [Fact]
+    public void ALongAddressHeaderOnALaterPageIsNotReadAsALabourRow()
+    {
+        // A trader with a long address pushes the repeating header's
+        // "Version: ... Printed: <date>" row below the old fixed header line.
+        // With a section open across the page break that row must still be
+        // header, never a body row whose date is read as an amount.
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        var first = builder.AddPage(PageSize.A4);
+        var second = builder.AddPage(PageSize.A4);
+        void Text(PdfPageBuilder page, double x, double y, string text) =>
+            page.AddText(text, 9, new PdfPoint(x, y), font);
+
+        void Header(PdfPageBuilder page)
+        {
+            Text(page, 20, 724, "Assessment Number:");
+            Text(page, 167, 724, "TEST02");
+            Text(page, 20, 708, "Version:");
+            Text(page, 80, 708, "V1/1");
+            Text(page, 432, 708, "Printed:");
+            Text(page, 490, 708, "19/05/2026");
+        }
+
+        Header(first);
+        Text(first, 20, 660, "LABOUR");
+        Text(first, 20, 648, "Number");
+        Text(first, 159, 648, "Description");
+        Text(first, 485, 648, "Work");
+        Text(first, 518, 648, "Units");
+        Text(first, 20, 636, "12 34 567");
+        Text(first, 159, 636, "R + R FRONT BUMPER");
+        Text(first, 522, 635, "9.0");
+        Text(first, 20, 22, "Audatex System Using Manufacturer Times");
+
+        Header(second);
+        Text(second, 20, 660, "0742");
+        Text(second, 159, 660, "REPAIR WING");
+        Text(second, 522, 659, "12.0");
+        Text(second, 259, 640, "Total");
+        Text(second, 291, 640, "Work");
+        Text(second, 324, 640, "Units");
+        Text(second, 515, 640, "21.0");
+        Text(second, 20, 22, "Audatex System Using Manufacturer Times");
+
+        var result = Parse(builder.Build());
+
+        Assert.Equal("TEST02 V1/1", result.SourceVersion);
+        Assert.Equal<decimal?>([9.0m, 12.0m], result.Lines.Select(line => line.WorkUnits));
+        Assert.Equal(21.0m, result.SourceTotals!.PanelWorkUnits);
+    }
+
+    [Fact]
     public void RejectsAPdfThatIsNotAnAudatexReport()
     {
         var builder = new PdfDocumentBuilder();

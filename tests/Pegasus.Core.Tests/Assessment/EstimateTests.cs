@@ -546,6 +546,47 @@ public sealed class EstimateTests
     }
 
     [Fact]
+    public void ANewRepairerStatusTakesItsOwnCategoriesUnlessTheyWereChosenByHand()
+    {
+        var unknown = EstimateVatPolicy.For(RepairerVatStatus.Unknown);
+        var partsAndMaterials = EstimateVatCategories.Parts | EstimateVatCategories.Materials;
+
+        // Issue 898: choosing a status with the boxes left alone charges what
+        // that status charges, not the old status's nothing.
+        Assert.Equal(
+            EstimateVatPolicy.For(RepairerVatStatus.Registered),
+            EstimateVatPolicy.Revised(unknown, RepairerVatStatus.Registered, EstimateVatCategories.None));
+        Assert.Equal(
+            EstimateVatPolicy.For(RepairerVatStatus.NotRegistered),
+            EstimateVatPolicy.Revised(
+                EstimateVatPolicy.For(RepairerVatStatus.Registered),
+                RepairerVatStatus.NotRegistered,
+                EstimateVatCategories.All));
+
+        // Boxes changed with the status stand, as an override when they differ.
+        Assert.Equal(
+            new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true),
+            EstimateVatPolicy.Revised(unknown, RepairerVatStatus.Registered, EstimateVatCategories.Parts));
+
+        // A hand-made choice survives a status change.
+        var handPicked = new EstimateVatPolicy(RepairerVatStatus.Unknown, EstimateVatCategories.Parts, true);
+        Assert.Equal(
+            new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true),
+            EstimateVatPolicy.Revised(handPicked, RepairerVatStatus.Registered, EstimateVatCategories.Parts));
+
+        // With the status unchanged the posted boxes are read as posted.
+        Assert.Equal(
+            new EstimateVatPolicy(RepairerVatStatus.NotRegistered, partsAndMaterials, false),
+            EstimateVatPolicy.Revised(
+                EstimateVatPolicy.For(RepairerVatStatus.NotRegistered),
+                RepairerVatStatus.NotRegistered,
+                partsAndMaterials));
+        Assert.Equal(
+            new EstimateVatPolicy(RepairerVatStatus.Unknown, EstimateVatCategories.Parts, true),
+            EstimateVatPolicy.Revised(unknown, RepairerVatStatus.Unknown, EstimateVatCategories.Parts));
+    }
+
+    [Fact]
     public void CategoriesThatDifferFromTheRepairersStatusMustBeRecordedAsAnOverride()
     {
         Assert.Equal(
@@ -1106,7 +1147,7 @@ public sealed class EstimateTests
         // Non-staff actors, malformed mutation envelopes and stale persisted
         // authority all fail before consulting a source-hash replay.
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => import.ExecuteAsync(
-            ImportRequest(actor: ActionActor.Provider(Guid.NewGuid())), CancellationToken.None));
+            ImportRequest(actor: ActionActor.Principal(Guid.NewGuid())), CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => import.ExecuteAsync(
             ImportRequest(expectedVersion: -1), CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() => import.ExecuteAsync(

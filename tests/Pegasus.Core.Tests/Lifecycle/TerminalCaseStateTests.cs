@@ -45,14 +45,14 @@ public sealed class TerminalCaseStateTests
 
     [Fact]
     public void AnOrdinaryClosureOutcomeStillPassesValidation() =>
-        CaseLifecycleRules.ValidateClose(CloseWith(CaseClosureOutcome.ProviderCancelled));
+        CaseLifecycleRules.ValidateClose(CloseWith(CaseClosureOutcome.PrincipalCancelled));
 
     private static CloseCaseRequest CloseWith(CaseClosureOutcome outcome) => new(
         Guid.NewGuid(),
         3,
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
         "close:terminal-state-tests",
-        "The provider withdrew the instruction.",
+        "The Principal withdrew the instruction.",
         new string('t', 64),
         outcome);
 }

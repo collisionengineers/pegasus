@@ -61,8 +61,6 @@ public sealed partial class IdentityCookieDownloadWebTests
                 services.PostConfigure<CookieAuthenticationOptions>(
                     IdentityConstants.ApplicationScheme,
                     options => options.TimeProvider = clock);
-                services.PostConfigure<SecurityStampValidatorOptions>(
-                    options => options.TimeProvider = clock);
             }));
         var userId = await CreateUserAsync(factory, UserName, StaffRole.User);
         _ = await CreateUserAsync(factory, "identity-cookie-download-administrator", StaffRole.Administrator);

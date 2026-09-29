@@ -232,12 +232,22 @@ public sealed record ImageIntakeImage(
 {
     /// <summary>The retained image asset, which carries the image's pre-Case crop, tags and custody identity.</summary>
     public Guid? AssetId { get; init; }
+
+    /// <summary>The retained asset's content hash, which names its address.</summary>
+    public string? ContentHash { get; init; }
 }
 
 public interface IImageIntakeQueries
 {
+    /// <summary>
+    /// Image intakes newest first. <paramref name="associated"/> keeps only
+    /// those with (<see langword="true"/>) or without (<see langword="false"/>)
+    /// a current Case, and <paramref name="state"/> only those in that
+    /// lifecycle state; <see langword="null"/> applies no filter.
+    /// </summary>
     Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
         bool? associated,
+        ImageInitiatedCaseState? state,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -388,9 +398,18 @@ public interface IImageIntakeCaseCandidates
         CancellationToken cancellationToken);
 }
 
+/// <param name="CreatedAtUtc">
+/// When the Case was created. A manual-upload image record pairs automatically
+/// only with a Case created after the record was registered.
+/// </param>
+/// <param name="PrincipalCode">
+/// The Case Principal's code, active or not, so the record page can name it.
+/// </param>
 public sealed record ImageIntakeCaseCandidate(
     Guid CaseId,
     string CaseReference,
     long CaseVersion,
     string ConfirmedRegistration,
-    Guid? PrincipalId = null);
+    DateTimeOffset CreatedAtUtc,
+    Guid? PrincipalId = null,
+    string? PrincipalCode = null);

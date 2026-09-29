@@ -24,7 +24,7 @@ $preserve = @(
     'Organizations', 'OrganizationRoles', 'OrganizationAdministrationOperations',
     'ContactRoles', 'ContactPrincipalLinks',
     'Principals', 'PrincipalSequenceLineages',
-    'ProviderDomainEvidence', 'ProviderDomainPackages', 'ProviderReferences',
+    'PrincipalDomainEvidence', 'PrincipalDomainPackages', 'PrincipalReferences',
     'WorkflowConfigurations', 'LabourRateCards', 'ImageTags', 'SendToAiControl', 'SecurityEvents',
     'CaseSequences', 'ImageIntakeSequences', 'TriageSequences', 'UnidentifiedSequences',
     'ValuationPresets', 'EmailTemplates'

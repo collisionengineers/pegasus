@@ -26,9 +26,8 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
-using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
-using Pegasus.Web.ProviderApi;
+using Pegasus.Web.PrincipalApi;
 using Pegasus.Web;
 using Azure.Core;
 using Azure.Identity;
@@ -87,6 +86,9 @@ if (args.Contains(BuildDiagnosticsArgument, StringComparer.Ordinal))
     }));
     return;
 }
+// Phase timings go to stdout so a slow start shows where the time went.
+var startupTimeline = StartupTimeline.Current;
+startupTimeline.Mark("Main entered (time so far is runtime start)");
 var initializeDevelopment =
     args.Contains(InitializeDevelopmentArgument, StringComparer.Ordinal);
 var migrateDevelopment = args.Contains("--migrate-development", StringComparer.Ordinal);
@@ -107,6 +109,7 @@ var applicationArgs = args
         && !argument.Equals("--migrate-development", StringComparison.Ordinal))
     .ToArray();
 var builder = WebApplication.CreateBuilder(applicationArgs);
+startupTimeline.Mark("configuration loaded");
 var configuredRuntimeProfile = builder.Configuration["Runtime:Profile"]
     ?? throw new InvalidOperationException("Runtime:Profile is required.");
 var developmentOfflineProfile = builder.Environment.IsDevelopment()
@@ -265,16 +268,9 @@ var localDocumentCustodyConfigured =
 // exists. An explicitly configured deployment may enable it in Production.
 var automationMcpOptions = AutomationMcpOptions.TryCreate(builder.Configuration);
 
-// The Provider API (API-01) is gated the same way: off by default, and
-// without the flag no /api/provider route, scheme or policy exists.
-var providerApiEnabled = builder.Configuration.GetValue<bool>(ProviderApi.FeatureFlag);
-
-// The Send to AI hand-off (AI-09) follows the same gate pattern: absent by
-// default, DevelopmentOffline-only, and without it the assessment panel
-// renders the unavailable state and no outbound transport exists.
-var sendToAiOptions = SendToAiOptions.TryCreate(
-    builder.Configuration,
-    developmentOfflineProfile);
+// The Principal API (API-01) is gated the same way: off by default, and
+// without the flag no /api/principal route, scheme or policy exists.
+var principalApiEnabled = builder.Configuration.GetValue<bool>(PrincipalApi.FeatureFlag);
 
 // RailCountsPageFilter supplies ViewData["RailCounts"] on authenticated full
 // page results — the rail shipped with the badge
@@ -351,8 +347,8 @@ builder.Services.AddRateLimiter(options =>
                     AutomationMcp.TokenEndpointPath,
                     StringComparison.OrdinalIgnoreCase)
                 ? "automation_rate_limited"
-                : rejectedPath.StartsWithSegments(ProviderApi.BasePath)
-                    ? "provider_api_rate_limited"
+                : rejectedPath.StartsWithSegments(PrincipalApi.BasePath)
+                    ? "principal_api_rate_limited"
                     : rejectedPath.StartsWithSegments("/Integrations/Glass/Callback")
                         ? "glass_callback_rate_limited"
                     : "authentication_rate_limited";
@@ -385,7 +381,7 @@ builder.Services.AddRateLimiter(options =>
             }));
     // The limiter runs before authentication, so a presented key id is a claim
     // and not an identity, and it cannot be the partition: naming another
-    // provider's key id would spend that provider's budget with forged
+    // principal's key id would spend that principal's budget with forged
     // secrets, and minting a fresh well-formed key id per request would hand
     // the caller a fresh budget each time and bound nothing at all. The
     // partition is the calling address, as it already is for staff sign-in and
@@ -402,13 +398,13 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1)
             }));
     options.AddPolicy(
-        ProviderApi.RateLimitPolicy,
+        PrincipalApi.RateLimitPolicy,
         context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = ProviderApi.RequestsPerCallerPerMinute,
+                PermitLimit = PrincipalApi.RequestsPerCallerPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -444,23 +440,6 @@ builder.Services.AddAuthentication(options =>
         DevelopmentOfflineAuthenticationScheme,
         displayName: null,
         _ => { });
-builder.Services.Configure<SecurityStampValidatorOptions>(options =>
-{
-    options.ValidationInterval = TimeSpan.Zero;
-    options.OnRefreshingPrincipal = context =>
-    {
-        var originalIssue = context.CurrentPrincipal?.FindFirst(OriginalIssueClaim);
-        var identity = context.NewPrincipal?.Identity as System.Security.Claims.ClaimsIdentity;
-        if (originalIssue is not null
-            && identity is not null
-            && !identity.HasClaim(claim => claim.Type == OriginalIssueClaim))
-        {
-            identity.AddClaim(originalIssue);
-        }
-
-        return Task.CompletedTask;
-    };
-});
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.Name = "__Host-Pegasus";
@@ -497,67 +476,26 @@ builder.Services.ConfigureApplicationCookie(options =>
             SecurityEventOutcome.Succeeded,
             reasonCode: null);
     };
+    // The account is checked on every request; StaffPrincipalValidator says
+    // why the principal is never rebuilt.
     options.Events.OnValidatePrincipal = async context =>
     {
         using var validation = DocumentReadTelemetry.Start("web.auth.validation");
         var subjectId = context.Principal?.FindFirst(
             System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown";
-        await SecurityStampValidator.ValidatePrincipalAsync(context);
-        if (context.Principal is null)
+        var refusal = await StaffPrincipalValidator.ValidateAsync(context, OriginalIssueClaim);
+        if (refusal is null)
         {
-            await AppendSignInSecurityEventAsync(
-                context.HttpContext,
-                subjectId,
-                SecurityEventOutcome.Denied,
-                "invalid_security_stamp");
             return;
         }
 
-        var nowSeconds = context.HttpContext.RequestServices
-            .GetRequiredService<TimeProvider>()
-            .GetUtcNow()
-            .ToUnixTimeSeconds();
-        var issuedValue = context.Principal.FindFirst(OriginalIssueClaim)?.Value;
-        if (!long.TryParse(
-                issuedValue,
-                System.Globalization.NumberStyles.None,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var issuedSeconds)
-            || issuedSeconds < 0
-            || issuedSeconds > nowSeconds
-            || nowSeconds - issuedSeconds >= (long)StaffSessionPolicy.AbsoluteLifetime.TotalSeconds)
-        {
-            context.RejectPrincipal();
-            await context.HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
-            await AppendSignInSecurityEventAsync(
-                context.HttpContext,
-                subjectId,
-                SecurityEventOutcome.Denied,
-                "absolute_session_expired");
-            return;
-        }
-
-        var userManager = context.HttpContext.RequestServices
-            .GetRequiredService<UserManager<PegasusIdentityUser>>();
-        var user = await userManager.GetUserAsync(context.Principal);
-        if (user is null || !user.IsEnabled)
-        {
-            context.RejectPrincipal();
-            await context.HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
-            await AppendSignInSecurityEventAsync(
-                context.HttpContext,
-                subjectId,
-                SecurityEventOutcome.Denied,
-                "disabled_or_missing_staff");
-            return;
-        }
-
-        // SecurityStampValidator refreshes a valid principal after checking it.
-        // That refresh is distinct from CookieAuthenticationHandler's own
-        // sliding-expiration refresh, which remains eligible independently.
-        // Reissuing on every zero-interval validation makes otherwise private,
-        // immutable document previews non-cacheable in the browser.
-        context.ShouldRenew = false;
+        context.RejectPrincipal();
+        await context.HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+        await AppendSignInSecurityEventAsync(
+            context.HttpContext,
+            subjectId,
+            SecurityEventOutcome.Denied,
+            refusal);
     };
 });
 
@@ -641,8 +579,28 @@ builder.Services.AddAuthorizationBuilder()
         .Build())
     .AddPolicy("Administrator", policy =>
         policy.RequireRole(StaffRoleNames.Administrator));
+// Pages only, over HTTPS too; a decision record accepts the BREACH risk.
+// Static assets are precompressed at build and files keep their own encoding.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ["text/html"];
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+});
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(
+    options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(
+    options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
+// A new instance warms its hot reads before it reports ready (at most 45 s).
+// /health/warm answers the platform's start-up ping from the warm-up alone, so
+// a database outage never keeps a new instance from starting.
+builder.Services.AddSingleton(provider => new StartupWarmupState(
+    provider.GetRequiredService<IConfiguration>().GetValue("Startup:Warmup", true)));
+builder.Services.AddHostedService<StartupWarmup>();
 builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
+    .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"])
+    .AddCheck<StartupWarmupHealthCheck>("warmup", tags: ["ready", "warm"]);
 builder.Services.Configure<FormOptions>(options =>
 {
     // Bounded for a whole Upload batch, not one file: IntakeEnvelopeLimits
@@ -695,6 +653,12 @@ if (productionProfile)
 }
 
 builder.Services.AddPegasusReportRendering();
+// Glass's provider work runs in this host after the staff member's request has
+// answered. It stays here, not in the Worker: the session state and per-staff
+// credentials it reads are protected by this host's key ring (ADR-0058).
+builder.Services.AddSingleton<Pegasus.Web.Background.ProviderWorkQueue>();
+builder.Services.AddHostedService<Pegasus.Web.Background.ProviderWorkService>();
+builder.Services.AddScoped<Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork>();
 builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
 if (developmentOfflineProfile)
 {
@@ -720,7 +684,7 @@ builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
 builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
-builder.Services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
+builder.Services.AddScoped<IPrincipalInspectionModeStore, EfPrincipalInspectionModeStore>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
 builder.Services.AddScoped<EfIntakeWorkStore>();
 builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
@@ -810,16 +774,17 @@ if (automationMcpOptions is not null)
         productVersion,
         automationMcpCredential);
 }
-if (providerApiEnabled)
+if (principalApiEnabled)
 {
-    builder.Services.AddPegasusProviderApi();
-}
-if (sendToAiOptions is not null)
-{
-    builder.Services.AddPegasusSendToAi(sendToAiOptions);
+    builder.Services.AddPegasusPrincipalApi();
 }
 
+startupTimeline.Mark("services composed");
+// Last, after every AddDataProtection: the framework's start-up load of the key
+// ring would hold the port behind a managed-identity token (see the extension).
+builder.Services.DeferDataProtectionKeyRingLoad();
 var app = builder.Build();
+startupTimeline.Mark("host built");
 if (applicationInsightsConfigured)
 {
     // This singleton owns the listener for the application's lifetime. Resolving
@@ -880,21 +845,27 @@ if (productionProfile
     && (builder.Configuration["Bootstrap:VerificationAccount:UserName"] is { Length: > 0 }
         || builder.Configuration["Bootstrap:VerificationAccount:Removed"] is { Length: > 0 }))
 {
-    try
+    // After the port is listening, not before: it reads SQL behind a
+    // managed-identity token, and a slow token must not hold the port.
+    app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
     {
-        await using var scope = app.Services.CreateAsyncScope();
-        await ReconcileVerificationAccountAsync(scope.ServiceProvider, builder.Configuration);
-    }
-    catch (Exception exception)
-    {
-        // A temporary verification account is never worth refusing to start
-        // over. The database may be unreachable or unmigrated at this point in
-        // startup — both are the deployment's problem to report, not this
-        // block's to escalate into an outage.
-        BootstrapLog.VerificationAccountSkipped(
-            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Pegasus.Bootstrap"),
-            exception);
-    }
+        try
+        {
+            await using var scope = app.Services.CreateAsyncScope();
+            await ReconcileVerificationAccountAsync(scope.ServiceProvider, builder.Configuration);
+            startupTimeline.Mark("verification account reconciled");
+        }
+        catch (Exception exception)
+        {
+            // A temporary verification account is never worth refusing to start
+            // over. The database may be unreachable or unmigrated at this point in
+            // startup — both are the deployment's problem to report, not this
+            // block's to escalate into an outage.
+            BootstrapLog.VerificationAccountSkipped(
+                app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Pegasus.Bootstrap"),
+                exception);
+        }
+    }));
 }
 
 var localIntakeEnabled = developmentOffline && localIntakeConfigured;
@@ -932,6 +903,16 @@ if (productionProfile)
     forwardedHeadersOptions.KnownIPNetworks.Clear();
     forwardedHeadersOptions.KnownProxies.Clear();
     app.UseForwardedHeaders(forwardedHeadersOptions);
+}
+
+// While the Automation OAuth certificates load (after the port binds), every
+// request but a health or version probe gets 503 and a retry hint. Those probes
+// short-circuit after routing, so they never reach authentication, which builds
+// the token server's options. Absent when the certificates are not read from
+// Key Vault.
+if (app.Services.GetService<OAuthCertificateStore>() is { } oauthCertificates)
+{
+    app.Use(oauthCertificates.Gate);
 }
 
 // Every status code that reaches a browser gets the designed page. Before this,
@@ -993,15 +974,15 @@ if (!intakeSurfaceEnabled)
     });
 }
 
-// The Provider API joins the same absence gates. Answering 404 before routing
+// The Principal API joins the same absence gates. Answering 404 before routing
 // matters: the static-assets fallback owns a GET/HEAD-only catch-all over
 // every file-shaped path, so an uncomposed POST here would otherwise surface
 // as a 405 that discloses the route's shape instead of its absence.
-if (!providerApiEnabled)
+if (!principalApiEnabled)
 {
     app.Use(async (context, next) =>
     {
-        if (context.Request.Path.StartsWithSegments(ProviderApi.BasePath))
+        if (context.Request.Path.StartsWithSegments(PrincipalApi.BasePath))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -1011,7 +992,12 @@ if (!providerApiEnabled)
     });
 }
 
-app.UseHttpsRedirection();
+// The platform's probes reach the instance over plain HTTP on its own port and
+// want a status code, so the health endpoints are never redirected to HTTPS.
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/health"),
+    branch => branch.UseHttpsRedirection());
+app.UseResponseCompression();
 
 app.UseRouting();
 app.Use(async (context, next) =>
@@ -1161,6 +1147,12 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 })
     .AllowAnonymous()
     .ShortCircuit();
+app.MapHealthChecks("/health/warm", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("warm")
+})
+    .AllowAnonymous()
+    .ShortCircuit();
 
 app.MapStaticAssets()
     .AllowAnonymous()
@@ -1169,7 +1161,8 @@ app.MapGet("/diagnostics/version", () => Results.Ok(new
 {
     version = productVersion,
     sourceSha
-})).AllowAnonymous();
+})).AllowAnonymous()
+    .ShortCircuit();
 app.MapPost("/hooks/microsoft-graph/mail", GraphMailWebhook.HandleAsync)
     .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(64 * 1024))
     .AllowAnonymous();
@@ -1179,11 +1172,21 @@ if (automationMcpOptions is not null)
 {
     app.MapPegasusAutomationMcp();
 }
-if (providerApiEnabled)
+if (principalApiEnabled)
 {
-    app.MapPegasusProviderApi();
+    app.MapPegasusPrincipalApi();
 }
 
+startupTimeline.Mark("pipeline built, starting to listen");
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    startupTimeline.Mark("listening");
+    // Information reaches Application Insights only for this category (see
+    // appsettings.json), so the next slow start can be read from telemetry.
+    StartupLog.Phases(
+        app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(StartupTimeline.Category),
+        startupTimeline.Summary());
+});
 app.Run();
 
 
@@ -1196,7 +1199,7 @@ static bool IsMachineSurface(PathString path) =>
     || path.StartsWithSegments("/diagnostics")
     || path.StartsWithSegments(AutomationMcp.McpEndpointPath)
     || path.Equals(AutomationMcp.TokenEndpointPath, StringComparison.OrdinalIgnoreCase)
-    || path.StartsWithSegments(ProviderApi.BasePath);
+    || path.StartsWithSegments(PrincipalApi.BasePath);
 
 /// <summary>
 /// Creates, updates, or removes the disposable UI-verification Administrator.
@@ -1413,6 +1416,18 @@ internal static class BootstrapLog
 
     public static void VerificationAccountSkipped(ILogger logger, Exception exception) =>
         VerificationAccountSkippedMessage(logger, exception);
+}
+
+internal static class StartupLog
+{
+    private static readonly Action<ILogger, string, Exception?> PhasesMessage =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(2, nameof(Phases)),
+            "Web is listening. Startup phases: {Phases}");
+
+    public static void Phases(ILogger logger, string phases) =>
+        PhasesMessage(logger, phases, null);
 }
 
 internal sealed class DevelopmentOfflineAuthenticationHandler(

@@ -36,6 +36,10 @@ public sealed class EfCaseReportDeliveryPreparationStore(
         var request = command.Request;
         CaseReportDeliveryPolicy.RequireStaff(request.Actor);
         var operationKey = ValidateOperationKey(request.OperationKey);
+        request = request with
+        {
+            CoveringMessage = CaseReportDeliveryPolicy.CoveringMessage(request.CoveringMessage)
+        };
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -68,9 +72,9 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             await ArtifactsAsync(context, generation.Id, cancellationToken).ConfigureAwait(false),
             request.Attach);
 
-        // v28 P23: the report's own name and the covering line are read from
-        // the generation this delivery pins and from what the Case has
-        // already sent, then frozen with the rest of the preparation.
+        // v28 P23: the report's own name is read from the generation this
+        // delivery pins and from what the Case has already sent; it is frozen
+        // with the covering message staff reviewed, as submitted.
         var pinned = JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(
             generation.SnapshotJson, SnapshotJsonOptions)
             ?? throw new InvalidDataException(
@@ -93,7 +97,7 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             command.Addressing.Subject,
             command.RecipientSuggestionFingerprint,
             reportFileName,
-            CaseReportDeliveryNaming.Message(command.SendHistory));
+            request.CoveringMessage);
         var payloadJson = JsonSerializer.Serialize(payload, PayloadJsonOptions);
         var payloadHash = HashOf(payloadJson);
 

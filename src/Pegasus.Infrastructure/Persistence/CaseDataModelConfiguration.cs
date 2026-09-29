@@ -54,7 +54,7 @@ internal static class CaseDataModelConfiguration
                     "[ValueType] IN ('text', 'integer', 'date', 'inspection_mode')");
                 table.HasCheckConstraint(
                     "CK_CaseDataFields_SourceKind",
-                    "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup', 'provider_setting', 'provider_api')");
+                    "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup', 'principal_setting', 'principal_api')");
                 table.HasCheckConstraint(
                     "CK_CaseDataFields_Confirmation",
                     "([ValueKind] = 'confirmed' AND [ConfirmedByActor] IS NOT NULL AND [ConfirmedAtUtc] IS NOT NULL) OR "

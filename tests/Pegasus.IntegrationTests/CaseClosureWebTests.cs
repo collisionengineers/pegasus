@@ -35,12 +35,12 @@ public sealed class CaseClosureWebTests
 
         using var closed = await workspace.PostAsync(
             "Closure?handler=Close",
-            workspace.MutationForm("close-case", "Provider withdrew the instruction", ("outcome", "ProviderCancelled")));
+            workspace.MutationForm("close-case", "Principal withdrew the instruction", ("outcome", "PrincipalCancelled")));
         using var reopenedToReview = await workspace.PostAsync(
             "Closure?handler=Reopen",
             workspace.MutationForm(
                 "reopen-review",
-                "Provider reinstated the instruction",
+                "Principal reinstated the instruction",
                 ("destination", "Review"),
                 ("instructionsComplete", "true"),
                 ("imagesComplete", "false"),
@@ -58,12 +58,12 @@ public sealed class CaseClosureWebTests
         AssertPrg(archived, store.CaseId);
 
         var closure = Assert.Single(store.Closures);
-        AssertLeasedMutation(workspace, closure, "close-case", "Provider withdrew the instruction");
-        Assert.Equal(CaseClosureOutcome.ProviderCancelled, closure.Outcome);
+        AssertLeasedMutation(workspace, closure, "close-case", "Principal withdrew the instruction");
+        Assert.Equal(CaseClosureOutcome.PrincipalCancelled, closure.Outcome);
 
         Assert.Equal(2, store.Reopenings.Count);
         var toReview = store.Reopenings[0];
-        AssertLeasedMutation(workspace, toReview, "reopen-review", "Provider reinstated the instruction");
+        AssertLeasedMutation(workspace, toReview, "reopen-review", "Principal reinstated the instruction");
         Assert.Equal(CaseReopenDestination.Review, toReview.Destination);
         Assert.Equal(new CaseReadinessEvidence(true, false, "reopen-evidence-1"), toReview.Readiness);
         var toNotReady = store.Reopenings[1];
@@ -91,7 +91,7 @@ public sealed class CaseClosureWebTests
     [InlineData(CaseLifecycleState.PostReport, true)]
     [InlineData(CaseLifecycleState.PostReportComplete, true)]
     [InlineData(CaseLifecycleState.Query, true)]
-    [InlineData(CaseLifecycleState.ProviderCancelled, false)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, false)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked, false)]
@@ -138,7 +138,7 @@ public sealed class CaseClosureWebTests
             $"/Cases/{store.CaseId:D}/Closure?handler=Close",
             dialog,
             StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("value=\"ProviderCancelled\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("value=\"PrincipalCancelled\"", dialog, StringComparison.Ordinal);
         Assert.Contains("value=\"CollisionEngineersRejected\"", dialog, StringComparison.Ordinal);
         foreach (var unavailable in new[] { "CreatedInError", "SourceEmailUnlinked", "PostReportComplete" })
         {
@@ -202,22 +202,22 @@ public sealed class CaseClosureWebTests
         using var closed = await workspace.PostAsync(
             "Closure?handler=Close",
             workspace.MutationForm(
-                "close-provider-cancelled",
-                "Provider withdrew the instruction",
-                ("outcome", "ProviderCancelled")));
+                "close-principal-cancelled",
+                "Principal withdrew the instruction",
+                ("outcome", "PrincipalCancelled")));
 
         AssertPrg(closed, store.CaseId);
         var closure = Assert.Single(closeCase.Closures);
-        AssertLeasedMutation(workspace, closure, "close-provider-cancelled", "Provider withdrew the instruction");
-        Assert.Equal(CaseClosureOutcome.ProviderCancelled, closure.Outcome);
+        AssertLeasedMutation(workspace, closure, "close-principal-cancelled", "Principal withdrew the instruction");
+        Assert.Equal(CaseClosureOutcome.PrincipalCancelled, closure.Outcome);
 
         // The recorded transition, as the projection then reports it.
-        store.State = CaseLifecycleState.ProviderCancelled;
+        store.State = CaseLifecycleState.PrincipalCancelled;
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains("The selected terminal outcome was recorded.", html, StringComparison.Ordinal);
         Assert.Contains("QDOS3100042", html, StringComparison.Ordinal);
         Assert.Contains(
-            EncodedStage(CaseLifecycleState.ProviderCancelled),
+            EncodedStage(CaseLifecycleState.PrincipalCancelled),
             html,
             StringComparison.Ordinal);
         Assert.DoesNotContain("data-dialog-open=\"case-close-dialog\"", html, StringComparison.Ordinal);
@@ -233,19 +233,19 @@ public sealed class CaseClosureWebTests
     [Theory]
     // The chooser was not answered, or was answered with something that is not
     // one of the named outcomes: neither may fall through to the enum default.
-    [InlineData(CaseLifecycleState.Review, null, "Provider withdrew the instruction")]
-    [InlineData(CaseLifecycleState.Review, "", "Provider withdrew the instruction")]
-    [InlineData(CaseLifecycleState.Review, "99", "Provider withdrew the instruction")]
+    [InlineData(CaseLifecycleState.Review, null, "Principal withdrew the instruction")]
+    [InlineData(CaseLifecycleState.Review, "", "Principal withdrew the instruction")]
+    [InlineData(CaseLifecycleState.Review, "99", "Principal withdrew the instruction")]
     // Each of these is reached through its own action, never through Close.
     [InlineData(CaseLifecycleState.Review, "CreatedInError", "The principal was wrong")]
     [InlineData(CaseLifecycleState.Review, "SourceEmailUnlinked", "The e-mail was unlinked")]
     // Progression, and not from this state.
     [InlineData(CaseLifecycleState.Review, "PostReportComplete", "Post-report work is done")]
     // A closed Case cannot be closed again.
-    [InlineData(CaseLifecycleState.ProviderCancelled, "CollisionEngineersRejected", "Rejected after all")]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, "CollisionEngineersRejected", "Rejected after all")]
     // The reason is required.
-    [InlineData(CaseLifecycleState.Review, "ProviderCancelled", "")]
-    [InlineData(CaseLifecycleState.Review, "ProviderCancelled", "   ")]
+    [InlineData(CaseLifecycleState.Review, "PrincipalCancelled", "")]
+    [InlineData(CaseLifecycleState.Review, "PrincipalCancelled", "   ")]
     public async Task AnIncompleteOrUnavailableClosureNeverReachesTheCommand(
         CaseLifecycleState state,
         string? outcome,

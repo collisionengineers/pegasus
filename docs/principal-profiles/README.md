@@ -1,6 +1,6 @@
 # Principal rules and mappings
 
-The reviewed cross-provider evidence and criteria are held in the versioned
+The reviewed cross-Principal evidence and criteria are held in the versioned
 [principal-identification corpus](../../reference/workproviders-and-repairers/principal-identification-corpus.v1.json).
 It contains one structured Received-and-Sent dossier for every operational
 principal, historical-row dispositions, typed supporting identities, source
@@ -20,9 +20,9 @@ principal has an operator-accepted runtime policy; the structured corpus avoids
 48 speculative Markdown dossiers. Update an existing companion in the same
 task whenever a cited policy version or accepted criterion changes.
 
-Each runtime-policy companion covers, for its provider:
+Each runtime-policy companion covers, for its Principal:
 
-- **Route identification** — how an email is proved to belong to the provider
+- **Route identification** — how an email is proved to belong to the Principal
   (accepted domains, staff-forward unwrapping, effective sender).
 - **Message-type classification** — the exact tells that type a message, and
   the fail-closed behaviour when tells conflict or are absent.
@@ -31,14 +31,14 @@ Each runtime-policy companion covers, for its provider:
 - **Case association** — the accepted predicates that link a message to an
   existing case.
 - **Field extraction** — the label grammar and rules that populate an
-  instruction draft from the provider's documents.
+  instruction draft from the Principal's documents.
 - **Presentation** — display labels and body-cleaning rules specific to the
-  provider's mail shapes.
+  Principal's mail shapes.
 - **Evidence** — which attached/embedded material becomes case evidence.
 
 ## Documents
 
-| Provider | Document |
+| Principal | Document |
 | --- | --- |
 | QDOS (Qdos Assist / Qdos Law) | [qdos.md](qdos.md) |
 

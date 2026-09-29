@@ -25,7 +25,7 @@ public sealed class PrincipalIdentificationCorpusTests
         (SnapshotId(PrincipalMailRoutePolicy.Key, PrincipalMailRoutePolicy.Version), "src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs"),
         (SnapshotId(PrincipalMailClassificationPolicy.Key, PrincipalMailClassificationPolicy.Version), "src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs"),
         (SnapshotId(PrincipalCaseMatchPolicy.Key, PrincipalCaseMatchPolicy.Version), "src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs"),
-        (SnapshotId("qdos-extraction-policy", QdosInstructionExtractionPolicy.Version), "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs"),
+        (SnapshotId("qdos-extraction-policy", QdosInstructionExtractionPolicy.Version), "src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs"),
         ("shared-mail-taxonomy", "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs"),
     ];
 

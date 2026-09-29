@@ -35,7 +35,7 @@ public sealed record OriginalReportReading(
 /// the cell blank rather than guessing.
 ///
 /// Repairable status alone has a second source, the Audit's intake verdict
-/// (the literal "repairable"/"total loss" read, or the Provider API's declared
+/// (the literal "repairable"/"total loss" read, or the Principal API's declared
 /// verdict): it fills when the report printed no outcome at all, and a
 /// disagreement between the two leaves the cell blank.
 ///

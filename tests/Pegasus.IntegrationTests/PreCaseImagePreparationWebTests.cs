@@ -91,8 +91,28 @@ public sealed class PreCaseImagePreparationWebTests
         // The tile draws the recorded region, as a Case tile does; the viewer's
         // link and Open file stay the original.
         Assert.Contains("data-precase-tile=\"prepared\"", afterApply, StringComparison.Ordinal);
-        Assert.Contains($"src=\"{thumbRoute}&amp;v=1\"", afterApply, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("image/jpeg", await ContentTypeAsync(client, thumbRoute + "&v=1"));
+        // The tile's address names the content, the preparation version and
+        // the renderer, so a new crop is a new address.
+        Assert.Contains($"src=\"{thumbRoute}&amp;v=", afterApply, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"&amp;prep=1&amp;renderer={CaseDocumentThumbnails.RendererIdentity}\"",
+            afterApply,
+            StringComparison.Ordinal);
+        Assert.Equal("image/jpeg", await ContentTypeAsync(client, thumbRoute + "&prep=1"));
+        // Only the address naming the current content, preparation and
+        // renderer may be kept by the browser; the old preparation's may not.
+        var hash = await ContentHashAsync(factory, receiptId);
+        var renderer = CaseDocumentThumbnails.RendererIdentity;
+        using (var kept = await client.GetAsync($"{thumbRoute}&v={hash}&prep=1&renderer={renderer}"))
+        {
+            Assert.Equal(TimeSpan.FromDays(7), kept.Headers.CacheControl!.MaxAge);
+            Assert.NotNull(kept.Headers.ETag);
+        }
+        using (var stale = await client.GetAsync($"{thumbRoute}&v={hash}&prep=0&renderer={renderer}"))
+        {
+            Assert.True(stale.Headers.CacheControl!.NoStore);
+            Assert.Null(stale.Headers.ETag);
+        }
         Assert.Equal("image/png", await ContentTypeAsync(client, $"/Received/{receiptId:D}/Asset/{assetId:D}"));
 
         // A stale version is refused and says so above the gallery.
@@ -162,7 +182,7 @@ public sealed class PreCaseImagePreparationWebTests
         Assert.DoesNotContain("data-precase-cropped", afterClear, StringComparison.Ordinal);
         Assert.DoesNotContain("data-precase-tag-chips", afterClear, StringComparison.Ordinal);
         Assert.Contains("data-precase-tile=\"original\"", afterClear, StringComparison.Ordinal);
-        Assert.Equal("image/png", await ContentTypeAsync(client, thumbRoute + "&v=2"));
+        Assert.Equal("image/png", await ContentTypeAsync(client, thumbRoute + "&prep=2"));
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -250,6 +270,15 @@ public sealed class PreCaseImagePreparationWebTests
         using var response = await client.GetAsync(route);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return response.Content.Headers.ContentType?.MediaType;
+    }
+
+    private static async Task<string> ContentHashAsync(IntakeWebApplicationFactory factory, Guid receiptId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        return Assert.IsType<IntakeAssetRecord>(
+            IntakeFileIdentity.SourceAsset(Assert.IsType<IntakeReceipt>(receipt))).ContentHash;
     }
 
     private static async Task<(Guid ItemId, Guid AssetId)> ResolveAsync(IntakeWebApplicationFactory factory, Guid receiptId)

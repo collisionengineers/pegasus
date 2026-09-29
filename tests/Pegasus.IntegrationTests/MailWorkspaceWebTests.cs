@@ -2216,8 +2216,8 @@ public sealed class MailWorkspaceWebTests
         var html = await GetHtmlAsync(client, "/Inbox");
 
         Assert.Contains("href=\"/Inbox\"", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/Operations\"", html, StringComparison.Ordinal);
-        Assert.Contains(">Operations<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/Operations\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Operations<", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -2781,7 +2781,7 @@ public sealed class MailWorkspaceWebTests
                 Assets: [],
                 MailRouteDecision: new(
                     MailRouteDisposition.Accepted,
-                    new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+                    new("QDOS", MailRouteKind.DirectPrincipal, "QDOS"),
                     [],
                     "Fixture accepted route.",
                     "qdos_mail_route",

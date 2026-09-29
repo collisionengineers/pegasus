@@ -277,17 +277,23 @@ is still a confirmed artifact, byte for byte.
 people who read it — the Case's reference, the vehicle's registration and the
 outcome — and one dot is added for each report of this Case already sent, so
 a re-issue is distinguishable at a glance. Companion documents keep the names
-custody gave them. The delivery carries one covering line: a first report
-reads "Please find attached our report."; a later one says plainly that it
-supersedes the report dated the day the superseded generation carried. The
-report's name and the covering line are frozen with the preparation, so what
-was reviewed is what is sent, and custody keeps its own name for the same
-bytes. A send is a staff send that actually left the approved mailbox; a
-prepared-but-unsent delivery is not one.
+custody gave them. The delivery carries one covering message, which starts as
+the Case report delivery template
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
+this Case: a first report has no "supersedes" line; a later one says plainly
+that it supersedes the report dated the day the superseded generation carried.
+Before Prepare delivery, staff read the message in an editable box and may
+change it. Prepare delivery freezes the text they submit, which cannot be blank
+or longer than 5000 characters. The report's name and that message are frozen
+with the preparation, so what was reviewed is what is sent. Send uses only the
+frozen message, and custody keeps its own name for the same bytes. A send is a
+staff send that actually left the approved mailbox; a prepared-but-unsent
+delivery is not one. The subject stays the Case or Audit reference.
 
 **Report and fee note.** They are separately addressable files in custody.
 The operator generating the report chooses whether the fee note is a separate
-document or the report's final pages. The snapshot records that choice, so a
+document or the report's final pages, with the Include fee note choice beside
+Generate report (issue 912). The snapshot records that choice, so a
 combined report is one file under the report's name and reproduces the same
 way. A later request for a separate fee note names the current confirmed,
 non-stale generation and adds the fee note from that generation's frozen
@@ -340,7 +346,10 @@ handler claims the Case's edit lease for the one generation and releases it;
 a colleague's live lease refuses it. In edit mode Generate saves the Case
 first. It uses the accepted saved facts and the snapshot above, and retains
 versioned report and fee-note files, their custody outcome and history. A
-generated file is not approval, sending or receipt.
+generated file is not approval, sending or receipt. Generate for a companion
+document of the confirmed generation — the separate fee note, the Repair Spec
+and the images — is offered the same way, in or out of edit mode, with the
+same one-off lease (operator, 28 September 2026, issue 912).
 
 **After Generate report** (operator, 27 September 2026). A report that was
 generated and stored opens in the Case page's document viewer by itself,
@@ -376,7 +385,7 @@ report, the fee note, the Repair Spec or the images.
 | Box could not be reached or written to | "The report could not be stored in Box just now." |
 | The report was refused | The refusal's own reason |
 | Storing failed, or any other fault | "The report could not be generated." |
-| Generate report was pressed over unsaved changes and the saved Case no longer offers it | "The report is not ready after the save. The Report section lists what is missing." |
+| Generate report was pressed over unsaved changes and the saved Case no longer offers it | "The report is not ready after the save." |
 
 A fee-note preview shows the recorded fee and description without saving
 anything. Native Hand to Engineer opens engineering work without an EVA
@@ -390,7 +399,13 @@ on a page of its own (v28 P41). An image fills its frame: it is trimmed to
 the frame's shape after the Engineer's own crop and rotation. Every image
 the Engineer includes prints, whatever their number or source file size,
 each as a print-resolution copy; the retained source is unchanged (operator,
-24 September 2026).
+24 September 2026). The renderer opens one source image at a time, when it
+prints that image, and lets it go before the next, so a long report does not
+hold every source at once. A large PNG is read a row at a time and averaged
+down, so it is never held whole at full size. An image is never refused for its
+size. A render that outlives its caller is told to stop and keeps its place in
+the renderer's admission until it has, so abandoned renders cannot add to the
+queue (issue 850).
 
 A report generated without an overridden report date is dated the day it was
 generated, and that date is written into the Case's own record so the screen
@@ -522,7 +537,11 @@ the selected VAT categories still govern the calculation.
 An `Unknown` status does block the report (operator, 27 September 2026). With
 no status recorded, the report would understate the repair cost. The blocker
 is named Repairer VAT status. Staff clear it on Repair Spec by choosing
-Registered or Not registered.
+Registered or Not registered. VAT categories nobody chose by hand follow the
+status, so choosing one charges what that status charges (operator, 28
+September 2026). One edge is accepted: an operator who changes the status and
+then ticks the categories back to exactly the saved set is read as having
+left them alone, so on Save they follow the new status.
 
 The report words its VAT row as the template does. The percentage shown is
 the estimate's own.
@@ -535,6 +554,12 @@ the estimate's own.
 Any other hand-picked set of VAT categories blocks the report, because no
 accepted wording exists for it. Staff clear it on Repair Spec with Reset to
 repairer status.
+
+Where the viewer can edit the Repair Spec, both blockers' links in the Next
+action's blocker list open it for editing on the Current
+spec and put the focus on the control that clears the blocker: Repairer VAT
+status for an unknown status, Reset to repairer status for a hand-picked set
+(operator, 28 September 2026). Otherwise they jump to the section.
 
 On a rendered report, VAT is `Taxable × VatPercent / 100`, where Taxable is
 the selected discounted Labour, Parts, Materials and Specialist categories.

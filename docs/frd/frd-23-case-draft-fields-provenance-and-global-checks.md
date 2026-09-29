@@ -35,16 +35,16 @@ MOT mileage estimate and inspection address by
 ### Field provenance and value kinds
 
 Each Case datum keeps its current provenance: staff entry, extraction, AI
-prefill or proposal, provider API, or another external vehicle or estimate
+prefill or proposal, Principal API, or another external vehicle or estimate
 source, with its identity, version, and time. The UI shows provenance without
 treating it as confirmation: one word in a source tag beside the value
-(Extracted, AI, E-mail, Lookup, Principal, Automatic, Provider API), and no tag
+(Extracted, AI, E-mail, Lookup, Principal, Automatic, Principal API), and no tag
 on a value staff typed or corrected. A derived value names its inputs and
 calculation rather than claiming a raw source.
 
 Each datum also carries a value kind (Fact, Suggestion, or Confirmed) and a
 source kind (intake evidence, mail route, case acceptance, staff correction,
-vehicle lookup, provider setting, or Provider API). `work_provider_code`
+vehicle lookup, Principal setting, or Principal API). `principal_code`
 names the Principal for match indexing and EVA export. It is Confirmed with
 source kind case acceptance when staff acceptance names the Principal (see
 [Ways intake starts](frd-02-intake-and-source-identity.md#ways-intake-starts)),
@@ -61,7 +61,7 @@ applies: vehicle identity and specification, vehicle history and risk, and
 market valuation. All three results, or their recorded exceptions, are
 required before the Case can enter Review and appear in the Engineers queue.
 An authorised staff reviewer may record an exception as a named, reasoned
-Case action in permanent history. Provider and route policy choose the
+Case action in permanent history. Principal and route policy choose the
 provider, the required result, the acceptable provenance, and the
 unavailable or failure behaviour for each check. This requirement names no
 provider.
@@ -91,7 +91,7 @@ Capture:
 
 | Field | Rule |
 | --- | --- |
-| Work Provider | Also called the Principal. |
+| Principal | Named `Work Provider` in the EVA export. |
 | Claimant Name | From the instruction. |
 | Claim Number | The Principal's external reference. |
 | Vehicle Registration | The VRM. |
@@ -106,7 +106,7 @@ Capture:
 The Case's instruction date is its Received date (operator, 24 September
 2026): the Europe/London date its instruction was received, or the date
 staff created the Case directly. It is not read from the instruction,
-entered by staff or stated over the Provider API, and there is no separate
+entered by staff or stated over the Principal API, and there is no separate
 instruction-date field. EVA's `Instruction Date`
 ([FRD-07](frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff))
 and the date the report says instructions were received

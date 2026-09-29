@@ -49,20 +49,17 @@ public sealed class InspectionAddressChoicesPersistenceTests
         var services = verificationScope.ServiceProvider;
         var projection = await services.GetRequiredService<ICaseDataQueries>()
             .GetAsync(currentId, CaseWorkSelector.Current, CancellationToken.None);
-        var choices = await services.GetRequiredService<IInspectionAddressChoicesQueries>()
-            .GetAsync(currentId, CaseWorkSelector.Current, CancellationToken.None);
+        var previous = await services.GetRequiredService<IInspectionAddressChoicesQueries>()
+            .GetPreviousAddressesAsync(currentId, CancellationToken.None);
 
         Assert.Equal("14 Storage Lane", projection?.Inspection.StorageLocation?.Confirmed?.Value);
         Assert.Equal(
             CaseDataSourceKind.StaffCorrection,
             projection?.Inspection.StorageLocation?.Confirmed?.Source.Kind);
-        Assert.NotNull(choices);
-        Assert.Null(choices.RepairerAddress);
-        Assert.Equal(["2 Newer Avenue", "1 previous street"], choices.PreviousAddresses);
-        Assert.DoesNotContain("99 Current Road", choices.PreviousAddresses);
-        Assert.DoesNotContain(
-            Ext18InspectionAddressPolicy.ImageBasedAssessment,
-            choices.PreviousAddresses);
+        Assert.Null(projection?.Inspection.RepairerAddress?.Current?.Value);
+        Assert.Equal(["2 Newer Avenue", "1 previous street"], previous);
+        Assert.DoesNotContain("99 Current Road", previous);
+        Assert.DoesNotContain(Ext18InspectionAddressPolicy.ImageBasedAssessment, previous);
     }
 
     [Fact]

@@ -193,21 +193,6 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
-    public async Task AiJobsShowsUnavailableWhenTheHostDidNotComposeAHandOffTransport()
-    {
-        // The default test composition carries the persistent switch but no
-        // DevelopmentOffline Send-to-AI transport, matching a production host
-        // where the preview capability is absent.
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        var html = await client.GetStringAsync("/Administration/AiJobs");
-
-        Assert.Contains("Unavailable", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("· Active</span>", html, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task ActionLogsSelectPeopleByDisplayNameAndKeepAdministrationDiagnostics()
     {
         var now = DateTimeOffset.UtcNow;
@@ -324,7 +309,7 @@ public sealed class AdministrationSearchAccountWebTests
         // An AI job's recorded aggregate is the job, so the Reference column
         // alone would print a bare identifier. It resolves to the record the
         // job names, which is what makes this view the readable AI history
-        // behind the Operations board (FRD-27 § AI Job List).
+        // behind the Work Centre's AI jobs (FRD-27 § AI Job List).
         Assert.Contains($"/Unidentified/{subjectId:D}", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(">U777</a>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(jobId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);

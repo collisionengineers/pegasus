@@ -16,7 +16,7 @@ namespace Pegasus.Core.Intake;
 public sealed class AcceptIntake(
     ICaseAcceptanceStore acceptanceStore,
     ICaseWorkflowConfiguration configuration,
-    IProviderInspectionModeStore inspectionModeStore,
+    IPrincipalInspectionModeStore inspectionModeStore,
     ICommittedExternalWorkPublisher committedExternalWorkPublisher,
     ITriageCasePairing triageCasePairing,
     IImageIntakeCasePairing? imageIntakeCasePairing = null,
@@ -78,7 +78,7 @@ public sealed class AcceptIntake(
         var completenessEvaluation = CaseCompletenessPolicy.EvaluateAcceptanceCommand(
             request.Completeness,
             await configuration.GetCurrentAsync(cancellationToken));
-        var providerInspectionMode = await inspectionModeStore.GetForPrincipalAsync(
+        var principalInspectionMode = await inspectionModeStore.GetForPrincipalAsync(
                 principalCode,
                 cancellationToken)
             ?? CaseInspectionMode.PhysicalAddress;
@@ -92,7 +92,7 @@ public sealed class AcceptIntake(
             principalCode,
             request.Completeness,
             completenessEvaluation,
-            providerInspectionMode,
+            principalInspectionMode,
             request.StandaloneAuditEvidenceId,
             request.AcceptedInspectionDeadline,
             request.AllocationAttemptId,

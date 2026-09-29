@@ -14,11 +14,10 @@ namespace Pegasus.Web.Pages.Administration.Automation;
 /// </summary>
 /// <remarks>
 /// The Automation client registration is gated composition, so when this
-/// deployment does not carry either capability, the direct route reports that
-/// Automation and AI configuration are unavailable. The AI settings panel has
-/// one Save, as the design authority specifies, and it drives the three Core
-/// operations behind it — connector bounds, channel token, and the outbound
-/// switch — each of which still writes its own attributed history.
+/// deployment does not carry it, the direct route reports that Automation and
+/// AI configuration are unavailable. The AI settings panel has one Save and
+/// drives the one Core operation behind it, the Send to AI switch, which
+/// writes its own attributed history.
 /// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel : AdministrationPageModel
@@ -38,15 +37,7 @@ public sealed class IndexModel : AdministrationPageModel
 
     public bool SendToAiEnabledNow { get; private set; }
 
-    /// <summary>
-    /// The connector's recorded settings, and the page's one test for whether
-    /// Send to AI is composed at all: <c>AddPegasusSendToAi</c> registers this
-    /// store and <see cref="ISendCaseToAi"/> together, so a null here means the
-    /// whole capability is absent from this deployment.
-    /// </summary>
-    public AiChannelConnectorSettings? ConnectorSettings { get; private set; }
-
-    public bool IsComposed => Status is not null || ConnectorSettings is not null;
+    public bool IsComposed => Status is not null;
 
     [BindProperty]
     public bool TargetEnabled { get; set; }
@@ -57,18 +48,6 @@ public sealed class IndexModel : AdministrationPageModel
 
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
-
-    [BindProperty]
-    [StringLength(200)]
-    public string? ChannelAddress { get; set; }
-
-    [BindProperty]
-    [Range(AiChannelConnectorRules.MinimumTimeoutSeconds, AiChannelConnectorRules.MaximumTimeoutSeconds)]
-    public double? ChannelTimeoutSeconds { get; set; }
-
-    [BindProperty]
-    [StringLength(200)]
-    public string? NewChannelToken { get; set; }
 
     /// <summary>The AI settings panel's enabled checkbox.</summary>
     [BindProperty]
@@ -124,10 +103,9 @@ public sealed class IndexModel : AdministrationPageModel
     }
 
     /// <summary>
-    /// The AI settings panel's one Save: connector address and timeout, the
-    /// channel token when a replacement was entered, and the outbound switch
-    /// when the checkbox differs from the stored state — so a save that
-    /// changes nothing about the switch writes no switch history.
+    /// The AI settings panel's one Save: the Send to AI switch, written only
+    /// when the checkbox differs from the stored state, so a save that
+    /// changes nothing writes no switch history.
     /// </summary>
     public async Task<IActionResult> OnPostSaveAiSettingsAsync(CancellationToken cancellationToken)
     {
@@ -137,51 +115,17 @@ public sealed class IndexModel : AdministrationPageModel
         }
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
-        var store = ConnectorStore();
-        if (store is null)
+        if (Registry() is null)
         {
-            ModelState.AddModelError(string.Empty, "Sending to AI is not available.");
+            ModelState.AddModelError(string.Empty, "Automation is not available.");
         }
         if (!IsOperationKeyValid(OperationKey))
         {
             ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         }
-        var channelAddress = string.IsNullOrWhiteSpace(ChannelAddress) ? null : ChannelAddress.Trim();
-        if (channelAddress is not null
-            && !AiChannelConnectorRules.TryParseBaseUrl(channelAddress, out _))
-        {
-            ModelState.AddModelError(
-                nameof(ChannelAddress),
-                "Enter the connector address exactly as supplied, without a path or query.");
-        }
-        var newChannelToken = string.IsNullOrWhiteSpace(NewChannelToken) ? null : NewChannelToken;
-        if (newChannelToken is not null && !AiChannelConnectorRules.IsValidToken(newChannelToken))
-        {
-            ModelState.AddModelError(
-                nameof(NewChannelToken),
-                "The channel token must be at least 32 characters.");
-        }
 
-        if (ModelState.IsValid && store is not null)
+        if (ModelState.IsValid)
         {
-            var connector = await store.GetAsync(cancellationToken);
-            if (!string.Equals(
-                    connector.ChannelBaseUrl,
-                    channelAddress,
-                    StringComparison.Ordinal)
-                || connector.TimeoutSeconds != ChannelTimeoutSeconds)
-            {
-                await store.UpdateAsync(
-                    new(actor, Reason, OperationKey, channelAddress, ChannelTimeoutSeconds),
-                    cancellationToken);
-            }
-            if (newChannelToken is not null)
-            {
-                await store.RotateTokenAsync(
-                    new(actor, Reason, OperationKey, newChannelToken),
-                    cancellationToken);
-            }
-
             var control = HttpContext.RequestServices.GetRequiredService<ISendToAiControl>();
             if (await control.IsEnabledAsync(cancellationToken) != SendToAiEnabled)
             {
@@ -194,42 +138,6 @@ public sealed class IndexModel : AdministrationPageModel
             }
 
             TempData["AdministrationStatus"] = "AI settings saved.";
-            return RedirectToPage();
-        }
-
-        NewChannelToken = null;
-        await LoadAsync(actor, cancellationToken);
-        return Page();
-    }
-
-    /// <summary>
-    /// Removes the administration-entered channel token, returning the
-    /// connector to the configured one. Reached through the reason dialog.
-    /// </summary>
-    public async Task<IActionResult> OnPostClearChannelTokenAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
-        var store = ConnectorStore();
-        if (store is null)
-        {
-            ModelState.AddModelError(string.Empty, "Sending to AI is not available.");
-        }
-        if (!IsOperationKeyValid(OperationKey))
-        {
-            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        }
-
-        if (ModelState.IsValid && store is not null)
-        {
-            await store.RotateTokenAsync(
-                new(actor, Reason, OperationKey, NewToken: null),
-                cancellationToken);
-            TempData["AdministrationStatus"] = "Channel token removed.";
             return RedirectToPage();
         }
 
@@ -248,24 +156,15 @@ public sealed class IndexModel : AdministrationPageModel
             JobCounts = await HttpContext.RequestServices
                 .GetRequiredService<IAiJobQueries>()
                 .GetCountsAsync(cancellationToken);
-        }
-
-        var connectorStore = ConnectorStore();
-        ConnectorSettings = connectorStore is null
-            ? null
-            : await connectorStore.GetAsync(cancellationToken);
-        SendToAiEnabledNow = ConnectorSettings is null
-            ? false
-            : await HttpContext.RequestServices
+            SendToAiEnabledNow = await HttpContext.RequestServices
                 .GetRequiredService<ISendToAiControl>()
                 .IsEnabledAsync(cancellationToken);
+        }
+
         // The kill-switch form does not post this checkbox. Seed it from the
         // stored state; ModelState still wins for a redisplayed AI settings form.
         SendToAiEnabled = SendToAiEnabledNow;
     }
-
-    private IAiChannelConnectorStore? ConnectorStore() =>
-        HttpContext.RequestServices.GetService<IAiChannelConnectorStore>();
 
     private AutomationClientRegistry? Registry() =>
         HttpContext.RequestServices.GetService<AutomationClientRegistry>();

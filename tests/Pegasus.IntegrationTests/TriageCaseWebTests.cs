@@ -278,47 +278,6 @@ public sealed partial class TriageCaseWebTests
         await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
     }
 
-    /// <summary>
-    /// The Triage Case's Files header carries the Case Files header's Open
-    /// Operations, and Operations lists its failed custody job with the retry
-    /// any Case's failed job has.
-    /// </summary>
-    [Fact]
-    public async Task AFailedTriageCaseCustodyIsListedAndRetriedOnOperations()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var triage = await CreateManualTriageAsync(factory.Services, "operations-triage");
-        var workId = await PoisonCustodyAsync(factory.Services, triage.CaseId);
-
-        var files = FilesSection(await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}"));
-        Assert.Contains(
-            Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.OpenOperations,
-            files,
-            StringComparison.Ordinal);
-        Assert.Contains("href=\"/Operations\"", files, StringComparison.OrdinalIgnoreCase);
-
-        await using var scope = factory.Services.CreateAsyncScope();
-        var services = scope.ServiceProvider;
-        var operations = await services.GetRequiredService<IRequestOperationsProjectionStore>().GetAsync(
-            100,
-            services.GetRequiredService<TimeProvider>().GetUtcNow(),
-            CancellationToken.None);
-        var listed = Assert.Single(operations.Items, item => item.Id == workId);
-        Assert.Equal(triage.CaseId, listed.CaseId);
-        Assert.Equal(triage.Reference, listed.CaseReference);
-        Assert.True(listed.CanRetry);
-
-        var retried = await services.GetRequiredService<RetryExternalWork>().ExecuteAsync(
-            new(
-                workId,
-                listed.AttemptCount ?? 0,
-                ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
-                "operations-triage-retry"),
-            CancellationToken.None);
-        Assert.False(retried.IsReplay);
-    }
-
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task AnIntakeTriageCaseRetainsItsSourceInStandardCaseCustody()
@@ -407,7 +366,7 @@ public sealed partial class TriageCaseWebTests
         {
             await context.CaseWorkflows.Where(item => item.CaseId == inspection.CaseId)
                 .ExecuteUpdateAsync(update => update.SetProperty(
-                    item => item.State, nameof(CaseLifecycleState.ProviderCancelled)));
+                    item => item.State, nameof(CaseLifecycleState.PrincipalCancelled)));
         }
         var workflow = Assert.IsType<CaseWorkflowRecord>(await services.GetRequiredService<ICaseWorkflowQueries>()
             .GetAsync(inspection.CaseId, CancellationToken.None));
@@ -429,7 +388,7 @@ public sealed partial class TriageCaseWebTests
 
         Assert.Equal(inspection.CaseId, (await GetReceiptAsync(services, caseReceiptId)).CurrentCaseId);
         Assert.Equal(
-            CaseLifecycleState.ProviderCancelled,
+            CaseLifecycleState.PrincipalCancelled,
             Assert.IsType<CaseWorkflowRecord>(await services.GetRequiredService<ICaseWorkflowQueries>()
                 .GetAsync(inspection.CaseId, CancellationToken.None)).State);
     }

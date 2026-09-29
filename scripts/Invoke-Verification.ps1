@@ -136,7 +136,7 @@ if ($flags.LocalDevelopment) {
     Invoke-Step 'LocalDB lifecycle classifier tests' { & (Join-Path $PSScriptRoot 'Test-PegasusPlatform.ps1') }
 }
 if ($flags.ReferenceData) {
-    Invoke-Step 'Provider-reference generator tests' {
+    Invoke-Step 'Principal-reference generator tests' {
         Push-Location $repositoryRoot
         try { python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py' }
         finally { Pop-Location }

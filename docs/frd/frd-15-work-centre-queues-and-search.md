@@ -1,6 +1,6 @@
-# FRD-15: Work Centre, queues, search and Operations
+# FRD-15: Work Centre, queues and search
 
-> Owner capabilities: TRI-08, UI-01 to UI-07, UI-18, UI-19 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: TRI-08, UI-02 to UI-07, UI-18, UI-19 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -10,16 +10,15 @@
   never `0`.
 - `/Cases` is one page of queues grouped as Workflow, Pre-Case work and
   Exceptions. Each queue keeps its own row shape.
-- `/Search` is the advanced search. `/Operations` shows AI jobs, retryable
-  failures and EVA handoffs.
+- `/Search` is the advanced search.
 - Due dates are calendar days at midnight Europe/London. Targets are
   settings; the day rules are not.
 
 ## Purpose
 
 This document says how staff find the work that needs a person: the Work
-Centre, the Cases queues, the pre-Case records, the Triage Case page, Search,
-Operations and the freshness rules every count follows. Page shell and
+Centre, the Cases queues, the pre-Case records, the Triage Case page, Search
+and the freshness rules every count follows. Page shell and
 navigation are owned by [FRD-12](frd-12-operator-experience.md). The Case
 record is owned by [FRD-16](frd-16-case-record-workspace.md).
 
@@ -63,6 +62,7 @@ and has a due instant:
 | Held | A held Case awaiting its decision | The end of the hold's Review on date, else Held decision target after the hold was placed |
 | Review | A Case in Review | Review target after it entered Review |
 | Unassigned | A Case in Review with no Engineer | Review target after it entered Review |
+| Vehicle images paired | A pre-report Case its early vehicle images paired into, not changed by staff since ([FRD-19](frd-19-image-led-intake-and-pairing.md#age-and-chase-state)) | The pairing |
 | Unidentified | An open Unidentified item | Unidentified target after it was received |
 | Triage | A Triage Case without a finding | Triage target after it opened |
 | AI draft | An AI job in Draft ready, except Market research | AI draft target after the draft was written |
@@ -80,16 +80,18 @@ rules are fixed, not settings:
   date.
 
 Failed external work (custody, vehicle lookup, intake OCR) is never a Needs
-attention item. It is on Operations, whose rail badge counts retryable
-failed external work. Where a failure blocks a person's work, the record says
-so where it is used ("Lookup failed", "Storage not ready").
+attention item. Where a failure blocks a person's work, the record says so
+where it is used ("Lookup failed", "Storage not ready"), and a failed custody
+job is retried in the Case's Custody page. Intake OCR and allocation retries
+are on Administration Logs. Service health, Administration only, states the
+external-work queue.
 
 **Office, Mine, kinds and Find.** The section's toolbar carries the Office /
 Mine switch and **Find in Needs attention**. Office is every item. Mine is
 the items the signed-in person owns plus unowned items of kinds they can
 take. Every staff role opens on Office, and the choice is remembered per
-browser. **Kind chips** (Case, Held, Review, Unassigned, Unidentified,
-Triage, AI draft) filter the list, several at once. Each chip shows its count
+browser. **Kind chips** (Case, Held, Review, Unassigned, Vehicle images
+paired, Unidentified, Triage, AI draft) filter the list, several at once. Each chip shows its count
 over the whole scope before any filter. Find narrows the scoped list by a
 case-insensitive match on the row's reference, title, detail (principal,
 sender or instruction) and owner, before paging; Enter applies it and the
@@ -112,14 +114,15 @@ kind, a chip only when Overdue (red, with how late) or Due today (amber), the
 title, its facts (reference, subject, principal or sender or instruction,
 owner, due, received) and a next action that does the action. Choosing the
 open task again closes it; nothing opens by itself. Assign Engineer opens the
-assignment dialog on the Work Centre. Review Case opens the Case. Open Triage
-opens the Triage Case page. An AI draft offers its per-kind action. **Assign
+assignment dialog on the Work Centre. Review Case opens the Case, and so
+does Open Case on a Vehicle images paired item. Open Triage opens the Triage
+Case page. An AI draft offers its per-kind action. **Assign
 to me** is offered to every enabled staff role on an Unassigned item and on
 a Triage item without an assignee, where Core would accept it.
 
 **New cases.** Every Case except a Triage Case created in the last 7 calendar
 days, newest first, whatever created it: reference, registration, claimant,
-principal and an arrival chip (Manual, E-mail, Provider API, Automation). A
+principal and an arrival chip (Manual, E-mail, Principal API, Automation). A
 "Since you last looked" divider marks what is new for this person. Opening the
 Work Centre records the look. A change the Automation actor makes to an
 existing Case appears as a "Changed by automation" row naming the change. The
@@ -132,7 +135,8 @@ record, who started it and when, then the lease expiry or failure reason and
 the Draft ready action defined per kind in
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
 (Review estimate, Open query, Review, Complete job). A failed job shows its
-reason with Open Case. Cancel stays on Operations.
+reason with Open Case. There is no Cancel here; an Administrator stops a job
+on Administration AI jobs.
 
 ### Cases: queues and filters
 
@@ -164,7 +168,7 @@ Each queue keeps its own row shape:
   registration, whether or not it has an Audit;
 - an Awaiting-instruction row: Image reference, registration, file count and
   custody;
-- a Triage row: `t.` Case/PO, registration, provider and assignee;
+- a Triage row: `t.` Case/PO, registration, Principal and assignee;
 - an Unidentified row: the U-reference, kind, a handle the operator will
   recognise (the original filename, or the e-mail subject and sender, never
   an internal identifier), received date and time, and the canonical reason.
@@ -172,7 +176,12 @@ Each queue keeps its own row shape:
 Awaiting-instruction rows select their quick detail. Every other row links
 straight to its full detail. Selecting a row shows a quick detail. For a
 Case that is its origin, compact workflow position, outstanding requirements
-and current work (due, Engineer, next action), with Open full Case. For other
+and current work, with Open full Case. Current work is the Case's Next action,
+the step the Case record's aside names (a report blocker, Generate report,
+Prepare delivery and so on), never the chase schedule's state; beside it stand
+the Engineer and the due. A Case's due is one instant everywhere it shows, on
+the list, the quick detail and Search: its Case chase due instant from the
+table above, dated by the day it falls due (operator, 28 September 2026). For other
 kinds it is the definition list and the open action, with Add to an existing
 case on an Awaiting-instruction record. A Triage row's open action, **Open
 Triage**, opens the Triage Case page at `/Cases/{id}`.
@@ -199,6 +208,9 @@ bounded detail. Its actions are:
 - **Create case**, from its receipt;
 - **Register images**, the registration prefilled from an agreeing reading,
   with a reason;
+- **Send Unidentified to AI**, while the item is open: queues one
+  Unidentified-resolution AI job for that item
+  ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
 - **Close with reason**, free text.
 
 Where Core allows it the record also offers **Open the Triage**, which
@@ -290,7 +302,7 @@ gate. Server-side transitions stay reachable where a handler exists.
 ### Search
 
 `/Search` carries the `UI-07` filters: Case/PO or Image reference,
-Registration, Claimant, Claim/provider reference, Principal, State, Engineer,
+Registration, Claimant, Claim/Principal reference, Principal, State, Engineer,
 Received from/to and Origin, with Search and Clear. Results are one table
 (Case/PO and Our ref, vehicle, claimant, principal, type, state, due).
 Pointer or keyboard intent on a row shows a selected-Case preview beside the
@@ -311,28 +323,6 @@ Paging counts Cases, so a page may hold more entries than its size.
 **Triage Cases.** Search finds a Triage Case by its `t.` Case/PO and by
 registration. Its row shows the Triage state, never a Case state, and opens
 the Triage Case page.
-
-### Operations
-
-`/Operations` shows these, with a partial-data notice when any query is not
-current:
-
-- the **AI Job List** (`AI-10`): kind, record, started by, created, state,
-  next action, Send Unidentified to AI. Started by names the staff username
-  or the Automation client name, resolved the same way Action logs does,
-  never a raw subject identifier;
-- **Attention required**: retryable external work with attempts, failure and
-  Retry. For Administrators it also lists failed intake, each received file
-  under its failure kind (Allocation failed, OCR failed, Processing failed),
-  offering only its own action (Retry allocation, Retry OCR or
-  Re-evaluate), each with a reason, through the Logs handlers
-  ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions));
-- **EVA handoffs**: route, Engineer, state, result.
-
-Operations is open to Engineers and Users. Its rail badge counts retryable
-failed external work and is absent at zero. Service health is
-Administration-only. Operations has no service health table; its one-line
-partial-data notice links to Administration Service health.
 
 ### Dashboard freshness and reconciliation
 
@@ -392,7 +382,7 @@ tiers ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `TRI-08`, `UI-01`–`UI-07`, `UI-18`, `UI-19` in
+- Capabilities: `TRI-08`, `UI-02`–`UI-07`, `UI-18`, `UI-19` in
   [capabilities](../capabilities.md). `AI-10`
   stays with [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),

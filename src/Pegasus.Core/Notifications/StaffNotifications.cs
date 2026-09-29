@@ -130,8 +130,8 @@ public static class StaffNotificationPolicy
     /// Where an AI draft opens, per kind: Estimate at the Case's Repair Spec section,
     /// Query response at the message it answers when the job names one, otherwise
     /// the Case's correspondence, Unidentified resolution at the item. The Work
-    /// Centre, the Case's Next action, draft notifications and the Operations AI
-    /// Job List all open this route. Market research and the queue pass raise
+    /// Centre, the Case's Next action and draft notifications all open this
+    /// route. Market research and the queue pass raise
     /// nothing (null).
     /// </summary>
     public static string? AiDraftRoute(AiJobRecord job)

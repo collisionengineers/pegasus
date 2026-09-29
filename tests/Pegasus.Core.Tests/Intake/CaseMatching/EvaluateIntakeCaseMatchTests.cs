@@ -16,7 +16,7 @@ public sealed class EvaluateIntakeCaseMatchTests
     /// and no second decision procedure exist.
     /// </summary>
     [Fact]
-    public async Task DeclaredIdentityUsesTheProvidersExistingNormalizationAndEliminator()
+    public async Task DeclaredIdentityUsesThePrincipalsExistingNormalizationAndEliminator()
     {
         var derived = new CaseMatchIndexKeys("12345/1", "AB12CDE", "SMITH", "J", null);
         var policy = new StubPolicy(Keys()) { DerivedKeys = derived };
@@ -86,7 +86,7 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task APrincipalWithNoCaseMatchPolicyProducesNoDeclaredDecision()
     {
         var sut = new EvaluateIntakeCaseMatch(
-            [new StubPolicy(Keys()) { Provider = "PCH" }],
+            [new StubPolicy(Keys()) { Principal = "PCH" }],
             new StubQueries([]));
 
         Assert.Null(await sut.ExecuteDeclaredAsync(
@@ -107,15 +107,15 @@ public sealed class EvaluateIntakeCaseMatchTests
     }
 
     [Fact]
-    public async Task ProviderWithoutAnAcceptedPolicyProducesNoDecision()
+    public async Task PrincipalWithoutAnAcceptedPolicyProducesNoDecision()
     {
         var sut = new EvaluateIntakeCaseMatch(
-            [new StubPolicy(Keys(claim: "12345/1")) { Provider = "PCH" }],
+            [new StubPolicy(Keys(claim: "12345/1")) { Principal = "PCH" }],
             new StubQueries([]));
 
         var result = await sut.ExecuteAsync(
             Readable(),
-            Route(MailRouteDisposition.Accepted, new("QDOS", MailRouteKind.DirectProvider, "QDOS")),
+            Route(MailRouteDisposition.Accepted, new("QDOS", MailRouteKind.DirectPrincipal, "QDOS")),
             CancellationToken.None);
 
         Assert.Null(result);
@@ -415,7 +415,7 @@ public sealed class EvaluateIntakeCaseMatchTests
     [InlineData(CaseLifecycleState.Held)]
     [InlineData(CaseLifecycleState.PostReport)]
     [InlineData(CaseLifecycleState.PostReportComplete)]
-    [InlineData(CaseLifecycleState.ProviderCancelled)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     public async Task EveryLifecycleStateExceptCreatedInErrorRemainsEligible(
         CaseLifecycleState state)
@@ -441,7 +441,7 @@ public sealed class EvaluateIntakeCaseMatchTests
             Readable(),
             route ?? Route(
                 MailRouteDisposition.Accepted,
-                new("QDOS", MailRouteKind.DirectProvider, "QDOS")),
+                new("QDOS", MailRouteKind.DirectPrincipal, "QDOS")),
             CancellationToken.None);
     }
 
@@ -481,10 +481,10 @@ public sealed class EvaluateIntakeCaseMatchTests
     private static IntakeSourceReadResult Readable() =>
         new(IntakeSourceReadStatus.Readable, [], [], [], false);
 
-    private sealed class StubPolicy(CaseMatchKeys keys) : IProviderCaseMatchPolicy
+    private sealed class StubPolicy(CaseMatchKeys keys) : IPrincipalCaseMatchPolicy
     {
-        public string Provider { get; init; } = "QDOS";
-        public string WorkProviderCode => Provider;
+        public string Principal { get; init; } = "QDOS";
+        public string PrincipalCode => Principal;
         public string PolicyKey => "qdos_case_match";
         public int PolicyVersion => 1;
         public CaseMatchIndexKeys DerivedKeys { get; init; } = new(null, null, null, null, null);
@@ -503,7 +503,7 @@ public sealed class EvaluateIntakeCaseMatchTests
         : ICaseMatchCandidateQueries
     {
         public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
-            string workProviderCode,
+            string principalCode,
             CaseMatchKeys keys,
             CancellationToken cancellationToken) =>
             Task.FromResult(candidates);

@@ -29,7 +29,7 @@ public sealed class CreateAuditTests
     [InlineData(CaseLifecycleState.ReportPreparation)]
     [InlineData(CaseLifecycleState.Review)]
     [InlineData(CaseLifecycleState.NotReady)]
-    [InlineData(CaseLifecycleState.ProviderCancelled)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
     public void CreateAuditIsRefusedBeforeTheReportIsSentOrAfterAClosedDisposition(CaseLifecycleState state)
@@ -297,6 +297,11 @@ public sealed class CreateAuditTests
     {
         public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<CaseWorkflowRecord?>(workflow);
+
+        public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
+            IReadOnlyCollection<Guid> caseIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
             Task.FromResult(hasOperation);

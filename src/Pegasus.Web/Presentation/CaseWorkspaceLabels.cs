@@ -99,7 +99,7 @@ public static class CaseWorkspaceLabels
         public const string ContactEmail = "Contact e-mail";
         public const string ContactPhone = "Contact phone";
         public const string Address = "Address";
-        public const string VatStatus = "VAT status";
+        public const string VatStatus = "Claimant VAT status";
         public const string Notes = "Notes";
         public const string PrincipalNotes = "Principal notes";
         public const string PrincipalNotesThisCase = "Principal notes · this Case";
@@ -415,6 +415,17 @@ public static class CaseWorkspaceLabels
             } => "files",
             _ => null
         };
+
+        /// <summary>
+        /// The control on the Repair Spec section that clears a repairer VAT
+        /// blocker, as a selector: its Repairer VAT status for an unknown
+        /// status, Reset to repairer status for a hand-picked set of costs.
+        /// Null for every other blocker (issue 898).
+        /// </summary>
+        public static string? BlockerFocus(AssessmentReadinessItem item) =>
+            item == CaseReportReadiness.RepairerVatStatusUnknown ? "#estimate-vat-status"
+            : item == CaseReportReadiness.RepairerVatHandPicked ? "[data-vat-reset]"
+            : null;
     }
 
     /// <summary>
@@ -442,6 +453,7 @@ public static class CaseWorkspaceLabels
         public const string Scaled = "Scaled";
         public const string Apply = "Apply";
         public const string RemoveScaling = "Remove scaling";
+        public const string ScalePreview = "Preview";
         public const string Floors = "Floors";
         public const string FloorLabour = "labour \u00a3/h";
         public const string FloorPrices = "prices %";
@@ -716,6 +728,21 @@ public static class CaseWorkspaceLabels
         public const string GuideRetail = "Guide retail";
         public const string ProposedEngineersValue = "Proposed Engineer's Value";
 
+        // Use this value (operator, 28 September 2026): the visible action that
+        // says "use this card's figure". The Save records it on the one Case Save.
+        public const string UseThisValue = "Use this value";
+        public const string UsingThisValue = "Using this value";
+        public const string UseNeedsRetail = "Enter the retail value on this card to use it.";
+
+        // The calculation lines say why they cannot show a figure, never "None yet".
+        public const string PreviewFailed = "The calculation could not be updated. Change a figure to try again.";
+        public const string PresetChanged = "A value increase changed since the page opened. Refresh the page.";
+        public const string BasisGone = "The chosen card is no longer on the Case. Refresh the page.";
+        public const string CannotCalculate = "The calculation could not be worked out. Check the figures.";
+
+        // Research is filed without ending the edit (FRD-24).
+        public const string ResearchFiledNote = "The result is filed here without ending your edit. Save or refresh to see it.";
+
         public static string SourceLabel(ValuationSource source) => ValuationPolicy.SourceName(source);
 
         /// <summary>The hook slug for a source, one list beside its label.</summary>
@@ -900,6 +927,7 @@ public static class CaseWorkspaceLabels
         public const string IncludeFeeNote = "Include fee note";
         public const string OpenReport = "Open report";
         public const string OpenReportWithFeeNote = "Open report with fee note";
+        public const string OpenFeeNote = "Open fee note";
         public const string DownloadFeeNote = "Fee note";
         public const string GenerationStaleNotice =
             "A newer fact changed after this generation. Generate again before delivery.";
@@ -926,7 +954,7 @@ public static class CaseWorkspaceLabels
         /// no longer offers it.
         /// </summary>
         public const string NotReadyAfterSave =
-            "The report is not ready after the save. The Report section lists what is missing.";
+            "The report is not ready after the save.";
 
         /// <summary>The generation ran out of time.</summary>
         public static string TookTooLong(CaseReportArtifactKind kind) =>
@@ -944,6 +972,9 @@ public static class CaseWorkspaceLabels
             CaseReportArtifactKind.RepairSpecification => "The Repair Spec",
             _ => "The images",
         };
+
+        public static string MessageRefused =>
+            $"Enter the message, at most {Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength} characters.";
 
         public const string PrepareDelivery = "Prepare delivery";
         public const string DeliveryPrepared = "Delivery prepared";
@@ -997,6 +1028,7 @@ public static class CaseWorkspaceLabels
         public const string CloseConsequence = "Closing this record releases the Glass's account for another estimate.";
         public const string Closed = "The Glass's session was closed.";
         public const string CloseRefused = "The Glass's session was not closed.";
+        public const string CloseWhileWorking = "The Glass's session was not closed. Glass's is still being prepared or brought back; close it when that has finished.";
         public const string CloseChanged = "The Glass's session changed. Its controls have been refreshed. Confirm external closure again before closing it.";
         public const string State = "State";
         public const string OpenOn = "Open on";
@@ -1028,6 +1060,26 @@ public static class CaseWorkspaceLabels
 
         public const string ResumeRefused =
             "The Glass's session was not resumed. Retry the operation.";
+
+        /// <summary>
+        /// A launch or a resume found the Case changed since the page
+        /// rendered, or its edit lease ended.
+        /// </summary>
+        public const string CaseChanged =
+            "The Case changed. Reload it and retry.";
+
+        /// <summary>
+        /// The Glass's slot's action for a session that failed because the
+        /// export could not be read: it fetches the same estimate again.
+        /// </summary>
+        public const string FetchAgain = "Fetch again";
+
+        /// <summary>The Glass's window while its provider work runs in the background.</summary>
+        public const string Preparing = "Preparing Glass's…";
+
+        public const string BringingBack = "Bringing the estimate back…";
+
+        public const string Continue = "Continue";
 
         /// <summary>
         /// What a settled session reports, wherever it settled: the Estimate

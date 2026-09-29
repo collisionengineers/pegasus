@@ -48,14 +48,15 @@ The authenticated routes, in rail order, are:
 3. Upload
 4. Cases
 5. Search
-6. Operations
-7. Administration, visible only to authorised Administrators
-8. the account dialog and sign-out, from the rail foot
+6. Administration, visible only to authorised Administrators
+7. the account dialog and sign-out, from the rail foot
 
 This order supersedes the 2026-08-04 order (`Dashboard → Inbox → Upload →
 Queues → Cases → Administration`): the Dashboard becomes the Work Centre,
-Queues becomes Cases, the former Cases search becomes Search, and Operations
-returns as a routed workspace. `Triage`, `Unidentified`, `Audit`,
+Queues becomes Cases and the former Cases search becomes Search. Operations
+returned as a routed workspace and was retired on 2026-09-28 (#865): its AI
+jobs live in the Work Centre and on Administration AI jobs, and Send
+Unidentified to AI is on the Unidentified record. `Triage`, `Unidentified`, `Audit`,
 `Not ready`, `Review` and `Held` keep their settled meanings. Triage is a Case
 type with its own states, reached through the Cases rail's Workflow group;
 Unidentified is a pre-Case record reached through the Cases rail. Neither is
@@ -78,8 +79,7 @@ content, top to bottom:
 - **Brand** — the refined Pegasus mark (`images/pegasus-mark-refined-128.png`, no wordmark
   inside the image) at 52px beside "PEGASUS" and the line "Case management" (v28 P1).
 - **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox
-  [count], Upload, Cases (`/cases`) [count], Search (`/search`), Operations
-  [count].
+  [count], Upload, Cases (`/cases`) [count], Search (`/search`).
 - **Nav label "Manage"**, then Administration — rendered for Administrators
   only, absent for everyone else.
 - **Rail foot** — the health line (dot and "Current · HH:MM") and the user
@@ -95,8 +95,8 @@ whose functions move to the utility bar and account dialog.
 **A rail count is a figure a page already queried**, never one the shell
 invents. The Cases count is
 `not_ready + review + with_engineer + query + held + triage + unidentified` (group
-contract §1.1); the Inbox and Operations figures are composed by the wave-2
-and wave-3 tickets that own those queries — the shell invents none. An absent
+contract §1.1); the Inbox figure is composed by the wave-2
+ticket that owns that query — the shell invents none. An absent
 count renders nothing at all — a shell-level `0` would be exactly
 the stale zero the operator-experience requirements forbid. Counts are
 supplied by one page filter (`Presentation/RailCountsPageFilter.cs`), not by
@@ -154,6 +154,12 @@ Files and Notes. Each is a foldable panel whose head carries its own Edit
 (entering the one page-wide edit session), one availability label when the
 state does not allow editing, and the fold chevron. The aside holds Figures
 and Next action and folds into a two-up strip above the sections below 1441px.
+While the report is not ready, Next action is the report's blocker list, and a
+stale generation's warning notice sits at its top; Report keeps only its head
+**Not ready** label, and no stale bar spans the page. Beside the sections the
+sticky aside is never taller than the space below the sticky block and
+scrolls on its own; folded above them, the blocker list scrolls inside its
+panel.
 
 Once an Inspection + Audit Case has its Audit, a **Views** card heads the
 aside, above Figures, in the context-card pattern: two rows, "Inspection ·
@@ -176,10 +182,11 @@ to Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
 or Engineer, Archive, Place on Hold or Release Hold, Correct principal, Create
 audit — then, after a separator and in red, Close case. Outside an edit
 session the menu appears only when Send to EVA is available. Damage uses the
-**plan** only: a top-down silhouette drawn as the panels, one numbered disc
-per recorded damage sized and placed by dragging and kept as drawn (no wider
-than half the vehicle, clipped to its body), five graded severity fills with a
-legend, and a recorded-areas list numbered like the discs. Images open in a
+**plan** only: a top-down drawing of the recorded vehicle (car, van or
+motorbike), one yellow comic burst per recorded damage sized and placed by
+dragging and kept as drawn (no wider than half the vehicle, unnumbered and
+unclipped, one look for every severity), and a recorded-areas list numbered
+in recorded order. Images open in a
 full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, In
 report while editing, and a filmstrip with excluded images greyed); crop
 happens on the viewer stage itself (drag, handles, move, Aspect, Rotate left
@@ -289,7 +296,7 @@ shared `.dismiss` × so it can be put away before it expires.
 - <a id="source-tags"></a>**Source tags.** Where a value came from is one
   visible word in a small `src-tag` pill in the cell's label line, the same in
   read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
-  Provider API. Lookup reads blue, AI navy, every other source neutral. A value
+  Principal API. Lookup reads blue, AI navy, every other source neutral. A value
   staff typed or corrected carries no tag; a value staff left untouched keeps
   its tag across a Save (operator, 25 September 2026). There is no provenance icon or
   hover tooltip (operator, 23 September 2026: one tag system, the Lookup
@@ -546,7 +553,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it); Cases rail groups |
 | `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
 | `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
-| `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Rail: Operations; running jobs |
+| `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Running jobs |
 | `admin` | `layout-grid` | `DCF60CA3B7FC36D4C69ED1A6EBC4CAD464CE850786B7AEE5BD1AB0A542C0D0BE` | Rail: Administration |
 | `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Utility search; palette; Search buttons; DVLA & MOT lookup |
 | `plus` | `plus` | `A1190965745A47ED26827784BBAE8B9291D5170501A02FB335D82247EA276108` | Add, Create, New estimate |
@@ -574,7 +581,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `settings` | `settings` | `F6CE9F023EC1C2720723672887014349E1D3A68DF9555CA3795C5FEF95265B4A` | Principal settings, configuration |
 | `filter` | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Filter bars |
 | `lock` | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Edit lease, idle lock |
-| `external` | `external-link` | `27EB1A4F2FC62CA8E0B422442016854B17A5178EC7EE0DE23EB894BD5E5C5DF3` | Open Operations, retained source |
+| `external` | `external-link` | `27EB1A4F2FC62CA8E0B422442016854B17A5178EC7EE0DE23EB894BD5E5C5DF3` | Retained source |
 | `eye` | `eye` | `73D6B13F2AE0E9AA498E371618CF4CC6392C75F1A4C23FCDF1B981451368EF7A` | Preview, Open report, Show key |
 | `bell` | `bell` | `5B315496E663ECA0E7465EDAD43FCD54BF00577C1737A5E8F9CC5352D185E79F` | Utility bar notifications |
 | `signout` | `log-out` | `20B23EB0AF17FE443827B2E64EC23057092180CDE64B3FAC5F2A9DC210A70880` | Sign out |
@@ -648,10 +655,9 @@ glyph the v26 mockups reference that no current page draws.
 | — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
 | — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
 
-The v26 rail no longer draws the prototype's rail glyphs for three routes:
-Cases uses `list-checks`, Operations `activity` and Administration `settings`
-(`list`, `loader` and `layout-grid` remain in the sprite for their other
-uses).
+The v26 rail no longer draws the prototype's rail glyphs for two routes:
+Cases uses `list-checks` and Administration `settings` (`list` and
+`layout-grid` remain in the sprite for their other uses).
 
 ### Imagery and evidence
 
@@ -699,11 +705,12 @@ Approved necessary copy includes:
 > {Source} valuation is unavailable. Contact an administrator or report a problem.
 
 The last is the operator's own wording (23 September 2026) for Get valuation
-on a source with no working provider, shown in that source's card; "report a
+on a source with no working provider, shown in that source's card from the
+start (28 September 2026), with no Get valuation button; "report a
 problem" opens the Report a problem dialog. It replaces the 18 September
 "Error. Contact an administrator." Received-mail chasing categories read
 "Update Request", also the operator's wording; "provider" never appears in
-operator copy (Principal is the word), except the Provider API's own name.
+operator copy (Principal is the word).
 
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
 
@@ -767,8 +774,10 @@ CAP and Cazana are each one card with month, retail and trade boxes (the
 Case's own mileage is used; a card has none, 24 September 2026)
 — greyed while reading, editable while editing — and, while editing, a Get
 valuation button that looks the figures up and fills the boxes in place
-(answering with the card's notice while that source has no working
-provider); the boxes are typed by hand just as well. The card has no Save of
+(a source with no working provider shows the card's notice from the start and
+has no button) and a Use this value button that chooses the card and records
+the decision on the one Save (28 September 2026); the boxes are typed by hand
+just as well. The card has no Save of
 its own (23 September 2026): its boxes belong to the Case form and the
 ribbon Save records a changed card with whatever was entered; any box may be
 left blank. The ribbon Save is the Case's one save (23 September 2026): the
@@ -847,20 +856,19 @@ deleted in wave 5.
 | `src-tag` and its `--lookup`, `--ai`, `--warn` tones | The source tag: one word in the cell's label line saying where a value came from ([source tags](README.md#source-tags)); the same pill names other short origins (AI, Manual, Amended) |
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
 | `gated`, `avail` | The dashed availability label, stated once per section head; in the Inspection view it reads "Read-only · Audit created" |
-| `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its numbered discs, and the aside figures |
-| `damage-diagram`, `dm`, `dm-guides` | The plan silhouette, one disc per recorded damage (kept as drawn, clipped to the body by `damage-plan-clip`), and the dashed band guides shown while editing |
+| `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures |
+| `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
 | `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
 | `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Close-up and Overview their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
-| `blocker-list`, `blocker`, `blocker-actions` | Outstanding requirements, and the Report section's blockers; `blocker-actions` holds a blocker's link to the section that clears it |
+| `blocker-list`, `blocker`, `blocker-actions` | Outstanding requirements, and the report blockers in the aside's Next action; `blocker-actions` holds a blocker's link to the section that clears it |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `mail-preview`, `decision-card` | Inbox preview and message decision |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
-| `ai-jobs-panel` | Operations AI Job List |
 | `admin-layout`, `admin-nav` | Administration |
 | `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |
 | `report-preview` | Report draft preview dialog body |
@@ -1003,9 +1011,9 @@ this section holds the cross-cutting rules every page is held to.
 | Field provenance | Every source-derived Case datum shows its current source tag; a staff value carries none. Origin and status remain distinct. |
 | Supporting detail navigation | Opening evidence or supporting detail preserves list/detail position, the current context, and every unsaved edit; returning never silently discards or replaces proposed values. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
-| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record each report blocker links to the section that clears it; no opaque aggregate blocker. |
+| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record the aside's Next action lists each report blocker with a link to the section that clears it; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
-| Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
+| Inspection address | Principal-determined default; reasoned per-Case override; previous values selectable. |
 | Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; it does block the report (27 September 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
@@ -1013,7 +1021,7 @@ this section holds the cross-cutting rules every page is held to.
 | Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
-| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail, Image Intake and Operations; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
+| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail and Image Intake; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
 
 ### Presentation responsibilities
 

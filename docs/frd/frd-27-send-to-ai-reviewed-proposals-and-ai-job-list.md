@@ -6,18 +6,20 @@
 
 - AI never decides anything. Its output is a proposal until a staff member
   accepts or rejects it.
-- `Send to AI` hands a scoped worker a pointer to one Case, never Case
-  content. The worker writes back through the same Core commands as staff.
-- The AI Job List is one durable ledger of named AI jobs. External clients
-  claim jobs; Pegasus never runs one and never applies a result itself.
+- `Send to AI` queues a named AI job for one Case or Unidentified item. The
+  job names the record and gives a short instruction, never Case content. An
+  external client claims it and writes back through the same Core commands as
+  staff.
+- The AI Job List is the only Send to AI route: one durable ledger of named
+  AI jobs. External clients claim jobs; Pegasus never runs one and never
+  applies a result itself.
 - A targeted report send is idempotent and records exact send evidence.
-- An Administrator sets the Send to AI connector address, timeout, token and
-  on/off switch in Administration.
+- An Administrator holds the Send to AI on/off switch in Administration.
 
 ## Purpose
 
 This document owns targeted report sending, how AI proposals are reviewed,
-the AI Job List, and the Send to AI connector settings. How reports are
+the AI Job List, and the Send to AI switch. How reports are
 produced and corrected is in
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md). The
 Automation Actor boundary and its tools are in
@@ -37,12 +39,13 @@ issued fee note or invoice; later financial impact uses its own versioned,
 authorised contract. AI Assessor and Engineer-reviewed query proposals stay
 proposals until an authorised person accepts or rejects them through Core.
 
-**Send to AI.** The vendor-neutral `Send to AI` transport
-([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md))
-hands a scoped worker a pointer to one Case, never Case content. The worker
-writes back through the same Core commands, edit lease, operation-key replay
-and version guards as a staff save, attributed and recorded like any human
-action. What the automation records is the Case's value, attributed to it
+**Send to AI.** The vendor-neutral `Send to AI` action queues an AI job
+([ADR-0035](../adr/0035-ai-job-ledger.md)); there is no separate push
+hand-off to a channel. The job names one record, never its content. The
+external worker writes back through the same Core commands, edit lease,
+operation-key replay and version guards as a staff save
+([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)),
+attributed and recorded like any human action. What the automation records is the Case's value, attributed to it
 and shown with its AI source tag; it writes only fields staff can record on
 the Case, so staff can change or clear each value on its section
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)),
@@ -53,11 +56,10 @@ Report approval and sending stay human acts. No model, skill, prompt or
 external source ever issues an accepted Case, engineering, financial, legal
 or report outcome.
 
-Durable Send to AI work has stable request, hand-off, reply and disposition
-identities. Stale work cannot overwrite a newer Case or evidence version.
-Duplicate, expired or cancelled requests are inert, recorded outcomes that
-never change accepted data. No AI caller confirms, approves or sends on its
-own.
+Durable Send to AI work has stable job and disposition identities. Stale work
+cannot overwrite a newer Case or evidence version. Duplicate, expired or
+cancelled jobs are inert, recorded outcomes that never change accepted data.
+No AI caller confirms, approves or sends on its own.
 
 ### AI Job List
 
@@ -78,10 +80,10 @@ and in the table below).
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
 | Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An enabled human staff member uses the draft (**Use repair spec**), which makes it the Current repair spec |
-| Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
+| Unidentified resolution | The Unidentified record's `Send Unidentified to AI` for that item's U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool; Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item examined | As Unidentified resolution, per item |
-| MarketResearch | **AI market research** in the Case record's Valuation section, while editing, for the chosen Valuation month. The section shows a "Researching · {month}" card while the job is Queued or Taken; a re-run replaces the card | The Case and its valuation context. External Claude Cowork uses the Pegasus connector plus research tools outside this repository | Research files attached to the Case through the connector, with attributable evidence and optional source-labelled valuation entries | The Automation Actor marks the job Completed after attachment. No staff completion gate and no automatic adoption as the Engineer's Value |
+| MarketResearch | **AI market research** in the Case record's Valuation section, while editing, for the chosen Valuation month. The section shows a "Researching · {month}" card while the job is Queued or Taken; a re-run replaces the card. The result is filed without the Case edit lease or version, so it returns while the Engineer is still editing | The Case and its valuation context. External Claude Cowork uses the Pegasus connector plus research tools outside this repository | Research files attached to the Case through the connector, with attributable evidence and optional source-labelled valuation entries | The Automation Actor marks the job Completed after attachment. No staff completion gate and no automatic adoption as the Engineer's Value |
 
 **States.** Reviewed proposals go `Queued` → `Taken` → `Draft ready` →
 `Completed`. MarketResearch goes `Queued` → `Taken` → `Completed` once its
@@ -112,62 +114,57 @@ are attributed to the Automation Actor and the client name; staff
 transitions to the staff username. The Administrator kill switch refuses
 claims and progress; queued jobs wait and taken jobs expire back to `Queued`.
 
-**Operations panel.** The AI Job List on `/operations` shows every
-non-terminal job and the terminal jobs of the current day: Job (kind and
-detail), Record, Started by, Created, State, Action. The action is one of
-`Review estimate` (opens the Case's Repair Spec section), `Open query`
-(opens the message it answers, or the Case when the job names none) or
-`Review` (opens the Unidentified item) for a `Draft ready` job, the same
-place the Work Centre and the Case's Next action open; `Complete job` for a
-`Draft ready` Query response or Unidentified-queue pass; `Cancel` (reason
-required) for any non-terminal job; otherwise nothing.
-`Send Unidentified to AI` creates an Unidentified-resolution job for a chosen
-U reference.
+**Work Centre AI jobs.** The Work Centre's AI jobs tab is the live queue
+([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Each row
+shows the kind and state, the instruction, the record, who started it and
+when. The action is one of `Review estimate` (opens the Case's Repair Spec
+section), `Open query` (opens the message it answers, or the Case when the
+job names none) or `Review` (opens the Unidentified item) for a `Draft
+ready` job, the same place the Case's Next action opens; `Complete job` for
+a `Draft ready` Query response or Unidentified-queue pass; otherwise
+nothing. A job that names no record page has no open action.
+
+**Send Unidentified to AI.** The Unidentified record offers this action while
+the item is open. It creates one Unidentified-resolution job for that item.
+The reference comes from the record, not from typed input, and the
+instruction is fixed. It has the same authority as the rest of that page.
+While the Administrator switch is off, the action is refused with "AI work is
+not accepting new jobs."
+
+Staff cannot cancel a job from these surfaces. An Administrator stops a
+non-terminal job on Administration AI jobs.
 
 **Administration.** Automation & AI shows the active and failed job counts
 and the Stop/Start automation control. That control is the
 [ADR-0026](../adr/0026-enable-automation-mcp-by-explicit-deployment-configuration.md) kill switch, so stopping
-automation also stops the ledger. The Operations panel is the live queue;
+automation also stops the ledger. The Work Centre pane is the live queue;
 the history of the same jobs is
 [Action logs](frd-04-parties-accounts-and-access.md#permanent-action-history),
 where an AI job row's Reference opens the Case or Unidentified record.
 
-**Where the list appears.** The list appears in two places: the Operations
-page panel above, and the Administration AI jobs page. The Administration
-page lists the recorded jobs in pages, with the active and failed counts and
-the Send to AI channel state, and offers `Stop` for a non-terminal job. Both
+**Where the list appears.** The list appears in two places: the Work Centre
+pane above, and the Administration AI jobs page. The Administration page
+lists every recorded job in pages, with the active and failed counts and the
+Send to AI switch state, and offers `Stop` for a non-terminal job. Both
 refresh when the page is reloaded. There is no live event stream.
 
-### Send to AI connector settings
+### Send to AI switch
 
 Administration → Automation & AI has an AI settings panel. Only an
-Administrator can open the page. The panel appears only when Send to AI is
-part of the deployment. This is capability `MCP-07`.
+Administrator can open the page. The panel appears with the Automation
+panel, where the Automation client is composed. This is capability `MCP-07`.
 
-The Administrator sets:
+The panel holds one checkbox, the Send to AI on/off switch, and one Save.
+Turning the switch off refuses new AI jobs at once. A Save that leaves the
+switch as it was writes no history. Each change is attributed and kept in
+permanent history. An absent switch record means on.
 
-- the connector address. It must be a bare URL with no path and no query.
-  The code accepts only an `http` loopback address, which is the
-  [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)
-  transport decision;
-- a timeout in seconds, from 1 to 60 inclusive;
-- the outbound Send to AI on/off switch. Turning it off refuses new
-  hand-offs at once.
+There is no connector address, timeout or token: no Send to AI request is
+pushed to a channel.
 
-The Administrator can also enter, rotate or remove the connector token. A
-new token must be at least 32 characters. Removing the entered token returns
-the connector to the configured one. The token is write-only: the page shows
-only that one is held and when it last changed, never the token itself.
-
-One Save applies the address and timeout, a replacement token if one was
-entered, and the switch if it changed. An unchanged switch writes no switch
-history. Each change is attributed and kept in permanent history. A blank
-address or timeout means the deployment's configured value applies.
-
-Connector health appears on the Administration Health page as the `AI jobs`
-row, whose dependency is the AI connector. Its state comes from the Send to
-AI switch, the active and failed job counts, and the time of the newest job.
-There is no connectivity test button.
+Health appears on the Administration Health page as the `AI jobs` row. Its
+state comes from the Send to AI switch, the active and failed job counts, and
+the time of the newest job. There is no connectivity test button.
 
 ## States and transitions
 
@@ -182,16 +179,16 @@ The Case's own states are in
 
 - An unknown AI job kind is refused; stale or duplicate transitions are
   inert.
-- Duplicate, expired or cancelled Send to AI requests are inert, recorded
-  outcomes that never change accepted data.
+- Duplicate, expired or cancelled AI jobs are inert, recorded outcomes that
+  never change accepted data.
 - Stale work cannot overwrite a newer Case or evidence version.
-- A connector address with a path or query, a timeout outside 1 to 60
-  seconds, or a token shorter than 32 characters is refused.
+- `Send Unidentified to AI` on a closed or resolved item is refused.
 
 ## Acceptance evidence
 
-Core tests cover every AI job transition and the connector address, timeout
-and token rules. Integration tests cover the Operations panel actions.
+Core tests cover every AI job transition. Integration tests cover the
+Unidentified record's `Send Unidentified to AI`, the Work Centre AI jobs
+pane and the Automation & AI switch.
 Deployment and live acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 

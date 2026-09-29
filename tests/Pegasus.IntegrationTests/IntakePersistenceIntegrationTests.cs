@@ -199,7 +199,13 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260926150000_DeclaredUploadDestination",
                 "20260927002303_EmailTemplates",
                 "20260927004150_ImageInReport",
-                "20260928090000_GrantWorkerGeneratedCaseArtifactUpdate"
+                "20260928090000_GrantWorkerGeneratedCaseArtifactUpdate",
+                "20260928100000_WorkCentreQueryIndexes",
+                "20260928160000_GrantWorkerDocumentOccurrenceUpdate",
+                "20260929090000_RetireUnusedTables",
+                "20260929091000_GrantWebRetainedMailDismissal",
+                "20260929093000_MarketResearchAttachedEvent",
+                "20260929120000_PrincipalVocabulary"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -239,7 +245,7 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseEstimateLines'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseRepairSpecifications'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
+        Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'AiWorkRequests'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'SendToAiControl'"));
@@ -268,38 +274,66 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeReceiptEvents'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ProviderDomainPackages'"));
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'PrincipalDomainPackages'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ProviderReferences'"));
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'PrincipalReferences'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ProviderDomainEvidence'"));
-        Assert.Equal(1, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderDomainPackages"));
-        Assert.Equal(11, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderReferences"));
-        Assert.Equal(16, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderDomainEvidence"));
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'PrincipalDomainEvidence'"));
+        Assert.Equal(1, await database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalDomainPackages"));
+        Assert.Equal(11, await database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalReferences"));
+        Assert.Equal(16, await database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalDomainEvidence"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'Cases'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseSequences'"));
-        Assert.Equal(6, await database.ScalarAsync<int>(
+        Assert.Equal(7, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*)
             FROM sys.indexes
             WHERE object_id = OBJECT_ID(N'Cases')
               AND name IN (
                   N'IX_Cases_AuditReference',
+                  N'IX_Cases_CreatedAtUtc',
                   N'IX_Cases_OriginIntakeReceiptId',
                   N'IX_Cases_PrincipalId',
                   N'IX_Cases_Reference',
                   N'IX_Cases_SequenceLineageId_Year_Sequence',
                   N'IX_Cases_StandaloneAuditEvidenceId')
             """));
-        Assert.Equal(6, await database.ScalarAsync<int>(
+        Assert.Equal(7, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*)
             FROM sys.indexes
             WHERE object_id = OBJECT_ID(N'Cases')
               AND name LIKE N'IX_Cases[_]%'
             """));
+        // The Work Centre's feed and queue reads are answered by their own
+        // indexes: the included columns spare a lookup into each table.
+        Assert.Equal(
+            "CaseWorkflowEvents.IX_CaseWorkflowEvents_ActorKind_OccurredAtUtc:ActorKind,OccurredAtUtc|AfterVersion,BeforeVersion,CaseId,EventType;"
+            + "CaseWorkflows.IX_CaseWorkflows_State:State|;"
+            + "Cases.IX_Cases_CreatedAtUtc:CreatedAtUtc|Type",
+            await database.ScalarAsync<string>(
+                """
+                SELECT STRING_AGG(entry, N';') WITHIN GROUP (ORDER BY entry COLLATE Latin1_General_BIN2)
+                FROM (
+                    SELECT OBJECT_NAME(i.object_id) + N'.' + i.name + N':'
+                        + (SELECT STRING_AGG(c.name, N',') WITHIN GROUP (ORDER BY ic.key_ordinal)
+                           FROM sys.index_columns AS ic
+                           JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+                           WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 0)
+                        + N'|'
+                        + ISNULL((SELECT STRING_AGG(c.name, N',') WITHIN GROUP (ORDER BY c.name COLLATE Latin1_General_BIN2)
+                           FROM sys.index_columns AS ic
+                           JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+                           WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 1), N'') AS entry
+                    FROM sys.indexes AS i
+                    WHERE i.name IN (
+                        N'IX_CaseWorkflowEvents_ActorKind_OccurredAtUtc',
+                        N'IX_CaseWorkflows_State',
+                        N'IX_Cases_CreatedAtUtc')
+                ) AS indexes
+                """));
         Assert.Equal(1, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*)

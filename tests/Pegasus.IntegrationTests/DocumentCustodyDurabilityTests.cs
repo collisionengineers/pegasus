@@ -222,6 +222,76 @@ public sealed class DocumentCustodyDurabilityTests
     }
 
     /// <summary>
+    /// A fileless Principal API Audit keeps its declared verdict on the Case from
+    /// creation (#919). Marking its report later fills Repairable status from
+    /// that verdict when the report printed no outcome or the same one, and
+    /// leaves the cell blank when the report disagrees.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "total_loss")]
+    [InlineData("total_loss", "total_loss")]
+    [InlineData("repairable", null)]
+    public async Task MarkingAFilelessAuditsReportReconcilesItsDeclaredVerdict(
+        string? printedOutcome, string? expectedOutcome)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            var occurrenceId = await SeedCurrentDocumentAsync(database, caseId, 0, "laird-report.pdf");
+            var versionId = await VersionIdAsync(database, occurrenceId);
+            await using (var context = await database.CreateContextAsync())
+            {
+                // The declared verdict is on the Case; no Original report cell is filled yet.
+                (await context.Cases.SingleAsync(item => item.Id == caseId)).StandaloneAuditAssessment = "total_loss";
+                await context.SaveChangesAsync();
+            }
+
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var reading = new OriginalReportReading(
+                new string('a', 64), "Laird Assessors", "2026-09-01", "roadworthy", printedOutcome, false);
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(caseId, 0, actor, $"fileless-mark-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                await scope.ServiceProvider.GetRequiredService<IMarkAsOriginalReportStore>()
+                    .MarkAsOriginalReportAsync(
+                        new MarkAsOriginalReportCommand(
+                            caseId,
+                            lease.Version,
+                            actor,
+                            $"fileless-mark:{Guid.NewGuid():N}",
+                            lease.Token,
+                            occurrenceId,
+                            versionId),
+                        reading,
+                        CancellationToken.None);
+            }
+
+            await using var verification = await database.CreateContextAsync();
+            var cells = await verification.CaseAssessmentFields
+                .Where(item => item.WorkId == caseId)
+                .ToDictionaryAsync(item => item.FieldPath);
+            Assert.Equal(
+                expectedOutcome,
+                cells.TryGetValue(AssessmentVocabulary.OriginalReportOutcome, out var outcome) ? outcome.Value : null);
+            Assert.Equal("Laird Assessors", cells[AssessmentVocabulary.OriginalReportAssessor].Value);
+            Assert.Equal("roadworthy", cells[AssessmentVocabulary.OriginalReportRoadworthiness].Value);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// A reading of bytes other than the marked version's fills nothing: the
     /// role is still recorded and the cells stay hand-entered.
     /// </summary>
@@ -262,6 +332,159 @@ public sealed class DocumentCustodyDurabilityTests
                 (await verification.Set<DocumentOccurrenceEntity>().SingleAsync(item => item.Id == occurrenceId))
                     .SemanticRole);
             Assert.False(await verification.CaseAssessmentFields.AnyAsync(item => item.WorkId == caseId));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A report recognised among a receipt's filed files is recorded by the
+    /// system exactly as a staff Mark records one (#901): the Audit report
+    /// role, the Original report cells staff have not recorded, the history
+    /// line in the system's name, and a replay that writes nothing more. Once
+    /// recorded, the Case no longer awaits its report.
+    /// </summary>
+    [Fact]
+    public async Task ARecognisedReportIsRecordedByTheSystemAsAStaffMarkRecordsOne()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            var receiptId = Guid.NewGuid();
+            var assetId = Guid.NewGuid();
+            var occurrenceId = await SeedCurrentDocumentAsync(
+                database, caseId, 0, "connexus-report.pdf",
+                AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId),
+                DocumentSemanticRole.Correspondence);
+            await SeedCurrentDocumentAsync(
+                database, caseId, 1, "other-case-file.pdf", role: DocumentSemanticRole.Correspondence);
+            await using (var context = await database.CreateContextAsync())
+            {
+                context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
+                {
+                    WorkId = caseId,
+                    FieldPath = AssessmentVocabulary.OriginalReportAssessor,
+                    Value = "Northside Assessors",
+                    RecordedByKind = nameof(ActorKind.Staff),
+                    RecordedBy = "staff-engineer",
+                    RecordedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero)
+                });
+                await context.SaveChangesAsync();
+            }
+
+            var reading = new OriginalReportReading(
+                new string('a', 64), "Connexus Vehicle Assessors", "2026-03-09", "unroadworthy", "repairable", false);
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var store = scope.ServiceProvider.GetRequiredService<IRecogniseOriginalReportStore>();
+                var candidate = Assert.Single(await store.FindAwaitingCandidatesAsync(
+                    caseId, receiptId, [assetId, Guid.NewGuid()], CancellationToken.None));
+                Assert.Equal(new(assetId, occurrenceId, await VersionIdAsync(database, occurrenceId)), candidate);
+                var command = new RecordRecognisedOriginalReport(
+                    caseId,
+                    receiptId,
+                    candidate.DocumentOccurrenceId,
+                    candidate.DocumentVersionId,
+                    ActionActor.SystemWorker("intake-processing"),
+                    OriginalReportRecognitionOperationKey.For(receiptId));
+
+                var recorded = await store.RecordRecognisedAsync(command, reading, CancellationToken.None);
+                var replay = await store.RecordRecognisedAsync(command, reading, CancellationToken.None);
+
+                Assert.NotNull(recorded);
+                Assert.Equal(recorded, replay);
+                Assert.Equal(1, recorded.CaseVersion);
+                Assert.Empty(await store.FindAwaitingCandidatesAsync(
+                    caseId, receiptId, [assetId], CancellationToken.None));
+            }
+
+            await using var verification = await database.CreateContextAsync();
+            Assert.Equal(
+                DocumentSemanticRole.AuditReport,
+                (await verification.Set<DocumentOccurrenceEntity>().SingleAsync(item => item.Id == occurrenceId))
+                    .SemanticRole);
+            var cells = await verification.CaseAssessmentFields
+                .Where(item => item.WorkId == caseId)
+                .ToDictionaryAsync(item => item.FieldPath);
+            Assert.Equal("Northside Assessors", cells[AssessmentVocabulary.OriginalReportAssessor].Value);
+            Assert.Equal("2026-03-09", cells[AssessmentVocabulary.OriginalReportDate].Value);
+            Assert.Equal(OriginalReportPrefillPolicy.RecorderId, cells[AssessmentVocabulary.OriginalReportDate].RecordedBy);
+            var history = await verification.CaseWorkflowEvents
+                .SingleAsync(value => value.EventType == "original_report_recorded");
+            Assert.Equal("Original report: connexus-report.pdf", history.Reason);
+            Assert.Equal(nameof(ActorKind.SystemWorker), history.ActorKind);
+            Assert.Equal(OriginalReportRecognitionOperationKey.For(receiptId), history.OperationKey);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Recognition yields to a member of staff editing the Case and writes
+    /// nothing, so its retry records the report once they finish; a Case that
+    /// is not an open Audit awaiting its report records nothing at all.
+    /// </summary>
+    [Fact]
+    public async Task RecognitionYieldsToACaseEditorAndRecordsNothingOnACaseNoLongerAwaitingItsReport()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            var receiptId = Guid.NewGuid();
+            var assetId = Guid.NewGuid();
+            var report = await SeedCurrentDocumentAsync(
+                database, caseId, 0, "report.pdf",
+                AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId),
+                DocumentSemanticRole.Correspondence);
+            var command = new RecordRecognisedOriginalReport(
+                caseId, receiptId, report, await VersionIdAsync(database, report),
+                ActionActor.SystemWorker("intake-processing"), OriginalReportRecognitionOperationKey.For(receiptId));
+            var reading = new OriginalReportReading(
+                new string('a', 64), "Connexus Vehicle Assessors", "2026-03-09", "unroadworthy", "repairable", false);
+            await using var scope = database.CreateAsyncScope();
+            var store = scope.ServiceProvider.GetRequiredService<IRecogniseOriginalReportStore>();
+
+            await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+                new(caseId, 0, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                    $"recognition-editor:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+            await Assert.ThrowsAsync<IntakeDependencyUnavailableException>(
+                () => store.RecordRecognisedAsync(command, reading, CancellationToken.None));
+
+            // The editor finished and the Case was completed: it no longer awaits its report.
+            await using (var context = await database.CreateContextAsync())
+            {
+                var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+                workflow.State = nameof(CaseLifecycleState.PostReportComplete);
+                workflow.EditLeaseExpiresAtUtc = null;
+                await context.SaveChangesAsync();
+            }
+
+            Assert.Empty(await store.FindAwaitingCandidatesAsync(
+                caseId, receiptId, [assetId], CancellationToken.None));
+            Assert.Null(await store.RecordRecognisedAsync(command, reading, CancellationToken.None));
+
+            await using var verification = await database.CreateContextAsync();
+            Assert.False(await verification.Set<DocumentOccurrenceEntity>()
+                .AnyAsync(item => item.SemanticRole == DocumentSemanticRole.AuditReport));
+            Assert.False(await verification.CaseWorkflowEvents
+                .AnyAsync(value => value.EventType == "original_report_recorded"));
         }
         finally
         {
@@ -1291,7 +1514,9 @@ public sealed class DocumentCustodyDurabilityTests
         LocalDbTestDatabase database,
         Guid caseId,
         int ordinal,
-        string fileName)
+        string fileName,
+        string? operationKey = null,
+        DocumentSemanticRole role = DocumentSemanticRole.Instruction)
     {
         await using var context = await database.CreateContextAsync();
         var documentId = Guid.NewGuid();
@@ -1326,11 +1551,11 @@ public sealed class DocumentCustodyDurabilityTests
                 DocumentId = documentId,
                 VersionId = versionId,
                 Ordinal = ordinal,
-                SemanticRole = DocumentSemanticRole.Instruction,
+                SemanticRole = role,
                 Source = DocumentSource.StaffUpload,
                 SourceOccurrenceIdentity = $"test-document:{occurrenceId:N}",
                 RecordedAtUtc = DateTimeOffset.UtcNow,
-                OperationKey = $"seed-document:{occurrenceId:N}"
+                OperationKey = operationKey ?? $"seed-document:{occurrenceId:N}"
             });
         await context.SaveChangesAsync();
         return occurrenceId;

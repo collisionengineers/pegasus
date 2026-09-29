@@ -17,7 +17,7 @@ public enum CaseLifecycleState
     PostReport,
     PostReportComplete,
     Query,
-    ProviderCancelled,
+    PrincipalCancelled,
     CollisionEngineersRejected,
     CreatedInError,
     SourceEmailUnlinked
@@ -26,7 +26,7 @@ public enum CaseLifecycleState
 public enum CaseClosureOutcome
 {
     PostReportComplete,
-    ProviderCancelled,
+    PrincipalCancelled,
     CollisionEngineersRejected,
     CreatedInError,
     SourceEmailUnlinked
@@ -227,6 +227,17 @@ public sealed class CaseOperationConflictException(Guid caseId, string operation
     public Guid CaseId { get; } = caseId;
 
     public string OperationKey { get; } = operationKey;
+}
+
+/// <summary>
+/// A mutation was attempted on a closed case, which is application read-only until an
+/// authorized reopen. A designed refusal, not a fault.
+/// </summary>
+public sealed class CaseTerminalMutationException(Guid caseId)
+    : InvalidOperationException(
+        $"Closed case '{caseId}' is application read-only until an authorized reopen.")
+{
+    public Guid CaseId { get; } = caseId;
 }
 
 /// <summary>
@@ -439,6 +450,14 @@ public sealed record ReturnCaseToEngineerRequest(
 public interface ICaseWorkflowQueries
 {
     Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The assigned engineer of each listed Case, in one read. A Case with no
+    /// workflow is absent; a Case with no engineer maps to <see langword="null"/>.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
+        IReadOnlyCollection<Guid> caseIds,
+        CancellationToken cancellationToken);
 
     Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken);
 }

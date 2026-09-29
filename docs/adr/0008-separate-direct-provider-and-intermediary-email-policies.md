@@ -65,7 +65,7 @@ case model, or general policy selector.
 
 Functional behaviour for the active QDOS direct route — route identification
 and the automatic case-association predicates — is specified in
-[FRD-09](../frd/frd-09-provider-and-intermediary-routes.md).
+[FRD-09](../frd/frd-09-principal-and-intermediary-routes.md).
 
 ## Consequences
 

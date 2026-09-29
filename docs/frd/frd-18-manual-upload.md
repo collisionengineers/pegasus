@@ -96,9 +96,9 @@ link is recorded.
 | File count | 20 |
 | Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook`, `video/mp4`, `video/quicktime` |
 
-The Provider API has its own separate limits: 30 MiB decoded envelope and
+The Principal API has its own separate limits: 30 MiB decoded envelope and
 42 MiB encoded request
-([FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)).
+([FRD-09](frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary)).
 
 `IntakeEnvelopeLimits` in Core is the single owner of the manual per-file,
 file-count, and aggregate ceilings. Host and ingress limits may tighten them
@@ -120,9 +120,10 @@ The submission decision never hides a per-file outcome.
 
 Once a manually uploaded file's processing resolves, the operator sees an
 explicit destination decision, not a passive status label. Manual upload
-keeps the source and its extraction but never associates it automatically,
-never allocates a Case/PO, and never treats a unique match as consent.
-Mailbox and Provider routes keep their own automatic policy.
+keeps the source and its extraction but never associates it automatically
+with a Case that existed when it was registered, never allocates a Case/PO,
+and never treats a unique match as consent.
+Mailbox and Principal routes keep their own automatic policy.
 
 The decision table, judged against the current retained material:
 
@@ -143,7 +144,9 @@ The decision table, judged against the current retained material:
    existing case** (below). That decision links the registration's origin
    receipt, which carries the Image-initiated Case through its normal merge
    ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
-   Once merged, the surface reports the destination Case instead.
+   A Case created after the registration pairs with it automatically under
+   the same FRD-19 rules. Once merged, the surface reports the destination
+   Case instead.
 3. **A manual non-image file that could become a Case.** Staff must either
    confirm one existing Case or open the extracted new-Case proposal.
    A unique match is one suggestion, not a selection. The proposal is
@@ -175,8 +178,9 @@ Where the decision is genuinely open (rows 2 and 3) the surface carries it:
   merge where one is registered. The route and group membership are loaded
   server-side; a posted receipt id is not authority. The page operation id,
   the reviewed receipt version, and the reviewed target Case version (a Triage
-  Case's Triage version) bind the decision. A typed reference first renders
-  its exact target for confirmation before any write. A replay succeeds only
+  Case's Triage version) bind the decision. On the upload status pages a typed
+  reference first renders its exact target for confirmation before any
+  write. A replay succeeds only
   for the identical committed decision (actor, target, reviewed input), not
   merely the same target. A stale version, a changed decision, a competing
   lease, an unavailable destination, or an incomplete group reports an honest
@@ -231,7 +235,7 @@ are separate tiers
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-19](frd-19-image-led-intake-and-pairing.md).
 - Operations: [operations](../operations.md) for deployed limit

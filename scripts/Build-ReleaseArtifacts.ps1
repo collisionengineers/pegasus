@@ -12,6 +12,48 @@ $migrationBundle = Get-PegasusMigrationBundle
 $migrationRuntimeIdentifier = $migrationBundle.RuntimeIdentifier
 $migrationBundleName = $migrationBundle.Name
 
+# The assembly's informational version, read from its metadata without
+# loading it, so an image compiled for another platform can be checked.
+function Get-PegasusInformationalVersion {
+    param([Parameter(Mandatory)][string] $AssemblyPath)
+    $stream = [IO.File]::OpenRead($AssemblyPath)
+    try {
+        $image = [Reflection.PortableExecutable.PEReader]::new($stream)
+        try {
+            $metadata = [Reflection.Metadata.PEReaderExtensions]::GetMetadataReader($image)
+            foreach ($handle in $metadata.GetAssemblyDefinition().GetCustomAttributes()) {
+                $attribute = $metadata.GetCustomAttribute($handle)
+                if ($attribute.Constructor.Kind -ne [Reflection.Metadata.HandleKind]::MemberReference) { continue }
+                $constructor = $metadata.GetMemberReference([Reflection.Metadata.MemberReferenceHandle]$attribute.Constructor)
+                if ($constructor.Parent.Kind -ne [Reflection.Metadata.HandleKind]::TypeReference) { continue }
+                $type = $metadata.GetTypeReference([Reflection.Metadata.TypeReferenceHandle]$constructor.Parent)
+                if ($metadata.GetString($type.Namespace) -cne 'System.Reflection' -or
+                    $metadata.GetString($type.Name) -cne 'AssemblyInformationalVersionAttribute') { continue }
+                $value = $metadata.GetBlobReader($attribute.Value)
+                if ($value.ReadUInt16() -ne 1) { throw "$AssemblyPath has a malformed informational version attribute." }
+                return $value.ReadSerializedString()
+            }
+        }
+        finally { $image.Dispose() }
+    }
+    finally { $stream.Dispose() }
+    throw "$AssemblyPath carries no informational version."
+}
+
+function Test-PegasusReadyToRunImage {
+    param([Parameter(Mandatory)][string] $AssemblyPath)
+    $stream = [IO.File]::OpenRead($AssemblyPath)
+    try {
+        $image = [Reflection.PortableExecutable.PEReader]::new($stream)
+        try {
+            $header = $image.PEHeaders.CorHeader
+            return ($null -ne $header -and $header.ManagedNativeHeaderDirectory.Size -gt 0)
+        }
+        finally { $image.Dispose() }
+    }
+    finally { $stream.Dispose() }
+}
+
 Push-Location $repositoryRoot
 try {
     $head = (git rev-parse HEAD).Trim()
@@ -42,23 +84,35 @@ try {
         '-p:IncludeSourceRevisionInInformationalVersion=false',
         '-p:ContinuousIntegrationBuild=true'
     )
-    & dotnet restore ./src/Pegasus.Web/Pegasus.Web.csproj --locked-mode
+    # The Web restore asks for ReadyToRun, so the publish below finds the
+    # runtime and compiler packs it needs (NETSDK1094 otherwise). The project
+    # already lists linux-x64, so the locked graph is unchanged.
+    & dotnet restore ./src/Pegasus.Web/Pegasus.Web.csproj --locked-mode -p:PublishReadyToRun=true
     if ($LASTEXITCODE -ne 0) { throw 'Locked Web runtime restore failed.' }
     & dotnet restore ./src/Pegasus.Worker/Pegasus.Worker.csproj --locked-mode
     if ($LASTEXITCODE -ne 0) { throw 'Locked Worker runtime restore failed.' }
     # ADR-0049: web.zip is the Web release artifact. It is a framework-dependent
     # Linux x64 publish for the App Service DOTNETCORE|10.0 stack, run from
-    # package; no container image, registry or OCI tooling is involved.
-    & dotnet publish ./src/Pegasus.Web/Pegasus.Web.csproj -c Release -r linux-x64 --self-contained false --no-restore -o $webPublish @buildProperties
+    # package; no container image, registry or OCI tooling is involved. It is
+    # compiled ReadyToRun, so a fresh instance does not JIT every first request.
+    & dotnet publish ./src/Pegasus.Web/Pegasus.Web.csproj -c Release -r linux-x64 --self-contained false -p:PublishReadyToRun=true --no-restore -o $webPublish @buildProperties
     if ($LASTEXITCODE -ne 0) { throw 'Web publish failed.' }
-    $webBuildIdentity = & dotnet (Join-Path $webPublish 'Pegasus.Web.dll') --diagnostics-version | ConvertFrom-Json
-    if (
-        $LASTEXITCODE -ne 0 -or
-        $webBuildIdentity.schemaVersion -ne 1 -or
-        $webBuildIdentity.version -ne $Version -or
-        $webBuildIdentity.sourceSha -ne $SourceRevision
-    ) {
+    # The Web reports its identity from this attribute (Program.cs). A
+    # ReadyToRun image compiled for Linux cannot be loaded on a Windows
+    # workstation, so the attribute is read from the published metadata rather
+    # than by running the assembly. The live smoke proves what the running
+    # bytes report.
+    $webInformationalVersion = Get-PegasusInformationalVersion -AssemblyPath (Join-Path $webPublish 'Pegasus.Web.dll')
+    if ($webInformationalVersion -cne "$Version+$SourceRevision") {
         throw 'Web publish informational version does not match the exact release version and source revision.'
+    }
+    # The Box SDK's FIPS BouncyCastle assemblies check their own bytes when they
+    # start; a ReadyToRun copy fails "Module checksum failed" on the first Box
+    # sign-in. Pegasus.Web.csproj excludes them; this proves it did.
+    foreach ($fipsAssembly in @(Get-ChildItem -LiteralPath $webPublish -Filter '*fips*.dll')) {
+        if (Test-PegasusReadyToRunImage -AssemblyPath $fipsAssembly.FullName) {
+            throw "$($fipsAssembly.Name) was compiled ReadyToRun; its FIPS module check fails on load. Exclude it with PublishReadyToRunExclude in Pegasus.Web.csproj."
+        }
     }
     foreach ($requiredWebFile in @('Pegasus.Web.dll', 'Pegasus.Web.runtimeconfig.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $webPublish $requiredWebFile) -PathType Leaf)) {
@@ -109,6 +163,7 @@ try {
             name = 'web.zip'
             runtimeIdentifier = 'linux-x64'
             selfContained = $false
+            readyToRun = $true
             hostStack = 'DOTNETCORE|10.0'
         }
         migrationRuntimeIdentifier = $migrationRuntimeIdentifier

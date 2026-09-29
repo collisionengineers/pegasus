@@ -72,18 +72,23 @@ the `a.` Case once the Principal and identity gates pass, with or without that
 report.
 
 - On the email route, a readable original report records the assessment at
-  intake.
-- On the Provider API route, the authenticated Principal declares the verdict
-  and attaches the original report. The declaration records the assessment.
+  intake. A report is readable when it prints exactly one of "repairable" and
+  "total loss". When it prints both, as a repairable supplement does when it
+  cites a previous total loss, the report extraction's printed outcome decides
+  if it names one. When it names none, the message gets no automatic Audit.
+- On the Principal API route, the authenticated Principal declares the verdict
+  and may attach the original report. The declaration records the
+  assessment at creation, with or without the report.
 - On manual upload, a staff member must accept the proposal first.
 
 If no original report is filed on the Case and no standalone-Audit evidence
 was kept at intake, the Case shows **Original report missing** as an
-outstanding requirement. It clears when staff mark a filed document as the
-original report. The assessment is a fact on the Case, not part of its
-identity. The filed report fills the Case's
-[Original report](frd-16-case-record-workspace.md#original-report) cells at
-acceptance and when a document is marked as the original report.
+outstanding requirement. It clears when a filed document is recorded as the
+original report: by Pegasus, when files added to the Case later carry
+exactly one report it recognises, or by staff marking one. The assessment is
+a fact on the Case, not part of its identity. The filed report fills the
+Case's [Original report](frd-16-case-record-workspace.md#original-report)
+cells at acceptance and when a document is recorded as the original report.
 
 **Inspection + Audit.** The Case starts as a normal Inspection Case. Once
 its Inspection report is sent, **Create audit** (in the Actions menu, inside
@@ -127,7 +132,7 @@ stay on record permanently.
 **Wrong Principal.** A Case created under the wrong Principal is marked
 `Created in error` with a reason and a link to its replacement Case. Neither
 Case's identity changes and neither reference is reused. The replacement
-records the correct Principal as a Confirmed `work_provider_code` with source
+records the correct Principal as a Confirmed `principal_code` with source
 kind staff correction. The original Case's own fields are left as they were.
 After Create audit, the replacement starts from the Inspection's values only
 and has no Audit. Created in error is a recorded disposition, not a

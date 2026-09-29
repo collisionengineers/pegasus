@@ -541,7 +541,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 "PrincipalSequenceLineages:INSERT", "PrincipalSequenceLineages:SELECT",
                 "Principals:SELECT", "Principals:UPDATE",
                 "StandaloneAuditEvidence:INSERT", "StandaloneAuditEvidence:SELECT",
-                "VehicleConfirmations:INSERT", "VehicleConfirmations:SELECT",
                 "WorkflowConfigurations:SELECT"
             ],
             await ReadValuesAsync(
@@ -562,7 +561,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                         N'CaseWorkflows', N'CaseDataSnapshots', N'CaseDataFields',
                         N'CaseDueWork', N'ExternalWorkItems', N'IntakeMutationHistory',
                         N'Principals', N'PrincipalSequenceLineages', N'Organizations',
-                        N'OrganizationRoles', N'VehicleConfirmations', N'WorkflowConfigurations')
+                        N'OrganizationRoles', N'WorkflowConfigurations')
                   AND permission.class = 1
                   AND permission.minor_id = 0
                   AND permission.[state] = 'G'
@@ -1011,6 +1010,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     // every deployed case uploaded its evidence to Box and was then refused the
     // record write. Nothing here caught it because the tests run
     // full-privilege; this asserts the grant itself.
+    // 20260928160000_GrantWorkerDocumentOccurrenceUpdate: the Worker gives the
+    // original report it recognised among a receipt's filed files the Audit
+    // report role, so it updates an occurrence too.
     [Fact]
     public async Task LatestMigrationGrantsWorkerTheCaseDocumentTables()
     {
@@ -1026,7 +1028,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         foreach (var (table, expected) in new[]
         {
             ("CaseDocuments", new[] { "CaseDocuments:INSERT", "CaseDocuments:SELECT" }),
-            ("DocumentOccurrences", ["DocumentOccurrences:INSERT", "DocumentOccurrences:SELECT"]),
+            ("DocumentOccurrences",
+                ["DocumentOccurrences:INSERT", "DocumentOccurrences:SELECT", "DocumentOccurrences:UPDATE"]),
             ("DocumentVersions",
                 ["DocumentVersions:INSERT", "DocumentVersions:SELECT", "DocumentVersions:UPDATE"])
         })
@@ -1037,6 +1040,52 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                     .Where(value => value.StartsWith($"{table}:", StringComparison.Ordinal))
                     .ToArray());
             Assert.Contains(table, deniedDelete);
+        }
+    }
+
+    // 20260929091000_GrantWebRetainedMailDismissal: Inbox Dismiss and Restore
+    // write the dismissal cells of the retained message row as the Web role,
+    // which held SELECT only. The grant is table-level; the exact list below
+    // proves no DELETE grant.
+    [Fact]
+    public async Task LatestMigrationGrantsWebUpdateOnRetainedMailboxMessages()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            ["RetainedMailboxMessages:SELECT", "RetainedMailboxMessages:UPDATE"],
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => value.StartsWith("RetainedMailboxMessages:", StringComparison.Ordinal))
+                .ToArray());
+    }
+
+    // The Worker's thumbnail sweep lists confirmed versions and reads and
+    // writes the content cache as the least-privilege Worker role. No grant
+    // was added for it; this asserts the ones it relies on.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerTheThumbnailSweepTables()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        foreach (var permission in new[]
+        {
+            "Cases:SELECT",
+            "CaseDocuments:SELECT",
+            "DocumentVersions:SELECT",
+            "DocumentContentCacheEntries:SELECT",
+            "DocumentContentCacheEntries:INSERT",
+            "DocumentContentCacheEntries:UPDATE",
+            "DocumentContentCacheEntries:DELETE"
+        })
+        {
+            Assert.Contains(permission, granted);
         }
     }
 
@@ -1371,7 +1420,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             INSERT INTO [dbo].[CaseWorkflows] ([CaseId], [State], [Version], [ConcurrencyToken])
             VALUES ('{caseId:D}', N'{nameof(CaseLifecycleState.Review)}', 0, '{Guid.NewGuid():D}');
             INSERT INTO [dbo].[CaseMatchIndex] (
-                [CaseId], [WorkProviderCode], [NormalizedVrm], [MatchPolicyKey],
+                [CaseId], [PrincipalCode], [NormalizedVrm], [MatchPolicyKey],
                 [MatchPolicyVersion], [UpdatedAtUtc])
             VALUES ('{caseId:D}', N'QDOS', N'PG18BTY', N'runtime-role-test', 1,
                 '2031-05-06T10:31:00+00:00');
@@ -1446,6 +1495,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
             item.CaseId == caseId && item.EventType == "intake_case_auto_linked"));
         Assert.Equal(1, await context.CaseHistory.CountAsync(item =>
+            item.CaseId == caseId && item.EventType == "image_initiated_case_merged"));
+        Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
             item.CaseId == caseId && item.EventType == "image_initiated_case_merged"));
         Assert.Equal("NG22FVH", await context.InstructionDrafts.Where(item =>
             item.IntakeReceiptId == caseReceiptId).Select(item => item.VehicleRegistration).SingleAsync());

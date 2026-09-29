@@ -25,8 +25,9 @@ public sealed class PreCaseImageThumbnailTests
         await using var thumbnail = await fixture.Sut.OpenAsync(new PreCaseImageThumbnailQuery(receiptId, assetId, Staff));
 
         Assert.NotNull(thumbnail);
-        Assert.Equal(CaseDocumentThumbnails.MediaType, thumbnail.MediaType);
-        Assert.Equal("source-sha", thumbnail.SourceSha256);
+        Assert.Equal(CaseDocumentThumbnails.MediaType, thumbnail.Rendering.MediaType);
+        Assert.Equal("source-sha", thumbnail.Rendering.SourceSha256);
+        Assert.Equal(3, thumbnail.PreparationVersion);
         Assert.Equal((receiptId, assetId), fixture.Download.Read);
         Assert.Equal((CaseAssetRotation.Clockwise90, crop), fixture.Renderer.Rendered);
     }

@@ -261,6 +261,10 @@ public sealed class ImmediateExternalPublicationTests
         public Task<OriginalReportReading?> ForDocumentAsync(
             ActionActor actor, Guid caseId, Guid occurrenceId, Guid versionId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<OriginalReportRecognition> RecogniseFiledAssetAsync(
+            Guid receiptId, IntakeAssetRecord asset, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingPublisher : ICommittedExternalWorkPublisher
@@ -324,7 +328,7 @@ public sealed class ImmediateExternalPublicationTests
             Task.FromResult(new CaseWorkflowConfiguration("test", 1));
     }
 
-    private sealed class InspectionModeStore : IProviderInspectionModeStore
+    private sealed class InspectionModeStore : IPrincipalInspectionModeStore
     {
         public Task<CaseInspectionMode?> GetForPrincipalAsync(
             string principalCode,

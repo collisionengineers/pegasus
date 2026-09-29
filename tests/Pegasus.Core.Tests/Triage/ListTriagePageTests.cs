@@ -80,12 +80,32 @@ public sealed class ListTriagePageTests
         var useCase = new ListTriagePage(queries, new FakeCursorProtector());
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            useCase.ExecuteAsync(new(ActionActor.Provider(Guid.NewGuid()), null, null, 10)));
+            useCase.ExecuteAsync(new(ActionActor.Principal(Guid.NewGuid()), null, null, 10)));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             useCase.ExecuteAsync(new(StaffActor(), null, null, 0)));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             useCase.ExecuteAsync(new(StaffActor(), null, null, CursorPaging.MaximumLimit + 1)));
         Assert.Equal(0, queries.Calls);
+    }
+
+    [Fact]
+    public async Task ListAllReadsTheWholeStateOnceAfterTheSameChecksAsAPage()
+    {
+        TriageSummary[] all = [Summary("t.QDOS26001", Now), Summary("t.QDOS26002", Now.AddMinutes(-1))];
+        var queries = new RecordingQueries(new([], null)) { All = all };
+        var useCase = new ListTriage(queries);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            useCase.ListAllAsync(ActionActor.Principal(Guid.NewGuid()), TriageState.Open));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            useCase.ListAllAsync(StaffActor(), (TriageState)999));
+        Assert.Equal(0, queries.Calls);
+
+        var listed = await useCase.ListAllAsync(StaffActor(), TriageState.AwaitingInformation);
+
+        Assert.Equal(all, listed);
+        Assert.Equal(1, queries.Calls);
+        Assert.Equal(TriageState.AwaitingInformation, queries.LastState);
     }
 
     private static TriageSummary Summary(string reference, DateTimeOffset createdAtUtc) => new(
@@ -97,11 +117,13 @@ public sealed class ListTriagePageTests
         createdAtUtc,
         Version: 0,
         Reference: reference,
-        Provider: "QDOS");
+        PrincipalCode: "QDOS");
 
     private sealed class RecordingQueries(TriageListSlice next) : ITriageQueries
     {
         public TriageListSlice Next { get; set; } = next;
+
+        public IReadOnlyList<TriageSummary> All { get; init; } = [];
 
         public int Calls { get; private set; }
 
@@ -126,8 +148,12 @@ public sealed class ListTriagePageTests
 
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
             TriageState? state,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastState = state;
+            return Task.FromResult(All);
+        }
 
         public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
             Task.FromResult(0);

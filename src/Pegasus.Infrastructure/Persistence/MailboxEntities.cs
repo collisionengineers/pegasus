@@ -39,7 +39,8 @@ internal sealed class ApprovedInboxPoisonMessageEntity
 /// One retained message, as the workspace displays it.
 /// </summary>
 /// <remarks>
-/// Written once by the poll and never updated. Recipients are JSON rather than a
+/// Written by the poll; only the dismissal cells are ever updated, by Web's Dismiss and
+/// Restore. Recipients are JSON rather than a
 /// table because nothing queries them — they are read back whole with the message,
 /// exactly as <c>ApprovedSentPollOutcomeEntity.InReplyToIdentitiesJson</c> is.
 /// Attachments are a table because the list view counts them.
@@ -210,7 +211,7 @@ internal sealed class IntakeMailRouteDecisionEntity
     public required string Disposition { get; set; }
     public string? RouteOwnerCode { get; set; }
     public string? RouteKind { get; set; }
-    public string? WorkProviderCode { get; set; }
+    public string? PrincipalCode { get; set; }
     public required string PredicatesJson { get; set; }
     public required string Reason { get; set; }
     public required string PolicyKey { get; set; }

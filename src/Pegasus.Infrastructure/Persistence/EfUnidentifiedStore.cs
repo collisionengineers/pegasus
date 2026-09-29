@@ -639,7 +639,8 @@ public sealed class EfUnidentifiedStore(
             emailSubject,
             emailSender,
             item.CreatedAtUtc,
-            Enum.Parse<UnidentifiedReasonCode>(item.ReasonCode));
+            Enum.Parse<UnidentifiedReasonCode>(item.ReasonCode),
+            item.ResolutionReason);
     }
 
     public async Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(Guid unidentifiedItemId, CancellationToken cancellationToken = default)

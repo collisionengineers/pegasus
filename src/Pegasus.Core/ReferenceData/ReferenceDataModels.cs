@@ -4,26 +4,26 @@ using System.Text.Json.Serialization;
 namespace Pegasus.Core.ReferenceData;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record ProviderDomainPackage(
+public sealed record PrincipalDomainPackage(
     [property: JsonPropertyName("schemaVersion")] int SchemaVersion,
     [property: JsonPropertyName("version")] string Version,
-    [property: JsonPropertyName("source")] ProviderDomainSource Source,
-    [property: JsonPropertyName("providers")] ImmutableArray<ProviderDomainReference> Providers);
+    [property: JsonPropertyName("source")] PrincipalDomainSource Source,
+    [property: JsonPropertyName("providers")] ImmutableArray<PrincipalDomainReference> Principals);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record ProviderDomainSource(
+public sealed record PrincipalDomainSource(
     [property: JsonPropertyName("path")] string Path,
     [property: JsonPropertyName("contentSha256")] string ContentSha256,
     [property: JsonPropertyName("sheet")] string Sheet,
     [property: JsonPropertyName("rowCount")] int RowCount);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record ProviderDomainReference(
+public sealed record PrincipalDomainReference(
     [property: JsonPropertyName("code")] string Code,
     [property: JsonPropertyName("sourceRow")] int SourceRow,
     [property: JsonPropertyName("domainSuffixes")] ImmutableArray<string> DomainSuffixes);
 
-public enum ProviderDomainCandidateStatus
+public enum PrincipalDomainCandidateStatus
 {
     Found = 1,
     Unknown = 2,
@@ -33,6 +33,6 @@ public enum ProviderDomainCandidateStatus
     PackageRejected = 6
 }
 
-public sealed record ProviderDomainCandidates(
-    ProviderDomainCandidateStatus Status,
-    ImmutableArray<string> ProviderCodes);
+public sealed record PrincipalDomainCandidates(
+    PrincipalDomainCandidateStatus Status,
+    ImmutableArray<string> PrincipalCodes);

@@ -29,7 +29,7 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfCaseWorkspaceStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider,
-    IEnumerable<IProviderCaseMatchPolicy>? caseMatchPolicies = null) : ICaseWorkspaceStore
+    IEnumerable<IPrincipalCaseMatchPolicy>? caseMatchPolicies = null) : ICaseWorkspaceStore
 {
     private const string EventType = "case_workspace_saved";
 
@@ -260,14 +260,14 @@ public sealed class EfCaseWorkspaceStore(
                     afterAssessment.GetValueOrDefault(AssessmentVocabulary.SettlementClaimantVatRegistered),
                     "true",
                     StringComparison.Ordinal),
+                afterAssessment.GetValueOrDefault(AssessmentVocabulary.ValueEngineer),
                 CaseMileageInMiles(snapshot.Fields),
                 checked(workflow.Version + 1),
                 now,
                 cancellationToken)
             : null;
 
-        var signOffEngineerProfiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken);
+        var signOffEngineerProfiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
         var beforeSignOffEngineerId = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,

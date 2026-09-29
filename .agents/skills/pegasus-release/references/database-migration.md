@@ -8,6 +8,10 @@ and unserved, or the first App Service cutover's Container App has no active
 revisions or replicas, disabled ingress, and an unserved old origin. Unknown or
 stale containment blocks SQL.
 
+Any migration or SQL that changes a user's roles, claims or enabled state must
+also set a new `SecurityStamp` for that user. Signed-in sessions are refused
+only when the stamp changes.
+
 1. Run the manifest- and environment-bound gate:
 
    ```powershell

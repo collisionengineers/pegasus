@@ -39,7 +39,7 @@ public sealed record IntakeLogBecame(IntakeLogBecameKind Kind, Guid Id, string R
 
 /// <summary>
 /// Where a received item came from: the mailbox and sender, the upload and who
-/// made it, or the Provider API and the principal. <see cref="Detail"/> is the
+/// made it, or the Principal API and the principal. <see cref="Detail"/> is the
 /// second half of that pair; null when the record did not keep it.
 /// </summary>
 public sealed record IntakeLogSource(IntakeSourceChannel Channel, string? Address, string? Detail);
@@ -85,8 +85,7 @@ public sealed record IntakeLogPage(
 /// <summary>
 /// The tab's head-line counts. <see cref="FailedIntake"/> counts every receipt
 /// whose outcome is a retryable failure (<see cref="IntakeLogPolicy.RetryableFailures"/>):
-/// the same rows Operations lists under Attention required, each with its own
-/// retry.
+/// the rows the Intake log lists as retryable, each with its own retry.
 /// </summary>
 public sealed record IntakeLogCounts(int FailedIntake, DateTimeOffset? OldestPendingIntakeDueAtUtc);
 
@@ -109,17 +108,6 @@ public sealed record IntakeLogDetail(
     IReadOnlyList<IntakeAllocationState> AllocationAttempts,
     IntakeLogActions Actions);
 
-/// <summary>
-/// The bounded Operations attention projection. It carries exactly the action
-/// facts that surface needs, without opening every failed receipt's full Log
-/// drawer independently.
-/// </summary>
-public sealed record IntakeLogActionableFailure(
-    IntakeLogRow Row,
-    long ReceiptVersion,
-    IntakeAllocationState? LatestAllocationAttempt,
-    IntakeLogActions Actions);
-
 public interface IIntakeLogQueries
 {
     Task<IntakeLogPage> ListAsync(IntakeLogFilter filter, int page, int pageSize, CancellationToken cancellationToken);
@@ -127,9 +115,6 @@ public interface IIntakeLogQueries
     Task<IntakeLogCounts> GetCountsAsync(CancellationToken cancellationToken);
 
     Task<IntakeLogDetail?> GetAsync(Guid receiptId, CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
-        CancellationToken cancellationToken);
 }
 
 public static class IntakeLogPolicy
@@ -138,7 +123,7 @@ public static class IntakeLogPolicy
     public const int MaximumTextLength = 200;
 
     /// <summary>
-    /// The intake failures a person can retry, in the order Operations lists
+    /// The intake failures a person can retry, in the order the log lists
     /// them: failed allocation (Retry allocation), failed OCR (Retry OCR) and
     /// any other processing failure (Re-evaluate). The Intake log's Failed
     /// intake count is the number of receipts in these outcomes.
@@ -210,10 +195,6 @@ public interface IListIntakeLog
     Task<IntakeLogCounts> CountsAsync(ActionActor actor, CancellationToken cancellationToken);
 
     Task<IntakeLogDetail?> GetAsync(ActionActor actor, Guid receiptId, CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
-        ActionActor actor,
-        CancellationToken cancellationToken);
 }
 
 public sealed class ListIntakeLog(IIntakeLogQueries queries) : IListIntakeLog
@@ -246,14 +227,6 @@ public sealed class ListIntakeLog(IIntakeLogQueries queries) : IListIntakeLog
         }
 
         return _queries.GetAsync(receiptId, cancellationToken);
-    }
-
-    public Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
-        ActionActor actor,
-        CancellationToken cancellationToken)
-    {
-        RequireAdministrator(actor);
-        return _queries.ListRetryableFailuresAsync(cancellationToken);
     }
 
     private static void RequireAdministrator(ActionActor actor)
