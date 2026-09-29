@@ -49,17 +49,28 @@ public sealed record UploadReviewFile(
     /// <summary>The photographs Pegasus kept out of this document (a PDF or Word file), in stored order; empty for an image or a file not yet processed.</summary>
     public IReadOnlyList<UploadReviewPhotograph> Photographs { get; init; } = [];
 
-    /// <summary>The retained photographs of a processed receipt, addressed by their authorised staff read.</summary>
+    /// <summary>
+    /// The retained photographs of a processed receipt whose bytes can be read
+    /// now, addressed by their authorised staff read. A photograph custody has
+    /// not confirmed yet has no readable copy, so it is not listed until it has.
+    /// </summary>
     public static IReadOnlyList<UploadReviewPhotograph> PhotographsOf(IntakeReceipt? receipt) =>
         receipt is null
             ? []
-            : InstructionEvidenceImages.Select(receipt.AssetRecords)
+            : InstructionEvidenceImages.Servable(receipt.AssetRecords)
                 .Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage)
                 .Select(asset => new UploadReviewPhotograph(
                     asset.Id,
                     asset.FileName,
                     $"/Received/{receipt.Id:D}/Asset/{asset.Id:D}"))
                 .ToArray();
+
+    /// <summary>Whether a photograph of this receipt is still waiting on custody, so the page should look again.</summary>
+    public static bool AwaitsPhotographs(IntakeReceipt? receipt) =>
+        receipt is not null
+        && InstructionEvidenceImages.Select(receipt.AssetRecords).Any(asset =>
+            asset.Kind == IntakeAssetKind.EmbeddedImage
+            && asset.CustodyState == IncomingArtifactCustodyState.Pending);
 }
 
 /// <summary>One photograph pulled out of an uploaded document.</summary>
