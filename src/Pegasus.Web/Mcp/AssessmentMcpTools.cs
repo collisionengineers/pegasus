@@ -389,7 +389,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records assessment fields that staff can also record on the Case, under the case edit lease and expected version. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag until a staff member changes or clears it on the field's Case section. Professional findings, case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field. The optional workRequestId correlates the write with a Send to AI hand-off.")]
+    [Description("Records assessment fields that staff can also record on the Case, under the case edit lease and expected version. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag until a staff member changes or clears it on the field's Case section. Professional findings, case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -397,19 +397,17 @@ internal sealed class AssessmentMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("Scalar assessment values keyed by field path, limited to fields staff can record on the Case; a null value clears the field.")] Dictionary<string, string?>? fields = null,
-        [Description("Optional Send to AI work-request identifier for round-trip correlation.")] string? workRequestId = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
             AutomationMcp.AssessmentScope,
             cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        var binding = ParseWorkRequestId(workRequestId);
         return await auditor.RecordAsync(
             context,
             "pegasus_assessment_update",
             caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            binding?.ToString("D") ?? normalizedKey,
+            normalizedKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
@@ -430,8 +428,7 @@ internal sealed class AssessmentMcpTools(
                         normalizedKey,
                         reason,
                         editLeaseToken,
-                        fields ?? new Dictionary<string, string?>(StringComparer.Ordinal),
-                        binding),
+                        fields ?? new Dictionary<string, string?>(StringComparer.Ordinal)),
                     cancellationToken);
                 return new AssessmentUpdateToolResult(
                     projection.CaseId,
@@ -441,7 +438,7 @@ internal sealed class AssessmentMcpTools(
                     projection.EstimateLines.Select(MapLine).ToArray(),
                     projection.Readiness.Select(MapReadiness).ToArray(),
                     normalizedKey,
-                    binding?.ToString("D") ?? normalizedKey);
+                    normalizedKey);
             }),
             cancellationToken);
     }
@@ -503,17 +500,15 @@ internal sealed class AssessmentMcpTools(
         [Description("Inspection address; must accompany inspectionMode.")] string? inspectionAddress = null,
         [Description("Inspection mode: physical_address or image_based_assessment.")] string? inspectionMode = null,
         [Description("Storage location for the vehicle.")] string? storageLocation = null,
-        [Description("Optional Send to AI work-request identifier for round-trip correlation.")] string? workRequestId = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        var binding = ParseWorkRequestId(workRequestId);
         return await auditor.RecordAsync(
             context,
             "pegasus_case_update_details",
             caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            binding?.ToString("D") ?? normalizedKey,
+            normalizedKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
@@ -573,7 +568,7 @@ internal sealed class AssessmentMcpTools(
                     saved.Version,
                     saved.State.ToString(),
                     normalizedKey,
-                    binding?.ToString("D") ?? normalizedKey);
+                    normalizedKey);
             }),
             cancellationToken);
     }
@@ -674,19 +669,6 @@ internal sealed class AssessmentMcpTools(
         item.Source,
         item.WhyOutstanding,
         item.HowToResolve);
-
-    private static Guid? ParseWorkRequestId(string? workRequestId)
-    {
-        if (string.IsNullOrWhiteSpace(workRequestId))
-        {
-            return null;
-        }
-
-        return Guid.TryParse(workRequestId.Trim(), out var parsed) && parsed != Guid.Empty
-            ? parsed
-            : throw new McpException(
-                "The work-request identifier must be a non-empty GUID when supplied.");
-    }
 
     private static DateOnly? ParseDate(string? value, string name)
     {

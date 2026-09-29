@@ -30,6 +30,23 @@ public sealed class AiDraftTests
     }
 
     [Fact]
+    public void AnUnidentifiedQueuePassDraftHasNoRoute()
+    {
+        var pass = Job(AiJobKind.UnidentifiedQueuePass, AiJobState.DraftReady) with
+        {
+            SubjectKind = AiJobSubjectKind.Queue,
+            SubjectId = null,
+            DraftReadyAtUtc = Now
+        };
+
+        var draft = AiDraftPolicy.ToDraft(pass, 1);
+
+        Assert.NotNull(draft);
+        Assert.Equal(AiDraftAction.Review, draft.Action);
+        Assert.Null(draft.Route);
+    }
+
+    [Fact]
     public void TheDueInstantIsMidnightLondonAfterTheTargetDays()
     {
         // 23:30 UTC on 13 September is 00:30 on 14 September in London.
@@ -63,8 +80,6 @@ public sealed class AiDraftTests
             Task.FromResult<IReadOnlyList<AiJobRecord>>(jobs.Where(job => job.SubjectId == subjectId).ToArray());
 
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
     }

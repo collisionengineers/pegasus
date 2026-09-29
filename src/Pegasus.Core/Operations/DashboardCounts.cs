@@ -74,8 +74,8 @@ public interface IDashboardQueries
 /// <summary>
 /// The Work Centre's actionable kinds (Work Centre D1–D3, D9). Each is derived
 /// from one existing Core query and carries a due instant from the workflow
-/// targets; there is no placeholder row. Failed external work is not a kind: it
-/// lives on Operations only (D1).
+/// targets; there is no placeholder row. Failed external work is not a kind
+/// (D1): a custody failure is retried in its Case's Custody page.
 /// </summary>
 public enum NeedsAttentionKind
 {

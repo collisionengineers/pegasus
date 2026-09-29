@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -12,10 +13,10 @@ namespace Pegasus.Web.Pages.Unidentified;
 
 /// <summary>
 /// The Unidentified record (v26, received file D2): everything the removed
-/// received-file page hosted for material no route identified. Seven actions —
+/// received-file page hosted for material no route identified. Eight actions —
 /// Open file, Open message, Request again, Link to Case, Create case, Register
-/// images, Close with reason — plus Open the Triage, registration readings with
-/// Dismiss, and Reopen on a closed item. Nothing here links to a receipt page.
+/// images, Send to AI, Close with reason — plus Open the Triage, registration
+/// readings with Dismiss, and Reopen on a closed item. Nothing here links to a receipt page.
 /// </summary>
 [Authorize(Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
@@ -28,6 +29,7 @@ public sealed partial class DetailsModel(
     IIntakeAssociationDestinationQueries destinations,
     IAcquireCaseEditLease acquireLease,
     IReleaseCaseEditLease releaseLease,
+    ICreateAiJob createAiJob,
     ILinkIntake linkIntake,
     IImageIntakeOriginResolver originResolver,
     IRegisterImageIntake registerImageIntake,
@@ -46,6 +48,14 @@ public sealed partial class DetailsModel(
     public const string TriageDialog = "triage";
     public const string CloseDialog = "close";
     public const string ReopenDialog = "reopen";
+
+    /// <summary>
+    /// What one Unidentified-resolution job is asked to do. FRD-27 gives this
+    /// kind "the U reference only" as its input, so the direction is fixed
+    /// rather than typed: it is the job's payload, never operator copy.
+    /// </summary>
+    private const string SendToAiInstruction =
+        "Propose a destination for this Unidentified item and give the reason.";
 
     public UnidentifiedItemContext Context { get; private set; } = null!;
 
@@ -330,6 +340,48 @@ public sealed partial class DetailsModel(
             },
             cancellationToken);
 
+    /// <summary>
+    /// Send to AI (FRD-27): queues one Unidentified-resolution job for this
+    /// open item. The proposal it returns is reviewed here and confirmed
+    /// through the item's own actions; it never resolves the item itself.
+    /// </summary>
+    public Task<IActionResult> OnPostSendToAiAsync(
+        Guid id,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            id,
+            "send_to_ai",
+            null,
+            async (actor, context) =>
+            {
+                if (context.Item.State != UnidentifiedState.Open)
+                {
+                    throw new InvalidOperationException("Only an open item can be sent to AI.");
+                }
+
+                try
+                {
+                    await createAiJob.ExecuteAsync(
+                        new(
+                            AiJobKind.UnidentifiedResolution,
+                            context.Item.Id,
+                            SubjectReference: null,
+                            SendToAiInstruction,
+                            TargetPercentOfEngineerValue: null,
+                            actor,
+                            operationKey),
+                        cancellationToken);
+                }
+                catch (InvalidOperationException)
+                {
+                    throw new SendToAiRefusedException("AI work is not accepting new jobs.");
+                }
+
+                return "The Unidentified item was sent to AI.";
+            },
+            cancellationToken);
+
     /// <summary>Close with reason (received file D5): the item leaves the open list and stays reachable under Closed.</summary>
     public Task<IActionResult> OnPostCloseAsync(
         Guid id,
@@ -524,9 +576,12 @@ public sealed partial class DetailsModel(
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             LogCommandFailed(logger, commandName, id, exception);
-            ErrorMessage = exception is ArgumentException argument
-                ? argument.Message
-                : "The action was not applied because the item changed or the action is not permitted. Reload and try again.";
+            ErrorMessage = exception switch
+            {
+                ArgumentException argument => argument.Message,
+                SendToAiRefusedException refused => refused.Message,
+                _ => "The action was not applied because the item changed or the action is not permitted. Reload and try again."
+            };
             return dialog is null ? RedirectToPage(new { id }) : RedirectToPage(new { id, dialog });
         }
     }
@@ -605,6 +660,9 @@ public sealed partial class DetailsModel(
             LogCommandFailed(logger, "release_lease", caseId, exception);
         }
     }
+
+    /// <summary>The Administrator switch, or Core, refused a new AI job; its sentence is shown as it is.</summary>
+    private sealed class SendToAiRefusedException(string message) : Exception(message);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Unidentified command {CommandName} failed for {RecordId}.")]
     private static partial void LogCommandFailed(ILogger logger, string commandName, Guid recordId, Exception exception);

@@ -26,7 +26,6 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
-using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.ProviderApi;
 using Pegasus.Web;
@@ -268,13 +267,6 @@ var automationMcpOptions = AutomationMcpOptions.TryCreate(builder.Configuration)
 // The Provider API (API-01) is gated the same way: off by default, and
 // without the flag no /api/provider route, scheme or policy exists.
 var providerApiEnabled = builder.Configuration.GetValue<bool>(ProviderApi.FeatureFlag);
-
-// The Send to AI hand-off (AI-09) follows the same gate pattern: absent by
-// default, DevelopmentOffline-only, and without it the assessment panel
-// renders the unavailable state and no outbound transport exists.
-var sendToAiOptions = SendToAiOptions.TryCreate(
-    builder.Configuration,
-    developmentOfflineProfile);
 
 // RailCountsPageFilter supplies ViewData["RailCounts"] on authenticated full
 // page results — the rail shipped with the badge
@@ -781,10 +773,6 @@ if (automationMcpOptions is not null)
 if (providerApiEnabled)
 {
     builder.Services.AddPegasusProviderApi();
-}
-if (sendToAiOptions is not null)
-{
-    builder.Services.AddPegasusSendToAi(sendToAiOptions);
 }
 
 var app = builder.Build();

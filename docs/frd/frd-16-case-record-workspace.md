@@ -479,8 +479,8 @@ All three are rendered, so a no-script visit shows the lists one after the
 other under their own headings. The panel header carries Add evidence,
 which opens Upload for this Case with the destination already declared
 ([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)), Open
-Box case folder (or the folder's own state chip before custody is confirmed)
-and Open Operations. Once the Case has an Audit, a second chip follows for
+Box case folder (once custody is confirmed; before that, the folder's own
+state chip). Once the Case has an Audit, a second chip follows for
 the `a.` audit folder, in the Case folder chip's tones: **Box audit ·
 confirmed**, **Box audit folder: preparing** while it is being created, or
 **Box audit folder: unavailable**.

@@ -31,8 +31,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<VehicleLookupRequestEntity>();
     internal DbSet<VehicleLookupObservationEntity> VehicleLookupObservations =>
         Set<VehicleLookupObservationEntity>();
-    internal DbSet<VehicleConfirmationEntity> VehicleConfirmations =>
-        Set<VehicleConfirmationEntity>();
     internal DbSet<ImageIntakeEntity> ImageIntakes => Set<ImageIntakeEntity>();
     internal DbSet<ImageIntakeSequenceEntity> ImageIntakeSequences =>
         Set<ImageIntakeSequenceEntity>();
@@ -79,7 +77,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<UnroadworthyReasonEntity> UnroadworthyReasons => Set<UnroadworthyReasonEntity>();
 
     internal DbSet<CaseReportWordingEntity> CaseReportWordings => Set<CaseReportWordingEntity>();
-    internal DbSet<AiWorkRequestEntity> AiWorkRequests => Set<AiWorkRequestEntity>();
     internal DbSet<SendToAiControlEntity> SendToAiControl => Set<SendToAiControlEntity>();
     internal DbSet<AiJobEntity> AiJobs => Set<AiJobEntity>();
     internal DbSet<PrincipalApiCredentialEntity> PrincipalApiCredentials => Set<PrincipalApiCredentialEntity>();

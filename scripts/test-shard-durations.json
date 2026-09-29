@@ -136,7 +136,6 @@
   "Pegasus.IntegrationTests.OcrIntakeRecoveryTests": 88.12,
   "Pegasus.IntegrationTests.OpenXmlWorkbookWriterTests": 0.24,
   "Pegasus.IntegrationTests.OperationsPersistenceTests": 12.65,
-  "Pegasus.IntegrationTests.OperationsWebTests": 198.42,
   "Pegasus.IntegrationTests.OrganizationAdministrationPersistenceTests": 40.97,
   "Pegasus.IntegrationTests.OrganizationAdministrationWebTests": 61.35,
   "Pegasus.IntegrationTests.OrganizationDirectoryPersistenceTests": 28.84,

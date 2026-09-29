@@ -246,11 +246,11 @@ it became, and its attempt counts. A row drawer shows the retained original
 and the processing evidence: decision, failure, registration readings,
 suggested fields, decision evidence, and allocation attempts. The head-line
 Failed intake count is the number of files whose outcome is a retryable
-failure (Allocation failed, OCR failed, or Processing failed), the same set
-Operations lists.
+failure (Allocation failed, OCR failed, or Processing failed). The Intake
+log alone owns that set and its actions.
 
-Three technical actions live in the Intake log drawer and on the matching
-Operations Attention required row, Administrators only. Each needs a reason
+Three technical actions live in the Intake log drawer, Administrators only.
+Each needs a reason
 and is offered only where it applies:
 
 - **Retry allocation** when the last allocation attempt failed and can be

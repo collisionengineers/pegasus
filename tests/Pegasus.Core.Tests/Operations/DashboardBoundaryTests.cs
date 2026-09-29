@@ -396,18 +396,6 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(2, snapshot.Attention.LaterCount);
     }
 
-    [Fact]
-    public async Task TheOperationsBadgeCountsRetryableExternalFailuresOnly()
-    {
-        var store = new StubRequestOperationStore
-        {
-            RetryableFailureCount = 137
-        };
-        var badge = new GetOperationsBadge(store, new FixedTimeProvider(NowUtc));
-
-        Assert.Equal(137, await badge.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])));
-    }
-
     [Theory]
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
@@ -954,17 +942,11 @@ public sealed class DashboardBoundaryTests
     {
         public IReadOnlyList<RequestOperationProjection> Items { get; init; } = [];
 
-        public int RetryableFailureCount { get; init; }
-
         public Task<RequestOperationsProjection> GetAsync(
             int maximumItems,
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) =>
             Task.FromResult(new RequestOperationsProjection([.. Items], LimitReached: false));
-
-        public Task<int> CountRetryableExternalFailuresAsync(
-            DateTimeOffset nowUtc,
-            CancellationToken cancellationToken) => Task.FromResult(RetryableFailureCount);
     }
 
     /// <summary>Resolves nobody: every owner reads as former staff, and nothing throws.</summary>

@@ -171,36 +171,7 @@ internal sealed class CaseValuationEntity
 }
 
 /// <summary>
-/// The Send to AI work request (AI-09): the Core-owned tracking record for
-/// one pointer hand-off. Idempotent per (case, operation key); state
-/// transitions are optimistic on Version.
-/// </summary>
-internal sealed class AiWorkRequestEntity
-{
-    public Guid RequestId { get; set; }
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
-    public required string CaseReference { get; set; }
-    public long CaseVersionAtSend { get; set; }
-    public required string CapabilityScope { get; set; }
-    public required string Instruction { get; set; }
-    public required string State { get; set; }
-    public required string OperationKey { get; set; }
-    public required string RequestHash { get; set; }
-    public DateTimeOffset CreatedAtUtc { get; set; }
-    public required string CreatedBy { get; set; }
-    public DateTimeOffset ExpiresAtUtc { get; set; }
-    public DateTimeOffset? HandedOffAtUtc { get; set; }
-    public DateTimeOffset? ClosedAtUtc { get; set; }
-    public string? ClosureReason { get; set; }
-    public string? ReplyStatus { get; set; }
-    public string? ReplyMessage { get; set; }
-    public long Version { get; set; }
-}
-
-/// <summary>
-/// Single-row Administrator switch for the Send to AI outbound hand-off,
-/// mirroring the Automation client kill-switch pattern.
+/// Single-row Administrator switch for Send to AI, mirroring the Automation client kill-switch pattern.
 /// </summary>
 internal sealed class SendToAiControlEntity
 {
@@ -209,14 +180,6 @@ internal sealed class SendToAiControlEntity
     public required string Id { get; set; }
     public bool Enabled { get; set; }
     public int Version { get; set; }
-
-    // Administration-entered connector settings (MCP-07). Null means the
-    // composed configuration value applies. The token is stored protected
-    // and is never readable back through Administration.
-    public string? ChannelBaseUrl { get; set; }
-    public double? TimeoutSeconds { get; set; }
-    public string? ChannelTokenProtected { get; set; }
-    public DateTimeOffset? TokenRotatedAtUtc { get; set; }
 }
 
 /// <summary>

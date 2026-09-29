@@ -98,17 +98,6 @@
                     <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
                     <span>@OperatorLabels.Nav.Search</span>
                 </a>
-                @if (inboxEnabled)
-                {
-                    <a class="nav-link" asp-page="/Operations/Index" aria-current="@CurrentWhen("/Operations")">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-activity" /></svg>
-                        <span>@OperatorLabels.Nav.Operations</span>
-                        @if (CountFor("Operations") is { } operationsCount)
-                        {
-                            <span class="nav-count" aria-label="@operationsCount retryable">@operationsCount</span>
-                        }
-                    </a>
-                }
                 @if (isAdministrator)
                 {
                     <div class="nav-label">@OperatorLabels.Nav.Manage</div>

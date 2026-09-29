@@ -2122,55 +2122,6 @@ public sealed partial class DetailsModel(
         return new([.. edits.Select(edit => edit.ToRecord(snapshot, presentation))]);
     }
 
-    public async Task<IActionResult> OnPostGenerateReportDraftAsync(
-        Guid id,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (!IsOperationKeyValid(operationKey))
-        {
-            TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToEstimate(id);
-        }
-
-        GenerateCaseAssessmentReportDraftResult result;
-        try
-        {
-            result = await HttpContext.RequestServices
-                .GetRequiredService<GenerateCaseAssessmentReportDraft>()
-                .ExecuteAsync(
-                id, actor, CaseReportArtifactKind.AssessmentReport,
-                includeFeeNote: false, cancellationToken);
-        }
-        catch (Exception exception) when (exception is ReportRenderRejectedException
-            or InvalidOperationException
-            or IOException
-            or TimeoutException)
-        {
-            TempData["CaseError"] = "The report draft could not be generated. Retry the operation.";
-            return RedirectToEstimate(id);
-        }
-
-        switch (result.Outcome)
-        {
-            case GenerateCaseAssessmentReportDraftOutcome.NotFound:
-                return NotFound();
-            case GenerateCaseAssessmentReportDraftOutcome.NotReady:
-                TempData["CaseError"] =
-                    "The report draft is not ready. " + string.Join(
-                        " ",
-                        result.Reasons.Select(reason => $"{reason.Requirement}: {reason.WhyOutstanding}"));
-                return RedirectToEstimate(id);
-            default:
-                var assessmentPdf = result.Draft!;
-                return File(assessmentPdf.Pdf, "application/pdf", assessmentPdf.SuggestedFileName);
-        }
-    }
-
     /// <summary>
     /// The working preview is reachable both as a plain link (report only)
     /// and from the generate form, where the operator's "Include fee note"
@@ -3008,7 +2959,7 @@ public sealed partial class DetailsModel(
         }
 
         TempData["CaseStatus"] =
-            "Sent to AI. The job is queued; its estimate opens from Operations when ready.";
+            "Sent to AI. The job is queued; its estimate opens from the Work Centre when ready.";
         return RedirectToEstimate(id);
     }
 

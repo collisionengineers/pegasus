@@ -52,18 +52,6 @@ public static class NeedsAttentionPresentation
         return ChipOrder.Where(kind => named.Contains(KindSlug(kind))).ToArray();
     }
 
-    /// <summary>
-    /// The page behind a work item when the row carries no route of its own.
-    /// </summary>
-    public static string RecordPage(NeedsAttentionKind kind) => kind switch
-    {
-        NeedsAttentionKind.CaseChase or NeedsAttentionKind.HeldDecision
-            or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer
-            or NeedsAttentionKind.VehicleImagesPaired or NeedsAttentionKind.Triage => "/Cases/Details",
-        NeedsAttentionKind.Unidentified => "/Unidentified/Details",
-        _ => "/Operations/Index"
-    };
-
     /// <summary>The next permitted action's words (P4).</summary>
     public static string ActionLabel(NeedsAttentionItem item) => item.Kind switch
     {

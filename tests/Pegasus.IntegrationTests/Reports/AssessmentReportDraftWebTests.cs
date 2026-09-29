@@ -20,9 +20,9 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests.Reports;
 
 /// <summary>
-/// Proves the report-draft entry point is actually reachable from
+/// Proves the report-draft Preview is actually reachable from
 /// the web: a complete case renders and returns a PDF, and an incomplete
-/// case fails closed with its readiness reasons named instead of throwing.
+/// case names its readiness reasons and offers neither Generate nor Preview.
 /// <see cref="IAssessmentReportRenderer"/> is substituted with a fast fake so
 /// this suite does not lay out pages or validate rendered PDF appearance.
 /// Everything upstream of the renderer (the projection, the readiness gate,
@@ -49,37 +49,6 @@ public sealed partial class AssessmentReportDraftWebTests
 
         Assert.Equal(GenerateCaseAssessmentReportDraftOutcome.Generated, result.Outcome);
         Assert.Equal(new DateOnly(2026, 9, 7), renderer.Snapshot!.ReportDate);
-    }
-
-    [Fact]
-    public async Task UserGeneratesACompleteCaseReportDraftAndReceivesThePdf()
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var caseId = Guid.NewGuid();
-        var pdfBytes = new byte[] { 1, 2, 3, 4 };
-        using var factory = Compose(
-            baseFactory,
-            new FakeGetCase(caseId),
-            FullAssessmentProjection(caseId),
-            new FakeProjectionSource(ReadyInput(caseId)),
-            new FakeRenderer(pdfBytes));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
-
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
-        Assert.DoesNotContain(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
-
-        using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
-            Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(pdfBytes, await response.Content.ReadAsByteArrayAsync());
     }
 
     [Fact]
@@ -143,7 +112,7 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     [Fact]
-    public async Task IncompleteCaseFailsClosedNamingWhatIsMissingInsteadOfThrowing()
+    public async Task IncompleteCaseNamesWhatIsMissingAndOffersNeitherGenerateNorPreview()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var caseId = Guid.NewGuid();
@@ -168,22 +137,12 @@ public sealed partial class AssessmentReportDraftWebTests
             "estimate");
         // FRD-11: the control stays, disabled with its condition — no
         // submittable Generate form and no Preview link are offered.
-        Assert.DoesNotContain("handler=\"GenerateReportDraft\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-generate-report", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Preview report draft", html, StringComparison.Ordinal);
-
-        using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
-            Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/Cases/{caseId:D}?section=estimate", response.Headers.Location?.OriginalString);
-
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
-        Assert.Contains(AssessmentReportProjection.RepairCostRequirement, afterHtml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task CaseOutsideTheCurrentExportedReviewCycleCannotGenerateDirectly()
+    public async Task CaseOutsideTheCurrentExportedReviewCycleOffersNeitherGenerateNorPreview()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var caseId = Guid.NewGuid();
@@ -202,14 +161,8 @@ public sealed partial class AssessmentReportDraftWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
         // D11: the workspace has not opened, so the control stays disabled
         // with its condition instead of offering a form that 404s.
-        Assert.DoesNotContain("handler=\"GenerateReportDraft\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-generate-report", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Preview report draft", html, StringComparison.Ordinal);
-
-        using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
-            Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Theory]
@@ -823,38 +776,12 @@ public sealed partial class AssessmentReportDraftWebTests
             caseId, "CE-100", 0, CaseLifecycleState.Review, Guid.NewGuid(), fields, [], caseOwned);
     }
 
-    private static string NewOperationKey() => Guid.NewGuid().ToString("N");
-
     private static async Task<string> GetHtmlAsync(HttpClient client, string path)
     {
         using var response = await client.GetAsync(path);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync();
     }
-
-    private static FormUrlEncodedContent Form(
-        string antiforgeryToken, params (string Name, string Value)[] values)
-    {
-        var fields = values
-            .Select(item => new KeyValuePair<string, string>(item.Name, item.Value))
-            .Append(new("__RequestVerificationToken", antiforgeryToken));
-        return new(fields);
-    }
-
-    private static string AntiforgeryValue(string html)
-    {
-        var tag = AntiforgeryTagRegex().Match(html);
-        Assert.True(tag.Success, "The case action must render an antiforgery token.");
-        var value = ValueRegex().Match(tag.Value);
-        Assert.True(value.Success, "The case antiforgery token must have a value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
-    }
-
-    [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex AntiforgeryTagRegex();
-
-    [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ValueRegex();
 
     /// <summary>The Next action's readiness list in decoded markup (issue 899).</summary>
     private static string BlockerList(string html)

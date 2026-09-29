@@ -613,96 +613,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AiWorkRequestEntity", b =>
-                {
-                    b.Property<Guid>("RequestId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CapabilityScope")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<Guid>("CaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CaseReference")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<long>("CaseVersionAtSend")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset?>("ClosedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ClosureReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTimeOffset>("ExpiresAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("HandedOffAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Instruction")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ReplyMessage")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("ReplyStatus")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("RequestHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<long>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint");
-
-                    b.HasKey("RequestId");
-
-                    b.HasIndex("CaseId", "CreatedAtUtc");
-
-                    b.HasIndex("CaseId", "OperationKey")
-                        .IsUnique();
-
-                    b.ToTable("AiWorkRequests", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_AiWorkRequests_CaseVersion", "[CaseVersionAtSend] >= 0");
-
-                            t.HasCheckConstraint("CK_AiWorkRequests_State", "[State] IN ('Created', 'HandedOff', 'Completed', 'Failed', 'Cancelled', 'Expired')");
-                        });
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AppliedValuationSnapshotEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6895,22 +6805,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
-                    b.Property<string>("ChannelBaseUrl")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("ChannelTokenProtected")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
                     b.Property<bool>("Enabled")
                         .HasColumnType("bit");
-
-                    b.Property<double?>("TimeoutSeconds")
-                        .HasColumnType("float");
-
-                    b.Property<DateTimeOffset?>("TokenRotatedAtUtc")
-                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
@@ -7924,111 +7820,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleConfirmationEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ActorKind")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("ActorRolesJson")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ActorSubjectId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<long>("AfterCaseVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("BeforeCaseVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("CaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Decision")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<Guid>("LookupObservationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Make")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<long?>("Mileage")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("MileageUnit")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("Model")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset>("OccurredAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("PolicyKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("PolicyVersion")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Registration")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("RequestFingerprint")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LookupObservationId");
-
-                    b.HasIndex("CaseId", "AfterCaseVersion")
-                        .IsUnique();
-
-                    b.HasIndex("CaseId", "OperationKey")
-                        .IsUnique();
-
-                    b.ToTable("VehicleConfirmations", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_VehicleConfirmations_CaseVersions", "[BeforeCaseVersion] >= 0 AND [AfterCaseVersion] > [BeforeCaseVersion]");
-
-                            t.HasCheckConstraint("CK_VehicleConfirmations_Mileage", "([Mileage] IS NULL AND [MileageUnit] IS NULL) OR ([Mileage] >= 0 AND [MileageUnit] IS NOT NULL)");
-
-                            t.HasCheckConstraint("CK_VehicleConfirmations_PolicyVersion", "[PolicyVersion] > 0");
-                        });
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleLookupObservationEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8369,17 +8160,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Application");
 
                     b.Navigation("Authorization");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AiWorkRequestEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", "Case")
-                        .WithMany()
-                        .HasForeignKey("CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Case");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AppliedValuationSnapshotEntity", b =>
@@ -9537,25 +9317,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleConfirmationEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", "Case")
-                        .WithMany()
-                        .HasForeignKey("CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Pegasus.Infrastructure.Persistence.VehicleLookupObservationEntity", "LookupObservation")
-                        .WithMany("Confirmations")
-                        .HasForeignKey("LookupObservationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Case");
-
-                    b.Navigation("LookupObservation");
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleLookupObservationEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.VehicleLookupRequestEntity", "Request")
@@ -9719,11 +9480,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("ResponseEvidenceLinks");
 
                     b.Navigation("SentEmailEvidence");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleLookupObservationEntity", b =>
-                {
-                    b.Navigation("Confirmations");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleLookupRequestEntity", b =>
