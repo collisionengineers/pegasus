@@ -137,7 +137,7 @@ public sealed class VehicleWorkflowTests
     [InlineData(CaseDataSourceKind.MailRoute)]
     [InlineData(CaseDataSourceKind.CaseAcceptance)]
     [InlineData(CaseDataSourceKind.StaffCorrection)]
-    [InlineData(CaseDataSourceKind.ProviderSetting)]
+    [InlineData(CaseDataSourceKind.PrincipalSetting)]
     public void DirectlyAttributedMileageClassifiesAsSupplied(CaseDataSourceKind sourceKind) =>
         Assert.Equal(
             VehicleMileageEvidenceClass.Supplied,

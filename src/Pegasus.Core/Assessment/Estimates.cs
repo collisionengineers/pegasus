@@ -65,6 +65,22 @@ public sealed record EstimateVatPolicy(
         new(status, DefaultFor(status), false);
 
     /// <summary>
+    /// The policy a Repair Spec edit records. Categories that were not chosen
+    /// by hand follow the repairer's status: a changed status with the saved
+    /// categories left as they were takes the new status's own categories
+    /// (issue 898). Otherwise the posted categories stand, and they are an
+    /// override when they differ from the status's own.
+    /// </summary>
+    public static EstimateVatPolicy Revised(
+        EstimateVatPolicy saved, RepairerVatStatus status, EstimateVatCategories categories)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        return status != saved.RepairerStatus && !saved.CategoriesOverridden && categories == saved.Categories
+            ? For(status)
+            : new(status, categories, categories != DefaultFor(status));
+    }
+
+    /// <summary>
     /// An unknown repairer VAT status with no hand-made override: the totals
     /// carry no VAT until the operator records the status or selects the
     /// categories. It never gates Use repair spec (v28 P10, 18 September 2026).
@@ -539,6 +555,54 @@ public static class EstimatePolicy
             Source = existing?.Source ?? request.Source,
             AiJobId = existing?.AiJobId ?? request.AiJobId,
         };
+    }
+
+    /// <summary>
+    /// The spec an editor save would record, unsaved: what the Target % of
+    /// value preview scales (issue 897). The edit is read on the Case save's
+    /// own terms, its content checked by <see cref="ValidateContent"/> and
+    /// its lines carried from the saved spec by <see cref="ApplyEditorEvidence"/>,
+    /// so a line keeps the Specialist sub-type the save keeps. A preview
+    /// records nothing, so it carries no command envelope.
+    /// </summary>
+    public static RepairSpecificationVersion Edited(
+        Guid caseId,
+        ActionActor actor,
+        RepairSpecificationVersion? saved,
+        EstimateDetails details,
+        IReadOnlyList<EstimateLineInput> lines,
+        IReadOnlyList<Guid?>? existingLineIds,
+        DateTimeOffset at)
+    {
+        var edit = ValidateContent(new SaveEstimateRequest(
+            caseId, 0, actor, string.Empty, string.Empty, string.Empty, saved?.SpecificationId, details, lines,
+            new(RepairSpecificationSourceRoute.Manual, null, null, null), ExistingLineIds: existingLineIds));
+        var recorded = ApplyEditorEvidence(edit, saved, at);
+        return Provisional(caseId, saved, recorded.Details, recorded.Lines, at);
+    }
+
+    /// <summary>
+    /// A spec's header and lines as an unsaved Draft of the saved spec (or of
+    /// a new one): what Supplementary compares and the preview scales.
+    /// </summary>
+    public static RepairSpecificationVersion Provisional(
+        Guid caseId,
+        RepairSpecificationVersion? saved,
+        EstimateDetails details,
+        IReadOnlyList<EstimateLineInput> lines,
+        DateTimeOffset at)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        ArgumentNullException.ThrowIfNull(lines);
+        return new(
+            saved?.SpecificationId ?? Guid.Empty, caseId, saved?.Version ?? 1, RepairSpecificationState.Draft,
+            saved?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
+            [.. lines.Select((line, index) => new CaseEstimateLineRecord(
+                Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
+                line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
+                ActorKind.Staff, string.Empty, at,
+                line.PaintWorkUnits, line.Quantity, line.Materials))],
+            string.Empty, at, details);
     }
 
     /// <summary>

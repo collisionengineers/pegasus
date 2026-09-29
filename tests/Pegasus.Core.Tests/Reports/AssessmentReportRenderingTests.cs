@@ -11,24 +11,25 @@ public sealed class AssessmentReportRenderingTests
     private static readonly DateTimeOffset RecordedAtUtc = new(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
 
     /// <summary>
-    /// Version six carries only what the template prints (operator, 27
+    /// Version seven carries only what the template prints (operator, 27
     /// September 2026): the tyres, belts, airbags, temporary repairs, the
     /// vehicle's colour, body, transmission and expiry dates, the damage
     /// tables and the settlement rows are recorded on the Case and are no
-    /// part of the report.
+    /// part of the report. The damage carries the drawing its marks are
+    /// printed on (28 September 2026).
     /// </summary>
     [Fact]
-    public void TheSnapshotIsVersionSixAndCarriesOnlyWhatTheTemplatePrints()
+    public void TheSnapshotIsVersionSevenAndCarriesOnlyWhatTheTemplatePrints()
     {
-        Assert.Equal("rendererref1-v6", AssessmentReportContract.TemplateVersion);
-        Assert.Equal("rendererref1-v6", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
+        Assert.Equal("rendererref1-v7", AssessmentReportContract.TemplateVersion);
+        Assert.Equal("rendererref1-v7", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
         Assert.Equal(
             [
                 "Registration", "Make", "Model", "Year", "Condition",
                 "MileageDescription", "MileageSource", "Vin", "Engine", "Fuel",
             ],
             Printed(typeof(ReportVehicle)));
-        Assert.Equal(["Impacts", "Unrelated"], Printed(typeof(ReportDamage)));
+        Assert.Equal(["Impacts", "Unrelated", "Profile"], Printed(typeof(ReportDamage)));
         Assert.Equal(["Codes", "Severity", "Disc"], Printed(typeof(ReportImpact)));
         Assert.Equal(["ContractSum"], Printed(typeof(ReportSettlement)));
     }
@@ -395,27 +396,63 @@ public sealed class AssessmentReportRenderingTests
         Assert.DoesNotContain("Glass's", AssessmentReportContract.StatementOfTruth3, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verification moved to open time (issue 850): the snapshot no longer
+    /// holds image bytes, so an image whose bytes are not the ones custody
+    /// pinned is refused when the renderer opens it, naming the file in staff's words.
+    /// </summary>
     [Fact]
-    public async Task AlteredPhotoFailsCustodyValidationBeforeAdapter()
+    public async Task AnAlteredPhotoIsRefusedWhenItIsOpened()
     {
-        var renderer = new FakeRenderer();
         var valid = Snapshot(AssessmentReportOutcome.Repairable);
         var photo = valid.Photos.Single() with
         {
             CustodyReference = "page-1-image-2.jpg",
-            Content = [1, 2, 3],
+            Content = ReportImageContent.Opened(_ => Task.FromResult(new byte[] { 1, 2, 3 })),
         };
 
-        var refusal = await Assert.ThrowsAsync<ReportRenderRejectedException>(
-            () => new GenerateAssessmentReportDraft(renderer)
-                .ExecuteAsync(valid with { Photos = [photo] }, CaseReportArtifactKind.AssessmentReport));
+        // The snapshot is accepted; nothing has been read yet.
+        (valid with { Photos = [photo] }).Validate();
+        var refusal = await Assert.ThrowsAsync<ReportRenderRejectedException>(() => photo.OpenAsync());
 
         // Staff read this refusal, so it names the file in their words.
         Assert.Equal(
             "The stored version of page-1-image-2.jpg has changed. "
             + "Open the Files section to see the image as it is stored now.",
             refusal.Message);
-        Assert.Null(renderer.Received);
+    }
+
+    [Fact]
+    public async Task AnImageIsReadOnlyWhenItIsOpenedAndEachOpenReadsItAgain()
+    {
+        var bytes = new byte[] { 137, 80, 78, 71, 1, 2, 3, 4 };
+        var reads = 0;
+        var photo = Snapshot(AssessmentReportOutcome.Repairable).Photos.Single() with
+        {
+            Content = ReportImageContent.Opened(_ =>
+            {
+                reads++;
+                return Task.FromResult(bytes);
+            }),
+            Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
+        };
+
+        photo.Validate();
+        Assert.Equal(0, reads);
+        Assert.Same(bytes, await photo.OpenAsync());
+        Assert.Same(bytes, await photo.OpenAsync());
+        Assert.Equal(2, reads);
+    }
+
+    [Fact]
+    public async Task AnImageThatOpensEmptyIsRefused()
+    {
+        var photo = Snapshot(AssessmentReportOutcome.Repairable).Photos.Single() with
+        {
+            Content = ReportImageContent.Opened(_ => Task.FromResult(Array.Empty<byte>())),
+        };
+
+        await Assert.ThrowsAsync<ReportRenderRejectedException>(() => photo.OpenAsync());
     }
 
     /// <summary>
@@ -434,6 +471,9 @@ public sealed class AssessmentReportRenderingTests
             .ExecuteAsync(valid with { Photos = [recordedByIntake] }, CaseReportArtifactKind.AssessmentReport);
 
         Assert.Equal(recordedByIntake, Assert.Single(renderer.Received!.Photos));
+        Assert.Equal(
+            await photo.OpenAsync(CancellationToken.None),
+            await recordedByIntake.OpenAsync(CancellationToken.None));
     }
 
     [Fact]
@@ -497,7 +537,7 @@ public sealed class AssessmentReportRenderingTests
         var renderer = new FakeRenderer();
         var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
         {
-            PayloadVersion = "rendererref1-v5",
+            PayloadVersion = "rendererref1-v6",
         };
 
         var refusal = await Assert.ThrowsAsync<ReportRenderRejectedException>(
@@ -557,7 +597,7 @@ public sealed class AssessmentReportRenderingTests
             HistoryCheck: "History clear", EngineerComments: null,
             Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"),
             AgreedFee: 120m, FeeDescriptionLines: ["Engineering assessment"],
-            Photos: [new ReportImageEvidence("box://case/photo-1", "image/png", image, Convert.ToHexStringLower(SHA256.HashData(image)))],
+            Photos: [new ReportImageEvidence("box://case/photo-1", "image/png", ReportImageContent.Opened(_ => Task.FromResult(image)), Convert.ToHexStringLower(SHA256.HashData(image)))],
             Sources: [new AcceptedReportSource("assessment", "7", new string('a', 64))],
             Content: CaseReportContentSwitches.None,
             Guides: ReportGuideSources.None);
@@ -588,7 +628,7 @@ public sealed class AssessmentReportRenderingTests
             "case", "Test evidence",
             ActorKind.Staff, "engineer-1", RecordedAtUtc, Quantity: 1);
 
-    internal static ReportDamage Damage() => new([new(["right_rear"], "moderate")], "Door scratch");
+    internal static ReportDamage Damage() => new([new(["right_rear"], "moderate")], "Door scratch", DamagePlanGeometry.Car);
 
     internal static ReportSettlement Settlement() => new();
 

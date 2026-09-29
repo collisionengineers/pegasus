@@ -20,9 +20,9 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests.Reports;
 
 /// <summary>
-/// Proves the report-draft entry point is actually reachable from
+/// Proves the report-draft Preview is actually reachable from
 /// the web: a complete case renders and returns a PDF, and an incomplete
-/// case fails closed with its readiness reasons named instead of throwing.
+/// case names its readiness reasons and offers neither Generate nor Preview.
 /// <see cref="IAssessmentReportRenderer"/> is substituted with a fast fake so
 /// this suite does not lay out pages or validate rendered PDF appearance.
 /// Everything upstream of the renderer (the projection, the readiness gate,
@@ -49,37 +49,6 @@ public sealed partial class AssessmentReportDraftWebTests
 
         Assert.Equal(GenerateCaseAssessmentReportDraftOutcome.Generated, result.Outcome);
         Assert.Equal(new DateOnly(2026, 9, 7), renderer.Snapshot!.ReportDate);
-    }
-
-    [Fact]
-    public async Task UserGeneratesACompleteCaseReportDraftAndReceivesThePdf()
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var caseId = Guid.NewGuid();
-        var pdfBytes = new byte[] { 1, 2, 3, 4 };
-        using var factory = Compose(
-            baseFactory,
-            new FakeGetCase(caseId),
-            FullAssessmentProjection(caseId),
-            new FakeProjectionSource(ReadyInput(caseId)),
-            new FakeRenderer(pdfBytes));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
-
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
-        Assert.DoesNotContain(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
-
-        using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
-            Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(pdfBytes, await response.Content.ReadAsByteArrayAsync());
     }
 
     [Fact]
@@ -143,7 +112,7 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     [Fact]
-    public async Task IncompleteCaseFailsClosedNamingWhatIsMissingInsteadOfThrowing()
+    public async Task IncompleteCaseNamesWhatIsMissingAndOffersNeitherGenerateNorPreview()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var caseId = Guid.NewGuid();
@@ -168,22 +137,12 @@ public sealed partial class AssessmentReportDraftWebTests
             "estimate");
         // FRD-11: the control stays, disabled with its condition — no
         // submittable Generate form and no Preview link are offered.
-        Assert.DoesNotContain("handler=\"GenerateReportDraft\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-generate-report", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Preview report draft", html, StringComparison.Ordinal);
-
-        using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
-            Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/Cases/{caseId:D}?section=estimate", response.Headers.Location?.OriginalString);
-
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
-        Assert.Contains(AssessmentReportProjection.RepairCostRequirement, afterHtml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task CaseOutsideTheCurrentExportedReviewCycleCannotGenerateDirectly()
+    public async Task CaseOutsideTheCurrentExportedReviewCycleOffersNeitherGenerateNorPreview()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var caseId = Guid.NewGuid();
@@ -202,14 +161,8 @@ public sealed partial class AssessmentReportDraftWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
         // D11: the workspace has not opened, so the control stays disabled
         // with its condition instead of offering a form that 404s.
-        Assert.DoesNotContain("handler=\"GenerateReportDraft\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-generate-report", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Preview report draft", html, StringComparison.Ordinal);
-
-        using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
-            Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Theory]
@@ -261,9 +214,9 @@ public sealed partial class AssessmentReportDraftWebTests
 
     /// <summary>
     /// FRD-13 (issue #834): every report blocker is a row that names what is
-    /// missing and links to the Case section that clears it, and the Next
-    /// action links the first blocker to its own section rather than to
-    /// Valuation.
+    /// missing and links to the Case section that clears it. With Engineer
+    /// the rows are the Next action itself (issue 899): no one-line summary
+    /// beside them, and no second list in the Report section.
     /// </summary>
     [Fact]
     public async Task EachReportBlockerLinksToTheSectionThatClearsIt()
@@ -362,18 +315,62 @@ public sealed partial class AssessmentReportDraftWebTests
             engineerRow.Contains("blocker-actions", StringComparison.Ordinal),
             $"An Engineer's Sign-off blocker links nowhere: {engineerRow}");
 
-        var nextAction = NextActionRegex().Match(html);
-        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
-        var panel = nextAction.Value;
+        var panel = CaseWebTestSupport.NextActionRegex().Match(html).Value;
+        Assert.DoesNotContain("data-next-label", panel, StringComparison.Ordinal);
+        var report = CaseWebTestSupport.Section(html, "section-report-title");
+        Assert.Contains("data-report-gate", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-not-ready", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Issue 898: a repairer VAT blocker opens the Repair Spec for editing on
+    /// the Current spec, with the control that clears it named for focus,
+    /// from the readiness list and from the Next action alike.
+    /// </summary>
+    [Theory]
+    [InlineData(false, "#estimate-vat-status")]
+    [InlineData(true, "[data-vat-reset]")]
+    public async Task ARepairerVatBlockerOpensTheRepairSpecOnTheControlThatClearsIt(bool handPicked, string focus)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        var ready = CurrentEstimate() with { CaseId = caseId };
+        var estimate = ready with
+        {
+            Details = ready.Details with
+            {
+                Vat = handPicked
+                    ? new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true)
+                    : EstimateVatPolicy.For(RepairerVatStatus.Unknown),
+            },
+        };
+        var source = new FakeProjectionSource(ReadyInput(caseId));
+        source.Readiness = source.Readiness with { CurrentEstimate = estimate };
+        var blocker = Assert.Single(CaseReportReadiness.Evaluate(source.Readiness).Reasons);
         Assert.Equal(
-            $"{readiness.Reasons[0].Requirement} · {readiness.Reasons.Count - 1} more",
-            NextLabelRegex().Match(panel).Groups["label"].Value);
-        var link = SectionJumpRegex().Match(panel);
-        Assert.True(link.Success, "The Next action must link to a section.");
-        Assert.Equal("vehicle", link.Groups["key"].Value);
-        Assert.Contains($"href=\"/Cases/{caseId:D}?section=vehicle#section-vehicle\"", link.Value, StringComparison.Ordinal);
-        Assert.Equal("Vehicle", link.Groups["label"].Value);
-        Assert.DoesNotContain("section=valuation", panel, StringComparison.Ordinal);
+            handPicked ? CaseReportReadiness.RepairerVatHandPicked : CaseReportReadiness.RepairerVatStatusUnknown,
+            blocker);
+        using var factory = Compose(
+            baseFactory, new FakeGetCase(caseId), FullAssessmentProjection(caseId), source, new FakeRenderer([1]),
+            currentSpecification: estimate);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var row = BlockerRow(BlockerList(html), CaseReportReadiness.RepairerVatRequirement);
+        var panel = CaseWebTestSupport.NextActionRegex().Match(html).Value;
+        foreach (var place in new[] { row, panel })
+        {
+            Assert.Contains($"action=\"/Cases/{caseId:D}?handler=ClaimLease\"", place, StringComparison.Ordinal);
+            Assert.Contains("name=\"section\" value=\"estimate\"", place, StringComparison.Ordinal);
+            Assert.Contains($"name=\"estimate\" value=\"{estimate.SpecificationId:D}\"", place, StringComparison.Ordinal);
+            Assert.Contains($"data-edit-focus=\"{focus}\"", place, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-section-jump", place, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -607,7 +604,8 @@ public sealed partial class AssessmentReportDraftWebTests
         IGenerateCaseReport? generateReport = null,
         IPrepareCaseReportDelivery? prepareDelivery = null,
         ISendPreparedCaseReport? sendPreparedReport = null,
-        bool failIfReportServicesResolved = false) =>
+        bool failIfReportServicesResolved = false,
+        RepairSpecificationVersion? currentSpecification = null) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -679,18 +677,21 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.AddSingleton<IGetCaseAssessment>(new FakeGetCaseAssessment(assessment));
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(new FakeGetAssessmentWorkspace(
-                    AssessmentWorkspaceTestData.Create(assessment)));
+                    AssessmentWorkspaceTestData.Create(assessment) with { CurrentSpecification = currentSpecification }));
                 services.AddSingleton(projectionSource);
                 services.AddSingleton((ICaseReportSnapshotSource)projectionSource);
                 services.AddSingleton(renderer);
                 services.AddSingleton<IDocumentContentStore>(new ThrowingDocumentContentStore());
             }));
 
+    /// <summary>The bytes the ready fixture's photo opens to.</summary>
+    internal static readonly byte[] ReadyImage = [137, 80, 78, 71, 1, 2, 3, 4];
+
     internal static AssessmentReportProjectionInput ReadyInput(Guid caseId)
     {
-        var image = new byte[] { 137, 80, 78, 71, 1, 2, 3, 4 };
+        var image = ReadyImage;
         var photo = new ReportImageEvidence(
-            "site.jpg", "image/jpeg", image, Convert.ToHexStringLower(SHA256.HashData(image)));
+            "site.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(image)), Convert.ToHexStringLower(SHA256.HashData(image)));
         var source = new AcceptedReportSource("instruction.pdf", "1", new string('a', 64));
         return new AssessmentReportProjectionInput(
             FullAssessmentProjection(caseId),
@@ -778,8 +779,6 @@ public sealed partial class AssessmentReportDraftWebTests
             caseId, "CE-100", 0, CaseLifecycleState.Review, Guid.NewGuid(), fields, [], caseOwned);
     }
 
-    private static string NewOperationKey() => Guid.NewGuid().ToString("N");
-
     private static async Task<string> GetHtmlAsync(HttpClient client, string path)
     {
         using var response = await client.GetAsync(path);
@@ -787,35 +786,13 @@ public sealed partial class AssessmentReportDraftWebTests
         return await response.Content.ReadAsStringAsync();
     }
 
-    private static FormUrlEncodedContent Form(
-        string antiforgeryToken, params (string Name, string Value)[] values)
-    {
-        var fields = values
-            .Select(item => new KeyValuePair<string, string>(item.Name, item.Value))
-            .Append(new("__RequestVerificationToken", antiforgeryToken));
-        return new(fields);
-    }
-
-    private static string AntiforgeryValue(string html)
-    {
-        var tag = AntiforgeryTagRegex().Match(html);
-        Assert.True(tag.Success, "The case action must render an antiforgery token.");
-        var value = ValueRegex().Match(tag.Value);
-        Assert.True(value.Success, "The case antiforgery token must have a value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
-    }
-
-    [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex AntiforgeryTagRegex();
-
-    [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ValueRegex();
-
-    /// <summary>The Report section's readiness list in decoded markup.</summary>
+    /// <summary>The Next action's readiness list in decoded markup (issue 899).</summary>
     private static string BlockerList(string html)
     {
-        var list = BlockerListRegex().Match(html);
-        Assert.True(list.Success, "The Report section must list what the report still needs.");
+        var nextAction = CaseWebTestSupport.NextActionRegex().Match(html);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        var list = BlockerListRegex().Match(nextAction.Value);
+        Assert.True(list.Success, "The Next action must list what the report still needs.");
         return list.Value;
     }
 
@@ -855,9 +832,6 @@ public sealed partial class AssessmentReportDraftWebTests
     [GeneratedRegex("<a[^>]*data-blocker-accounts[^>]*>(?<label>[^<]*)</a>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex AccountsLinkRegex();
 
-    [GeneratedRegex("<section[^>]*data-next-action[^>]*>.*?</section>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
-    private static partial Regex NextActionRegex();
-
     [GeneratedRegex("<span data-next-label>(?<label>.*?)</span>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex NextLabelRegex();
 
@@ -865,7 +839,7 @@ public sealed partial class AssessmentReportDraftWebTests
     private static partial Regex SectionJumpRegex();
 
     private sealed class FakeGetCase(Guid caseId) :
-        IGetCase,
+        IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetCaseVehicleSection,
         IGetCaseValuationSection,
@@ -885,6 +859,10 @@ public sealed partial class AssessmentReportDraftWebTests
                 request.CaseId, "held-report-lease", request.Actor.SubjectId, request.ExpectedVersion,
                 DateTimeOffset.UtcNow.AddMinutes(5)));
         }
+
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
             => Task.FromResult(Details(query.CaseId));
@@ -1004,7 +982,7 @@ public sealed partial class AssessmentReportDraftWebTests
         }
 
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
-            Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
+            Guid caseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             MetadataReads++;
             return Task.FromResult<CaseReportFreezeInputs?>(new(
@@ -1033,7 +1011,7 @@ public sealed partial class AssessmentReportDraftWebTests
                     CanPrint = true
                 });
                 sources.Add(occurrenceId, new(versionId, documentId, 1, photo.CustodyReference,
-                    photo.ContentType, photo.Content.Length, photo.Sha256, DocumentCustodyStatus.Confirmed,
+                    photo.ContentType, ReadyImage.Length, photo.Sha256, DocumentCustodyStatus.Confirmed,
                     ReportFixtureAtUtc, "engineer-1", true, false, null));
             }
             var signatory = projection.Signatory!;

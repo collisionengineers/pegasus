@@ -12,4 +12,8 @@
     <InternalsVisibleTo Include="Pegasus.IntegrationTests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Assessment\VehiclePlans\*.svg" LogicalName="Pegasus.Core.Assessment.VehiclePlans.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

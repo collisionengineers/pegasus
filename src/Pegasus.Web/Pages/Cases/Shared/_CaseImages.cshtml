@@ -185,7 +185,7 @@ else
                                September 2026). The viewer's In report box and a
                                click on the image while editing press this. *@
                             <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId"
-                                  asp-page-handler="SetImageInReport" data-image-in-report-form="@occurrence.Id">
+                                  asp-page-handler="SetImageInReport" data-image-in-report-form="@occurrence.Id" data-document-action>
                                 <input type="hidden" name="id" value="@workflow.CaseId" />
                                 <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
                                 <input type="hidden" name="inReport" value="@(preparation.InReport ? "false" : "true")" />
@@ -228,7 +228,7 @@ else
                 @foreach (var item in intakeImages)
                 {
                     var href = item.AssetId is { } assetId
-                        ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId })!
+                        ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId, v = item.ContentHash })!
                         : Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
                     <li class="image-tile">
                         <a href="@href"

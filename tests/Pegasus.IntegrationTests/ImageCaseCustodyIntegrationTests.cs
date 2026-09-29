@@ -356,7 +356,7 @@ public sealed class ImageCaseCustodyIntegrationTests
         {
             Assert.Equal(
                 2,
-                await EfQueuedCustodyProcessor.RecordFoldedPhotographsAsync(
+                await EfQueuedCustodyProcessor.RecordFoldedFilesAsync(
                     refiling,
                     await refiling.ImageIntakes.SingleAsync(item => item.Id == record.Id),
                     await refiling.Cases.SingleAsync(item => item.Id == caseId),
@@ -735,6 +735,80 @@ public sealed class ImageCaseCustodyIntegrationTests
     }
 
     /// <summary>
+    /// A report PDF registered as a Vehicle images record with the photographs
+    /// that came with it (#901): the fold files the PDF itself on the Audit as
+    /// a document beside the photographs, under the file the fold moved, so
+    /// staff can mark it as the original report. A replay files nothing twice.
+    /// </summary>
+    [Fact]
+    public async Task TheFoldFilesTheRecordsSourcePdfAsADocumentBesideItsPhotographs()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var sourceIds = await PhotographIdsAsync(services, memberReceiptIds);
+        // The first member is the report the photographs came with.
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            var receipt = await context.IntakeReceipts.SingleAsync(item => item.Id == memberReceiptIds[0]);
+            receipt.SourceFileName = "report.pdf";
+            receipt.MediaType = "application/pdf";
+            var source = await context.IntakeAssets.SingleAsync(asset => asset.Id == sourceIds[0]);
+            source.FileName = "report.pdf";
+            source.MediaType = "application/pdf";
+            await context.SaveChangesAsync();
+        }
+        await processor.ExecuteAsync(
+            await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
+            CancellationToken.None);
+
+        var (caseId, caseRootRemoteId) = await SeedCaseWithFolderAsync(
+            services, memberReceiptIds[0], "a.IMG26009", "audit");
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await using (var refiling = await contextFactory.CreateDbContextAsync())
+        {
+            Assert.Equal(
+                1,
+                await EfQueuedCustodyProcessor.RecordFoldedFilesAsync(
+                    refiling,
+                    await refiling.ImageIntakes.SingleAsync(item => item.Id == record.Id),
+                    await refiling.Cases.SingleAsync(item => item.Id == caseId),
+                    $"image-case-custody-merge:{record.Id:N}",
+                    await refiling.IntakeAssets.Where(asset => sourceIds.Contains(asset.Id)).ToListAsync(),
+                    services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                    CancellationToken.None));
+            await refiling.SaveChangesAsync();
+        }
+
+        await using var after = await contextFactory.CreateDbContextAsync();
+        var filed = await (from occurrence in after.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                           join version in after.Set<DocumentVersionEntity>().AsNoTracking()
+                               on occurrence.VersionId equals version.Id
+                           where occurrence.CaseId == caseId
+                           orderby occurrence.Ordinal
+                           select new { occurrence.OperationKey, occurrence.SemanticRole, version.FileName, version.BoxFileId })
+            .ToListAsync();
+        Assert.Equal(
+            [
+                $"image-case-custody-merge:{record.Id:N}:document:{sourceIds[0]:N}",
+                $"image-case-custody-merge:{record.Id:N}:photograph:{sourceIds[1]:N}"
+            ],
+            filed.Select(item => item.OperationKey));
+        Assert.Equal(DocumentSemanticRole.OriginalSource, filed[0].SemanticRole);
+        Assert.Equal("report.pdf", filed[0].FileName);
+        Assert.Equal(DocumentSemanticRole.Image, filed[1].SemanticRole);
+        var report = await after.IntakeAssets.AsNoTracking().SingleAsync(asset => asset.Id == sourceIds[0]);
+        Assert.Equal(caseRootRemoteId, report.BoxParentFolderId);
+        Assert.Equal(report.BoxFileId, filed[0].BoxFileId);
+    }
+
+    /// <summary>
     /// On the fold path a photograph tagged Third party on the record arrives
     /// out of the report, the Case's current report is marked stale, and the
     /// report preview reads the photograph that is in the report from where
@@ -814,7 +888,7 @@ public sealed class ImageCaseCustodyIntegrationTests
             .GetAsync(caseId, StaffActor(), CaseWorkSelector.Current);
         var photograph = Assert.Single(preview!.Photos);
         Assert.Equal(inReportOccurrenceId, photograph.OccurrenceId);
-        Assert.Equal(PngBytes, photograph.Content);
+        Assert.Equal(PngBytes, await photograph.OpenAsync());
     }
 
     /// <summary>

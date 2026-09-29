@@ -56,7 +56,7 @@ public sealed class IntakeEnvelopeLimitsTests
         Assert.Equal(100_000_000, IntakeEnvelopeLimits.MaximumContentLength);
         Assert.Equal(200_000_000L + 65_536L, IntakeEnvelopeLimits.MaximumBatchContentLength);
         Assert.Equal(20, IntakeEnvelopeLimits.MaximumBatchFileCount);
-        Assert.Equal(31_457_280, IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength);
+        Assert.Equal(31_457_280, IntakeEnvelopeLimits.MaximumPrincipalApiEnvelopeLength);
     }
 
     [Fact]
@@ -76,17 +76,17 @@ public sealed class IntakeEnvelopeLimitsTests
     }
 
     [Fact]
-    public void AProviderApiFileIsNeverAllowedPastTheEnvelopeThatCarriesIt()
+    public void APrincipalApiFileIsNeverAllowedPastTheEnvelopeThatCarriesIt()
     {
-        Assert.Equal(10 * 1024 * 1024, IntakeEnvelopeLimits.MaximumProviderApiFileLength);
+        Assert.Equal(10 * 1024 * 1024, IntakeEnvelopeLimits.MaximumPrincipalApiFileLength);
         Assert.True(
-            IntakeEnvelopeLimits.MaximumProviderApiFileLength
-                <= IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
-            "The Provider API's per-file bound cannot exceed its decoded envelope.");
+            IntakeEnvelopeLimits.MaximumPrincipalApiFileLength
+                <= IntakeEnvelopeLimits.MaximumPrincipalApiEnvelopeLength,
+            "The Principal API's per-file bound cannot exceed its decoded envelope.");
         Assert.True(
-            IntakeEnvelopeLimits.MaximumProviderApiFileLength
+            IntakeEnvelopeLimits.MaximumPrincipalApiFileLength
                 < IntakeEnvelopeLimits.MaximumContentLength,
-            "The Provider API must not inherit the manual channel's per-file "
+            "The Principal API must not inherit the manual channel's per-file "
                 + "cap; its files arrive inline in one bounded request body.");
     }
 }

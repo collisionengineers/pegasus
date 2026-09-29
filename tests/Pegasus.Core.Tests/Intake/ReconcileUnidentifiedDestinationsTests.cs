@@ -663,7 +663,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Now,
             Version: 0,
             Reference: "t.QDOS26001",
-            Provider: "QDOS");
+            PrincipalCode: "QDOS");
 
     private static TriageDetail TriageCase(Guid caseId, string reference) =>
         new(
@@ -1178,6 +1178,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,
+            ImageInitiatedCaseState? state,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
 

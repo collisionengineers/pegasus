@@ -111,7 +111,7 @@ public sealed class EfCaseReportGenerationStore(
         if (request.Kind == CaseReportArtifactKind.AssessmentReport)
         {
             inputs = await snapshotSource
-                .GetAsync(request.CaseId, request.Actor, CaseWorkSelector.Current, cancellationToken)
+                .GetAsync(request.CaseId, request.Actor, CaseWorkSelector.Current, reuse: null, cancellationToken)
                 .ConfigureAwait(false);
             if (inputs is null)
             {
@@ -204,8 +204,7 @@ public sealed class EfCaseReportGenerationStore(
         // v28 P40: a report generated without an overridden date is dated
         // today, and the record says so rather than leaving the cell empty.
         await StampReportDateAsync(context, workId, request, reportDate, now, cancellationToken).ConfigureAwait(false);
-        var profiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken).ConfigureAwait(false);
+        var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken).ConfigureAwait(false);
         if (!SignatoryMatches(snapshot, CaseSignOffEngineerResolver.Resolve(
                 workflow.SignOffEngineerId, workflow.AssignedEngineerId, profiles)))
         {
@@ -845,8 +844,7 @@ public sealed class EfCaseReportGenerationStore(
     internal static async Task MarkChangedSignatoriesStaleAsync(
         PegasusDbContext context, DateTimeOffset nowUtc, CancellationToken cancellationToken)
     {
-        var profiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken);
+        var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
         var currentWorkIds = CaseWorkScope.CurrentWorkIds(context);
         var current = await (
             from generation in context.Set<CaseReportGenerationEntity>()
@@ -1124,6 +1122,7 @@ public sealed class EfCaseReportGenerationStore(
             version?.ContentLength ?? 0,
             photo.Sha256,
             photo.ContentType,
+            photo.CustodyReference,
             photo.Role,
             photo.Order,
             photo.Rotation,
@@ -1335,28 +1334,14 @@ public sealed class EfCaseReportContentSource(
                 "The sign-off Engineer's signature no longer matches the frozen generation.");
         }
 
-        var photos = new List<ReportImageEvidence>(snapshot.Images.Count);
-        foreach (var image in snapshot.Images)
-        {
-            await using var content = await documentReader.OpenAsync(
-                new ReadLogicalDocumentVersionRequest(
-                    actor,
-                    image.DocumentId,
-                    image.VersionId,
-                    IntakeAssetId: null,
-                    snapshot.CaseId,
-                    IntakeReceiptId: null,
-                    image.Sha256,
-                    image.ContentLength),
-                cancellationToken).ConfigureAwait(false);
-            // The version is opened at its frozen length, so its bytes are read
-            // once into an array of exactly that length.
-            var bytes = new byte[image.ContentLength];
-            await content.Content.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
-            photos.Add(new ReportImageEvidence(
-                content.FileName,
+        // Nothing is read here. Each image opens through custody at its frozen
+        // length and hash when the renderer prints it, so a render holds one
+        // source image at a time and a queued render holds none.
+        var photos = snapshot.Images
+            .Select(image => new ReportImageEvidence(
+                image.FileName,
                 image.ContentType,
-                bytes,
+                ReportImageContent.Opened(token => OpenAsync(image, snapshot.CaseId, actor, token)),
                 image.Sha256,
                 image.Role,
                 image.Order,
@@ -1366,8 +1351,8 @@ public sealed class EfCaseReportContentSource(
                 image.VersionId,
                 image.BoxFileId,
                 image.BoxVersionId,
-                image.FullPage));
-        }
+                image.FullPage))
+            .ToArray();
 
         return snapshot.Report with
         {
@@ -1378,5 +1363,28 @@ public sealed class EfCaseReportContentSource(
                 SignatureContentType = snapshot.SignatureContentType,
             },
         };
+    }
+
+    /// <summary>
+    /// One pinned image's bytes. The version is opened at its frozen length,
+    /// so its bytes are read once into an array of exactly that length.
+    /// </summary>
+    private async Task<byte[]> OpenAsync(
+        CaseReportSnapshotImage image, Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+    {
+        await using var content = await documentReader.OpenAsync(
+            new ReadLogicalDocumentVersionRequest(
+                actor,
+                image.DocumentId,
+                image.VersionId,
+                IntakeAssetId: null,
+                caseId,
+                IntakeReceiptId: null,
+                image.Sha256,
+                image.ContentLength),
+            cancellationToken).ConfigureAwait(false);
+        var bytes = new byte[image.ContentLength];
+        await content.Content.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
+        return bytes;
     }
 }

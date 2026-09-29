@@ -4,10 +4,10 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// Presentation policy for a Collision Engineers staff forward: the retained
-/// inbox body should focus on the work provider's original message, not the
+/// inbox body should focus on the Principal's original message, not the
 /// forwarder's wrapper. It strips leaked inline-image content-id tokens and, for
 /// a staff forward, drops the forwarder preamble and signature that sit above the
-/// quoted original, keeping the provider's original from the forwarded header on.
+/// quoted original, keeping the Principal's original from the forwarded header on.
 /// </summary>
 /// <remarks>
 /// A pure text policy: it takes already-decoded text and never touches MIME.
@@ -38,7 +38,7 @@ public static partial class StaffForwardBodyCleaner
             if (boundary.Success && boundary.Index > 0)
             {
                 // Everything above the first forwarded header is the CE
-                // forwarder's own preamble and signature; keep the provider's
+                // forwarder's own preamble and signature; keep the Principal's
                 // original from the header line onward.
                 text = text[boundary.Index..].TrimStart('\r', '\n', ' ', '\t');
             }
@@ -96,7 +96,7 @@ public static partial class StaffForwardBodyCleaner
     }
 
     /// <summary>
-    /// Cuts the provider's trailing signature footer — image placeholders,
+    /// Cuts the Principal's trailing signature footer — image placeholders,
     /// decorated contact links, the corporate disclaimer, membership and
     /// registered-office lines — from an already-cleaned display body. The
     /// boundary is the earliest line matching a measured footer marker
@@ -105,7 +105,7 @@ public static partial class StaffForwardBodyCleaner
     /// unchanged. Display-side only — retained and searchable text never
     /// pass through this.
     /// </summary>
-    public static string TrimProviderFooter(string body)
+    public static string TrimPrincipalFooter(string body)
     {
         ArgumentNullException.ThrowIfNull(body);
         var lines = body
@@ -166,7 +166,7 @@ public static partial class StaffForwardBodyCleaner
 
     // The measured footer boundary markers (MAIL-007): a line that is an
     // image placeholder, carries a decorated contact link, or opens the
-    // provider's disclaimer/membership/registration block.
+    // Principal's disclaimer/membership/registration block.
     [GeneratedRegex(
         "(?i)^\\[(?:https?://|cid:)"
         + "|<(?:tel:|mailto:|https?://)"

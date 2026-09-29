@@ -7,6 +7,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
@@ -24,6 +25,7 @@ internal sealed class EfDocumentCustodyStore(
     IExportCaseDocuments,
     ILogicallyRemoveDocument,
     IMarkAsOriginalReportStore,
+    IRecogniseOriginalReportStore,
     ITagCaseImage,
     IUntagCaseImage,
     ICreateImageTag,
@@ -551,23 +553,10 @@ internal sealed class EfDocumentCustodyStore(
             throw new InvalidOperationException(
                 "The document occurrence is unavailable.");
         }
-        var caseType = CaseTypeCodes.Parse(workflow.Case.Type);
-        var state = Enum.TryParse<CaseLifecycleState>(workflow.State, out var parsedState)
-            && Enum.IsDefined(parsedState)
-                ? parsedState
-                : throw new InvalidDataException(
-                    $"Case '{command.CaseId}' has an unrecognized lifecycle state.");
-        OriginalReportPolicy.RequireEligible(caseType, state, occurrence.SemanticRole);
+        OriginalReportPolicy.RequireEligible(
+            CaseTypeCodes.Parse(workflow.Case.Type), LifecycleStateOf(workflow), occurrence.SemanticRole);
 
-        var existing = await (
-                from item in context.Set<DocumentOccurrenceEntity>()
-                join itemVersion in context.Set<DocumentVersionEntity>()
-                    on item.VersionId equals itemVersion.Id
-                where item.CaseId == command.CaseId
-                    && item.SemanticRole == DocumentSemanticRole.AuditReport
-                    && itemVersion.IsCurrent
-                    && !itemVersion.IsLogicallyRemoved
-                select item)
+        var existing = await CurrentAuditReports(context, command.CaseId)
             .SingleOrDefaultAsync(cancellationToken);
         if (existing is not null)
         {
@@ -584,6 +573,175 @@ internal sealed class EfDocumentCustodyStore(
                 workflow.Version);
         }
 
+        var result = await RecordOriginalReportAsync(
+            context, workflow, occurrence, version, command.Actor, operationKey, requestHash,
+            reading, "original-report-role-v2", now, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    async Task<IReadOnlyList<FiledOriginalReportCandidate>> IRecogniseOriginalReportStore.FindAwaitingCandidatesAsync(
+        Guid caseId,
+        Guid receiptId,
+        IReadOnlyCollection<Guid> intakeAssetIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(intakeAssetIds);
+        if (intakeAssetIds.Count == 0)
+        {
+            return [];
+        }
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows.AsNoTracking()
+            .Include(value => value.Case)
+            .SingleOrDefaultAsync(value => value.CaseId == caseId, cancellationToken);
+        if (workflow is null || !await AwaitsRecognitionAsync(context, workflow, cancellationToken))
+        {
+            return [];
+        }
+
+        // The receipt's files are found by the operation key the filer gave
+        // each on this Case, so a file filed any other way is never read.
+        var assetsByKey = intakeAssetIds.Distinct().ToDictionary(
+            assetId => AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId),
+            StringComparer.Ordinal);
+        var operationKeys = assetsByKey.Keys.ToArray();
+        var filed = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == caseId
+                    && operationKeys.Contains(occurrence.OperationKey)
+                    && occurrence.SemanticRole != DocumentSemanticRole.Image
+                    && version.IsCurrent
+                    && !version.IsLogicallyRemoved
+                    && version.CustodyStatus != DocumentCustodyStatus.Failed
+                orderby occurrence.Ordinal
+                select new { OccurrenceId = occurrence.Id, occurrence.OperationKey, VersionId = version.Id })
+            .ToListAsync(cancellationToken);
+        return filed
+            .Select(item => new FiledOriginalReportCandidate(
+                assetsByKey[item.OperationKey], item.OccurrenceId, item.VersionId))
+            .ToArray();
+    }
+
+    async Task<OriginalReportRecorded?> IRecogniseOriginalReportStore.RecordRecognisedAsync(
+        RecordRecognisedOriginalReport command,
+        OriginalReportReading reading,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(reading);
+        StaffAuthorization.Require(command.Actor, StaffAccessRight.ExecuteSystemWork);
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.OperationKey);
+        var operationKey = command.OperationKey.Trim();
+        var requestHash = CaseOperationReplay.Hash(JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            command.CaseId,
+            command.IntakeReceiptId,
+            command.DocumentOccurrenceId,
+            command.DocumentVersionId,
+            operationKey
+        }));
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable,
+            cancellationToken);
+        if (await CaseOperationReplay.FindAsync(
+                context,
+                command.CaseId,
+                operationKey,
+                requestHash,
+                cancellationToken))
+        {
+            var replay = await context.CaseWorkflowEvents.AsNoTracking()
+                .SingleAsync(
+                    item => item.CaseId == command.CaseId
+                        && item.OperationKey == operationKey,
+                    cancellationToken);
+            return JsonSerializer.Deserialize<OriginalReportRecorded>(replay.ResultJson!)
+                ?? throw new InvalidDataException(
+                    "The original-report operation result is invalid.");
+        }
+
+        // Everything the recognition was decided on is read again here: a
+        // Case that no longer awaits its report, or a document that changed,
+        // records nothing.
+        var authority = await CaseMutationAuthority.LoadAsync(context, command.CaseId, cancellationToken);
+        if (authority?.Workflow is not { } workflow
+            || !await AwaitsRecognitionAsync(context, workflow, cancellationToken))
+        {
+            return null;
+        }
+
+        var occurrence = await context.Set<DocumentOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                item => item.CaseId == command.CaseId
+                    && item.Id == command.DocumentOccurrenceId,
+                cancellationToken);
+        var version = occurrence is null
+            ? null
+            : await context.Set<DocumentVersionEntity>()
+                .SingleAsync(item => item.Id == occurrence.VersionId, cancellationToken);
+        if (occurrence is null
+            || version is null
+            || !version.IsCurrent
+            || version.IsLogicallyRemoved
+            || version.Id != command.DocumentVersionId
+            || version.CustodyStatus == DocumentCustodyStatus.Failed
+            || occurrence.SemanticRole == DocumentSemanticRole.Image)
+        {
+            return null;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        if (authority.SystemWorkYields(now))
+        {
+            throw new IntakeDependencyUnavailableException(
+                "Original report recognition is waiting for the Case editor.");
+        }
+
+        var result = await RecordOriginalReportAsync(
+            context, workflow, occurrence, version, command.Actor, operationKey, requestHash,
+            reading, "original-report-recognition-v1", now, cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            // The Case changed between the read above and this save: an editor
+            // claimed it or another writer advanced it. Nothing was recorded.
+            throw new IntakeDependencyUnavailableException(
+                "The Case changed while its original report was recognised.", exception);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    /// <summary>
+    /// Records <paramref name="occurrence"/> as the Case's original report —
+    /// the one body a staff Mark and a recognition share: the role, the
+    /// Original report cells filled from its own reading, the Case version and
+    /// the history line.
+    /// </summary>
+    private static async Task<OriginalReportRecorded> RecordOriginalReportAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        DocumentOccurrenceEntity occurrence,
+        DocumentVersionEntity version,
+        ActionActor actor,
+        string operationKey,
+        string requestHash,
+        OriginalReportReading? reading,
+        string policyVersion,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
         var beforeVersion = workflow.Version;
         var beforeRole = occurrence.SemanticRole;
         occurrence.SemanticRole = DocumentSemanticRole.AuditReport;
@@ -592,7 +750,7 @@ internal sealed class EfDocumentCustodyStore(
         // the report.
         var filled = await OriginalReportPrefillWriter.ApplyAsync(
             context,
-            await CaseWorkScope.CurrentIdAsync(context, command.CaseId, cancellationToken),
+            await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken),
             reading is not null
                 && string.Equals(reading.Sha256, version.Sha256, StringComparison.OrdinalIgnoreCase)
                     ? reading
@@ -602,7 +760,7 @@ internal sealed class EfDocumentCustodyStore(
             cancellationToken);
         CaseMutationGuard.Complete(workflow);
         var result = new OriginalReportRecorded(
-            command.CaseId,
+            workflow.CaseId,
             occurrence.Id,
             version.FileName,
             workflow.Version);
@@ -610,7 +768,7 @@ internal sealed class EfDocumentCustodyStore(
         CaseMutationHistory.Add(
             context,
             workflow,
-            command.Actor,
+            actor,
             operationKey,
             historyLine,
             OriginalReportRecordedEventKind,
@@ -629,15 +787,42 @@ internal sealed class EfDocumentCustodyStore(
                 SemanticRole = occurrence.SemanticRole.ToString(),
                 Fields = filled.ToDictionary(item => item.Key, item => (string?)item.Value.After)
             }),
-            "original-report-role-v2",
+            policyVersion,
             now);
         context.CaseWorkflowEvents.Local.Single(item =>
-            item.CaseId == command.CaseId
+            item.CaseId == workflow.CaseId
             && item.OperationKey == operationKey).ResultJson = JsonSerializer.Serialize(result);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         return result;
     }
+
+    /// <summary>The Case's current, not removed document with the Audit report role.</summary>
+    private static IQueryable<DocumentOccurrenceEntity> CurrentAuditReports(PegasusDbContext context, Guid caseId) =>
+        from item in context.Set<DocumentOccurrenceEntity>()
+        join itemVersion in context.Set<DocumentVersionEntity>()
+            on item.VersionId equals itemVersion.Id
+        where item.CaseId == caseId
+            && item.SemanticRole == DocumentSemanticRole.AuditReport
+            && itemVersion.IsCurrent
+            && !itemVersion.IsLogicallyRemoved
+        select item;
+
+    private static async Task<bool> AwaitsRecognitionAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        CancellationToken cancellationToken) =>
+        OriginalReportPolicy.AwaitsRecognition(
+            CaseTypeCodes.Parse(workflow.Case.Type),
+            LifecycleStateOf(workflow),
+            workflow.ArchivedAtUtc is not null,
+            workflow.Case.StandaloneAuditEvidenceId,
+            await CurrentAuditReports(context, workflow.CaseId).AnyAsync(cancellationToken));
+
+    private static CaseLifecycleState LifecycleStateOf(CaseWorkflowEntity workflow) =>
+        Enum.TryParse<CaseLifecycleState>(workflow.State, out var parsedState)
+            && Enum.IsDefined(parsedState)
+                ? parsedState
+                : throw new InvalidDataException(
+                    $"Case '{workflow.CaseId}' has an unrecognized lifecycle state.");
 
     /// <summary>
     /// Puts the removal on the case's Notes tab, in the same transaction, so a

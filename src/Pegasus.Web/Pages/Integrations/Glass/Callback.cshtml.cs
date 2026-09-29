@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Assessment;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Glass;
+using Pegasus.Web.Background;
 using Pegasus.Web.Pages.Cases;
 using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
 
@@ -49,24 +48,21 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// produced rather than acting on it twice.
 /// </para>
 /// <para>
-/// <b>A held estimate lands when the Case is free.</b> When the launch's edit
-/// authority is no longer current — the Case was saved while Glass's was open
-/// — the return takes a fresh lease for the returning staff member and lands
-/// the estimate as the Current repair spec, provided nobody holds the Case.
-/// While anyone holds it, the same staff member in another window included,
-/// the estimate waits for Resume, so unsaved edits are never overtaken
-/// (FRD-25).
+/// <b>The import runs in the background.</b> The return is accepted and
+/// claimed here. Relaying it, exporting, retaining and landing the estimate
+/// run as <see cref="GlassSessionWork"/>, and this window waits in the Glass's
+/// window (<see cref="OpeningModel"/>) until they finish. The session is held
+/// busy from before the claim until that work has run, and a full queue runs
+/// the import in this request instead: an accepted return is never dropped.
 /// </para>
 /// </remarks>
 [AllowAnonymous]
 [IgnoreAntiforgeryToken]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
-public sealed partial class CallbackModel(
+public sealed class CallbackModel(
     IGlassRepairEstimateGateway glassEstimates,
     IGlassRepairEstimateSessionReader glassSessions,
-    IGetCase cases,
-    IAcquireCaseEditLease leases,
-    ILogger<CallbackModel> logger) : StaffPageModel
+    ProviderWorkQueue glassWork) : StaffPageModel
 {
     public Task<IActionResult> OnGetAsync(string correlation, CancellationToken cancellationToken) =>
         DeliverAsync(correlation, cancellationToken);
@@ -104,15 +100,43 @@ public sealed partial class CallbackModel(
             return Forbid();
         }
 
+        // Held busy before the claim: a second delivery racing this one sees
+        // the session busy until this one's import has run, and waits on it
+        // rather than settling it.
+        using var reservation = glassWork.Reserve(session.Id);
         try
         {
-            var completed = await CompleteAsync(actor, session, correlation, cancellationToken);
-            if (completed.State == GlassRepairEstimateSessionState.AwaitingImport)
+            // The provider's message travels verbatim: its identity is the
+            // correlation and the fingerprint the gateway takes of the query.
+            var step = await glassEstimates.AcceptCallbackAsync(
+                new GlassRepairEstimateCallback(
+                    actor, session.Id, session.Version, correlation, Request.QueryString.Value ?? string.Empty),
+                cancellationToken);
+            if (step.Continuation != GlassRepairEstimateContinuation.None)
             {
-                completed = await LandHeldEstimateAsync(actor, completed, cancellationToken);
+                var work = GlassSessionWork.For(actor, step);
+                if (reservation.Admit(work) == ProviderWorkAdmission.Queued)
+                {
+                    return DetailsModel.GlassOpening(this, step.Session.Id);
+                }
+
+                // A full queue never drops an accepted return: the import runs
+                // here, as the request always ran it before.
+                await reservation.RunHereAsync(work, HttpContext.RequestServices, cancellationToken);
+                return Report(await glassSessions.GetOwnAsync(session.Id, staffId, cancellationToken) ?? step.Session);
             }
-            return DetailsModel.ReportSessionOutcome(
-                completed, TempData, () => Estimate(completed.CaseId));
+
+            // Only other work counts from here: this delivery owes none.
+            reservation.Dispose();
+            if (glassWork.IsInFlight(step.Session.Id))
+            {
+                // The same return again while its import still runs.
+                return DetailsModel.GlassOpening(this, step.Session.Id);
+            }
+
+            return Report(GlassRepairEstimateSessionPolicy.AwaitsProviderWork(step.Session.State)
+                ? await glassEstimates.SettleInterruptedAsync(actor, step.Session.Id, cancellationToken)
+                : step.Session);
         }
         catch (StaffAuthorizationException)
         {
@@ -126,111 +150,18 @@ public sealed partial class CallbackModel(
             // refusal the gateway has for a return is this one type; anything
             // else is a fault and surfaces as one.
             TempData["CaseError"] = GlassLabels.NotImported;
-            return Estimate(session.CaseId);
+            return DetailsModel.GlassReturn(this, session.CaseId);
         }
     }
 
     private static bool IsStaff(ActionActor actor) => actor.Kind == ActorKind.Staff;
 
     /// <summary>
-    /// The provider's message travels verbatim: its identity is the correlation
-    /// and the fingerprint the gateway takes of the query, nothing else.
-    /// </summary>
-    private Task<GlassRepairEstimateSession> CompleteAsync(
-        ActionActor actor,
-        GlassRepairEstimateSession session,
-        string correlation,
-        CancellationToken cancellationToken) =>
-        glassEstimates.CompleteAsync(
-            new GlassRepairEstimateCallback(
-                actor,
-                session.Id,
-                session.Version,
-                correlation,
-                Request.QueryString.Value ?? string.Empty),
-            cancellationToken);
-
-    /// <summary>
-    /// Lands a held estimate on a fresh lease when nobody holds the Case and
-    /// it is still writable; otherwise, or when the Case is taken first, the
-    /// estimate stays held for Resume. The return itself already succeeded,
-    /// so a landing that fails anywhere — reading the Case, taking the lease
-    /// or the import itself — is logged and reports the session as it now
-    /// stands, never an error page. A lease taken for a Resume that does not
-    /// import stays the staff member's own edit session, which the Case page
-    /// picks back up.
-    /// </summary>
-    private async Task<GlassRepairEstimateSession> LandHeldEstimateAsync(
-        ActionActor actor,
-        GlassRepairEstimateSession session,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var current = await cases.ExecuteAsync(new(session.CaseId, actor), cancellationToken);
-            if (current is null
-                || current.ActiveEditLease is not null
-                || current.Workflow.Archive is not null
-                || !AssessmentPolicy.IsWritableState(current.Workflow.State))
-            {
-                return session;
-            }
-
-            var lease = await leases.ExecuteAsync(
-                new(session.CaseId, current.Workflow.Version, actor, NewOperationKey()),
-                cancellationToken);
-            return await glassEstimates.ResumeAsync(
-                new(actor, session.Id, session.Version, current.Workflow.Version, lease.Token),
-                cancellationToken);
-        }
-        catch (Exception exception) when (exception
-            is not OperationCanceledException
-            and not StaffAuthorizationException)
-        {
-            LogHeldEstimateNotLanded(logger, session.CaseId, session.Id, Reason(exception), exception);
-        }
-
-        return await SessionAsItStandsAsync(session, cancellationToken);
-    }
-
-    /// <summary>
-    /// The session as the store now has it, or the held one the return
-    /// produced when even that read fails: the operator is told where the
-    /// session stands either way.
-    /// </summary>
-    private async Task<GlassRepairEstimateSession> SessionAsItStandsAsync(
-        GlassRepairEstimateSession session,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await glassSessions.GetForCaseAsync(
-                    session.CaseId, session.PegasusUserId, cancellationToken)
-                ?? session;
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogHeldEstimateNotLanded(logger, session.CaseId, session.Id, Reason(exception), exception);
-            return session;
-        }
-    }
-
-    private static string Reason(Exception exception) =>
-        exception is GlassRepairEstimateSessionConflictException conflict
-            ? $"{conflict.GetType().Name}:{conflict.Conflict}"
-            : exception.GetType().Name;
-
-    [LoggerMessage(
-        EventId = 1213,
-        Level = LogLevel.Warning,
-        Message = "Glass's held estimate on case {CaseId} (session {SessionId}) did not land on the return and stays held for Resume: {Reason}")]
-    private static partial void LogHeldEstimateNotLanded(
-        ILogger logger, Guid caseId, Guid sessionId, string reason, Exception exception);
-
-    /// <summary>
     /// The operator's browser arrives here in the window Glass's ran in, so
     /// the Estimate section is handed back to the Case window rather than
-    /// rendered here (<see cref="DetailsModel.GlassReturn(PageModel, Guid)"/>).
+    /// rendered here.
     /// </summary>
-    private PartialViewResult Estimate(Guid caseId) => DetailsModel.GlassReturn(this, caseId);
+    private IActionResult Report(GlassRepairEstimateSession session) =>
+        DetailsModel.ReportSessionOutcome(
+            session, TempData, () => DetailsModel.GlassReturn(this, session.CaseId));
 }

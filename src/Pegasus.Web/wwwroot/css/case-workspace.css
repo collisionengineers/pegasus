@@ -12,10 +12,6 @@
 .case-record .case-edit-badge{margin-right:2px}
 .case-record .ribbon-actions form{display:contents}
 .case-record .ribbon-actions .menu-body form{display:contents}
-.stale-bar{position:relative;display:flex;align-items:center;gap:8px;padding:6px 38px 6px 12px;border-top:1px solid var(--line);background:var(--amber-bg);color:var(--amber);font-size:12px;font-weight:600}
-.stale-bar .icon{width:14px;height:14px;flex:none}
-.stale-bar .btn{margin-left:auto}
-.stale-bar .dismiss{position:absolute;right:6px;top:50%;transform:translateY(-50%)}
 
 /* Sections are panels; the head carries the title, an optional meta and the
    actions cluster (primary, menu, Edit, availability, collapse). */
@@ -47,6 +43,16 @@
    the current view reads plain and strong, the other is a link. */
 [data-case-views] .next-row{gap:8px}
 [data-case-views] [aria-current="page"]{font-weight:600;color:var(--ink)}
+/* Next action (issue 899) stacks a stale generation's notice, its line and
+   the report blockers; a blocker's words wrap inside the 285px aside. */
+[data-next-action] .panel-body>*+*{margin-top:8px}
+.workspace-aside .blocker{overflow-wrap:anywhere}
+/* A long list stays reachable (operator, 28 September 2026): beside the
+   sections the sticky aside is never taller than the space below the
+   sticky block and scrolls on its own; folded above them, the list scrolls
+   inside its panel so the sections stay near the top. */
+@media(min-width:1441px){.case-record .workspace-aside{max-height:calc(100vh - var(--utility-h) - var(--sticky-h,97px) - 32px);overflow-y:auto;overscroll-behavior:contain}}
+@media(max-width:1440px){.case-record [data-report-not-ready] .blocker-list{max-height:400px;overflow-y:auto;overscroll-behavior:contain}}
 
 /* Overview */
 /* Nested sections (v28 P26): Damage and Valuation read inside Vehicle, one rule apart. */
@@ -104,7 +110,7 @@
 .record-section>.panel-head>.meta.empty{color:var(--quiet)}
 .record-section>.panel-head>.meta[data-vehicle-lookup-line]{flex:1 1 auto;text-align:right;padding-right:6px}
 .vehicle-history .fc .fv.multi{white-space:pre-wrap}
-[data-inspection-provider-default][hidden]{display:none}
+[data-inspection-principal-default][hidden]{display:none}
 @media(max-width:1180px){.record-section>.panel-head>.meta[data-vehicle-lookup-line]{flex-basis:100%;text-align:left;padding-right:0}}
 
 
@@ -115,14 +121,7 @@
 #section-damage .damage-facts{min-width:0}
 #section-damage .damage-diagram{display:block;inline-size:100%;block-size:auto;margin:0 auto;overflow:hidden}
 #section-damage .damage-diagram-label{fill:var(--quiet);font:650 8px/1 var(--font);letter-spacing:.1em}
-#section-damage .dv-body{fill:#fff;stroke:var(--line-strong);stroke-width:1.2;stroke-linejoin:round}
-#section-damage .dv-glass{fill:#cfd8de;stroke:var(--line-strong);stroke-width:.6}
-#section-damage .dv-seam{fill:none;stroke:#aeb8bd;stroke-width:.8;pointer-events:none}
-#section-damage .dv-seam--soft{stroke:#d5dce0;stroke-width:.7}
-#section-damage .dv-lamp{fill:#eef2f4;stroke:#aeb8bd;stroke-width:.6;pointer-events:none}
-#section-damage .dv-lamp--rear{fill:#f3d4d6;stroke:#d39aa0}
-#section-damage .dv-wheel{fill:#2f3538}
-#section-damage .dv-mirror{fill:#dfe4e7;stroke:var(--line-strong);stroke-width:.8}
+#section-damage .dv-hit path{fill:none;stroke:none;pointer-events:none}
 #section-damage[data-damage-editable="true"] svg.damage-diagram{cursor:crosshair;touch-action:none}
 #section-damage .dm-guides path{fill:none;stroke:var(--navy);stroke-width:.6;stroke-dasharray:3 3;opacity:.45;pointer-events:none}
 #section-damage .damage-plan-area{color:var(--navy);cursor:pointer}
@@ -130,20 +129,10 @@
 #section-damage .damage-plan-area:focus .damage-plan-area-hit{stroke:currentColor;stroke-dasharray:2 2}
 #section-damage .damage-marks .dm{pointer-events:none}
 #section-damage[data-damage-editable="true"] .damage-marks .dm{pointer-events:auto;cursor:grab}
-#section-damage .damage-marks .dm text{fill:#fff;font:700 9px/1 var(--font);pointer-events:none}
-#section-damage .damage-marks .dm .area{fill-opacity:.32;stroke-width:1.6}
-#section-damage .damage-marks .dm.is-hover .area{stroke:var(--navy);stroke-width:2}
-#section-damage .damage-marks .dm .n{fill:var(--ink);stroke:#fff;stroke-width:1.5}
-#section-damage .dm[data-sev="light"] .area,#section-damage .dv-legend i[data-sev="light"]{fill:color-mix(in srgb,var(--red) 22%,#fff);stroke:color-mix(in srgb,var(--red) 40%,#fff);background:color-mix(in srgb,var(--red) 22%,#fff)}
-#section-damage .dm[data-sev="light_to_moderate"] .area,#section-damage .dv-legend i[data-sev="light_to_moderate"]{fill:color-mix(in srgb,var(--red) 40%,#fff);stroke:color-mix(in srgb,var(--red) 55%,#fff);background:color-mix(in srgb,var(--red) 40%,#fff)}
-#section-damage .dm[data-sev="moderate"] .area,#section-damage .dv-legend i[data-sev="moderate"]{fill:color-mix(in srgb,var(--red) 58%,#fff);stroke:color-mix(in srgb,var(--red) 70%,#fff);background:color-mix(in srgb,var(--red) 58%,#fff)}
-#section-damage .dm[data-sev="moderate_to_heavy"] .area,#section-damage .dv-legend i[data-sev="moderate_to_heavy"]{fill:color-mix(in srgb,var(--red) 78%,#fff);stroke:color-mix(in srgb,var(--red) 85%,#fff);background:color-mix(in srgb,var(--red) 78%,#fff)}
-#section-damage .dm[data-sev="heavy"] .area,#section-damage .dv-legend i[data-sev="heavy"]{fill:var(--red-dark);stroke:var(--red-dark);background:var(--red-dark)}
+#section-damage .damage-marks .dm .area{fill:transparent;stroke:none}
+#section-damage .damage-marks .dm.is-hover .burst{stroke:var(--navy)}
 #section-damage [data-damage-reset]{display:flex;margin:6px auto 0}
 #section-damage .dv-readout{min-height:18px;margin-top:6px;text-align:center;font-size:12px;font-weight:600;color:var(--navy)}
-#section-damage .dv-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 10px;margin-top:4px;font-size:10px;color:var(--quiet);text-transform:uppercase;letter-spacing:.06em}
-#section-damage .dv-legend span{display:inline-flex;align-items:center;gap:4px}
-#section-damage .dv-legend i{width:10px;height:10px;border-radius:2px;border:1px solid var(--red)}
 #section-damage .damage-extra{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:8px}
 #section-damage .damage-extra .btn.is-damaged{border-color:var(--red);background:var(--red);color:#fff}
 /* Read mode: the same chips, greyed and inert; a recorded one keeps its fill. */
@@ -196,7 +185,8 @@
 #section-valuation .valuation-card .meta{margin-top:6px;font-size:11px;color:var(--muted)}
 #section-valuation .valuation-card .notice{margin-top:8px;padding:6px 8px;font-size:12px}
 #section-valuation .valuation-card .notice .link-button{color:inherit;text-decoration:underline}
-#section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:center;margin-top:8px}
+#section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+#section-valuation [data-valuation-lines-host][aria-busy="true"]{opacity:.65}
 #section-valuation .valuation-card.is-pending .meta::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:valspin .8s linear infinite}
 @keyframes valspin{to{transform:rotate(360deg)}}
 #section-valuation .valuation-card .gated{margin-left:0}
@@ -350,6 +340,7 @@
 #section-estimate .grid input{width:100%;min-height:30px;border:1px solid transparent;border-radius:3px;padding:3px 6px;font-size:12px;background:transparent}
 #section-estimate .grid input.num{text-align:right;font-family:var(--mono)}
 #section-estimate .grid input.viol{border-color:var(--amber);background:var(--amber-bg)}
+#section-estimate input.is-previewed{border-color:var(--amber);background:var(--amber-bg)}
 #section-estimate .rate-pair{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px}
 #section-estimate .uplift{display:flex;align-items:center;gap:8px;min-height:32px}
 #section-estimate .estimate-tab [contenteditable="true"]{outline:1px solid var(--navy);outline-offset:2px;border-radius:2px}
@@ -435,8 +426,8 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 @media(max-width:760px){#section-settlement .metric-strip{grid-template-columns:repeat(2,1fr)}#section-settlement .metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 
 /* ---- Report (v26): preview card, generation, recipients, image strip -------- */
-#section-report .menu-body .menu-choice{padding:0 12px;font-size:12px;min-height:32px}
-#section-report .menu-body .menu-choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+#section-report .panel-actions .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
+#section-report .panel-actions .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
 #section-report .pv{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;flex-wrap:wrap}
 #section-report .pv-thumb{width:56px;height:76px;border-radius:2px;background:#fdfcfa;border:1px solid #e4dfd8;position:relative;flex-shrink:0}
 #section-report .pv-thumb::before{content:"";position:absolute;inset:7px 7px auto;height:6px;background:var(--red)}
@@ -466,6 +457,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-report .th.off .inc{background:#fff;color:var(--quiet);border:1px solid var(--line)}
 #section-report .th .tag{position:absolute;top:4px;left:5px;font:600 8.5px var(--font);padding:1px 6px;border-radius:999px;background:rgba(255,255,255,.92);color:var(--ink);text-shadow:none}
 #section-report .fc .fv.derived.multi{font-size:12.5px}
+#section-report [data-report-prepared-message]{white-space:pre-wrap}
 @media(max-width:1180px){#section-report .thumbs{grid-template-columns:repeat(6,1fr)}}
 @media(max-width:760px){#section-report .thumbs{grid-template-columns:repeat(3,1fr)}#section-report .detail-list>div{grid-template-columns:1fr}}
 

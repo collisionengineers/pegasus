@@ -73,7 +73,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 HoldingBox.RootId,
                 "test", "test", "test", "test", "test", "test", HoldingBox.HoldingFolderId),
             new HttpClient(new HoldingBoxHandler(box)),
-            new StaticBoxAuthorizationHeaderProvider());
+            new StaticBoxAuthorizationHeaderProvider(),
+            TimeProvider.System);
         var custody = new EfCaseArtifactCustody(
             factory,
             new BoxDocumentContentStore(client),
@@ -326,7 +327,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             new(worker, null, null, assetId, Guid.NewGuid(), receiptId, hash, 3),
             CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => reader.OpenAsync(
-            new(ActionActor.Provider(Guid.NewGuid()), null, null, assetId, caseId, receiptId, hash, 3),
+            new(ActionActor.Principal(Guid.NewGuid()), null, null, assetId, caseId, receiptId, hash, 3),
             CancellationToken.None));
         Assert.Equal(1, artifacts.ReadCount);
     }
@@ -691,7 +692,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
-            ArtifactRequest(ActionActor.Provider(Guid.NewGuid()), caseId, bytes), default));
+            ArtifactRequest(ActionActor.Principal(Guid.NewGuid()), caseId, bytes), default));
     }
 
     private static CaseArtifactCustodyRequest ArtifactRequest(

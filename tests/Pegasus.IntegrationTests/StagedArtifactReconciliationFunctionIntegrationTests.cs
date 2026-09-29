@@ -11,7 +11,7 @@ using Pegasus.Core.Triage;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
 using Pegasus.Core.Intake.Unidentified;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Worker;
@@ -52,11 +52,12 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var vehicleLookupReconciler = new ReconcileAutomaticVehicleLookups(
             new UnreachableAutomaticVehicleLookupStore(),
             VehicleLookupAvailability.Unavailable);
-        var providerSubmissionReconciler = new ReconcileProviderSubmissions(
-            new EmptyProviderSubmissionStore(),
+        var principalSubmissionReconciler = new ReconcilePrincipalSubmissions(
+            new EmptyPrincipalSubmissionStore(),
             new UnreachableActionHistoryWriter(),
             TimeProvider.System);
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+        var thumbnailCandidates = new RecordingThumbnailCandidates();
         var pairing = new RecordingPairing();
         var triagePairing = new RecordingTriagePairing();
         var settlement = new RecordingSettlement();
@@ -73,8 +74,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             triagePairing,
             unidentifiedReconciler,
             vehicleLookupReconciler,
-            providerSubmissionReconciler,
+            principalSubmissionReconciler,
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
+            new PrepareDocumentThumbnails(thumbnailCandidates, new UnreachableDocumentThumbnails()),
             logger);
 
         await function.RunAsync(null!, CancellationToken.None);
@@ -84,6 +86,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(50, settlement.MaximumItems);
         Assert.Equal(50, pairing.MaximumItems);
         Assert.Equal(50, triagePairing.MaximumItems);
+        // The thumbnail sweep asks for a small number each run; with none to
+        // make it logs nothing.
+        Assert.Equal(2, thumbnailCandidates.MaximumItems);
         // Eight reconciliation results and the staff-notification purge.
         Assert.Equal(9, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
@@ -124,11 +129,11 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[6]);
         Assert.Equal(0, vehicleLookupState["Enqueued"]);
 
-        var providerSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[7]);
-        Assert.Equal(0, providerSubmissionState["Candidates"]);
-        Assert.Equal(0, providerSubmissionState["Repaired"]);
-        Assert.Equal(0, providerSubmissionState["Failures"]);
-        Assert.Null(providerSubmissionState["FirstFailure"]);
+        var principalSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[7]);
+        Assert.Equal(0, principalSubmissionState["Candidates"]);
+        Assert.Equal(0, principalSubmissionState["Repaired"]);
+        Assert.Equal(0, principalSubmissionState["Failures"]);
+        Assert.Null(principalSubmissionState["FirstFailure"]);
     }
 
     /// <summary>
@@ -176,8 +181,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 receipts, new UnreachableImageIntakeQueries(), new UnreachableTriageQueries(), TimeProvider.System,
                 new UnreachableGroupStore(), new EmptyQueuedIntakeStatuses()),
             new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
-            new ReconcileProviderSubmissions(new EmptyProviderSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
+            new ReconcilePrincipalSubmissions(new EmptyPrincipalSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
+            new PrepareDocumentThumbnails(new NoDocumentThumbnailCandidates(), new UnreachableDocumentThumbnails()),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, CancellationToken.None);
     }
@@ -277,6 +283,30 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         public Task<int> PurgeOlderThanAsync(DateTimeOffset cutoffUtc, CancellationToken cancellationToken) => Task.FromResult(0);
     }
 
+    private sealed class RecordingThumbnailCandidates : IListDocumentThumbnailCandidates
+    {
+        public int MaximumItems { get; private set; }
+
+        public Task<IReadOnlyList<DocumentThumbnailCandidate>> ListAsync(
+            int maximumItems,
+            CancellationToken cancellationToken)
+        {
+            MaximumItems = maximumItems;
+            return Task.FromResult<IReadOnlyList<DocumentThumbnailCandidate>>([]);
+        }
+
+        public void Defer(Guid versionId) =>
+            throw new InvalidOperationException("Nothing is deferred without a candidate.");
+    }
+
+    private sealed class UnreachableDocumentThumbnails : IReadCaseDocumentThumbnail
+    {
+        public Task<CaseDocumentThumbnail?> OpenAsync(
+            CaseDocumentThumbnailRequest request,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No thumbnail is made without a candidate.");
+    }
+
     private sealed class EmptyCacheCleanup : IDocumentContentCacheCleanup
     {
         public Task<DocumentContentCacheCleanupResult> ExecuteAsync(
@@ -292,20 +322,20 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 "The sweep store must not be reached while lookups are unavailable.");
     }
 
-    private sealed class EmptyProviderSubmissionStore : IProviderSubmissionStore
+    private sealed class EmptyPrincipalSubmissionStore : IPrincipalSubmissionStore
     {
         public Task CreateAsync(
-            ProviderSubmissionRecord record,
+            PrincipalSubmissionRecord record,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
-        public Task<ProviderSubmissionRecord?> FindByIdempotencyKeyAsync(
+        public Task<PrincipalSubmissionRecord?> FindByIdempotencyKeyAsync(
             Guid principalId,
             string idempotencyKey,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
-        public Task<ProviderSubmissionRecord?> GetAsync(
+        public Task<PrincipalSubmissionRecord?> GetAsync(
             Guid id,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
@@ -321,13 +351,13 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
-        public Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
+        public Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
             int maximumItems,
             CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ProviderSubmissionAcceptCandidate>>([]);
+            Task.FromResult<IReadOnlyList<PrincipalSubmissionAcceptCandidate>>([]);
 
         private static InvalidOperationException UnexpectedCall() =>
-            new("An empty provider-submission reconciliation batch must not reach a write or unrelated read.");
+            new("An empty principal-submission reconciliation batch must not reach a write or unrelated read.");
     }
 
     private sealed class UnreachableActionHistoryWriter : IActionHistoryWriter
@@ -343,7 +373,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             throw Unreachable();
 
         private static InvalidOperationException Unreachable() =>
-            new("An empty provider-submission reconciliation batch must not append history.");
+            new("An empty principal-submission reconciliation batch must not append history.");
     }
 
     private sealed class ReconciliationWorkStore(int recoveredLeases) : IIntakeWorkStore
@@ -624,6 +654,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     {
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,
+            ImageInitiatedCaseState? state,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 

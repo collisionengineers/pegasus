@@ -70,7 +70,7 @@ state prerequisite for the action.
 
 | Staff role | May view | May create or change | Must not access or perform |
 | --- | --- | --- | --- |
-| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task and transition action; staff account create, disable, delete access, force logout, role assignment and password reset; sign-off settings; Principals and successor cutover, including a Principal's Provider API credential lifecycle; workflow configuration, including labour-rate cards; e-mail templates; the approved-mailbox allowlist; OAuth-client registration and revocation | Pegasus's own credential-secret, cloud or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
+| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task and transition action; staff account create, disable, delete access, force logout, role assignment and password reset; sign-off settings; Principals and successor cutover, including a Principal's Principal API credential lifecycle; workflow configuration, including labour-rate cards; e-mail templates; the approved-mailbox allowlist; OAuth-client registration and revocation | Pegasus's own credential-secret, cloud or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
 | `Engineer` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action, including assignment, valuation, findings, estimates, reports and use of the account's own configured Glass's credential | Application management |
 | `User` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action, including assignment, valuation, findings, estimates, reports and use of the account's own configured Glass's credential | Application management |
 
@@ -112,8 +112,8 @@ orphan identity. The screen's visuals and controls are owned by the
 The Principal section of a Contact carries:
 
 - the accepted route email domains, read-only once activated, read from the
-  provider route policy in
-  [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes);
+  Principal route policy in
+  [FRD-09](frd-09-principal-and-intermediary-routes.md#principal-and-intermediary-routes);
 - the default inspection location, Image Based Assessment or a physical
   address, saved on the click;
 - the report-generation policy and its delivery suggestions, owned by
@@ -122,13 +122,13 @@ The Principal section of a Contact carries:
   Configured additional recipients and the optional original instruction
   sender are the only delivery suggestions. The Claim Source is never copied
   in by default;
-- the Provider API credential (API-04): issue, reset, revoke, pause and
+- the Principal API credential (API-04): issue, reset, revoke, pause and
   resume. Each acts on the click and goes into permanent history with an
   optional reason. The secret is shown once, at issue or reset, and never
   again, even on an exact replay. The response is non-cacheable. The secret
   is never put in TempData, URLs or history; only its hash is kept. The
   credential is handed over with the submission endpoint it authenticates
-  ([FRD-09 API-01](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary))
+  ([FRD-09 API-01](frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary))
   and gives no staff access. Resetting a paused credential makes it active
   again. A revoked credential can be reissued, which starts a new secret and
   clears the revocation.
@@ -180,7 +180,10 @@ The temporary secret is never emailed, logged, stored in raw form or sent to
 analytics.
 
 Disable, a role change, a reset and Force logout revoke the account's
-sessions and tokens. The next request sees the current authority. Delete
+sessions and tokens. The next request sees the current authority. Every
+change to an account's role, enabled state or password rotates its security
+stamp, and each request checks the stamp. A session is never refreshed into
+new authority: it is refused and signs in again. Delete
 removes active access, the role and credential material, but keeps the
 minimal actor identity that business history and printed reports need. It
 never deletes a Case. Disable and Delete act at once from the Settings
@@ -257,7 +260,7 @@ authorisation. External customers have no staff account.
 | --- | --- | --- |
 | Contact | Active, inactive | Administrator edits with an expected record version; a stale write is refused |
 | Staff account | Enabled, disabled, deleted access; forced password change | Create, Enable, Disable, Delete access, Reset password |
-| Provider API credential | Active, paused, revoked | Issue, reset, revoke, pause, resume |
+| Principal API credential | Active, paused, revoked | Issue, reset, revoke, pause, resume |
 | Sign-off Engineer flag | Set or not; one account marked default | Administrator account setting |
 
 ## Edge cases and fail-closed behaviour
@@ -269,7 +272,7 @@ authorisation. External customers have no staff account.
 - An account cannot disable or delete itself, and the last enabled
   Administrator cannot be removed.
 - A revoked session's token is refused on its next request.
-- The Provider API secret is shown once; a replay shows nothing.
+- The Principal API secret is shown once; a replay shows nothing.
 - A refusal never reveals Case or source data.
 
 ## Acceptance evidence
@@ -286,7 +289,7 @@ acceptance are separate evidence tiers
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),

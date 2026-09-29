@@ -69,7 +69,7 @@ public sealed class AutomaticVehicleLookupTests
     public async Task SweepSkipsClosedCasesAndUnusableValues()
     {
         await using var database = await CreateDatabaseAsync();
-        var terminalCase = await SeedCaseAsync(database, CaseLifecycleState.ProviderCancelled);
+        var terminalCase = await SeedCaseAsync(database, CaseLifecycleState.PrincipalCancelled);
         await SeedRegistrationFieldAsync(database, terminalCase, "AB12CDE", "fact");
         var unusableCase = await SeedCaseAsync(database, CaseLifecycleState.Review);
         await SeedRegistrationFieldAsync(database, unusableCase, "???", "fact");

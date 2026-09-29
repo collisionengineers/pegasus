@@ -705,7 +705,7 @@ public sealed class EfStaffAccountAdministration(
     }
 
     /// <summary>
-    /// The rows that key on the account by foreign key or by id: the provider credential
+    /// The rows that key on the account by foreign key or by id: the Principal API credential
     /// and its Glass's sessions are the account's own and go with it; a task it was
     /// assigned is left unassigned; its notifications have nobody to read them.
     /// </summary>

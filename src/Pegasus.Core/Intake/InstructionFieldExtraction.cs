@@ -5,20 +5,20 @@ using System.Text.RegularExpressions;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// Provider-neutral instruction field reading: label-anchored candidate discovery and
-/// value parsing shared by provider extraction policies. Which fields a policy expects
+/// Principal-neutral instruction field reading: label-anchored candidate discovery and
+/// value parsing shared by Principal extraction policies. Which fields a policy expects
 /// remains that policy's own definition list.
 /// </summary>
 internal static partial class InstructionFieldEngine
 {
     /// <param name="FormFields">
-    /// PDF form-field names that carry this field, when the provider's template
+    /// PDF form-field names that carry this field, when the Principal's template
     /// is a form. A form field's identity is its own; it is never inferred from
     /// a neighbouring label.
     /// </param>
     /// <param name="ColumnHeader">
     /// For a value read from a table row, the header of the column the value
-    /// must sit under. A provider printing two parties in paired columns states
+    /// must sit under. A Principal printing two parties in paired columns states
     /// which column is whose in its header row, and this is how a definition
     /// says which party it is asking about. Without it every viable column is
     /// returned and the field is ambiguous rather than guessed.
@@ -391,7 +391,7 @@ internal static partial class InstructionFieldEngine
 
                 // A label in the body of the table labels what is beside it. Where
                 // the definition names the column header it is asking about — a
-                // provider printing two parties in paired columns — only that
+                // Principal printing two parties in paired columns — only that
                 // column's cell is viable; without one, every viable column is
                 // returned and the field is ambiguous rather than guessed at.
                 var siblings = this.cells
@@ -590,8 +590,8 @@ internal static partial class InstructionFieldEngine
                 // start or after a clear separator); a label immediately followed by
                 // an explicit ':' or '-' is a label wherever it sits on the line.
                 // A definition's guarded prefixes reject a label that is really
-                // another party's row — the provider policy supplies the words
-                // (this engine carries no provider grammar).
+                // another party's row — the Principal policy supplies the words
+                // (this engine carries no Principal grammar).
                 var match = regexCache.Candidate(definition, labelIndex, false).Match(lines[index]);
                 if (!match.Success)
                 {

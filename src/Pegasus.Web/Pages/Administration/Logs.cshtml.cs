@@ -424,7 +424,7 @@ public sealed class LogsModel(
     /// Unidentified queue rather than a record. An AI job's recorded aggregate
     /// is the job, so the log alone shows a bare identifier; resolving it here
     /// is what makes the Action Logs view the readable AI history the
-    /// Operations board's live rows link into.
+    /// Work Centre's live rows link into.
     /// </summary>
     public AiJobReference? AiJobRecordLink(ActionLogRow row)
     {

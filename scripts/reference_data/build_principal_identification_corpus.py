@@ -28,13 +28,13 @@ PACKAGE_RELATIVE_PATH = Path(
 PEGASUS_POLICY_SNAPSHOTS = (
     ("principal-mail-route-v1", "src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs"),
     (
-        "principal-mail-classification-v1",
+        "principal-mail-classification-v2",
         "src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs",
     ),
     ("principal-case-match-v1", "src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs"),
     (
         "qdos-extraction-policy-v9",
-        "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs",
+        "src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs",
     ),
     ("shared-mail-taxonomy", "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs"),
 )
@@ -285,7 +285,7 @@ QDOS_EXTRACTION_LABELS = (
 
 TRACKED_PEGASUS_SOURCES = (
     ("initial-domain-observations", "reference/workproviders-and-repairers/initial.xlsx", "spreadsheet", "raw-bytes"),
-    ("approved-provider-domain-package", "src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json", "reference-package", "raw-bytes"),
+    ("approved-provider-domain-package", "src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json", "reference-package", "raw-bytes"),
     ("provider-case-export", "reference/workproviders-and-repairers/providers.xlsx", "spreadsheet", "raw-bytes"),
     ("reviewed-provider-workbook", "reference/workproviders-and-repairers/providers-worked-on.xlsx", "spreadsheet", "raw-bytes"),
     ("operator-job-sheet", "reference/workproviders-and-repairers/backup_of_ce_job_sheet_260429.xlsm", "office-document", "raw-bytes"),
@@ -692,7 +692,7 @@ def qdos_accepted_rules() -> list[dict[str, Any]]:
             "signal": signal,
             "taxonomyTarget": target,
             "criterionState": state(observed=True, accepted=True, active=True),
-            "evidenceRefs": ["principal-mail-classification-v1"],
+            "evidenceRefs": ["principal-mail-classification-v2"],
         }
         for rule_id, source_role, signal, target in QDOS_ACCEPTED_CLASSIFICATION
     ]
@@ -875,7 +875,7 @@ def dossier(
         evidence_refs.update(
             {
                 "principal-mail-route-v1",
-                "principal-mail-classification-v1",
+                "principal-mail-classification-v2",
                 "principal-case-match-v1",
                 "qdos-extraction-policy-v9",
                 "qdos-local-email-evidence",
@@ -1222,7 +1222,7 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
             json.loads(
                 (
                     repository_root
-                    / "src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json"
+                    / "src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json"
                 ).read_text(encoding="utf-8")
             )["providers"]
         ),
@@ -1377,7 +1377,7 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
                 "billing": ["payment-notification", "remittance", "invoice-request", "billing-query", "general-billing"],
                 "new-instruction-received": ["audit", "diminution", "inspection", "new-client", "website-enquiry"],
                 "non-client-related": [],
-                "in-progress-cases": ["cancellation", "case-update", "client-chasing-for-update", "provider-chasing-for-update", "ongoing-correspondence"],
+                "in-progress-cases": ["cancellation", "case-update", "client-chasing-for-update", "principal-chasing-for-update", "ongoing-correspondence"],
                 "post-report-emails": ["query", "dispute", "amendment-request"],
                 "pre-instruction-emails": ["triage-request", "pre-formal-instruction-request", "images-received"],
                 "internal-cc": [],

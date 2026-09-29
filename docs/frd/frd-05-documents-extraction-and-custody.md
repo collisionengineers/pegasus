@@ -21,8 +21,8 @@ This document says which files Pegasus accepts, how it extracts text and
 images from them, where the files are kept, and how images are read back and
 tagged. Upload limits are in
 [FRD-18](frd-18-manual-upload.md#upload-limits).
-The Provider API envelope is owned by
-[FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
+The Principal API envelope is owned by
+[FRD-09](frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary).
 
 ## Behaviour
 
@@ -175,7 +175,10 @@ holds takes the record's reference in front of its name. The removal is
 non-recursive, so unexpected content makes the fold fail closed instead of
 being destroyed. Each moved file keeps its Box file and version identity.
 When the fold completes it records each photograph it moved as a Case image
-document under that identity (operator, 27 September 2026). Nothing is
+document under that identity (operator, 27 September 2026), and each other
+file it moved that the record was registered from, such as the PDF the
+photographs came in, as a Case document (operator, 28 September 2026), which
+staff may then mark as an Audit's original report. Nothing is
 uploaded again, and a replay records nothing twice. The fold yields to a
 member of staff editing the Case and retries after they finish
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). The record's
@@ -184,8 +187,9 @@ custody.
 
 ### Custody and staging distinctions
 
-Box is durable file custody. Azure processing bytes and the 24-hour idle
-cache are temporary. SQL keeps the arrival, idempotency and provenance
+Box is durable file custody. Azure processing bytes and the idle cache are
+temporary. A cached file is kept 24 hours after its last use. A plain
+gallery thumbnail is kept 30 days after its last use. SQL keeps the arrival, idempotency and provenance
 identities. Receipt, logical access and definitive association are three
 separate claims. A temporary file or a cache hit never establishes an
 accepted Case association.
@@ -237,6 +241,26 @@ viewer link, tags and Crop only on Confirmed ones. The Documents tab lists
 the same set, each row stating its custody, and offers Preview and Save as
 only where the bytes are held.
 
+The Worker makes the plain gallery thumbnail of each newly filed image in the
+background, a few at a time on its existing sweep. The first view then reads
+a small cached rendering. Nothing the user sees changes. An image the
+background cannot render gets its thumbnail on first view, as before.
+
+Every read of a file from Box checks the file itself: which folder holds it
+and whether it is in the trash. A trashed file is refused. The check that
+the folder sits under the approved Box root is remembered for 10 minutes. So
+a folder moved out of the root, or trashed, in Box itself may be noticed up
+to 10 minutes late. Writes, moves, deletes and uploads check the whole path
+every time. A not-found, trashed or outside-root answer drops what was
+remembered.
+
+A browser may keep a private copy of an image or PDF preview for a week. It
+keeps one only when the address names the exact bytes. For a Case document
+that is the document version. For an intake image it is the image's content
+hash, and for its tile also the crop version and renderer. Any other address
+is sent with `private, no-store`, so a changed image is never shown from an
+old copy. A saved download is never kept.
+
 Unidentified and Vehicle images records likewise show selected photographs
 whatever the source file's media type: the photo count, thumbnails or
 custody placeholders, the VRM outcome, and the original PDF as a separate
@@ -270,6 +294,17 @@ record's timeline. Adding to the shared vocabulary takes no lease and no Case
 version, because it is not a Case fact. It needs the casework right and an
 operation key. A duplicate name, compared ignoring case, is refused rather
 than creating a second entry.
+
+Tagging works while the Case is being edited (operator, 28 September 2026).
+Apply, remove and New tag post at once, in place. They never ask the operator
+to save the Case, and they leave the Case's unsaved changes as they are.
+Apply and remove move the Case version and the edit lease, so the page
+carries the new version and lease into the Save form, and the next Save
+still holds the operator's changes. New tag moves neither: it adds to the
+vocabulary, and every picker on the page redraws to offer the new tag. The
+edit session carries on. With no script, the same buttons post normally and
+the page comes back on the Images tab. In report follows the same rule
+([FRD-16](frd-16-case-record-workspace.md)).
 
 Third party replaces the former one-way `ThirdPartyVehicleConfirmedAtUtc`
 flag and keeps its EVA-exclusion behaviour
@@ -313,7 +348,7 @@ test subtree. Deployment and live acceptance are separate evidence tiers
   `INT-10`–`INT-12`, `INT-14`–`INT-16` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-18](frd-18-manual-upload.md),
   [FRD-19](frd-19-image-led-intake-and-pairing.md).

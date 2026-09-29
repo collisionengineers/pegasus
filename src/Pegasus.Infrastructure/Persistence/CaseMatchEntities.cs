@@ -16,7 +16,7 @@ internal sealed class CaseMatchIndexEntity
 {
     public Guid CaseId { get; set; }
     public CaseEntity Case { get; set; } = null!;
-    public required string WorkProviderCode { get; set; }
+    public required string PrincipalCode { get; set; }
     public string? DurableClaimToken { get; set; }
     public string? NormalizedVrm { get; set; }
     public string? NormalizedSurname { get; set; }
@@ -49,15 +49,15 @@ internal static class CaseMatchModelConfiguration
         {
             entity.ToTable("CaseMatchIndex");
             entity.HasKey(item => item.CaseId);
-            entity.Property(item => item.WorkProviderCode).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.PrincipalCode).HasMaxLength(100).IsRequired();
             entity.Property(item => item.DurableClaimToken).HasMaxLength(100);
             entity.Property(item => item.NormalizedVrm).HasMaxLength(20);
             entity.Property(item => item.NormalizedSurname).HasMaxLength(100);
             entity.Property(item => item.NormalizedFirstInitial).HasMaxLength(1);
             entity.Property(item => item.MatchPolicyKey).HasMaxLength(100).IsRequired();
-            entity.HasIndex(item => new { item.WorkProviderCode, item.DurableClaimToken });
-            entity.HasIndex(item => new { item.WorkProviderCode, item.NormalizedVrm });
-            entity.HasIndex(item => new { item.WorkProviderCode, item.NormalizedSurname });
+            entity.HasIndex(item => new { item.PrincipalCode, item.DurableClaimToken });
+            entity.HasIndex(item => new { item.PrincipalCode, item.NormalizedVrm });
+            entity.HasIndex(item => new { item.PrincipalCode, item.NormalizedSurname });
             entity.HasOne(item => item.Case)
                 .WithOne()
                 .HasForeignKey<CaseMatchIndexEntity>(item => item.CaseId)
@@ -83,16 +83,16 @@ internal static class CaseMatchModelConfiguration
 
 /// <summary>
 /// Derives the index row for a case from its current typed case data through the
-/// provider's one normalization grammar (Confirmed value wins over Suggestion over
-/// Fact, matching CaseField semantics). Returns null when the case has no provider or
-/// the provider has no accepted case-match policy — matching simply is not active there.
+/// Principal's one normalization grammar (Confirmed value wins over Suggestion over
+/// Fact, matching CaseField semantics). Returns null when the case has no Principal or
+/// the Principal has no accepted case-match policy — matching simply is not active there.
 /// </summary>
 internal static class CaseMatchIndexProjector
 {
     public static CaseMatchIndexEntity? Project(
         CaseEntity caseEntity,
         IReadOnlyList<CaseDataFieldEntity> fields,
-        IEnumerable<IProviderCaseMatchPolicy> policies,
+        IEnumerable<IPrincipalCaseMatchPolicy> policies,
         DateTimeOffset updatedAtUtc)
     {
         // A Triage Case is never an intake match target: it is not a definitive
@@ -102,11 +102,11 @@ internal static class CaseMatchIndexProjector
             return null;
         }
 
-        var provider = CurrentValue(fields, CaseDataFieldNames.WorkProviderCode);
-        var policy = provider is null
+        var principal = CurrentValue(fields, CaseDataFieldNames.PrincipalCode);
+        var policy = principal is null
             ? null
             : policies.SingleOrDefault(candidate =>
-                string.Equals(candidate.WorkProviderCode, provider, StringComparison.Ordinal));
+                string.Equals(candidate.PrincipalCode, principal, StringComparison.Ordinal));
         if (policy is null)
         {
             return null;
@@ -121,7 +121,7 @@ internal static class CaseMatchIndexProjector
         {
             CaseId = caseEntity.Id,
             Case = caseEntity,
-            WorkProviderCode = provider!,
+            PrincipalCode = principal!,
             DurableClaimToken = keys.DurableClaimToken,
             NormalizedVrm = keys.NormalizedVrm,
             NormalizedSurname = keys.NormalizedSurname,
@@ -153,7 +153,7 @@ internal static class CaseMatchIndexProjector
             return;
         }
 
-        existing.WorkProviderCode = projected.WorkProviderCode;
+        existing.PrincipalCode = projected.PrincipalCode;
         existing.DurableClaimToken = projected.DurableClaimToken;
         existing.NormalizedVrm = projected.NormalizedVrm;
         existing.NormalizedSurname = projected.NormalizedSurname;
@@ -200,26 +200,26 @@ public sealed class EfCaseMatchIndex : ICaseMatchCandidateQueries
         _transactionContext = transactionContext;
 
     public async Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
-        string workProviderCode,
+        string principalCode,
         CaseMatchKeys keys,
         CancellationToken cancellationToken)
     {
         if (_transactionContext is not null)
         {
-            return await FindByAnyKeyAsync(_transactionContext, workProviderCode, keys, cancellationToken);
+            return await FindByAnyKeyAsync(_transactionContext, principalCode, keys, cancellationToken);
         }
 
         await using var context = await _contextFactory!.CreateDbContextAsync(cancellationToken);
-        return await FindByAnyKeyAsync(context, workProviderCode, keys, cancellationToken);
+        return await FindByAnyKeyAsync(context, principalCode, keys, cancellationToken);
     }
 
     private static async Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
         PegasusDbContext context,
-        string workProviderCode,
+        string principalCode,
         CaseMatchKeys keys,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workProviderCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
         ArgumentNullException.ThrowIfNull(keys);
 
         var claim = keys.DurableClaimToken;
@@ -227,7 +227,7 @@ public sealed class EfCaseMatchIndex : ICaseMatchCandidateQueries
         var surname = keys.NormalizedSurname;
         var rows = await context.CaseMatchIndex
             .AsNoTracking()
-            .Where(item => item.WorkProviderCode == workProviderCode
+            .Where(item => item.PrincipalCode == principalCode
                 && ((claim != null && item.DurableClaimToken == claim)
                     || (vrm != null && item.NormalizedVrm == vrm)
                     || (surname != null && item.NormalizedSurname == surname)))
@@ -246,7 +246,7 @@ public sealed class EfCaseMatchIndex : ICaseMatchCandidateQueries
         return rows
             .Select(row => new CaseMatchCandidate(
                 row.Index.CaseId,
-                row.Index.WorkProviderCode,
+                row.Index.PrincipalCode,
                 row.Index.DurableClaimToken,
                 row.Index.NormalizedVrm,
                 row.Index.NormalizedSurname,
@@ -293,7 +293,7 @@ public sealed class EfCaseMatchIndex : ICaseMatchCandidateQueries
             ? null
             : new(
                 row.Index.CaseId,
-                row.Index.WorkProviderCode,
+                row.Index.PrincipalCode,
                 row.Index.DurableClaimToken,
                 row.Index.NormalizedVrm,
                 row.Index.NormalizedSurname,

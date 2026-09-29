@@ -2,6 +2,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Documents;
@@ -19,7 +20,7 @@ public sealed class MarkAsOriginalReportTests
         var sut = new MarkAsOriginalReport(store, reader);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => sut.ExecuteAsync(
-            Request() with { Actor = ActionActor.Provider(Guid.NewGuid()) }));
+            Request() with { Actor = ActionActor.Principal(Guid.NewGuid()) }));
 
         Assert.Empty(store.Commands);
         Assert.Empty(reader.Reads);
@@ -43,7 +44,7 @@ public sealed class MarkAsOriginalReportTests
         Assert.Throws<InvalidOperationException>(() =>
             OriginalReportPolicy.RequireEligible(
                 CaseType.Audit,
-                CaseLifecycleState.ProviderCancelled,
+                CaseLifecycleState.PrincipalCancelled,
                 DocumentSemanticRole.Instruction));
     }
 
@@ -107,6 +108,55 @@ public sealed class MarkAsOriginalReportTests
         Assert.Null(Assert.Single(store.Readings));
     }
 
+    [Theory]
+    [InlineData(CaseType.Audit, false, false, true)]
+    [InlineData(CaseType.Audit, true, false, false)]
+    [InlineData(CaseType.Audit, false, true, false)]
+    [InlineData(CaseType.Inspection, false, false, false)]
+    public void TheOriginalReportIsMissingOnlyOnAnAuditWithNeitherAFiledReportNorIntakeEvidence(
+        CaseType caseType, bool hasIntakeEvidence, bool hasFiledReport, bool missing)
+    {
+        Assert.Equal(
+            missing,
+            OriginalReportPolicy.IsMissing(caseType, hasIntakeEvidence ? Guid.NewGuid() : null, hasFiledReport));
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady, false, true)]
+    [InlineData(CaseLifecycleState.Review, false, true)]
+    [InlineData(CaseLifecycleState.PostReportComplete, false, false)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, false, false)]
+    [InlineData(CaseLifecycleState.NotReady, true, false)]
+    public void OnlyAnOpenAuditMissingItsReportAwaitsRecognition(
+        CaseLifecycleState state, bool archived, bool awaits)
+    {
+        Assert.Equal(
+            awaits,
+            OriginalReportPolicy.AwaitsRecognition(CaseType.Audit, state, archived, null, false));
+        Assert.False(OriginalReportPolicy.AwaitsRecognition(CaseType.Audit, state, archived, null, true));
+    }
+
+    [Theory]
+    [InlineData(IntakeAssetKind.Source, IntakeAssetDisposition.Source, "report.pdf", "application/pdf", true)]
+    [InlineData(IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment, "report.pdf", "application/pdf", true)]
+    [InlineData(IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment, "report.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", true)]
+    [InlineData(IntakeAssetKind.Source, IntakeAssetDisposition.Source, "message.eml", "message/rfc822", false)]
+    [InlineData(IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment, "forwarded", "message/rfc822", false)]
+    [InlineData(IntakeAssetKind.Source, IntakeAssetDisposition.Source, "message.msg", "application/vnd.ms-outlook", false)]
+    [InlineData(IntakeAssetKind.Source, IntakeAssetDisposition.Source, "photo.jpg", "image/jpeg", false)]
+    [InlineData(IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment, "photo.png", "image/png", false)]
+    [InlineData(IntakeAssetKind.EmbeddedImage, IntakeAssetDisposition.Embedded, "page-1.pdf", "application/pdf", false)]
+    public void OnlyAReceivedFileOrAnAttachmentThatIsNeitherAPhotographNorAMessageMayBeTheReport(
+        IntakeAssetKind kind, IntakeAssetDisposition disposition, string fileName, string mediaType, bool candidate)
+    {
+        Assert.Equal(
+            candidate,
+            OriginalReportPolicy.IsRecognitionCandidate(new(
+                Guid.NewGuid(), fileName, fileName, mediaType, kind, disposition,
+                10, new string('a', 64), "key", null, null, null, null)));
+    }
+
     private static readonly OriginalReportReading Reading =
         new(new string('a', 64), "Laird Assessors", "2026-09-01", "roadworthy", "repairable", false);
 
@@ -133,6 +183,10 @@ public sealed class MarkAsOriginalReportTests
             Reads.Add((actor, caseId, occurrenceId, versionId));
             return Task.FromResult(reading);
         }
+
+        public Task<OriginalReportRecognition> RecogniseFiledAssetAsync(
+            Guid receiptId, IntakeAssetRecord asset, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingStore : IMarkAsOriginalReportStore

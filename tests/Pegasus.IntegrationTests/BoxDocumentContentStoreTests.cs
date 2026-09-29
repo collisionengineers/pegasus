@@ -14,7 +14,12 @@ namespace Pegasus.IntegrationTests;
 /// an in-memory Box: the managed layout, hash/length verification, replay
 /// semantics, delete idempotence, and durable case-root addressing. No
 /// network call is made.
+///
+/// The Box read gate is one per process, and the gate and retry tests here
+/// time how reads share it, so the class runs alone rather than beside other
+/// classes reading through that gate.
 /// </summary>
+[Collection(BoxReadGateSerialTests.Name)]
 public sealed class BoxDocumentContentStoreTests
 {
     private const string BoxConfigJson = """
@@ -352,9 +357,9 @@ public sealed class BoxDocumentContentStoreTests
     public async Task ABatchReadResolvesTheCaseFolderOnceForEveryImage()
     {
         // Five photographs cost forty-five Box round trips, which is
-        // the eighteen seconds the operator measured. The case folder is
-        // addressed directly, listed once (ancestry 1 + listing 1), and then
-        // only the five downloads remain.
+        // the eighteen seconds the operator measured. Each read is now its
+        // file and its content; the case folder's ancestry is walked by the
+        // reads that start before the first proof is remembered.
         var box = new InMemoryBox();
         box.BindCaseRoot();
         var store = CreateStore(box);
@@ -373,7 +378,7 @@ public sealed class BoxDocumentContentStoreTests
         var contents = await store.ReadVersionsAsync(reads, CancellationToken.None);
 
         Assert.Equal(expected, contents.Select(item => item.ToArray()));
-        Assert.Equal(15, box.RequestCount - before);
+        Assert.InRange(box.RequestCount - before, 11, 14);
 
         // The archive is built from exactly these bytes in exactly this order,
         // so a batch that disagreed with the one-at-a-time reads would change
@@ -452,7 +457,7 @@ public sealed class BoxDocumentContentStoreTests
         var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
         box.ThrottleNextDownloads = 10;
 
-        var failure = await Assert.ThrowsAsync<HttpRequestException>(() =>
+        var failure = await Assert.ThrowsAsync<BoxThrottledException>(() =>
             store.OpenReadVersionAsync(
                 Persisted(Address(), written), hash, content.Length, CancellationToken.None));
 
@@ -460,7 +465,192 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Equal(3, box.ThrottledDownloadCount);
     }
 
-    private static BoxDocumentContentStore CreateStore(InMemoryBox box) => new(
+    /// <summary>
+    /// A read always asks for the file itself, but the Case folder's ancestry
+    /// is remembered for ten minutes, so a repeat read is the file and its
+    /// content only. After ten minutes the ancestry is walked again.
+    /// </summary>
+    [Fact]
+    public async Task ARepeatReadRemembersTheCaseFolderForTenMinutes()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var clock = new MutableClock();
+        var store = CreateStore(box, clock);
+        var content = Encoding.UTF8.GetBytes("remembered folder");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+
+        Assert.Equal(3, await CountReadRequestsAsync(box, store, address, hash, content));
+        Assert.Equal(2, await CountReadRequestsAsync(box, store, address, hash, content));
+        clock.Advance(TimeSpan.FromMinutes(9));
+        Assert.Equal(2, await CountReadRequestsAsync(box, store, address, hash, content));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        Assert.Equal(3, await CountReadRequestsAsync(box, store, address, hash, content));
+    }
+
+    /// <summary>
+    /// The file's own trash state is checked on every read, remembered folder
+    /// or not, and a refused read forgets the folder so the next read proves
+    /// it again.
+    /// </summary>
+    [Fact]
+    public async Task ATrashedFileIsRefusedAndTheRefusalForgetsTheFolder()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box, new MutableClock());
+        var content = Encoding.UTF8.GetBytes("trashed file");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+        Assert.Equal(3, await CountReadRequestsAsync(box, store, address, hash, content));
+
+        box.SetTrashed(address.BoxFileId!, trashed: true);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            store.OpenReadVersionAsync(address, hash, content.Length, default));
+
+        box.SetTrashed(address.BoxFileId!, trashed: false);
+        Assert.Equal(3, await CountReadRequestsAsync(box, store, address, hash, content));
+    }
+
+    /// <summary>
+    /// The accepted delay: a Case folder moved out of the approved root outside
+    /// Pegasus is still read while its proof is remembered, and refused once
+    /// the memory lapses. A write is refused at once, because a write always
+    /// proves the ancestry itself.
+    /// </summary>
+    [Fact]
+    public async Task AFolderMovedOutOfTheRootIsReadUntilItsMemoryLapsesButNeverWritten()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var clock = new MutableClock();
+        var store = CreateStore(box, clock);
+        var content = Encoding.UTF8.GetBytes("moved folder");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+        Assert.Equal(3, await CountReadRequestsAsync(box, store, address, hash, content));
+
+        box.MoveOutsideApprovedRoot(CaseRootId);
+
+        await using (var remembered = await store.OpenReadVersionAsync(address, hash, content.Length, default))
+        {
+            Assert.Equal(content, await ReadAllAsync(remembered));
+        }
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            store.StoreVersionAsync(address, content, hash, default));
+
+        // The refused write forgot the folder, so the next read proves it too.
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            store.OpenReadVersionAsync(address, hash, content.Length, default));
+        clock.Advance(TimeSpan.FromMinutes(11));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            store.OpenReadVersionAsync(address, hash, content.Length, default));
+    }
+
+    /// <summary>
+    /// Box's Retry-After reaches the retry: the read waits at least as long
+    /// as Box asked, not just the shorter backoff.
+    /// </summary>
+    [Fact]
+    public async Task AThrottledReadWaitsForBoxsRetryAfter()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("retry after");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+        box.ThrottleNextDownloads = 1;
+        box.ThrottleRetryAfter = TimeSpan.FromSeconds(1);
+
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        await using var stream = await store.OpenReadVersionAsync(address, hash, content.Length, default);
+
+        Assert.Equal(content, await ReadAllAsync(stream));
+        Assert.Equal(1, box.ThrottledDownloadCount);
+        Assert.True(
+            System.Diagnostics.Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(900),
+            "The read retried before Box's Retry-After.");
+    }
+
+    [Fact]
+    public void TheRetryWaitIsTheLongerOfRetryAfterAndBackoffAndNeverMoreThanTenSeconds()
+    {
+        var backoff = BoxDocumentContentStore.WaitBeforeRetry(new BoxThrottledException(null), 2);
+
+        Assert.Equal(TimeSpan.FromMilliseconds(250), backoff);
+        Assert.Equal(backoff, BoxDocumentContentStore.WaitBeforeRetry(
+            new BoxThrottledException(TimeSpan.FromMilliseconds(10)), 2));
+        Assert.Equal(TimeSpan.FromSeconds(3), BoxDocumentContentStore.WaitBeforeRetry(
+            new BoxThrottledException(TimeSpan.FromSeconds(3)), 2));
+        Assert.Equal(TimeSpan.FromSeconds(10), BoxDocumentContentStore.WaitBeforeRetry(
+            new BoxThrottledException(TimeSpan.FromMinutes(5)), 2));
+        Assert.Equal(backoff, BoxDocumentContentStore.WaitBeforeRetry(
+            new HttpRequestException("unavailable", null, HttpStatusCode.ServiceUnavailable), 2));
+    }
+
+    /// <summary>
+    /// A read waiting out a throttle holds no gate slot: four other reads can
+    /// all be inside the gate together while it waits.
+    /// </summary>
+    [Fact]
+    public async Task AReadWaitingOutAThrottleGivesItsGateSlotBack()
+    {
+        var attempts = 0;
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var throttled = BoxDocumentContentStore.ReadGatedWithRetryAsync(
+            _ =>
+            {
+                if (Interlocked.Increment(ref attempts) == 1)
+                {
+                    waiting.TrySetResult();
+                    throw new BoxThrottledException(TimeSpan.FromSeconds(3));
+                }
+                return Task.FromResult(0);
+            },
+            CancellationToken.None);
+        await waiting.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var inside = 0;
+        var allInside = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var others = Enumerable.Range(1, 4)
+            .Select(value => BoxDocumentContentStore.ReadGatedWithRetryAsync(
+                async token =>
+                {
+                    if (Interlocked.Increment(ref inside) == 4)
+                    {
+                        allInside.TrySetResult();
+                    }
+                    await allInside.Task.WaitAsync(token);
+                    return value;
+                },
+                CancellationToken.None))
+            .ToArray();
+
+        // Well inside the three-second wait: had the throttled read kept its
+        // slot, only three could be inside until it finished.
+        await allInside.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var values = await Task.WhenAll(others);
+        Assert.Equal([1, 2, 3, 4], values);
+        Assert.Equal(0, await throttled);
+        Assert.Equal(2, attempts);
+    }
+
+    private static async Task<int> CountReadRequestsAsync(
+        InMemoryBox box,
+        BoxDocumentContentStore store,
+        ManagedDocumentContentAddress address,
+        string hash,
+        byte[] content)
+    {
+        var before = box.RequestCount;
+        await using var stream = await store.OpenReadVersionAsync(address, hash, content.Length, default);
+        Assert.Equal(content, await ReadAllAsync(stream));
+        return box.RequestCount - before;
+    }
+
+    private static BoxDocumentContentStore CreateStore(InMemoryBox box, TimeProvider? clock = null) => new(
         new BoxContentClient(
             BoxCustodyOptions.Create(
                 "https://api.box.com/2.0/",
@@ -470,7 +660,8 @@ public sealed class BoxDocumentContentStoreTests
                 "client-secret",
                 "holding-folder"),
             new HttpClient(new InMemoryBoxHandler(box)),
-            new StaticAuthorizationHeaderProvider()));
+            new StaticAuthorizationHeaderProvider(),
+            clock ?? TimeProvider.System));
 
     private static ManagedDocumentContentAddress Address() =>
         Address(2, "evidence.jpg");
@@ -501,6 +692,15 @@ public sealed class BoxDocumentContentStoreTests
         using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer);
         return buffer.ToArray();
+    }
+
+    private sealed class MutableClock : TimeProvider
+    {
+        private DateTimeOffset now = new(2031, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow() => now;
+
+        public void Advance(TimeSpan value) => now = now.Add(value);
     }
 
     private sealed class StaticAuthorizationHeaderProvider : IBoxAuthorizationHeaderProvider
@@ -548,6 +748,40 @@ public sealed class BoxDocumentContentStoreTests
 
         /// <summary>How many downloads have been refused that way.</summary>
         public int ThrottledDownloadCount { get; private set; }
+
+        /// <summary>The Retry-After a throttled download carries, if any.</summary>
+        public TimeSpan? ThrottleRetryAfter { get; set; }
+
+        private readonly HashSet<string> trashed = new(StringComparer.Ordinal);
+
+        public void SetTrashed(string id, bool trashed)
+        {
+            lock (gate)
+            {
+                if (trashed)
+                {
+                    this.trashed.Add(id);
+                }
+                else
+                {
+                    this.trashed.Remove(id);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Moves a folder under a new folder that is not below the approved
+        /// root, as someone could in Box itself.
+        /// </summary>
+        public void MoveOutsideApprovedRoot(string folderId)
+        {
+            lock (gate)
+            {
+                var outside = $"outside-{++nextId}";
+                nodes[outside] = new Node(outside, "outside", "folder", null);
+                nodes[folderId] = nodes[folderId] with { ParentId = outside };
+            }
+        }
 
         public string CreateFolderPath(string path)
         {
@@ -695,7 +929,7 @@ public sealed class BoxDocumentContentStoreTests
                     size = node.Type == "file" ? fileBytes[node.Id].LongLength : (long?)null,
                     content_type = node.MediaType,
                     parent,
-                    trashed_at = (string?)null
+                    trashed_at = trashed.Contains(node.Id) ? "2031-01-01T00:00:00Z" : null
                 }));
             }
 
@@ -769,10 +1003,15 @@ public sealed class BoxDocumentContentStoreTests
                 {
                     ThrottleNextDownloads--;
                     ThrottledDownloadCount++;
-                    return new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                    var throttled = new HttpResponseMessage(HttpStatusCode.TooManyRequests)
                     {
                         Content = new StringContent("""{"code":"rate_limit_exceeded"}""")
                     };
+                    if (ThrottleRetryAfter is { } retryAfter)
+                    {
+                        throttled.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(retryAfter);
+                    }
+                    return throttled;
                 }
                 var id = path["/2.0/files/".Length..^"/content".Length];
                 if (!currentVersions.TryGetValue(id, out var currentVersion))
@@ -883,4 +1122,14 @@ public sealed class BoxDocumentContentStoreTests
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
+}
+
+/// <summary>
+/// Tests that time the process-wide Box read gate. xUnit runs a collection
+/// that disables parallelization after, and apart from, every parallel one.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class BoxReadGateSerialTests
+{
+    public const string Name = "Box read gate";
 }

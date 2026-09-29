@@ -16,7 +16,7 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfCaseAcceptanceStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider? timeProvider = null,
-    IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null,
+    IEnumerable<Pegasus.Core.Intake.IPrincipalCaseMatchPolicy>? caseMatchPolicies = null,
     Pegasus.Core.Vehicle.VehicleLookupAvailability? vehicleLookupAvailability = null)
     : ICaseAcceptanceStore
 {
@@ -155,7 +155,7 @@ public sealed class EfCaseAcceptanceStore(
             ?? throw new PrincipalUnavailableException(principalCode);
         if (!string.Equals(
                 principal.InspectionMode,
-                ProviderInspectionModePolicy.ToCode(request.ProviderInspectionMode),
+                PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode),
                 StringComparison.Ordinal))
         {
             throw new IntakeVersionConflictException();
@@ -203,8 +203,15 @@ public sealed class EfCaseAcceptanceStore(
             context,
             request,
             cancellationToken);
+        // A Principal API Audit may arrive with no report, so no evidence row
+        // exists (that row needs a retained report asset, and its presence
+        // would clear Original report missing). Its declared verdict is still
+        // the Case's intake verdict from creation (#919, operator ruling).
+        var declaredAuditVerdict = standaloneAuditEvidence is null
+            ? await ReadDeclaredAuditVerdictAsync(context, request, receipt, cancellationToken)
+            : null;
         var standaloneAuditAssessment = standaloneAuditEvidence is null
-            ? (AuditAssessment?)null
+            ? declaredAuditVerdict
             : AuditAssessmentCode.Parse(standaloneAuditEvidence.Assessment);
 
         var caseId = Guid.NewGuid();
@@ -255,6 +262,14 @@ public sealed class EfCaseAcceptanceStore(
                     : null;
             await OriginalReportPrefillWriter.ApplyAsync(
                 context, caseId, reading, standaloneAuditAssessment, acceptedAtUtc, cancellationToken);
+        }
+        else if (declaredAuditVerdict is not null)
+        {
+            // No report is retained, so nothing is read: the declared verdict
+            // alone fills Repairable status. A report filed later reconciles
+            // by OriginalReportPrefillPolicy.Writes like any other.
+            await OriginalReportPrefillWriter.ApplyAsync(
+                context, caseId, null, declaredAuditVerdict, acceptedAtUtc, cancellationToken);
         }
         var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
         dataSnapshot.CompletenessPolicySatisfied = completenessEvaluation.SatisfiesPolicy;
@@ -367,18 +382,18 @@ public sealed class EfCaseAcceptanceStore(
             BeforeVersion = null,
             AfterVersion = 0
         });
-        if (request.ProviderInspectionMode == CaseInspectionMode.ImageBasedAssessment)
+        if (request.PrincipalInspectionMode == CaseInspectionMode.ImageBasedAssessment)
         {
             context.CaseHistory.Add(new()
             {
                 Id = Guid.NewGuid(),
                 Case = caseEntity,
                 CaseId = caseId,
-                EventType = "provider_inspection_mode_applied",
+                EventType = "principal_inspection_mode_applied",
                 Actor = request.Actor.SubjectId,
-                Reason = "Provider setting: inspection address autofilled as Image Based Assessment",
+                Reason = "Principal setting: inspection address autofilled as Image Based Assessment",
                 OccurredAtUtc = acceptedAtUtc,
-                OperationKey = $"provider-mode:{caseId:N}",
+                OperationKey = $"principal-mode:{caseId:N}",
                 BeforeVersion = null,
                 AfterVersion = 0
             });
@@ -440,6 +455,36 @@ public sealed class EfCaseAcceptanceStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return outcome;
+    }
+
+    /// <summary>
+    /// The verdict a Principal API Audit declared, or null for any other Case.
+    /// The submission id is the receipt's external token.
+    /// </summary>
+    private static async Task<AuditAssessment?> ReadDeclaredAuditVerdictAsync(
+        PegasusDbContext context,
+        CaseAcceptanceRequest request,
+        IntakeReceiptEntity receipt,
+        CancellationToken cancellationToken)
+    {
+        if (request.CaseType != CaseType.Audit
+            || !string.Equals(
+                receipt.SourceChannel,
+                EfPrincipalSubmissionStore.PrincipalApiSourceChannel,
+                StringComparison.Ordinal)
+            || !Guid.TryParseExact(receipt.ExternalReceiptToken, "N", out var submissionId))
+        {
+            return null;
+        }
+
+        var json = await context.PrincipalSubmissions
+            .AsNoTracking()
+            .Where(item => item.Id == submissionId)
+            .Select(item => item.DeclaredInstructionJson)
+            .SingleOrDefaultAsync(cancellationToken);
+        return json is null
+            ? null
+            : EfPrincipalSubmissionStore.ReadDeclaration(submissionId, json).OriginalReportVerdict;
     }
 
     private static async Task<StandaloneAuditEvidenceEntity?> ResolveStandaloneAuditEvidenceAsync(
@@ -611,7 +656,7 @@ public sealed class EfCaseAcceptanceStore(
             request.Completeness.ImagesComplete,
             request.StandaloneAuditEvidenceId,
             request.AcceptedInspectionDeadline,
-            ProviderInspectionModePolicy.ToCode(request.ProviderInspectionMode)));
+            PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode)));
         var fingerprint = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(materialJson)))
             .ToLowerInvariant();
@@ -635,7 +680,7 @@ public sealed class EfCaseAcceptanceStore(
         bool ImagesComplete,
         Guid? StandaloneAuditEvidenceId,
         DateOnly? AcceptedInspectionDeadline,
-        string ProviderInspectionMode);
+        string PrincipalInspectionMode);
 
     private static string RolesJson(ActionActor actor) =>
         JsonSerializer.Serialize(

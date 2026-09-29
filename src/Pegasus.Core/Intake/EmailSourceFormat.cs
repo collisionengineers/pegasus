@@ -9,9 +9,20 @@ public static class EmailSourceFormat
 {
     public const string MediaType = "message/rfc822";
 
+    /// <summary>An Outlook message, which the reader opens as well.</summary>
+    public const string OutlookMediaType = "application/vnd.ms-outlook";
+
     public static bool IsEmail(string? fileName, string? mediaType) =>
         (fileName is not null
             && Path.GetExtension(fileName).Equals(".eml", StringComparison.OrdinalIgnoreCase))
         || (mediaType is not null
             && mediaType.Equals(MediaType, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>An email of either format: a MIME message or an Outlook message.</summary>
+    public static bool IsMailMessage(string? fileName, string? mediaType) =>
+        IsEmail(fileName, mediaType)
+        || (fileName is not null
+            && Path.GetExtension(fileName).Equals(".msg", StringComparison.OrdinalIgnoreCase))
+        || (mediaType is not null
+            && mediaType.Equals(OutlookMediaType, StringComparison.OrdinalIgnoreCase));
 }

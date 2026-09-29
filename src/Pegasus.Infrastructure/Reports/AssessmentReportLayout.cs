@@ -124,7 +124,7 @@ internal static class AssessmentReportLayout
         Paragraph(column, Introduction(snapshot), gapAbove: 5);
         Section(column, VehicleDetailsHeading, ReportRhythm, opensPage: false, Brand, section =>
             LabelGrid(section.Item(), TableSize, (20, 30), (20, 30), VehicleDetails(snapshot)));
-        var plan = DamagePlanDrawing.Svg(snapshot.Damage.Impacts);
+        var plan = DamagePlanDrawing.Svg(snapshot.Damage.Profile, snapshot.Damage.Impacts);
         Gap(column, SlotGap);
         column.Item()
             .ShowEntire()

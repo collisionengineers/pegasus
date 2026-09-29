@@ -38,7 +38,7 @@ public sealed record EvaAcceptedCaseEvidence(
     bool InstructionComplete,
     bool ImagesComplete,
     EvaEvidenceValue Reference,
-    EvaEvidenceValue WorkProvider,
+    EvaEvidenceValue WorkPrincipal,
     EvaEvidenceValue VehicleRegistration,
     EvaEvidenceValue VehicleModel,
     EvaEvidenceValue ClaimantName,
@@ -205,7 +205,7 @@ public static partial class CaseEvaMapping
     {
         ArgumentNullException.ThrowIfNull(fields);
         return new(
-            NormalizeValue(fields.WorkProvider),
+            NormalizeValue(fields.WorkPrincipal),
             NormalizeRegistration(fields.Vrm),
             NormalizeValue(fields.VehicleModel),
             NormalizeValue(fields.ClaimantName),
@@ -223,7 +223,7 @@ public static partial class CaseEvaMapping
     private static IEnumerable<(string Name, EvaEvidenceValue Value)> RequiredMappedFields(
         EvaAcceptedCaseEvidence evidence)
     {
-        yield return ("Work Provider", evidence.WorkProvider);
+        yield return ("Work Provider", evidence.WorkPrincipal);
         yield return ("VRM", evidence.VehicleRegistration);
         yield return ("Vehicle Model", evidence.VehicleModel);
         yield return ("Claimant Name", evidence.ClaimantName);

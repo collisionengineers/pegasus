@@ -106,6 +106,50 @@ public sealed class EmailTemplateAdministrationWebTests
         Assert.Contains(OperatorLabels.EmailTemplates.Name(Purpose), logs, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The Case report delivery template is one more row of the same area: its
+    /// own built-in body and placeholders, saved at version 1, and a Triage
+    /// placeholder refused by name.
+    /// </summary>
+    [Fact]
+    public async Task TheReportDeliveryTemplateIsARowWithItsOwnBodyAndPlaceholders()
+    {
+        const EmailTemplatePurpose delivery = EmailTemplatePurpose.CaseReportDelivery;
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Page);
+
+        Assert.Contains($"data-email-template=\"{delivery}\"", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.EmailTemplates.Name(delivery), html, StringComparison.Ordinal);
+        var dialog = Dialog(html, delivery);
+        Assert.Contains(
+            EmailTemplates.DefaultBody(delivery),
+            WebUtility.HtmlDecode(dialog).Replace("\r\n", "\n", StringComparison.Ordinal),
+            StringComparison.Ordinal);
+        foreach (var placeholder in EmailTemplates.Placeholders(delivery))
+        {
+            Assert.Contains($"data-insert-placeholder=\"{{{placeholder}}}\"", dialog, StringComparison.Ordinal);
+        }
+        Assert.DoesNotContain("data-insert-placeholder=\"{roadworthiness}\"", dialog, StringComparison.Ordinal);
+
+        using var saved = await PostSaveAsync(
+            client, html, 0, "Report {case reference} for {registration}", delivery);
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        var template = await GetTemplateAsync(factory, delivery);
+        Assert.Equal(1, template.Version);
+        Assert.Equal("Report {case reference} for {registration}", template.Body);
+        Assert.Equal(0, (await GetTemplateAsync(factory)).Version);
+
+        using var refused = await PostSaveAsync(client, html, 1, "Roadworthiness: {roadworthiness}", delivery);
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains(
+            WebUtility.HtmlEncode(OperatorLabels.EmailTemplates.UnknownPlaceholder("roadworthiness")),
+            await refused.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AStaleSaveIsRefusedAndAsksToReload()
     {
@@ -152,31 +196,34 @@ public sealed class EmailTemplateAdministrationWebTests
         HttpClient client,
         string page,
         long expectedVersion,
-        string body) =>
+        string body,
+        EmailTemplatePurpose? purpose = null) =>
         client.PostAsync(
             $"{Page}?handler=Save",
             Form(
                 AntiforgeryValue(page),
-                ("purpose", Purpose.ToString()),
+                ("purpose", (purpose ?? Purpose).ToString()),
                 ("expectedVersion", expectedVersion.ToString(CultureInfo.InvariantCulture)),
                 ("operationKey", Guid.NewGuid().ToString("N")),
                 ("body", body)));
 
-    private static async Task<EmailTemplate> GetTemplateAsync(IntakeWebApplicationFactory factory)
+    private static async Task<EmailTemplate> GetTemplateAsync(
+        IntakeWebApplicationFactory factory,
+        EmailTemplatePurpose? purpose = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<GetEmailTemplate>().ExecuteAsync(
             Pegasus.Core.Identity.ActionActor.Staff(
                 Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId,
                 [Pegasus.Core.Identity.StaffRole.Administrator]),
-            Purpose,
+            purpose ?? Purpose,
             CancellationToken.None);
     }
 
     /// <summary>The template's Edit dialog, from its backdrop to its end.</summary>
-    private static string Dialog(string html)
+    private static string Dialog(string html, EmailTemplatePurpose? purpose = null)
     {
-        var start = html.IndexOf($"data-dialog=\"email-template-{Purpose}\"", StringComparison.Ordinal);
+        var start = html.IndexOf($"data-dialog=\"email-template-{purpose ?? Purpose}\"", StringComparison.Ordinal);
         Assert.True(start >= 0, "The template's dialog is not rendered.");
         var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
         return html[start..end];

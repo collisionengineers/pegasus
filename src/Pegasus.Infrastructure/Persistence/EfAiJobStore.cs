@@ -9,7 +9,7 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Persists the AI job ledger (ADR-0035) with the AI-09 mechanics: creation
+/// Persists the AI job ledger (ADR-0035): creation
 /// is idempotent per operation key (a replay with different inputs is a
 /// conflict), transitions are optimistic on Version and validated against
 /// the Core state graph, and every change writes permanent attributable
@@ -368,36 +368,6 @@ public sealed class EfAiJobStore(
             .OrderByDescending(item => item.CreatedAtUtc)
             .ThenByDescending(item => item.JobId)
             .Take(max)
-            .ToListAsync(cancellationToken);
-        return rows.Select(row => Map(row, now)).ToArray();
-    }
-
-    public async Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(
-        DateTimeOffset startUtc,
-        DateTimeOffset endUtc,
-        CancellationToken cancellationToken)
-    {
-        if (endUtc <= startUtc)
-        {
-            throw new ArgumentException("The terminal-job window must have a positive duration.");
-        }
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var now = UtcNow();
-        var rows = await context.AiJobs.AsNoTracking()
-            .Where(item =>
-                ((item.State == nameof(AiJobState.Completed)
-                    || item.State == nameof(AiJobState.Failed)
-                    || item.State == nameof(AiJobState.Cancelled)
-                    || item.State == nameof(AiJobState.Expired))
-                    && item.ClosedAtUtc >= startUtc
-                    && item.ClosedAtUtc < endUtc)
-                || (item.State == nameof(AiJobState.Queued)
-                    && item.ExpiresAtUtc >= startUtc
-                    && item.ExpiresAtUtc < endUtc
-                    && item.ExpiresAtUtc <= now))
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenByDescending(item => item.JobId)
             .ToListAsync(cancellationToken);
         return rows.Select(row => Map(row, now)).ToArray();
     }

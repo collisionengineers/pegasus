@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using ModelContextProtocol.AspNetCore.Authentication;
 using OpenIddict.Abstractions;
+using OpenIddict.Server;
 using OpenIddict.Validation.AspNetCore;
 using Pegasus.Infrastructure.Persistence;
 
@@ -34,6 +35,29 @@ public static class AutomationMcpExtensions
         services.AddScoped<AutomationActorResolver>();
         services.AddScoped<AutomationMcpAuditor>();
 
+        if (!options.UseDevelopmentKeys)
+        {
+            // Key Vault is a remote read behind a managed-identity token, so the
+            // certificates load after the port binds, not while services are
+            // composed. Registered before OpenIddict so the credentials are in
+            // the options before the server's own configuration reads them; the
+            // store's gate keeps any request from building the options earlier.
+            var managedCredential = credential ?? throw new InvalidOperationException(
+                "A managed-identity credential is required for Automation OAuth certificates.");
+            var store = new OAuthCertificateStore();
+            services.AddSingleton(store);
+            services.AddHostedService(provider => new OAuthCertificateLoadService(
+                store,
+                () => KeyVaultOAuthCertificateLoader.Load(
+                    managedCredential,
+                    options.SigningCertificateSecretUris,
+                    options.EncryptionCertificateSecretUris),
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(30),
+                provider.GetRequiredService<ILogger<OAuthCertificateLoadService>>()));
+            services.Configure<OpenIddictServerOptions>(store.AddTo);
+        }
+
         services.AddOpenIddict()
             .AddCore(core => core
                 .UseEntityFrameworkCore()
@@ -62,23 +86,9 @@ public static class AutomationMcpExtensions
                     server.AddEncryptionCertificate(CreateIsolatedCertificate("Pegasus MCP development encryption"));
                     server.AddSigningCertificate(CreateIsolatedCertificate("Pegasus MCP development signing"));
                 }
-                else
-                {
-                    var certificates = KeyVaultOAuthCertificateLoader.Load(
-                        credential ?? throw new InvalidOperationException(
-                            "A managed-identity credential is required for Automation OAuth certificates."),
-                        options.SigningCertificateSecretUris,
-                        options.EncryptionCertificateSecretUris);
-                    foreach (var certificate in certificates.Encryption)
-                    {
-                        server.AddEncryptionCertificate(certificate);
-                    }
-                    foreach (var certificate in certificates.Signing)
-                    {
-                        server.AddSigningCertificate(certificate);
-                    }
-                }
-                // TLS terminates at the App Service front end (the site is
+                // Outside development keys the certificates join the options
+                // once OAuthCertificateLoadService has read them (registered
+                // above). TLS terminates at the App Service front end (the site is
                 // HTTPS only); the app listens on plain HTTP behind it, as
                 // does the in-process integration test server.
                 server.UseAspNetCore()

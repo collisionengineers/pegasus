@@ -147,7 +147,23 @@ public sealed record ValuationCalculationSelection(
     bool CommercialVat,
     decimal? PriorTotalLossPercentage,
     IReadOnlyList<ValuationAdditionSelection> Additions,
-    decimal ConditionDeduction);
+    decimal ConditionDeduction)
+{
+    /// <summary>
+    /// The basis when its card is not recorded yet: a guide card typed in the
+    /// same edit, which has no identity until the Case Save records it. The
+    /// basis is then that source's card as the Save leaves it, and
+    /// <see cref="GuideValuationId"/> is empty. A recorded card is chosen by
+    /// its identity, whichever source it is.
+    /// </summary>
+    public ValuationSource? GuideSource { get; init; }
+
+    /// <summary>
+    /// The Engineer pressed Use this value: an explicit decision that the Save
+    /// must record or refuse, never drop. Absent on every other save.
+    /// </summary>
+    public bool Use { get; init; }
+}
 
 /// <summary>
 /// The facts the selection is calculated against, all read from their own
@@ -201,10 +217,23 @@ public sealed record ValuationPreview(
     Guid GuideValuationId,
     ValuationCalculation Calculation);
 
+/// <summary>
+/// What the Engineer asks to see. <see cref="GuideRetailValue"/> and
+/// <see cref="ClaimantVatRegistered"/> are the figures the Case Save is about
+/// to record and adopt from: the basis card's retail as the Engineer has typed
+/// it, and the claimant's VAT position as the form holds it. Left out, the
+/// preview reads what is recorded. Either way the arithmetic is the one the
+/// Save runs (operator, 28 September 2026: the preview is what the Save uses).
+/// </summary>
 public sealed record PreviewValuationRequest(
     Guid CaseId,
     ActionActor Actor,
-    ValuationCalculationSelection Selection);
+    ValuationCalculationSelection Selection)
+{
+    public decimal? GuideRetailValue { get; init; }
+
+    public bool? ClaimantVatRegistered { get; init; }
+}
 
 /// <summary>
 /// One recorded adoption of an Engineer's Value: the basis card it was
@@ -233,6 +262,17 @@ public interface IAppliedValuationStore
     Task<ValuationCalculationBasis> ReadBasisAsync(
         Guid caseId,
         Guid guideValuationId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The facts a calculation needs that are not the basis card: the
+    /// maintained presets, the additions the Case already carries and the
+    /// claimant's recorded VAT position. The retail figure is zero; the caller
+    /// supplies the one the Engineer has typed, so a card not yet recorded can
+    /// be previewed.
+    /// </summary>
+    Task<ValuationCalculationBasis> ReadCalculationContextAsync(
+        Guid caseId,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<AppliedValuation>> ListAppliedAsync(
@@ -282,6 +322,13 @@ public static class ValuationCalculationPolicy
 
     /// <summary>The reason an adoption by the Case Save records.</summary>
     public const string AppliedReason = "Engineer's Value applied.";
+
+    /// <summary>
+    /// The refusal when Use this value was pressed and the Engineer's Value
+    /// box no longer holds the figure it chose, so no decision is dropped silently.
+    /// </summary>
+    public const string UseFigureChanged =
+        "The Engineer's Value no longer matches the figure you chose to use. Press Use this value again.";
 
     /// <summary>
     /// Printed currency. The value itself stays decimal; only what is shown
@@ -394,10 +441,11 @@ public static class ValuationCalculationPolicy
     {
         ArgumentNullException.ThrowIfNull(selection);
         ArgumentNullException.ThrowIfNull(selection.Additions);
-        if (selection.GuideValuationId == Guid.Empty)
+        if (selection.GuideValuationId == Guid.Empty
+            && !(selection.GuideSource is { } source && ValuationSources.IsGuide(source)))
         {
             throw new ArgumentException(
-                "A recorded guide valuation must be selected as the basis.",
+                "A guide valuation must be selected as the basis.",
                 parameterName);
         }
         if (selection.Additions.Count > MaximumAdditions)
@@ -446,6 +494,18 @@ public static class ValuationCalculationPolicy
 
         return accepted;
     }
+
+    /// <summary>
+    /// Whether the Engineer's Value box the Save records still holds the
+    /// calculated figure. A different figure typed over it is the Engineer's
+    /// own value, so the Save does not record the calculation against a guide
+    /// card as its source. A box the Save does not carry, or holds empty, is
+    /// no objection.
+    /// </summary>
+    public static bool IsEngineerValueBox(decimal accepted, string? box) =>
+        string.IsNullOrWhiteSpace(box)
+        || (decimal.TryParse(box.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var typed)
+            && typed == accepted);
 
     private static ValuationAddition Resolve(
         ValuationAdditionSelection selection,
@@ -688,11 +748,13 @@ public sealed class RemoveValuationPreset(IValuationPresetStore store) : IRemove
 }
 
 /// <summary>
-/// Shows the Engineer what the selection comes to. It reads the same basis
-/// and runs the same arithmetic the Save will, and writes nothing: the result
-/// fills the Engineer's Value box on screen, and the Case Save records that
-/// box like any field and, when the calculation changed since the page
-/// opened, the calculation against its basis card.
+/// Shows the Engineer what the selection comes to. It runs the arithmetic the
+/// Save will, from the figures the Save will use: the basis retail as typed
+/// and the claimant's VAT position as the form holds it, else as recorded. It
+/// writes nothing: the result fills the Engineer's Value box on screen, and
+/// the Case Save records that box like any field and, when the Engineer chose
+/// to use the calculation or changed it since the page opened, the calculation
+/// against its basis card.
 /// </summary>
 public sealed class PreviewValuationCalculation(IAppliedValuationStore store)
     : IPreviewValuationCalculation
@@ -702,14 +764,40 @@ public sealed class PreviewValuationCalculation(IAppliedValuationStore store)
         CancellationToken cancellationToken)
     {
         request = ValuationCalculationPolicy.ValidatePreview(request);
-        var basis = await store.ReadBasisAsync(
-            request.CaseId,
-            request.Selection.GuideValuationId,
-            cancellationToken);
+        var selection = request.Selection;
+        ValuationCalculationBasis basis;
+        if (request.GuideRetailValue is { } retail)
+        {
+            // The card as the Engineer has it, which may not be recorded yet.
+            basis = (await store.ReadCalculationContextAsync(request.CaseId, cancellationToken))
+                with
+            {
+                GuideValuationId = selection.GuideValuationId,
+                GuideRetailValue = retail,
+            };
+        }
+        else if (selection.GuideValuationId != Guid.Empty)
+        {
+            basis = await store.ReadBasisAsync(
+                request.CaseId,
+                selection.GuideValuationId,
+                cancellationToken);
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "A guide retail value is required before a valuation can be calculated.");
+        }
+
+        if (request.ClaimantVatRegistered is { } claimantVatRegistered)
+        {
+            basis = basis with { ClaimantVatRegistered = claimantVatRegistered };
+        }
+
         return new(
             basis.GuideValuationId,
             ValuationCalculationPolicy.Calculate(
-                ValuationCalculationPolicy.Resolve(request.Selection, basis)));
+                ValuationCalculationPolicy.Resolve(selection, basis)));
     }
 }
 

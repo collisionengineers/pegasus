@@ -196,6 +196,7 @@ public sealed class CaseTasksWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<IRecordManualCaseChase>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IRecordManualCaseChase>(store);

@@ -116,6 +116,44 @@ public sealed class CaseCustodyWebTests
     }
 
     /// <summary>
+    /// Tagging while editing keeps the edit session: the redirected page still
+    /// renders in edit mode, with the Case's version and a lease in the edit
+    /// form. The Case workspace script reads these from the response to move
+    /// the unsaved draft's version and lease, so a later save is not stale.
+    /// </summary>
+    [Fact]
+    public async Task TaggingAnImageWhileEditingLeavesTheEditSessionInTheRedirectedPage()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ITagCaseImage>(services, store);
+        });
+
+        using var tagged = await workspace.PostAsync(
+            "Custody?handler=TagImage",
+            workspace.MutationForm(
+                "tag-image-editing",
+                reason: string.Empty,
+                ("occurrenceId", Guid.NewGuid().ToString("D")),
+                ("tagId", ImageTagVocabulary.ThirdPartyId.ToString("D"))));
+        AssertPrgToFilesImages(tagged, store.CaseId);
+        var html = await GetHtmlAsync(workspace.Client, tagged.Headers.Location!.OriginalString);
+
+        Assert.Contains("data-case-editing=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-case-version=\"{store.CaseVersion.ToString(CultureInfo.InvariantCulture)}\"",
+            html,
+            StringComparison.Ordinal);
+        var editForm = html[html.IndexOf("id=\"case-edit-form\"", StringComparison.Ordinal)..];
+        editForm = editForm[..editForm.IndexOf("</form>", StringComparison.Ordinal)];
+        Assert.Contains(
+            $"name=\"editLeaseToken\" value=\"{store.LeaseToken}\"",
+            editForm,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Case Files: each live file is a row carrying its name, its
     /// type, size and source, and the two things an operator does with it —
     /// View, which is the viewer's trigger, and Save as, which is the same
@@ -137,6 +175,7 @@ public sealed class CaseCustodyWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
@@ -166,8 +205,7 @@ public sealed class CaseCustodyWebTests
         // Add evidence opens Upload for this Case: the destination is declared
         // before the upload (FRD-18).
         Assert.Contains($"href=\"/Upload?caseId={store.CaseId:D}\"", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(OperatorLabels.CaseWorkspace.OpenOperations, html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/Operations\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href=\"/Operations\"", html, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -212,6 +250,7 @@ public sealed class CaseCustodyWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
@@ -259,6 +298,7 @@ public sealed class CaseCustodyWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
@@ -365,6 +405,7 @@ public sealed class CaseCustodyWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -430,6 +471,7 @@ public sealed class CaseCustodyWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -584,6 +626,7 @@ public sealed class CaseCustodyWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 Substitute<IStaffAccountQueries>(services,

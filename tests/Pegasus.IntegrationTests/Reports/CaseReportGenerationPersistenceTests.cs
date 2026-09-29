@@ -1826,7 +1826,7 @@ public sealed class CaseReportGenerationPersistenceTests
                 services.GetRequiredService<IStaffAccountQueries>(),
                 services.GetRequiredService<ICaseAssetPreparationQueries>(),
                 services.GetRequiredService<IListAppliedValuations>());
-            return await source.GetAsync(CaseId, StaffActor, CaseWorkSelector.Current, default);
+            return await source.GetAsync(CaseId, StaffActor, CaseWorkSelector.Current, reuse: null, default);
         }
 
         public async Task AddSourceAsync()
@@ -1897,7 +1897,8 @@ public sealed class CaseReportGenerationPersistenceTests
                         leaseToken ?? Lease.Token,
                         generation.Id,
                         generation.Version,
-                        "prepare-report"),
+                        "prepare-report",
+                        "Please find attached our report."),
                     new([new StaffMailRecipient("digital@collisionengineers.co.uk", "pegasustest")], [], "Case report"),
                     recipientSuggestionFingerprint ?? new string('a', 64),
                     CaseReportSendHistory.None), default);
@@ -2039,7 +2040,8 @@ public sealed class CaseReportGenerationPersistenceTests
         public ReportImageEvidence[] RehydratedPhotos(
             CaseReportGenerationSnapshot snapshot) => snapshot.Images
                 .Select(image => new ReportImageEvidence(
-                    $"{image.OccurrenceId:D}.png", image.ContentType, EvidenceContent[image.Sha256],
+                    $"{image.OccurrenceId:D}.png", image.ContentType,
+                    ReportImageContent.Opened(_ => Task.FromResult(EvidenceContent[image.Sha256])),
                     image.Sha256, image.Role, image.Order, image.Rotation, image.Crop,
                     image.OccurrenceId, image.VersionId, image.BoxFileId, image.BoxVersionId,
                     image.FullPage))
@@ -2475,7 +2477,7 @@ public sealed class CaseReportGenerationPersistenceTests
             transform = revise;
 
         public Task<CaseReportFreezeInputs?> GetAsync(
-            Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
+            Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             var current = transform?.Invoke(assessment) ?? assessment;
             return Task.FromResult<CaseReportFreezeInputs?>(
@@ -2525,7 +2527,7 @@ public sealed class CaseReportGenerationPersistenceTests
 
         private static ReportImageEvidence Photo(
             Harness.SeededDocument document, CaseAssetReportRole role) => new(
-                $"{document.OccurrenceId:D}.png", "image/png", document.Content,
+                $"{document.OccurrenceId:D}.png", "image/png", ReportImageContent.Opened(_ => Task.FromResult(document.Content)),
                 document.Sha256, role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
                 document.OccurrenceId, document.VersionId,
                 $"box-file-{document.VersionId:N}", $"box-version-{document.VersionId:N}",

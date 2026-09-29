@@ -49,7 +49,7 @@ public sealed class AssignToMeTests
     [InlineData(CaseLifecycleState.NotReady)]
     [InlineData(CaseLifecycleState.Held)]
     [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.ProviderCancelled)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
     public async Task OnlyAReviewCaseCanBeTaken(CaseLifecycleState state)
     {
         var assign = new RecordingAssign();
@@ -130,6 +130,11 @@ public sealed class AssignToMeTests
     {
         public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<CaseWorkflowRecord?>(caseId == current.CaseId ? current : null);
+
+        public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
+            IReadOnlyCollection<Guid> caseIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
             Task.FromResult(false);

@@ -350,8 +350,132 @@ public sealed class ValuationCalculationTests
         Assert.Equal(2976m, result.Calculation.Proposal);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             preview.ExecuteAsync(
-                new(CaseId, ActionActor.Provider(Guid.NewGuid()), Selection()),
+                new(CaseId, ActionActor.Principal(Guid.NewGuid()), Selection()),
                 CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The preview shows what the Save will use (operator, 28 September 2026):
+    /// the basis retail as the Engineer has typed it, not the recorded one,
+    /// through the same Core arithmetic. A card typed in this edit has no
+    /// recorded row, so it is previewed from the typed retail alone.
+    /// </summary>
+    [Fact]
+    public async Task ThePreviewCalculatesFromTheUnsavedRetailTheSaveWillUse()
+    {
+        var store = new RecordingStore
+        {
+            Bases = { [GuideId] = Basis(12_500m) },
+            Context = Basis(0m) with { GuideValuationId = Guid.Empty },
+        };
+        var preview = new PreviewValuationCalculation(store);
+
+        // Saved retail is £12,500; the Engineer typed £13,000.
+        var typed = await preview.ExecuteAsync(
+            new(CaseId, Engineer, Selection())
+            {
+                GuideRetailValue = 13_000m,
+            },
+            CancellationToken.None);
+        var recorded = await preview.ExecuteAsync(
+            new(CaseId, Engineer, Selection()),
+            CancellationToken.None);
+
+        Assert.Equal(13_000m, typed.Calculation.GuideRetailValue);
+        Assert.Equal(13_000m, typed.Calculation.Proposal);
+        Assert.Equal(GuideId, typed.GuideValuationId);
+        Assert.Equal(12_500m, recorded.Calculation.Proposal);
+
+        // A card that is not recorded yet is chosen by its source and has no
+        // recorded retail to read: only the typed figure can be previewed.
+        var newCard = new ValuationCalculationSelection(Guid.Empty, false, null, [], 0m)
+        {
+            GuideSource = ValuationSource.Brego,
+        };
+        var fromSource = await preview.ExecuteAsync(
+            new(CaseId, Engineer, newCard) { GuideRetailValue = 9_800m },
+            CancellationToken.None);
+        Assert.Equal(9_800m, fromSource.Calculation.Proposal);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            preview.ExecuteAsync(new(CaseId, Engineer, newCard), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The claimant's VAT position is the one the form holds, not the recorded
+    /// one, because the Save records the form's and adopts from it.
+    /// </summary>
+    [Fact]
+    public async Task ThePreviewUsesTheClaimantVatPositionTheFormHolds()
+    {
+        var store = new RecordingStore { Bases = { [GuideId] = Basis(3_100m, claimantVatRegistered: false) } };
+        var preview = new PreviewValuationCalculation(store);
+        var withVat = Selection(commercialVat: true);
+
+        var recorded = await preview.ExecuteAsync(new(CaseId, Engineer, withVat), CancellationToken.None);
+        var registered = await preview.ExecuteAsync(
+            new(CaseId, Engineer, withVat) { ClaimantVatRegistered = true },
+            CancellationToken.None);
+
+        Assert.Equal(3_720m, recorded.Calculation.Proposal);
+        Assert.False(registered.Calculation.CommercialVatApplied);
+        Assert.Equal(3_100m, registered.Calculation.Proposal);
+    }
+
+    /// <summary>
+    /// A calculation that cannot be worked out fails with Core's own reason,
+    /// which the page shows instead of an empty state.
+    /// </summary>
+    [Fact]
+    public async Task DeductionsBeyondTheValueRefuseWithTheirOwnReason()
+    {
+        var store = new RecordingStore { Bases = { [GuideId] = Basis(1_000m) } };
+        var preview = new PreviewValuationCalculation(store);
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            preview.ExecuteAsync(
+                new(CaseId, Engineer, Selection(conditionDeduction: 5_000m)),
+                CancellationToken.None));
+
+        Assert.Contains("deductions exceed the value", refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A figure typed over the Engineer's Value box is the Engineer's own: the
+    /// Save records the calculation against a guide card only while the box
+    /// still holds the calculated figure. No box, or an empty one, is no objection.
+    /// </summary>
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("15000", true)]
+    [InlineData("15000.00", true)]
+    [InlineData("14999.50", false)]
+    [InlineData("not a number", false)]
+    public void TheEngineersValueBoxDecidesWhetherTheCalculationIsRecorded(string? box, bool recorded) =>
+        Assert.Equal(recorded, ValuationCalculationPolicy.IsEngineerValueBox(15_000m, box));
+
+    /// <summary>
+    /// A basis is a recorded card by its identity or, for a card typed in the
+    /// same edit, a guide source; anything else names no basis.
+    /// </summary>
+    [Fact]
+    public void ABasisIsARecordedCardOrAGuideSource()
+    {
+        var byId = ValuationCalculationPolicy.ValidateSelection(Selection(), "selection");
+        Assert.Equal(GuideId, byId.GuideValuationId);
+
+        var bySource = ValuationCalculationPolicy.ValidateSelection(
+            new ValuationCalculationSelection(Guid.Empty, false, null, [], 0m) { GuideSource = ValuationSource.Cap },
+            "selection");
+        Assert.Equal(ValuationSource.Cap, bySource.GuideSource);
+
+        // Neither the Engineer's own figure nor AI research is a guide source.
+        foreach (var notGuide in new[] { ValuationSource.EngineersValue, ValuationSource.AiMarketResearch })
+        {
+            Assert.Throws<ArgumentException>(() => ValuationCalculationPolicy.ValidateSelection(
+                new ValuationCalculationSelection(Guid.Empty, false, null, [], 0m) { GuideSource = notGuide },
+                "selection"));
+        }
     }
 
     /// <summary>
@@ -400,7 +524,7 @@ public sealed class ValuationCalculationTests
         Assert.Equal("Tow bar", Assert.Single(store.Saves).Label);
         Assert.Equal([saved], await list.ExecuteAsync(Engineer, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            list.ExecuteAsync(ActionActor.Provider(Guid.NewGuid()), CancellationToken.None));
+            list.ExecuteAsync(ActionActor.Principal(Guid.NewGuid()), CancellationToken.None));
     }
 
     /// <summary>
@@ -510,6 +634,15 @@ public sealed class ValuationCalculationTests
     private sealed class RecordingStore : IAppliedValuationStore
     {
         public Dictionary<Guid, ValuationCalculationBasis> Bases { get; } = [];
+
+        /// <summary>The facts that are not the card: presets, recorded additions and the recorded VAT position.</summary>
+        public ValuationCalculationBasis Context { get; init; } =
+            new(Guid.Empty, DateTimeOffset.MinValue, 0m, false, [TowBar, Decals]);
+
+        public Task<ValuationCalculationBasis> ReadCalculationContextAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Context);
 
         public Task<ValuationCalculationBasis> ReadBasisAsync(
             Guid caseId,

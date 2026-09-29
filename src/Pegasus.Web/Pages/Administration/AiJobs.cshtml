@@ -6,9 +6,7 @@
     ViewData["Eyebrow"] = "Administration";
     ViewData["AdminArea"] = "ai-jobs";
     var counts = Model.Result.Counts;
-    var channel = Model.Result.TransportComposed
-        ? (Model.Result.SendToAiSwitchEnabled ? "Active" : "Stopped")
-        : "Unavailable";
+    var channel = Model.Result.SendToAiSwitchEnabled ? "Active" : "Stopped";
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />

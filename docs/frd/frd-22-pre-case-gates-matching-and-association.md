@@ -29,7 +29,7 @@ and Unidentified are owned by
 the global checks are owned by
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md). The
 principal email routes are owned by
-[FRD-09](frd-09-provider-and-intermediary-routes.md), manual upload by
+[FRD-09](frd-09-principal-and-intermediary-routes.md), manual upload by
 [FRD-18](frd-18-manual-upload.md), image pairing by
 [FRD-19](frd-19-image-led-intake-and-pairing.md), and edit leases by
 [FRD-14](frd-14-record-edit-leases.md).
@@ -44,7 +44,7 @@ Before creating a Case or allocating a reference, Pegasus must have:
   receipts;
 - an authenticated Principal identity, and the staff actor where the route
   needs staff;
-- the provider or intermediary route identity and an enabled policy, where
+- the Principal or intermediary route identity and an enabled policy, where
   relevant;
 - an unambiguous Case type and Principal association;
 - processing, size, and format limits satisfied;
@@ -68,8 +68,10 @@ For a standalone Audit, a missing original report is a Case requirement, not
 a pre-Case gate. Once the Principal and identity-critical gates pass, the
 instruction creates the `a.` Case/PO. The Case shows **Original report
 missing** only while it has neither a filed original report nor
-standalone-Audit evidence retained at intake. Staff clear it by marking a
-filed document as the original report. A readable report records the
+standalone-Audit evidence retained at intake. It clears when Pegasus
+recognises the report among files added to the Case later, or when staff
+mark a filed document as the original report
+([FRD-16](frd-16-case-record-workspace.md#original-report)). A readable report records the
 assessment at intake, and its own reading fills the Case's
 [Original report](frd-16-case-record-workspace.md#original-report) cells at
 acceptance. A manual proposal may create an Audit from a receipt
@@ -88,7 +90,7 @@ None of these allocates a reusable identity for convenience.
 
 ### Matching conflicts and reversible association
 
-Matching uses evidence it can explain. Message identifiers, provider and
+Matching uses evidence it can explain. Message identifiers, Principal and
 domain policy, route identity, accepted reference tokens, registration,
 party identity, and operator confirmation may all contribute. A weak,
 ambiguous, or contradictory signal never silently attaches material to a
@@ -108,7 +110,7 @@ is current material, not discarded quoted history. Unrelated reports and old
 thread content can neither supply nor veto a current instruction's profile.
 The accepted identities, work-type predicates, preserved QDOS body and Triage
 rules, and the shared fail-closed procedure are owned by
-[FRD-09](frd-09-provider-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
+[FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
 
 Acceptance joins a profile's typed instruction values to the canonical Case
 field identity, not to another principal's printed labels. The original
@@ -133,7 +135,9 @@ relationship. It never turns the source into the Case, rewrites source facts,
 or changes the original intake origin.
 
 Image-led material has its own pairing rules
-([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)):
+a known Principal there scopes the candidates before the uniqueness count,
+as it does here, and the record's page says why automation is withheld.
 Triage association follows
 [FRD-03](frd-03-triage.md#automatic-association-with-a-formal-case):
 creation, formal acceptance, and replay each attempt the same
@@ -187,7 +191,10 @@ files it on its next pass over the receipt. A destination declared before
 the upload (Add evidence on a Case page,
 [FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) is a staff
 decision made first: processing records it as that member of staff's
-association and files the material in the same pass. Automatic Image-initiated
+association and files the material in the same pass. Filed on an open Audit
+awaiting its original report, the material is read for that report, however
+it was associated ([FRD-16](frd-16-case-record-workspace.md#original-report)).
+Automatic Image-initiated
 association checks the current Case version and yields to an active staff
 lease; the later image merge also yields to a live lease and rechecks the
 current associations in its own transaction. Filing the associated mail's
@@ -243,7 +250,7 @@ any state. Deployment and live evidence are separate tiers
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-18](frd-18-manual-upload.md),

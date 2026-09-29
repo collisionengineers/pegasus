@@ -49,7 +49,7 @@ public sealed partial class CreateModel(
     IAllocateIntake allocateIntake,
     IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
     IInspectionAddressResolutionStore addressResolutionStore,
-    IProviderInspectionModeStore providerInspectionModeStore,
+    IPrincipalInspectionModeStore principalInspectionModeStore,
     ICreateManualCase createManualCase,
     IContactDirectoryQueries contacts,
     ILogger<CreateModel> logger,
@@ -83,7 +83,7 @@ public sealed partial class CreateModel(
 
     public InspectionAddressResolutionSnapshot AddressResolution { get; private set; } = null!;
 
-    public bool ProviderIsImageBased { get; private set; }
+    public bool PrincipalIsImageBased { get; private set; }
 
     public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
 
@@ -188,7 +188,7 @@ public sealed partial class CreateModel(
     /// </summary>
     public bool AsksForAddress => !InspectionAddressResolutionPolicy.SatisfiesCaseCreation(
         AddressResolution.State,
-        ProviderIsImageBased);
+        PrincipalIsImageBased);
 
     public InstructionDraftFieldsView DraftFields => new(
         new(
@@ -741,9 +741,9 @@ public sealed partial class CreateModel(
     /// </summary>
     private string? EffectiveInspectionAddress()
     {
-        if (ProviderIsImageBased)
+        if (PrincipalIsImageBased)
         {
-            // The provider's own recorded mode, not something derived from the
+            // The principal's own recorded mode, not something derived from the
             // document. The address panel says as much, and a physical address
             // can still be recorded on the case afterwards with a reason.
             return AddressResolution.ResolvedValue
@@ -807,11 +807,11 @@ public sealed partial class CreateModel(
         // soon as an operator confirms a different principal it is theirs —
         // otherwise reassigning an extracted image-based draft to a
         // physical-address principal silently skips address confirmation and
-        // records "Image Based Assessment" against a provider that inspects in
+        // records "Image Based Assessment" against a principal that inspects in
         // person.
         var effectivePrincipalCode = Optional(PrincipalCode)
             ?? receipt.InstructionDraft?.SuggestedPrincipalCode;
-        ProviderIsImageBased = await IsImageBasedAsync(effectivePrincipalCode, cancellationToken);
+        PrincipalIsImageBased = await IsImageBasedAsync(effectivePrincipalCode, cancellationToken);
         AddressResolution = await addressResolutionStore.GetAsync(receiptId, cancellationToken)
             ?? new(
                 receiptId,
@@ -856,7 +856,7 @@ public sealed partial class CreateModel(
         string? principalCode,
         CancellationToken cancellationToken) =>
         !string.IsNullOrWhiteSpace(principalCode)
-        && await providerInspectionModeStore.GetForPrincipalAsync(
+        && await principalInspectionModeStore.GetForPrincipalAsync(
             principalCode.Trim().ToUpperInvariant(),
             cancellationToken) == CaseInspectionMode.ImageBasedAssessment;
 

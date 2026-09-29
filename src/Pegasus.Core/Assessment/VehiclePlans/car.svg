@@ -1,0 +1,88 @@
+<defs>
+<linearGradient id="asset-car-paint" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#cbd3d9"/><stop offset=".11" stop-color="#f1f4f6"/><stop offset=".42" stop-color="#ffffff"/><stop offset=".69" stop-color="#f7f9fa"/><stop offset=".91" stop-color="#e0e6ea"/><stop offset="1" stop-color="#c2cdd4"/></linearGradient>
+<linearGradient id="asset-car-roof" x1="0" y1="0" x2="1" y2=".24"><stop offset="0" stop-color="#e5ebee"/><stop offset=".34" stop-color="#ffffff"/><stop offset=".76" stop-color="#f4f7f9"/><stop offset="1" stop-color="#dce4e9"/></linearGradient>
+<linearGradient id="asset-car-glass" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#25323b"/><stop offset=".47" stop-color="#4d606d"/><stop offset="1" stop-color="#273741"/></linearGradient>
+<linearGradient id="asset-car-metal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#647680"/><stop offset=".30" stop-color="#c9d5dc"/><stop offset=".52" stop-color="#edf2f5"/><stop offset="1" stop-color="#70828d"/></linearGradient>
+<linearGradient id="asset-car-rubber" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#202a31"/><stop offset=".45" stop-color="#404d57"/><stop offset="1" stop-color="#1d2830"/></linearGradient>
+<linearGradient id="asset-car-seat" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#25323a"/><stop offset=".45" stop-color="#485761"/><stop offset="1" stop-color="#27343c"/></linearGradient>
+</defs>
+<g stroke-linecap="round" stroke-linejoin="round">
+<g>
+<rect x="38" y="87" width="14" height="49" rx="4" fill="url(#asset-car-rubber)"/>
+<path d="M41 93 V130" fill="none" stroke="#56636b" stroke-width="0.75"/>
+<rect x="188" y="87" width="14" height="49" rx="4" fill="url(#asset-car-rubber)"/>
+<path d="M191 93 V130" fill="none" stroke="#56636b" stroke-width="0.75"/>
+<rect x="38" y="313" width="14" height="49" rx="4" fill="url(#asset-car-rubber)"/>
+<path d="M41 319 V356" fill="none" stroke="#56636b" stroke-width="0.75"/>
+<rect x="188" y="313" width="14" height="49" rx="4" fill="url(#asset-car-rubber)"/>
+<path d="M191 319 V356" fill="none" stroke="#56636b" stroke-width="0.75"/>
+</g>
+<g>
+<path d="M50 144 L34 149 Q29 151 30 158 Q31 162 37 161 L50 157 Z" fill="url(#asset-car-paint)" stroke="#657782" stroke-width="0.85"/>
+<path d="M50 144 L34 149 Q29 151 30 158 Q31 162 37 161 L50 157 Z" fill="url(#asset-car-paint)" stroke="#657782" stroke-width="0.85" transform="translate(240 0) scale(-1 1)"/>
+<path d="M31 158 L46 153" fill="none" stroke="#b2c0c9" stroke-width="0.75"/>
+<path d="M31 158 L46 153" fill="none" stroke="#b2c0c9" stroke-width="0.75" transform="translate(240 0) scale(-1 1)"/>
+</g>
+<g>
+<path d="M82 21 Q120 11 158 21 C181 26 191 40 194 62 Q198 87 195 115 L193 154 L194 295 Q198 326 196 351 Q194 379 183 395 Q176 404 159 407 Q120 413 81 407 Q64 404 57 395 Q46 379 44 351 Q42 326 46 295 L47 154 L45 115 Q42 87 46 62 C49 40 59 26 82 21 Z" fill="url(#asset-car-paint)" stroke="#617581" stroke-width="1.1"/>
+<path d="M82 21 Q120 11 158 21 C181 26 191 40 194 62 Q198 87 195 115 L193 154 L194 295 Q198 326 196 351 Q194 379 183 395 Q176 404 159 407 Q120 413 81 407 Q64 404 57 395 Q46 379 44 351 Q42 326 46 295 L47 154 L45 115 Q42 87 46 62 C49 40 59 26 82 21 Z" fill="none" stroke="#ffffff" stroke-width="1.05" transform="translate(120 217) scale(.969 .987) translate(-120 -217)"/>
+<path d="M54 67 Q49 99 51 127 L52 288 Q47 324 51 348 L57 370" fill="none" stroke="#b6c2ca" stroke-width="0.85"/>
+<path d="M54 67 Q49 99 51 127 L52 288 Q47 324 51 348 L57 370" fill="none" stroke="#b6c2ca" stroke-width="0.85" transform="translate(240 0) scale(-1 1)"/>
+<path d="M57 70 Q53 101 55 128 L56 284 Q51 323 55 349" fill="none" stroke="#fdfefe" stroke-width="1.6"/>
+<path d="M57 70 Q53 101 55 128 L56 284 Q51 323 55 349" fill="none" stroke="#fdfefe" stroke-width="1.6" transform="translate(240 0) scale(-1 1)"/>
+</g>
+<g>
+<path d="M64 57 Q120 43 176 57 L180 119 Q120 100 60 119 Z" fill="url(#asset-car-roof)" stroke="#adbbc4" stroke-width="0.8"/>
+<path d="M74 64 Q70 86 69 109" fill="none" stroke="#cad4db" stroke-width="0.7"/>
+<path d="M74 64 Q70 86 69 109" fill="none" stroke="#cad4db" stroke-width="0.7" transform="translate(240 0) scale(-1 1)"/>
+<path d="M78 64 Q76 89 75 107" fill="none" stroke="#ffffff" stroke-width="1.2"/>
+<path d="M78 64 Q76 89 75 107" fill="none" stroke="#ffffff" stroke-width="1.2" transform="translate(240 0) scale(-1 1)"/>
+<path d="M64 32 Q120 18 176 32" fill="none" stroke="#9cabb4" stroke-width="0.75"/>
+<path d="M94 27 Q120 23 146 27" fill="none" stroke="#536570" stroke-width="1.9"/>
+<path d="M57 42 Q72 34 89 33 L84 42 Q69 46 55 50 Z" fill="#c0cdd5" stroke="#778b97" stroke-width="0.7"/>
+<path d="M57 42 Q72 34 89 33 L84 42 Q69 46 55 50 Z" fill="#c0cdd5" stroke="#778b97" stroke-width="0.7" transform="translate(240 0) scale(-1 1)"/>
+<path d="M60 43 L82 36" fill="none" stroke="#fcfefe" stroke-width="1.75"/>
+<path d="M60 43 L82 36" fill="none" stroke="#fcfefe" stroke-width="1.75" transform="translate(240 0) scale(-1 1)"/>
+<path d="M57 53 Q120 37 183 53" fill="none" stroke="#b9c5cd" stroke-width="0.75"/>
+</g>
+<g>
+<path d="M65 127 Q120 105 175 127 Q185 151 184 178 L181 290 Q179 316 169 331 Q120 347 71 331 Q61 316 59 290 L56 178 Q55 151 65 127 Z" fill="url(#asset-car-glass)" stroke="#30424e" stroke-width="1.0"/>
+<path d="M65 127 Q120 105 175 127 Q185 151 184 178 L181 290 Q179 316 169 331 Q120 347 71 331 Q61 316 59 290 L56 178 Q55 151 65 127 Z" fill="none" stroke="#90a1ad" stroke-width="0.8" transform="translate(120 225) scale(.97 .981) translate(-120 -225)"/>
+<path d="M70 130 Q113 113 160 125 L145 160 Q116 154 87 163 Z" fill="#90a6b4" opacity=".16"/>
+<path d="M174 137 Q179 157 179 187 L175 284 L169 302 L168 176 Z" fill="#b5c6d1" opacity=".13"/>
+<path d="M62 167 L68 179 L70 215 L62 215 Z" fill="#b6c6d0" opacity=".10"/>
+<path d="M62 167 L68 179 L70 215 L62 215 Z" fill="#b6c6d0" transform="translate(240 0) scale(-1 1)" opacity=".10"/>
+<path d="M70 132 Q120 115 170 132" fill="none" stroke="#b0bec7" stroke-width="0.7"/>
+<path d="M77 155 L113 153 M126 153 L162 154" fill="none" stroke="#1f2f39" stroke-width="1.25"/>
+</g>
+<g>
+<path d="M81 166 Q120 157 159 166 L164 284 Q120 294 76 284 Z" fill="url(#asset-car-roof)" stroke="#9faeb8" stroke-width="0.75"/>
+<path d="M87 174 Q120 167 153 174 L157 277 Q120 284 83 277 Z" fill="none" stroke="#ffffff" stroke-width="0.9"/>
+<path d="M65 133 L81 167 M61 220 L78 220 M65 319 L77 282" fill="none" stroke="#dce4e9" stroke-width="3.2"/>
+<path d="M65 133 L81 167 M61 220 L78 220 M65 319 L77 282" fill="none" stroke="#dce4e9" stroke-width="3.2" transform="translate(240 0) scale(-1 1)"/>
+<path d="M65 133 L81 167" fill="none" stroke="#eef3f6" stroke-width="1.1"/>
+<path d="M65 133 L81 167" fill="none" stroke="#eef3f6" stroke-width="1.1" transform="translate(240 0) scale(-1 1)"/>
+<path d="M79 324 Q120 336 161 324" fill="none" stroke="#a6b7c2" stroke-width="0.75"/>
+<path d="M79 304 Q120 312 161 304" fill="none" stroke="#637984" stroke-width="0.4"/>
+<path d="M79 310 Q120 318 161 310" fill="none" stroke="#637984" stroke-width="0.4"/>
+<path d="M79 316 Q120 324 161 316" fill="none" stroke="#637984" stroke-width="0.4"/>
+</g>
+<g>
+<path d="M47 146 L60 155 M48 221 L61 221 M46 302 L62 303" fill="none" stroke="#9cabb5" stroke-width="0.8"/>
+<path d="M47 146 L60 155 M48 221 L61 221 M46 302 L62 303" fill="none" stroke="#9cabb5" stroke-width="0.8" transform="translate(240 0) scale(-1 1)"/>
+<path d="M51 192 V206 M51 265 V279" fill="none" stroke="#8598a4" stroke-width="1.8"/>
+<path d="M51 192 V206 M51 265 V279" fill="none" stroke="#8598a4" stroke-width="1.8" transform="translate(240 0) scale(-1 1)"/>
+<path d="M51 193 V204 M51 266 V277" fill="none" stroke="#eef4f7" stroke-width="0.65"/>
+<path d="M51 193 V204 M51 266 V277" fill="none" stroke="#eef4f7" stroke-width="0.65" transform="translate(240 0) scale(-1 1)"/>
+</g>
+<g>
+<path d="M66 345 Q120 358 174 345 L179 375 Q120 390 61 375 Z" fill="url(#asset-car-roof)" stroke="#a7b5bf" stroke-width="0.7"/>
+<path d="M54 365 Q68 375 87 377 L85 383 Q66 382 53 373 Z" fill="#596e7b" stroke="#647681" stroke-width="0.55"/>
+<path d="M54 365 Q68 375 87 377 L85 383 Q66 382 53 373 Z" fill="#596e7b" stroke="#647681" stroke-width="0.55" transform="translate(240 0) scale(-1 1)"/>
+<path d="M59 370 Q72 377 85 379" fill="none" stroke="#a7bac6" stroke-width="0.75"/>
+<path d="M59 370 Q72 377 85 379" fill="none" stroke="#a7bac6" stroke-width="0.75" transform="translate(240 0) scale(-1 1)"/>
+<path d="M74 392 Q120 405 166 392" fill="none" stroke="#7d929f" stroke-width="0.9"/>
+<path d="M91 400 Q120 406 149 400" fill="none" stroke="#445a67" stroke-width="2"/>
+<rect x="105" y="386" width="30" height="5" rx="1.3" fill="#e2e9ed" stroke="#a2b2bc" stroke-width="0.5"/>
+</g>
+</g>

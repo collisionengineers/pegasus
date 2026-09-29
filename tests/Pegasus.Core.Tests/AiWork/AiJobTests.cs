@@ -229,7 +229,7 @@ public sealed class AiJobTests
     [InlineData(CaseLifecycleState.Held, false)]
     [InlineData(CaseLifecycleState.Review, false)]
     [InlineData(CaseLifecycleState.PostReportComplete, false)]
-    [InlineData(CaseLifecycleState.ProviderCancelled, false)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, false)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked, false)]
@@ -265,7 +265,7 @@ public sealed class AiJobTests
         var store = new RecordingMarketResearchStore();
         var useCase = new CompleteMarketResearchAiJob(store);
         var command = new CompleteMarketResearchAiJobCommand(
-            Guid.NewGuid(), 1, Guid.NewGuid(), 3, "lease", Client, "op",
+            Guid.NewGuid(), 1, Guid.NewGuid(), Client, "op",
             "findings.pdf", "application/pdf", new byte[] { 1 },
             new DateOnly(2031, 5, 6), new TimeOnly(10, 30), 45000, 12000m, 10000m);
 
@@ -459,6 +459,11 @@ public sealed class AiJobTests
                     null, null, null, null, null, null, null,
                     3)
                 : null);
+
+        public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
+            IReadOnlyCollection<Guid> caseIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<bool> HasOperationAsync(Guid id, string operationKey, CancellationToken cancellationToken) =>
             Task.FromResult(false);

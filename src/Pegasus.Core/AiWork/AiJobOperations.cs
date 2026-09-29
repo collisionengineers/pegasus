@@ -592,11 +592,10 @@ public sealed class CompleteMarketResearchAiJob(
         {
             throw new ArgumentException("Job and case identifiers are required.", nameof(command));
         }
-        if (command.ExpectedJobVersion < 0 || command.ExpectedCaseVersion < 0)
+        if (command.ExpectedJobVersion < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(command), "Expected versions cannot be negative.");
+            throw new ArgumentOutOfRangeException(nameof(command), "The expected job version cannot be negative.");
         }
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.EditLeaseToken);
         ArgumentException.ThrowIfNullOrWhiteSpace(command.OperationKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(command.FileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(command.MediaType);

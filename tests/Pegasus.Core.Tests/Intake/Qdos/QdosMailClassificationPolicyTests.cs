@@ -9,7 +9,7 @@ public sealed class PrincipalMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("principal_mail_classification", PrincipalMailClassificationPolicy.Key);
-        Assert.Equal(1, PrincipalMailClassificationPolicy.Version);
+        Assert.Equal(2, PrincipalMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -324,6 +324,93 @@ public sealed class PrincipalMailClassificationPolicyTests
 
         Assert.Null(result.StandaloneAuditReport);
     }
+
+    // A repairable supplement that cites a previous total loss prints both
+    // literals; the extraction reads its title as the outcome (#864).
+    private const string RepairableReportCitingAPreviousTotalLoss = """
+        Mr D Roberton                                        Date:  09/03/2026
+        Gravesend                                            Our Ref:  00077570/PK
+                                                             Your Ref: EHR97818
+
+                       Engineer Repairable Report - Amended Report
+
+        Client/Insured: Mr D Roberton
+
+            Vehicle: RENAULT CLIO ICONIC TCE      Colour: WHITE       Speedo: 46954     Miles
+           Reg No: LD71JHJ      Registered: Sep 2021    Type: 5 Door Hatchback
+          Damage: Light        Accidental Damage Front       Incident: 05/03/2026
+             Vehicle Value: £9,267.00      Repair Cost: £6,143.90 inc VAT     Roadworthy: No
+
+        The vehicle has a previous CAT N – total loss recorded against it.
+
+        Phil Kendrick AQP CAE AMIMI
+        Connexus Vehicle Assessors
+        """;
+
+    [Fact]
+    public void ABothLiteralReportIsDecidedByTheExtractionsPrintedOutcome()
+    {
+        var result = ClassifyAuditWithReport(RepairableReportCitingAPreviousTotalLoss);
+
+        Assert.Equal(CaseType.Audit, result.CaseType);
+        var report = Assert.IsType<StandaloneAuditReportEvaluation>(result.StandaloneAuditReport);
+        Assert.Equal(AuditAssessment.Repairable, report.Assessment);
+        Assert.Equal("message, attachment 2, original-report.pdf", report.AssetSourceLabel);
+    }
+
+    [Fact]
+    public void TheExtractionsOutcomeDecidesEvenWhenALiteralPointsTheOtherWay()
+    {
+        // Montgomery prints its outcome alone on a line; "repairable" appears
+        // only in prose, so the printed TOTAL LOSS is the report's outcome.
+        var result = ClassifyAuditWithReport("""
+            MontgomeryAssessors
+                  Consulting Motor Engineers, locus reports, Claims investigation.
+
+            TOTAL LOSS
+            Our Reference No:    DA/425
+            Your Reference No:   47592/1
+
+            The damage would be repairable but the repair cost exceeds the value.
+            """);
+
+        var report = Assert.IsType<StandaloneAuditReportEvaluation>(result.StandaloneAuditReport);
+        Assert.Equal(AuditAssessment.TotalLoss, report.Assessment);
+    }
+
+    [Theory]
+    [InlineData("""
+        MontgomeryAssessors
+              Consulting Motor Engineers, locus reports, Claims investigation.
+
+        Our Reference No:    DA/425
+        The damage is repairable, and a total loss was considered.
+        """)]
+    [InlineData("The vehicle is repairable, previously a total loss.")]
+    public void ABothLiteralReportTheExtractionCannotDecideGetsNoAutomaticAssessment(string reportText)
+    {
+        var result = ClassifyAuditWithReport(reportText);
+
+        Assert.Equal(CaseType.Audit, result.CaseType);
+        Assert.Null(result.StandaloneAuditReport);
+    }
+
+    private static MailClassificationResult ClassifyAuditWithReport(string reportText) =>
+        new PrincipalMailClassificationPolicy("QDOS").Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1, audit-instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "message, attachment 2, original-report.pdf, page 1",
+                    reportText)
+            ],
+            [],
+            [],
+            false));
 
     [Theory]
     [InlineData("The vehicle is unrepairable.")]

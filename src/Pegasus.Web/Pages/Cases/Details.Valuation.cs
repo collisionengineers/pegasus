@@ -21,7 +21,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// the connected provider's figures for the card to show in its boxes, or
 /// that the source is unavailable. The one Case Save (23 September 2026)
 /// records the cards, the Retail, Trade and Engineer's value boxes and a
-/// changed calculation; nothing here writes.
+/// calculation the Engineer chose to use or changed; nothing here writes.
 /// </summary>
 public sealed partial class DetailsModel
 {
@@ -67,6 +67,13 @@ public sealed partial class DetailsModel
         DateOnly.TryParseExact(ValuationMonth + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month)
             ? month.ToString("MMM yyyy", CultureInfo.InvariantCulture)
             : ValuationMonth;
+
+    /// <summary>
+    /// Whether a guide source has a connected provider. The card says so
+    /// before Get valuation is pressed, and offers the button only when it
+    /// can work (operator, 28 September 2026).
+    /// </summary>
+    public bool GuideSourceConnected(ValuationSource source) => fetchGuideValuation.IsConnected(source);
 
     /// <summary>The Case's latest applied Engineer's Value, if any.</summary>
     public AppliedValuation? LatestAppliedValuation => AppliedValuations.Count > 0 ? AppliedValuations[0] : null;
@@ -217,20 +224,58 @@ public sealed partial class DetailsModel
     /// The presets are read in both modes: read and edit list the same value
     /// increases, ticked where the latest adoption applied them.
     /// </summary>
-    private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+    /// <summary>The valuation section's reads, applied to the page together.</summary>
+    private sealed record ValuationSectionReads(
+        IReadOnlyList<CaseValuation> Valuations,
+        IReadOnlyList<AppliedValuation> AppliedValuations,
+        AiJobRecord? PendingMarketResearch,
+        string? AppliedByDisplayName,
+        IReadOnlyList<ValuationPreset>? Presets);
+
+    /// <summary>
+    /// Whether this request read the applied valuations, so the report
+    /// snapshot may use them rather than reading them again.
+    /// </summary>
+    private bool appliedValuationsLoaded;
+
+    private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+        ApplyValuationSection(await ReadValuationSectionAsync(caseId, actor, WorkSelector, cancellationToken));
+
+    private async Task<ValuationSectionReads> ReadValuationSectionAsync(
+        Guid caseId,
+        ActionActor actor,
+        CaseWorkSelector work,
+        CancellationToken cancellationToken)
     {
-        Valuations = await listCaseValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
-        AppliedValuations = await listAppliedValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
-        PendingMarketResearch = await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
-        if (LatestAppliedValuation is { } applied)
+        var valuations = await listCaseValuations.ExecuteAsync(caseId, work, cancellationToken);
+        var applied = await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
+        var pending = await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
+        string? appliedBy = null;
+        if (applied.Count > 0)
         {
-            AppliedByDisplayName = Guid.TryParse(applied.AcceptedBy, out var staffId)
+            appliedBy = Guid.TryParse(applied[0].AcceptedBy, out var staffId)
                 ? (await staffAccountQueries.GetAsync(staffId, cancellationToken))?.UserName ?? ActorDisplayNames.UnknownStaff
                 : ActorDisplayNames.UnknownStaff;
         }
-        if (StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
+        var presets = StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)
+            ? await listValuationPresets.ExecuteAsync(actor, cancellationToken)
+            : null;
+        return new(valuations, applied, pending, appliedBy, presets);
+    }
+
+    private void ApplyValuationSection(ValuationSectionReads reads)
+    {
+        Valuations = reads.Valuations;
+        AppliedValuations = reads.AppliedValuations;
+        appliedValuationsLoaded = true;
+        PendingMarketResearch = reads.PendingMarketResearch;
+        if (reads.AppliedByDisplayName is not null)
         {
-            ValuationPresets = await listValuationPresets.ExecuteAsync(actor, cancellationToken);
+            AppliedByDisplayName = reads.AppliedByDisplayName;
+        }
+        if (reads.Presets is not null)
+        {
+            ValuationPresets = reads.Presets;
         }
     }
 
@@ -246,6 +291,19 @@ public sealed partial class DetailsModel
         public string? Opening { get; set; }
 
         public Guid GuideValuationId { get; set; }
+
+        /// <summary>
+        /// The basis when its card is not recorded yet, so it has no identity:
+        /// a guide card typed in this edit. Posted only by Use this value.
+        /// </summary>
+        public ValuationSource? GuideSource { get; set; }
+
+        /// <summary>
+        /// The Engineer pressed Use this value: the Save records the
+        /// calculation against its basis card even when the calculation is the
+        /// one the page opened on. Absent on every other save.
+        /// </summary>
+        public bool Use { get; set; }
 
         public bool CommercialVat { get; set; }
 
@@ -293,7 +351,11 @@ public sealed partial class DetailsModel
                 CommercialVat,
                 PriorTotalLossPercentage is { } percentage ? percentage / 100m : null,
                 additions,
-                ConditionDeduction ?? 0m);
+                ConditionDeduction ?? 0m)
+            {
+                GuideSource = GuideValuationId == Guid.Empty ? GuideSource : null,
+                Use = Use,
+            };
         }
 
         /// <summary>
@@ -314,6 +376,7 @@ public sealed partial class DetailsModel
             return JsonSerializer.Serialize(new
             {
                 basis = selection.GuideValuationId,
+                source = selection.GuideValuationId == Guid.Empty ? selection.GuideSource?.ToString() : null,
                 retail = Figure(basisRetail),
                 trade = Figure(basisTrade),
                 vat = selection.CommercialVat,
@@ -331,44 +394,77 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// The calculation this save records against its basis card (operator,
-    /// 23 September 2026): the posted one, when what the calculator shows
-    /// changed since the page opened — a different basis card, the basis
-    /// card's retail or trade, or any calculator control. An untouched
-    /// calculator records nothing, and so does a basis card left with no
-    /// retail to calculate from. The values themselves are the boxes the
-    /// same save writes.
+    /// The calculation this save records against its basis card: the posted
+    /// one, when the Engineer pressed Use this value (operator, 28 September
+    /// 2026: an unchanged default figure can be used too), or when what the
+    /// calculator shows changed since the page opened (operator, 23 September
+    /// 2026) — a different basis card, the basis card's retail or trade, or
+    /// any calculator control. Any other save records nothing, so an unrelated
+    /// save never adopts. A basis card left with no retail to calculate from
+    /// records nothing, and is refused when the Engineer asked to use it. The
+    /// values themselves are the boxes the same save writes.
     /// </summary>
-    private static ValuationCalculationSelection? ChangedCalculation(
+    private static ValuationCalculationSelection? ChosenCalculation(
         ValuationSelectionForm? selection,
         GuideEntryForm[] guideEntries,
         IReadOnlyList<CaseValuation> recorded)
     {
-        if (selection is null || selection.GuideValuationId == Guid.Empty)
+        if (selection is null)
         {
             return null;
         }
 
-        var basis = recorded.FirstOrDefault(card => card.ValuationId == selection.GuideValuationId);
-        if (basis is null)
+        // The basis card: a recorded one by its identity, or the source's
+        // latest recorded card (there may be none) for a card typed in this edit.
+        CaseValuation? basis;
+        ValuationSource source;
+        if (selection.GuideValuationId != Guid.Empty)
+        {
+            basis = recorded.FirstOrDefault(card => card.ValuationId == selection.GuideValuationId);
+            if (basis is null)
+            {
+                return null;
+            }
+            source = basis.Details.Source;
+        }
+        else if (selection.GuideSource is { } chosen && ValuationSources.IsGuide(chosen))
+        {
+            source = chosen;
+            basis = recorded
+                .Where(card => card.Details.Source == chosen)
+                .OrderByDescending(card => card.Details.Date)
+                .ThenByDescending(card => card.Details.Time)
+                .ThenByDescending(card => card.RecordedAtUtc)
+                .FirstOrDefault();
+        }
+        else
         {
             return null;
         }
+
         // The basis card's figures as the page now shows them: a guide
         // source's card shows them in its own boxes, any other card as recorded.
-        var shown = guideEntries.FirstOrDefault(entry => entry.Source == basis.Details.Source);
+        var shown = guideEntries.FirstOrDefault(entry => entry.Source == source);
         var shownRetail = shown is null
-            ? basis.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture)
+            ? basis?.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture)
             : shown.RetailValue;
         var shownTrade = shown is null
-            ? basis.Details.TradeValue?.ToString("0.00", CultureInfo.InvariantCulture)
+            ? basis?.Details.TradeValue?.ToString("0.00", CultureInfo.InvariantCulture)
             : shown.TradeValue;
         if (string.IsNullOrWhiteSpace(shownRetail))
         {
+            if (selection.Use)
+            {
+                throw new InvalidOperationException("Enter the retail value on the card you chose to use.");
+            }
             return null;
         }
 
         var posted = selection.ToSelection();
+        if (selection.Use)
+        {
+            return posted;
+        }
         return string.Equals(
             ValuationSelectionForm.Canonical(posted, shownRetail, shownTrade),
             selection.Opening,
@@ -380,11 +476,17 @@ public sealed partial class DetailsModel
     /// <summary>
     /// The calculation lines for the posted selection, computed by Core and
     /// returned as the lines partial. Script calls it on every change; it
-    /// writes nothing.
+    /// writes nothing. The Engineer sees what the Save will use: the basis
+    /// retail as typed (<paramref name="basisRetail"/>) and the claimant's VAT
+    /// position as the form holds it, both resolved by the one Core owner. A
+    /// calculation that cannot be worked out answers with its own reason, not
+    /// an empty state.
     /// </summary>
     public async Task<IActionResult> OnPostPreviewValuationAsync(
         Guid id,
         ValuationSelectionForm selection,
+        string? basisRetail,
+        [FromForm(Name = "assessmentFields")] Dictionary<string, string?>? assessmentFields,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -396,17 +498,69 @@ public sealed partial class DetailsModel
             return NotFound();
         }
 
-        try
-        {
-            var preview = await previewValuation.ExecuteAsync(
-                new(id, actor, selection.ToSelection()),
-                cancellationToken);
-            return Partial("Cases/Shared/_CaseValuationLines", preview.Calculation);
-        }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        // No basis chosen is not a fault: there is nothing to calculate yet.
+        // (A post with no calculator field at all binds no selection.)
+        selection ??= new();
+        if (selection.GuideValuationId == Guid.Empty && selection.GuideSource is null)
         {
             return Partial("Cases/Shared/_CaseValuationLines", (ValuationCalculation?)null);
         }
+
+        try
+        {
+            // A retail box posted empty is "no retail" (Core answers that it is
+            // required), never the recorded card: the Save reads the same box.
+            decimal? retail = null;
+            if (!string.IsNullOrWhiteSpace(basisRetail))
+            {
+                retail = decimal.TryParse(
+                    basisRetail.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var typed)
+                    ? typed
+                    : throw new InvalidOperationException("The basis retail value is not a number.");
+            }
+            else if (Request.Form.ContainsKey(nameof(basisRetail)))
+            {
+                retail = 0m;
+            }
+            bool? claimantVat = assessmentFields is not null
+                && assessmentFields.TryGetValue(AssessmentVocabulary.SettlementClaimantVatRegistered, out var vat)
+                ? string.Equals(vat, "true", StringComparison.Ordinal)
+                : null;
+            var preview = await previewValuation.ExecuteAsync(
+                new(id, actor, selection.ToSelection())
+                {
+                    GuideRetailValue = retail,
+                    ClaimantVatRegistered = claimantVat,
+                },
+                cancellationToken);
+            return Partial("Cases/Shared/_CaseValuationLines", preview.Calculation);
+        }
+        catch (ValuationPresetException)
+        {
+            return RefusedPreview(CaseWorkspaceLabels.Valuation.PresetChanged);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return RefusedPreview(exception.Message);
+        }
+        catch (KeyNotFoundException)
+        {
+            return RefusedPreview(CaseWorkspaceLabels.Valuation.BasisGone);
+        }
+        catch (ArgumentException)
+        {
+            return RefusedPreview(CaseWorkspaceLabels.Valuation.CannotCalculate);
+        }
+    }
+
+    /// <summary>The lines partial carrying the reason the calculation could not be worked out.</summary>
+    private PartialViewResult RefusedPreview(string message)
+    {
+        // Partial(name, null) hands the view an empty ViewData, so the reason
+        // travels on a typed copy of this page's own.
+        var viewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary<ValuationCalculation?>(ViewData, null);
+        viewData["ValuationRefusal"] = message;
+        return new PartialViewResult { ViewName = "Cases/Shared/_CaseValuationLines", ViewData = viewData };
     }
 
     /// <summary>

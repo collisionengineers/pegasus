@@ -8,8 +8,15 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
 
+/// <summary>
+/// Per-user external credentials. The reader half uses its own context from
+/// the factory, so a page may run it beside other reads; the administration
+/// half writes the staff account's version and stays on the scoped context
+/// that ASP.NET Identity shares.
+/// </summary>
 public sealed class EfPerUserExternalCredentialStore(
     PegasusDbContext context,
+    IDbContextFactory<PegasusDbContext> contextFactory,
     IDataProtectionProvider dataProtection,
     TimeProvider timeProvider)
     : IPerUserExternalCredentialReader,
@@ -24,30 +31,10 @@ public sealed class EfPerUserExternalCredentialStore(
         ExternalCredentialProvider provider,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(actor);
-        StaffAuthorization.Require(actor, StaffAccessRight.AccessStaffApplication);
-        if (actor.Kind != ActorKind.Staff
-            || !Guid.TryParse(actor.SubjectId, out var staffId))
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.AccessStaffApplication);
-        }
-
-        var userEnabled = await context.Users
-            .AsNoTracking()
-            .AnyAsync(item => item.Id == staffId && item.IsEnabled, cancellationToken);
-        if (!userEnabled)
-        {
-            return null;
-        }
-
-        var entity = await context.Set<UserExternalCredentialEntity>()
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.UserId == staffId
-                    && item.Provider == ProviderName(provider)
-                    && item.Enabled
-                    && item.ProtectedCredential != string.Empty,
-                cancellationToken);
+        var staffId = ReaderStaffIdOf(actor);
+        await using var readContext = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await EnabledCredentials(readContext, staffId, provider)
+            .SingleOrDefaultAsync(cancellationToken);
         if (entity is null)
         {
             return null;
@@ -61,6 +48,48 @@ public sealed class EfPerUserExternalCredentialStore(
             Reference(entity),
             payload.Username,
             payload.Password);
+    }
+
+    public async Task<bool> IsEnabledAsync(
+        ActionActor actor,
+        ExternalCredentialProvider provider,
+        CancellationToken cancellationToken)
+    {
+        var staffId = ReaderStaffIdOf(actor);
+        await using var readContext = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await EnabledCredentials(readContext, staffId, provider).AnyAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The one credential an enabled staff account may use: its own, enabled
+    /// and holding material. A disabled account has none.
+    /// </summary>
+    private static IQueryable<UserExternalCredentialEntity> EnabledCredentials(
+        PegasusDbContext readContext,
+        Guid staffId,
+        ExternalCredentialProvider provider)
+    {
+        var providerName = ProviderName(provider);
+        return readContext.Set<UserExternalCredentialEntity>()
+            .AsNoTracking()
+            .Where(item => item.UserId == staffId
+                && item.Provider == providerName
+                && item.Enabled
+                && item.ProtectedCredential != string.Empty
+                && readContext.Users.Any(user => user.Id == staffId && user.IsEnabled));
+    }
+
+    private static Guid ReaderStaffIdOf(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.AccessStaffApplication);
+        if (actor.Kind != ActorKind.Staff
+            || !Guid.TryParse(actor.SubjectId, out var staffId))
+        {
+            throw new StaffAuthorizationException(StaffAccessRight.AccessStaffApplication);
+        }
+
+        return staffId;
     }
 
     public async Task<PerUserExternalCredentialStatus> GetAsync(

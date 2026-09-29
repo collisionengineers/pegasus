@@ -30,11 +30,11 @@
             @if (Model.IntakeCounts is { } counts)
             {
                 <div class="figures logs-figures" data-intake-counts>
-                    @* Every retryable intake failure: Operations lists each one with its own retry. *@
-                    <a class="figure logs-figure" href="/Operations">
+                    @* Every retryable intake failure: the list below carries each one with its own retry. *@
+                    <div class="figure logs-figure">
                         <span class="label">@OperatorLabels.IntakeLog.FailedIntake</span>
                         <span class="value" data-failed-intake>@counts.FailedIntake</span>
-                    </a>
+                    </div>
                     <div class="figure logs-figure logs-figure--pending">
                         <span class="label">@OperatorLabels.IntakeLog.OldestPendingIntake</span>
                         <span class="value" data-oldest-pending-intake>@(counts.OldestPendingIntakeDueAtUtc is { } due ? OperatorLabels.OfficeDate(due) : "None")</span>

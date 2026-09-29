@@ -30,7 +30,7 @@ public enum RetainedInstructionAnalysisOutcome
 
 /// <summary>
 /// Analyse one retained, unresolved instruction: read the immutable source,
-/// decide which provider's instruction it is FROM THE DOCUMENT, and record what
+/// decide which Principal's instruction it is FROM THE DOCUMENT, and record what
 /// the document says about each field.
 ///
 /// It allocates nothing. No Case, no PO, no principal assignment, no receipt
@@ -198,8 +198,8 @@ public sealed class AnalyzeRetainedInstruction(
         ArgumentNullException.ThrowIfNull(request);
         // Core authorization on a typed actor, never an actor-id string.
         // PerformCasework is the right that admits exactly Staff and the
-        // Automation Actor (ADR-0011): a provider or system-worker actor has
-        // no business reading a provider's instruction, and each of those
+        // Automation Actor (ADR-0011): a Principal or system-worker actor has
+        // no business reading a Principal's instruction, and each of those
         // fails closed here.
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         if (request.ReceiptId == Guid.Empty)

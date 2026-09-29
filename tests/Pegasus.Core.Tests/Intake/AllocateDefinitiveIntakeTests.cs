@@ -323,7 +323,7 @@ public sealed class AllocateDefinitiveIntakeTests
         assets,
         MailRouteDecision: new(
             MailRouteDisposition.Accepted,
-            new(principalCode, MailRouteKind.DirectProvider, principalCode),
+            new(principalCode, MailRouteKind.DirectPrincipal, principalCode),
             [],
             "Accepted test route.",
             "test-route",

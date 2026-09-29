@@ -32,4 +32,14 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The Box SDK carries the FIPS BouncyCastle assemblies, and the module
+         checks its own file bytes when it starts. ReadyToRun rewrites those
+         bytes, so a compiled copy fails "Module checksum failed" on the first
+         Box sign-in and nothing the Web host files in Box could be stored.
+         They ship as the package built them. -->
+    <PublishReadyToRunExclude Include="bc-fips-1.0.2.dll" />
+    <PublishReadyToRunExclude Include="bcpkix-fips-1.0.2.dll" />
+  </ItemGroup>
+
 </Project>

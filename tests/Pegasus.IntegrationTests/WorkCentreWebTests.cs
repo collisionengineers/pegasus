@@ -205,7 +205,7 @@ public sealed class WorkCentreWebTests
             LastSeen = lastSeen,
             Rows =
             [
-                new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "QDOS26100", "AB12CDE", "Mr A Claimant", "QDOS", Now.AddHours(-1), CaseArrival.ProviderApi),
+                new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "QDOS26100", "AB12CDE", "Mr A Claimant", "QDOS", Now.AddHours(-1), CaseArrival.PrincipalApi),
                 new(RecentCaseRowKind.ChangedByAutomation, Guid.NewGuid(), "QDOS26101", "CD34EFG", "Ms B Claimant", "QDOS", Now.AddHours(-2), CaseArrival.Automation, "case_workspace_saved"),
                 new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "PCH26102", "EF56GHJ", "Mr C Claimant", "PCH", Now.AddDays(-2), CaseArrival.Email)
             ]
@@ -220,7 +220,7 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-tab-link=\"new-cases\"\n               aria-selected=\"true\"", html.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains("New cases<span class=\"tab-count\">3</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-outcome=\"current\" data-wc-tab=\"new-cases\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-wc-arrival>Provider API</span>", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-arrival>Principal API</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>Automation</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>E-mail</span>", html, StringComparison.Ordinal);
         Assert.Contains("QDOS26101 &#xB7; Changed by automation", html, StringComparison.Ordinal);
@@ -373,6 +373,31 @@ public sealed class WorkCentreWebTests
         Assert.Contains($"data-wc-job=\"{failed.JobId}\"", html, StringComparison.Ordinal);
         // Market research never waits for a person.
         Assert.DoesNotContain($"data-wc-job=\"{research.JobId}\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ADraftReadyQueuePassCompletesByHandAndShowsNoDraftLink()
+    {
+        var pass = Job(AiJobKind.UnidentifiedQueuePass, AiJobState.DraftReady, "Unidentified queue", Guid.NewGuid()) with
+        {
+            SubjectKind = AiJobSubjectKind.Queue,
+            SubjectId = null
+        };
+        var jobs = new FakeAiJobs { Open = [pass] };
+        // A queue pass has no record to open, so its draft carries no route.
+        var drafts = new FakeAiDrafts
+        {
+            Drafts = [new(pass, AiDraftAction.Review, null, Now.AddHours(-4), Now.AddDays(1))]
+        };
+        using var host = Host(new FakeSnapshot(), jobs: jobs, drafts: drafts);
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, "/?tab=ai-jobs");
+
+        Assert.Equal(1, Regex.Count(html, "handler=CompleteAiJob"));
+        var actions = Regex.Match(html, "<div class=\"wc-job-actions\">(.*?)</div>", RegexOptions.Singleline);
+        Assert.True(actions.Success);
+        Assert.DoesNotContain("<a ", actions.Groups[1].Value, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -574,11 +599,6 @@ public sealed class WorkCentreWebTests
 
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(Recent);
-
-        public Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<AiJobRecord>>(Recent.Where(job =>
-                (job.State == AiJobState.Expired ? job.ExpiresAtUtc : job.ClosedAtUtc) is { } terminal
-                && terminal >= startUtc && terminal < endUtc).ToArray());
 
         public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

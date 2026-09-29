@@ -6,7 +6,7 @@ namespace Pegasus.Web.Presentation;
 
 /// <summary>
 /// The AI job ledger's shared Web-side reading rules: where a job's subject
-/// record lives, and who started it. The Operations AI Job List is the live
+/// record lives, and who started it. The Work Centre's AI jobs pane is the live
 /// work queue and Administration Action Logs is the recorded history of the
 /// same jobs, so both resolve a job the same way here rather than each
 /// carrying its own map.

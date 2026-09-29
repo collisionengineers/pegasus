@@ -34,37 +34,22 @@ public sealed class WorkCentreLabelTests
         Assert.Equal("Mr A Claimant", NeedsAttentionPresentation.TitleLabel(item));
     }
 
-    /// <summary>
-    /// `asp-page` takes a Razor page name, not a route template.
-    /// `Pages/Operations/Index.cshtml` declares `@page "/Operations"`, which
-    /// sets its route but leaves its page name `/Operations/Index` — the
-    /// spelling `_Layout.cshtml` uses. `RecordPage` returned the route, so the
-    /// tag helper resolved nothing and every external-work row, the pane's
-    /// Open-full-record and the next-action button rendered `href=""`.
-    ///
-    /// A dead link is valid HTML, so no gate caught it. This pins the page name
-    /// itself; <see cref="TheWorkCentreRendersNoEmptyLink"/> catches the class.
-    /// </summary>
     [Fact]
-    public void AnAiDraftOpensThroughItsOwnRouteNotARecordPage()
+    public void PairedVehicleImagesReadAsTheirImageReferenceAndPrincipal()
     {
-        Assert.Equal("/Operations/Index", NeedsAttentionPresentation.RecordPage(NeedsAttentionKind.AiDraft));
-    }
+        var item = NewItem(
+            NeedsAttentionKind.VehicleImagesPaired,
+            title: "GJ13EVC-01",
+            attempts: null,
+            detail: "QDOS");
 
-    /// <summary>
-    /// Every other kind names a real page too, so none of them can regress the
-    /// same way.
-    /// </summary>
-    [Theory]
-    [InlineData(NeedsAttentionKind.CaseChase, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.HeldDecision, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.ReviewCase, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.UnassignedEngineer, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.Unidentified, "/Unidentified/Details")]
-    [InlineData(NeedsAttentionKind.Triage, "/Cases/Details")]
-    public void EveryRecordPageNamesARealPage(NeedsAttentionKind kind, string expected)
-    {
-        Assert.Equal(expected, NeedsAttentionPresentation.RecordPage(kind));
+        Assert.Equal("Vehicle images paired", OperatorLabels.WorkCentre.KindChip(item.Kind));
+        Assert.Equal("Vehicle images paired", NeedsAttentionPresentation.RowTitle(item));
+        Assert.Equal("images", NeedsAttentionPresentation.KindSlug(item.Kind));
+        Assert.Equal("Open Case", NeedsAttentionPresentation.ActionLabel(item));
+        var facts = NeedsAttentionPresentation.Facts(item, DateTimeOffset.UtcNow);
+        Assert.Equal(new WorkCentreFact("Image reference", "GJ13EVC-01", Mono: true), facts[1]);
+        Assert.Equal(new WorkCentreFact("Principal", "QDOS"), facts[2]);
     }
 
     private static NeedsAttentionItem NewItem(

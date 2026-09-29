@@ -14,9 +14,10 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// Loads an <see cref="AssessmentReportProjectionInput"/> for a case by
 /// reusing the same bounded Assessment workspace query as the screen, then
-/// loading confirmed document metadata once. Photograph bytes use the
-/// ordered batch route; opening the Assessment screen never reaches this
-/// source or the content store.
+/// loading confirmed document metadata once. Photograph bytes are opened
+/// one image at a time, when the renderer prints that image; loading the
+/// projection, opening the Assessment screen and freezing a generation
+/// never read them.
 /// </summary>
 /// <remarks>
 /// The report date is deliberately not set here: a report date is frozen when
@@ -30,28 +31,30 @@ internal sealed class EfAssessmentReportProjectionSource(
     IDocumentContentStore contentStore,
     IStaffAccountQueries staffAccountQueries,
     ICaseAssetPreparationQueries assetPreparationQueries,
-    IListAppliedValuations listAppliedValuations)
+    IListAppliedValuations listAppliedValuations,
+    IReadCachedDocumentVersions? cachedVersions = null)
     : IAssessmentReportProjectionSource, ICaseReportSnapshotSource
 {
-    /// <summary>The preview path: the same facts, with image bytes read.</summary>
+    /// <summary>The preview path: the same facts, with each image openable for print.</summary>
     public async Task<AssessmentReportProjectionInput?> GetAsync(
         Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken = default) =>
-        (await LoadAsync(caseId, actor, work, withImageContent: true, cancellationToken))?.Projection;
+        (await LoadAsync(caseId, actor, work, reuse: null, cancellationToken))?.Projection;
 
     /// <summary>
-    /// The freeze path: identical facts with image bytes omitted, plus the
-    /// readiness inputs, so a generation neither reads image bytes twice nor
-    /// decides readiness from anything but persisted state.
+    /// The freeze path: identical facts plus the readiness inputs, so a
+    /// generation decides readiness from nothing but persisted state. The
+    /// images it carries are never opened: bytes are not frozen.
     /// </summary>
     async Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
-        Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
-        await LoadAsync(caseId, actor, work, withImageContent: false, cancellationToken);
+        Guid caseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse,
+        CancellationToken cancellationToken) =>
+        await LoadAsync(caseId, actor, work, reuse, cancellationToken);
 
     private async Task<CaseReportFreezeInputs?> LoadAsync(
         Guid caseId,
         ActionActor actor,
         CaseWorkSelector work,
-        bool withImageContent,
+        ReportProjectionReuse? reuse,
         CancellationToken cancellationToken)
     {
         // Capture the version before any component read. A later workflow read
@@ -97,9 +100,14 @@ internal sealed class EfAssessmentReportProjectionSource(
                 workflow.AuditReference),
             selectedWork.Kind);
 
-        var workspace = await getAssessmentWorkspace.ExecuteAsync(
-            new(caseId, actor, work),
-            cancellationToken);
+        // A reused workspace counts only at the version read above; one read at
+        // another version is read again rather than trusted.
+        var workspace = reuse?.WorkspaceFor(caseId, work) is { } reused
+            && reused.Header.Version == workflow.Version
+                ? reused
+                : await getAssessmentWorkspace.ExecuteAsync(
+                    new(caseId, actor, work),
+                    cancellationToken);
         if (workspace is null)
         {
             return null;
@@ -115,7 +123,8 @@ internal sealed class EfAssessmentReportProjectionSource(
         var sources = ReportSources(confirmed);
 
         // Only the operator's prepared images, in the report's own order.
-        var preparations = await assetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
+        var preparations = reuse?.PreparationsFor(caseId)
+            ?? await assetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
         var prepared = CaseAssetPreparationPolicy.ForReport(preparations);
         var photoRows = (
                 from image in prepared
@@ -123,47 +132,46 @@ internal sealed class EfAssessmentReportProjectionSource(
                 where row.ContentLength is >= 0 and <= int.MaxValue
                 select (Image: image, Row: row))
             .ToArray();
-        var reads = photoRows
-            .Select(pair => new ManagedDocumentContentRead(
-                new ManagedDocumentContentAddress(
-                    caseId,
-                    workspace.Header.Reference,
-                    CaseCustodyFolders.RootOf(
-                        pair.Row.Folder, workflow.CustodyRootRemoteId, workflow.AuditCustodyRemoteId),
-                    pair.Row.OccurrenceId,
-                    pair.Row.Ordinal,
-                    pair.Row.DocumentId,
-                    pair.Row.VersionId,
-                    pair.Row.Version,
-                    pair.Row.SemanticRole,
+        var photos = photoRows
+            .Select(pair =>
+            {
+                var read = new ManagedDocumentContentRead(
+                    new ManagedDocumentContentAddress(
+                        caseId,
+                        workspace.Header.Reference,
+                        CaseCustodyFolders.RootOf(
+                            pair.Row.Folder, workflow.CustodyRootRemoteId, workflow.AuditCustodyRemoteId),
+                        pair.Row.OccurrenceId,
+                        pair.Row.Ordinal,
+                        pair.Row.DocumentId,
+                        pair.Row.VersionId,
+                        pair.Row.Version,
+                        pair.Row.SemanticRole,
+                        pair.Row.FileName,
+                        pair.Row.MediaType,
+                        pair.Row.BoxFileId,
+                        pair.Row.BoxVersionId),
+                    pair.Row.Sha256,
+                    pair.Row.ContentLength);
+                return new ReportImageEvidence(
                     pair.Row.FileName,
                     pair.Row.MediaType,
+                    ReportImageContent.Opened(token => ReadImageAsync(read, token)),
+                    pair.Row.Sha256,
+                    pair.Image.Role,
+                    pair.Image.Order,
+                    pair.Image.Rotation,
+                    pair.Image.Crop,
+                    pair.Row.OccurrenceId,
+                    pair.Row.VersionId,
                     pair.Row.BoxFileId,
-                    pair.Row.BoxVersionId),
-                pair.Row.Sha256,
-                pair.Row.ContentLength))
-            .ToArray();
-        var contents = withImageContent
-            ? await contentStore.ReadVersionsAsync(reads, cancellationToken)
-            : [];
-        var photos = photoRows
-            .Select((pair, index) => new ReportImageEvidence(
-                pair.Row.FileName,
-                pair.Row.MediaType,
-                withImageContent ? ContentOf(contents[index]) : [],
-                pair.Row.Sha256,
-                pair.Image.Role,
-                pair.Image.Order,
-                pair.Image.Rotation,
-                pair.Image.Crop,
-                pair.Row.OccurrenceId,
-                pair.Row.VersionId,
-                pair.Row.BoxFileId,
-                pair.Row.BoxVersionId,
-                pair.Image.FullPage))
+                    pair.Row.BoxVersionId,
+                    pair.Image.FullPage);
+            })
             .ToArray();
 
-        var applied = await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
+        var applied = reuse?.AppliedValuationsFor(caseId, work)
+            ?? await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
         var latestApplied = applied
             .OrderByDescending(valuation => valuation.AcceptedAtUtc)
             .FirstOrDefault();
@@ -249,9 +257,24 @@ internal sealed class EfAssessmentReportProjectionSource(
     }
 
     /// <summary>
-    /// The bytes a content read returned, without a second copy: the batch
-    /// read hands each image back as a whole array, which the report takes as
-    /// it is. Only a slice of a larger buffer is copied out.
+    /// One image's verified bytes, read only when the renderer prints it.
+    /// The content cache is asked first where it is composed, so a repeat
+    /// preview does not ask Box for the same photograph again. The read is of
+    /// one version, so no other image is held while it is decoded.
+    /// </summary>
+    private async Task<byte[]> ReadImageAsync(ManagedDocumentContentRead read, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<ManagedDocumentContentRead> reads = [read];
+        var contents = cachedVersions is null
+            ? await contentStore.ReadVersionsAsync(reads, cancellationToken).ConfigureAwait(false)
+            : await cachedVersions.ReadVersionsAsync(reads, cancellationToken).ConfigureAwait(false);
+        return ContentOf(contents[0]);
+    }
+
+    /// <summary>
+    /// The bytes a content read returned, without a second copy: the read
+    /// hands the image back as a whole array, which the report takes as it
+    /// is. Only a slice of a larger buffer is copied out.
     /// </summary>
     private static byte[] ContentOf(ReadOnlyMemory<byte> content) =>
         MemoryMarshal.TryGetArray(content, out var segment)

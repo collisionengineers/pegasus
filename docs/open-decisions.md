@@ -35,7 +35,7 @@ for each: write it into the named owner, or drop it.
 | --- | --- | --- |
 | MAIL-03 | One shared classification policy across all supported mailboxes, stated as a rule | FRD-08 |
 | MAIL-10 | Unlink and relink of a message from a Case in the Inbox | FRD-20 |
-| MAIL-17 | Standing-note preferences; report delivery through the Provider API; management-event recording | FRD-27, FRD-21 |
+| MAIL-17 | Standing-note preferences; report delivery through the Principal API; management-event recording | FRD-27, FRD-21 |
 | MAIL-21 | An acceptance cohort for the classification rules | FRD-08 |
 | INT-13 | JPEG and PNG named as the image-led formats | FRD-19 |
 | INT-20 | Validation, missing-value and contradiction display on the draft | FRD-23 |

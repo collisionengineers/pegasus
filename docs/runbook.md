@@ -6,7 +6,7 @@ authorization comes from the operator; the primary agent owns verification.
 
 - [Local setup](runbook.md#local-setup-and-run)
 - [Build and test commands](runbook.md#locked-restore-build-and-test)
-- [Reference authoring](runbook.md#provider-domain-reference-authoring)
+- [Reference authoring](runbook.md#principal-domain-reference-authoring)
 - [Mailbox operations](runbook.md#approved-mailbox-estate)
 - [OAuth certificate operations](runbook.md#automation-oauth-certificate-operation)
 - [Monitoring](runbook.md#monitoring-and-diagnosis) and [recovery](runbook.md#recovery)
@@ -282,7 +282,8 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset -RunId <run-id>
 Stop retains the manifest and diagnostics. Reset first verifies that the
 manifest run ID, directory, database name, and every owned path agree; it then
 stops only matching child processes, drops only that LocalDB database, and
-removes only that run directory. A malformed or ambiguous manifest refuses
+removes only that run directory. If a log is still held, Reset retries for
+about ten seconds, then names the held files. A malformed or ambiguous manifest refuses
 action. Never manually repurpose these commands to remove another run,
 `corpus/`, tracked reference files, or an Azure resource.
 
@@ -427,7 +428,7 @@ the application solution.
 
 ## Corpus safety and evaluation
 
-`corpus/` contains genuine operational emails, instructions, documents, images, and case material authorised for local project evaluation. It is the preferred reality check for intake, provider detection, attachment grouping, PDF extraction, registration recognition, and exception handling.
+`corpus/` contains genuine operational emails, instructions, documents, images, and case material authorised for local project evaluation. It is the preferred reality check for intake, Principal detection, attachment grouping, PDF extraction, registration recognition, and exception handling.
 
 A dated 2026-07-23 observation recorded:
 
@@ -478,9 +479,9 @@ source evidence as unavailable. Ordinary CI excludes the Corpus category and
 is not evidence that the private collection passed. Keep `corpus/` immutable;
 the private collection is separate and does not replace it.
 
-## Provider-domain reference authoring
+## Principal-domain reference authoring
 
-Provider-domain authoring is an offline operation over one immutable package. The `provider-domains-v1` command reads only:
+Principal-domain authoring is an offline operation over one immutable package. The `provider-domains-v1` command reads only (the package version id keeps its original name; it is the hash-pinned identity):
 
 ```text
 reference/workproviders-and-repairers/initial.xlsx
@@ -494,7 +495,7 @@ republishes `provider-domains-v1` with a new path or hash.
 
 It retains:
 
-- the provider code from column A; and
+- the Principal code from column A; and
 - the final lowercase `@domain` suffix from each semicolon-separated column-E observation.
 
 It ignores columns B–D and all later columns. It never edits the workbook or emits an email local part, full email address, inspection location, default, Case ID, or opaque source value.
@@ -502,8 +503,8 @@ It ignores columns B–D and all later columns. It never edits the workbook or e
 Close the workbook, then run from PowerShell 7 at the repository root:
 
 ```powershell
-pwsh ./scripts/Build-ProviderReferenceData.ps1
-pwsh ./scripts/Build-ProviderReferenceData.ps1 -Verify
+pwsh ./scripts/Build-PrincipalReferenceData.ps1
+pwsh ./scripts/Build-PrincipalReferenceData.ps1 -Verify
 ```
 
 Before discovering Python or reading source bytes, the wrapper rejects:
@@ -524,7 +525,7 @@ artifacts/reference-data-staging/
 and publishes:
 
 ```text
-src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json
 ```
 
 Publication rules are immutable:
@@ -538,18 +539,18 @@ Publication rules are immutable:
 Future versions use a new cumulative workbook, version, output, and the previously validated package:
 
 ```powershell
-pwsh ./scripts/Build-ProviderReferenceData.ps1 `
+pwsh ./scripts/Build-PrincipalReferenceData.ps1 `
   -SourcePath ./reference/workproviders-and-repairers/provider-domains-v2.xlsx `
   -Version provider-domains-v2 `
-  -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v2.json `
-  -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+  -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v2.json `
+  -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json
 ```
 
-Every previous provider/suffix pair must remain. Removal fails `non-monotonic-source`. Source, previous package, staging, and output paths must be distinct; staging and output may not be beneath `reference/`.
+Every previous Principal/suffix pair must remain. Removal fails `non-monotonic-source`. Source, previous package, staging, and output paths must be distinct; staging and output may not be beneath `reference/`.
 
 Corrections or removals require separately accepted authority and a new explicit contract. Published snapshots remain unchanged.
 
-Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a provider at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
+Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a Principal at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
 
 ## Principal-identification corpus authoring
 
@@ -677,8 +678,12 @@ from the existing Key Vault. The Web managed identity reads the passwordless
 PFX secret versions. The release operator must include each named certificate
 secret in the exact-secret census and grant Web secret-read access at that
 secret's scope; the repository prohibits a vault-wide secret-read grant. The
-application fails closed when the configured certificates cannot be loaded or
-are invalid. Development explicitly uses isolated process keys through
+certificates load after Web is listening, retrying with a growing pause until
+they load; until then every request but `/health` and `/diagnostics` answers
+503 with `Retry-After`, and the warm-up holds `/health/warm` for them (at most
+45 s). A certificate that cannot be loaded or is invalid therefore keeps the
+site at 503 and logs a warning per attempt; it does not stop the process.
+Development explicitly uses isolated process keys through
 `AutomationMcp:UseDevelopmentKeys`; that setting is rejected in Production.
 
 The approved release operator supplies these deployment inputs:
@@ -733,6 +738,26 @@ authorization for the actual operation and targets. The current monitoring state
 are recorded in [operations](operations.md) and
 [operations § Production environment](operations.md);
 dated names are not current identity proof.
+
+## Web start
+
+Web binds its port before any remote read. The data-protection key ring, the
+Automation OAuth certificates and the verification account are read after it
+listens, because each waits on a managed-identity token. The first Web telemetry
+has arrived about 100 s after container start, beginning with `/msi/token`; the
+phase timings below show where that time goes. `/health/warm` (the App Service start-up
+ping) answers 200 once the warm-up has loaded the key ring and the certificates
+and run the hot reads, or after 45 s.
+
+Every start prints `[startup] +<ms since process start> ms (+<ms since previous
+mark>) <phase>` lines to stdout (`Main entered`, `configuration loaded`,
+`services composed`, `host built`, `pipeline built`, `listening`, then
+`verification account reconciled`). When `APPLICATIONINSIGHTS_CONNECTION_STRING`
+is set, the same phases are one trace, "Web is listening. Startup phases: ...",
+and each warm-up step logs `Startup warm-up step <name> finished in <ms> ms`
+(traces for `Pegasus.Web.Startup` and `Pegasus.Web.Health.StartupWarmup`).
+A slow start shows there which phase took the time. The start limit
+`WEBSITES_CONTAINER_START_TIME_LIMIT` is not part of this design.
 
 ## Recovery
 
@@ -907,16 +932,35 @@ A recovery, restore, failover, or retirement exercise requires exact target appr
 For the deterministic browser regression, run
 `node scripts/Test-GlassBrowser.mjs` with Chrome installed, or pass the absolute
 Chrome/Edge executable path as its first argument. It uses isolated browser
-profiles and local scripted responses, exercises the production workspace and
-handoff scripts, and records JSON under `artifacts/issue-861/browser/`. It makes
+profiles and local scripted responses, exercises the production workspace,
+Glass's window and return scripts, and records JSON under
+`artifacts/issue-861/browser/`. It makes
 no provider requests. This check covers browser behavior; the .NET suites run
 in CI and the live provider journey has its own acceptance below.
 
 Use the Case's Repair Spec Glass's controls. Launch/Resume saves pending Case
-edits first. An issued estimator URL is a transport milestone; it does not
+edits first. The provider work then runs in the background while the Glass's
+window waits; a restart or the time cap settles it as interrupted work
+([FRD-25](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-interrupted-sessions)).
+Its stages are logged by the Web host, not by the request. An issued estimator URL is a transport milestone; it does not
 prove the provider editor loaded. Session/version identifies the attempt in
 structured logs; stages record elapsed milliseconds and safe outcome codes.
 Provider cookies, credentials and callback URLs are not diagnostic references.
+
+If Save & Exit does not fill the repair spec, read the session first. Its
+`LastError` and the Web host's `Glass's session ... settled` warning say where
+it stopped.
+
+- `glass.custody.failed` with `Unknown` means custody threw while storing the
+  export, for example the Box sign-in failing. Read the exception logged just
+  before it, then Resume. A custody answer that names a failed artifact instead
+  settles `Failed` with the same code and cannot be resumed.
+- `glass.export.unreadable` means the reader refused the export. The warning
+  names the position or field, the rejected XML is on the Case in Files, and
+  **Fetch again** reads the same estimate once the reader is fixed.
+- "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
+  assembly was compiled ReadyToRun. The Web project excludes them and
+  `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.
 
 If the popup reports `dialog not found` or an undefined `openModelessDialog`,
 retain the session and collect provider startup evidence before closing it:

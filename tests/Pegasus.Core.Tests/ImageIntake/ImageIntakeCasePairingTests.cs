@@ -16,7 +16,7 @@ public sealed class ImageIntakeCasePairingTests
         var queries = new FakeQueries { Unassociated = [first, second] };
         var candidates = new FakeCandidates
         {
-            Result = [new(CaseId, "QDS26001", 0, "AB12CDE")]
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch)]
         };
         var mutationStore = new FakeMutationStore();
 
@@ -38,8 +38,8 @@ public sealed class ImageIntakeCasePairingTests
         {
             Result =
             [
-                new(CaseId, "QDS26001", 0, "AB12CDE"),
-                new(Guid.NewGuid(), "QDS26002", 0, "AB12CDE")
+                new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch),
+                new(Guid.NewGuid(), "QDS26002", 0, "AB12CDE", DateTimeOffset.UnixEpoch)
             ]
         };
         var mutationStore = new FakeMutationStore();
@@ -60,7 +60,7 @@ public sealed class ImageIntakeCasePairingTests
         var queries = new FakeQueries { Unassociated = [Summary("AB12CDE-01", "AB12CDE")] };
         var candidates = new FakeCandidates
         {
-            Result = [new(CaseId, "QDS26001", 0, "AB12CDEF")]
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDEF", DateTimeOffset.UnixEpoch)]
         };
         var mutationStore = new FakeMutationStore();
 
@@ -78,7 +78,7 @@ public sealed class ImageIntakeCasePairingTests
         var queries = new FakeQueries { Unassociated = [first, second] };
         var candidates = new FakeCandidates
         {
-            Result = [new(CaseId, "QDS26001", 0, "AB12CDE")]
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch)]
         };
         var mutationStore = new FakeMutationStore
         {
@@ -94,22 +94,239 @@ public sealed class ImageIntakeCasePairingTests
     }
 
     [Theory]
-    [InlineData(1, true, true)]
-    [InlineData(2, true, false)]
-    [InlineData(1, false, false)]
-    [InlineData(2, false, false)]
-    public void RegisteredSelectionPreservesExactIdentityPrincipalAndPersistedGroupRule(
-        int expectedMembers, bool samePrincipal, bool selected)
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    public void RegisteredSelectionPreservesExactIdentityAndPersistedGroupRule(
+        int expectedMembers, bool selected)
+    {
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch),
+            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDEF", DateTimeOffset.UnixEpoch)
+        ];
+        var result = ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
+            "AB12CDE", null, expectedMembers, IntakeSourceChannel.Mailbox, DateTimeOffset.UtcNow);
+        Assert.Equal(selected, result is not null);
+    }
+
+    [Fact]
+    public void AKnownPrincipalScopesTheCandidatesBeforeTheUniquenessCount()
+    {
+        var principalId = Guid.NewGuid();
+        var otherCaseId = Guid.NewGuid();
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch, principalId),
+            new(otherCaseId, "QDS26002", 0, "AB12CDE", DateTimeOffset.UnixEpoch, Guid.NewGuid())
+        ];
+
+        // The same vehicle instructed by two Principals is a tie only while
+        // the Principal is unknown.
+        Assert.Null(ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", null, 1, IntakeSourceChannel.Mailbox, Registered));
+        var selected = ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", principalId, 1, IntakeSourceChannel.Mailbox, Registered);
+        Assert.Equal(CaseId, selected?.CaseId);
+    }
+
+    [Fact]
+    public void AKnownPrincipalWithNoCaseOfItsOwnSelectsNothing()
+    {
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch, Guid.NewGuid())
+        ];
+
+        Assert.Null(ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", Guid.NewGuid(), 1, IntakeSourceChannel.Mailbox, Registered));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void AGroupCountsOnlyTheKnownPrincipalsCandidates(bool principalKnown, bool selected)
     {
         var principalId = Guid.NewGuid();
         ImageIntakeCaseCandidate[] candidates =
         [
-            new(CaseId, "QDS26001", 0, "AB12CDE", principalId),
-            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDEF", principalId)
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch, principalId),
+            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDEF", DateTimeOffset.UnixEpoch, Guid.NewGuid())
         ];
-        var result = ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
-            "AB12CDE", samePrincipal ? principalId : Guid.NewGuid(), expectedMembers);
+
+        var result = ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", principalKnown ? principalId : null, 2,
+            IntakeSourceChannel.Mailbox, Registered);
+
         Assert.Equal(selected, result is not null);
+    }
+
+    [Fact]
+    public void ExplainingWithheldAutomationUsesTheSameScopeAsSelection()
+    {
+        var principalId = Guid.NewGuid();
+        ImageIntakeCaseCandidate[] tie =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch, principalId),
+            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDE", DateTimeOffset.UnixEpoch, Guid.NewGuid())
+        ];
+        ImageIntakeCaseCandidate[] sameTwice =
+        [
+            tie[0], new(Guid.NewGuid(), "QDS26003", 0, "AB12CDE", DateTimeOffset.UnixEpoch, principalId)
+        ];
+        ImageIntakeCaseCandidate[] group =
+        [
+            tie[0], new(Guid.NewGuid(), "QDS26004", 0, "AB12CDEF", DateTimeOffset.UnixEpoch, principalId)
+        ];
+
+        Assert.Equal(ImageIntakeAutomationWithheld.RegistrationAmbiguous,
+            ImageIntakeCasePairing.ExplainWithheld(tie, "AB12CDE", null, 1));
+        Assert.Null(ImageIntakeCasePairing.ExplainWithheld(tie, "AB12CDE", principalId, 1));
+        Assert.Equal(ImageIntakeAutomationWithheld.RegistrationAmbiguous,
+            ImageIntakeCasePairing.ExplainWithheld(sameTwice, "AB12CDE", principalId, 1));
+        Assert.Equal(ImageIntakeAutomationWithheld.PrincipalDisagrees,
+            ImageIntakeCasePairing.ExplainWithheld(tie, "AB12CDE", Guid.NewGuid(), 1));
+        Assert.Equal(ImageIntakeAutomationWithheld.RegistrationAmbiguous,
+            ImageIntakeCasePairing.ExplainWithheld(group, "AB12CDE", principalId, 2));
+        Assert.Null(ImageIntakeCasePairing.ExplainWithheld([], "AB12CDE", Guid.NewGuid(), 1));
+        Assert.Null(ImageIntakeCasePairing.ExplainWithheld(
+            [new(CaseId, "QDS26001", 0, "ZZ99ZZZ", DateTimeOffset.UnixEpoch, principalId)],
+            "AB12CDE", Guid.NewGuid(), 1));
+    }
+
+    [Theory]
+    [InlineData(IntakeSourceChannel.ManualUpload, -1, false)]
+    [InlineData(IntakeSourceChannel.ManualUpload, 0, false)]
+    [InlineData(IntakeSourceChannel.ManualUpload, 1, true)]
+    [InlineData(IntakeSourceChannel.Mailbox, -1, true)]
+    [InlineData(IntakeSourceChannel.PrincipalApi, -1, true)]
+    public void AManualUploadSelectsOnlyACaseCreatedAfterItRegistered(
+        IntakeSourceChannel channel, int caseCreatedMinutesAfterRegistration, bool selected)
+    {
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", Registered.AddMinutes(caseCreatedMinutesAfterRegistration))
+        ];
+
+        var result = ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", null, 1, channel, Registered);
+
+        Assert.Equal(selected, result is not null);
+    }
+
+    [Fact]
+    public void AManualUploadWithAnOlderAndANewerExactMatchSelectsNeither()
+    {
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(Guid.NewGuid(), "QDS26001", 0, "AB12CDE", Registered.AddMinutes(-5)),
+            new(CaseId, "QDS26002", 0, "AB12CDE", Registered.AddMinutes(5))
+        ];
+
+        Assert.Null(ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", null, 1, IntakeSourceChannel.ManualUpload, Registered));
+    }
+
+    [Fact]
+    public async Task ManualUploadPairsWithACaseAcceptedAfterItRegistered()
+    {
+        var receipt = Summary("AB12CDE-01", "AB12CDE", registeredAtUtc: Registered);
+        var queries = new FakeQueries
+        {
+            Unassociated = [receipt],
+            OriginChannel = IntakeSourceChannel.ManualUpload
+        };
+        var candidates = new FakeCandidates
+        {
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDE", Registered.AddMinutes(3))]
+        };
+        var mutationStore = new FakeMutationStore();
+
+        var result = await new ImageIntakeCasePairing(
+                queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
+            .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
+
+        Assert.Equal(new ImageIntakePairingResult(1, 1, 0), result);
+        var link = Assert.Single(mutationStore.AutoLinks);
+        Assert.Equal(receipt.OriginReceiptId, link.ReceiptId);
+        Assert.Equal(CaseId, link.CaseId);
+        Assert.Equal(ActorKind.SystemWorker, link.Actor.Kind);
+        Assert.Equal(CaseId, Assert.Single(queries.Merges).CaseId);
+    }
+
+    [Fact]
+    public async Task ManualUploadPairsWithALaterCaseThroughTheRecoverySweep()
+    {
+        var receipt = Summary("AB12CDE-01", "AB12CDE", registeredAtUtc: Registered);
+        var queries = new FakeQueries
+        {
+            Unassociated = [receipt],
+            OriginChannel = IntakeSourceChannel.ManualUpload
+        };
+        var candidates = new FakeCandidates
+        {
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDE", Registered.AddMinutes(3))]
+        };
+        var mutationStore = new FakeMutationStore();
+
+        var result = await new ImageIntakeCasePairing(
+                queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
+            .ReconcileAsync(50, CancellationToken.None);
+
+        Assert.Equal(new ImageIntakePairingResult(1, 1, 0), result);
+        Assert.Equal(CaseId, Assert.Single(mutationStore.AutoLinks).CaseId);
+    }
+
+    [Fact]
+    public async Task ManualUploadWithAnOlderAndANewerMatchWaitsForStaff()
+    {
+        var queries = new FakeQueries
+        {
+            Unassociated = [Summary("AB12CDE-01", "AB12CDE", registeredAtUtc: Registered)],
+            OriginChannel = IntakeSourceChannel.ManualUpload
+        };
+        var candidates = new FakeCandidates
+        {
+            Result =
+            [
+                new(Guid.NewGuid(), "QDS26001", 0, "AB12CDE", Registered.AddMinutes(-3)),
+                new(CaseId, "QDS26002", 0, "AB12CDE", Registered.AddMinutes(3))
+            ]
+        };
+        var mutationStore = new FakeMutationStore();
+
+        var result = await new ImageIntakeCasePairing(
+                queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
+            .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
+
+        Assert.Equal(new ImageIntakePairingResult(1, 0, 0), result);
+        Assert.Empty(mutationStore.AutoLinks);
+    }
+
+    [Fact]
+    public async Task AStaffStartedManualGroupGainsNoAutomaticLinkFromALaterCase()
+    {
+        var siblingReceiptId = Guid.NewGuid();
+        var receipt = Summary("AB12CDE-01", "AB12CDE", registeredAtUtc: Registered);
+        var queries = new FakeQueries
+        {
+            Unassociated = [receipt],
+            OriginChannel = IntakeSourceChannel.ManualUpload,
+            Images = [new(siblingReceiptId, "sibling.png", "image/png")]
+        };
+        queries.ManualLinkedCaseIds[siblingReceiptId] = CaseId;
+        var candidates = new FakeCandidates
+        {
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDE", Registered.AddMinutes(3))]
+        };
+        var mutationStore = new FakeMutationStore();
+
+        var result = await new ImageIntakeCasePairing(
+                queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
+            .PairRegisteredReceiptAsync(receipt.OriginReceiptId, CancellationToken.None);
+
+        Assert.Equal(new ImageIntakePairingResult(1, 0, 0), result);
+        Assert.Empty(mutationStore.AutoLinks);
+        Assert.Empty(queries.Merges);
     }
 
     [Fact]
@@ -122,7 +339,7 @@ public sealed class ImageIntakeCasePairingTests
         var queries = new FakeQueries { Unassociated = [closed] };
         var candidates = new FakeCandidates
         {
-            Result = [new(CaseId, "QDS26001", 0, "AB12CDE")]
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch)]
         };
         var mutationStore = new FakeMutationStore();
 
@@ -133,8 +350,10 @@ public sealed class ImageIntakeCasePairingTests
     }
 
     [Fact]
-    public async Task ManualUploadRemainsPendingThroughTheRecoverySweepUntilStaffAssociatesIt()
+    public async Task ManualUploadWithACaseThatAlreadyExistedRemainsPendingThroughTheRecoverySweep()
     {
+        // The Case (created at the Unix epoch) existed when the images
+        // registered, so the upload offered it and it stays a staff decision.
         var receipt = Summary("AB12CDE-01", "AB12CDE");
         var queries = new FakeQueries
         {
@@ -143,7 +362,7 @@ public sealed class ImageIntakeCasePairingTests
         };
         var candidates = new FakeCandidates
         {
-            Result = [new(CaseId, "QDS26001", 0, "AB12CDE")]
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch)]
         };
         var mutationStore = new FakeMutationStore();
 
@@ -250,18 +469,21 @@ public sealed class ImageIntakeCasePairingTests
         Assert.Equal([workItemId], publisher.ExternalWorkIds);
     }
 
+    private static readonly DateTimeOffset Registered = new(2026, 9, 28, 12, 25, 53, TimeSpan.Zero);
+
     private static ImageIntakeSummary Summary(
         string reference,
         string registration,
         ImageInitiatedCaseState state = ImageInitiatedCaseState.AwaitingInstruction,
-        Guid? associatedCaseId = null) => new(
+        Guid? associatedCaseId = null,
+        DateTimeOffset? registeredAtUtc = null) => new(
         Guid.NewGuid(),
         Guid.NewGuid(),
         reference,
         registration,
         associatedCaseId,
         null,
-        DateTimeOffset.UtcNow,
+        registeredAtUtc ?? DateTimeOffset.UtcNow,
         null,
         state);
 
@@ -319,6 +541,7 @@ public sealed class ImageIntakeCasePairingTests
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,
+            ImageInitiatedCaseState? state,
             CancellationToken cancellationToken)
         {
             Assert.Null(associated);

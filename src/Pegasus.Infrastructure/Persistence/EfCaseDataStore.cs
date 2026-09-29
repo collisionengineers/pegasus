@@ -17,7 +17,7 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfCaseDataStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider,
-    IEnumerable<IProviderCaseMatchPolicy>? caseMatchPolicies = null) : ICaseDataStore
+    IEnumerable<IPrincipalCaseMatchPolicy>? caseMatchPolicies = null) : ICaseDataStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -297,7 +297,7 @@ public sealed class EfCaseDataStore(
                 snapshot.CompletenessPolicySatisfied,
                 snapshot.CompletenessPolicyKey,
                 snapshot.CompletenessPolicyVersion)),
-        new(TextField(snapshot, CaseDataFieldNames.WorkProviderCode)),
+        new(TextField(snapshot, CaseDataFieldNames.PrincipalCode)),
         new(
             TextField(snapshot, CaseDataFieldNames.ClaimantName),
             TextField(snapshot, CaseDataFieldNames.ClaimantContactNumber),
@@ -501,8 +501,8 @@ public sealed class EfCaseDataStore(
         CaseDataCodes.CaseAcceptance => CaseDataSourceKind.CaseAcceptance,
         CaseDataCodes.StaffCorrection => CaseDataSourceKind.StaffCorrection,
         CaseDataCodes.VehicleLookup => CaseDataSourceKind.VehicleLookup,
-        CaseDataCodes.ProviderSetting => CaseDataSourceKind.ProviderSetting,
-        CaseDataCodes.ProviderApi => CaseDataSourceKind.ProviderApi,
+        CaseDataCodes.PrincipalSetting => CaseDataSourceKind.PrincipalSetting,
+        CaseDataCodes.PrincipalApi => CaseDataSourceKind.PrincipalApi,
         _ => throw new InvalidDataException(
             $"Unknown persisted case-data source kind '{value}'.")
     };

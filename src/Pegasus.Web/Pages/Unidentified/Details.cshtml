@@ -123,7 +123,7 @@
                         var gallery = Model.EvidenceImages
                             .Select(image =>
                             {
-                                var href = $"/Received/{image.ReceiptId:D}/Asset/{image.Asset.Id:D}";
+                                var href = IntakeImageAddress.Asset(image.ReceiptId, image.Asset.Id, image.Asset.ContentHash);
                                 return new GalleryImage(
                                     href,
                                     href,
@@ -133,7 +133,8 @@
                                     IntakeAssetId: image.Asset.Id,
                                     Preparation: Model.Preparations.GetValueOrDefault(image.Asset.Id),
                                     IntakeReceiptId: image.ReceiptId,
-                                    CustodyState: image.Asset.CustodyState);
+                                    CustodyState: image.Asset.CustodyState,
+                                    ContentHash: image.Asset.ContentHash);
                             })
                             .ToArray();
                         ViewData["PreCaseImageTags"] = Model.ImageTags;
@@ -216,6 +217,12 @@
                                     <svg class="icon" aria-hidden="true"><use href="#icon-clipboard-list" /></svg><span>Open the Triage</span>
                                 </a>
                             }
+                            <form method="post" asp-page-handler="SendToAi" asp-route-id="@Model.Item.Id">
+                                <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
+                                <button type="submit" class="btn" data-unidentified-action="send-to-ai">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>@OperatorLabels.AiJobs.SendUnidentified</span>
+                                </button>
+                            </form>
                             <a class="btn btn--danger" href="?dialog=@Record.CloseDialog" data-dialog-open="unidentified-close-dialog" data-unidentified-action="close">Close with reason</a>
                         </div>
                     </div>

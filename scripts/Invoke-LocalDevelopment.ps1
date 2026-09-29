@@ -758,7 +758,11 @@ function Start-OwnedLauncher {
             role = $Role
             pid = $process.Id
             startedUtc = $process.StartTime.ToUniversalTime().ToString('O')
-            executable = [System.IO.Path]::GetFullPath($process.Path)
+            # Record the executable this script launched. Process.Path can be
+            # empty until Windows publishes the main module, so it is not read
+            # back here; Test-OwnedProcessIdentity compares the live process
+            # against this value.
+            executable = [System.IO.Path]::GetFullPath($Tools.PowerShell)
             commandMarker = $launcher
             stdout = $stdout
             stderr = $stderr
@@ -816,6 +820,96 @@ function Invoke-OwnedOneShot {
     }
 }
 
+function Wait-OwnedProcessExit {
+    param(
+        [Parameter(Mandatory)]
+        [int[]]$ProcessIds,
+        [int]$TimeoutSeconds = 10
+    )
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $alive = @($ProcessIds | Where-Object {
+                $null -ne (Get-Process -Id $_ -ErrorAction SilentlyContinue)
+            })
+        if ($alive.Count -eq 0) {
+            return
+        }
+        Start-Sleep -Milliseconds 100
+    }
+}
+
+function Get-HeldFiles {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Root,
+        [int]$Limit = 5
+    )
+
+    $held = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in Get-ChildItem -LiteralPath $Root -Recurse -File -Force -ErrorAction SilentlyContinue) {
+        try {
+            $stream = [System.IO.File]::Open(
+                $file.FullName,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None)
+            $stream.Dispose()
+        }
+        catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+            $held.Add($file.FullName)
+            if ($held.Count -ge $Limit) {
+                break
+            }
+        }
+    }
+
+    return @($held)
+}
+
+function Remove-OwnedRunRoot {
+    <#
+        .SYNOPSIS
+        Removes a run directory, retrying while a stopped process still holds a file.
+
+        .DESCRIPTION
+        A log or launcher can stay open for a moment after its process is
+        stopped. The removal retries a bounded number of times on an I/O
+        failure, then names the held files instead of failing opaquely.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$RunRoot,
+        [int]$Attempts = 20,
+        [int]$DelayMilliseconds = 500
+    )
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            Remove-Item -LiteralPath $RunRoot -Recurse -Force -ErrorAction Stop
+            return
+        }
+        catch {
+            $failure = $_.Exception
+            if ($failure -isnot [System.IO.IOException] -and
+                $failure -isnot [System.UnauthorizedAccessException]) {
+                throw
+            }
+            if ($attempt -eq $Attempts) {
+                $held = @(Get-HeldFiles -Root $RunRoot)
+                $detail = if ($held.Count -gt 0) {
+                    "Held file(s): $($held -join ', ')."
+                }
+                else {
+                    "No single held file was found. $($failure.Message)"
+                }
+                throw "Could not remove run directory '$RunRoot' after $Attempts attempts. $detail Close whatever holds it and run Reset again."
+            }
+            Start-Sleep -Milliseconds $DelayMilliseconds
+        }
+    }
+}
+
 function Test-OwnedProcessIdentity {
     param([object]$Record)
 
@@ -838,6 +932,16 @@ function Test-OwnedProcessIdentity {
 
     try {
         $process.Refresh()
+        # Windows publishes the main module shortly after Start-Process, so an
+        # empty Path is not yet a mismatch. Wait a bounded time for it; a
+        # published Path that differs still fails closed below.
+        $pathDeadline = [DateTimeOffset]::UtcNow.AddSeconds(5)
+        while ([string]::IsNullOrWhiteSpace($process.Path) -and
+            [DateTimeOffset]::UtcNow -lt $pathDeadline -and
+            -not $process.HasExited) {
+            Start-Sleep -Milliseconds 100
+            $process.Refresh()
+        }
         $actualStart = $process.StartTime.ToUniversalTime().ToString('O')
         $actualExecutable = [System.IO.Path]::GetFullPath($process.Path)
         $commandLine = Get-PegasusProcessCommandLine -ProcessId ([int]$Record.pid)
@@ -1156,14 +1260,6 @@ function Invoke-RunSmoke {
             [string]$Manifest.sourceSha,
             [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Run '$($Manifest.runId)' version diagnostic does not match its initialized source."
-    }
-
-    $webBase = [string]$Manifest.endpoints.webBase
-    $operationsResponse = Invoke-LoopbackRequest `
-        -Uri "$webBase/Operations" `
-        -SkipCertificateCheck
-    if ($operationsResponse.StatusCode -ne 200) {
-        throw "Run '$($Manifest.runId)' Operations route returned HTTP $($operationsResponse.StatusCode)."
     }
 
 
@@ -1555,7 +1651,18 @@ try {
             $paths = Get-RunPaths -Id ([string]$manifest.runId)
             Assert-NoReparsePoints -RunRoot $paths.RunRoot
             $tools = Get-ControlToolPaths
+            $ownedPids = @(
+                foreach ($role in @('worker', 'web', 'azurite')) {
+                    $record = $manifest.processes.PSObject.Properties[$role].Value
+                    if ($null -ne $record) {
+                        [int]$record.pid
+                    }
+                }
+            )
             Stop-RunResources -Manifest $manifest -Tools $tools
+            if ($ownedPids.Count -gt 0) {
+                Wait-OwnedProcessExit -ProcessIds $ownedPids
+            }
             $resetContext = Get-RunDatabaseContext -Manifest $manifest
             $instance = $resetContext.InstanceName
             if ($manifest.resources.database.created -and
@@ -1569,7 +1676,7 @@ try {
                     -ContainerName $resetContext.ContainerName `
                     -RunId $resetContext.RunId
             }
-            Remove-Item -LiteralPath $paths.RunRoot -Recurse -Force
+            Remove-OwnedRunRoot -RunRoot $paths.RunRoot
             [pscustomobject][ordered]@{
                 RunId = [string]$manifest.runId
                 State = 'Reset'

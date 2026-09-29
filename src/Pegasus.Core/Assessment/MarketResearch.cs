@@ -30,6 +30,14 @@ public interface IMarketResearchQueries
 public static class MarketResearchPolicy
 {
     /// <summary>
+    /// The Case history event for a research result, filed whether or not the
+    /// Case is being edited: it changes no Case field and leaves the version
+    /// and any edit lease alone, so it is exempt from the per-version index
+    /// like an operator note.
+    /// </summary>
+    public const string AttachedEventType = "market_research_attached";
+
+    /// <summary>
     /// A market research job is pending while a client may still be working it. Once
     /// its files and figures are attached the card is filled, so a Draft ready job
     /// neither shows as pending nor blocks a run for another month.

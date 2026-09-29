@@ -11,6 +11,8 @@
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
   Retail value, Trade value and Engineer's Value are boxes on Valuation.
   Staff type them or fill them from a guide card, and the Save records them.
+  **Use this value** on a card is the Engineer's decision to use that figure.
+  The preview shows what the Save will use.
 - Settlement saves with the Case's single workspace Save. Equity is derived,
   never typed in.
 - AI and Market Research only propose. An authorised person decides.
@@ -96,8 +98,16 @@ areas that disc touches, which `Pegasus.Core` reads off the disc (operator
 decision, 23 September 2026, superseding the 20 September ruling that the
 record keeps the areas only). An entry recorded by area alone, from the
 keyboard, keeps just its areas and is drawn with a disc centred between them,
-no wider than half the vehicle. Every disc is clipped to the vehicle's body,
-on the workspace and on the report alike.
+no wider than half the vehicle.
+
+The plan is the recorded Vehicle type's drawing: a van is drawn as the van, a
+motorcycle or scooter as the motorbike, and anything else, or no type, as the
+car (operator decision, 28 September 2026). All three share one body box, so
+the eight areas and a saved disc stand in the same place on each. Every
+entry's disc is drawn as the same yellow comic burst, whatever its severity,
+with no number and not clipped, so it may spill past the vehicle's outline;
+the burst is only its picture, and the disc alone decides the areas. The
+workspace and the report draw alike.
 
 The record also carries tyres and seat belts per corner, the spare tyre, the
 centre belt, which airbags deployed in the Engineer's words (for example
@@ -119,21 +129,24 @@ paragraph when its switch is on
 Valuation records keep guide month and source. Glass's, Brego, Super CAP,
 CAP and Cazana are guide sources, each an entry card of the same shape. The
 figures are typed by hand; **Get valuation** at the foot of the card asks
-that source's connected provider for the month and fills the card's boxes,
-and while the source has no working provider the card answers `{Source}
-valuation is unavailable. Contact an administrator or report a problem.`
-(23 September 2026). The card has no Save of its own: the Case's single
+that source's connected provider for the month and fills the card's boxes.
+A source with no connected provider says so on its card before anything is
+pressed, `{Source} valuation is unavailable. Contact an administrator or
+report a problem.`, and offers no Get valuation (23 and 28 September 2026).
+The card has no Save of its own: the Case's single
 workspace Save records every changed card with whatever was entered, and any
 of its month, retail and trade may be left blank (operator, 23 September
 2026); a card with every box blank, or unchanged, records nothing. A guide
 card carries no mileage (operator, 24 September 2026): the Case's own
 accepted mileage is the one a valuation uses, both for the lookup and for the
 Engineer's Value.
-The basis is chosen by clicking a card (or Enter or Space on it), and only a
-card with a retail value can be the basis, since the calculation starts from
-retail; there is no Basis control beside the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
+The basis is chosen by clicking a card (or Enter or Space on it) or by
+**Use this value**, and only a card with a retail value can be the basis,
+since the calculation starts from retail; there is no Basis control beside
+the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
 market research is automation-only. No guide provider is
-connected today; connecting one needs its own accepted decision
+connected today, so every card says so; connecting one needs its own accepted
+decision
 ([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
 
 Every entry keeps its date and time, and the retail and trade values and
@@ -159,11 +172,46 @@ needed. Each is a report blocker until it is entered
 
 The calculation starts from the basis card's retail and applies, in this
 order: commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
-condition deduction, rounding to whole pounds away from zero. When the
-calculation changed since the page opened (a different basis card, the basis
-card's retail or trade, or any calculator control; operator, 23 September
-2026), the Save also records it against its basis card, so the Case keeps
-where the figures came from. Typed values need no calculation.
+condition deduction, rounding to whole pounds away from zero.
+
+**Use this value** (operator, 28 September 2026). Each guide card, and the AI
+market research card, has a **Use this value** button while editing. It
+chooses the card as the basis, fills the three boxes from it, and tells the
+Save that the Engineer decided to use it. The Save then records the
+calculation against that card, so the Case keeps where the figures came from,
+even when the calculation is the one the page opened on. A card typed in the
+same edit can be used: the Save records the card and the calculation
+together. A card with no retail has nothing to use, so the Save is refused
+with that reason. The Save also records the calculation when it changed since
+the page opened (a different basis card, the basis card's retail or trade, or
+any calculator control; operator, 23 September 2026). A save that does
+neither records no calculation, so an unrelated save never adopts a value.
+A figure typed over the Engineer's Value box after the calculation filled it
+is the Engineer's own value: the Save records it as theirs and does not
+record the calculation against the card.
+If the box no longer holds the figure the Engineer chose to use (the preview
+had not landed, or a card changed underneath), the Save is refused with that
+reason and writes nothing, so a decision is never dropped silently. A
+preview that fails or is refused puts the box back to its recorded value and
+withdraws the decision; typing in the box withdraws it too. A card with no
+retail offers no Use this value, and a cleared retail box is "no retail", not
+the recorded card's figure.
+
+**The preview shows what the Save will use.** The lines and the figure that
+fills the Engineer's Value box come from the retail on the chosen card as
+typed, even unsaved, and the claimant's VAT position as the form holds it,
+through the same Core calculation the Save runs. While a preview is pending
+the lines are dimmed, a preview that fails says so, and a calculation that
+cannot be worked out shows its own reason (deductions beyond the value, no
+retail to start from), never "None yet". "None yet" means only that no card
+is chosen.
+
+**The Engineer's own value.** The Engineer's Value box takes a figure the
+Engineer types with no card and no calculation. It is recorded as the staff
+member's own value with their name and time, not as a guide source, and the
+report reads it like any other Engineer's Value. Retail value and Trade value
+are typed the same way and each stays a report blocker until entered. Typed
+values need no calculation and no mileage.
 This calculation is current required behaviour. Extra rationale or
 revaluation-history scope needs its own accepted contract.
 
@@ -220,11 +268,22 @@ when those inputs are incomplete, never a made-up zero.
 
 Choosing **Market Research** on the Valuation screen creates a ledger job.
 External Claude Cowork, using the Pegasus connector and its own research
-tools, does the research and produces files. The connector attaches those
-files to the Case and the Automation Actor marks the job Completed. The tools
-and the research run outside this repository. Research evidence and any
-source-labelled valuation proposal never become the Engineer's Value on their
-own. Job states and attribution are owned by
+tools, does the research and produces files. The connector files the findings
+document and the AI market research card, and the job becomes Draft ready.
+The tools and the research run outside this repository. Research evidence and
+any source-labelled valuation proposal never become the Engineer's Value on
+their own.
+
+**The result returns while the Engineer is still editing** (operator, 28
+September 2026). Filing the result needs no Case edit lease and no Case
+version: a source card and its findings file are not a Case field edit, so
+they do not wait for the Engineer's session and do not end it. The Case, its
+version and the Engineer's unsaved figures are left as they were, and the
+Case history records that the research was attached. The edit-authority rule
+is not bypassed: the result writes no Case field, and only the Engineer's
+Save can adopt any figure from it. While the job runs the Researching card
+says the result is filed without ending the edit; save or refresh to see it.
+Job states and attribution are owned by
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list).
 
 ### Valuation readiness
@@ -250,17 +309,24 @@ circular readiness gate is acceptable.
   zero.
 - The Engineer's Value and its retail and trade values are professional
   findings: only staff record them, never automation.
-- A valuation source with no connected provider shows the card's notice and
-  still lets the figures be typed by hand; the Case Save records them.
+- A valuation source with no connected provider shows the card's notice from
+  the start, offers no Get valuation, and still lets the figures be typed by
+  hand; the Case Save records them.
+- A calculation that cannot be worked out never shows as an empty state: it
+  shows why, and the Engineer's draft is kept.
 - Research evidence and an AI valuation proposal never become the Engineer's
   Value on their own.
 - No circular readiness gate is acceptable.
 
 ## Acceptance evidence
 
-Core tests cover the Engineer's Value order. Integration tests cover typed
-values saving without a mileage and clearing their blockers, and a
-calculation recorded against its basis card. Web tests cover Airbags deployed and
+Core tests cover the Engineer's Value order, the preview using the typed
+retail and the form's VAT position, and provider availability. Integration
+tests cover typed values saving without a mileage and clearing their
+blockers, a calculation recorded against its basis card, a card typed in the
+same save being used, an overtyped Engineer's Value staying the Engineer's
+own, the preview and the Save recording one figure, and a research result
+filed while a staff member holds the edit lease. Web tests cover Airbags deployed and
 the temporary repair rows in read and edit and through the Case Save. Live
 Glass's evidence is a separate tier
 ([engineering](../engineering.md#required-evidence-tiers)).

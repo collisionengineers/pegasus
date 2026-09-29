@@ -207,7 +207,7 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, new RecordingStore());
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
-            ActionActor.Provider(Guid.NewGuid()),
+            ActionActor.Principal(Guid.NewGuid()),
             Occurrence(),
             new MemoryStream([1])));
         await Assert.ThrowsAsync<ArgumentException>(() => command.ExecuteAsync(

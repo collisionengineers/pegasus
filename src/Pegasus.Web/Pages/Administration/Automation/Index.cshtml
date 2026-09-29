@@ -1,5 +1,4 @@
 @page
-@using Pegasus.Core.AiWork
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Administration.Automation.IndexModel
 @{
@@ -9,7 +8,6 @@
     ViewData["AdminAutomationComposed"] = Model.IsComposed;
 
     var registration = Model.Status;
-    var connector = Model.ConnectorSettings;
     var killSwitchLabel = registration is { IsEnabled: true }
         ? OperatorLabels.AutomationAdmin.Stop
         : OperatorLabels.AutomationAdmin.Start;
@@ -102,7 +100,7 @@
             </section>
         }
 
-        @if (connector is not null)
+        @if (registration is not null)
         {
             <section class="panel" aria-labelledby="ai-settings-panel-title">
                 <div class="panel-head">
@@ -110,56 +108,8 @@
                     <partial name="Shared/_StatusChip" model="@OperatorLabels.AutomationAdmin.SwitchState(Model.SendToAiEnabledNow)" />
                 </div>
                 <div class="panel-body">
-                    @* The token is write-only from entry onward, so the only
-                       thing the page can state about it is that one is held
-                       and when it last changed. *@
-                    <dl class="definition-list">
-                        <div class="definition">
-                            <dt>@OperatorLabels.AutomationAdmin.ChannelToken</dt>
-                            <dd>@(connector.TokenHeld
-                                    ? OperatorLabels.AutomationAdmin.ChannelTokenEntered
-                                    : OperatorLabels.AutomationAdmin.ChannelTokenStandard)</dd>
-                        </div>
-                        <div class="definition">
-                            <dt>@OperatorLabels.AutomationAdmin.ChannelTokenChanged</dt>
-                            <dd>
-                                @if (connector.TokenRotatedAtUtc is { } rotated)
-                                {
-                                    <time datetime="@rotated.ToString("O")">@OperatorLabels.OfficeDate(rotated)</time>
-                                }
-                                else
-                                {
-                                    <span class="muted">—</span>
-                                }
-                            </dd>
-                        </div>
-                    </dl>
-
-                    <form method="post" asp-page-handler="SaveAiSettings" class="section-gap stack" autocomplete="off">
+                    <form method="post" asp-page-handler="SaveAiSettings" class="stack" autocomplete="off">
                         <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
-                        <div class="form-grid form-grid--3">
-                            <div class="field">
-                                <label for="ai-channel-address">@OperatorLabels.AutomationAdmin.ChannelAddress</label>
-                                <input id="ai-channel-address" name="ChannelAddress" maxlength="200"
-                                       value="@(Model.ChannelAddress ?? connector.ChannelBaseUrl)" />
-                                <span asp-validation-for="ChannelAddress" class="field-validation-error"></span>
-                            </div>
-                            <div class="field">
-                                <label for="ai-timeout">@OperatorLabels.AutomationAdmin.Timeout</label>
-                                <input id="ai-timeout" name="ChannelTimeoutSeconds" type="number"
-                                       min="@AiChannelConnectorRules.MinimumTimeoutSeconds"
-                                       max="@AiChannelConnectorRules.MaximumTimeoutSeconds"
-                                       step="1" value="@(Model.ChannelTimeoutSeconds ?? connector.TimeoutSeconds)" />
-                                <span asp-validation-for="ChannelTimeoutSeconds" class="field-validation-error"></span>
-                            </div>
-                            <div class="field">
-                                <label for="ai-channel-token">@OperatorLabels.AutomationAdmin.NewChannelToken</label>
-                                <input id="ai-channel-token" name="NewChannelToken" type="password"
-                                       minlength="@AiChannelConnectorRules.MinimumTokenLength"
-                                       maxlength="200" autocomplete="new-password" />
-                                <span asp-validation-for="NewChannelToken" class="field-validation-error"></span>
-                            </div>
-                        </div>
                         @* asp-for writes the unchecked fallback beside the box,
                            so a cleared checkbox reaches the handler as false. *@
                         <label class="cluster">
@@ -167,13 +117,6 @@
                             <span>@OperatorLabels.AutomationAdmin.SendToAiEnabled</span>
                         </label>
                         <div class="cluster admin-actions-end">
-                            @if (connector.TokenHeld)
-                            {
-                                <button type="submit" formaction="?handler=ClearChannelToken" formnovalidate class="btn btn--danger">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
-                                    <span>@OperatorLabels.AutomationAdmin.RemoveChannelToken</span>
-                                </button>
-                            }
                             <button type="submit" class="btn btn--primary">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
                                 <span>@OperatorLabels.AutomationAdmin.Save</span>

@@ -79,12 +79,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
         await SeedPhotosAsync(harness.Factory, outcome.Identity.CaseId, 2);
         var contentStore = new RecordingDocumentContentStore();
-        await using var staffContext = await harness.Factory.CreateDbContextAsync();
         var source = new EfAssessmentReportProjectionSource(
             harness.Factory,
             new GetAssessmentWorkspace(new EfAssessmentWorkspaceSource(harness.Factory)),
             contentStore,
-            new EfStaffAccountQueries(staffContext),
+            new EfStaffAccountQueries(harness.Factory),
             new EfCaseAssetPreparationStore(harness.Factory),
             new ListAppliedValuations(new EfValuationStore(harness.Factory)));
 
@@ -95,7 +94,15 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.NotNull(input);
         Assert.Null(input.Signatory);
         Assert.Equal(2, input.Photos.Count);
-        Assert.Equal(1, contentStore.BatchReadCount);
+        // Nothing is read while the projection loads. Each image is read
+        // alone, when the renderer opens it (issue 850).
+        Assert.Equal(0, contentStore.BatchReadCount);
+        foreach (var photo in input.Photos)
+        {
+            Assert.NotEmpty(await photo.OpenAsync());
+        }
+        Assert.Equal(2, contentStore.BatchReadCount);
+        Assert.Equal(1, contentStore.LargestBatch);
         Assert.Equal(0, contentStore.SingleReadCount);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
         // Box reads an exact file and version, so the preview's read names
@@ -238,7 +245,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             (CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, "miles"),
             (CaseDataFieldNames.IncidentDate, CaseDataCodes.Date, "2031-04-01"),
             (CaseDataFieldNames.InspectionMode, CaseDataCodes.InspectionMode,
-                ProviderInspectionModePolicy.ImageBasedAssessmentCode),
+                PrincipalInspectionModePolicy.ImageBasedAssessmentCode),
             (CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, "1 Test Street, London"),
             (CaseDataFieldNames.InspectionDate, CaseDataCodes.Date, "2031-05-06")
         };
@@ -597,34 +604,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     {
                         ["vehicle.condition"] = "good"
                     }),
-                CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task AnUnknownWorkRequestBindingFailsClosed()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("assessment-accept-4");
-        var caseId = outcome.Identity.CaseId;
-        var lease = await harness.AcquireLeaseAsync(
-            caseId,
-            0,
-            harness.AutomationActor,
-            "assessment-lease-binding");
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            harness.SaveAssessment.ExecuteAsync(
-                new(
-                    caseId,
-                    lease.Version,
-                    harness.AutomationActor,
-                    "mcp:assessment-binding",
-                    "Automation recorded the assessment draft.",
-                    lease.Token,
-                    new Dictionary<string, string?>(StringComparer.Ordinal)
-                    {
-                        ["vehicle.condition"] = "good"
-                    },
-                    AiWorkRequestId: Guid.NewGuid()),
                 CancellationToken.None));
     }
 
@@ -1786,11 +1765,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 "market-research-take",
                 LeaseExpiresAtUtc: harness.Clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
             CancellationToken.None);
-        var lease = await harness.AcquireLeaseAsync(
+        // The Engineer who asked for the research is still editing the Case.
+        // The result is filed without their edit lease and without moving the
+        // Case, so it neither waits for them nor ends their session.
+        var engineerLease = await harness.AcquireLeaseAsync(
             caseId,
             0,
-            automation,
-            "market-research-case-lease");
+            harness.EngineerActor,
+            "market-research-engineer-lease");
         var content = new MarketResearchDocumentContentStore();
         var complete = new CompleteMarketResearchAiJob(
             new EfMarketResearchAiJobCompletionStore(harness.Factory, content, harness.Clock));
@@ -1798,8 +1780,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             taken.JobId,
             taken.Version,
             caseId,
-            lease.Version,
-            lease.Token,
             automation,
             "market-research-complete",
             "market-research.pdf",
@@ -1827,6 +1807,15 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(1, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
+        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+        Assert.Equal(engineerLease.Version, workflow.Version);
+        Assert.Equal(harness.EngineerActor.SubjectId, workflow.EditLeaseHolder);
+        Assert.False(string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash));
+        var attached = await context.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(item => item.CaseId == caseId && item.EventType == MarketResearchPolicy.AttachedEventType);
+        Assert.Equal(workflow.Version, attached.BeforeVersion);
+        Assert.Equal(workflow.Version, attached.AfterVersion);
+        Assert.Equal(ActorKind.Automation.ToString(), attached.ActorKind);
         await Assert.ThrowsAnyAsync<DbException>(async () =>
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE AiJobs SET MarketResearchMileage = NULL WHERE JobId = {taken.JobId}"));
@@ -1838,75 +1827,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             .OrderByDescending(item => item.OccurredAtUtc)
             .Select(item => item.ActorKind)
             .FirstAsync());
-    }
-
-    [Fact]
-    public async Task MarketResearchCompletionWithAStaleCaseVersionWritesNothing()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("market-research-stale-case-accept");
-        var caseId = outcome.Identity.CaseId;
-        await SetReportPreparationAsync(harness.Factory, caseId);
-        var automation = harness.AutomationActor;
-        var aiJobs = new EfAiJobStore(harness.Factory, harness.Clock);
-        var created = await aiJobs.CreateAsync(
-            new(
-                AiJobKind.MarketResearch,
-                AiJobSubjectKind.Case,
-                caseId,
-                outcome.Identity.Reference,
-                "Research comparable vehicles.",
-                null,
-                null,
-                harness.EngineerActor,
-                "market-research-stale-case-create",
-                AiJobPolicy.DefaultExpiry),
-            CancellationToken.None);
-        var taken = await aiJobs.TransitionAsync(
-            new(
-                created.JobId,
-                created.Version,
-                AiJobState.Taken,
-                automation,
-                "market-research-stale-case-take",
-                LeaseExpiresAtUtc: harness.Clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
-            CancellationToken.None);
-        var lease = await harness.AcquireLeaseAsync(
-            caseId,
-            0,
-            automation,
-            "market-research-stale-case-lease");
-        var content = new MarketResearchDocumentContentStore();
-        var complete = new CompleteMarketResearchAiJob(
-            new EfMarketResearchAiJobCompletionStore(harness.Factory, content, harness.Clock));
-        var command = new CompleteMarketResearchAiJobCommand(
-            taken.JobId,
-            taken.Version,
-            caseId,
-            lease.Version + 1,
-            lease.Token,
-            automation,
-            "market-research-stale-case-complete",
-            "market-research.pdf",
-            "application/pdf",
-            new byte[] { 1, 2, 3 },
-            new DateOnly(2031, 5, 6),
-            new TimeOnly(10, 30),
-            42000,
-            12000m,
-            10000m);
-
-        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
-            complete.ExecuteAsync(command, CancellationToken.None));
-
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
-        Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
-        Assert.Equal(AiJobState.Taken.ToString(), await context.AiJobs
-            .Where(item => item.JobId == taken.JobId)
-            .Select(item => item.State)
-            .SingleAsync());
     }
 
     [Fact]
@@ -1949,8 +1869,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             taken.JobId,
             taken.Version,
             caseId,
-            0,
-            "unused-lease-token",
             automation,
             "market-research-lapsed-lease-complete",
             "market-research.pdf",
@@ -2009,11 +1927,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 "market-research-stale-job-take",
                 LeaseExpiresAtUtc: harness.Clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
             CancellationToken.None);
-        var lease = await harness.AcquireLeaseAsync(
-            caseId,
-            0,
-            automation,
-            "market-research-stale-job-lease");
         var content = new MarketResearchDocumentContentStore();
         var complete = new CompleteMarketResearchAiJob(
             new EfMarketResearchAiJobCompletionStore(harness.Factory, content, harness.Clock));
@@ -2021,8 +1934,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             taken.JobId,
             taken.Version + 1,
             caseId,
-            lease.Version,
-            lease.Token,
             automation,
             "market-research-stale-job-complete",
             "market-research.pdf",
@@ -2037,77 +1948,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             complete.ExecuteAsync(command, CancellationToken.None));
         Assert.Equal("The AI job changed concurrently; reload and retry.", exception.Message);
-
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
-        Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
-        var unchanged = await context.AiJobs.AsNoTracking()
-            .SingleAsync(item => item.JobId == taken.JobId);
-        Assert.Equal(AiJobState.Taken.ToString(), unchanged.State);
-        Assert.Equal(taken.Version, unchanged.Version);
-    }
-
-    [Fact]
-    public async Task MarketResearchCompletionRefusesAnExpiredCaseLeaseWithoutChangingTheJob()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("market-research-expired-lease-accept");
-        var caseId = outcome.Identity.CaseId;
-        await SetReportPreparationAsync(harness.Factory, caseId);
-        var automation = harness.AutomationActor;
-        var aiJobs = new EfAiJobStore(harness.Factory, harness.Clock);
-        var created = await aiJobs.CreateAsync(
-            new(
-                AiJobKind.MarketResearch,
-                AiJobSubjectKind.Case,
-                caseId,
-                outcome.Identity.Reference,
-                "Research comparable vehicles.",
-                null,
-                null,
-                harness.EngineerActor,
-                "market-research-expired-lease-create",
-                AiJobPolicy.DefaultExpiry),
-            CancellationToken.None);
-        var taken = await aiJobs.TransitionAsync(
-            new(
-                created.JobId,
-                created.Version,
-                AiJobState.Taken,
-                automation,
-                "market-research-expired-lease-take",
-                LeaseExpiresAtUtc: harness.Clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
-            CancellationToken.None);
-        var lease = await harness.AcquireLeaseAsync(
-            caseId,
-            0,
-            automation,
-            "market-research-expired-lease-lease");
-        harness.Advance(TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1));
-
-        var content = new MarketResearchDocumentContentStore();
-        var complete = new CompleteMarketResearchAiJob(
-            new EfMarketResearchAiJobCompletionStore(harness.Factory, content, harness.Clock));
-        var command = new CompleteMarketResearchAiJobCommand(
-            taken.JobId,
-            taken.Version,
-            caseId,
-            lease.Version,
-            lease.Token,
-            automation,
-            "market-research-expired-lease-complete",
-            "market-research.pdf",
-            "application/pdf",
-            new byte[] { 1, 2, 3 },
-            new DateOnly(2031, 5, 6),
-            new TimeOnly(10, 30),
-            42000,
-            12000m,
-            10000m);
-
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
-            complete.ExecuteAsync(command, CancellationToken.None));
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(0, content.StoreCount);
@@ -2151,11 +1991,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 "market-research-content-compensation-take",
                 LeaseExpiresAtUtc: harness.Clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
             CancellationToken.None);
-        var lease = await harness.AcquireLeaseAsync(
-            caseId,
-            0,
-            automation,
-            "market-research-content-compensation-lease");
         var content = new MarketResearchDocumentContentStore();
         var complete = new CompleteMarketResearchAiJob(
             new EfMarketResearchAiJobCompletionStore(harness.Factory, content, harness.Clock));
@@ -2163,8 +1998,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             taken.JobId,
             taken.Version,
             caseId,
-            lease.Version,
-            lease.Token,
             automation,
             "market-research-content-compensation-complete",
             "market-research.pdf",
@@ -2215,103 +2048,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         return assessment.Field(AssessmentVocabulary.ValueEngineer);
     }
 
-    [Fact]
-    public async Task TheAiWorkRequestLifecyclePersistsWithCorrelatedHistory()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("assessment-accept-5");
-        var caseId = outcome.Identity.CaseId;
-        var staff = harness.EngineerActor;
-
-        var created = await harness.WorkRequests.CreateAsync(
-            new(
-                caseId,
-                outcome.Identity.Reference,
-                0,
-                staff,
-                "send-op-1",
-                "Work the assessment.",
-                TimeSpan.FromHours(24)),
-            CancellationToken.None);
-        Assert.Equal(AiWorkRequestState.Created, created.State);
-
-        // Creation replays idempotently on the same operation key and
-        // conflicts on different material.
-        var replay = await harness.WorkRequests.CreateAsync(
-            new(
-                caseId,
-                outcome.Identity.Reference,
-                0,
-                staff,
-                "send-op-1",
-                "Work the assessment.",
-                TimeSpan.FromHours(24)),
-            CancellationToken.None);
-        Assert.Equal(created.RequestId, replay.RequestId);
-        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
-            harness.WorkRequests.CreateAsync(
-                new(
-                    caseId,
-                    outcome.Identity.Reference,
-                    0,
-                    staff,
-                    "send-op-1",
-                    "A different instruction.",
-                    TimeSpan.FromHours(24)),
-                CancellationToken.None));
-
-        var handedOff = await harness.WorkRequests.TransitionAsync(
-            new(created.RequestId, created.Version, AiWorkRequestState.HandedOff, staff, "t-1"),
-            CancellationToken.None);
-        Assert.Equal(AiWorkRequestState.HandedOff, handedOff.State);
-        Assert.NotNull(handedOff.HandedOffAtUtc);
-
-        var completed = await harness.WorkRequests.TransitionAsync(
-            new(
-                created.RequestId,
-                handedOff.Version,
-                AiWorkRequestState.Completed,
-                staff,
-                "t-2",
-                ReplyStatus: "done",
-                ReplyMessage: "Assessment recorded."),
-            CancellationToken.None);
-        Assert.Equal(AiWorkRequestState.Completed, completed.State);
-        Assert.Equal("Assessment recorded.", completed.ReplyMessage);
-
-        // Completed is terminal: reopening it is an illegal transition, and
-        // an exact repeat of the terminal transition replays inertly.
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            harness.WorkRequests.TransitionAsync(
-                new(
-                    created.RequestId,
-                    completed.Version,
-                    AiWorkRequestState.HandedOff,
-                    staff,
-                    "t-3"),
-                CancellationToken.None));
-        var repeat = await harness.WorkRequests.TransitionAsync(
-            new(
-                created.RequestId,
-                completed.Version,
-                AiWorkRequestState.Completed,
-                staff,
-                "t-2"),
-            CancellationToken.None);
-        Assert.Equal(completed.Version, repeat.Version);
-
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        var history = await context.ActionHistory.AsNoTracking()
-            .Where(item => item.AggregateType == "ai_work_request")
-            .ToArrayAsync();
-        Assert.Equal(3, history.Length);
-        Assert.All(history, entry =>
-            Assert.Equal(created.RequestId.ToString("D"), entry.CorrelationId));
-        Assert.Contains(history, entry => entry.EventKind == "ai_work_request_created");
-        Assert.Contains(history, entry => entry.EventKind == "ai_work_request_handedoff");
-        Assert.Contains(history, entry => entry.EventKind == "ai_work_request_completed");
-    }
-
     private sealed class Harness : IAsyncDisposable
     {
         private readonly LocalDbTestDatabase database;
@@ -2326,7 +2062,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             AcceptIntake acceptIntake,
             AcquireCaseEditLease acquireLease,
             SaveAssessment saveAssessment,
-            EfAiWorkRequestStore workRequests,
             EfRepairSpecificationStore repairSpecifications,
             EfValuationStore valuations,
             CaseDataCompletenessPersistenceTests.MutableTimeProvider timeProvider)
@@ -2337,7 +2072,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             this.acceptIntake = acceptIntake;
             this.acquireLease = acquireLease;
             SaveAssessment = saveAssessment;
-            WorkRequests = workRequests;
             RepairSpecifications = repairSpecifications;
             Valuations = valuations;
             this.timeProvider = timeProvider;
@@ -2347,7 +2081,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         public LocalDbTestDatabase Database => database;
         public Guid ReceiptId { get; }
         public SaveAssessment SaveAssessment { get; }
-        public EfAiWorkRequestStore WorkRequests { get; }
         public EfRepairSpecificationStore RepairSpecifications { get; }
         public EfValuationStore Valuations { get; }
         public ActionActor AutomationActor { get; } = ActionActor.Automation("pegasus-automation");
@@ -2385,14 +2118,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     new AcceptIntake(
                         acceptanceStore,
                         new FixedConfiguration(),
-                        new EfProviderInspectionModeStore(factory),
+                        new EfPrincipalInspectionModeStore(factory),
                         new DiscardingCommittedWorkPublisher(),
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
                     new AcquireCaseEditLease(workflowStore),
                     new SaveAssessment(
                         new EfCaseAssessmentStore(factory, timeProvider, repairSpecifications)),
-                    new EfAiWorkRequestStore(factory, timeProvider),
                     repairSpecifications,
                     valuations,
                     timeProvider);
@@ -2450,7 +2182,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, DateOfIncident, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Mrs Jane Example"}, {"ABC/DEF/12345/1"}, {"AB12CDE"}, {new DateOnly(2031, 4, 1)}, {"1 Test Street, London"}, {new DateOnly(2031, 5, 20)})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, WorkProviderCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_work_provider"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {3}, {emptyEnvelope}, {emptyEnvelope})");
+                $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, PrincipalCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_principal"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {3}, {emptyEnvelope}, {emptyEnvelope})");
         }
     }
 
@@ -2558,17 +2290,20 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     {
         public int BatchReadCount { get; private set; }
         public int SingleReadCount { get; private set; }
-        public IReadOnlyList<ManagedDocumentContentRead> Reads { get; private set; } = [];
+        public int LargestBatch { get; private set; }
+        public List<ManagedDocumentContentRead> Reads { get; } = [];
 
         public Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
             IReadOnlyList<ManagedDocumentContentRead> reads,
             CancellationToken cancellationToken)
         {
             BatchReadCount++;
-            Reads = reads;
+            LargestBatch = Math.Max(LargestBatch, reads.Count);
+            Reads.AddRange(reads);
+            // The seeded version of each ordinal is the one byte of its own number.
             return Task.FromResult<IReadOnlyList<ReadOnlyMemory<byte>>>(
-                reads.Select((_, index) =>
-                    (ReadOnlyMemory<byte>)new byte[] { checked((byte)(index + 1)) }).ToArray());
+                reads.Select(read =>
+                    (ReadOnlyMemory<byte>)new byte[] { checked((byte)read.Address.OccurrenceOrdinal) }).ToArray());
         }
 
         public Task<Stream> OpenReadAsync(

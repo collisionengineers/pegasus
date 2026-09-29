@@ -431,7 +431,13 @@ public sealed class CaseWorkflowMigrationTests
                 "20260926150000_DeclaredUploadDestination",
                 "20260927002303_EmailTemplates",
                 "20260927004150_ImageInReport",
-                "20260928090000_GrantWorkerGeneratedCaseArtifactUpdate"
+                "20260928090000_GrantWorkerGeneratedCaseArtifactUpdate",
+                "20260928100000_WorkCentreQueryIndexes",
+                "20260928160000_GrantWorkerDocumentOccurrenceUpdate",
+                "20260929090000_RetireUnusedTables",
+                "20260929091000_GrantWebRetainedMailDismissal",
+                "20260929093000_MarketResearchAttachedEvent",
+                "20260929120000_PrincipalVocabulary"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

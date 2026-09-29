@@ -90,7 +90,7 @@ keeps the research context and is not a competing owner.
 | `billing` | payment notifications; remittances; invoice requests; `billing-query`; `general-billing` |
 | `new-instruction-received` | initial work instructions: `audit`, `diminution`, `inspection`, `new-client`, `website-enquiry` |
 | `non-client-related` | internal or company email from tools, services, software packages and similar sources |
-| `in-progress-cases` | `cancellation`; `case-update`; `client-chasing-for-update`; `provider-chasing-for-update`; other ongoing correspondence |
+| `in-progress-cases` | `cancellation`; `case-update`; `client-chasing-for-update`; `principal-chasing-for-update`; other ongoing correspondence |
 | `post-report-emails` | queries; disputes; amendment requests; similar post-report correspondence |
 | `pre-instruction-emails` | Triage requests; pre-formal-instruction handling requests; images received before formal instructions |
 | `internal-cc` | internal copied correspondence |
@@ -126,7 +126,7 @@ classification.
 
 Classification may use mailbox and message identity, direction, headers,
 sender and domain, fresh body text, attachment and document evidence,
-provider-route tells, reply and thread signals, and a separately produced
+Principal-route tells, reply and thread signals, and a separately produced
 Case correlation. `In-Reply-To` and `References` establish reply context.
 `RE:` is a fallback. `FW:` or `FWD:` alone does not make a reply. Quoted or
 attached old content is not evidence of fresh work. A deterministic rule
@@ -146,16 +146,16 @@ the evidence, actor, time, policy version and later corrections.
 | `billing/invoice-request` | Requests an invoice or invoice action | predicate or staff | Detailed: `billing/invoice-request` | Billing |
 | `billing/billing-query` | Asks a billing, invoice, payment or remittance question | predicate or staff | Queries | Billing |
 | `billing/general-billing` | Billing mail fitting no more specific billing subtype | reasoned staff decision | Detailed: `billing/general-billing` | Billing |
-| `new-instruction-received/audit` | Accepted provider Audit instruction evidence; a body keyword or quoted old instruction is not enough | route predicate or staff | Receiving work | Audits |
-| `new-instruction-received/diminution` | Accepted provider diminution instruction evidence | route predicate or staff | Receiving work | Diminution |
-| `new-instruction-received/inspection` | Accepted provider Inspection instruction evidence | route predicate or staff | Receiving work | Instructions |
+| `new-instruction-received/audit` | Accepted Principal Audit instruction evidence; a body keyword or quoted old instruction is not enough | route predicate or staff | Receiving work | Audits |
+| `new-instruction-received/diminution` | Accepted Principal diminution instruction evidence | route predicate or staff | Receiving work | Diminution |
+| `new-instruction-received/inspection` | Accepted Principal Inspection instruction evidence | route predicate or staff | Receiving work | Instructions |
 | `new-instruction-received/new-client` | Initial work from a client with no accepted route | staff | Receiving work | New clients |
 | `new-instruction-received/website-enquiry` | Website-origin evidence meeting the accepted independent fingerprints | route predicate or staff | Receiving work | Enquiries |
 | `non-client-related` | Internal, company, tool, service or software mail unrelated to client work | sender or route evidence or staff | Detailed: `non-client-related` | Other |
 | `in-progress-cases/cancellation` | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | Detailed: `in-progress-cases/cancellation` | Cancellations |
 | `in-progress-cases/case-update` | Update on ongoing work, excluding a new instruction or a post-report challenge | staff | Detailed: `in-progress-cases/case-update` | Case updates |
 | `in-progress-cases/client-chasing-for-update` | Client asks for progress on ongoing work | staff | Detailed: `in-progress-cases/client-chasing-for-update` | Case updates |
-| `in-progress-cases/provider-chasing-for-update` | Provider asks for progress on ongoing work | staff | Detailed: `in-progress-cases/provider-chasing-for-update` | Case updates |
+| `in-progress-cases/principal-chasing-for-update` | Principal asks for progress on ongoing work | staff | Detailed: `in-progress-cases/principal-chasing-for-update` | Case updates |
 | `in-progress-cases/ongoing-correspondence` | Other ongoing correspondence once more specific subtypes are excluded | reasoned staff decision | Detailed: `in-progress-cases/ongoing-correspondence` | Case updates |
 | `post-report-emails/query` | Question about a delivered report | route or thread evidence or staff | Queries | Case queries |
 | `post-report-emails/dispute` | Challenge to a delivered report or finding | route or thread evidence or staff | Queries | Case queries |
@@ -197,7 +197,7 @@ four separate facts. `new-instruction-received` is a Received family with no
 confirmed Sent equivalent, and that boundary permits no conflicting rules.
 Accepted predicates must not overlap. An unexpected overlap is a defect: it
 fails closed with visible evidence, and no confidence score or invented
-winner resolves it. [FRD-09](frd-09-provider-and-intermediary-routes.md)
+winner resolves it. [FRD-09](frd-09-principal-and-intermediary-routes.md)
 owns the route predicates.
 
 **History.** Every automated or human classification decision keeps the
@@ -301,7 +301,7 @@ mailbox and Graph subscription states are owned by
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md)
   (Unidentified, intake receipts),
   [FRD-03](frd-03-triage.md) (Triage requests),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md) (route predicates),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md) (route predicates),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md) (Case states),
   [FRD-20](frd-20-mailbox-workspace.md) (mail screens),
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md) (sending

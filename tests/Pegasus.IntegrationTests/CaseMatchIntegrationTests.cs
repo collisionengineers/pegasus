@@ -26,7 +26,7 @@ public sealed class CaseMatchIntegrationTests
         var outcome = await harness.AcceptAsync("case-match-accept-1");
 
         var row = await harness.SingleIndexRowAsync(outcome.Identity.CaseId);
-        Assert.Equal("QDOS", row.WorkProviderCode);
+        Assert.Equal("QDOS", row.PrincipalCode);
         Assert.Equal("12345/1", row.DurableClaimToken);
         Assert.Equal("AB12CDE", row.NormalizedVrm);
         Assert.Equal("EXAMPLE", row.NormalizedSurname);
@@ -43,7 +43,7 @@ public sealed class CaseMatchIntegrationTests
     /// empty Work Provider and no index row exists for images to match against.
     /// </summary>
     [Fact]
-    public async Task ManualUploadAcceptanceCarriesTheStaffAllocatedProviderIntoTheIndex()
+    public async Task ManualUploadAcceptanceCarriesTheStaffAllocatedPrincipalIntoTheIndex()
     {
         await using var harness = await Harness.CreateAsync();
         var receiptId = await harness.SeedManualUploadReceiptAsync("case-match-manual-upload-1");
@@ -51,13 +51,13 @@ public sealed class CaseMatchIntegrationTests
         var outcome = await harness.AcceptAsync("case-match-accept-manual-1", receiptId);
 
         var data = await harness.GetRequiredDataAsync(outcome.Identity.CaseId);
-        var provider = data.Provider.WorkProviderCode.Current;
+        var provider = data.Principal.PrincipalCode.Current;
         Assert.NotNull(provider);
         Assert.Equal("QDOS", provider.Value);
         Assert.Equal(CaseDataValueKind.Confirmed, provider.Kind);
         Assert.Equal(CaseDataSourceKind.CaseAcceptance, provider.Source.Kind);
         var row = await harness.SingleIndexRowAsync(outcome.Identity.CaseId);
-        Assert.Equal("QDOS", row.WorkProviderCode);
+        Assert.Equal("QDOS", row.PrincipalCode);
         Assert.Equal("12345/1", row.DurableClaimToken);
         Assert.Equal("AB12CDE", row.NormalizedVrm);
     }
@@ -469,7 +469,7 @@ public sealed class CaseMatchIntegrationTests
                 var staffActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
                 await SeedAsync(factory, receiptId);
 
-                IProviderCaseMatchPolicy[] matchPolicies = [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())];
+                IPrincipalCaseMatchPolicy[] matchPolicies = [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())];
                 var acceptanceStore = new EfCaseAcceptanceStore(factory, timeProvider, matchPolicies);
                 var dataStore = new EfCaseDataStore(factory, timeProvider, matchPolicies);
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
@@ -482,7 +482,7 @@ public sealed class CaseMatchIntegrationTests
                     new AcceptIntake(
                         acceptanceStore,
                         new FixedConfiguration(),
-                        new EfProviderInspectionModeStore(factory),
+                        new EfPrincipalInspectionModeStore(factory),
                         new DiscardingCommittedWorkPublisher(),
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
@@ -642,7 +642,7 @@ public sealed class CaseMatchIntegrationTests
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, DateOfIncident, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Mrs Jane Example"}, {"ABC/DEF/12345/1"}, {"AB12CDE"}, {new DateOnly(2031, 4, 1)}, {"1 Test Street, London"}, {FixtureInspectionDate})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, WorkProviderCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_work_provider"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {3}, {emptyEnvelope}, {emptyEnvelope})");
+                $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, PrincipalCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_principal"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {3}, {emptyEnvelope}, {emptyEnvelope})");
         }
     }
 

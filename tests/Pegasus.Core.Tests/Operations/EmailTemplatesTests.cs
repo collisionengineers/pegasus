@@ -144,6 +144,99 @@ public sealed class EmailTemplatesTests
             ActionActor.SystemWorker("templates-test"), Purpose, Values(), CancellationToken.None));
     }
 
+    [Fact]
+    public void EachPurposesBuiltInBodyIsValidForItsOwnPlaceholders()
+    {
+        foreach (var purpose in Enum.GetValues<EmailTemplatePurpose>())
+        {
+            var body = EmailTemplates.DefaultBody(purpose);
+            Assert.Equal(body, EmailTemplates.Validate(purpose, body));
+        }
+    }
+
+    [Fact]
+    public void TheReportDeliveryTemplateHasItsOwnPlaceholders()
+    {
+        const EmailTemplatePurpose delivery = EmailTemplatePurpose.CaseReportDelivery;
+
+        Assert.Equal(
+            new[]
+            {
+                EmailTemplates.CaseReference, EmailTemplates.Registration, EmailTemplates.Outcome,
+                EmailTemplates.PrincipalName, EmailTemplates.SupersededReportDate
+            },
+            EmailTemplates.Placeholders(delivery));
+        Assert.Equal(
+            "Our reference: {case reference}",
+            EmailTemplates.Validate(delivery, "Our reference: {case reference}"));
+        var refused = Assert.Throws<UnknownEmailTemplatePlaceholderException>(
+            () => EmailTemplates.Validate(delivery, "Roadworthiness: {roadworthiness}"));
+        Assert.Equal("roadworthiness", refused.Placeholder);
+        Assert.Throws<UnknownEmailTemplatePlaceholderException>(
+            () => EmailTemplates.Validate(Purpose, "Our reference: {case reference}"));
+    }
+
+    [Fact]
+    public void TheReportDeliveryBodyRendersEveryFactAndSignsOff()
+    {
+        var rendered = EmailTemplates.Render(
+            EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery),
+            ReportValues(supersededReportDate: "19 August 2026"));
+
+        Assert.Equal(
+            "Please find attached our report.\n"
+            + "\n"
+            + "Our reference: QDOS26001\n"
+            + "Registration: PK12TMZ\n"
+            + "Outcome: Total loss\n"
+            + "\n"
+            + "This report supersedes our report dated 19 August 2026.\n"
+            + "\n"
+            + "Kind regards\n"
+            + "Collision Engineers",
+            rendered);
+    }
+
+    [Fact]
+    public void TheReportDeliveryBodyLeavesOutTheSupersedesLineOnAFirstSend()
+    {
+        var rendered = EmailTemplates.Render(
+            EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery),
+            ReportValues(supersededReportDate: null));
+
+        Assert.DoesNotContain("supersedes", rendered, StringComparison.Ordinal);
+        Assert.Contains("Our reference: QDOS26001", rendered, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Staff preparing a delivery are pre-filled from the saved report
+    /// delivery template; reading it to compose is casework.
+    /// </summary>
+    [Fact]
+    public async Task StaffPreparingAReportRenderTheSavedReportDeliveryTemplate()
+    {
+        const EmailTemplatePurpose delivery = EmailTemplatePurpose.CaseReportDelivery;
+        var store = new TemplateStore
+        {
+            Current = new(delivery, "Report {case reference} for {principal name}", 2, DateTimeOffset.UnixEpoch, "admin")
+        };
+        var engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+
+        var rendered = await new RenderEmailTemplate(store).ExecuteAsync(
+            engineer, delivery, ReportValues(supersededReportDate: null), CancellationToken.None);
+
+        Assert.Equal("Report QDOS26001 for Principal Ltd", rendered);
+    }
+
+    private static Dictionary<string, string?> ReportValues(string? supersededReportDate) => new(StringComparer.Ordinal)
+    {
+        [EmailTemplates.CaseReference] = "QDOS26001",
+        [EmailTemplates.Registration] = "PK12TMZ",
+        [EmailTemplates.Outcome] = "Total loss",
+        [EmailTemplates.PrincipalName] = "Principal Ltd",
+        [EmailTemplates.SupersededReportDate] = supersededReportDate
+    };
+
     private static Dictionary<string, string?> Values(
         string? registration = null,
         string? roadworthiness = null,

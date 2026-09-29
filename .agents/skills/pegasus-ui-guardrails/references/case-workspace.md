@@ -92,7 +92,7 @@ Important ownership decisions:
 - Valuation owns the Retail, Trade and Engineer's value boxes, guide-source cards, the valuation calculation and the On the report content switches.
 - Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
 - Decisions owns settlement decisions and settlement-only figures.
-- Report owns generation/preview/finality controls, report wording, report date, commentary, the Fee pane and the report's blocker list, each row linking to the section that owns the fact rather than repeating it.
+- Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Next action (below).
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces. A document row may offer **Import as repair spec**, which runs Repair Spec's own import on that file (operator, 25 September 2026).
 - Notes owns the single Case timeline, notes and chase recording.
 
@@ -164,21 +164,28 @@ Glass's, Brego, Super CAP, CAP and Cazana each own one card, the same in read an
 - guide month;
 - retail value;
 - trade value;
-- Get valuation (while editing).
+- Get valuation (while editing, only when the source has a connected provider);
+- Use this value (while editing).
 
 A card has no mileage box (operator, 24 September 2026): the Case's own accepted mileage is used by the
 lookup and recorded with a calculated Engineer's Value when the Case has one.
 
 The boxes are greyed while reading and inputs of the Case form while editing. Get valuation fills
 the same card in place, without redrawing the page, or shows the card's notice when the source has
-no working provider. The ribbon Save is the writer (23 September 2026): it records every changed
-card with whatever was entered — any box may be left blank — and an untouched or blank card records
-nothing. A card opens holding only what is recorded, in both modes.
+no working provider. A source with no connected provider shows that notice from the start and has
+no Get valuation button (an unavailable action is omitted, not disabled). The ribbon Save is the
+writer (23 September 2026): it records every changed card with whatever was entered — any box may
+be left blank — and an untouched or blank card records nothing. A card opens holding only what is
+recorded, in both modes.
 
 The calculator has no Apply (operator, 23 September 2026): its result fills the Engineer's Value
-box, and the ribbon Save records a calculation that changed since the page opened against its basis
-card; an unchanged calculation records nothing. Where a surface points the operator to the value, it
-says **Set in Valuation**.
+box, and the ribbon Save records a calculation that changed since the page opened, or one the
+Engineer chose with **Use this value** (28 September 2026), against its basis card. Any other save
+records no calculation. **Use this value** is one button on the card, not a second writer: it
+chooses the card, fills the three boxes and switches on a field of the Case form. The preview lines
+use the retail as typed and the claimant's VAT as the form holds it, are dimmed while pending, and
+show a failure or Core's own reason, never "None yet" unless no card is chosen. Where a surface
+points the operator to the value, it says **Set in Valuation**.
 
 Do not reintroduce:
 
@@ -220,8 +227,9 @@ Use the approved Plan clicker, not a newly invented Elevations/Dial/alternative 
 
 The recorded-zone model and visual markers must remain aligned: a drawn disc is saved as drawn and
 names exactly the areas it touches (Core reads them off the disc). Do not snap, regrow or rebuild a
-drawn disc from its areas, and keep every disc capped at half the vehicle's width and clipped to the
-body on the page and the report.
+drawn disc from its areas, and keep every disc capped at half the vehicle's width. Each disc is drawn
+as the one yellow comic burst, unnumbered and unclipped, on the recorded Vehicle type's drawing (car,
+van or motorbike), alike on the page and the report.
 
 Do not re-add the Files image strip to Damage.
 
@@ -243,6 +251,13 @@ Viewer controls must not overlap the image stage. Keep the crop toolbar coherent
 
 The context aside contains the Views card (only once an Audit exists), then Figures and Next
 action.
+
+While the report is not ready, Next action lists every report blocker (With Engineer, in place of
+its one line), each row linking to the section that owns the fact rather than repeating it. A stale generation's warning notice sits at the
+top of Next action; there is no page-wide stale bar and no second stale notice in Report
+(operator, 28 September 2026). Beside the sections the sticky aside is capped at the viewport and
+scrolls on its own; folded above them, the blocker list scrolls inside its panel. Do not let a long
+list push the sections down or hide below a sticky aside.
 
 Do not recreate a separate "Current position" card that repeats the ribbon.
 
