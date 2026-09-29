@@ -635,12 +635,12 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
-    /// Pressed over unsaved changes, Generate report saves the Case first. Its
-    /// form holds the words the script says when the saved Case no longer
-    /// offers it, so the press is never lost without a word.
+    /// Every change is saved as it is made (operator, 29 September 2026), so
+    /// nothing is unsaved when Generate report is pressed: its form carries
+    /// no save-first marker and no words for a press a save left not ready.
     /// </summary>
     [Fact]
-    public async Task GenerateReportHoldsTheWordsForAPressTheSaveLeftNotReady()
+    public async Task GenerateReportInEditModeCarriesNoSaveFirstMarker()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
@@ -654,11 +654,9 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var form = WebUtility.HtmlDecode(FormHtml(await EnterEditModeAsync(client, caseId), "GenerateReport"));
 
-        Assert.Contains("data-case-save-first", form, StringComparison.Ordinal);
-        Assert.Contains(
-            $"data-save-first-dropped=\"{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.NotReadyAfterSave}\"",
-            form,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-save-first", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-save-first-dropped", form, StringComparison.Ordinal);
+        Assert.Contains("name=\"editLeaseToken\"", form, StringComparison.Ordinal);
     }
 
     /// <summary>

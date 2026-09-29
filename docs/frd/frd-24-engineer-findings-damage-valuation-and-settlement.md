@@ -294,7 +294,7 @@ their own.
 September 2026). Filing the result needs no Case edit lease and no Case
 version: a source card and its findings file are not a Case field edit, so
 they do not wait for the Engineer's session and do not end it. The Case, its
-version and the Engineer's unsaved figures are left as they were, and the
+version and the figures the Engineer is typing are left as they were, and the
 Case history records that the research was attached. The edit-authority rule
 is not bypassed: the result writes no Case field, and only the Engineer's
 Save can adopt any figure from it. While the job runs the Researching card

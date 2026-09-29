@@ -147,12 +147,15 @@
                `inspectionAddress` and the assessment fields are not hidden
                here: each has one visible control in its own section,
                associated with this form. *@
+            @* A commit consumes the version, lease and operation key it carries;
+               the script copies each carry-forward input from the response into
+               this form, which stays on the page while the operator edits. *@
             <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
                   asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save>
                 <input type="hidden" name="id" value="@workflow.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" data-carry-forward />
+                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" data-carry-forward />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" data-carry-forward />
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
                 <input type="hidden" name="inspectionDeadline" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="inspectionMode" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Inspection.Mode)?.Value)" />
