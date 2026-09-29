@@ -108,9 +108,11 @@ already holds the fields, so it states them.
   Principal ([FRD-03](frd-03-triage.md)).
 - **Audit.** A standalone `audit` states `originalReportVerdict`
   (`repairable` or `total-loss`). It may attach the original report, once,
-  with its role stated. With the report, the declared verdict records the
-  assessment. Without it, the Audit Case shows **Original report missing**
-  until the report is filed. The Audit Case's
+  with its role stated. The declared verdict records the assessment and
+  fills Repairable status when the Case is created, with or without the
+  report. Without it, the Audit Case shows **Original report missing**
+  until the report is filed; the filed report then fills its other Original
+  report cells and never clears the verdict already there. The Audit Case's
   reference is the `a.` value itself, and the verdict never changes it
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
   `auditreport` is Collision Engineers auditing its own report and carries
@@ -265,7 +267,7 @@ Triage behaviour is owned by
 section records which tells are accepted and what they may not do.
 
 QDOS sends Triage requests in two disjoint generated templates. Both are
-tells of the same one category (`principal_mail_classification` v1): the
+tells of the same one category (`principal_mail_classification` v2): the
 body phrase `Triage Only Request`, and a subject opening with
 `Engineer Triage` after any forward or reply prefix. Both are matched
 case-exactly, because the casing is part of the generated tell; a human

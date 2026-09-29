@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -540,9 +541,10 @@ public sealed class ProviderApiSubmissionTests
         var caseReference = (await ReadJsonAsync(complete)).GetProperty("caseReference").GetString();
         Assert.StartsWith(referencePrefix, caseReference, StringComparison.Ordinal);
 
-        // No report was retained, so no Audit evidence or assessment is
-        // recorded: an Audit Case shows Original report missing until the
-        // report is filed.
+        // No report was retained, so no Audit evidence is recorded: an Audit
+        // Case shows Original report missing until the report is filed. The
+        // declared verdict is still the Case's assessment and fills Repairable
+        // status at creation (#919).
         await using var scope = api.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -550,7 +552,13 @@ public sealed class ProviderApiSubmissionTests
         var allocated = await context.Cases.AsNoTracking().SingleAsync();
         Assert.EndsWith(allocated.Reference, caseReference, StringComparison.Ordinal);
         Assert.Null(allocated.StandaloneAuditEvidenceId);
-        Assert.Null(allocated.StandaloneAuditAssessment);
+        Assert.Equal(originalReportVerdict, allocated.StandaloneAuditAssessment);
+        var outcome = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(item => item.WorkId == allocated.Id
+                && item.FieldPath == AssessmentVocabulary.OriginalReportOutcome)
+            .Select(item => item.Value)
+            .SingleOrDefaultAsync();
+        Assert.Equal(originalReportVerdict, outcome);
     }
 
     [Fact]

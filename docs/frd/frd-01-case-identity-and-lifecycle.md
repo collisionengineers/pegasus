@@ -72,10 +72,13 @@ the `a.` Case once the Principal and identity gates pass, with or without that
 report.
 
 - On the email route, a readable original report records the assessment at
-  intake.
+  intake. A report is readable when it prints exactly one of "repairable" and
+  "total loss". When it prints both, as a repairable supplement does when it
+  cites a previous total loss, the report extraction's printed outcome decides
+  if it names one. When it names none, the message gets no automatic Audit.
 - On the Provider API route, the authenticated Principal declares the verdict
-  and may attach the original report. With the report, the declaration
-  records the assessment.
+  and may attach the original report. The declaration records the
+  assessment at creation, with or without the report.
 - On manual upload, a staff member must accept the proposal first.
 
 If no original report is filed on the Case and no standalone-Audit evidence

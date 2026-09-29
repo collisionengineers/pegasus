@@ -222,6 +222,76 @@ public sealed class DocumentCustodyDurabilityTests
     }
 
     /// <summary>
+    /// A fileless Provider API Audit keeps its declared verdict on the Case from
+    /// creation (#919). Marking its report later fills Repairable status from
+    /// that verdict when the report printed no outcome or the same one, and
+    /// leaves the cell blank when the report disagrees.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "total_loss")]
+    [InlineData("total_loss", "total_loss")]
+    [InlineData("repairable", null)]
+    public async Task MarkingAFilelessAuditsReportReconcilesItsDeclaredVerdict(
+        string? printedOutcome, string? expectedOutcome)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            var occurrenceId = await SeedCurrentDocumentAsync(database, caseId, 0, "laird-report.pdf");
+            var versionId = await VersionIdAsync(database, occurrenceId);
+            await using (var context = await database.CreateContextAsync())
+            {
+                // The declared verdict is on the Case; no Original report cell is filled yet.
+                (await context.Cases.SingleAsync(item => item.Id == caseId)).StandaloneAuditAssessment = "total_loss";
+                await context.SaveChangesAsync();
+            }
+
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var reading = new OriginalReportReading(
+                new string('a', 64), "Laird Assessors", "2026-09-01", "roadworthy", printedOutcome, false);
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(caseId, 0, actor, $"fileless-mark-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                await scope.ServiceProvider.GetRequiredService<IMarkAsOriginalReportStore>()
+                    .MarkAsOriginalReportAsync(
+                        new MarkAsOriginalReportCommand(
+                            caseId,
+                            lease.Version,
+                            actor,
+                            $"fileless-mark:{Guid.NewGuid():N}",
+                            lease.Token,
+                            occurrenceId,
+                            versionId),
+                        reading,
+                        CancellationToken.None);
+            }
+
+            await using var verification = await database.CreateContextAsync();
+            var cells = await verification.CaseAssessmentFields
+                .Where(item => item.WorkId == caseId)
+                .ToDictionaryAsync(item => item.FieldPath);
+            Assert.Equal(
+                expectedOutcome,
+                cells.TryGetValue(AssessmentVocabulary.OriginalReportOutcome, out var outcome) ? outcome.Value : null);
+            Assert.Equal("Laird Assessors", cells[AssessmentVocabulary.OriginalReportAssessor].Value);
+            Assert.Equal("roadworthy", cells[AssessmentVocabulary.OriginalReportRoadworthiness].Value);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// A reading of bytes other than the marked version's fills nothing: the
     /// role is still recorded and the cells stay hand-entered.
     /// </summary>
