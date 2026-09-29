@@ -24,19 +24,23 @@
     var isReview = state == CaseLifecycleState.Review;
     var isComplete = state == CaseLifecycleState.PostReportComplete;
     var isQuery = state == CaseLifecycleState.Query;
-    var editing = Model.IsEditing;
-    var editingCaseData = editing && !Model.IsPostReportReadOnly;
+    // The same offers as the ribbon's Actions menu (operator, 29 September
+    // 2026): in and out of an edit session, and never while a colleague holds
+    // the lease. Outside a session the forms post no lease token and each
+    // handler claims one for the action.
+    var mayAct = !Model.ColleagueIsEditing;
+    var mayActOnCaseData = mayAct && !Model.IsPostReportReadOnly;
     var data = details.Data;
-    var canHandToEngineer = editingCaseData && isReview
+    var canHandToEngineer = mayActOnCaseData && isReview
         && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
     var canSendToEva = (Model.EvaHandoff?.ReportGenerationPolicy is PrincipalReportGenerationPolicy.EvaZip or PrincipalReportGenerationPolicy.EvaManualApi
         || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
-    var canConfirmReportSent = editing
+    var canConfirmReportSent = mayAct
         && state == CaseLifecycleState.ReportPreparation
         && details.AvailableReportSentEvidence.Count > 0;
     var closureOutcomes = Model.AvailableClosureOutcomes;
-    var offersAdverseClosure = editing && closureOutcomes.Count > 0;
+    var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
     var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
 
     Dictionary<string, string?> LeaseFields() => new()
@@ -48,7 +52,7 @@
     };
 }
 
-@if (editingCaseData && !isClosed)
+@if (mayActOnCaseData && !isClosed)
 {
     @if (isHeld)
     {
@@ -168,7 +172,7 @@
     </div>
 }
 
-@if (editing && isClosed && workflow.Archive is null)
+@if (mayAct && isClosed && workflow.Archive is null)
 {
     <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
     {
@@ -222,7 +226,7 @@
     </div>
 }
 
-@if (editing && (isComplete || isQuery))
+@if (mayAct && (isComplete || isQuery))
 {
     <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
     {

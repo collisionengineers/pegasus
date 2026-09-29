@@ -65,21 +65,22 @@ public sealed class ClosureModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CaseClosureOutcome? outcome,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "close",
-            actor => closeCase.ExecuteAsync(
+            (actor, lease) => closeCase.ExecuteAsync(
                 new(
                     id,
                     expectedVersion,
                     actor,
                     operationKey,
                     reason,
-                    editLeaseToken,
+                    lease,
                     RequireOutcome(outcome)),
                 cancellationToken),
             "The selected terminal outcome was recorded.");
@@ -94,20 +95,21 @@ public sealed class ClosureModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "complete_case",
-            actor => closeCase.ExecuteAsync(
+            (actor, lease) => closeCase.ExecuteAsync(
                 new(
                     id,
                     expectedVersion,
                     actor,
                     operationKey,
                     reason,
-                    editLeaseToken,
+                    lease,
                     CaseClosureOutcome.PostReportComplete),
                 cancellationToken),
             "The case is now Completed.");
@@ -150,14 +152,15 @@ public sealed class ClosureModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "return_to_engineer",
-            actor => returnToEngineer.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken),
+            (actor, lease) => returnToEngineer.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, reason, lease),
                 cancellationToken),
             "The case was returned to Engineer.");
 
@@ -166,14 +169,15 @@ public sealed class ClosureModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "archive_case",
-            actor => archiveCase.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken),
+            (actor, lease) => archiveCase.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, reason, lease),
                 cancellationToken),
             "The terminal case was archived and is now read-only.");
 }
