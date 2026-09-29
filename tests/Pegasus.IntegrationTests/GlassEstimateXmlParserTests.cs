@@ -33,7 +33,7 @@ public sealed class GlassEstimateXmlParserTests
         "check_labour|Front Screen Sealing",
         "check_labour|Front Wheel Alignment",
         "check_labour|Bleed Brake System",
-        "new_part|Radiator Air Guide",
+        "check_labour|Radiator Air Guide",
         "paint_new|Bonnet",
         "paint_repair|Front Wing",
         "paint_prep|Preparation, metal",
@@ -112,8 +112,183 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Equal(0.80m, result.Lines[0].WorkUnits);
         // An inclusive part states 0.50 hours its parent row already carries.
         Assert.Equal("Radiator Air Guide", result.Lines[7].Description);
-        Assert.Equal(0m, result.Lines[7].WorkUnits);
+        Assert.Null(result.Lines[7].WorkUnits);
     }
+
+    /// <summary>
+    /// Glass's lists an included operation straight after the row that
+    /// carries it, with its own gross time and a zero price. It charges
+    /// nothing, so it is never a new part: an included Front Grille is a
+    /// no-charge Other line naming its row, as the calculation PDF reader
+    /// lands it.
+    /// </summary>
+    [Fact]
+    public void AnIncludedOperationChargesNothingAndNamesItsRow()
+    {
+        var result = Parse(GlassExport.BuildXml(positions: string.Concat(
+            GlassExport.Position("Part_SparePart", "Replace", "Front Bumper Lining",
+                price: "560.47", time: "0.50", overlapTime: "0.40", oemPartNo: "71101TF0900ZD"),
+            GlassExport.Position("Part_InclusiveSparePart", "Replace", "Front Grille", time: "0.40"),
+            GlassExport.Position("Part_InclusiveSparePart", "Uninstall and install", "Front Bumper Lining", time: "0.40"))));
+
+        var grille = result.Lines[1];
+        Assert.Equal("check_labour", grille.Type);
+        Assert.Null(grille.WorkUnits);
+        Assert.Null(grille.Price);
+        Assert.Null(grille.PartNumber);
+        Assert.False(grille.Unpriced);
+        Assert.Equal("Included in row 1; no separate charge.", grille.Justification);
+        Assert.Equal("check_labour", result.Lines[2].Type);
+        Assert.Equal("Included in row 1; no separate charge.", result.Lines[2].Justification);
+        Assert.Equal(["new_part"], result.Lines.Where(line => line.Price is not null).Select(line => line.Type));
+    }
+
+    [Fact]
+    public void AnIncludedOperationWithNoRowBeforeItIsStillNoCharge()
+    {
+        var line = Assert.Single(Parse(GlassExport.BuildXml(
+            positions: GlassExport.Position("Part_InclusiveSparePart", "Adjust", "Headlamp Alignment", time: "0.20"))).Lines);
+
+        Assert.Equal("check_labour", line.Type);
+        Assert.Null(line.WorkUnits);
+        Assert.Equal("Included; no separate charge.", line.Justification);
+    }
+
+    /// <summary>
+    /// A user-defined additional operation is an <c>Extra costs</c>
+    /// <c>Free_Part</c> row. It is a Specialist line, as EVA files it: hours
+    /// are priced by work units at the estimate's rate, and a row with no
+    /// hours prices a fixed Specialist amount.
+    /// </summary>
+    [Fact]
+    public void AnAdditionalOperationIsASpecialistLine()
+    {
+        var result = Parse(GlassExport.BuildXml(positions: string.Concat(
+            GlassExport.Position("Free_Part", "Extra costs", ".QC &amp; Road Test", time: "1.00", materialCode: "76"),
+            GlassExport.Position("Free_Part", "Extra costs", ".Sundries", price: "29.00", materialCode: "78"),
+            GlassExport.Position("Free_Part", "Extra costs", "Tyre", price: "185.00", time: "0.50", materialCode: "1"))));
+
+        var roadTest = result.Lines[0];
+        Assert.Equal("specialist_wu", roadTest.Type);
+        Assert.Equal(".QC & Road Test", roadTest.Description);
+        Assert.Equal(1.00m, roadTest.WorkUnits);
+        Assert.Equal(0.00m, roadTest.Price);
+        Assert.Null(roadTest.Materials);
+
+        var sundries = result.Lines[1];
+        Assert.Equal("specialist_fixed", sundries.Type);
+        Assert.Equal(29.00m, sundries.Price);
+        Assert.Equal(0m, sundries.WorkUnits);
+
+        // Hours and an amount on one row: the hours are priced and the
+        // amount is kept in Specialist treatment.
+        var tyre = result.Lines[2];
+        Assert.Equal("specialist_wu", tyre.Type);
+        Assert.Equal(0.50m, tyre.WorkUnits);
+        Assert.Equal(185.00m, tyre.Price);
+    }
+
+    [Fact]
+    public void AnAdditionalOperationWithAnUnknownRepairKindIsStillRefused()
+    {
+        var rejected = Assert.Throws<EstimateParseRejectedException>(() => Parse(GlassExport.BuildXml(
+            positions: GlassExport.Position("Free_Part", "Overhaul", "Wing", time: "1.00"))));
+
+        Assert.Contains("'Overhaul'", rejected.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A left and a right part carry the same text; the side Glass's prints
+    /// beside each makes them two different lines, on paint rows too.
+    /// </summary>
+    [Fact]
+    public void TheSideGlassPrintsFollowsTheDescription()
+    {
+        var result = Parse(GlassExport.BuildXml(positions: string.Concat(
+            GlassExport.Position("Part_SparePart", "Replace", "Front Bumper Side Support",
+                price: "31.16", time: "0.80", place: "L"),
+            GlassExport.Position("Part_SparePart", "Replace", "Front Bumper Side Support",
+                price: "31.16", time: "0.80", overlapTime: "0.60", place: "R"),
+            GlassExport.Position("Paint_Part", "Replace", "Front Bumper Towing Hook Cover      ",
+                price: "0.68", time: "0.10", place: "L"))));
+
+        Assert.Equal(
+            ["Front Bumper Side Support (L)", "Front Bumper Side Support (R)", "Front Bumper Towing Hook Cover (L)"],
+            result.Lines.Select(line => line.Description));
+    }
+
+    /// <summary>
+    /// A guide value the engineer changed carries Glass's own marker; its
+    /// note keeps the stated and guide values and Glass's reason. A row
+    /// Glass's computed itself states a zero guide value and no marker, so it
+    /// has no note.
+    /// </summary>
+    [Fact]
+    public void AGuideValueTheEngineerChangedIsTheLinesNote()
+    {
+        var result = Parse(GlassExport.BuildXml(positions: string.Concat(
+            GlassExport.Position("Part_SparePart", "Replace", "Front Bumper Lining",
+                price: "560.47", time: "0.90", overlapTime: "0.40", guideTime: "0.50", timeMarker: true,
+                reason: "Additional work (0.40): ..."),
+            GlassExport.Position("Free_Part", "Extra costs", ".Sundries",
+                price: "29.00", guidePrice: "20.00", priceMarker: true),
+            GlassExport.Position("Paint_PreparationMetal", "Replace", "Prep. metal (on vehicle without pre-painting)",
+                price: "120.16", time: "0.70", guidePrice: "0.00", guideTime: "0.00", materialCode: "2"))));
+
+        Assert.Equal(0.50m, result.Lines[0].WorkUnits);
+        Assert.Equal(
+            "Modified source value: time 0.90 h, guide 0.50 h. Additional work (0.40): ...",
+            result.Lines[0].Justification);
+        Assert.Equal("Modified source value: price 29.00 GBP, guide 20.00 GBP.", result.Lines[1].Justification);
+        Assert.Null(result.Lines[2].Justification);
+    }
+
+    /// <summary>
+    /// Parity with EVA's own Glass's calculation for the same Honda Jazz
+    /// front end (compared 29 September 2026): its rows — seven parts and
+    /// included operations, seventeen additional operations and seven paint
+    /// rows — on this fixture's registration and type number. Costed through
+    /// Core's one money owner at the export's own £83.28 for a VAT-registered
+    /// repairer, the spec equals the net, VAT and gross Glass's printed.
+    /// </summary>
+    [Fact]
+    public void AnExportWithAdditionalOperationsCostsToTheFiguresGlassPrinted()
+    {
+        var parsed = Parse(GlassExport.BuildXml(
+            positions: GlassExport.EvaComparisonPositions,
+            partsTotal: "1207.69",
+            labourTotal: "1107.62",
+            paintTotal: "785.39",
+            netTotal: "3100.70",
+            vatMaterial: "620.14",
+            grossTotal: "3720.84"));
+
+        Assert.Equal(31, parsed.Lines.Count);
+        Assert.Equal(17, parsed.Lines.Count(line => line.Type is "specialist_wu" or "specialist_fixed"));
+        Assert.Equal(
+            ["Front Bumper Lining", "Front Bumper Reinforcement", "Front Bumper Side Support (L)", "Front Bumper Side Support (R)"],
+            parsed.Lines.Where(line => line.Type == "new_part").Select(line => line.Description));
+
+        var printed = Cost(parsed, 83.28m);
+
+        Assert.Equal(803.95m, printed.Parts);
+        Assert.Equal(774.50m, printed.PanelLabour);
+        Assert.Equal(333.12m, printed.PaintLabour);
+        Assert.Equal(785.39m, printed.Materials);
+        Assert.Equal(403.74m, printed.Specialist);
+        Assert.Equal(parsed.SourceTotals!.Net, printed.Net);
+        Assert.Equal(parsed.SourceTotals.Vat, printed.Vat);
+        Assert.Equal(parsed.SourceTotals.Gross, printed.Gross);
+    }
+
+    /// <summary>Costs parsed lines through Core's one money owner, as a VAT-registered repairer's spec at the rate given.</summary>
+    private static EstimatePrintedTotals Cost(ParsedEstimate parsed, decimal rate) =>
+        EstimateTotals.Compute(EstimatePolicy.Provisional(
+            Guid.NewGuid(),
+            null,
+            new("Glass's check", rate, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            parsed.Lines,
+            DateTimeOffset.UnixEpoch)).Printed;
 
     [Fact]
     public void TimeIsKeptAtTheDocumentsPrecisionAndNeverRoundedToTheEditorsStep()
@@ -181,10 +356,10 @@ public sealed class GlassEstimateXmlParserTests
     }
 
     /// <summary>
-    /// A printed figure that disagrees with the rows is recorded exactly as
-    /// printed. Nothing is dropped, nothing is reconciled and the import is
-    /// not refused: Pegasus costs the estimate from its own rows and keeps the
-    /// disagreement beside that calculation.
+    /// A printed figure that disagrees with the rows is returned exactly as
+    /// printed. Nothing is reconciled and the import is not refused: Pegasus
+    /// costs the estimate from its own rows, and the import stores no printed
+    /// figure.
     /// </summary>
     [Fact]
     public void APrintedTotalThatDisagreesWithTheRowsIsRecordedAndNotResolved()
@@ -345,6 +520,8 @@ public sealed class GlassEstimateXmlParserTests
     [Theory]
     [InlineData("Part_Wheel")]
     [InlineData("Paint_Blend")]
+    // Only the free part row the reference exports carry is read.
+    [InlineData("Free_Paint")]
     [InlineData("")]
     public void AnUnknownPositionTypeIsRefusedAndNeverGuessed(string posType)
     {
@@ -525,7 +702,10 @@ public sealed class GlassEstimateXmlParserTests
         internal static string WithDoctype(string doctype) =>
             BuildXml().Replace(Declaration, Declaration + doctype, StringComparison.Ordinal);
 
-        /// <summary>One Position with the elements this parser reads.</summary>
+        /// <summary>
+        /// One Position with the elements this parser reads. Glass's guide
+        /// values equal the stated ones unless the engineer changed them.
+        /// </summary>
         internal static string Position(
             string posType,
             string repairKind,
@@ -534,7 +714,13 @@ public sealed class GlassEstimateXmlParserTests
             string time = "0.00",
             string overlapTime = "0.00",
             string materialCode = "4016001",
-            string oemPartNo = "") =>
+            string oemPartNo = "",
+            string place = "",
+            string? guidePrice = null,
+            string? guideTime = null,
+            bool priceMarker = false,
+            bool timeMarker = false,
+            string reason = "") =>
             $"""
             <Position>
               <PosType>{posType}</PosType>
@@ -544,21 +730,22 @@ public sealed class GlassEstimateXmlParserTests
               <MatKind>K</MatKind>
               <OEMPartNo>{oemPartNo}</OEMPartNo>
               <ManPartNo />
+              <Place>{place}</Place>
               <Price>{price}</Price>
-              <EtgPrice>{price}</EtgPrice>
+              <EtgPrice>{guidePrice ?? price}</EtgPrice>
               <Time>{time}</Time>
-              <EtgTime>{time}</EtgTime>
+              <EtgTime>{guideTime ?? time}</EtgTime>
               <OverlapTime>{overlapTime}</OverlapTime>
+              <Reason>{reason}</Reason>
               <RepairKind>{repairKind}</RepairKind>
-              <PriceMarker>false</PriceMarker>
-              <TimeMarker>false</TimeMarker>
+              <PriceMarker>{(priceMarker ? "true" : "false")}</PriceMarker>
+              <TimeMarker>{(timeMarker ? "true" : "false")}</TimeMarker>
               <AlterMarker>false</AlterMarker>
               <UserPosMarker />
               <PaintKind>-1</PaintKind>
               <PaintLevel>-1</PaintLevel>
               <PaintTreatment>0</PaintTreatment>
               <PaintMethod>0</PaintMethod>
-              <Place>L</Place>
               <OperationNr />
               <OldForNewValue>0.00</OldForNewValue>
             </Position>
@@ -601,5 +788,57 @@ public sealed class GlassEstimateXmlParserTests
             Position("Paint_ColourMixing", "Replace", "Colour mixing", time: "0.20", materialCode: "6"),
             Position("Paint_ColourSample", "Replace", "Sample colour creation",
                 price: "10.00", time: "0.10", materialCode: "7"));
+
+        /// <summary>
+        /// The rows of EVA's Glass's calculation for the Honda Jazz front end
+        /// the operator compared on 29 September 2026, in its order: parts,
+        /// each followed by the operations it includes, then the additional
+        /// operations, then paint. Only the rows are EVA's; the registration,
+        /// type number and every other document field are this fixture's.
+        /// </summary>
+        internal static string EvaComparisonPositions { get; } = string.Concat(
+            Position("Part_SparePart", "Replace", "Front Bumper Lining", price: "560.47", time: "0.90",
+                overlapTime: "0.40", materialCode: "1010800", oemPartNo: "71101TF0900ZD", guideTime: "0.50",
+                timeMarker: true, reason: "Additional work (0.40): ..."),
+            Position("Part_InclusiveSparePart", "Replace", "Front Grille", time: "0.40", materialCode: "1050300"),
+            Position("Part_SparePart", "Replace", "Front Bumper Reinforcement", price: "181.16", time: "0.50",
+                overlapTime: "0.40", materialCode: "1012400", oemPartNo: "71130TF0G10ZZ"),
+            Position("Part_SparePart", "Replace", "Front Bumper Side Support", price: "31.16", time: "0.80",
+                materialCode: "1016101", oemPartNo: "71190TF0000", place: "L"),
+            Position("Part_InclusiveSparePart", "Uninstall and install", "Front Bumper Lining", time: "0.40",
+                materialCode: "1010800"),
+            Position("Part_InclusiveSparePart", "Adjust", "Headlamp Alignment", time: "0.20", materialCode: "1023850"),
+            Position("Part_SparePart", "Replace", "Front Bumper Side Support", price: "31.16", time: "0.80",
+                overlapTime: "0.60", materialCode: "1016102", oemPartNo: "71140TF0000", place: "R"),
+            Position("Free_Part", "Extra costs", "Check frt bumper reinforcer", time: "0.10", materialCode: "1"),
+            Position("Free_Part", "Extra costs", "Bumper to stand", time: "0.20", materialCode: "1"),
+            Position("Free_Part", "Extra costs", ".Assessment Damage Appraisal Charge", price: "176.96", materialCode: "73"),
+            Position("Free_Part", "Extra costs", ".Environmental Charge", price: "31.23", materialCode: "74"),
+            Position("Free_Part", "Extra costs", ".Pre repair cleaning charge", time: "0.50", materialCode: "75"),
+            Position("Free_Part", "Extra costs", ".QC &amp; Road Test", time: "1.00", materialCode: "76"),
+            Position("Free_Part", "Extra costs", ".Standard shutdown", time: "1.00", materialCode: "77"),
+            Position("Free_Part", "Extra costs", ".Sundries", price: "29.00", guidePrice: "20.00", materialCode: "78"),
+            Position("Free_Part", "Extra costs", ".System Diagnostic Check (Post Repair)", time: "1.00", materialCode: "79"),
+            Position("Free_Part", "Extra costs", ".System Diagnostic Check (Pre Repair)", time: "1.00", materialCode: "80"),
+            Position("Free_Part", "Extra costs", ".Vehicle Care Kit", price: "10.41", materialCode: "81"),
+            Position("Free_Part", "Extra costs", ".Wash/Clean", time: "1.00", materialCode: "82"),
+            Position("Free_Part", "Extra costs", "Collection / Delivery", price: "156.14", materialCode: "110"),
+            Position("Free_Part", "Extra costs", "De-nib", time: "0.30", materialCode: "116"),
+            Position("Free_Part", "Extra costs", "Load / Unload vehicle to ramp", time: "0.40", materialCode: "134"),
+            Position("Free_Part", "Extra costs", "Older vehicle allowance", time: "1.00", materialCode: "144"),
+            Position("Free_Part", "Extra costs", "Second man lift", time: "0.20", materialCode: "171"),
+            Position("Paint_Part", "Replace", "Front Bumper k    ", price: "529.30", time: "1.50", materialCode: "1010"),
+            Position("Paint_Part", "Replace", "Front Bumper Reinforcement      ", price: "77.20", time: "0.60",
+                materialCode: "1051"),
+            Position("Paint_Part", "Replace", "Front Bumper Towing Hook Cover      ", price: "0.68", time: "0.10",
+                materialCode: "1056", place: "L"),
+            Position("Paint_PreparationMetal", "Replace", "Prep. metal (on vehicle without pre-painting)",
+                price: "120.16", time: "0.70", materialCode: "2", guidePrice: "0.00", guideTime: "0.00"),
+            Position("Paint_PreparationPlastic", "Replace", "Prep. synthetics (combined-operation work)",
+                price: "46.43", time: "0.50", materialCode: "3", guidePrice: "0.00", guideTime: "0.00"),
+            Position("Paint_ColourMixing", "Replace", "Colour mixing (1)", time: "0.30", materialCode: "6",
+                guideTime: "0.00"),
+            Position("Paint_ColourSample", "Replace", "Sample colour creation (1)", price: "11.62", time: "0.30",
+                materialCode: "7", guidePrice: "0.00", guideTime: "0.00"));
     }
 }
