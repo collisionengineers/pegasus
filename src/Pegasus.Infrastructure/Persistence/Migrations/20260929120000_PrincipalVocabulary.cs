@@ -367,9 +367,10 @@ public partial class PrincipalVocabulary : Migration
             $"GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[PrincipalSubmissions] TO [{WebRole}];");
         migrationBuilder.Sql(
             $"GRANT SELECT, UPDATE ON OBJECT::[dbo].[PrincipalSubmissions] TO [{WorkerRole}];");
+        // Only the Worker reads the domain reference catalog; Web never held
+        // SELECT on these tables.
         foreach (var table in new[] { "PrincipalDomainEvidence", "PrincipalDomainPackages", "PrincipalReferences" })
         {
-            migrationBuilder.Sql($"GRANT SELECT ON OBJECT::[dbo].[{table}] TO [{WebRole}];");
             migrationBuilder.Sql($"GRANT SELECT ON OBJECT::[dbo].[{table}] TO [{WorkerRole}];");
         }
     }
