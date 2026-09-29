@@ -101,26 +101,32 @@ public sealed class TasksModel(
             "The manual chase was recorded and the next chase date was scheduled.",
             RedirectToNotes);
 
+    /// <summary>
+    /// Mark report sent and Unlink are Actions-menu items: in and out of an
+    /// edit session, under the session's lease or one claimed for the action
+    /// (operator, 29 September 2026).
+    /// </summary>
     public Task<IActionResult> OnPostLinkReportEvidenceAsync(
         Guid id,
         Guid evidenceId,
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "link_report_evidence",
-            actor => linkReportEvidence.ExecuteAsync(
+            (actor, lease) => linkReportEvidence.ExecuteAsync(
                 new(
                     id,
                     expectedVersion,
                     actor,
                     operationKey,
                     reason,
-                    editLeaseToken,
+                    lease,
                     evidenceId),
                 cancellationToken),
             "The exact retained report-Sent evidence was linked.");
@@ -131,20 +137,21 @@ public sealed class TasksModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "unlink_report_evidence",
-            actor => unlinkReportEvidence.ExecuteAsync(
+            (actor, lease) => unlinkReportEvidence.ExecuteAsync(
                 new(
                     id,
                     expectedVersion,
                     actor,
                     operationKey,
                     reason,
-                    editLeaseToken,
+                    lease,
                     evidenceId),
                 cancellationToken),
             "The report-Sent evidence was unlinked; retained evidence and history were preserved.");
