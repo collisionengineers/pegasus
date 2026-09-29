@@ -2216,8 +2216,8 @@ public sealed class MailWorkspaceWebTests
         var html = await GetHtmlAsync(client, "/Inbox");
 
         Assert.Contains("href=\"/Inbox\"", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/Operations\"", html, StringComparison.Ordinal);
-        Assert.Contains(">Operations<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/Operations\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Operations<", html, StringComparison.Ordinal);
     }
 
     /// <summary>

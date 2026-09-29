@@ -235,39 +235,6 @@ internal static class AssessmentModelConfiguration
             entity.Navigation(item => item.Work).AutoInclude();
         });
 
-        builder.Entity<AiWorkRequestEntity>(entity =>
-        {
-            var states = string.Join(
-                ", ",
-                Enum.GetNames<AiWorkRequestState>().Select(SqlLiteral));
-            entity.ToTable("AiWorkRequests", table =>
-            {
-                table.HasCheckConstraint("CK_AiWorkRequests_State", $"[State] IN ({states})");
-                table.HasCheckConstraint(
-                    "CK_AiWorkRequests_CaseVersion",
-                    "[CaseVersionAtSend] >= 0");
-            });
-            entity.HasKey(item => item.RequestId);
-            entity.Property(item => item.RequestId).ValueGeneratedNever();
-            entity.Property(item => item.CaseReference).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.CapabilityScope).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.Instruction).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.State).HasMaxLength(20).IsRequired();
-            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
-            entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
-            entity.Property(item => item.CreatedBy).HasMaxLength(200).IsRequired();
-            entity.Property(item => item.ClosureReason).HasMaxLength(500);
-            entity.Property(item => item.ReplyStatus).HasMaxLength(40);
-            entity.Property(item => item.ReplyMessage).HasMaxLength(2000);
-            entity.Property(item => item.Version).IsConcurrencyToken();
-            entity.HasIndex(item => new { item.CaseId, item.OperationKey }).IsUnique();
-            entity.HasIndex(item => new { item.CaseId, item.CreatedAtUtc });
-            entity.HasOne(item => item.Case)
-                .WithMany()
-                .HasForeignKey(item => item.CaseId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
         builder.Entity<AiJobEntity>(entity =>
         {
             var states = string.Join(", ", Enum.GetNames<AiJobState>().Select(SqlLiteral));
@@ -347,8 +314,6 @@ internal static class AssessmentModelConfiguration
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).HasMaxLength(40);
             entity.Property(item => item.Version).IsConcurrencyToken();
-            entity.Property(item => item.ChannelBaseUrl).HasMaxLength(200);
-            entity.Property(item => item.ChannelTokenProtected).HasMaxLength(2000);
         });
     }
 

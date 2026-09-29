@@ -20,16 +20,13 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 /// <remarks>
 /// The dictionary keys are the rail routes that can carry a count —
-/// <c>Inbox</c>, <c>Cases</c>, <c>Operations</c>. <c>Cases</c> is the workspace
+/// <c>Inbox</c> and <c>Cases</c>. <c>Cases</c> is the workspace
 /// contract sum, not_ready + review + with_engineer + query + held + triage +
 /// unidentified, read from the same queries the Cases page itself runs:
 /// <see cref="IDashboardQueries.GetCaseStageCountsAsync"/> (one grouped
 /// aggregate), <see cref="IListTriage"/> (the open-Triage total; the rows are
 /// not projected beyond page one) and
-/// <see cref="IUnidentifiedStore.ListQueueAsync"/>. <c>Operations</c> is the
-/// retryable-failure badge (<see cref="IGetOperationsBadge"/>, 13 September) and
-/// is present only when it is above zero: a badge is an attention signal, and
-/// nothing needing attention renders nothing. Inbox has no established figure
+/// <see cref="IUnidentifiedStore.ListQueueAsync"/>. Inbox has no established figure
 /// to reuse without inventing one, so it is absent — the layout renders nothing
 /// for a missing key, never a stale zero.
 ///
@@ -49,7 +46,6 @@ public sealed partial class RailCountsPageFilter(
     IDashboardQueries dashboardQueries,
     IListTriage listTriage,
     IUnidentifiedStore unidentifiedStore,
-    IGetOperationsBadge getOperationsBadge,
     IMyStaffNotifications myNotifications,
     IMyReleaseNotes myReleaseNotes,
     TimeProvider timeProvider,
@@ -63,8 +59,6 @@ public sealed partial class RailCountsPageFilter(
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly IUnidentifiedStore unidentifiedStore =
         unidentifiedStore ?? throw new ArgumentNullException(nameof(unidentifiedStore));
-    private readonly IGetOperationsBadge getOperationsBadge =
-        getOperationsBadge ?? throw new ArgumentNullException(nameof(getOperationsBadge));
     private readonly IMyStaffNotifications myNotifications =
         myNotifications ?? throw new ArgumentNullException(nameof(myNotifications));
     private readonly IMyReleaseNotes myReleaseNotes =
@@ -96,10 +90,6 @@ public sealed partial class RailCountsPageFilter(
             {
                 ["Cases"] = caseCounts.Total
             };
-            if (await OperationsBadgeAsync(actor, cancellationToken) is > 0 and var badge)
-            {
-                railCounts["Operations"] = badge;
-            }
 
             pageModel.ViewData["RailCounts"] = railCounts;
             pageModel.ViewData["ShellRenderedAtUtc"] = timeProvider.GetUtcNow();
@@ -190,40 +180,11 @@ public sealed partial class RailCountsPageFilter(
             + UnidentifiedCount;
     }
 
-    /// <summary>
-    /// The Operations badge, or nothing. The badge needs casework rights, so a
-    /// User has none; a failed read is logged and renders no figure rather than
-    /// a page failure.
-    /// </summary>
-    private async Task<int> OperationsBadgeAsync(ActionActor actor, CancellationToken cancellationToken)
-    {
-        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
-        {
-            return 0;
-        }
-
-        try
-        {
-            using var timing = DocumentReadTelemetry.Start("web.shell.operations");
-            return await getOperationsBadge.ExecuteAsync(actor, cancellationToken);
-        }
-        catch (Exception exception) when (exception is not
-            (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
-        {
-            LogOperationsBadgeUnavailable(logger, exception);
-            return 0;
-        }
-    }
-
     [LoggerMessage(Level = LogLevel.Error, Message = "The notification query is unavailable.")]
     private static partial void LogNotificationsUnavailable(
         ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The release note query is unavailable.")]
     private static partial void LogReleaseNoteUnavailable(
-        ILogger logger, Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "The Operations badge query is unavailable.")]
-    private static partial void LogOperationsBadgeUnavailable(
         ILogger logger, Exception exception);
 }

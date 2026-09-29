@@ -43,7 +43,7 @@ public sealed class IntakeLogTests
     [InlineData(IntakeLogOutcome.CaseCreated, false)]
     [InlineData(IntakeLogOutcome.Triage, false)]
     [InlineData(IntakeLogOutcome.VehicleImages, false)]
-    public void FailedIntakeCountsEveryRetryableFailureOperationsLists(IntakeLogOutcome outcome, bool counted)
+    public void FailedIntakeCountsEveryRetryableFailure(IntakeLogOutcome outcome, bool counted)
     {
         Assert.Equal(counted, IntakeLogPolicy.IsRetryableFailure(outcome));
         Assert.Equal(
@@ -149,9 +149,5 @@ public sealed class IntakeLogTests
 
         public Task<IntakeLogDetail?> GetAsync(Guid receiptId, CancellationToken cancellationToken) =>
             Task.FromResult<IntakeLogDetail?>(null);
-
-        public Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<IntakeLogActionableFailure>>([]);
     }
 }

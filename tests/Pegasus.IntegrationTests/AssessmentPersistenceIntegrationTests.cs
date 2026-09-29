@@ -600,34 +600,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task AnUnknownWorkRequestBindingFailsClosed()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("assessment-accept-4");
-        var caseId = outcome.Identity.CaseId;
-        var lease = await harness.AcquireLeaseAsync(
-            caseId,
-            0,
-            harness.AutomationActor,
-            "assessment-lease-binding");
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            harness.SaveAssessment.ExecuteAsync(
-                new(
-                    caseId,
-                    lease.Version,
-                    harness.AutomationActor,
-                    "mcp:assessment-binding",
-                    "Automation recorded the assessment draft.",
-                    lease.Token,
-                    new Dictionary<string, string?>(StringComparer.Ordinal)
-                    {
-                        ["vehicle.condition"] = "good"
-                    },
-                    AiWorkRequestId: Guid.NewGuid()),
-                CancellationToken.None));
-    }
-
-    [Fact]
     public async Task EarlierEstimateUpdateReplaysItsRecordedIdentityWithoutRevertingLaterEdits()
     {
         await using var harness = await Harness.CreateAsync();
@@ -2214,103 +2186,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         return assessment.Field(AssessmentVocabulary.ValueEngineer);
     }
 
-    [Fact]
-    public async Task TheAiWorkRequestLifecyclePersistsWithCorrelatedHistory()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("assessment-accept-5");
-        var caseId = outcome.Identity.CaseId;
-        var staff = harness.EngineerActor;
-
-        var created = await harness.WorkRequests.CreateAsync(
-            new(
-                caseId,
-                outcome.Identity.Reference,
-                0,
-                staff,
-                "send-op-1",
-                "Work the assessment.",
-                TimeSpan.FromHours(24)),
-            CancellationToken.None);
-        Assert.Equal(AiWorkRequestState.Created, created.State);
-
-        // Creation replays idempotently on the same operation key and
-        // conflicts on different material.
-        var replay = await harness.WorkRequests.CreateAsync(
-            new(
-                caseId,
-                outcome.Identity.Reference,
-                0,
-                staff,
-                "send-op-1",
-                "Work the assessment.",
-                TimeSpan.FromHours(24)),
-            CancellationToken.None);
-        Assert.Equal(created.RequestId, replay.RequestId);
-        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
-            harness.WorkRequests.CreateAsync(
-                new(
-                    caseId,
-                    outcome.Identity.Reference,
-                    0,
-                    staff,
-                    "send-op-1",
-                    "A different instruction.",
-                    TimeSpan.FromHours(24)),
-                CancellationToken.None));
-
-        var handedOff = await harness.WorkRequests.TransitionAsync(
-            new(created.RequestId, created.Version, AiWorkRequestState.HandedOff, staff, "t-1"),
-            CancellationToken.None);
-        Assert.Equal(AiWorkRequestState.HandedOff, handedOff.State);
-        Assert.NotNull(handedOff.HandedOffAtUtc);
-
-        var completed = await harness.WorkRequests.TransitionAsync(
-            new(
-                created.RequestId,
-                handedOff.Version,
-                AiWorkRequestState.Completed,
-                staff,
-                "t-2",
-                ReplyStatus: "done",
-                ReplyMessage: "Assessment recorded."),
-            CancellationToken.None);
-        Assert.Equal(AiWorkRequestState.Completed, completed.State);
-        Assert.Equal("Assessment recorded.", completed.ReplyMessage);
-
-        // Completed is terminal: reopening it is an illegal transition, and
-        // an exact repeat of the terminal transition replays inertly.
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            harness.WorkRequests.TransitionAsync(
-                new(
-                    created.RequestId,
-                    completed.Version,
-                    AiWorkRequestState.HandedOff,
-                    staff,
-                    "t-3"),
-                CancellationToken.None));
-        var repeat = await harness.WorkRequests.TransitionAsync(
-            new(
-                created.RequestId,
-                completed.Version,
-                AiWorkRequestState.Completed,
-                staff,
-                "t-2"),
-            CancellationToken.None);
-        Assert.Equal(completed.Version, repeat.Version);
-
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        var history = await context.ActionHistory.AsNoTracking()
-            .Where(item => item.AggregateType == "ai_work_request")
-            .ToArrayAsync();
-        Assert.Equal(3, history.Length);
-        Assert.All(history, entry =>
-            Assert.Equal(created.RequestId.ToString("D"), entry.CorrelationId));
-        Assert.Contains(history, entry => entry.EventKind == "ai_work_request_created");
-        Assert.Contains(history, entry => entry.EventKind == "ai_work_request_handedoff");
-        Assert.Contains(history, entry => entry.EventKind == "ai_work_request_completed");
-    }
-
     private sealed class Harness : IAsyncDisposable
     {
         private readonly LocalDbTestDatabase database;
@@ -2325,7 +2200,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             AcceptIntake acceptIntake,
             AcquireCaseEditLease acquireLease,
             SaveAssessment saveAssessment,
-            EfAiWorkRequestStore workRequests,
             EfRepairSpecificationStore repairSpecifications,
             EfValuationStore valuations,
             CaseDataCompletenessPersistenceTests.MutableTimeProvider timeProvider)
@@ -2336,7 +2210,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             this.acceptIntake = acceptIntake;
             this.acquireLease = acquireLease;
             SaveAssessment = saveAssessment;
-            WorkRequests = workRequests;
             RepairSpecifications = repairSpecifications;
             Valuations = valuations;
             this.timeProvider = timeProvider;
@@ -2346,7 +2219,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         public LocalDbTestDatabase Database => database;
         public Guid ReceiptId { get; }
         public SaveAssessment SaveAssessment { get; }
-        public EfAiWorkRequestStore WorkRequests { get; }
         public EfRepairSpecificationStore RepairSpecifications { get; }
         public EfValuationStore Valuations { get; }
         public ActionActor AutomationActor { get; } = ActionActor.Automation("pegasus-automation");
@@ -2391,7 +2263,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     new AcquireCaseEditLease(workflowStore),
                     new SaveAssessment(
                         new EfCaseAssessmentStore(factory, timeProvider, repairSpecifications)),
-                    new EfAiWorkRequestStore(factory, timeProvider),
                     repairSpecifications,
                     valuations,
                     timeProvider);

@@ -50,12 +50,6 @@ public static class AssessmentPolicy
                 nameof(request),
                 $"An assessment save is bounded to {MaximumFieldsPerSave} fields.");
         }
-        if (request.AiWorkRequestId == Guid.Empty)
-        {
-            throw new ArgumentException(
-                "The optional work-request binding cannot be an empty identifier.",
-                nameof(request));
-        }
 
         var normalizedFields = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var (path, rawValue) in request.Fields)

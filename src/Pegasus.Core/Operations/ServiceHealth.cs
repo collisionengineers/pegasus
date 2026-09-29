@@ -54,19 +54,12 @@ public enum ServiceHealthDependency
     AutomationClient
 }
 
-/// <summary>
-/// Exactly the identity <see cref="RetryExternalWorkCommand"/> needs; the
-/// Retry column is that command and nothing else.
-/// </summary>
-public sealed record ServiceHealthRetryTarget(Guid WorkItemId, int ExpectedAttemptCount);
-
 public sealed record ServiceHealthRow(
     ServiceHealthArea Area,
     string Service,
     ServiceHealthState State,
     DateTimeOffset? LatestEvidenceAtUtc,
     ServiceHealthDependency Dependency,
-    ServiceHealthRetryTarget? RetryTarget = null,
     string? FailureCode = null);
 
 /// <summary>
@@ -272,8 +265,7 @@ public static class ServiceHealthPolicy
                     item.ExternalKind ?? ExternalWorkService,
                     ServiceHealthState.Failed,
                     item.LastActivityAtUtc,
-                    ExternalWorkDependency(item.ExternalKind),
-                    new(item.Id, item.AttemptCount!.Value)))
+                    ExternalWorkDependency(item.ExternalKind)))
                 .ToList();
         }
 

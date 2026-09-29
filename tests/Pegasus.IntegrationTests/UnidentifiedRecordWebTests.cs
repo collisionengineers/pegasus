@@ -1,9 +1,11 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
@@ -160,6 +162,98 @@ public sealed class UnidentifiedRecordWebTests
         Assert.Contains($"/Received/{first.ReceiptId:D}/Asset/{first.Photo.Id:D}", html, StringComparison.Ordinal);
         Assert.Contains($"/Received/{second.ReceiptId:D}/Asset/{second.Photo.Id:D}", html, StringComparison.Ordinal);
         Assert.Contains("2 photographs extracted from the retained files.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendToAiQueuesOneUnidentifiedResolutionJobForTheItem()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (_, itemId, reference) = await SeedOpenItemAsync(factory, UnidentifiedReasonCode.NoUsableIdentification);
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains("data-unidentified-action=\"send-to-ai\"", html, StringComparison.Ordinal);
+        Assert.Contains("Send Unidentified to AI", html, StringComparison.Ordinal);
+
+        using var sent = await PostAsync(client, $"/Unidentified/{itemId:D}?handler=SendToAi", new()
+        {
+            ["operationKey"] = Guid.NewGuid().ToString("N")
+        });
+
+        Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+        Assert.Equal($"/Unidentified/{itemId:D}", sent.Headers.Location?.OriginalString);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var job = Assert.Single(await scope.ServiceProvider
+            .GetRequiredService<IAiJobQueries>()
+            .ListOpenAsync(CancellationToken.None));
+        // FRD-27: the job's input is the U reference alone, started by staff.
+        Assert.Equal(AiJobKind.UnidentifiedResolution, job.Kind);
+        Assert.Equal(itemId, job.SubjectId);
+        Assert.Equal(reference, job.SubjectReference);
+        Assert.Equal(ActorKind.Staff, job.CreatedByKind);
+        Assert.False(string.IsNullOrWhiteSpace(job.Instruction));
+
+        var after = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains("The Unidentified item was sent to AI.", after, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendToAiSurfacesTheAdministratorSwitchAndCreatesNoJob()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (_, itemId, _) = await SeedOpenItemAsync(factory, UnidentifiedReasonCode.NoUsableIdentification);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<ISendToAiControl>().SetEnabledAsync(
+                false,
+                ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                "Paused for the test.",
+                Guid.NewGuid().ToString("N"),
+                CancellationToken.None);
+        }
+
+        using var refused = await PostAsync(client, $"/Unidentified/{itemId:D}?handler=SendToAi", new()
+        {
+            ["operationKey"] = Guid.NewGuid().ToString("N")
+        });
+
+        Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
+        var after = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains("AI work is not accepting new jobs.", after, StringComparison.Ordinal);
+        await using var verify = factory.Services.CreateAsyncScope();
+        Assert.Empty(await verify.ServiceProvider
+            .GetRequiredService<IAiJobQueries>()
+            .ListOpenAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AClosedItemOffersNoSendToAiAndRefusesIt()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (_, itemId, _) = await SeedOpenItemAsync(factory, UnidentifiedReasonCode.NoUsableIdentification);
+        using var closed = await PostAsync(client, $"/Unidentified/{itemId:D}?handler=Close", new()
+        {
+            ["expectedVersion"] = (await VersionAsync(factory, itemId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["operationKey"] = Guid.NewGuid().ToString("N"),
+            ["reason"] = "Not one of ours."
+        });
+        Assert.Equal(HttpStatusCode.Redirect, closed.StatusCode);
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.DoesNotContain("data-unidentified-action=\"send-to-ai\"", html, StringComparison.Ordinal);
+
+        using var refused = await PostAsync(client, $"/Unidentified/{itemId:D}?handler=SendToAi", new()
+        {
+            ["operationKey"] = Guid.NewGuid().ToString("N")
+        });
+
+        Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.Empty(await scope.ServiceProvider
+            .GetRequiredService<IAiJobQueries>()
+            .ListOpenAsync(CancellationToken.None));
     }
 
     private static async Task<(Guid ReceiptId, Guid ItemId, string Reference)> SeedOpenItemAsync(

@@ -100,12 +100,6 @@ public sealed class IntakeOcrRetryPersistenceTests
         var detail = Assert.IsType<IntakeLogDetail>(
             await log.GetAsync(administrator, receiptId, CancellationToken.None));
         Assert.True(detail.Actions.CanRetryOcr);
-        var failure = Assert.Single(await log.ListRetryableFailuresAsync(administrator, CancellationToken.None),
-            item => item.Row.ReceiptId == receiptId);
-        Assert.Equal(detail.Receipt.Version, failure.ReceiptVersion);
-        Assert.Equal(detail.AllocationAttempts[^1], failure.LatestAllocationAttempt);
-        Assert.Equal(detail.Actions.CanRetryAllocation, failure.Actions.CanRetryAllocation);
-        Assert.Equal(detail.Actions.CanRetryOcr, failure.Actions.CanRetryOcr);
         var ocrFailed = await log.ExecuteAsync(administrator, new IntakeLogFilter(Outcome: IntakeLogOutcome.OcrFailed), 1, CancellationToken.None);
         Assert.Contains(ocrFailed.Items, row => row.ReceiptId == receiptId && row.Outcome == IntakeLogOutcome.OcrFailed);
         // The Failed intake head-line count includes a failed OCR attempt, not

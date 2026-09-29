@@ -5,7 +5,6 @@ namespace Pegasus.Core.AiWork;
 public sealed record AdministrationAiJobPage(
     IReadOnlyList<AiJobRecord> Jobs,
     AiJobCounts Counts,
-    bool TransportComposed,
     bool SendToAiSwitchEnabled,
     bool HasMore);
 
@@ -27,7 +26,6 @@ public sealed class GetAdministrationAiJobs(
     public async Task<AdministrationAiJobPage> ExecuteAsync(
         ActionActor actor,
         int page,
-        bool transportComposed,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
@@ -36,6 +34,6 @@ public sealed class GetAdministrationAiJobs(
         var rows = await queries.ListAsync((page - 1) * PageSize, PageSize + 1, cancellationToken);
         var counts = await jobs.GetCountsAsync(cancellationToken);
         var enabled = await sendToAi.IsEnabledAsync(cancellationToken);
-        return new(rows.Take(PageSize).ToArray(), counts, transportComposed, enabled, rows.Count > PageSize);
+        return new(rows.Take(PageSize).ToArray(), counts, enabled, rows.Count > PageSize);
     }
 }

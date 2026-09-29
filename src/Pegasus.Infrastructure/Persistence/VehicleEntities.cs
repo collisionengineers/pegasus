@@ -52,31 +52,4 @@ internal sealed class VehicleLookupObservationEntity
     public bool? FailureRetryable { get; set; }
     public long? FailureRetryAfterTicks { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
-    public List<VehicleConfirmationEntity> Confirmations { get; set; } = [];
-}
-
-internal sealed class VehicleConfirmationEntity
-{
-    public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
-    public Guid LookupObservationId { get; set; }
-    public VehicleLookupObservationEntity LookupObservation { get; set; } = null!;
-    public required string Decision { get; set; }
-    public required string Registration { get; set; }
-    public string? Make { get; set; }
-    public string? Model { get; set; }
-    public long? Mileage { get; set; }
-    public string? MileageUnit { get; set; }
-    public required string ActorKind { get; set; }
-    public required string ActorSubjectId { get; set; }
-    public required string ActorRolesJson { get; set; }
-    public required string OperationKey { get; set; }
-    public required string RequestFingerprint { get; set; }
-    public required string Reason { get; set; }
-    public DateTimeOffset OccurredAtUtc { get; set; }
-    public long BeforeCaseVersion { get; set; }
-    public long AfterCaseVersion { get; set; }
-    public required string PolicyKey { get; set; }
-    public int PolicyVersion { get; set; }
 }

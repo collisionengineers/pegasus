@@ -24,13 +24,10 @@ public sealed class OperationsPersistenceTests
         Assert.Contains(result.Items, item => item.Id == ids.RetryableFailureId);
         Assert.DoesNotContain(result.Items, item => item.Id == ids.LeasedFailureId);
         Assert.All(result.Items, item => Assert.True(item.CanRetry));
-        Assert.Equal(
-            1,
-            await store.CountRetryableExternalFailuresAsync(FixedUtcNow, CancellationToken.None));
     }
 
     [Fact]
-    public async Task RetryableFailureCountIncludesEveryEligibleFailureBeyondTheMixedListLimit()
+    public async Task RequestProjectionIsBoundedAndSaysWhenTheLimitIsReached()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var ids = await SeedRequestOperationsAsync(database);
@@ -66,9 +63,6 @@ public sealed class OperationsPersistenceTests
             Assert.Equal(RequestOperationState.Failed, item.State);
             Assert.True(item.CanRetry);
         });
-        Assert.Equal(
-            102,
-            await store.CountRetryableExternalFailuresAsync(FixedUtcNow, CancellationToken.None));
     }
 
     private static async Task<(Guid CaseId, Guid RetryableFailureId, Guid LeasedFailureId)> SeedRequestOperationsAsync(

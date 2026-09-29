@@ -34,8 +34,8 @@ presets**, **Service
 health**, **Logs**, **Reports**, **Release notes**, **Problem reports** and **AI
 jobs**. Automation appears only when
 its capability is composed. Its Automation & AI page carries the Send to AI
-connector settings
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-connector-settings)).
+switch
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)).
 There are no separate Principal or Claim Source areas.
 
 Every consequential change (role, account state, principal credential,
@@ -156,8 +156,7 @@ keeps its sub-second precision.
 
 **Intake log** lists one row per received file: received, source, item
 (opening the original), outcome with its reason, what it became, and
-attempts. Its head shows counts (Failed intake, linking to Operations, and
-the oldest pending intake). It has filters (search, outcome, source,
+attempts. Its head shows counts (Failed intake and the oldest pending intake). It has filters (search, outcome, source,
 principal, from, to), paging, and a row drawer with the retained original,
 Open message where it came by e-mail, the processing evidence and the
 technical actions that apply

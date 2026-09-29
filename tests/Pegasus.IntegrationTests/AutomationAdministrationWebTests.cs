@@ -110,31 +110,11 @@ public sealed partial class AutomationAdministrationWebTests
 
     [Theory]
     [InlineData("SetEnabled")]
-    [InlineData("ClearChannelToken")]
+    [InlineData("SaveAiSettings")]
     public async Task AFailedPostKeepsTheStoredSendToAiState(string handler)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        using var automationFactory = WithAutomationMcp(baseFactory);
-        using var factory = automationFactory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Features:SendToAi", "true");
-            builder.UseSetting("SendToAi:ChannelBaseUrl", "http://127.0.0.1:8629");
-            builder.UseSetting(
-                "SendToAi:ChannelToken",
-                "automation-admin-redisplay-channel-token-0123456789");
-            builder.UseSetting("SendToAi:TimeoutSeconds", "5");
-        });
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            await scope.ServiceProvider.GetRequiredService<IAiChannelConnectorStore>()
-                .RotateTokenAsync(
-                    new(
-                        Administrator,
-                        "Exercise both redisplay paths.",
-                        "automation-admin-redisplay-token",
-                        "automation-admin-administration-channel-token-0123456789"),
-                    CancellationToken.None);
-        }
+        using var factory = WithAutomationMcp(baseFactory);
         using var client = CreateClient(factory);
         var html = await GetHtmlAsync(client, AutomationRoute);
 
@@ -153,9 +133,6 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.True(await verificationScope.ServiceProvider
             .GetRequiredService<ISendToAiControl>()
             .IsEnabledAsync(CancellationToken.None));
-        Assert.True((await verificationScope.ServiceProvider
-            .GetRequiredService<IAiChannelConnectorStore>()
-            .GetAsync(CancellationToken.None)).TokenHeld);
     }
 
     [Fact]
@@ -175,22 +152,6 @@ public sealed partial class AutomationAdministrationWebTests
             "This deployment does not have Automation or AI configuration available.",
             html,
             StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task SendToAiOnlyCompositionShowsTheAdministrationCardAndRailRow()
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = SendToAiIntegrationTests.WithSendToAi(baseFactory, "http://127.0.0.1:8629");
-        using var client = CreateClient(factory);
-
-        var administration = await GetHtmlAsync(client, "/Administration");
-        var automation = await GetHtmlAsync(client, AutomationRoute);
-
-        Assert.Contains($"href=\"{AutomationRoute}\"", administration, StringComparison.Ordinal);
-        Assert.Contains($"href=\"{AutomationRoute}\"", automation, StringComparison.Ordinal);
-        Assert.Contains("AI settings", automation, StringComparison.Ordinal);
-        Assert.DoesNotContain("Registered clients", automation, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -228,10 +189,10 @@ public sealed partial class AutomationAdministrationWebTests
     }
 
     [Fact]
-    public async Task TheOneSaveStoresTheTimeoutAndStopsSendingToAiWhenTheCheckboxIsCleared()
+    public async Task TheOneSaveStopsSendingToAiWhenTheCheckboxIsCleared()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = SendToAiIntegrationTests.WithSendToAi(baseFactory, "http://127.0.0.1:8629");
+        using var factory = WithAutomationMcp(baseFactory);
         using var client = CreateClient(factory);
 
         var html = await GetHtmlAsync(client, AutomationRoute);
@@ -246,10 +207,9 @@ public sealed partial class AutomationAdministrationWebTests
             $"{AutomationRoute}?handler=SaveAiSettings",
             Form(
                 AntiforgeryValue(html),
-                ("ChannelTimeoutSeconds", "7"),
                 ("SendToAiEnabled", "false"),
                 ("OperationKey", InputValue(html, "OperationKey")),
-                ("Reason", "Paused while the channel host is rebuilt."))))
+                ("Reason", "Paused while the AI client is rebuilt."))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         }
@@ -259,10 +219,6 @@ public sealed partial class AutomationAdministrationWebTests
             Assert.False(await scope.ServiceProvider
                 .GetRequiredService<ISendToAiControl>()
                 .IsEnabledAsync(CancellationToken.None));
-            var settings = await scope.ServiceProvider
-                .GetRequiredService<IAiChannelConnectorStore>()
-                .GetAsync(CancellationToken.None);
-            Assert.Equal(7, settings.TimeoutSeconds);
         }
 
         var savedHtml = await GetHtmlAsync(client, AutomationRoute);
@@ -271,12 +227,10 @@ public sealed partial class AutomationAdministrationWebTests
     }
 
     [Fact]
-    public async Task ACheckboxOnlySaveWritesNoUnchangedConnectorHistory()
+    public async Task ACheckboxOnlySaveWritesOnlyTheSwitchHistory()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = SendToAiIntegrationTests.WithSendToAi(
-            baseFactory,
-            "http://127.0.0.1:8629");
+        using var factory = WithAutomationMcp(baseFactory);
         using var client = CreateClient(factory);
         var html = await GetHtmlAsync(client, AutomationRoute);
         var operationKey = InputValue(html, "OperationKey");

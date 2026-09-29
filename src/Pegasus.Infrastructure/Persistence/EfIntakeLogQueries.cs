@@ -91,8 +91,8 @@ internal sealed class EfIntakeLogQueries(
 
     /// <remarks>
     /// Failed intake is the number of receipts whose composed outcome is a
-    /// retryable failure (<see cref="IntakeLogPolicy.IsRetryableFailure"/>) — the
-    /// rows Operations lists — judged by the same composition as the list, over
+    /// retryable failure (<see cref="IntakeLogPolicy.IsRetryableFailure"/>), judged
+    /// by the same composition as the list, over
     /// the same bounded newest candidates.
     /// </remarks>
     public async Task<IntakeLogCounts> GetCountsAsync(CancellationToken cancellationToken)
@@ -109,75 +109,6 @@ internal sealed class EfIntakeLogQueries(
             pending.Where(item => EfIntakeWorkStore.ParseState(item.State) is not IntakeWorkState.Failed and not IntakeWorkState.Completed)
                 .Select(item => (DateTimeOffset?)item.OldestDueAtUtc)
                 .Min());
-    }
-
-    public async Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var candidates = await Candidates(context, Newest(context.IntakeReceipts.AsNoTracking()))
-            .ToListAsync(cancellationToken);
-        var entries = candidates
-            .Select(candidate => (Candidate: candidate, Outcome: ComposeOutcome(candidate)))
-            .Where(entry => IntakeLogPolicy.IsRetryableFailure(entry.Outcome))
-            .ToArray();
-        entries = IntakeLogPolicy.RetryableFailures
-            .SelectMany(outcome => entries
-                .Where(entry => entry.Outcome == outcome)
-                .Take(IntakeLogPolicy.PageSize))
-            .ToArray();
-        if (entries.Length == 0)
-        {
-            return [];
-        }
-
-        var ids = entries.Select(entry => entry.Candidate.Id).ToArray();
-        var rows = await MapRowsAsync(context, entries, cancellationToken);
-        var versions = await context.IntakeReceipts
-            .AsNoTracking()
-            .Where(item => ids.Contains(item.Id))
-            .Select(item => new { item.Id, item.Version })
-            .ToDictionaryAsync(item => item.Id, item => item.Version, cancellationToken);
-        var allocations = await context.IntakeReceipts
-            .AsNoTracking()
-            .Where(receipt => ids.Contains(receipt.Id))
-            .Select(receipt => new
-            {
-                receipt.Id,
-                Attempt = context.IntakeAllocationAttempts
-                    .AsNoTracking()
-                    .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
-                    .OrderByDescending(attempt => attempt.AttemptNumber)
-                    .FirstOrDefault()
-            })
-            .ToListAsync(cancellationToken);
-        var allocationByReceipt = allocations
-            .Where(item => item.Attempt is not null)
-            .ToDictionary(
-                item => item.Id,
-                item => IntakeAllocationState.FromAttempt(EfIntakeAllocationStore.Map(item.Attempt!)));
-        // Candidates already project this exact effective latest OCR state for
-        // outcome composition. Reusing it avoids reopening every displayed
-        // receipt's complete OCR history merely to recreate the same action.
-        var lastOcrByReceipt = entries.ToDictionary(
-            entry => entry.Candidate.Id,
-            entry => entry.Candidate.LastOcrState);
-
-        return rows.Select(row =>
-        {
-            allocationByReceipt.TryGetValue(row.ReceiptId, out var allocation);
-            var canRetryOcr = lastOcrByReceipt.TryGetValue(row.ReceiptId, out var ocrState)
-                && IntakeOcrRetryPolicy.CanRetry(
-                    ocrState is { } state ? Enum.Parse<IntakeOcrState>(state) : null);
-            return new IntakeLogActionableFailure(
-                row,
-                versions[row.ReceiptId],
-                allocation,
-                new IntakeLogActions(
-                    CanReevaluate: true,
-                    CanRetryAllocation: allocation?.CanRetry == true,
-                    CanRetryOcr: canRetryOcr));
-        }).ToArray();
     }
 
     private static IQueryable<IntakeReceiptEntity> Newest(IQueryable<IntakeReceiptEntity> query) =>
