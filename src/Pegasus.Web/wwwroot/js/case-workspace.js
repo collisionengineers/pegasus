@@ -41,6 +41,7 @@
     var COMMIT_IDLE_MS = 1000;
     var commitTimer = null;
     var commitPending = false;
+    var commitInFlight = false;
     var commitWaiters = [];
     var commitStatus = null;
     // One editor: the record's Save form. The Repair Spec and the valuation
@@ -483,19 +484,36 @@
         commitTimer = window.setTimeout(function () { commitTimer = null; commitNow(); }, COMMIT_IDLE_MS);
     }
     // A commit is the Case form's own submit, so everything a submit means
-    // (the scale preview putting its cells back, the in-place post) holds.
-    function commitNow() {
+    // (the scale preview putting its cells back, the browser's own checks,
+    // the in-place post) holds. A value the browser cannot accept is sent
+    // nowhere: the status word says so, and what waited on the commit does
+    // not run. Only a commit the operator asked for (Ctrl S, an action or a
+    // link that waits on it) points at the value; an idle leaves focus alone.
+    function commitNow(explicit) {
         if (commitTimer !== null) { window.clearTimeout(commitTimer); commitTimer = null; }
         var form = caseForm();
         if (!form || record.getAttribute('data-case-editing') !== 'true') { settleQueue(); return; }
         if (submitting) { commitPending = true; return; }
-        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        if (!form.checkValidity()) {
+            var invalid = Array.prototype.find.call(form.elements, function (control) {
+                return control.willValidate && !control.validity.valid;
+            });
+            if (explicit) { form.reportValidity(); }
+            setCommitStatus('refused', 'The change was not saved: ' + (invalid ? invalid.validationMessage : 'a value cannot be saved.'));
+            abandonWaiters();
+            return;
+        }
+        form.requestSubmit();
     }
-    // Runs once nothing is in flight or waiting to commit.
-    function afterCommit(next) {
+    // Runs once nothing is in flight or waiting to commit. What waits reads
+    // the Case as the operator has it, so it runs only once the change has
+    // landed: a commit that is refused, cannot be sent or cannot be checked
+    // abandons it (its abandon, when given, undoes what it began), and the
+    // change stays on the page.
+    function afterCommit(next, abandon) {
         if (!queueBusy()) { next(); return; }
-        commitWaiters.push(next);
-        if (commitTimer !== null) { commitNow(); }
+        commitWaiters.push({ run: next, abandon: abandon });
+        if (commitTimer !== null) { commitNow(true); }
     }
     function settleQueue() {
         if (submitting) { return; }
@@ -503,7 +521,12 @@
         if (commitTimer !== null) { return; }
         var waiters = commitWaiters;
         commitWaiters = [];
-        waiters.forEach(function (next) { next(); });
+        waiters.forEach(function (waiter) { waiter.run(); });
+    }
+    function abandonWaiters() {
+        var waiters = commitWaiters;
+        commitWaiters = [];
+        waiters.forEach(function (waiter) { if (waiter.abandon) { waiter.abandon(); } });
     }
     document.addEventListener('change', function (event) {
         var control = event.target;
@@ -527,10 +550,12 @@
         var host = compositeOf(event.target);
         if (host && !(event.relatedTarget && host.contains(event.relatedTarget))) { commitNow(); }
     });
-    // Closing the tab with a change not yet sent: the change goes by beacon,
-    // and the lease lapses by server time (FRD-14).
+    // Closing the tab with a change not yet sent, or sent but not confirmed:
+    // the change goes by beacon, and the lease lapses by server time
+    // (FRD-14). A beacon behind a commit that did land carries the same
+    // operation key, so the server answers it as a replay.
     window.addEventListener('pagehide', function () {
-        if (commitTimer === null && !commitPending) { return; }
+        if (commitTimer === null && !commitPending && !commitInFlight) { return; }
         var form = caseForm();
         if (form && typeof navigator.sendBeacon === 'function') {
             navigator.sendBeacon(form.getAttribute('action') || window.location.href, new FormData(form));
@@ -692,14 +717,16 @@
     // The inputs a commit consumes or moves on (its authority, the valuation
     // calculation the page opened on) are copied from the response's Save
     // form into the one the operator keeps typing in, so the next commit
-    // carries the Case's new version, lease and operation key.
+    // carries the Case's new version, lease and operation key. An input may
+    // sit in its section and belong to the form by its form attribute (the
+    // valuation's opening calculation), so both sides go by ownership.
     function carryForward(parsed) {
         var form = caseForm();
-        var next = form ? parsed.getElementById(form.id) : null;
-        if (!form || !next) { return; }
-        Array.prototype.forEach.call(next.querySelectorAll('[data-carry-forward]'), function (input) {
-            var current = form.querySelector('[data-carry-forward][name="' + input.name + '"]');
-            if (current) { current.value = input.value; }
+        if (!form || !parsed.getElementById(form.id)) { return; }
+        var owned = '#' + form.id + ' [data-carry-forward], [data-carry-forward][form="' + form.id + '"]';
+        Array.prototype.forEach.call(parsed.querySelectorAll(owned), function (input) {
+            var current = form.elements.namedItem(input.name);
+            if (current && current.hasAttribute && current.hasAttribute('data-carry-forward')) { current.value = input.value; }
         });
     }
     function swap(html, command, preferred) {
@@ -804,6 +831,7 @@
         } else if (commitRefused) {
             var refusal = document.querySelector('[data-case-notices] [role="alert"]');
             setCommitStatus('refused', refusal ? refusal.textContent.trim() : 'The change was not saved.');
+            abandonWaiters();
         } else if (incoming.getAttribute('data-case-editing') !== 'true') {
             setCommitStatus(null);
         }
@@ -848,7 +876,7 @@
         } : null;
         var isCommit = !!command && command.editor === 'case-edit-form'
             && record.getAttribute('data-case-editing') === 'true';
-        if (isCommit) { setCommitStatus('saving'); }
+        if (isCommit) { commitInFlight = true; setCommitStatus('saving'); }
         var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
         var method = ((submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get').toUpperCase();
         var request = { method: method, credentials: 'same-origin', redirect: 'follow', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' } };
@@ -897,7 +925,7 @@
                 : isCommit
                     ? error.message + ' Your last change was not saved; it is still on the page.'
                     : error.message + ' Your last change is still on the page.';
-            if (isCommit) { setCommitStatus('refused', error.message); }
+            if (isCommit) { setCommitStatus('refused', error.message); abandonWaiters(); }
             showActionError(failure);
         }).finally(function () {
             form.removeAttribute('aria-busy');
@@ -911,6 +939,7 @@
                 importStatus.hidden = true;
                 importStatus.textContent = '';
             }
+            if (isCommit) { commitInFlight = false; }
             submitting = false;
             settleQueue();
         });
@@ -1085,10 +1114,10 @@
                 return Boolean(event.dataTransfer)
                     && Array.prototype.slice.call(event.dataTransfer.types || []).indexOf('Files') >= 0;
             };
-            // The frame's submit queue lets an import follow a commit; only
-            // an import already on its way refuses another.
+            // The frame's submit queue lets an import follow a commit; an
+            // import or another action already on its way refuses it.
             function canAccept() {
-                return form.dataset.inplaceSubmitting !== 'true';
+                return !(submitting && !commitInFlight) && form.dataset.inplaceSubmitting !== 'true';
             }
             function clearDrag() {
                 depth = 0;
@@ -1209,14 +1238,6 @@
         if (form.dataset.inplaceSubmitting === 'true') {
             return;
         }
-        if (submitting) {
-            // A commit behind a post in flight follows it. A second press of
-            // an action while one is in flight is dropped; a Refresh already
-            // in flight (F5 bypasses the disabled button) stays busy until
-            // its own response lands.
-            if (isCommit) { commitPending = true; } else { resetRefresh(form); }
-            return;
-        }
         var name = submitter ? submitter.name : '';
         var value = submitter ? submitter.value : '';
         var formaction = submitter ? submitter.getAttribute('formaction') : null;
@@ -1225,6 +1246,9 @@
             // the dialogs' forms are drawn afresh with the Case's new authority.
             var next = refind(form);
             if (!next || next.dataset.inplaceSubmitting === 'true') { return; }
+            // Waiters run together once the queue empties; the first to post
+            // holds it, and the next follows that post.
+            if (submitting) { commitWaiters.push({ run: proceed }); return; }
             var button = submitter && next !== form ? Array.prototype.find.call(next.elements, function (element) {
                 return element.type === 'submit' && element.name === name && element.value === value
                     && element.getAttribute('formaction') === formaction;
@@ -1239,6 +1263,19 @@
                 return;
             }
             submitInPlace(next, button);
+        }
+        if (submitting) {
+            // A commit behind a post in flight follows it, and so does an
+            // action (Done, an import) pressed while a commit is on its way:
+            // the press that left a cell is what started that commit. A
+            // Refresh during a commit, and a second press of an action while
+            // an action is in flight, are dropped; a Refresh already in
+            // flight (F5 bypasses the disabled button) stays busy until its
+            // own response lands.
+            if (isCommit) { commitPending = true; }
+            else if (commitInFlight && !form.hasAttribute('data-refresh-form')) { afterCommit(proceed); }
+            else { resetRefresh(form); }
+            return;
         }
         // Every other post (an action, Done, a refresh) follows the change
         // not yet sent, so it reads the Case as the operator has it.
@@ -1261,7 +1298,7 @@
         if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') { return; }
         event.preventDefault();
         event.stopImmediatePropagation();
-        commitNow();
+        commitNow(true);
     }, true);
     // Leaving the Case by a link ends edit mode (FRD-14): a change not yet
     // sent lands first, and the lease is released as the operator goes, so
@@ -1384,7 +1421,9 @@
                             || versionBeforeRead !== record.getAttribute('data-case-version')) { return; }
                         if (!swap(html)) { throw new Error('The Case could not be refreshed.'); }
                     }).then(resolve, reject);
-                });
+                    // A change the Case refused stays on the page for another
+                    // go, so the Case is not read over it.
+                }, resolve);
             });
         }).catch(function (error) { showActionError(error.message); throw error; }).finally(finishGlassOpening);
     };
@@ -1416,7 +1455,7 @@
             next.target = windowName;
             next.setAttribute('aria-busy', 'true');
             HTMLFormElement.prototype.submit.call(next);
-        });
+        }, cancelGlassOpening);
     });
 
     // ---- the section-head Edit posts the ribbon's claim and remembers the
