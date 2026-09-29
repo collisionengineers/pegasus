@@ -10,7 +10,9 @@ namespace Pegasus.Web.Pages.Cases;
 /// <summary>
 /// The Case workspace's workflow actions: hold and release, return to Review, Engineer
 /// handoff, and the linked replacement for a
-/// case created in error. Every action redirects back to the workspace.
+/// case created in error. Every action redirects back to the workspace. The
+/// Actions-menu items run under the session's lease or, outside a session,
+/// one claimed for the action (operator, 29 September 2026).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -32,15 +34,16 @@ public sealed class WorkflowModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         DateOnly? reviewOn,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "hold",
-            actor => holdCase.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken, reviewOn),
+            (actor, lease) => holdCase.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, reason, lease, reviewOn),
                 cancellationToken),
             "The case was put on hold.");
 
@@ -49,20 +52,21 @@ public sealed class WorkflowModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "release_hold",
-            actor => releaseCase.ExecuteAsync(
+            (actor, lease) => releaseCase.ExecuteAsync(
                 new ChangeCaseStateRequest(
                     id,
                     expectedVersion,
                     actor,
                     operationKey,
                     reason,
-                    editLeaseToken),
+                    lease),
                 cancellationToken),
             "The case hold was released.");
 
@@ -71,23 +75,24 @@ public sealed class WorkflowModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         bool instructionsComplete,
         bool imagesComplete,
         string evidenceReference,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "return_to_review",
-            actor => transitionCase.ExecuteAsync(
+            (actor, lease) => transitionCase.ExecuteAsync(
                 new(
                     id,
                     expectedVersion,
                     actor,
                     operationKey,
                     reason,
-                    editLeaseToken,
+                    lease,
                     CaseTransitionDestination.Review,
                     Readiness(
                         instructionsComplete,
@@ -100,24 +105,25 @@ public sealed class WorkflowModel(
         Guid id,
         long expectedVersion,
         string operationKey,
-        string editLeaseToken,
+        string? editLeaseToken,
         Guid engineerId,
         bool instructionsComplete,
         bool imagesComplete,
         string evidenceReference,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "assign_engineer",
-            actor => assignEngineer.ExecuteAsync(
+            (actor, lease) => assignEngineer.ExecuteAsync(
                 new(
                     id,
                     expectedVersion,
                     actor,
                     operationKey,
                     Pegasus.Web.Presentation.CaseWorkspaceLabels.HandToEngineer,
-                    editLeaseToken,
+                    lease,
                     engineerId,
                     Readiness(
                         instructionsComplete,
@@ -134,14 +140,15 @@ public sealed class WorkflowModel(
         Guid id,
         long expectedVersion,
         string operationKey,
-        string editLeaseToken,
+        string? editLeaseToken,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "assign_to_me",
-            actor => assignToMe.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, editLeaseToken),
+            (actor, lease) => assignToMe.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, lease),
                 cancellationToken),
             "The case was assigned to you.");
 
@@ -169,51 +176,34 @@ public sealed class WorkflowModel(
                 cancellationToken),
             "The Sign-off Engineer was set.");
 
-    public async Task<IActionResult> OnPostCreateLinkedReplacementAsync(
+    public Task<IActionResult> OnPostCreateLinkedReplacementAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         string replacementPrincipalCode,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            var outcome = await createLinkedReplacement.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken,
-                    replacementPrincipalCode),
-                cancellationToken);
-            ClearLeaseState();
-            TempData["CaseStatus"] = outcome.IsDuplicate
-                ? $"Replacement case {outcome.Identity.Reference} was already allocated."
-                : $"Replacement case {outcome.Identity.Reference} was allocated and linked.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "create_linked_replacement", exception);
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            RetainProposedValues(id);
-            TempData["CaseError"] =
-                "The corrected replacement could not be created because the case changed or the request is not permitted.";
-        }
-
-        return RedirectToDetails(id);
-    }
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandUnderLeaseAsync(
+            id,
+            expectedVersion,
+            editLeaseToken,
+            "create_linked_replacement",
+            async (actor, lease) =>
+            {
+                var outcome = await createLinkedReplacement.ExecuteAsync(
+                    new(
+                        id,
+                        expectedVersion,
+                        actor,
+                        operationKey,
+                        reason,
+                        lease,
+                        replacementPrincipalCode),
+                    cancellationToken);
+                return outcome.IsDuplicate
+                    ? $"Replacement case {outcome.Identity.Reference} was already allocated."
+                    : $"Replacement case {outcome.Identity.Reference} was allocated and linked.";
+            },
+            _ => "The corrected replacement could not be created because the case changed or the request is not permitted.");
 }

@@ -187,6 +187,14 @@ public static class EstimateOperations
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
+    /// <summary>
+    /// The line type an operation lands as when its hours are known: a
+    /// Specialist line with hours is priced by work units, at the estimate's
+    /// rate; one without is a fixed amount.
+    /// </summary>
+    public static string ToLineType(EstimateOperation operation, decimal? workUnits) =>
+        operation == EstimateOperation.Specialist && workUnits > 0m ? "specialist_wu" : ToLineType(operation);
+
     public static EstimateOperation FromLineType(string lineType) => lineType switch
     {
         "new_part" => EstimateOperation.Replace,
@@ -198,6 +206,18 @@ public static class EstimateOperations
         "check_labour" => EstimateOperation.Other,
         _ => throw new InvalidOperationException($"Unknown estimate line type '{lineType}'."),
     };
+
+    /// <summary>
+    /// The line type an edited line keeps. No editor offers a choice finer
+    /// than <see cref="EstimateOperation"/>, so a stored Specialist line the
+    /// editor leaves Specialist keeps its own kind — by work units or at a
+    /// fixed price — which decides whether its hours are priced.
+    /// </summary>
+    public static string Carry(string editedType, string storedType) =>
+        FromLineType(editedType) == EstimateOperation.Specialist
+            && FromLineType(storedType) == EstimateOperation.Specialist
+                ? storedType
+                : editedType;
 
     public static bool TryParse(string? value, out EstimateOperation operation)
     {
@@ -529,10 +549,7 @@ public static class EstimatePolicy
             }
             var carried = line with
             {
-                Type = EstimateOperations.FromLineType(line.Type) == EstimateOperation.Specialist
-                    && EstimateOperations.FromLineType(previous.Type) == EstimateOperation.Specialist
-                        ? previous.Type
-                        : line.Type,
+                Type = EstimateOperations.Carry(line.Type, previous.Type),
                 GuideCode = previous.GuideCode,
                 Unpriced = previous.Unpriced && line.Price is null,
                 Betterment = previous.Betterment,

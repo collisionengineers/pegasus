@@ -191,12 +191,11 @@ public static class AssessmentReportProjection
             SalvageValue: reportOutcome == AssessmentReportOutcome.TotalLoss
                 ? ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue)) : null,
             Costs: costs,
-            NewParts: LinesOfType(lines, "new_part"),
-            Repairs: LinesOfType(lines, "repair"),
-            Operations: LinesOfType(
+            NewParts: LinesOf(lines, EstimateOperation.Replace),
+            Repairs: LinesOf(lines, EstimateOperation.Repair, EstimateOperation.RemoveAndRefit),
+            Operations: LinesOf(
                 lines,
-                "check_labour", "paint_new", "paint_repair", "paint_blend", "paint_prep",
-                "specialist_fixed", "specialist_wu"),
+                EstimateOperation.Paint, EstimateOperation.Blend, EstimateOperation.Specialist, EstimateOperation.Other),
             Damage: BuildDamage(fields),
             SupplementaryStatement: input.CurrentEstimate?.Supplementary is { ExplainOnReport: true } supplementary
                 ? supplementary.Statement
@@ -335,14 +334,16 @@ public static class AssessmentReportProjection
     /// Groups the Current estimate's line descriptions for the report's
     /// parts/repairs/operations lists. The lines are the Current accepted
     /// specification's — Use estimate is the acceptance — so this only has to
-    /// group by type and drop blank descriptions.
+    /// group by operation, as the Case page's lists do, and drop blank
+    /// descriptions. Every line type has an operation, so none is dropped.
     /// </summary>
-    private static string[] LinesOfType(
-        IReadOnlyList<CaseEstimateLineRecord> lines, params ReadOnlySpan<string> types)
+    private static string[] LinesOf(
+        IReadOnlyList<CaseEstimateLineRecord> lines, params ReadOnlySpan<EstimateOperation> operations)
     {
-        var typeSet = new HashSet<string>(types.ToArray(), StringComparer.Ordinal);
+        var operationSet = new HashSet<EstimateOperation>(operations.ToArray());
         return lines
-            .Where(line => typeSet.Contains(line.Type) && !string.IsNullOrWhiteSpace(line.Description))
+            .Where(line => operationSet.Contains(EstimateOperations.FromLineType(line.Type))
+                && !string.IsNullOrWhiteSpace(line.Description))
             .OrderBy(line => line.Position)
             .Select(line => line.Description!)
             .ToArray();

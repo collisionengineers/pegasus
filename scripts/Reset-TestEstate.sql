@@ -48,6 +48,12 @@ JOIN @RemovedUsers AS removed
     ON events.SubjectId = CONVERT(nvarchar(36), removed.Id)
         OR events.ActorSubjectId = CONVERT(nvarchar(36), removed.Id);
 
+-- An ordinary wipe keeps each staff member's stored external credential; a
+-- removed account's credential goes with the account.
+DELETE credentials
+FROM dbo.UserExternalCredentials AS credentials
+JOIN @RemovedUsers AS removed ON removed.Id = credentials.UserId;
+
 -- ASP.NET Identity's user children cascade. All other user-bound application
 -- rows are non-preserved intake/case tables and were deleted earlier in this
 -- transaction before their constraints are checked again.

@@ -55,19 +55,21 @@ visiting another record, the page resumes the lease they hold: the same
 token, renewed as a heartbeat renews it, with nothing recorded. Pressing Edit
 on a Case they already hold does the same. The holder is never offered a
 takeover of themselves. Only the Case page resumes: a one-off change made
-from elsewhere, such as the Work Centre or linking an item to the Case, is
-refused while the lease is live, so it never ends the holder's edit session.
+from elsewhere, such as the Work Centre, linking an item to the Case, or an
+item of the Case's own Actions menu taken outside a session, is refused
+while the lease is live, so it never ends the holder's edit session. Such a
+change claims the lease for its one command and consumes it; a refused
+command frees the lease it claimed.
 Automatic processing never resumes a lease; each of its sessions claims and
 is refused while any lease is live.
 
-**Leaving.** Leaving the Case by a link in Pegasus ends edit mode. With
-unsaved changes the page first asks **Keep editing**, **Discard** or
-**Save**; Save saves and then leaves. The lease is released as the operator
-goes, so the Case is free for colleagues at once. A link to the same Case (a
-section, a view or one of its own pages) keeps editing. Closing the tab,
-Back, or typing an address can only show the browser's own leave prompt when
-there are unsaved changes; the lease then expires by server time, and coming
-back before then resumes it.
+**Leaving.** Leaving the Case by a link in Pegasus ends edit mode. A change
+not yet sent lands first ([FRD-16](frd-16-case-record-workspace.md#case-workspace)),
+then the lease is released as the operator goes, so the Case is free for
+colleagues at once. A link to the same Case (a section, a view or one of its
+own pages) keeps editing. Closing the tab, Back, or typing an address sends
+a change not yet sent as the page hides and shows no prompt; the lease then
+expires by server time, and coming back before then resumes it.
 
 **Every save carries proof.** Each save, transition, assignment,
 association, evidence change or other staff change sends both the lease token
@@ -130,8 +132,8 @@ may press **Take over** on a lease a colleague holds. No reason is asked for.
 Pegasus records a history line naming who took over, from whom, and when.
 The takeover is history rather than a change to the record, so it never
 advances the record's version. The previous holder's next heartbeat or save
-is refused. They keep their unsaved values on screen so they can copy them,
-and must reload to edit again. There is no Administrator-only path; the rule
+is refused. The value they were typing stays on screen so they can copy it,
+and they must reload to edit again. There is no Administrator-only path; the rule
 is the same for everyone with edit rights. A lease held by automatic
 processing cannot be taken over. Take over applies to a Case and an Image
 Intake record only: a Triage Case's scope lasts one save.
@@ -173,8 +175,8 @@ heartbeating, though its timers are throttled.
 - A second window of the same holder shares the Case lease; its saves are
   still checked against the version it loaded. Leaving by a link from either
   window, or a save in either, ends edit mode in the other: its next
-  heartbeat shows editing has expired, its unsaved values stay on screen,
-  and Edit Case gets back in.
+  heartbeat shows editing has expired, the value it was typing stays on
+  screen, and Edit Case gets back in.
 - A record-scope window of the same holder is refused after that holder
   claims the scope back in another window.
 - A revoked session's token cannot save an existing record.

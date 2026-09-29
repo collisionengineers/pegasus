@@ -347,6 +347,149 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             keepEditing);
 
     /// <summary>
+    /// A command on the case that runs under a lease (operator, 29 September
+    /// 2026): the session's when the page holds one, otherwise one claimed for
+    /// this command alone, the way Generate report claims its own outside edit
+    /// mode. The command consumes the lease it runs under, so a lease claimed
+    /// here is released only when the command refused. A claim a colleague's
+    /// live lease refuses states the claim's own wording, and the claimed
+    /// token never reaches the browser: the page reads on afterwards.
+    /// </summary>
+    protected Task<IActionResult> ExecuteCaseCommandUnderLeaseAsync(
+        Guid id,
+        long expectedVersion,
+        string? editLeaseToken,
+        string commandName,
+        Func<ActionActor, string, Task> execute,
+        string successMessage,
+        Func<Guid, RedirectToPageResult>? redirect = null) =>
+        ExecuteCaseCommandUnderLeaseAsync(
+            id,
+            expectedVersion,
+            editLeaseToken,
+            commandName,
+            async (actor, lease) =>
+            {
+                await execute(actor, lease);
+                return successMessage;
+            },
+            _ => CaseCommandRefused,
+            redirect);
+
+    /// <summary>
+    /// The same, for a command whose notice comes from its result (null for
+    /// none) and whose refusal is worded from the exception. A request the
+    /// browser abandons mid-command releases a lease claimed for it, so the
+    /// Case is not held until the lease lapses.
+    /// </summary>
+    protected async Task<IActionResult> ExecuteCaseCommandUnderLeaseAsync(
+        Guid id,
+        long expectedVersion,
+        string? editLeaseToken,
+        string commandName,
+        Func<ActionActor, string, Task<string?>> execute,
+        Func<Exception, string> failureMessage,
+        Func<Guid, RedirectToPageResult>? redirect = null)
+    {
+        if (!string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return await ExecuteCommandAsync(
+                id,
+                editLeaseToken,
+                commandName,
+                actor => execute(actor, editLeaseToken),
+                failureMessage,
+                redirect,
+                keepEditing: false);
+        }
+
+        redirect ??= RedirectToDetails;
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        var (lease, refusal) = await ClaimLeaseForCommandAsync(id, expectedVersion, actor, redirect);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        try
+        {
+            var message = await execute(actor, lease!.Token);
+            if (message is not null)
+            {
+                TempData[StatusTempDataKey] = message;
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            await ReleaseCommandLeaseQuietlyAsync(id, actor, lease!);
+            RetainProposedValues(id);
+            return Forbid();
+        }
+        catch (OperationCanceledException)
+        {
+            await ReleaseCommandLeaseQuietlyAsync(id, actor, lease!);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            LogCaseCommandFailed(logger, id, commandName, exception);
+            await ReleaseCommandLeaseQuietlyAsync(id, actor, lease!);
+            RetainProposedValues(id);
+            TempData[ErrorTempDataKey] = failureMessage(exception);
+        }
+
+        return redirect(id);
+    }
+
+    /// <summary>
+    /// Claims the Case's lease for one command, or answers with the refusal
+    /// the page should return: a claim a colleague's lease, an expired claim
+    /// or a changed Case refuses is stated in the claim's own words. The
+    /// token is never stored for the browser.
+    /// </summary>
+    protected async Task<(CaseEditLease? Lease, IActionResult? Refusal)> ClaimLeaseForCommandAsync(
+        Guid id,
+        long expectedVersion,
+        ActionActor actor,
+        Func<Guid, RedirectToPageResult> redirect)
+    {
+        var acquire = HttpContext.RequestServices.GetRequiredService<IAcquireCaseEditLease>();
+        try
+        {
+            var lease = await acquire.ExecuteAsync(
+                new ClaimCaseEditLeaseRequest(id, expectedVersion, actor, NewOperationKey()),
+                HttpContext.RequestAborted);
+            return (lease, null);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return (null, Forbid());
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "claim_lease", exception);
+            TempData[ErrorTempDataKey] = ClaimLeaseFailureMessage(exception);
+            return (null, redirect(id));
+        }
+    }
+
+    /// <summary>
+    /// Frees a lease claimed for a command the Case refused; a command that
+    /// ran consumed it, so there is nothing to release then.
+    /// </summary>
+    protected Task ReleaseCommandLeaseQuietlyAsync(Guid id, ActionActor actor, CaseEditLease lease) =>
+        Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
+            HttpContext.RequestServices.GetRequiredService<IReleaseCaseEditLease>(),
+            logger,
+            id,
+            actor,
+            lease);
+
+    /// <summary>
     /// The lease-reading pair an immediate post needs to keep the operator's
     /// edit session open after the store consumed the lease it carried (v25
     /// decision F). A page that offers such posts supplies them; a page that
@@ -388,7 +531,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         }
     }
 
-    private async Task<IActionResult> ExecuteCommandAsync(
+    private Task<IActionResult> ExecuteCommandAsync(
         Guid id,
         string editLeaseToken,
         string commandName,
@@ -396,7 +539,28 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         string successMessage,
         string failureMessage,
         Func<Guid, RedirectToPageResult>? redirect = null,
-        bool keepEditing = false)
+        bool keepEditing = false) =>
+        ExecuteCommandAsync(
+            id,
+            editLeaseToken,
+            commandName,
+            async actor =>
+            {
+                await execute(actor);
+                return successMessage;
+            },
+            _ => failureMessage,
+            redirect,
+            keepEditing);
+
+    private async Task<IActionResult> ExecuteCommandAsync(
+        Guid id,
+        string editLeaseToken,
+        string commandName,
+        Func<ActionActor, Task<string?>> execute,
+        Func<Exception, string> failureMessage,
+        Func<Guid, RedirectToPageResult>? redirect,
+        bool keepEditing)
     {
         redirect ??= RedirectToDetails;
         if (!TryGetActor(out var actor))
@@ -406,13 +570,16 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
         try
         {
-            await execute(actor);
+            var message = await execute(actor);
             ClearLeaseState();
             if (keepEditing)
             {
                 await ReclaimLeaseAsync(id, CancellationToken.None);
             }
-            TempData[StatusTempDataKey] = successMessage;
+            if (message is not null)
+            {
+                TempData[StatusTempDataKey] = message;
+            }
         }
         catch (StaffAuthorizationException)
         {
@@ -425,7 +592,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             LogCaseCommandFailed(logger, id, commandName, exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
             RetainProposedValues(id);
-            TempData[ErrorTempDataKey] = failureMessage;
+            TempData[ErrorTempDataKey] = failureMessage(exception);
         }
 
         return redirect(id);

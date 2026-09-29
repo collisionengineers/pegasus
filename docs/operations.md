@@ -90,6 +90,29 @@ The route was the normal App Service route with an unchanged migration identity,
 | Still owed | The live check is with the operator: on `a.QDOS26023`, press Preview, then Generate report. Generation `8d236f7f…` still read `Pending` after the release, and a retry keeps its frozen report date of 27 September. `QDOS26024`, created at 20:22Z with 6 files in capitals, is a second Case for the same check. The steps after the image check (render, file the PDF in Box, confirm) have no production record. The fold's new write is unproven until an instruction arrives after 21:35:41Z: its `DocumentVersions.Sha256` should read in small letters. |
 | Evidence | Exact artifacts retained at ignored `artifacts/releases/release-72-eef0714e`; driver scripts, phase logs, the build log and the public probe log at `artifacts/releases/release-72-driver`. |
 
+## Built-in image tags restored — 27 September 2026
+
+- **Finding.** `ImageTags` in `pegasus` on `pegasus-prod-sql-252ow37gij` held
+  0 rows (read-only SQL, about 18:45Z). The Case page's tag picker offered no
+  tag. Since Release 71 the report reads its Close-up and Overview by the
+  built-in tag identifiers, so no report could be generated.
+- **When.** The rows were lost between 14 September 11:12Z, when the Market
+  research row was seeded, and 24 September 16:18Z, since when the table has
+  had no write. What deleted them is not recorded. SQL auditing is off, no
+  migration deletes them, the wipe has preserved `ImageTags` since
+  10 September, and both runtime roles are denied DELETE.
+- **Restore.** The operator approved one insert of the missing rows. At
+  18:54:08Z it added five rows with the values of
+  `20260910120000_CaseImageTags` and `20260913090000_MarketResearchImageTag`:
+  Overview, Close-up, Third party, Reflection and Market research,
+  identifiers `…17a1` to `…17a5`. Read-back: five rows, all built-in. There
+  was no outage, and Web and Worker were not stopped.
+- **Guard.** Since 29 September the intake wipe prints the built-in tag count, refuses
+  `-Execute` when it is 0, and fails its verification when the count changes.
+  A dry run after the restore printed 5.
+- **Still owed.** The signed-in check is with the operator: tag one image
+  Close-up and one Overview on a Case, then generate the report.
+
 ## Release 71 — 27 September 2026 (deployment live)
 
 Release 71 deployed [PR 892](https://github.com/collisionengineers/pegasus/pull/892), which merged PRs 881–891 into `dev` together:

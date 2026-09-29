@@ -229,9 +229,11 @@ public sealed class PrincipalVocabularyMigrationTests
 
         foreach (var table in new[] { "PrincipalDomainEvidence", "PrincipalDomainPackages", "PrincipalReferences" })
         {
+            // Only the Worker reads the domain reference catalog.
+            Assert.Equal(0, await GrantCountAsync(database, WebRole, table, "SELECT"));
+            Assert.Equal(1, await GrantCountAsync(database, WorkerRole, table, "SELECT"));
             foreach (var role in new[] { WebRole, WorkerRole })
             {
-                Assert.Equal(1, await GrantCountAsync(database, role, table, "SELECT"));
                 foreach (var permission in new[] { "INSERT", "UPDATE", "DELETE" })
                 {
                     Assert.Equal(0, await GrantCountAsync(database, role, table, permission));

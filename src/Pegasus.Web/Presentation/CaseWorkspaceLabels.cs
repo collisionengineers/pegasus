@@ -24,10 +24,16 @@ public static class CaseWorkspaceLabels
     {
         public const string EditCase = "Edit Case";
         public const string EditingExpired = "Editing expired · changes are not kept";
-        public const string EnableReturn = "Enable return";
         public const string Edit = "Edit";
-        public const string Cancel = "Cancel";
-        public const string Save = "Save";
+        /// <summary>
+        /// Save as you go (operator, 29 September 2026): Done ends the session,
+        /// Save now is the Case form's default submit, and the status words
+        /// say what the last commit did.
+        /// </summary>
+        public const string Done = "Done";
+        public const string SaveNow = "Save now";
+        public const string Saving = "Saving…";
+        public const string Saved = "Saved";
         public const string Actions = "Actions";
         public const string More = "More";
         public const string Scroll = "Scroll";
@@ -560,7 +566,6 @@ public static class CaseWorkspaceLabels
         public const string NonEmptyFile = "Choose a non-empty estimate file.";
         public const string FileTooLarge = "Choose an estimate file of 32 MiB or less.";
         public const string UnsupportedFile = "Choose a PDF, XML or JSON estimate file.";
-        public const string UnsavedEstimate = "Save or cancel the estimate changes before importing another estimate.";
         public const string ActionInProgress = "Wait for the current Case action to finish before importing an estimate.";
         public const string StorageFailed = "The estimate source could not be retained.";
         public const string Imported = "Estimate imported. It is the repair spec in use.";
@@ -949,13 +954,6 @@ public static class CaseWorkspaceLabels
         /// <summary>The Next action while the report's file is on its way to Box.</summary>
         public const string WaitingForStorage = "Waiting for the report to be stored";
 
-        /// <summary>
-        /// Generate report was pressed over unsaved changes and the saved Case
-        /// no longer offers it.
-        /// </summary>
-        public const string NotReadyAfterSave =
-            "The report is not ready after the save.";
-
         /// <summary>The generation ran out of time.</summary>
         public static string TookTooLong(CaseReportArtifactKind kind) =>
             $"{Document(kind)} took too long to generate.";
@@ -1040,9 +1038,6 @@ public static class CaseWorkspaceLabels
         /// and a same-file replay or a later Use repair spec may leave another
         /// spec in use.
         /// </summary>
-        public const string ImportedWithChanges = "The Glass's estimate was recorded as a repair spec, and your unsaved changes are still here. Save or cancel them to view it.";
-        public const string ReturnedWithChanges = "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.";
-
         public const string Imported = "The Glass's estimate was recorded as a repair spec.";
 
         public const string AwaitingImport = "The Glass's estimate is held. Not yet recorded.";

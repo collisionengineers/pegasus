@@ -17,7 +17,7 @@ $workerApp = 'pegasus-prod-worker-252ow37gij'
 $preserve = @(
     '__EFMigrationsHistory',
     'AspNetRoleClaims', 'AspNetRoles', 'AspNetUserClaims', 'AspNetUserLogins',
-    'AspNetUserRoles', 'AspNetUsers', 'AspNetUserTokens',
+    'AspNetUserRoles', 'AspNetUsers', 'AspNetUserTokens', 'UserExternalCredentials',
     'OpenIddictApplications', 'OpenIddictAuthorizations', 'OpenIddictScopes', 'OpenIddictTokens',
     'ApprovedInboxPollStates', 'ApprovedMailboxes', 'ApprovedMailboxFolderBindings',
     'ApprovedOutlookCategories', 'ApprovedSentPollStates',
@@ -191,12 +191,22 @@ function Get-EmailTemplateRows {
 }
 $emailTemplateRowsBefore = Get-EmailTemplateRows
 Write-Output ("E-mail template rows before: {0}" -f $emailTemplateRowsBefore)
+# The built-in image tags are seeded once by migration and the report reads
+# them by identifier, so nothing puts a lost one back.
+$builtInImageTagsSql = 'SELECT COUNT(*) AS BuiltInImageTags FROM dbo.ImageTags WHERE IsBuiltIn = 1'
+$builtInImageTagsBefore = (Invoke-Query $builtInImageTagsSql).BuiltInImageTags
+Write-Output ("Built-in image tags before: {0}" -f $builtInImageTagsBefore)
 
 if (-not $Execute) {
     $resetSummary = if ($ResetTestEstate) { ' Accounts and the QDOS counter were not changed.' } else { '' }
     Write-Output ("Dry run only (-Execute not set).{0} Not touched: authentication-ring, box-links, pegtrans252ow37gij, Outlook, Box." -f $resetSummary)
     $connection.Close()
     return
+}
+
+if ($builtInImageTagsBefore -eq 0) {
+    $connection.Close()
+    throw 'The built-in image tags are missing; restore them before executing a wipe.'
 }
 
 $workerState = az resource show --subscription $subscriptionId --resource-group $resourceGroup --name $workerApp --resource-type 'Microsoft.Web/sites' --api-version 2024-04-01 --query properties.state --output tsv
@@ -271,6 +281,8 @@ $sequenceChanges | Format-Table -AutoSize | Out-String | Write-Output
 Write-Output ("Valuation preset rows before/after: {0}/{1}" -f $valuationPresetRowsBefore, $valuationPresetRowsAfter)
 $emailTemplateRowsAfter = Get-EmailTemplateRows
 Write-Output ("E-mail template rows before/after: {0}/{1}" -f $emailTemplateRowsBefore, $emailTemplateRowsAfter)
+$builtInImageTagsAfter = (Invoke-Query $builtInImageTagsSql).BuiltInImageTags
+Write-Output ("Built-in image tags before/after: {0}/{1}" -f $builtInImageTagsBefore, $builtInImageTagsAfter)
 $resetVerificationFailed = $false
 if ($ResetTestEstate) {
     $resetVerification = Invoke-Query "SELECT
@@ -290,7 +302,7 @@ if ($ResetTestEstate) {
 }
 $connection.Close()
 
-if ($sequenceChanges.Count -gt 0 -or $valuationPresetRowsBefore -ne $valuationPresetRowsAfter -or $emailTemplateRowsBefore -ne $emailTemplateRowsAfter -or $resetVerificationFailed) {
+if ($sequenceChanges.Count -gt 0 -or $valuationPresetRowsBefore -ne $valuationPresetRowsAfter -or $emailTemplateRowsBefore -ne $emailTemplateRowsAfter -or $builtInImageTagsBefore -ne $builtInImageTagsAfter -or $resetVerificationFailed) {
     throw 'Post-wipe protected-state verification failed; do not resume the Worker.'
 }
 

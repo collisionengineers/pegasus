@@ -26,8 +26,8 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The lease is this browser's and the Case is not archived: the page-wide
-    /// edit session is open. Post-report read-only Cases still open it so the
-    /// Return to Engineer action can be taken ("Enable return").
+    /// edit session is open. A Completed or Query Case offers no session of
+    /// its own; Return to Engineer runs from the Actions menu without one.
     /// </summary>
     public bool IsEditing => !string.IsNullOrWhiteSpace(LeaseToken) && CurrentWorkflow?.Archive is null;
 
@@ -38,13 +38,15 @@ public sealed partial class DetailsModel
     /// <summary>
     /// Create audit (v29 P5): offered where Core's shared Audit policy finds
     /// no refusal (an Inspection + Audit Case whose report is sent, with no
-    /// Audit yet and an assigned Engineer). The command carries the edit
-    /// lease, so the item is offered inside the edit session.
+    /// Audit yet and an assigned Engineer). The command runs under the
+    /// session's lease or one claimed for it (operator, 29 September 2026),
+    /// so it is offered in and out of an edit session, but not while a
+    /// colleague holds the lease.
     /// </summary>
     public bool CanCreateAudit =>
         Case is { } details
         && AuditPolicy.Refusal(details.Summary.CaseType, details.Workflow, Works) is null
-        && IsEditing;
+        && !ColleagueIsEditing;
 
     /// <summary>The Audit reference the dialog announces: <c>a.{Case/PO}</c>.</summary>
     public string? ProposedAuditReference =>
@@ -191,41 +193,27 @@ public sealed partial class DetailsModel
     /// other Actions-menu lifecycle actions and lands back on this Case's
     /// default view with no notice; a refusal states Core's reason.
     /// </summary>
-    public async Task<IActionResult> OnPostCreateAuditAsync(
+    public Task<IActionResult> OnPostCreateAuditAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
-        string editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await createAudit.ExecuteAsync(
-                new(id, expectedVersion, actor, RequireOperationKey(operationKey), editLeaseToken),
-                cancellationToken);
-            ClearLeaseState();
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "create_audit", exception);
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] = exception is AuditCreationException refusal
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandUnderLeaseAsync(
+            id,
+            expectedVersion,
+            editLeaseToken,
+            "create_audit",
+            async (actor, lease) =>
+            {
+                await createAudit.ExecuteAsync(
+                    new(id, expectedVersion, actor, RequireOperationKey(operationKey), lease),
+                    cancellationToken);
+                return null;
+            },
+            exception => exception is AuditCreationException refusal
                 ? refusal.Message
-                : CaseCommandRefused;
-        }
-
-        return RedirectToDetails(id);
-    }
+                : CaseCommandRefused);
 
     /// <summary>
     /// Every lease-carrying store mutation consumes the lease. An immediate

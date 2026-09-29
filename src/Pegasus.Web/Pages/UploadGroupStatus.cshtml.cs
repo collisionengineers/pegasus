@@ -73,6 +73,13 @@ public sealed class UploadGroupStatusModel(
                 return UploadStatusRefresh.MinimumMilliseconds;
             }
 
+            // A photograph pulled out of a document is listed once custody has
+            // confirmed it, so the page looks again until it has.
+            if (Receipts.Values.Any(UploadReviewFile.AwaitsPhotographs))
+            {
+                return UploadStatusRefresh.MinimumMilliseconds;
+            }
+
             // A member with no status row yet is still arriving, not finished.
             var moving = Statuses.Values
                 .Where(status => status is null

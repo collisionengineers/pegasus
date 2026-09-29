@@ -53,8 +53,9 @@ internal sealed class StartupWarmupHealthCheck(StartupWarmupState state) : IHeal
 /// <summary>
 /// Runs once when Web starts, after the port is listening: loads the
 /// data-protection key ring, waits for the Automation OAuth certificates, builds
-/// the EF model and runs the Work Centre's and the Case page's hot read shapes,
-/// so the first staff request after a deploy does not pay for them. The key
+/// the EF model and runs the Work Centre's, the Case page's and the Graph mail
+/// webhook's hot read shapes, so the first request after a deploy does not pay
+/// for them. The key
 /// ring and the certificates are remote reads behind a managed-identity token,
 /// which is why they are here and not before the port binds. Its database
 /// steps only read. Every step is best effort: a failure is logged and the next step still runs,
@@ -141,6 +142,12 @@ internal sealed partial class StartupWarmup(
             _ = context.Model;
             await context.Database.CanConnectAsync(cancellationToken);
         }, stoppingToken, cancellationToken);
+        // Graph hangs up on a webhook that answers slowly and resends only
+        // minutes later, so the first mail must not pay for this query.
+        await StepAsync("mail-webhook", () =>
+            services.GetRequiredService<IApprovedMailboxSubscriptionStore>().GetActiveAsync(
+                "startup-warm-up", now, cancellationToken),
+            stoppingToken, cancellationToken);
         await StepAsync("work-centre", async () =>
         {
             await services.GetRequiredService<IGetOperationsSnapshot>().ExecuteAsync(

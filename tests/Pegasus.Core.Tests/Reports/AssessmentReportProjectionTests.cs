@@ -419,6 +419,22 @@ public sealed class AssessmentReportProjectionTests
         Assert.Null(result.Snapshot.Signatory.Qualifications);
     }
 
+    /// <summary>
+    /// The report's Repairs Required list reads repair and R&amp;I lines, as
+    /// the Case page's list does; an R&amp;I line is never dropped.
+    /// </summary>
+    [Fact]
+    public void AnRAndILineIsListedWithTheRepairs()
+    {
+        var estimate = ReadyCurrentEstimate();
+        var result = AssessmentReportProjection.Project(ReadyInput() with
+        {
+            CurrentEstimate = estimate with { Lines = [.. estimate.Lines, Line(4, "rnr", "Front bumper cover")] },
+        });
+
+        Assert.Equal(["Nearside door", "Front bumper cover"], result.Snapshot!.Repairs);
+    }
+
     [Fact]
     public void ACurrentRepairSpecWithNoLinesIsNotReady()
     {

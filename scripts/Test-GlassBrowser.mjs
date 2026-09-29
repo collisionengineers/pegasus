@@ -26,7 +26,7 @@ function fixture() {
     return `<!doctype html><html><head><meta charset="utf-8"><title>Glass browser fixture</title>
     <style>body{margin:0}#case-main{padding-top:500px}.record-section{min-height:600px}[hidden]{display:none}</style></head><body>
     <script>
-    window.trace = []; window.state = { caseVersion: 1, sessionVersion: 1, slot: 'launch', status: 'Active' };
+    window.trace = []; window.state = { caseVersion: 1, sessionVersion: 1, slot: 'launch', status: 'Active', registration: 'AB12CDE' };
     window.mode = ''; window.deferred = []; window.nativeOpen = window.open;
     function controls() {
         return '<div data-glass-controls="launch" data-glass-controls-url="/case?handler=GlassSession" data-glass-id="session" data-glass-version="' + state.sessionVersion + '">'
@@ -42,11 +42,13 @@ function fixture() {
         return '<div data-case-record data-case-version="' + state.caseVersion + '" data-case-editing="true" data-section-current="estimate"'
             + (commit ? " data-editor-commit='" + JSON.stringify(commit) + "'" : '') + '>'
             + '<div data-sticky-block><nav data-section-nav><a href="#section-estimate" data-section-link="estimate">Estimate</a></nav></div>'
-            + '<div data-case-notices>' + (notice || '') + '</div><div data-case-ribbon-facts></div><div data-case-ribbon-actions></div>'
+            + '<div data-case-notices>' + (notice || '') + '</div><div data-case-ribbon-facts></div>'
+            + '<div data-case-ribbon-actions><span data-lease-line hidden data-lease-saving-text="Saving" data-lease-saved-text="Saved"></span></div>'
             + '<main id="case-main"><section class="record-section" id="section-estimate" data-section="estimate">'
-            + '<form id="case-edit-form" method="post" action="/case?handler=Save"><input name="expectedVersion" type="hidden" value="' + state.caseVersion + '">'
-            + '<input name="editLeaseToken" type="hidden" value="lease"><input name="operationKey" type="hidden" value="save-' + state.caseVersion + '">'
-            + '<input id="registration" name="registration" value="AB12CDE" required><button>Save</button></form>' + controls()
+            + '<form id="case-edit-form" method="post" action="/case?handler=Save"><input name="expectedVersion" type="hidden" value="' + state.caseVersion + '" data-carry-forward>'
+            + '<input name="editLeaseToken" type="hidden" value="lease" data-carry-forward><input name="operationKey" type="hidden" value="save-' + state.caseVersion + '" data-carry-forward>'
+            + '<input id="registration" name="registration" value="' + state.registration + '" required><button>Save</button></form>' + controls()
+            + '<input type="hidden" name="selection.Opening" value="opening-' + state.caseVersion + '" form="case-edit-form" data-carry-forward>'
             + '</section></main><div data-case-aside></div><div data-case-dialogs></div><div data-case-viewer-host></div></div>';
     }
     document.write(page());
@@ -57,8 +59,11 @@ function fixture() {
         else if (String(url).includes('handler=Save')) {
             if (mode === 'network-failure') { return Promise.reject(new Error('Save disconnected')); }
             var body = options.body;
-            var commit = { editor: 'case-edit-form', operationKey: body.get('operationKey'), expectedVersion: Number(body.get('expectedVersion')), version: ++state.caseVersion };
-            text = mode === 'refused-save' ? page(null, '<p role="alert">Save refused</p>') : page(commit);
+            if (mode === 'refused-save') { text = page(null, '<p role="alert">Save refused</p>'); }
+            else {
+                var commit = { editor: 'case-edit-form', operationKey: body.get('operationKey'), expectedVersion: Number(body.get('expectedVersion')), version: ++state.caseVersion };
+                state.registration = body.get('registration'); text = page(commit);
+            }
         } else if (String(url).includes('CloseGlass')) {
             state.sessionVersion++; text = page(null, '<p role="alert">Confirm external closure again</p>');
         } else { text = page(); }
@@ -76,10 +81,12 @@ function fixture() {
         trace.push({ type: 'provider', action: this.action, caseVersion: this.elements.expectedCaseVersion.value, lease: this.elements.editLeaseToken.value });
     };
     function edit(value) { var input = document.getElementById('registration'); input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); }
+    function leave() { document.getElementById('registration').dispatchEvent(new Event('change', { bubbles: true })); }
     function launch() { document.querySelector('[data-glass-window]').requestSubmit(); }
     function result() { return { trace: trace, value: document.getElementById('registration').value, version: document.querySelector('#case-edit-form [name="expectedVersion"]').value,
         sessionVersion: document.querySelector('[data-glass-controls="session"]').dataset.glassVersion, notice: document.querySelector('[data-case-notices]').textContent + document.querySelector('[data-glass-controls="outcome"]').textContent,
-        closed: window.fakePopup && fakePopup.closed, dirty: !!window.pegasusDirtyEditForm(), scroll: window.scrollY }; }
+        closed: window.fakePopup && fakePopup.closed, status: (function (line) { return line && !line.hidden ? line.textContent.trim() : null; })(document.querySelector('[data-lease-line]')),
+        opening: document.querySelector('[name="selection.Opening"]').value, scroll: window.scrollY }; }
     </script><script src="/workspace.js"></script><script>window.fixtureReady=true;</script></body></html>`;
 }
 
@@ -144,49 +151,65 @@ try {
     const record = (name, value) => { evidence.push({ name, value }); console.log('PASS', name); };
     const posts = result => result.trace.filter(x => x.type === 'provider');
 
+    // Save as you go: a script's fill (edit) commits after the idle, leaving a cell (leave) at once;
+    // a launch, a return or an action waits for a change not yet sent and runs only once it has landed.
     await reset();
     await evaluate("edit('AB12 CDE'); launch(); launch();"); await delay(100);
     let result = await evaluate('result()');
-    assert.equal(posts(result).length, 1); assert.equal(posts(result)[0].caseVersion, '2'); assert.equal(result.dirty, false);
+    assert.equal(posts(result).length, 1); assert.equal(posts(result)[0].caseVersion, '2'); assert.equal(result.version, '2'); assert.match(result.status, /^Saved/);
     assert.deepEqual(result.trace.slice(0, 3).map(x => x.type), ['open', 'fetch', 'provider']);
-    record('Dirty launch saves once before provider post and uses new authority', result);
+    assert.equal(result.opening, 'opening-2', 'A carried input joined to the form from its section moves on with the commit');
+    record('A change not yet sent lands once before the provider post, which carries the new authority', result);
 
-    for (const mode of ['refused-save', 'network-failure', 'blocked-popup']) {
+    for (const [mode, status] of [['refused-save', 'Save refused'], ['network-failure', 'Save disconnected']]) {
         await reset(); await evaluate(`mode = '${mode}'; edit('AB12 CDE'); launch();`); await delay(100);
         result = await evaluate('result()');
-        assert.equal(posts(result).length, 0); assert.equal(result.value, 'AB12 CDE'); assert.equal(result.version, '1'); assert.equal(result.dirty, true);
-        record(mode + ' retains edits and makes no provider post', result);
+        assert.equal(posts(result).length, 0); assert.equal(result.value, 'AB12 CDE'); assert.equal(result.version, '1');
+        assert.equal(result.closed, true); assert.equal(result.status, status);
+        record(mode + ' keeps the change, closes the reserved window and makes no provider post', result);
     }
+    await reset(); await evaluate("mode = 'blocked-popup'; edit('AB12 CDE'); launch();"); await delay(100);
+    result = await evaluate('result()');
+    assert.equal(posts(result).length, 0); assert.equal(result.value, 'AB12 CDE'); assert.equal(result.version, '1');
+    await delay(1200); result = await evaluate('result()');
+    assert.equal(posts(result).length, 0); assert.equal(result.version, '2'); assert.match(result.status, /^Saved/);
+    record('blocked-popup makes no provider post and the change still saves after the idle', result);
+
     await reset(); await evaluate("edit(''); launch();"); await delay(50);
-    result = await evaluate('result()'); assert.equal(posts(result).length, 0); assert.equal(result.closed, true);
-    record('Invalid save closes the reserved popup without posting', result);
+    result = await evaluate('result()'); assert.equal(posts(result).length, 0); assert.equal(result.closed, true); assert.equal(result.version, '1');
+    assert.match(result.status, /not saved/);
+    assert.equal(result.trace.filter(x => x.type === 'fetch').length, 0);
+    record('A value the browser refuses is not sent and closes the reserved popup without posting', result);
 
     await reset(); await evaluate("mode='defer'; edit('AB12 CDE'); launch(); edit('XY99ZZZ'); deferred.shift()();"); await delay(100);
-    result = await evaluate('result()'); assert.equal(posts(result).length, 0); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.dirty, true);
-    record('Typing during save prevents automatic provider continuation', result);
+    result = await evaluate('result()'); assert.equal(posts(result).length, 0); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.version, '2');
+    await delay(1200); await evaluate('deferred.shift()();'); await delay(100);
+    result = await evaluate('result()'); assert.equal(posts(result).length, 1); assert.equal(posts(result)[0].caseVersion, '3'); assert.equal(result.value, 'XY99ZZZ');
+    record('Typing during a save holds the launch until the newer change has landed too', result);
 
     await reset(); await evaluate("document.querySelector('[data-glass-controls=outcome]').innerHTML='<p>Old recorded outcome</p>'; edit('XY99ZZZ'); window.scrollTo(0, 450); state.slot='resume'; state.sessionVersion=7; window.pegasusGlassHandoff();"); await delay(100);
     result = await evaluate('result()'); assert.equal(result.sessionVersion, '7'); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.version, '1'); assert.equal(result.scroll, 450); assert.equal(result.notice, '');
-    record('Handoff refreshes controls while preserving dirty Case and scroll', result);
-    await evaluate("state.status='Completed'; state.caseVersion=2; window.pegasusGlassReturn('/case');"); await delay(100);
-    result = await evaluate('result()'); assert.equal(result.version, '1'); assert.equal(result.value, 'XY99ZZZ'); assert.match(result.notice, /recorded as a repair spec/);
-    record('Dirty callback announces the recorded estimate without replacing Case authority', result);
+    record('Handoff refreshes controls while a change not yet sent and the scroll stay', result);
+    await evaluate("state.status='Completed'; window.pegasusGlassReturn('/case');"); await delay(100);
+    result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.value, 'XY99ZZZ');
+    assert.deepEqual(result.trace.filter(x => x.type === 'fetch').slice(-2).map(x => x.url.includes('handler=Save') ? 'save' : x.url), ['save', '/case']);
+    record('Callback lands the change not yet sent, then reads the Case as it now stands', result);
 
     await reset(); await evaluate("state.status='Completed'; state.caseVersion=2; window.pegasusGlassReturn('/case');"); await delay(100);
-    result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.dirty, false);
-    record('Clean callback refreshes workspace in place', result);
+    result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.status, null);
+    record('Callback with nothing to save refreshes workspace in place', result);
 
     await reset(); await evaluate("mode='defer'; state.status='Unknown'; window.returnInFlight=window.pegasusGlassReturn('/case'); deferred[0](); true;"); await delay(50);
-    await evaluate("mode=''; edit('AB12 CDE'); document.getElementById('case-edit-form').requestSubmit();"); await delay(100);
+    await evaluate("mode=''; edit('AB12 CDE'); leave();"); await delay(100);
     assert.equal((await evaluate('result()')).version, '2');
     await evaluate('deferred[1]();'); await delay(100);
-    result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.dirty, false);
+    result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.value, 'AB12 CDE'); assert.match(result.status, /^Saved/);
     record('Delayed callback read cannot undo a newer successful Case save', result);
 
     await reset(); await evaluate("mode='expired-login'; edit('XY99ZZZ'); window.pegasusGlassReturn('/case').catch(function() {});"); await delay(50);
-    result = await evaluate('result()'); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.version, '1'); assert.equal(result.dirty, true);
+    result = await evaluate('result()'); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.version, '1');
     assert.match(result.notice, /Sign in again/);
-    record('Expired login cannot replace dirty Case controls', result);
+    record('Expired login cannot replace Case controls holding a change not yet sent', result);
 
     await reset(); await evaluate("mode='defer'; state.sessionVersion=5; window.pegasusGlassHandoff(); state.sessionVersion=6; window.pegasusGlassHandoff(); deferred[1]();"); await delay(50);
     await evaluate('deferred[0]();'); await delay(50);
@@ -194,9 +217,9 @@ try {
     record('Out-of-order controls cannot replace newer session', result);
 
     await reset(); await evaluate("edit('XY99ZZZ'); var close=document.querySelector('[data-glass-close-form]'); close.elements.reason.value='Closed externally'; close.elements.externalSessionClosed.checked=true; close.requestSubmit();"); await delay(100);
-    result = await evaluate('result()'); assert.equal(result.dirty, true); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.sessionVersion, '2');
+    result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.sessionVersion, '2');
     assert.equal(await evaluate("document.querySelector('[name=externalSessionClosed]').checked"), false);
-    record('Stale Close refreshes confirmation without discarding edits', result);
+    record('Stale Close lands the change first, then refreshes the confirmation', result);
 
     // Real popup and opener, with the production opening and return scripts on both legs.
     await reset(); await evaluate("window.open=window.nativeOpen; edit('XY99ZZZ'); state.slot='resume'; state.sessionVersion=8; window.realPopup=window.open('/opening','glass-real');"); await delay(2500);
