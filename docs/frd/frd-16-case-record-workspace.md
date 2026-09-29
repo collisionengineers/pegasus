@@ -279,8 +279,10 @@ Repair or Total loss; the report never fills Cash in lieu or Contract repair.
 
 Repairable status alone falls back to the Audit's intake verdict — the
 report's literal repairable or total-loss wording, or the Provider API's
-declared verdict — when the report prints no outcome or cannot be read. When
-the report and the verdict disagree, the cell stays blank.
+declared verdict — when the report prints no outcome or cannot be read. A
+declared verdict fills the cell when the Case is created, before any report
+is filed. When the report and the verdict disagree, a later report fills
+nothing: the cell stays as it was, blank or holding the verdict.
 
 ### Inspection
 
