@@ -64,6 +64,48 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         Assert.Equal("copy@recipient.example", Assert.Single(reloaded.Addressing.Cc).Address);
     }
 
+    /// <summary>
+    /// The covering message staff reviewed is frozen as submitted and read
+    /// back unchanged; the same key with another message is a conflict.
+    /// </summary>
+    [Fact]
+    public async Task PrepareFreezesTheSubmittedCoveringMessage()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var command = harness.PrepareCommand();
+        command = command with
+        {
+            Request = command.Request with { CoveringMessage = "Edited by staff.\n\nKind regards" },
+        };
+
+        var prepared = await harness.Store.PrepareAsync(command, CancellationToken.None);
+        var reloaded = await harness.Store.GetAsync(
+            harness.Staff, harness.CaseId, prepared.Preparation.Id, CancellationToken.None);
+
+        Assert.Equal("Edited by staff.\n\nKind regards", prepared.Preparation.CoveringMessage);
+        Assert.Equal("Edited by staff.\n\nKind regards", reloaded!.Preparation.CoveringMessage);
+        var replay = await harness.Store.PrepareAsync(command, CancellationToken.None);
+        Assert.Equal(prepared.Preparation.Id, replay.Preparation.Id);
+
+        var reworded = command with
+        {
+            Request = command.Request with { CoveringMessage = "Different wording." },
+        };
+        await Assert.ThrowsAsync<CaseOperationConflictException>(
+            () => harness.Store.PrepareAsync(reworded, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task PrepareRefusesABlankCoveringMessageAtTheStore()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var command = harness.PrepareCommand();
+        command = command with { Request = command.Request with { CoveringMessage = "  " } };
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => harness.Store.PrepareAsync(command, CancellationToken.None));
+    }
+
     [Fact]
     public async Task TheSameOperationKeyReplaysAndADifferentPayloadConflicts()
     {
@@ -193,6 +235,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         Assert.NotNull(suggestions);
         Assert.True(suggestions!.Settings.IncludeOriginalInstructionSender);
         Assert.Equal("origin-sender@principal.example", suggestions.OriginalInstructionSender);
+        Assert.Equal("Delivery preparation test", suggestions.PrincipalName);
     }
 
     private static async Task AssertThrowsAsyncAny<T1, T2>(Func<Task> action)
@@ -301,7 +344,8 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                 leaseToken == "lease" ? Lease.Token : leaseToken,
                 GenerationId,
                 expectedGenerationVersion,
-                OperationKey),
+                OperationKey,
+                "Please find attached our report."),
             addressing ?? new([new("handler@principal.example", "Principal Handler")], [], "DVR-31001"),
             new string('a', 64),
             CaseReportSendHistory.None);

@@ -656,8 +656,9 @@ Generate report, and once a separate fee note is confirmed the report card
 offers Open fee note beside Open report (issue 912).
 The delivery form offers the Case's known addresses on every recipient field
 (v28 P21), the documents to attach (v28 P22), and states the name the report
-will be attached under and the covering line it will carry (v28 P23) before
-Prepare delivery is pressed.
+will be attached under (v28 P23) and the covering message it will carry, in an
+editable box pre-filled from the Case report delivery template, before Prepare
+delivery is pressed.
 
 Report-draft generation and preview sit
 on the Report section

@@ -456,6 +456,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-report .th.off .inc{background:#fff;color:var(--quiet);border:1px solid var(--line)}
 #section-report .th .tag{position:absolute;top:4px;left:5px;font:600 8.5px var(--font);padding:1px 6px;border-radius:999px;background:rgba(255,255,255,.92);color:var(--ink);text-shadow:none}
 #section-report .fc .fv.derived.multi{font-size:12.5px}
+#section-report [data-report-prepared-message]{white-space:pre-wrap}
 @media(max-width:1180px){#section-report .thumbs{grid-template-columns:repeat(6,1fr)}}
 @media(max-width:760px){#section-report .thumbs{grid-template-columns:repeat(3,1fr)}#section-report .detail-list>div{grid-template-columns:1fr}}
 

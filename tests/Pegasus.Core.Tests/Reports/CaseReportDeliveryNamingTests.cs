@@ -23,15 +23,10 @@ public sealed class CaseReportDeliveryNamingTests
         Guid.NewGuid(), Guid.NewGuid(), new string('c', 64), 90, "CE_100_images.pdf", "application/pdf");
 
     [Fact]
-    public void TheFirstReportIsNamedForTheCaseAndCarriesThePlainCoveringLine()
-    {
+    public void TheFirstReportIsNamedForTheCase() =>
         Assert.Equal(
             "QDOS26001 PK12TMZ Repairable report",
             CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 0));
-        Assert.Equal(
-            CaseReportDeliveryNaming.FirstMessage,
-            CaseReportDeliveryNaming.Message(CaseReportSendHistory.None));
-    }
 
     /// <summary>A re-issue adds one dot for each report of this Case already sent.</summary>
     [Theory]
@@ -53,21 +48,62 @@ public sealed class CaseReportDeliveryNamingTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", -1));
 
-    [Fact]
-    public void ALaterReportSaysWhichReportItSupersedes() =>
-        Assert.Equal(
-            "Please find attached our updated report, which supersedes our report dated 19 August 2026.",
-            CaseReportDeliveryNaming.Message(new(1, new DateOnly(2026, 8, 19))));
-
     /// <summary>
-    /// A send recorded without the report date it superseded still covers the
-    /// delivery, rather than naming a date nobody holds.
+    /// The template's values come from the delivery's facts: the superseded
+    /// report date has a value only when a report of this Case was sent
+    /// before, so the built-in body's "supersedes" line is left out on a
+    /// first send and names the date on a re-issue.
     /// </summary>
     [Fact]
-    public void ASendWithNoRecordedReportDateKeepsThePlainCoveringLine() =>
-        Assert.Equal(
-            CaseReportDeliveryNaming.FirstMessage,
-            CaseReportDeliveryNaming.Message(new(2, null)));
+    public void TheSupersedesLineNamesTheEarlierReportOnlyOnAReIssue()
+    {
+        var body = EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery);
+
+        var first = EmailTemplates.Render(
+            body, Facts(CaseReportSendHistory.None).Values());
+        var reissue = EmailTemplates.Render(
+            body, Facts(new(1, new DateOnly(2026, 8, 19))).Values());
+
+        Assert.DoesNotContain("supersedes", first, StringComparison.Ordinal);
+        Assert.Contains(
+            "This report supersedes our report dated 19 August 2026.",
+            reissue,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A send recorded without the report date it superseded names no date
+    /// nobody holds, so the line is left out.
+    /// </summary>
+    [Fact]
+    public void ASendWithNoRecordedReportDateLeavesTheSupersedesLineOut()
+    {
+        var values = Facts(new(2, null)).Values();
+
+        Assert.Null(values[EmailTemplates.SupersededReportDate]);
+        Assert.DoesNotContain(
+            "supersedes",
+            EmailTemplates.Render(EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery), values),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheCoveringMessageIsFrozenAsStaffReviewedItWithPlainLineEndings()
+    {
+        Assert.Equal("One\nTwo", CaseReportDeliveryPolicy.CoveringMessage("One\r\nTwo\r\n  "));
+
+        var longest = new string('a', EmailTemplates.MaximumBodyLength);
+        Assert.Equal(longest, CaseReportDeliveryPolicy.CoveringMessage(longest));
+    }
+
+    [Fact]
+    public void ABlankOrTooLongCoveringMessageIsRefused()
+    {
+        Assert.Throws<ArgumentException>(() => CaseReportDeliveryPolicy.CoveringMessage(null));
+        Assert.Throws<ArgumentException>(() => CaseReportDeliveryPolicy.CoveringMessage(" \r\n "));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CaseReportDeliveryPolicy.CoveringMessage(
+            new string('a', EmailTemplates.MaximumBodyLength + 1)));
+    }
 
     [Fact]
     public void OnlyTheReportIsRenamedAndTheCompanionsKeepTheirCustodyNames()
@@ -183,6 +219,9 @@ public sealed class CaseReportDeliveryNamingTests
             GenerationId,
             [Artifact(CaseReportArtifactKind.AssessmentReport, ReportAttachment)],
             [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.RepairSpecification]));
+
+    private static CaseReportDeliveryFacts Facts(CaseReportSendHistory history) => new(
+        "QDOS26001", "PK12TMZ", "Total loss", "Principal Ltd", history);
 
     private static CaseReportArtifactRecord Artifact(
         CaseReportArtifactKind kind,

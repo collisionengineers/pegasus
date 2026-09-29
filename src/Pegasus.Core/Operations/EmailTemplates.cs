@@ -7,7 +7,7 @@ namespace Pegasus.Core.Operations;
 /// The staff message whose body an Administrator may edit (FRD-17 E-mail
 /// templates). Each purpose has its own placeholder set and built-in body.
 /// </summary>
-public enum EmailTemplatePurpose { TriageOutcomeReply }
+public enum EmailTemplatePurpose { TriageOutcomeReply, CaseReportDelivery }
 
 /// <summary>
 /// One purpose's body as it stands: the saved text, or the built-in body at
@@ -44,6 +44,10 @@ public static partial class EmailTemplates
     public const string Roadworthiness = "roadworthiness";
     public const string RepairOutcome = "repair outcome";
     public const string FindingReason = "reason";
+    public const string CaseReference = "case reference";
+    public const string Outcome = "outcome";
+    public const string PrincipalName = "principal name";
+    public const string SupersededReportDate = "superseded report date";
 
     private static readonly string[] TriageOutcomeReplyPlaceholders =
         [Registration, Roadworthiness, RepairOutcome, FindingReason];
@@ -62,15 +66,37 @@ public static partial class EmailTemplates
         + "Kind regards\n"
         + "Collision Engineers";
 
+    private static readonly string[] CaseReportDeliveryPlaceholders =
+        [CaseReference, Registration, Outcome, PrincipalName, SupersededReportDate];
+
+    /// <summary>
+    /// The Case report delivery's built-in body. The "supersedes" line names
+    /// the date of the report sent before, so on a first send it has no value
+    /// and is left out. <c>{principal name}</c> is available but not used.
+    /// </summary>
+    private const string CaseReportDeliveryDefault =
+        "Please find attached our report.\n"
+        + "\n"
+        + "Our reference: {case reference}\n"
+        + "Registration: {registration}\n"
+        + "Outcome: {outcome}\n"
+        + "\n"
+        + "This report supersedes our report dated {superseded report date}.\n"
+        + "\n"
+        + "Kind regards\n"
+        + "Collision Engineers";
+
     public static IReadOnlyList<string> Placeholders(EmailTemplatePurpose purpose) => purpose switch
     {
         EmailTemplatePurpose.TriageOutcomeReply => TriageOutcomeReplyPlaceholders,
+        EmailTemplatePurpose.CaseReportDelivery => CaseReportDeliveryPlaceholders,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 
     public static string DefaultBody(EmailTemplatePurpose purpose) => purpose switch
     {
         EmailTemplatePurpose.TriageOutcomeReply => TriageOutcomeReplyDefault,
+        EmailTemplatePurpose.CaseReportDelivery => CaseReportDeliveryDefault,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 

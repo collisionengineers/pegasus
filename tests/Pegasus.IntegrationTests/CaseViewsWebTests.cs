@@ -229,6 +229,12 @@ public sealed class CaseViewsWebTests
             StringComparison.Ordinal);
         Assert.Contains($"{AuditReference} · </span>", ReportStatus(auditReport), StringComparison.Ordinal);
         Assert.Contains("data-prepare-delivery", auditReport, StringComparison.Ordinal);
+        // The delivery message is the Case report delivery template, rendered
+        // for staff to edit before Prepare delivery.
+        Assert.Matches(
+            "<textarea[^>]*name=\"coveringMessage\"[^>]*data-report-message>[^<]*Kind regards\\s+Collision Engineers</textarea>",
+            auditReport);
+        Assert.Matches("<textarea[^>]*data-report-message>[^<]*Our reference: \\S+", auditReport);
         Assert.Contains(reports.Audit.Id.ToString("D"), auditReport, StringComparison.Ordinal);
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));

@@ -958,6 +958,9 @@ public static class CaseWorkspaceLabels
             _ => "The images",
         };
 
+        public static string MessageRefused =>
+            $"Enter the message, at most {Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength} characters.";
+
         public const string PrepareDelivery = "Prepare delivery";
         public const string DeliveryPrepared = "Delivery prepared";
         public const string SendPreparedReport = "Send prepared report";
