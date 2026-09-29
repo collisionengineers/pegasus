@@ -14,19 +14,30 @@ public sealed class CaseCommandFailureLoggingTests
 {
     private static readonly Guid CaseId = Guid.NewGuid();
 
-    public static TheoryData<Exception> DesignedRefusals => new()
+    // Keyed by name: an exception is not serializable theory data, so the test
+    // listing would count one case where five run.
+    public static TheoryData<string> DesignedRefusals => new()
     {
-        new CaseEditLeaseExpiredException(CaseId, 3),
-        new CaseEditLeaseConflictException(CaseId, 3),
-        new CaseVersionConflictException(CaseId, 2, 3),
-        new CaseOperationConflictException(CaseId, "operation-1"),
-        new CaseTerminalMutationException(CaseId)
+        nameof(CaseEditLeaseExpiredException),
+        nameof(CaseEditLeaseConflictException),
+        nameof(CaseVersionConflictException),
+        nameof(CaseOperationConflictException),
+        nameof(CaseTerminalMutationException)
     };
 
     [Theory]
     [MemberData(nameof(DesignedRefusals))]
-    public void ADesignedRefusalIsLoggedWithoutAnExceptionPayload(Exception refusal)
+    public void ADesignedRefusalIsLoggedWithoutAnExceptionPayload(string refusalType)
     {
+        Exception refusal = refusalType switch
+        {
+            nameof(CaseEditLeaseExpiredException) => new CaseEditLeaseExpiredException(CaseId, 3),
+            nameof(CaseEditLeaseConflictException) => new CaseEditLeaseConflictException(CaseId, 3),
+            nameof(CaseVersionConflictException) => new CaseVersionConflictException(CaseId, 2, 3),
+            nameof(CaseOperationConflictException) => new CaseOperationConflictException(CaseId, "operation-1"),
+            nameof(CaseTerminalMutationException) => new CaseTerminalMutationException(CaseId),
+            _ => throw new ArgumentOutOfRangeException(nameof(refusalType), refusalType, null)
+        };
         var logger = new CapturingLogger<CaseCommandFailureLoggingTests>();
 
         FailureLogger.Log(logger, CaseId, "claim_lease", refusal);
