@@ -24,7 +24,6 @@ public static class CaseWorkspaceLabels
     {
         public const string EditCase = "Edit Case";
         public const string EditingExpired = "Editing expired · changes are not kept";
-        public const string EnableReturn = "Enable return";
         public const string Edit = "Edit";
         /// <summary>
         /// Save as you go (operator, 29 September 2026): Done ends the session,

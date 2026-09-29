@@ -55,8 +55,11 @@ visiting another record, the page resumes the lease they hold: the same
 token, renewed as a heartbeat renews it, with nothing recorded. Pressing Edit
 on a Case they already hold does the same. The holder is never offered a
 takeover of themselves. Only the Case page resumes: a one-off change made
-from elsewhere, such as the Work Centre or linking an item to the Case, is
-refused while the lease is live, so it never ends the holder's edit session.
+from elsewhere, such as the Work Centre, linking an item to the Case, or an
+item of the Case's own Actions menu taken outside a session, is refused
+while the lease is live, so it never ends the holder's edit session. Such a
+change claims the lease for its one command and consumes it; a refused
+command frees the lease it claimed.
 Automatic processing never resumes a lease; each of its sessions claims and
 is refused while any lease is live.
 
