@@ -506,7 +506,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                 Guid.Empty, new string('0', 64), "image/png", input.CurrentEstimate!.SpecificationId, input.CurrentEstimate.Version,
                 report.Costs, report.EngineerValue, Guid.Empty, report.Content, report.Guides,
                 report.ReportDate, report.ReportDateOverridden, report.AgreedFee,
-                report.FeeDescriptionLines, [], [], report.PayloadVersion, "renderer/v1", report)
+                report.FeeDescriptionLines, [], [], report.PayloadVersion, "renderer/v1", report with { Photos = [] })
             {
                 CurrentEstimate = input.CurrentEstimate
             };

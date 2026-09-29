@@ -684,11 +684,14 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.AddSingleton<IDocumentContentStore>(new ThrowingDocumentContentStore());
             }));
 
+    /// <summary>The bytes the ready fixture's photo opens to.</summary>
+    internal static readonly byte[] ReadyImage = [137, 80, 78, 71, 1, 2, 3, 4];
+
     internal static AssessmentReportProjectionInput ReadyInput(Guid caseId)
     {
-        var image = new byte[] { 137, 80, 78, 71, 1, 2, 3, 4 };
+        var image = ReadyImage;
         var photo = new ReportImageEvidence(
-            "site.jpg", "image/jpeg", image, Convert.ToHexStringLower(SHA256.HashData(image)));
+            "site.jpg", "image/jpeg", ReportImageContent.Opened(_ => Task.FromResult(image)), Convert.ToHexStringLower(SHA256.HashData(image)));
         var source = new AcceptedReportSource("instruction.pdf", "1", new string('a', 64));
         return new AssessmentReportProjectionInput(
             FullAssessmentProjection(caseId),
@@ -1008,7 +1011,7 @@ public sealed partial class AssessmentReportDraftWebTests
                     CanPrint = true
                 });
                 sources.Add(occurrenceId, new(versionId, documentId, 1, photo.CustodyReference,
-                    photo.ContentType, photo.Content.Length, photo.Sha256, DocumentCustodyStatus.Confirmed,
+                    photo.ContentType, ReadyImage.Length, photo.Sha256, DocumentCustodyStatus.Confirmed,
                     ReportFixtureAtUtc, "engineer-1", true, false, null));
             }
             var signatory = projection.Signatory!;
