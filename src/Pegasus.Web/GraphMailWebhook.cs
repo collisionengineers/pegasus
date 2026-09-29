@@ -9,6 +9,11 @@ internal static class GraphMailWebhook
 {
     private const int MaximumNotifications = 100;
 
+    // Graph hangs up on a slow answer and resends only minutes later, so a batch
+    // it delivered is queued even if it has already gone. The bound stops a stuck
+    // store or queue from holding the request open.
+    private static readonly TimeSpan DeliveryBound = TimeSpan.FromSeconds(30);
+
     public static async Task<IResult> HandleAsync(
         HttpRequest request,
         IApprovedMailboxSubscriptionStore subscriptions,
@@ -47,6 +52,7 @@ internal static class GraphMailWebhook
             return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
 
+        using var delivery = new CancellationTokenSource(DeliveryBound, timeProvider);
         foreach (var notification in batch.Value)
         {
             if (!MatchesSecret(notification.ClientState, expectedClientState)
@@ -59,7 +65,7 @@ internal static class GraphMailWebhook
             var subscription = await subscriptions.GetActiveAsync(
                 notification.SubscriptionId,
                 timeProvider.GetUtcNow(),
-                cancellationToken);
+                delivery.Token);
             if (subscription is null
                 || !MatchesSubscribedMailbox(subscription.Resource, notification.Resource)
                 || !TryParseWakeKind(notification, out var wakeKind))
@@ -80,7 +86,7 @@ internal static class GraphMailWebhook
                 wakeKind == MailboxWakeKind.Created
                     ? ParseImmutableMessageId(notification.Resource)
                     : null,
-                cancellationToken);
+                delivery.Token);
         }
 
         return Results.Accepted();

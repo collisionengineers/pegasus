@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Web.Health;
 using Pegasus.Web.Mcp;
@@ -91,6 +92,28 @@ public sealed class StartupWarmupTests
     }
 
     [Fact]
+    public async Task TheWarmUpRunsTheMailWebhookSubscriptionRead()
+    {
+        var subscriptions = new CountingSubscriptionStore();
+        var services = new ServiceCollection();
+        services.AddSingleton<IApprovedMailboxSubscriptionStore>(subscriptions);
+        await using var provider = services.BuildServiceProvider();
+        var state = new StartupWarmupState(warms: true);
+        using var warmup = new StartupWarmup(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            state,
+            TimeProvider.System,
+            NullLogger<StartupWarmup>.Instance);
+
+        await warmup.StartAsync(CancellationToken.None);
+        await Assert.IsAssignableFrom<Task>(warmup.ExecuteTask).WaitAsync(TimeSpan.FromMinutes(1));
+
+        Assert.Equal(1, subscriptions.ActiveReads);
+        Assert.True(state.IsReady);
+        await warmup.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public void AHostThatDoesNotWarmIsReadyAtOnce()
     {
         Assert.True(new StartupWarmupState(warms: false).IsReady);
@@ -107,6 +130,38 @@ public sealed class StartupWarmupTests
             Interlocked.Increment(ref loads);
             return new EphemeralDataProtectionProvider().CreateProtector(purpose);
         }
+    }
+
+    private sealed class CountingSubscriptionStore : IApprovedMailboxSubscriptionStore
+    {
+        private int activeReads;
+
+        public int ActiveReads => Volatile.Read(ref activeReads);
+
+        public Task<ApprovedMailboxSubscription?> GetActiveAsync(string subscriptionId,
+            DateTimeOffset nowUtc, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref activeReads);
+            return Task.FromResult<ApprovedMailboxSubscription?>(null);
+        }
+
+        public Task<IReadOnlyList<ApprovedMailboxSubscription>> ListAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ApprovedMailboxSubscriptionMaintenanceCandidate>>
+            ListMaintenanceCandidatesAsync(DateTimeOffset nowUtc,
+                CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task SaveAsync(ApprovedMailboxSubscription value,
+            string? expectedPriorSubscriptionId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task RecordMaintenanceFailureAsync(Guid approvedMailboxId, long expectedGeneration,
+            string? expectedSubscriptionId, string failureCode,
+            DateTimeOffset attemptedAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>What SQL Server raises when a command is cancelled mid-flight.</summary>
