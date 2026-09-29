@@ -112,6 +112,12 @@ public sealed partial class GlassRepairEstimateGateway(
     /// <summary>The XML export's custody occurrence on the Case.</summary>
     public static string XmlOccurrenceIdentity(Guid sessionId) => $"glass-estimate:{sessionId:D}:xml";
 
+    /// <summary>
+    /// The custody occurrence of an export Pegasus's reader refused. It is kept
+    /// on the Case as a rejected Glass's export, not as a Draft's source.
+    /// </summary>
+    public static string RejectedXmlOccurrenceIdentity(Guid sessionId) => $"glass-estimate:{sessionId:D}:rejected-xml";
+
     /// <summary>The embedded calculation sheet's custody occurrence on the Case.</summary>
     public static string PdfOccurrenceIdentity(Guid sessionId) => $"glass-estimate:{sessionId:D}:pdf";
 
@@ -402,7 +408,11 @@ public sealed partial class GlassRepairEstimateGateway(
         var provider = Unprotect(material.ProtectedProviderState);
         var results = Deserialize(material.ResultArtifactsJson);
 
-        if (!GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State))
+        // A session Failed because the reader refused the export is taken up
+        // again the way a claimed return is: the export is fetched again for
+        // the estimate it already has.
+        var refetch = GlassRepairEstimateSessionPolicy.CanRefetchExport(session.State, session.FailureCode);
+        if (!GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State) && !refetch)
         {
             throw new GlassRepairEstimateRefusalException(
                 $"A Glass's session in {session.State} cannot be resumed.");
@@ -423,7 +433,8 @@ public sealed partial class GlassRepairEstimateGateway(
         var held = session.State == GlassRepairEstimateSessionState.AwaitingImport
             || (session.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Unknown
                 && results.Xml is not null);
-        var claimed = session.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Unknown
+        var claimed = (refetch
+                || session.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Unknown)
             && results.CallbackQueryDigest is not null;
         if (held || claimed)
         {
@@ -435,9 +446,15 @@ public sealed partial class GlassRepairEstimateGateway(
 
             // Claim the import before touching custody, the provider or the
             // Case. Close is unavailable while this claim is running.
-            session = await WriteAsync(session, GlassRepairEstimateSessionState.Importing, session.FailureCode, provider,
-                material.CallbackDigest, results, cancellationToken);
+            session = await WriteAsync(session, GlassRepairEstimateSessionState.Importing,
+                refetch ? null : session.FailureCode, provider, material.CallbackDigest, results, cancellationToken);
             return new(session, GlassRepairEstimateContinuation.Import);
+        }
+
+        if (refetch)
+        {
+            throw new GlassRepairEstimateRefusalException(
+                "This Glass's session carries no accepted return to fetch the export for again.");
         }
 
         // A host may have stopped after the provider acted but before the ID
@@ -849,45 +866,107 @@ public sealed partial class GlassRepairEstimateGateway(
             export = GlassEstimateXmlParser.Read(exported);
             RequireSameVehicle(export, provider);
         }
-        catch (EstimateParseRejectedException)
+        catch (EstimateParseRejectedException rejection)
         {
+            // The reader's refusal is a fact about this document, and the
+            // document exists only here and at Glass's. Keep it on the Case
+            // before the session settles, so it can be read again once the
+            // reader accepts it.
+            results.RejectedXml = await KeepRejectedExportAsync(
+                actor, session, ereId, exported, cancellationToken);
             return await SettleAsync(
-                session,
-                new GlassMvaStageException(GlassFailure.ExportUnreadable),
-                provider,
-                callbackDigest,
-                results,
-                cancellationToken);
+                session, UnreadableExport(rejection, provider), provider, callbackDigest, results, cancellationToken);
         }
         catch (GlassMvaStageException failure)
         {
             return await SettleAsync(session, failure, provider, callbackDigest, results, cancellationToken);
         }
 
-        results.Xml = await StageAsync(session, "RetainArtifact", () => RetainAsync(
-            actor,
-            session,
-            XmlOccurrenceIdentity(session.Id),
-            $"{session.OperationKey}:xml",
-            $"glass-estimate-{ereId}.xml",
-            "application/xml",
-            exported,
-            cancellationToken));
-        if (export.CalculationSheet is { } sheet)
+        try
         {
-            results.Pdf = await StageAsync(session, "RetainArtifact", () => RetainAsync(
+            results.Xml = await StageAsync(session, "RetainArtifact", () => RetainAsync(
                 actor,
                 session,
-                PdfOccurrenceIdentity(session.Id),
-                $"{session.OperationKey}:pdf",
-                sheet.FileName,
-                "application/pdf",
-                sheet.Content.ToArray(),
+                XmlOccurrenceIdentity(session.Id),
+                $"{session.OperationKey}:xml",
+                $"glass-estimate-{ereId}.xml",
+                "application/xml",
+                exported,
                 cancellationToken));
+            if (export.CalculationSheet is { } sheet)
+            {
+                results.Pdf = await StageAsync(session, "RetainArtifact", () => RetainAsync(
+                    actor,
+                    session,
+                    PdfOccurrenceIdentity(session.Id),
+                    $"{session.OperationKey}:pdf",
+                    sheet.FileName,
+                    "application/pdf",
+                    sheet.Content.ToArray(),
+                    cancellationToken));
+            }
+        }
+        catch (Exception failure) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Custody refused or could not be reached. Glass's already has the
+            // export and the relay is not made again, so the outcome is the
+            // uncertain one a lookup resolves: Resume signs in again and
+            // fetches the export, and custody answers the same identities.
+            // Nothing is reported as interrupted: something was wrong.
+            LogCustodyFailed(logger, session.Id, session.CaseId, failure);
+            results.Xml = null;
+            results.Pdf = null;
+            return await SettleAsync(
+                session,
+                new GlassMvaStageException(GlassFailure.CustodyFailed, outcomeUnknown: true, failure.GetType().Name),
+                provider,
+                callbackDigest,
+                results,
+                cancellationToken);
         }
 
         return await FinishAsync(actor, session, provider, callbackDigest, results, cancellationToken);
     }
+
+    /// <summary>
+    /// Keeps an export the reader refused as a rejected Glass's export on the
+    /// Case, through the same custody as every other retained artifact. The
+    /// export was already fetched, so a custody failure here is logged and
+    /// never hides the rejection it accompanies.
+    /// </summary>
+    private async Task<Artifact?> KeepRejectedExportAsync(
+        ActionActor actor,
+        GlassRepairEstimateSession session,
+        string ereId,
+        byte[] exported,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await StageAsync(session, "RetainRejectedExport", () => RetainAsync(
+                actor,
+                session,
+                RejectedXmlOccurrenceIdentity(session.Id),
+                $"{session.OperationKey}:rejected-xml",
+                $"glass-estimate-{ereId}-rejected.xml",
+                "application/xml",
+                exported,
+                cancellationToken));
+        }
+        catch (Exception failure) when (!cancellationToken.IsCancellationRequested)
+        {
+            LogCustodyFailed(logger, session.Id, session.CaseId, failure);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The unreadable-export failure with the reader's own reason as its
+    /// detail, so the host log says which position or field was refused.
+    /// </summary>
+    private static GlassMvaStageException UnreadableExport(
+        EstimateParseRejectedException rejection, ProviderState provider) =>
+        new(GlassFailure.ExportUnreadable, detail: GlassReaderReason.Of(rejection.Message, provider.Registration));
 
     /// <summary>
     /// The last step, shared by a completing callback and a resumed import:
@@ -968,15 +1047,10 @@ public sealed partial class GlassRepairEstimateGateway(
                 results,
                 cancellationToken);
         }
-        catch (EstimateParseRejectedException)
+        catch (EstimateParseRejectedException rejection)
         {
             return await SettleAsync(
-                session,
-                new GlassMvaStageException(GlassFailure.ExportUnreadable),
-                provider,
-                callbackDigest,
-                results,
-                cancellationToken);
+                session, UnreadableExport(rejection, provider), provider, callbackDigest, results, cancellationToken);
         }
 
         return await WriteAsync(
@@ -1226,6 +1300,12 @@ public sealed partial class GlassRepairEstimateGateway(
 
     [LoggerMessage(
         Level = LogLevel.Warning,
+        Message = "Glass's session {SessionId} for case {CaseId} could not retain an export in custody")]
+    private static partial void LogCustodyFailed(
+        ILogger logger, Guid sessionId, Guid caseId, Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
         Message = "Glass's session {SessionId} for case {CaseId} settled {State} at {FailureCode} {Detail}")]
     private static partial void LogSettled(
         ILogger logger, Guid sessionId, Guid caseId, GlassRepairEstimateSessionState state, string failureCode, string detail);
@@ -1421,6 +1501,12 @@ public sealed partial class GlassRepairEstimateGateway(
         public Artifact? Xml { get; set; }
 
         public Artifact? Pdf { get; set; }
+
+        /// <summary>
+        /// The export Pegasus's reader refused, kept on the Case as a rejected
+        /// Glass's export. It is never a Draft's source.
+        /// </summary>
+        public Artifact? RejectedXml { get; set; }
 
         public Guid? ImportedEstimateId { get; set; }
     }
