@@ -595,6 +595,11 @@ function Get-MigrationPermissionMatrix {
     # The grant is table-level (the audit rejects column grants); neither role
     # deletes a message.
     $expected.Add('pegasus_web_runtime_role|G|UPDATE|RetainedMailboxMessages')
+    # 20260929150000_GrantCaseDataSnapshotUpdate: completing a Case's images
+    # (Worker) and a Case save (Web) record re-evaluated readiness on the Case's
+    # data snapshot row. Neither role deletes one.
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|CaseDataSnapshots')
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|CaseDataSnapshots')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the
