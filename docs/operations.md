@@ -4,6 +4,37 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 76 — 29 September 2026 (deployment live)
+
+Release 76 deployed [PR 949](https://github.com/collisionengineers/pegasus/pull/949), which merged PRs 940–948 into `dev` together with the review fixes:
+
+- [PR 940](https://github.com/collisionengineers/pegasus/pull/940): an ordinary wipe keeps each staff member's stored external credential (the Glass's login).
+- [PR 941](https://github.com/collisionengineers/pegasus/pull/941): the source of `20260929120000_PrincipalVocabulary` no longer grants Web SELECT on the domain reference tables. This matches the grants revoked by hand in Release 75.
+- [PR 942](https://github.com/collisionengineers/pegasus/pull/942): a Graph mail wake is queued even if Graph hangs up, and the mail-webhook read is warmed at start.
+- [PR 943](https://github.com/collisionengineers/pegasus/pull/943): Glass's additional operations land as Specialist, and included operations charge nothing.
+- [PR 944](https://github.com/collisionengineers/pegasus/pull/944): Upload lists a photograph only once custody can serve it.
+- [PR 945](https://github.com/collisionengineers/pegasus/pull/945): a per-Principal salvage matrix, edited in Administration › Contacts, fills the Case salvage value.
+- [PR 946](https://github.com/collisionengineers/pegasus/pull/946): Web and Worker may UPDATE `CaseDataSnapshots`, so filed images complete a Case's readiness.
+- [PR 947](https://github.com/collisionengineers/pegasus/pull/947): the Case edit session saves as you go (Done, no Save or Cancel).
+- [PR 948](https://github.com/collisionengineers/pegasus/pull/948): the Case Actions menu works without an edit session.
+- PR 949's own fixes:
+  - the review findings on 947 and 948, and 948's seven CI failures;
+  - Take over is offered again on a Completed or Query Case (operator ruling);
+  - the FRD-18 upload wording;
+  - the wipe refuses to run when the built-in image tags are missing (the guard from the 27 September restore, below).
+
+The route was the normal App Service route with an additive migration, run from the Windows workstation. Web and Worker are Running on the approved release, and full production smoke passed. No wipe ran.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `4caf885c19ec8ea51422c9d13dee1d485e1e9c12`. It was promoted atomically to both `dev` and `main`; `main` was `3b8706bd0`. Manifest schema 3 SHA-256 `07CA7FEA6CAF4ADE98EF300EBD660BA504F98C09E03913A0DDE1806ED18DDEEA`. `web.zip` SHA-256 `816CECD87B10144481DDBA643611DACB6FC6DDD1476ECE7183166ADEB107CC3E`. `worker.zip` SHA-256 `2C0C752426D89EF79AF04165485A4F44CEB075C568F4F4E9B0E240CA6077AA3C`. Windows `efbundle.exe` SHA-256 `9A2FEAAD3D12D03B886C7B4A1F0DFE29C50C08084E23C54DD353003FB0384F44`, built and run. |
+| Review and verification | The nine PRs were merged onto one integration branch with `--no-ff`. The one conflict was #945 and #946 both adding their migration to the pinned lists in `CaseWorkflowMigrationTests` and `IntakePersistenceIntegrationTests`; both were kept, in id order. Every file changed by one PR matched that PR byte for byte, and every line added to a shared file survived. The review findings were checked against the code and fixed on the branch. The branch built locally with 0 warnings and 0 errors. `Test-GlassBrowser.mjs` passed 16/16 in headless Chrome and failed on the unfixed script. PR 949's CI run 36579042625 passed all 11 jobs at `ad9fa1334`, whose tree is identical to the release SHA. The Local, Artifact, PreDeploy, PreMigration and PreProvision gates passed. No signed-in browser walk ran. The operator granted merge authority and approved the build and deployment (29 September 2026). |
+| Schema and grants | Additive. Two migrations were applied over `20260929120000_PrincipalVocabulary` at 14:34:28–14:34:34Z. `20260929150000_GrantCaseDataSnapshotUpdate` grants both runtime roles UPDATE on `CaseDataSnapshots`, and re-queued the one `merge_image_case_custody` item that had failed with `DbUpdateException`. `20260930090000_PrincipalSalvageMatrix` adds the nullable `Principals.SalvageMatrixJson`. Bootstrap verified 706 catalogued permission/denial rows and 494 effective runtime DML rows (Release 75: 704/492; the two new UPDATE grants account for the rise). The live head read back as the manifest identity, `20260930090000_PrincipalSalvageMatrix`. The re-queued merge completed at 14:35:03Z. |
+| Web and Worker deployment | Provision found no changes (11 s); the B1 quota in `uksouth` read 3. `az webapp deploy` (OneDeploy `3f66f8b7-f9aa-46ce-83f7-d2c3c4a27d00`, package `20260929143610.zip`) restarted the site. The site started first time in 225 s, and the exact SHA answered at 14:41:02Z. The Worker ZIP was deployed (deployment `af9ca4f4-cbb7-4006-8253-7928d72282e8`). |
+| Production smoke | Passed at 14:45:07Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20260929143610.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-09-29T14:45:03Z`; the active Graph subscription expires `2026-10-02T15:15:00Z`. No `DbUpdateException` work-item failure followed the release. |
+| Still owed | The live walk is with the operator: save as you go (type, see the blocker clear, press Done); an Actions-menu item from read mode, and Take over on a Completed Case; the salvage matrix filling a Case's salvage value; a Glass's Specialist line in the report; Upload photographs appearing once custody confirms them; linked-upload images completing readiness. `Test-CaseRefreshBrowser.mjs` needs a live Case and has not run against this release. Re-measure the Web start (#922): this start took 225 s. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-76-4caf885c`; driver scripts and the deploy log at `artifacts/releases/release-76-driver`. |
+
 ## Release 75 — 29 September 2026 (deployment live)
 
 Release 75 deployed the 28–29 September issue sweep: stacked PRs [924](https://github.com/collisionengineers/pegasus/pull/924)–[938](https://github.com/collisionengineers/pegasus/pull/938), promoted through release PR [939](https://github.com/collisionengineers/pegasus/pull/939). It resolves #829 #832 #835 #842 #843 #844 #845 #846 #848 #850 #857 #864 #865 #868 #870 #879 #902 #913 #916 #919 #922 #923, and the operator's request to tag images while editing a Case. It also carries the fix for #923: since Release 74's ReadyToRun build, every Box sign-in on the Web host failed with `Module checksum failed`, because ReadyToRun rewrote the Box SDK's FIPS BouncyCastle DLLs.
