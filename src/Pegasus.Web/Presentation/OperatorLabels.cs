@@ -139,6 +139,14 @@ public static class OperatorLabels
         };
 
     /// <summary>
+    /// The one-press Attach form on the Cases page has no suggestions list, and
+    /// a second press of an attach that already worked also reaches here, so the
+    /// notice names both possibilities.
+    /// </summary>
+    public const string AttachOnePressNotFound =
+        "No single Case matched that reference, or this image was already added. Check the reference and the Cases list.";
+
+    /// <summary>
     /// The case lifecycle stage as the operator reads it (operator decision D3): a
     /// display mapping only. <see cref="CaseLifecycleState.ReportPreparation"/>
     /// and <see cref="CaseLifecycleState.PostReport"/> both read "With

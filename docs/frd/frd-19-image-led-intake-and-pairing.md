@@ -289,7 +289,15 @@ never a workflow queue. Rows show reference, registration,
 image count, custody, received, source, and chase facts; `?tab=` selects
 the queue. Not ready holds only formal instructed Cases. Selecting a row
 shows a quick detail with the definition list, the open action, and **Add
-to an existing case**.
+to an existing case**. The operator types a Case reference and presses the
+button once: that one press finds the Case and adds the image to it. There
+is no second confirm step on this page. If no single Case matches, or the
+add cannot be made, the page says so, keeps the typed reference and changes
+nothing. Pressing the button again after it worked also says no Case
+matched, because the image was already added; it adds nothing twice.
+A submission of several images is handled on its own submission
+page, where the review dialog applies
+([FRD-18](frd-18-manual-upload.md)).
 
 **Image record page.** The Image-initiated record shows its image gallery
 with the preserved filenames and group evidence, its custody, and its
