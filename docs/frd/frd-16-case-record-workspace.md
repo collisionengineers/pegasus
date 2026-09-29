@@ -183,11 +183,17 @@ links to the Audit view.
 ### Actions menu
 
 The one **Actions** menu offers only what the Core use cases permit for the
-current state. Outside an edit session the menu appears only when Send to
-EVA is available. The rules behind each action are in
+current state, in and out of an edit session (operator, 29 September 2026).
+An item taken outside a session runs under a lease claimed for that one
+action and consumed by it, the way Generate report does
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
+frees the lease it claimed. While a colleague holds the lease the menu
+offers nothing that needs one: the ribbon names them and offers Take over.
+A Completed or Query Case offers no Edit, since its sections read and
+Return to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
-- **Hand to Engineer**, in Review while editing. Its dialog selects an
+- **Hand to Engineer**, in Review. Its dialog selects an
   eligible enabled staff account or **Assign to me**. The one handoff assigns them and
   enters With Engineer. There is no reviewed checkbox and no separate start
   action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#hand-to-engineer)).

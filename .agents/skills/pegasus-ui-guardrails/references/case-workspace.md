@@ -134,7 +134,9 @@ explain that same absence unless the design authority requires the explanation.
 ## Actions menu
 
 Keep lifecycle/consequential progressions in the existing Actions menu according to the state
-contract. Typical entries include:
+contract. The menu is offered in and out of an edit session (operator, 29 September 2026): an
+item taken outside one runs under a lease claimed for it, and nothing that needs a lease is
+offered while a colleague holds it. Typical entries include:
 
 - Hand to Engineer;
 - Send to EVA;

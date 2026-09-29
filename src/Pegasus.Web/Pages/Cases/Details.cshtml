@@ -78,35 +78,39 @@
     var isQuery = state == CaseLifecycleState.Query;
     var editing = Model.IsEditing;
     var editingCaseData = editing && !Model.IsPostReportReadOnly;
+    // The Actions menu is offered in and out of an edit session (operator,
+    // 29 September 2026): an item taken outside one runs under a lease
+    // claimed for it. While a colleague holds the lease nothing that needs
+    // one is offered; the ribbon names them and offers Take over.
+    var mayAct = !Model.ColleagueIsEditing;
+    var mayActOnCaseData = mayAct && !Model.IsPostReportReadOnly;
     var registration = string.IsNullOrWhiteSpace(summary.Registration)
         ? "No registration"
         : summary.Registration!;
-    var canHandToEngineer = editingCaseData && isReview
+    var canHandToEngineer = mayActOnCaseData && isReview
         && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
     var canSendToEva = (Model.EvaHandoff?.ReportGenerationPolicy is PrincipalReportGenerationPolicy.EvaZip or PrincipalReportGenerationPolicy.EvaManualApi
         || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
-    // The confirmation is a lease-carrying Core action, so it is offered in
-    // edit context only; without detected evidence there is nothing to
-    // confirm (D10: a send is never asserted here).
-    var canConfirmReportSent = editing
+    // The confirmation is a lease-carrying Core action; without detected
+    // evidence there is nothing to confirm (D10: a send is never asserted here).
+    var canConfirmReportSent = mayAct
         && state == CaseLifecycleState.ReportPreparation
         && details.AvailableReportSentEvidence.Count > 0;
-    var canMarkCompleted = editing && state == CaseLifecycleState.PostReport;
-    var canReturnToReview = editingCaseData
+    var canMarkCompleted = mayAct && state == CaseLifecycleState.PostReport;
+    var canReturnToReview = mayActOnCaseData
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
-    var canReturnToEngineer = editing && (isComplete || isQuery);
-    var canArchive = editing && isClosed && workflow.Archive is null;
-    var canUnlinkEvidence = editingCaseData && workflow.ReportSentEvidence is not null
+    var canReturnToEngineer = mayAct && (isComplete || isQuery);
+    var canArchive = mayAct && isClosed && workflow.Archive is null;
+    var canUnlinkEvidence = mayActOnCaseData && workflow.ReportSentEvidence is not null
         && state is not CaseLifecycleState.Held && !isClosed;
     // Review point 12: the adverse dispositions Core will accept for this
     // state, decided in the page model from Core's own closure rules.
     var closureOutcomes = Model.AvailableClosureOutcomes;
-    var offersAdverseClosure = editing && closureOutcomes.Count > 0;
-    var offersHoldGroup = editingCaseData && !isClosed;
+    var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
+    var offersHoldGroup = mayActOnCaseData && !isClosed;
     var offersCreateAudit = Model.CanCreateAudit;
-    // The menu shows outside an edit session only when an item that needs
-    // no lease is available (Send to EVA); everything else joins it inside.
+    // The menu shows whenever it has an item to offer.
     var offersActionsMenu = canUnlinkEvidence || canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
         || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
         || offersCreateAudit || offersAdverseClosure;
@@ -272,13 +276,15 @@
                         </button>
                     }
                 }
-                else if (!Model.IsInspectionView
+                else if (!Model.IsInspectionView && !Model.IsPostReportReadOnly
                     && (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff))
                 {
                     @* A colleague's staff lease can be taken over by an authorised
                        editor; the operation rotates its token and records the prior
                        holder. The viewer's own lease is resumed, never taken over.
-                       The Inspection view offers no Edit (v29 P3). *@
+                       The Inspection view offers no Edit (v29 P3), and neither does
+                       a Completed or Query Case: its sections read, and Return to
+                       Engineer is an Actions-menu item that needs no session. *@
                     <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -290,7 +296,7 @@
                         <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
                         <button type="submit" class="btn btn--dark" data-case-edit>
                             <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-                            <span>@(Model.ColleagueIsEditing ? Frame.TakeOver : Model.IsPostReportReadOnly ? Frame.EnableReturn : Frame.EditCase)</span>
+                            <span>@(Model.ColleagueIsEditing ? Frame.TakeOver : Frame.EditCase)</span>
                         </button>
                     </form>
                 }

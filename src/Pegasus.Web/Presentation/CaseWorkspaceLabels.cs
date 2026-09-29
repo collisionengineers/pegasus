@@ -24,7 +24,6 @@ public static class CaseWorkspaceLabels
     {
         public const string EditCase = "Edit Case";
         public const string EditingExpired = "Editing expired · changes are not kept";
-        public const string EnableReturn = "Enable return";
         public const string Edit = "Edit";
         public const string Cancel = "Cancel";
         public const string Save = "Save";
