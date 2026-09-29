@@ -437,7 +437,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260929090000_RetireUnusedTables",
                 "20260929091000_GrantWebRetainedMailDismissal",
                 "20260929093000_MarketResearchAttachedEvent",
-                "20260929120000_PrincipalVocabulary"
+                "20260929120000_PrincipalVocabulary",
+                "20260930090000_PrincipalSalvageMatrix"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

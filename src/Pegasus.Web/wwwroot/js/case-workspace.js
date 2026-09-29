@@ -3659,11 +3659,11 @@
 
     function bindSalvageMatrix(section) {
         salvageMatrixRefill = null;
-        var share = section.querySelector('[data-salvage-share][data-salvage-matrix]');
+        var share = section.querySelector('[data-salvage-share]');
         var row = share ? share.closest('.dec') : null;
         var field = row ? row.querySelector('input.fi') : null;
         var bands = null;
-        try { bands = share ? JSON.parse(share.getAttribute('data-salvage-matrix')) : null; } catch (_) { bands = null; }
+        try { bands = share ? JSON.parse(share.getAttribute('data-salvage-matrix') || 'null') : null; } catch (_) { bands = null; }
         if (!field || !Array.isArray(bands)) {
             return;
         }
