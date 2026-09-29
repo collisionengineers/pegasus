@@ -162,8 +162,9 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|SendToAiControl')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|SendToAiControl')
-    # 20260805223036_RetainedMailboxMessages: retained evidence is immutable;
-    # Web reads it and Worker can only append it.
+    # 20260805223036_RetainedMailboxMessages: retained evidence is append-only for
+    # the Worker, which reads and appends it. Web reads it and, from
+    # 20260929091000_GrantWebRetainedMailDismissal below, updates the dismissal cells.
     foreach ($table in @('RetainedMailboxMessages', 'RetainedMailboxAttachments')) {
         $expected.Add("pegasus_web_runtime_role|G|SELECT|$table")
         $expected.Add("pegasus_worker_runtime_role|G|SELECT|$table")
@@ -588,6 +589,11 @@ function Get-MigrationPermissionMatrix {
     # the original report among the files it filed on an Audit, and gives that
     # occurrence the Audit report role. It never deletes one.
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|DocumentOccurrences')
+    # 20260929091000_GrantWebRetainedMailDismissal: Web's Inbox Dismiss and Restore
+    # write the dismissed-at and dismissed-by cells of the retained message row.
+    # The grant is table-level (the audit rejects column grants); neither role
+    # deletes a message.
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|RetainedMailboxMessages')
     return @($expected | Sort-Object -Unique)
 }
 

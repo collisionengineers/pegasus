@@ -640,10 +640,41 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             imagesComplete,
             evidenceReference);
 
+    /// <summary>
+    /// Logs a failed case command. A designed refusal is a Warning naming the
+    /// refusal type and its message only: an exception object would reach the
+    /// exception index and page the on-call alert for an outcome the operator was
+    /// meant to see. Anything else keeps its full payload.
+    /// </summary>
+    protected static void LogCaseCommandFailed(
+        ILogger logger,
+        Guid caseId,
+        string commandName,
+        Exception exception)
+    {
+        if (DesignedCaseRefusal.Is(exception))
+        {
+            LogCaseCommandRefused(logger, caseId, commandName, exception.GetType().Name, exception.Message);
+            return;
+        }
+
+        LogCaseCommandUnexpectedFailure(logger, caseId, commandName, exception);
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Case command {CommandName} refused for case {CaseId}: {RefusalType}: {RefusalMessage}")]
+    private static partial void LogCaseCommandRefused(
+        ILogger logger,
+        Guid caseId,
+        string commandName,
+        string refusalType,
+        string refusalMessage);
+
     [LoggerMessage(
         Level = LogLevel.Warning,
         Message = "Case command {CommandName} failed for case {CaseId}.")]
-    protected static partial void LogCaseCommandFailed(
+    private static partial void LogCaseCommandUnexpectedFailure(
         ILogger logger,
         Guid caseId,
         string commandName,

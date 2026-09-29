@@ -140,6 +140,10 @@ opens — not over the whole repository and not as a later review stage.
 - One classifier per decision, looking through `InnerException` — EF wraps a
   SQL deadlock in `DbUpdateException`, and a store's retry helper rethrows the
   last attempt.
+- A designed refusal (a lost edit lease, a stale version, a closed case) is
+  logged as a Warning with its type and message and no exception object, so it
+  does not reach the exception index that pages on-call
+  (`DesignedCaseRefusal`). Only an unexpected fault logs its payload.
 - The catch-all is the shared safety policy
   (`IntakeExceptionPolicy.IsRecoverable`), never a local
   `is not OperationCanceledException`.
