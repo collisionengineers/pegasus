@@ -17,7 +17,7 @@ $workerApp = 'pegasus-prod-worker-252ow37gij'
 $preserve = @(
     '__EFMigrationsHistory',
     'AspNetRoleClaims', 'AspNetRoles', 'AspNetUserClaims', 'AspNetUserLogins',
-    'AspNetUserRoles', 'AspNetUsers', 'AspNetUserTokens',
+    'AspNetUserRoles', 'AspNetUsers', 'AspNetUserTokens', 'UserExternalCredentials',
     'OpenIddictApplications', 'OpenIddictAuthorizations', 'OpenIddictScopes', 'OpenIddictTokens',
     'ApprovedInboxPollStates', 'ApprovedMailboxes', 'ApprovedMailboxFolderBindings',
     'ApprovedOutlookCategories', 'ApprovedSentPollStates',
