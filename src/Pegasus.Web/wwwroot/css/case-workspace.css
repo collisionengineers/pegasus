@@ -185,7 +185,8 @@
 #section-valuation .valuation-card .meta{margin-top:6px;font-size:11px;color:var(--muted)}
 #section-valuation .valuation-card .notice{margin-top:8px;padding:6px 8px;font-size:12px}
 #section-valuation .valuation-card .notice .link-button{color:inherit;text-decoration:underline}
-#section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:center;margin-top:8px}
+#section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+#section-valuation [data-valuation-lines-host][aria-busy="true"]{opacity:.65}
 #section-valuation .valuation-card.is-pending .meta::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:valspin .8s linear infinite}
 @keyframes valspin{to{transform:rotate(360deg)}}
 #section-valuation .valuation-card .gated{margin-left:0}

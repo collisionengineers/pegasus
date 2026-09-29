@@ -364,24 +364,32 @@ saved as entered. While editing, the boxes are
 inputs that belong to the Case form, and the card has **Get valuation**,
 which asks the connected provider for the Case's accepted registration and
 mileage in that month and fills the boxes in place, without redrawing the
-page; while the source has no working provider the card shows "{Source}
-valuation is unavailable. Contact an administrator or report a problem."
+page. A source with no connected provider shows "{Source} valuation is
+unavailable. Contact an administrator or report a problem." on its card from
+the start and offers no Get valuation (28 September 2026).
 The card has no Save of its own (23 September 2026): the ribbon Save records
 every card whose figures changed, a card left blank or unchanged records
 nothing, and the same source and month replaces the earlier card; a typed
 figure saves the same way. A **Valuation month** and **AI market research**
 above the cards create a `MarketResearch` job and show a
-"Researching · {month}" card until it completes; a re-run replaces the card
+"Researching · {month}" card until it completes; a re-run replaces the card.
+The result is filed without the Case edit lease, so it returns while the
+Engineer is still editing and does not end the edit; the card says so
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
 Read and edit list the same value increases, every active preset with a tick
 on each the latest recorded calculation applied, and the calculator opens on
 that applied selection. Choosing a card as the basis fills Retail value and
 Trade value from it, and the calculation fills Engineer's Value; any box can
 be overtyped. The calculator has no Apply of its own (operator, 23 September
-2026): when the calculation changed since the page opened — a different
-basis card, the basis card's retail or trade, or any of its controls — the
-ribbon Save records it against its basis card; an unchanged calculation
-records nothing
+2026). Each card has **Use this value** while editing (operator, 28 September
+2026): it chooses the card, fills the three boxes, and the ribbon Save records
+the calculation against that card even when it is unchanged, including for a
+card typed in the same edit. The Save also records a calculation that changed
+since the page opened — a different basis card, the basis card's retail or
+trade, or any of its controls. Any other save records no calculation. The
+calculation lines show what the Save will use, from the retail as typed and
+the claimant's VAT as the form holds it, and say why when a figure cannot be
+worked out
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 The calculator applies presets and custom lines through Core. Valuation
 sources are owned by
