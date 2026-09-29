@@ -97,13 +97,19 @@ Engineer, or skip Review.
 
 **Saving does not unlock.** An action is available exactly when its stated
 prerequisites are met. Saving unchanged or unrelated data never unlocks an
-action and never resets readiness, lifecycle or advisory state.
+action and never resets readiness, lifecycle or advisory state. A saved
+required fact clears its blocker at once: on the Case record every change is
+saved as it is made, so the blocker goes, the state moves and the action
+appears within the round trip
+([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
 
 ### Hand to Engineer
 
 In Review, staff choose **Hand to Engineer** and pick an eligible enabled
-staff account. In one operation, under the current Case edit lease and version,
-Pegasus assigns the Engineer, sets the Sign-off Engineer, and moves the Case
+staff account. In one operation, under a Case edit lease — the session's, or
+one claimed for the action ([FRD-16](frd-16-case-record-workspace.md#actions-menu))
+— and the current version, Pegasus assigns the Engineer, sets the Sign-off
+Engineer, and moves the Case
 to With Engineer. Any enabled staff member may use **Assign to me** wherever the same
 assignment would be accepted. A headless start command can hand a Review Case
 to its already-assigned eligible staff member; it is not a second screen step.
@@ -200,8 +206,8 @@ With no assigned Engineer it is refused with Return to Engineer's refusal,
 Engineer must still be eligible, as for Return to Engineer. It asks for no
 reason and no outcome.
 
-**What it does.** In one operation, under the Case edit lease and version,
-Create audit:
+**What it does.** In one operation, under a Case edit lease (the session's,
+or one claimed for the action) and the current version, Create audit:
 
 - adds the Audit to the Case under the Audit reference `a.{Case/PO}` and
   copies the Inspection's values into it

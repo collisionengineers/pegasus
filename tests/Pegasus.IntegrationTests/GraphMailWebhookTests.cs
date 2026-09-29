@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Identity;
@@ -157,6 +160,43 @@ public sealed class GraphMailWebhookTests
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
     }
 
+    [Fact]
+    public async Task AWakeIsStillQueuedWhenGraphHangsUpMidDelivery()
+    {
+        // Called directly: the test server finishes a cancelled call only once
+        // the handler returns, so it cannot show the handler outliving Graph.
+        var subscriptionId = Guid.NewGuid();
+        var enqueuer = new HeldEnqueuer();
+        var context = new DefaultHttpContext();
+        context.Request.ContentType = "application/json";
+        context.Request.Body = new MemoryStream(
+            JsonSerializer.SerializeToUtf8Bytes(Notification(subscriptionId), JsonSerializerOptions.Web));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Graph:ChangeNotificationClientState"] = "integration-client-state",
+            ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94"
+        }).Build();
+        using var hangUp = new CancellationTokenSource();
+
+        var handled = Pegasus.Web.GraphMailWebhook.HandleAsync(
+            context.Request,
+            new SubscriptionStore(new(Guid.NewGuid(), subscriptionId.ToString("D"),
+                "users/mailbox-id/mailFolders/inbox-id/messages", DateTimeOffset.UtcNow.AddDays(1),
+                ApprovedMailboxSubscriptionLifecycleState.Active, null, null, 3)),
+            enqueuer,
+            configuration,
+            TimeProvider.System,
+            hangUp.Token);
+        await enqueuer.Entered.WaitAsync(TimeSpan.FromMinutes(1));
+        await hangUp.CancelAsync();
+        enqueuer.Release();
+
+        Assert.False(await enqueuer.Cancelled.WaitAsync(TimeSpan.FromMinutes(1)));
+        var result = await handled.WaitAsync(TimeSpan.FromMinutes(1));
+        Assert.Equal(StatusCodes.Status202Accepted,
+            Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+    }
+
     private static WebApplicationFactory<Program> Configure(
         IntakeWebApplicationFactory baseFactory,
         Guid mailboxId,
@@ -213,6 +253,28 @@ public sealed class GraphMailWebhookTests
         {
             Messages.Add((approvedMailboxId, subscriptionId, generation, wakeKind, immutableMessageId));
             return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>Holds the send until released, and reports whether its token was cancelled first.</summary>
+    private sealed class HeldEnqueuer : IMailboxWakeEnqueuer
+    {
+        private readonly TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> cancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Entered => entered.Task;
+
+        public Task<bool> Cancelled => cancelled.Task;
+
+        public void Release() => release.TrySetResult();
+
+        public async Task EnqueueAsync(Guid approvedMailboxId, Guid subscriptionId, long generation,
+            MailboxWakeKind wakeKind, string? immutableMessageId, CancellationToken cancellationToken)
+        {
+            entered.TrySetResult();
+            await Task.WhenAny(release.Task, Task.Delay(Timeout.Infinite, cancellationToken));
+            cancelled.TrySetResult(cancellationToken.IsCancellationRequested);
         }
     }
 

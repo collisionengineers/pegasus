@@ -192,7 +192,10 @@ public sealed class CaseViewsWebTests
 
         var bar = RecordBar(html);
         Assert.Contains($">{Frame.Editing}</span>", bar, StringComparison.Ordinal);
-        Assert.Contains("data-case-cancel", bar, StringComparison.Ordinal);
+        Assert.Contains("data-case-done", bar, StringComparison.Ordinal);
+        // The Inspection view edits nothing, so the Case form and its Save now
+        // are absent there.
+        Assert.DoesNotContain("data-case-save-now", bar, StringComparison.Ordinal);
         Assert.Contains("data-case-actions", bar, StringComparison.Ordinal);
         Assert.DoesNotContain("data-case-edit-form", bar, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-edit-form\"", html, StringComparison.Ordinal);

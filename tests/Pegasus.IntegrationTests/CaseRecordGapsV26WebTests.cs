@@ -558,6 +558,9 @@ public sealed class CaseRecordGapsV26WebTests
 
         Assert.DoesNotContain("has-proposal", settlement, StringComparison.Ordinal);
         Assert.DoesNotContain("data-proposal", settlement, StringComparison.Ordinal);
+        // A Principal without a salvage matrix hands the Salvage value nothing.
+        Assert.Contains("data-salvage-matrix=\"\"", settlement, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-salvage-matrix=\"[", settlement, StringComparison.Ordinal);
         Assert.DoesNotContain("awaiting review", settlement, StringComparison.Ordinal);
         var outcome = Regex.Match(
             settlement,
@@ -579,6 +582,58 @@ public sealed class CaseRecordGapsV26WebTests
                     + "<span class=\"dl\">[^<]*<span class=\"src-tag src-tag--ai\" data-provenance-word=\"AI\">AI</span></span>",
                 RegexOptions.Singleline),
             settlement);
+    }
+
+    /// <summary>
+    /// The Principal's salvage matrix (29 September 2026) is handed to the
+    /// Salvage value while it edits, with whether the value the box opens
+    /// with still follows it (Core's SalvageMatrix.Follows); reading, nothing
+    /// is handed over.
+    /// </summary>
+    [Fact]
+    public async Task ThePrincipalsSalvageMatrixIsHandedToTheSalvageValueWhileItEdits()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            CaseState = CaseLifecycleState.ReportPreparation
+        };
+        var ports = new RecordGapPorts(store);
+        ports.Staff(AssessmentVocabulary.Outcome, "total_loss");
+        ports.Staff(AssessmentVocabulary.SalvageCategory, "S");
+        ports.Staff(AssessmentVocabulary.ValueEngineer, "2000.00");
+        ports.Staff(AssessmentVocabulary.SalvageValue, "45.00");
+        var matrix = SalvageMatrix.Normalize(
+        [
+            new("S", 0.01m, 1000m, 0m),
+            new("S", 1000.01m, 9999999.99m, 2m)
+        ]);
+        void Register(IServiceCollection services)
+        {
+            ports.Register(services);
+            Substitute<IPrincipalSalvageMatrixQueries>(services, new FixedSalvageMatrix(matrix));
+        }
+
+        using (var workspace = await EnterEditModeAsync(store, Register))
+        {
+            var settlement = SectionHtml(await workspace.GetWorkspaceAsync(), "settlement");
+            var share = Regex.Match(settlement, "<div class=\"salvage-share\"[^>]*>", RegexOptions.Singleline).Value;
+            Assert.Equal(
+                """[{"category":"S","from":0.01,"to":1000,"percentage":0},{"category":"S","from":1000.01,"to":9999999.99,"percentage":2}]""",
+                WebUtility.HtmlDecode(Regex.Match(share, "data-salvage-matrix=\"(?<json>[^\"]*)\"").Groups["json"].Value));
+            // 45.00 is not the matrix's 40.00, so it is the Engineer's own.
+            Assert.Contains("data-salvage-matrix-follows=\"false\"", share, StringComparison.Ordinal);
+        }
+
+        var reading = SectionHtml(await ReadCaseAsync(store, Register), "settlement");
+        Assert.Contains("data-salvage-matrix=\"\"", reading, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-salvage-matrix=\"[", reading, StringComparison.Ordinal);
+    }
+
+    private sealed class FixedSalvageMatrix(SalvageMatrix? matrix) : IPrincipalSalvageMatrixQueries
+    {
+        public Task<SalvageMatrix?> GetForCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult(matrix);
     }
 
     [Theory]

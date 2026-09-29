@@ -6091,6 +6091,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("SalvageMatrixJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("SequenceLineageId")
                         .HasColumnType("uniqueidentifier");
 

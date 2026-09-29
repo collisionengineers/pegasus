@@ -11,7 +11,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class TestEstateResetSqlTests
 {
     [Fact]
-    public async Task ResetRetainsAlexRemovesOtherAccountTracesAndRestartsQdos()
+    public async Task ResetRetainsAlexAndItsCredentialRemovesOtherAccountTracesAndRestartsQdos()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(
             configureServices: IdentityPersistenceTestServices.Configure);
@@ -50,6 +50,9 @@ public sealed class TestEstateResetSqlTests
             Status = "valid",
             Type = "access_token"
         });
+        context.Set<UserExternalCredentialEntity>().AddRange(
+            ExternalCredential(alex.Id, "alex@example.test"),
+            ExternalCredential(removed.Id, "remove-me@example.test"));
         await context.SaveChangesAsync();
 
         var sql = await File.ReadAllTextAsync(Path.Combine(
@@ -72,6 +75,9 @@ public sealed class TestEstateResetSqlTests
             .AsNoTracking().ToListAsync());
         var securityEvent = Assert.Single(await context.SecurityEvents.AsNoTracking().ToListAsync());
         Assert.Equal("retained", securityEvent.CorrelationId);
+        var credential = Assert.Single(await context.Set<UserExternalCredentialEntity>()
+            .AsNoTracking().ToListAsync());
+        Assert.Equal(alex.Id, credential.UserId);
         Assert.Equal(
             0,
             await context.CaseSequences
@@ -118,6 +124,22 @@ public sealed class TestEstateResetSqlTests
         Assert.True((await userManager.AddToRoleAsync(user, role)).Succeeded);
         return user;
     }
+
+    private static UserExternalCredentialEntity ExternalCredential(Guid userId, string accountKey) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            Provider = "glass",
+            UserId = userId,
+            NormalizedAccountKey = accountKey.ToUpperInvariant(),
+            Enabled = true,
+            CredentialGeneration = 1,
+            ProtectedCredential = "protected",
+            UpdatedBy = "test",
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            Version = 1,
+            ConcurrencyToken = Guid.NewGuid()
+        };
 
     private static SecurityEventEntity SecurityEvent(
         string subjectId,

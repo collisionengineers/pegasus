@@ -1873,8 +1873,7 @@ window.pegasusPreferences = (function () {
             event.preventDefault();
             window.location.assign('/Cases/Create');
         } else if (control && key === 's') {
-            var dirty = window.pegasusDirtyEditForm && window.pegasusDirtyEditForm();
-            var save = dirty || document.querySelector('[data-edit-save]');
+            var save = document.querySelector('[data-edit-save]');
             if (save) {
                 event.preventDefault();
                 var saveForm = save.tagName === 'FORM' ? save : save.closest('form');

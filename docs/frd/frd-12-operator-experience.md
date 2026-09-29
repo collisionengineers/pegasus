@@ -217,7 +217,7 @@ Cases, references and routes by typing and opens the selection.
 | Ctrl K | Command palette |
 | Ctrl U | Upload |
 | Ctrl N | Create Case |
-| Ctrl S | Save while editing |
+| Ctrl S | Save now while editing a Case (every change already saves as it is made) |
 | F5 | Refresh: re-query, not a page reload |
 | Arrow Up / Down | Move through a row list |
 | Enter | Open the selected row |

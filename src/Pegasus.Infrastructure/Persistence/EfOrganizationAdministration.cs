@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Address;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -20,6 +21,7 @@ public sealed class EfOrganizationAdministration(
       IOrganizationAdministrationQueries
 {
     private const string UpdatePrincipalReportSettingsKind = "update_principal_report_settings";
+    private const string UpdatePrincipalSalvageMatrixKind = "update_principal_salvage_matrix";
     private const string UpdatePrincipalDefaultInspectionLocationKind =
         "update_principal_default_inspection_location";
     private const string ReplacePrincipalKind = "replace_principal";
@@ -44,6 +46,13 @@ public sealed class EfOrganizationAdministration(
         CancellationToken cancellationToken) =>
         ExecuteWithConcurrencyRetryAsync(
             token => UpdatePrincipalReportSettingsOnceAsync(request, token),
+            cancellationToken);
+
+    public Task<Principal> UpdatePrincipalSalvageMatrixAsync(
+        UpdatePrincipalSalvageMatrixRequest request,
+        CancellationToken cancellationToken) =>
+        ExecuteWithConcurrencyRetryAsync(
+            token => UpdatePrincipalSalvageMatrixOnceAsync(request, token),
             cancellationToken);
 
     public Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
@@ -137,6 +146,80 @@ public sealed class EfOrganizationAdministration(
             request.OperationKey,
             now,
             request.Reason,
+            before,
+            result);
+        AdvancePrincipalContactVersion(contact);
+        await SaveChangesAsync(context, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    /// <summary>
+    /// Replaces a principal's salvage matrix in place, with the same receipt,
+    /// attributed history and contact version the report settings carry.
+    /// </summary>
+    private async Task<Principal> UpdatePrincipalSalvageMatrixOnceAsync(
+        UpdatePrincipalSalvageMatrixRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var requestHash = HashRequest(new
+        {
+            command = UpdatePrincipalSalvageMatrixKind,
+            actor = ActorMaterial(request.Actor),
+            request.PrincipalId,
+            request.ExpectedVersion,
+            request.ExpectedContactVersion,
+            bands = request.SalvageMatrix?.Bands
+        });
+
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
+        if (receipt is not null)
+        {
+            var replay = ReadReplay<Principal>(
+                receipt,
+                UpdatePrincipalSalvageMatrixKind,
+                requestHash);
+            await transaction.CommitAsync(cancellationToken);
+            return replay;
+        }
+
+        var entity = await context.Principals
+            .Include(item => item.Organization)
+            .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
+            ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
+        var contact = await RequirePrincipalContactVersionAsync(
+            context, entity, request.ExpectedContactVersion, cancellationToken);
+        var before = ToPrincipal(entity);
+        var result = OrganizationAdministrationPolicy.PlanPrincipalSalvageMatrixUpdate(
+            before,
+            request.ExpectedVersion,
+            request.SalvageMatrix);
+
+        entity.SalvageMatrixJson = ToSalvageMatrixJson(result.SalvageMatrix);
+        entity.Version = result.Version;
+
+        var now = _timeProvider.GetUtcNow();
+        AddReceipt(
+            context,
+            request.OperationKey,
+            UpdatePrincipalSalvageMatrixKind,
+            requestHash,
+            result,
+            now);
+        AddHistory(
+            context,
+            "principal",
+            entity.Id,
+            "principal_salvage_matrix_updated",
+            request.Actor,
+            request.OperationKey,
+            now,
+            null,
             before,
             result);
         AdvancePrincipalContactVersion(contact);
@@ -313,6 +396,7 @@ public sealed class EfOrganizationAdministration(
             ReportGenerationPolicy = result.ReportGenerationPolicy.ToString(),
             IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender,
             ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions),
+            SalvageMatrixJson = ToSalvageMatrixJson(result.SalvageMatrix),
             DefaultInspectionLocationLabel = predecessor.DefaultInspectionLocationLabel,
             DefaultInspectionAddress = predecessor.DefaultInspectionAddress,
             DefaultInspectionPostcode = predecessor.DefaultInspectionPostcode,
@@ -401,7 +485,8 @@ public sealed class EfOrganizationAdministration(
                 ? Guid.Parse(sourceRecordId)
                 : null,
             entity.DefaultInspectionSourceVersion,
-            notesOnEveryCase);
+            notesOnEveryCase,
+            ReadSalvageMatrix(entity.SalvageMatrixJson));
 
     internal static Principal ToPrincipal(PrincipalEntity entity) =>
         new(
@@ -416,12 +501,24 @@ public sealed class EfOrganizationAdministration(
             PrincipalInspectionModePolicy.Parse(entity.InspectionMode),
             Enum.Parse<PrincipalReportGenerationPolicy>(entity.ReportGenerationPolicy),
             RecipientSettings(entity),
-            entity.Organization?.NotesOnEveryCase);
+            entity.Organization?.NotesOnEveryCase,
+            ReadSalvageMatrix(entity.SalvageMatrixJson));
 
     private static PrincipalReportRecipientSettings RecipientSettings(PrincipalEntity entity) =>
         PrincipalReportRecipientSettings.Normalize(
             entity.IncludeOriginalInstructionSender,
             JsonSerializer.Deserialize<string[]>(entity.ReportRecipientAddressesJson, SerializerOptions));
+
+    /// <summary>The stored bands, or null for a principal without a matrix.</summary>
+    internal static string? ToSalvageMatrixJson(SalvageMatrix? matrix) =>
+        matrix is null ? null : JsonSerializer.Serialize(matrix.Bands, SerializerOptions);
+
+    /// <summary>A stored matrix is read back through the same rules it was saved under.</summary>
+    internal static SalvageMatrix? ReadSalvageMatrix(string? json) =>
+        json is null
+            ? null
+            : SalvageMatrix.Normalize(
+                JsonSerializer.Deserialize<SalvageMatrixBand[]>(json, SerializerOptions));
 
     internal static async Task<OrganizationEntity> RequirePrincipalContactVersionAsync(
         PegasusDbContext context,

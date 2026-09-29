@@ -6,9 +6,11 @@
 
 - A Case is one page at `/Cases/{id}` with ten sections. You scroll it, or
   switch to tabs. Every section can always be read.
-- Editing is one page-wide session over one lease. Edit Case, Save and
-  Cancel sit in the ribbon. The ribbon Save is the one save: it records the
-  Case fields, the Repair Spec and the valuation calculation together.
+- Editing is one page-wide session over one lease. Edit Case and, while
+  editing, Done sit in the ribbon. Every change is saved as it is made: a
+  cell as it is left, a composite editor when it is left or after a short
+  pause. Each save records the Case fields, the Repair Spec and the
+  valuation calculation together, and the page keeps editing.
 - One Actions menu offers only what Core allows for the current state.
   Hand to Engineer is the only way out of Review.
 - The Engineer sections (Damage, Valuation, Estimate, Settlement, Report)
@@ -44,7 +46,8 @@ Case at the same route renders as the Triage Case page instead
 - chips for state, Case type (Audit, Inspection + Audit) and, while someone
   else holds the edit lease, "{name} is editing" with a lock. A held Case
   reads "Held · review on {date}" when the hold has a review date;
-- **Edit Case**, or while editing the Editing badge, **Cancel** and **Save**;
+- **Edit Case**, or while editing the Editing badge, its status word
+  (Saving…, Saved {time}, or why the last change was not saved) and **Done**;
 - the one **Actions** menu.
 
 When a colleague holds the lease the ribbon shows who, and offers **Take
@@ -98,21 +101,35 @@ Once the Case has an Audit, the **Views** card heads the aside
 Below 1441px the aside folds into a strip above the sections.
 
 Actions post in place and the record's parts refresh without navigation.
-Unsaved changes are confirmed before Refresh, navigation or an immediate
-action, except a document action (tag, New tag, In report), which posts in
-place and keeps the changes.
+An action, Refresh or a link away waits for a change not yet sent to land
+first; a document action (tag, New tag, In report) posts in place and
+redraws only its own tile.
 
 **Edit session.** The whole record enters one edit mode over one lease
-([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). There is one Save
-(operator, 23 September 2026): the ribbon Save records the Case fields, the
-Repair Spec, the guide cards and the valuation calculation as they are, in
-one command under one version, then ends edit mode and releases the lease.
-The Repair Spec and the Valuation calculator have no save of their own. A
-refusal refuses the whole save and keeps every proposed value on the page
-with its original authority for review. Ctrl S saves the same way and keeps
-editing open, as does a save the page makes first so an action can carry on
-from it (Apply or Remove scaling, Generate report while editing, and the
-unsaved-changes question's Save).
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Every change is
+saved as it is made (save as you go, operator, 29 September 2026): a simple
+cell when it is left, and a composite editor — the Repair Spec grid, the
+Damage plan and its list, the Valuation calculator and cards, the Report
+wording blocks — when focus leaves it or after a short pause. Each save is
+the one Save command (operator, 23 September 2026): it records the Case
+fields, the Repair Spec, the guide cards and the valuation calculation as
+they are, under one version, and the session keeps its lease. The Repair
+Spec and the Valuation calculator have no save of their own. One save is in
+flight at a time; a change made during it is saved when it lands, and an
+action (Done included) or a link away waits for it and goes ahead only once
+it has landed; a Refresh pressed during a save is declined. A save that is
+refused or lost stops what waited on it. A value the browser cannot accept
+is not sent: the status word says so. The page never redraws what the
+operator is typing in: after a save the notices, the ribbon, the aside and
+the dialogs are drawn afresh and every section stays as it is, so a blocker
+clears, the state chip moves and a newly permitted action appears within the
+round trip. A refusal refuses the whole save, keeps every typed value in its
+box, says why in the ribbon's status word and as a notice, and the next
+change tries again. The ribbon has **Done**, which ends editing and releases
+the lease; there is no Save and no Cancel, because nothing is unsaved: a
+wrong value is retyped, and the history names each change. Ctrl S saves now,
+a composite's typing included; without script the ribbon's **Save now** is
+the save.
 Pressing a section's Edit enters edit mode in place: the section stays where
 it was on the screen. Selecting a tab also updates the section that Refresh
 submits; after a refresh its active lazy body loads. While editing, Files and
@@ -183,11 +200,18 @@ links to the Audit view.
 ### Actions menu
 
 The one **Actions** menu offers only what the Core use cases permit for the
-current state. Outside an edit session the menu appears only when Send to
-EVA is available. The rules behind each action are in
+current state, in and out of an edit session (operator, 29 September 2026).
+An item taken outside a session runs under a lease claimed for that one
+action and consumed by it, the way Generate report does
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
+frees the lease it claimed, as does a request abandoned mid-action. While a
+colleague holds the lease the menu offers nothing that needs one: the ribbon
+names them and offers Take over, a Completed or Query Case included. A
+Completed or Query Case offers no Edit, since its sections read and Return
+to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
-- **Hand to Engineer**, in Review while editing. Its dialog selects an
+- **Hand to Engineer**, in Review. Its dialog selects an
   eligible enabled staff account or **Assign to me**. The one handoff assigns them and
   enters With Engineer. There is no reviewed checkbox and no separate start
   action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#hand-to-engineer)).
@@ -350,7 +374,7 @@ The field set is owned by
 Valuation opens with one row of three boxes: **Retail value**, **Trade
 value** and **Engineer's Value**, the figures the report prints in its
 Vehicle Data table (operator, 26 September 2026). They are fields of the Case
-form, greyed while reading, and the ribbon Save records them.
+form, greyed while reading, and each save records them.
 
 Valuation lists each entry with its source, date, time, retail and trade
 values, and guide month (`EXT-10`). A calculated Engineer's Value entry
@@ -367,7 +391,7 @@ mileage in that month and fills the boxes in place, without redrawing the
 page. A source with no connected provider shows "{Source} valuation is
 unavailable. Contact an administrator or report a problem." on its card from
 the start and offers no Get valuation (28 September 2026).
-The card has no Save of its own (23 September 2026): the ribbon Save records
+The card has no Save of its own (23 September 2026): each save records
 every card whose figures changed, a card left blank or unchanged records
 nothing, and the same source and month replaces the earlier card; a typed
 figure saves the same way. A **Valuation month** and **AI market research**
@@ -382,12 +406,12 @@ that applied selection. Choosing a card as the basis fills Retail value and
 Trade value from it, and the calculation fills Engineer's Value; any box can
 be overtyped. The calculator has no Apply of its own (operator, 23 September
 2026). Each card has **Use this value** while editing (operator, 28 September
-2026): it chooses the card, fills the three boxes, and the ribbon Save records
+2026): it chooses the card, fills the three boxes, and the next save records
 the calculation against that card even when it is unchanged, including for a
-card typed in the same edit. The Save also records a calculation that changed
-since the page opened — a different basis card, the basis card's retail or
+card typed in the same edit. A save also records a calculation that changed
+since the last save — a different basis card, the basis card's retail or
 trade, or any of its controls. Any other save records no calculation. The
-calculation lines show what the Save will use, from the retail as typed and
+calculation lines show what the save will use, from the retail as typed and
 the claimant's VAT as the form holds it, and say why when a figure cannot be
 worked out
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
@@ -397,24 +421,20 @@ sources are owned by
 
 ### Glass's window and Case edits
 
-Launch and Resume open the provider window from the staff gesture and save
-pending Case edits through the existing keep-edit Save first. Only a confirmed
-save continues with the freshly rendered authority. Validation failure, a
-conflict, lost response or new edits during the save leaves the draft intact
-and makes no provider request. A blocked popup gives an actionable refusal.
-Fetch again, shown beside Glass's for a `Failed` session whose export was
-unreadable, is the Resume handler and follows the same save-first,
-no-provider-request-on-conflict rule.
+Launch and Resume open the provider window from the staff gesture once any
+change not yet sent has landed. Only a confirmed save continues with the
+freshly rendered authority: a refused or lost save makes no provider
+request. A blocked popup gives an actionable refusal. Fetch again, shown
+beside Glass's for a `Failed` session whose export was unreadable, is the
+Resume handler and follows the same rule.
 
 The same-origin launch handoff refreshes only the Glass's launch slot and
 session controls on the original Case before visiting the provider URL. It
-preserves dirty fields, their Case version and lease, focus, and reading
-position. Older refresh responses cannot overwrite newer controls. Save &
-Exit refreshes the workspace in place when it is clean; with pending edits it
-refreshes the session controls and reports the returned result without
-rebasing or discarding the draft. The latest Draft becomes visible after the
-staff member saves or cancels those edits. With no opener, the popup retains
-a server-rendered route back to the Case.
+preserves the Case version and lease, focus, and reading position. Older
+refresh responses cannot overwrite newer controls. Save & Exit refreshes the
+workspace in place once any change not yet sent has landed, so the latest
+Draft is visible at once. With no opener, the popup retains a
+server-rendered route back to the Case.
 
 Close uses the displayed session version and fresh confirmation that the
 external session is closed. A version conflict refreshes the controls and asks
@@ -445,7 +465,7 @@ Report section shows wording blocks, Generate / Preview report draft, and a
 separate Fee pane for the agreed fee, description lines and fee note preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 **Generate report** is offered in and out of edit mode when nothing blocks;
-in edit mode it saves the Case first. While something blocks, the head shows
+in edit mode it waits for a change not yet sent to land. While something blocks, the head shows
 the one availability label **Not ready** in both modes (operator, 26
 September 2026); the blocker list itself is the aside's Next action (operator,
 28 September 2026).
@@ -528,7 +548,7 @@ tile shows:
 - while the Case edit lease is held, **In report**, on or off, posted at
   once like a tag, so readiness reads it with no Case save (operator, 26
   September 2026). A tag, New tag or In report is a document action: it
-  posts in place with no unsaved-changes question, and the changes stay;
+  posts in place and redraws only its own tile;
 - Preview and, while the Case edit lease is held, Crop.
 
 The Crop lease gate is the record's whole edit mode
@@ -626,15 +646,15 @@ VAT bars as the editor, each value greyed in its control's place and a line's
 Type in the editor's words; a scaled spec's Target % of value bar stands in
 its place with the Scaled state; the tools (add and delete lines, the Target
 % of value controls, Reset to repairer status) are drawn only while the spec
-edits. The spec has no save of its own: the ribbon Save records it, and a
-spec left unchanged is not rewritten. Moving the Target % of value slider
+edits. The spec has no save of its own: each save records it, and a spec
+left unchanged is not rewritten. Moving the Target % of value slider
 previews the scaled spec in amber cells, the rollup and the readout, and
-records nothing (operator, 28 September 2026). Apply and Remove scaling save first and
-then scale the saved spec. The More menu holds New repair spec
-(editing, recorded by the Save and starting on the one enabled labour-rate
-card), **Print Repair Spec** for a saved spec with lines, and Compare,
-greyed out until the Case holds two specs (P9). Previewing the document
-does not save or discard pending edits. The section also
+records nothing (operator, 28 September 2026). Apply and Remove scaling wait
+for a change not yet sent to land and then scale the saved spec. The More
+menu holds New repair spec (editing, recorded by the next save and starting
+on the one enabled labour-rate card), **Print Repair Spec** for a saved spec
+with lines, and Compare, greyed out until the Case holds two specs (P9).
+Previewing the document records nothing. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
 ([AI Job List](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)),
 disabled without an Engineer's Value. The Report section reads in two tabs (v28 P24): **Report**, everything the
@@ -710,12 +730,15 @@ read-only apart from Files' and Notes' actions that need no edit lease.
 
 ## Edge cases and fail-closed behaviour
 
-- A lost or expired edit lease shows the holder and disables Save. A stale
-  version is a non-destructive conflict showing current and proposed values.
-- A refused or unknown save response keeps the proposed values for review.
-- Unsaved changes are confirmed before Cancel, Refresh, navigation or an
-  immediate action, except a document action (tag, New tag, In report), which
-  posts in place and keeps the changes.
+- A lost or expired edit lease shows the holder; the next save is refused
+  and the typed values stay on screen. A stale version is a non-destructive
+  conflict showing current and proposed values.
+- A refused or unknown save response keeps the proposed values for review;
+  the next change tries again.
+- A change not yet sent lands before Done, Refresh, navigation or an
+  immediate action; a document action (tag, New tag, In report) posts in
+  place and redraws only its own tile. Closing the tab sends a change not yet
+  sent as the page hides.
 - An action bar for a state with no permitted action shows the state and no
   control.
 - Crop is refused on an archived Case and in Completed or Query.
@@ -728,8 +751,11 @@ read-only apart from Files' and Notes' actions that need no edit lease.
 
 Acceptance covers the ten sections and the `?section=` jump, the Report
 readiness list in the Next action linking each blocker to its section,
-the read-only rule in Completed, the Actions menu per state, and the one
-Save. It also covers the views: no Views card without an Audit; after Create
+the read-only rule in Completed, the Actions menu per state, and save as
+you go: a save keeps the session and returns the authority the next one
+carries, and the ribbon offers Done and no Save or Cancel. Web tests do not
+prove the script's commit on change; the browser walk does. It also covers
+the views: no Views card without an Audit; after Create
 audit the card and the Audit view by default; the Inspection view read-only
 with its label on each editable head, including for the lease holder; Report
 in each view; the audit folder chip in each state; the Create audit dialog;

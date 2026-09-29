@@ -1802,6 +1802,16 @@ public static class OperatorLabels
         public const string State = "State";
         public const string ReplaceCode = "Replace code";
         public const string PrincipalApi = "Principal API";
+        public const string SalvageMatrix = "Salvage matrix";
+        public const string SalvageFrom = "From (£)";
+        public const string SalvageTo = "To (£)";
+        public const string SalvagePercentage = "Percentage paid (%)";
+        public const string AddSalvageBand = "Add band";
+        public const string RemoveSalvageBand = "Remove";
+        public const string SaveSalvageMatrix = "Save salvage matrix";
+
+        /// <summary>A salvage category as the Case names it: "Cat S".</summary>
+        public static string SalvageCategory(string code) => $"Cat {code}";
     }
 
     /// <summary>The Mail settings area labels and status values — one list.</summary>
