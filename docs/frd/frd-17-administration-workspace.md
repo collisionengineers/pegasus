@@ -74,7 +74,10 @@ and the secret is write-only
 
 Contacts is the one directory for Principals, Claim Sources, Repairers,
 Storage and Third Party Engineers. Principal-specific settings are part of
-that Contact record. The list filters live as the operator types, 300
+that Contact record. The Salvage matrix panel follows Report generation: one
+table per salvage category, with From (£), To (£) and Percentage paid (%)
+columns, a Remove button per row, one spare blank row, an Add band button,
+and one Save salvage matrix. The list filters live as the operator types, 300
 milliseconds after the last keystroke, alongside the Apply control for
 no-script use. Server-side filtering is unchanged. A telephone value accepts
 digits, spaces and an optional leading `+` only (UK numbers keep a leading

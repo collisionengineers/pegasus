@@ -3641,6 +3641,91 @@
         fromField();
     }
 
+    // The Principal's salvage matrix (29 September 2026). While the salvage
+    // value follows it, a change of outcome, category or Engineer's Value
+    // fills the money field with the value times the band's percentage, or
+    // empties it when no band applies. A figure the Engineer sets (typed,
+    // slid or snapped) is their own and the matrix leaves it; emptying the
+    // field hands it back. The arithmetic is Core's SalvageMatrix, in pence.
+    // The Engineer's Value box is the Valuation section's, so one listener,
+    // added once, refills whichever settlement binding is current.
+    var engineerValueBox = '[data-valuation-value="engineer"]';
+    var salvageMatrixRefill = null;
+    document.addEventListener('input', function (event) {
+        if (salvageMatrixRefill && event.target && event.target.matches && event.target.matches(engineerValueBox)) {
+            salvageMatrixRefill();
+        }
+    });
+
+    function bindSalvageMatrix(section) {
+        salvageMatrixRefill = null;
+        var share = section.querySelector('[data-salvage-share][data-salvage-matrix]');
+        var row = share ? share.closest('.dec') : null;
+        var field = row ? row.querySelector('input.fi') : null;
+        var bands = null;
+        try { bands = share ? JSON.parse(share.getAttribute('data-salvage-matrix')) : null; } catch (_) { bands = null; }
+        if (!field || !Array.isArray(bands)) {
+            return;
+        }
+        var following = share.getAttribute('data-salvage-matrix-follows') === 'true';
+        var outcome = control(section.querySelector('[data-decision="assessment.outcome"]'));
+        var category = control(section.querySelector('[data-decision="assessment.category"]'));
+        var settlementValue = section.querySelector('[data-decision-engineer-value]');
+
+        function pence(text) {
+            var amount = parseFloat(text);
+            return isFinite(amount) ? Math.round(amount * 100) : null;
+        }
+        function engineerValue() {
+            var box = document.querySelector(engineerValueBox);
+            return pence(box ? box.value
+                : settlementValue ? settlementValue.getAttribute('data-engineer-value') : null);
+        }
+        function figure() {
+            var value = engineerValue();
+            if (!outcome || outcome.value !== 'total_loss' || !category || value === null) {
+                return null;
+            }
+            for (var index = 0; index < bands.length; index++) {
+                var band = bands[index];
+                if (band.category === category.value && pence(band.from) <= value && value <= pence(band.to)) {
+                    var salvage = Math.floor((value * Math.round(band.percentage * 100) + 5000) / 10000);
+                    return (salvage / 100).toFixed(2);
+                }
+            }
+            return null;
+        }
+        function refill() {
+            if (!following || !field.isConnected) {
+                return;
+            }
+            var next = figure();
+            var text = next === null ? '' : next;
+            if (field.value === text) {
+                return;
+            }
+            field.value = text;
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        // The row holds the money field and the slider: typing is the
+        // Engineer's own figure unless it empties the field, and sliding
+        // always is.
+        row.addEventListener('input', function (event) {
+            if (event.isTrusted) {
+                following = event.target === field && field.value === '';
+            }
+        });
+        share.addEventListener('click', function (event) {
+            if (event.target.closest('[data-salvage-snap]')) {
+                following = false;
+            }
+        });
+        if (outcome) { outcome.addEventListener('change', refill); }
+        if (category) { category.addEventListener('change', refill); }
+        salvageMatrixRefill = refill;
+    }
+
     // P15: a bank wording joins the typed reason.
     function bindReasonBank(section) {
         var bank = section.querySelector('[data-reason-bank]');
@@ -3678,6 +3763,7 @@
             var repairCost = parseFloat(section.getAttribute('data-settlement-repair-cost')) || 0;
             bindRadios(section);
             bindSalvageShare(section);
+            bindSalvageMatrix(section);
             bindReasonBank(section);
 
             function show(when, on) {

@@ -1,4 +1,5 @@
 using Pegasus.Core.Address;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -249,6 +250,99 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(0, replacement.Successor.Version);
     }
 
+    [Fact]
+    public void ASuccessorInheritsItsPredecessorsSalvageMatrix()
+    {
+        var predecessor = Principal(version: 3) with { SalvageMatrix = Matrix(2m) };
+
+        var replacement = OrganizationAdministrationPolicy.PlanPrincipalReplacement(
+            predecessor,
+            3,
+            Guid.NewGuid(),
+            "NEXT",
+            codeAlreadyExists: false);
+
+        Assert.Equal(Matrix(2m), replacement.Successor.SalvageMatrix);
+        Assert.Equal(Matrix(2m), replacement.Predecessor.SalvageMatrix);
+    }
+
+    [Fact]
+    public void TheSalvageMatrixChangesInPlaceAndMovesTheVersionOnlyWhenChanged()
+    {
+        var current = Principal(version: 3);
+
+        var set = OrganizationAdministrationPolicy.PlanPrincipalSalvageMatrixUpdate(current, 3, Matrix(2m));
+        Assert.Equal(Matrix(2m), set.SalvageMatrix);
+        Assert.Equal(4, set.Version);
+        Assert.Equal(current.Code, set.Code);
+        Assert.Equal(current.ReportGenerationPolicy, set.ReportGenerationPolicy);
+
+        var unchanged = OrganizationAdministrationPolicy.PlanPrincipalSalvageMatrixUpdate(set, 4, Matrix(2m));
+        Assert.Equal(4, unchanged.Version);
+
+        var cleared = OrganizationAdministrationPolicy.PlanPrincipalSalvageMatrixUpdate(set, 4, null);
+        Assert.Null(cleared.SalvageMatrix);
+        Assert.Equal(5, cleared.Version);
+    }
+
+    [Fact]
+    public void TheSalvageMatrixRefusesAStaleVersionAndADisabledPrincipal()
+    {
+        Assert.Equal(
+            OrganizationAdministrationError.StaleVersion,
+            Assert.Throws<OrganizationAdministrationException>(() =>
+                OrganizationAdministrationPolicy.PlanPrincipalSalvageMatrixUpdate(
+                    Principal(version: 4), 3, Matrix(2m))).Error);
+        Assert.Equal(
+            OrganizationAdministrationError.PrincipalInactive,
+            Assert.Throws<OrganizationAdministrationException>(() =>
+                OrganizationAdministrationPolicy.PlanPrincipalSalvageMatrixUpdate(
+                    Principal(version: 3) with { IsActive = false }, 3, Matrix(2m))).Error);
+    }
+
+    [Fact]
+    public async Task UpdatePrincipalSalvageMatrixNormalizesBeforeCallingPersistence()
+    {
+        var store = new RecordingStore();
+        var command = new UpdatePrincipalSalvageMatrix(store);
+        var unsorted = new SalvageMatrix(
+        [
+            new("N", 1000.01m, 2500m, 4m),
+            new("N", 0.01m, 1000m, 0m)
+        ]);
+
+        await command.ExecuteAsync(
+            new(Guid.NewGuid(), 2, Administrator, " salvage-op ", unsorted, 5),
+            default);
+
+        var request = Assert.Single(store.SalvageMatrixUpdates);
+        Assert.Equal("salvage-op", request.OperationKey);
+        Assert.Equal(0.01m, request.SalvageMatrix!.Bands[0].From);
+        Assert.Equal(1000.01m, request.SalvageMatrix.Bands[1].From);
+        Assert.Equal(5, request.ExpectedContactVersion);
+    }
+
+    [Fact]
+    public async Task UpdatePrincipalSalvageMatrixRefusesBeforePersistence()
+    {
+        var store = new RecordingStore();
+        var command = new UpdatePrincipalSalvageMatrix(store);
+        var overlapping = new SalvageMatrix(
+        [
+            new("S", 0.01m, 1000m, 0m),
+            new("S", 1000m, 2500m, 2m)
+        ]);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
+            new(Guid.NewGuid(), 0, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), "denied", Matrix(2m), 0),
+            default));
+        await Assert.ThrowsAsync<SalvageMatrixException>(() => command.ExecuteAsync(
+            new(Guid.NewGuid(), 0, Administrator, "overlap", overlapping, 0),
+            default));
+
+        Assert.Empty(store.SalvageMatrixUpdates);
+    }
+
     /// <summary>
     /// EXT-04. The report policy changes in place and nothing else does — the
     /// code, the organization and the lineage are what a replacement is for.
@@ -358,6 +452,9 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(OrganizationAdministrationError.PrincipalInactive, error.Error);
     }
 
+    private static SalvageMatrix Matrix(decimal percentage) =>
+        SalvageMatrix.Normalize([new("S", 0.01m, 9999999.99m, percentage)])!;
+
     private static Principal Principal(long version) => new(
         Guid.NewGuid(),
         Guid.NewGuid(),
@@ -390,6 +487,25 @@ public sealed class OrganizationAdministrationTests
                 CaseInspectionMode.PhysicalAddress,
                 request.ReportGenerationPolicy,
                 request.ReportRecipients));
+        }
+
+        public List<UpdatePrincipalSalvageMatrixRequest> SalvageMatrixUpdates { get; } = [];
+
+        public Task<Principal> UpdatePrincipalSalvageMatrixAsync(
+            UpdatePrincipalSalvageMatrixRequest request,
+            CancellationToken cancellationToken)
+        {
+            SalvageMatrixUpdates.Add(request);
+            return Task.FromResult(new Principal(
+                request.PrincipalId,
+                Guid.NewGuid(),
+                "QDOS",
+                Guid.NewGuid(),
+                null,
+                null,
+                true,
+                request.ExpectedVersion + 1,
+                SalvageMatrix: request.SalvageMatrix));
         }
 
         public List<UpdatePrincipalDefaultInspectionLocationRequest> DefaultInspectionLocationUpdates

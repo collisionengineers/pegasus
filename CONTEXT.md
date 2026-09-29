@@ -152,6 +152,10 @@ _Avoid_: Image-based client, provider exception
 The exact report value recorded instead of a physical inspection address when a Case is assessed from images alone; always written out in full in staff-facing surfaces and documents.
 _Avoid_: IBA, image-based mode, desktop assessment value
 
+**Salvage matrix**:
+A Principal's table of Engineer's Value bands and the percentage of that value paid, for each salvage category (A, B, S, N). It fills the Case's salvage value while the Case edits, until the Engineer sets their own ([FRD-24](docs/frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)). The pre-accident value (PAV) it bands is the Engineer's Value.
+_Avoid_: Salvage table, salvage rates
+
 **Vehicle enrichment**:
 The acquisition of externally sourced vehicle observations after case intake to enhance, but never silently replace, Case data.
 _Avoid_: Vehicle-data integration, automatic correction

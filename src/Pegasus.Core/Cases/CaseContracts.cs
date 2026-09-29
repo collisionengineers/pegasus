@@ -22,7 +22,9 @@ public sealed record Principal(
     // read-only on every Case of this Principal, read live from the record and
     // never copied. Null when the record carries none, or when a reader did not
     // load the organisation.
-    string? NotesOnEveryCase = null);
+    string? NotesOnEveryCase = null,
+    // The Principal's salvage matrix (29 September 2026); null when it has none.
+    SalvageMatrix? SalvageMatrix = null);
 
 public enum CaseType
 {
@@ -261,6 +263,25 @@ public sealed record ReplacePrincipalRequest(
     string OperationKey,
     string? Reason,
     long ExpectedContactVersion);
+
+/// <summary>
+/// Replace a principal's salvage matrix with the one an administrator
+/// entered; a null matrix leaves the principal with none.
+/// </summary>
+public sealed record UpdatePrincipalSalvageMatrixRequest(
+    Guid PrincipalId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    SalvageMatrix? SalvageMatrix,
+    long ExpectedContactVersion);
+
+public interface IUpdatePrincipalSalvageMatrix
+{
+    Task<Principal> ExecuteAsync(
+        UpdatePrincipalSalvageMatrixRequest request,
+        CancellationToken cancellationToken);
+}
 
 public interface IReplacePrincipal
 {

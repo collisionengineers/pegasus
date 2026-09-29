@@ -1255,6 +1255,7 @@ internal sealed class PrincipalEntity
     public string ReportGenerationPolicy { get; set; } = "Pegasus";
     public bool IncludeOriginalInstructionSender { get; set; }
     public string ReportRecipientAddressesJson { get; set; } = "[]";
+    public string? SalvageMatrixJson { get; set; }
     public long Version { get; set; }
     public List<ContactPrincipalLinkEntity> ContactLinks { get; set; } = [];
     public List<CaseEntity> Cases { get; set; } = [];
