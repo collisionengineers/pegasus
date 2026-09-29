@@ -295,6 +295,17 @@ version, because it is not a Case fact. It needs the casework right and an
 operation key. A duplicate name, compared ignoring case, is refused rather
 than creating a second entry.
 
+Tagging works while the Case is being edited (operator, 28 September 2026).
+Apply, remove and New tag post at once, in place. They never ask the operator
+to save the Case, and they leave the Case's unsaved changes as they are.
+Apply and remove move the Case version and the edit lease, so the page
+carries the new version and lease into the Save form, and the next Save
+still holds the operator's changes. New tag moves neither: it adds to the
+vocabulary, and every picker on the page redraws to offer the new tag. The
+edit session carries on. With no script, the same buttons post normally and
+the page comes back on the Images tab. In report follows the same rule
+([FRD-16](frd-16-case-record-workspace.md)).
+
 Third party replaces the former one-way `ThirdPartyVehicleConfirmedAtUtc`
 flag and keeps its EVA-exclusion behaviour
 ([FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes)).

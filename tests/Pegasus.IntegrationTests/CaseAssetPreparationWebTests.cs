@@ -329,6 +329,108 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Empty(store.Saves);
         Assert.Contains("data-case-editing=\"true\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Tagging works while the Case is being edited (operator, 28 September
+    /// 2026). Proves two things: the tag, In report and New tag forms carry
+    /// <c>data-document-action</c>, and the server tags, untags and creates a
+    /// tag on the lease the editing session holds without saving the Case.
+    /// It does not run case-workspace.js. The in-place submit, the lease and
+    /// version carry into the Save form and the tile redraw are unverified
+    /// until the live browser walk: edit a field, tag, untag, New tag, then
+    /// Save.
+    /// </summary>
+    [Fact]
+    public async Task ImageTagsPostAtOnceWhileEditingWithoutSavingTheCase()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store(CaseLifecycleState.ReportPreparation);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ITagCaseImage>(services, store);
+            Substitute<IUntagCaseImage>(services, store);
+            Substitute<ICreateImageTag>(services, store);
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IReadImageTagVocabulary>(services, new FixedVocabulary());
+        });
+        var leased = await workspace.GetWorkspaceAsync();
+        var card = Card(ImageGrid(await GetFilesFragmentAsync(workspace, leased)), fixture.OverviewOccurrenceId);
+
+        foreach (var handler in new[] { "TagImage", "CreateImageTag", "SetImageInReport" })
+        {
+            var forms = Regex.Matches(card, $"<form[^>]*handler={handler}[^>]*>", RegexOptions.CultureInvariant);
+            Assert.NotEmpty(forms);
+            Assert.All(forms, form => Assert.Contains("data-document-action", form.Value, StringComparison.Ordinal));
+        }
+
+        var occurrence = fixture.OverviewOccurrenceId.ToString("D");
+        var version = store.CaseVersion.ToString(CultureInfo.InvariantCulture);
+        using var tagged = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Custody?handler=TagImage",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("occurrenceId", occurrence),
+                ("tagId", ImageTagVocabulary.ThirdPartyId.ToString("D")),
+                ("expectedVersion", version),
+                ("operationKey", "0a0b0c0d0e0f01020304050607080911"),
+                ("editLeaseToken", store.LeaseToken)));
+        using var untagged = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Custody?handler=UntagImage",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("occurrenceId", occurrence),
+                ("tagId", ImageTagVocabulary.ThirdPartyId.ToString("D")),
+                ("expectedVersion", version),
+                ("operationKey", "0a0b0c0d0e0f01020304050607080912"),
+                ("editLeaseToken", store.LeaseToken)));
+        using var created = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Custody?handler=CreateImageTag",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("name", "Underside"),
+                ("colour", "Grey"),
+                ("operationKey", "0a0b0c0d0e0f01020304050607080913"),
+                ("editLeaseToken", store.LeaseToken)));
+
+        foreach (var response in new[] { tagged, untagged, created })
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            var location = response.Headers.Location?.OriginalString ?? string.Empty;
+            Assert.Contains("section=files", location, StringComparison.Ordinal);
+        }
+        Assert.Equal(occurrence, Assert.Single(store.ImageTagsApplied).OccurrenceId.ToString("D"));
+        Assert.Equal(store.LeaseToken, store.ImageTagsApplied[0].EditLeaseToken);
+        Assert.Equal(occurrence, Assert.Single(store.ImageTagsRemoved).OccurrenceId.ToString("D"));
+        Assert.Equal(store.LeaseToken, store.ImageTagsRemoved[0].EditLeaseToken);
+        Assert.Equal("Underside", Assert.Single(store.ImageTagsCreated).Name);
+        Assert.Empty(store.Saves);
+
+        // What the script swaps in: the same page, still editing, with the
+        // tile and its picker drawn from the lease the session now holds.
+        var next = await GetHtmlAsync(
+            workspace.Client,
+            $"/Cases/{store.CaseId:D}?section=files");
+        Assert.Contains("data-case-editing=\"true\"", next, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, InputValue(next, "editLeaseToken"));
+        var tile = Card(ImageGrid(next), fixture.OverviewOccurrenceId);
+        Assert.Contains("tag-picker", tile, StringComparison.Ordinal);
+        Assert.Contains("data-document-action", tile, StringComparison.Ordinal);
+    }
+
+    private sealed class FixedVocabulary : IReadImageTagVocabulary
+    {
+        public Task<IReadOnlyList<ImageTag>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ImageTag>>(
+            [
+                new(ImageTagVocabulary.OverviewId, ImageTagVocabulary.OverviewName, ImageTagColour.Blue, true, 1),
+                new(ImageTagVocabulary.ThirdPartyId, ImageTagVocabulary.ThirdPartyName, ImageTagColour.Amber, true, 1)
+            ]);
+    }
+
     [Fact]
     public async Task ACropIsSavedOnAReviewStateCase()
     {
