@@ -26,8 +26,10 @@
     var isQuery = state == CaseLifecycleState.Query;
     // The same offers as the ribbon's Actions menu (operator, 29 September
     // 2026): in and out of an edit session, and never while a colleague holds
-    // the lease. Outside a session the forms post no lease token and each
-    // handler claims one for the action.
+    // the lease. Outside a session the forms carry no lease token at all, so
+    // a page in read mode holds no edit authority, and each handler claims one
+    // for the action.
+    var leased = !string.IsNullOrWhiteSpace(Model.LeaseToken);
     var mayAct = !Model.ColleagueIsEditing;
     var mayActOnCaseData = mayAct && !Model.IsPostReportReadOnly;
     var data = details.Data;
@@ -43,13 +45,20 @@
     var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
     var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
 
-    Dictionary<string, string?> LeaseFields() => new()
+    Dictionary<string, string?> LeaseFields()
     {
-        ["id"] = workflow.CaseId.ToString(),
-        ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
-        ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey(),
-        ["editLeaseToken"] = Model.LeaseToken
-    };
+        var fields = new Dictionary<string, string?>
+        {
+            ["id"] = workflow.CaseId.ToString(),
+            ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()
+        };
+        if (leased)
+        {
+            fields["editLeaseToken"] = Model.LeaseToken;
+        }
+        return fields;
+    }
 }
 
 @if (mayActOnCaseData && !isClosed)
@@ -80,7 +89,7 @@
                     <input type="hidden" name="id" value="@workflow.CaseId" />
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                     <div class="dialog-body stack">
                         <div class="field">
                             <label class="req" for="case-hold-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
@@ -148,7 +157,7 @@
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                 <div class="dialog-body stack">
                     <div class="notice notice--warning">
                         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
@@ -200,7 +209,7 @@
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                 <div class="dialog-body stack">
                     <div class="field">
                         <label class="req" for="case-close-outcome">@OperatorLabels.CaseWorkspace.ClosureOutcome</label>
@@ -256,7 +265,7 @@
                     <input type="hidden" name="id" value="@workflow.CaseId" />
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                     <input type="hidden" name="instructionsComplete" value="@(Model.EvaHandoff!.InstructionsComplete)" />
                     <input type="hidden" name="imagesComplete" value="@(Model.EvaHandoff!.ImagesComplete)" />
                     <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
@@ -278,7 +287,7 @@
                         <input type="hidden" name="id" value="@workflow.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                     </form>
                 }
             </div>
@@ -334,7 +343,7 @@
                         <input type="hidden" name="evidenceId" value="@evidence.EvidenceId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                         <div class="definition-list">
                             <dl class="definition"><dt>Mailbox</dt><dd>@evidence.MailboxIdentity</dd></dl>
                             <dl class="definition"><dt>Sent</dt><dd>@OperatorLabels.OfficeTime(evidence.SentAtUtc)</dd></dl>
@@ -370,7 +379,7 @@
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                 <div class="dialog-body stack">
                     <dl class="audit-facts">
                         <dt>@Frame.AuditDialogCase</dt><dd class="mono">@workflow.Identity.Reference</dd>

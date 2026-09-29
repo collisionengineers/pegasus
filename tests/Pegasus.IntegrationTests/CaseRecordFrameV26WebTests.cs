@@ -77,9 +77,8 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Contains(CaseWorkspaceLabels.Frame.EditCase, reading, StringComparison.Ordinal);
         var hold = Section(page, "case-hold-dialog-title");
         Assert.Contains("handler=Hold", hold, StringComparison.Ordinal);
-        // No lease to post: Razor drops the value attribute of an empty token.
-        Assert.Contains("name=\"editLeaseToken\" />", hold, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"editLeaseToken\" value=\"", hold, StringComparison.Ordinal);
+        // No lease to post: a page in read mode carries no lease field at all.
+        Assert.DoesNotContain("name=\"editLeaseToken\"", hold, StringComparison.Ordinal);
 
         var held = new RecordingCaseDetailsStore { LeaseHolder = "colleague-staff-id" };
         var html = await ReadCaseAsync(held);
@@ -89,6 +88,28 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, html, StringComparison.Ordinal);
         Assert.Contains("handler=ClaimLease", html, StringComparison.Ordinal);
         Assert.Contains("name=\"takeOver\" value=\"true\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A Completed or Query Case offers no Edit, but a colleague's lease on
+    /// it is still offered Take over (operator, 29 September 2026): the
+    /// Actions menu is withheld while the colleague holds the Case, so Take
+    /// over is the way in before the lease lapses.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.PostReportComplete)]
+    [InlineData(CaseLifecycleState.Query)]
+    public async Task ACompletedOrQueryCaseOffersTakeOverOfAColleaguesLeaseButNoEdit(CaseLifecycleState state)
+    {
+        var reading = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state }));
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.EditCase, reading, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", reading, StringComparison.Ordinal);
+
+        var held = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state, LeaseHolder = "colleague-staff-id" }));
+        Assert.DoesNotContain("data-case-actions", held, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, held, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", held, StringComparison.Ordinal);
+        Assert.Contains("name=\"takeOver\" value=\"true\"", held, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -202,10 +223,54 @@ public sealed class CaseRecordFrameV26WebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A request abandoned mid-command (the browser went away) frees the
+    /// lease that was claimed for it, so the Case is not held until the
+    /// lease lapses.
+    /// </summary>
+    [Fact]
+    public async Task AnAbandonedActionOutsideAnEditSessionFreesTheLeaseItClaimed()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+        {
+            Substitute<IHoldCase>(services, new AbandonedHold());
+            Substitute<IReleaseCaseEditLease>(services, store);
+        });
+
+        try
+        {
+            using var response = await workspace.PostAsync(
+                "Workflow?handler=Hold",
+                Form(
+                    workspace.AntiforgeryToken,
+                    ("id", store.CaseId.ToString("D")),
+                    ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                    ("operationKey", "hold-abandoned"),
+                    ("reason", "Awaiting the claimant's photographs")));
+        }
+        catch (OperationCanceledException)
+        {
+            // The host may surface the abandoned request to the caller.
+        }
+
+        Assert.Single(store.Claims);
+        Assert.Empty(store.Holds);
+        var release = Assert.Single(store.LeaseReleases);
+        Assert.Equal(store.LeaseToken, release.LeaseToken);
+        Assert.Null(store.LeaseHolder);
+    }
+
     private sealed class RefusingHold : IHoldCase
     {
         public Task<CaseWorkflowRecord> ExecuteAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("The hold was refused.");
+    }
+
+    private sealed class AbandonedHold : IHoldCase
+    {
+        public Task<CaseWorkflowRecord> ExecuteAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
+            throw new OperationCanceledException("The request was abandoned.");
     }
 
     /// <summary>

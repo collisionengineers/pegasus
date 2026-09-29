@@ -176,76 +176,34 @@ public sealed class WorkflowModel(
                 cancellationToken),
             "The Sign-off Engineer was set.");
 
-    public async Task<IActionResult> OnPostCreateLinkedReplacementAsync(
+    public Task<IActionResult> OnPostCreateLinkedReplacementAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string reason,
         string? editLeaseToken,
         string replacementPrincipalCode,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        // Outside a session the correction runs under a lease claimed for it.
-        CaseEditLease? claimed = null;
-        var lease = editLeaseToken;
-        if (string.IsNullOrWhiteSpace(lease))
-        {
-            var (claim, refusal) = await ClaimLeaseForCommandAsync(id, expectedVersion, actor, RedirectToDetails);
-            if (refusal is not null)
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandUnderLeaseAsync(
+            id,
+            expectedVersion,
+            editLeaseToken,
+            "create_linked_replacement",
+            async (actor, lease) =>
             {
-                return refusal;
-            }
-            claimed = claim;
-            lease = claimed!.Token;
-        }
-
-        try
-        {
-            var outcome = await createLinkedReplacement.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    lease,
-                    replacementPrincipalCode),
-                cancellationToken);
-            ClearLeaseState();
-            TempData["CaseStatus"] = outcome.IsDuplicate
-                ? $"Replacement case {outcome.Identity.Reference} was already allocated."
-                : $"Replacement case {outcome.Identity.Reference} was allocated and linked.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            if (claimed is not null)
-            {
-                await ReleaseCommandLeaseQuietlyAsync(id, actor, claimed);
-            }
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "create_linked_replacement", exception);
-            if (claimed is not null)
-            {
-                await ReleaseCommandLeaseQuietlyAsync(id, actor, claimed);
-            }
-            else
-            {
-                HandleLeaseFailure(id, editLeaseToken, exception);
-            }
-            RetainProposedValues(id);
-            TempData["CaseError"] =
-                "The corrected replacement could not be created because the case changed or the request is not permitted.";
-        }
-
-        return RedirectToDetails(id);
-    }
+                var outcome = await createLinkedReplacement.ExecuteAsync(
+                    new(
+                        id,
+                        expectedVersion,
+                        actor,
+                        operationKey,
+                        reason,
+                        lease,
+                        replacementPrincipalCode),
+                    cancellationToken);
+                return outcome.IsDuplicate
+                    ? $"Replacement case {outcome.Identity.Reference} was already allocated."
+                    : $"Replacement case {outcome.Identity.Reference} was allocated and linked.";
+            },
+            _ => "The corrected replacement could not be created because the case changed or the request is not permitted.");
 }
