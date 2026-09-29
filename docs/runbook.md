@@ -677,8 +677,12 @@ from the existing Key Vault. The Web managed identity reads the passwordless
 PFX secret versions. The release operator must include each named certificate
 secret in the exact-secret census and grant Web secret-read access at that
 secret's scope; the repository prohibits a vault-wide secret-read grant. The
-application fails closed when the configured certificates cannot be loaded or
-are invalid. Development explicitly uses isolated process keys through
+certificates load after Web is listening, retrying with a growing pause until
+they load; until then every request but `/health` and `/diagnostics` answers
+503 with `Retry-After`, and the warm-up holds `/health/warm` for them (at most
+45 s). A certificate that cannot be loaded or is invalid therefore keeps the
+site at 503 and logs a warning per attempt; it does not stop the process.
+Development explicitly uses isolated process keys through
 `AutomationMcp:UseDevelopmentKeys`; that setting is rejected in Production.
 
 The approved release operator supplies these deployment inputs:
@@ -733,6 +737,26 @@ authorization for the actual operation and targets. The current monitoring state
 are recorded in [operations](operations.md) and
 [operations § Production environment](operations.md);
 dated names are not current identity proof.
+
+## Web start
+
+Web binds its port before any remote read. The data-protection key ring, the
+Automation OAuth certificates and the verification account are read after it
+listens, because each waits on a managed-identity token. The first Web telemetry
+has arrived about 100 s after container start, beginning with `/msi/token`; the
+phase timings below show where that time goes. `/health/warm` (the App Service start-up
+ping) answers 200 once the warm-up has loaded the key ring and the certificates
+and run the hot reads, or after 45 s.
+
+Every start prints `[startup] +<ms since process start> ms (+<ms since previous
+mark>) <phase>` lines to stdout (`Main entered`, `configuration loaded`,
+`services composed`, `host built`, `pipeline built`, `listening`, then
+`verification account reconciled`). When `APPLICATIONINSIGHTS_CONNECTION_STRING`
+is set, the same phases are one trace, "Web is listening. Startup phases: ...",
+and each warm-up step logs `Startup warm-up step <name> finished in <ms> ms`
+(traces for `Pegasus.Web.Startup` and `Pegasus.Web.Health.StartupWarmup`).
+A slow start shows there which phase took the time. The start limit
+`WEBSITES_CONTAINER_START_TIME_LIMIT` is not part of this design.
 
 ## Recovery
 
