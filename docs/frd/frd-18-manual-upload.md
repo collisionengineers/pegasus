@@ -256,7 +256,9 @@ Case, Discarded), opened by default when a file could not be read. The
 right part carries the upload's one decision and nothing else:
 
 - **Processing** shows a progress line, the count of stored files and
-  Refresh; the page refreshes itself while any file is moving.
+  Refresh; the page refreshes itself while any file is moving. A photograph
+  pulled out of a document is listed only once storage has confirmed its
+  copy, and the page keeps refreshing until every such photograph has one.
 - **Choose a destination** lists the possible Cases as cards (reference,
   stage, registration, claimant, Principal), none selected; choosing one
   shows **Review and add to Case**, which repeats the exact target
