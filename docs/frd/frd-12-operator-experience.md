@@ -193,10 +193,11 @@ its message, its upload and the record it became
 
 `/Unidentified` is a permanent redirect to `/Cases?tab=unidentified`, kept
 for existing links and bookmarks. `/Triage` and `/Triage/{id}` are removed
-and answer Not found, with no redirect. The Case record's other capability
-routes (custody, tasks, vehicle, workflow, closure, document export and EVA
-send) answer Not found for a Triage Case. The `/VehicleImages` list route is
-removed. The vehicle-images detail page remains and is reached from
+and answer Not found, with no redirect. The Case record's tasks, vehicle,
+workflow, closure, document export and EVA send routes answer Not found for a
+Triage Case. Custody and document download stay open for it. The
+`/VehicleImages` list route is removed. The vehicle-images detail page remains
+and is reached from
 Awaiting-instruction rows, the Case Files section and upload outcomes. There
 is no separate top-level Unidentified, Organisations, Staff accounts, Roles
 or Automation Activity entry. The Engineer workbench is a set of sections on
