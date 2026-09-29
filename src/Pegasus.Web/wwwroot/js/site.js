@@ -1336,8 +1336,13 @@
         }
         bindEvidenceItems(document);
         (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEvidenceItems);
+    })();
 
-        // A gallery tile that fails to load. The route answers a
+    (function () {
+        'use strict';
+
+        // A gallery tile that fails to load, on every page that draws
+        // img[data-gallery-image], the Case page included. The route answers a
         // throttled or in-flight read with 503 and Retry-After: 5, so two retries
         // paced to that advice are usually the whole fix; a successful response is the only
         // cacheable one. Re-setting the same src is not reliably a re-request —
@@ -1392,7 +1397,7 @@
             });
         }
         bindGalleryImages(document);
-        window.pegasusMountBinders.push(bindGalleryImages);
+        (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindGalleryImages);
     })();
 
     // The Other classification name and reasoning fields exist only while an
@@ -1888,7 +1893,7 @@ window.pegasusPreferences = (function () {
 // --- Row lists: ArrowUp/Down roving focus -------------------------------------
 (function () {
     'use strict';
-    var ROW = '.row-button, tr[data-select-href]';
+    var ROW = '.row-button, .scope-button, tr[data-select-href], tr[data-cases-row]';
     document.querySelectorAll('[data-row-list]').forEach(function (list) {
         list.addEventListener('keydown', function (event) {
             if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {

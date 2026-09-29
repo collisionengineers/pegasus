@@ -18,7 +18,8 @@
             <form method="post"
                   asp-page="/Cases/Custody"
                   asp-route-id="@view.CaseId"
-                  asp-page-handler="@(applied ? "UntagImage" : "TagImage")">
+                  asp-page-handler="@(applied ? "UntagImage" : "TagImage")"
+                  data-tag-leaves-report="@(!applied && ImageTagVocabulary.TakesImageOutOfReport(tag.Id) ? "true" : null)">
                 <input type="hidden" name="id" value="@view.CaseId" />
                 <input type="hidden" name="occurrenceId" value="@view.OccurrenceId" />
                 <input type="hidden" name="tagId" value="@tag.Id" />
