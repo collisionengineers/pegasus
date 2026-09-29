@@ -392,6 +392,9 @@ pending Case edits through the existing keep-edit Save first. Only a confirmed
 save continues with the freshly rendered authority. Validation failure, a
 conflict, lost response or new edits during the save leaves the draft intact
 and makes no provider request. A blocked popup gives an actionable refusal.
+Fetch again, shown beside Glass's for a `Failed` session whose export was
+unreadable, is the Resume handler and follows the same save-first,
+no-provider-request-on-conflict rule.
 
 The same-origin launch handoff refreshes only the Glass's launch slot and
 session controls on the original Case before visiting the provider URL. It

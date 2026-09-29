@@ -43,6 +43,22 @@ public static class GlassRepairEstimateSessionPolicy
         or GlassRepairEstimateSessionState.Importing;
 
     /// <summary>
+    /// The failure code of a session whose export Pegasus's own reader
+    /// refused: Glass's answered, and the document is the one thing wrong.
+    /// </summary>
+    public const string ExportUnreadableFailureCode = "glass.export.unreadable";
+
+    /// <summary>
+    /// Whether the owner may fetch the export again for the same estimate. A
+    /// session that failed because the reader refused the document has nothing
+    /// wrong at Glass's, so the estimate can be read again once the reader
+    /// accepts it. No vehicle is made and no estimate is started.
+    /// </summary>
+    public static bool CanRefetchExport(GlassRepairEstimateSessionState state, string? failureCode) =>
+        state == GlassRepairEstimateSessionState.Failed
+        && string.Equals(failureCode, ExportUnreadableFailureCode, StringComparison.Ordinal);
+
+    /// <summary>
     /// Which sessions the owning staff member may close: every one that still
     /// holds the account except one mid-import, whose claim is acting on the
     /// provider's return and must be allowed to settle.

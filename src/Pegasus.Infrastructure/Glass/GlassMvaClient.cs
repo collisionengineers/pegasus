@@ -30,7 +30,9 @@ internal sealed class GlassMvaStageException(
 
     /// <summary>
     /// What the provider's own answer said, in numbers and flags only, for
-    /// the host log. Never a registration, a body, a token or a URL.
+    /// the host log, or the export reader's reason after
+    /// <see cref="GlassReaderReason"/> has cut it to position numbers, field
+    /// names and code values. Never a registration, a body, a token or a URL.
     /// </summary>
     public string? Detail { get; } = detail;
 }
@@ -76,7 +78,7 @@ internal static class GlassFailure
     public const string ExportOffOrigin = "glass.export.off_origin";
     public const string DownloadRequest = "glass.download.request";
     public const string DownloadOversize = "glass.download.oversize";
-    public const string ExportUnreadable = "glass.export.unreadable";
+    public const string ExportUnreadable = GlassRepairEstimateSessionPolicy.ExportUnreadableFailureCode;
     public const string ExportEmpty = "glass.export.empty";
     public const string IdentityRegistration = "glass.identity.registration";
     public const string IdentityMileage = "glass.identity.mileage";

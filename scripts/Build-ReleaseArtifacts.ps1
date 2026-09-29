@@ -40,6 +40,20 @@ function Get-PegasusInformationalVersion {
     throw "$AssemblyPath carries no informational version."
 }
 
+function Test-PegasusReadyToRunImage {
+    param([Parameter(Mandatory)][string] $AssemblyPath)
+    $stream = [IO.File]::OpenRead($AssemblyPath)
+    try {
+        $image = [Reflection.PortableExecutable.PEReader]::new($stream)
+        try {
+            $header = $image.PEHeaders.CorHeader
+            return ($null -ne $header -and $header.ManagedNativeHeaderDirectory.Size -gt 0)
+        }
+        finally { $image.Dispose() }
+    }
+    finally { $stream.Dispose() }
+}
+
 Push-Location $repositoryRoot
 try {
     $head = (git rev-parse HEAD).Trim()
@@ -91,6 +105,14 @@ try {
     $webInformationalVersion = Get-PegasusInformationalVersion -AssemblyPath (Join-Path $webPublish 'Pegasus.Web.dll')
     if ($webInformationalVersion -cne "$Version+$SourceRevision") {
         throw 'Web publish informational version does not match the exact release version and source revision.'
+    }
+    # The Box SDK's FIPS BouncyCastle assemblies check their own bytes when they
+    # start; a ReadyToRun copy fails "Module checksum failed" on the first Box
+    # sign-in. Pegasus.Web.csproj excludes them; this proves it did.
+    foreach ($fipsAssembly in @(Get-ChildItem -LiteralPath $webPublish -Filter '*fips*.dll')) {
+        if (Test-PegasusReadyToRunImage -AssemblyPath $fipsAssembly.FullName) {
+            throw "$($fipsAssembly.Name) was compiled ReadyToRun; its FIPS module check fails on load. Exclude it with PublishReadyToRunExclude in Pegasus.Web.csproj."
+        }
     }
     foreach ($requiredWebFile in @('Pegasus.Web.dll', 'Pegasus.Web.runtimeconfig.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $webPublish $requiredWebFile) -PathType Leaf)) {

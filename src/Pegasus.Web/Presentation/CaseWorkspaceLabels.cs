@@ -1043,6 +1043,19 @@ public static class CaseWorkspaceLabels
         public const string ResumeRefused =
             "The Glass's session was not resumed. Retry the operation.";
 
+        /// <summary>
+        /// A launch or a resume found the Case changed since the page
+        /// rendered, or its edit lease ended.
+        /// </summary>
+        public const string CaseChanged =
+            "The Case changed. Reload it and retry.";
+
+        /// <summary>
+        /// The Glass's slot's action for a session that failed because the
+        /// export could not be read: it fetches the same estimate again.
+        /// </summary>
+        public const string FetchAgain = "Fetch again";
+
         /// <summary>The Glass's window while its provider work runs in the background.</summary>
         public const string Preparing = "Preparing Glass's…";
 
