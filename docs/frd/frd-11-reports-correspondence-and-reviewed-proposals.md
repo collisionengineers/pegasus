@@ -277,13 +277,18 @@ is still a confirmed artifact, byte for byte.
 people who read it — the Case's reference, the vehicle's registration and the
 outcome — and one dot is added for each report of this Case already sent, so
 a re-issue is distinguishable at a glance. Companion documents keep the names
-custody gave them. The delivery carries one covering line: a first report
-reads "Please find attached our report."; a later one says plainly that it
-supersedes the report dated the day the superseded generation carried. The
-report's name and the covering line are frozen with the preparation, so what
-was reviewed is what is sent, and custody keeps its own name for the same
-bytes. A send is a staff send that actually left the approved mailbox; a
-prepared-but-unsent delivery is not one.
+custody gave them. The delivery carries one covering message, which starts as
+the Case report delivery template
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
+this Case: a first report has no "supersedes" line; a later one says plainly
+that it supersedes the report dated the day the superseded generation carried.
+Before Prepare delivery, staff read the message in an editable box and may
+change it. Prepare delivery freezes the text they submit, which cannot be blank
+or longer than 5000 characters. The report's name and that message are frozen
+with the preparation, so what was reviewed is what is sent. Send uses only the
+frozen message, and custody keeps its own name for the same bytes. A send is a
+staff send that actually left the approved mailbox; a prepared-but-unsent
+delivery is not one. The subject stays the Case or Audit reference.
 
 **Report and fee note.** They are separately addressable files in custody.
 The operator generating the report chooses whether the fee note is a separate

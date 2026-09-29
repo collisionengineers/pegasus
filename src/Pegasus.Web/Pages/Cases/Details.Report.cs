@@ -1,6 +1,7 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Web.Presentation;
 
@@ -141,8 +142,8 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// The name the report would be attached under and the covering line it
-    /// would carry (v28 P23), read from the same policy the preparation
+    /// The name the report would be attached under
+    /// (v28 P23), read from the same policy the preparation
     /// freezes, so the form states what pressing Prepare delivery will send.
     /// </summary>
     public string ReportDeliveryFileName => CaseReportDeliveryNaming.ReportName(
@@ -152,7 +153,38 @@ public sealed partial class DetailsModel
         RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
         ReportSendHistory.SentCount) + ".pdf";
 
-    public string ReportDeliveryMessage => CaseReportDeliveryNaming.Message(ReportSendHistory);
+    /// <summary>
+    /// The Case report delivery template rendered for this Case, for staff to
+    /// review and edit before Prepare delivery (FRD-11): what the form's
+    /// message box is pre-filled with. Empty while the form is not offered.
+    /// Preparation freezes what staff submit, not this text.
+    /// </summary>
+    public string ReportDeliveryMessage { get; private set; } = string.Empty;
+
+    private async Task<string> RenderReportDeliveryMessageAsync(
+        ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (IsInspectionView
+            || CurrentReportGeneration is not { State: CaseReportGenerationState.Confirmed }
+            || CurrentDeliveryPreparation is not null
+            || !SectionIsEditable("report")
+            || !StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
+        {
+            return string.Empty;
+        }
+
+        var facts = new CaseReportDeliveryFacts(
+            CurrentReportGeneration.Snapshot.CaseReference,
+            Case?.Summary.Registration,
+            RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
+            DeliveryRecipientSuggestions?.PrincipalName,
+            ReportSendHistory);
+        return await renderEmailTemplate.ExecuteAsync(
+            actor,
+            EmailTemplatePurpose.CaseReportDelivery,
+            facts.Values(),
+            cancellationToken);
+    }
 
     /// <summary>The recorded outcome code, else null.</summary>
     public string? RecordedOutcome => Assessment?.Field(AssessmentVocabulary.Outcome)?.Value;
