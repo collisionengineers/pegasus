@@ -155,6 +155,21 @@ Release 66 deployed [PR 867](https://github.com/collisionengineers/pegasus/pull/
 
 - Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
   stopped for the maintenance window, then resumed and read back `Running`.
+  The fresh dry run found 24 blobs (37,848,379 bytes) in
+  `pegcustody252ow37gij/transient-intake` and 270 rows across 92 non-preserved
+  tables in SQL `pegasus` on `pegasus-prod-sql-252ow37gij`; the batch reported
+  271 affected rows including the mail-boundary update. The committed mail
+  cutoff is `2026-09-28T13:58:05.5131004+00:00`; 620 preserved rows remain.
+  Every reference-sequence value was unchanged (`CaseSequences` maximum 29,
+  `ImageIntakeSequences` 10 rows and `UnidentifiedSequences` 1 row);
+  `ValuationPresets` and `EmailTemplates` remained 0/0. `authentication-ring`,
+  `box-links`, `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. Post-run script verification reported zero
+  blobs remaining and zero wiped tables holding rows. Reloading the previous
+  Case URL returned “We could not find that page”.
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped for the maintenance window, then resumed and read back `Running`.
   The wipe cleared 43 blobs (9,832,299 bytes) from
   `pegcustody252ow37gij/transient-intake` and deleted 384 inventoried rows
   from 93 non-preserved tables in `pegasus` (385 affected rows including the
@@ -166,6 +181,21 @@ Release 66 deployed [PR 867](https://github.com/collisionengineers/pegasus/pull/
   and Box were untouched. No `-ResetTestEstate` was used. Post-run script
   verification reported zero blobs remaining and zero wiped tables holding
   rows. The Web UI reload was skipped at the operator's request.
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped for the maintenance window, then resumed and read back `Running`.
+  The fresh dry run found 66 blobs (19,366,816 bytes) in
+  `pegcustody252ow37gij/transient-intake` and 543 rows across 92 non-preserved
+  tables in SQL `pegasus` on `pegasus-prod-sql-252ow37gij`; the batch reported
+  544 affected rows including the mail-boundary update. The committed mail
+  cutoff is `2026-09-28T13:07:24.1678471+00:00`; 620 preserved rows remain.
+  Every reference-sequence value was unchanged (Case sequence maximum 28,
+  Image Intake 10 rows and Unidentified 1 row); `ValuationPresets` and
+  `EmailTemplates` remained 0/0. `authentication-ring`, `box-links`,
+  `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. Post-run script verification reported zero
+  blobs remaining and zero wiped tables holding rows. The Web UI reload was
+  skipped at the operator's request.
 
 ## Release 65 — 25 September 2026 (deployment live)
 
