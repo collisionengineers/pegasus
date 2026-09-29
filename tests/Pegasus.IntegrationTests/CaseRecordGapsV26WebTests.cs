@@ -559,7 +559,8 @@ public sealed class CaseRecordGapsV26WebTests
         Assert.DoesNotContain("has-proposal", settlement, StringComparison.Ordinal);
         Assert.DoesNotContain("data-proposal", settlement, StringComparison.Ordinal);
         // A Principal without a salvage matrix hands the Salvage value nothing.
-        Assert.DoesNotContain("data-salvage-matrix", settlement, StringComparison.Ordinal);
+        Assert.Contains("data-salvage-matrix=\"\"", settlement, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-salvage-matrix=\"[", settlement, StringComparison.Ordinal);
         Assert.DoesNotContain("awaiting review", settlement, StringComparison.Ordinal);
         var outcome = Regex.Match(
             settlement,
@@ -625,7 +626,8 @@ public sealed class CaseRecordGapsV26WebTests
         }
 
         var reading = SectionHtml(await ReadCaseAsync(store, Register), "settlement");
-        Assert.DoesNotContain("data-salvage-matrix", reading, StringComparison.Ordinal);
+        Assert.Contains("data-salvage-matrix=\"\"", reading, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-salvage-matrix=\"[", reading, StringComparison.Ordinal);
     }
 
     private sealed class FixedSalvageMatrix(SalvageMatrix? matrix) : IPrincipalSalvageMatrixQueries

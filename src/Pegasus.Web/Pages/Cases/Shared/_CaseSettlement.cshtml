@@ -187,7 +187,8 @@
                     ? Pegasus.Web.Pages.Cases.DetailsModel.FormatPounds(valueForText)
                     : "—";
                 @* The Principal's salvage matrix, read only while the value
-                   edits: script fills the money field from it (29 September 2026). *@
+                   edits: script fills the money field from it (29 September 2026).
+                   Without one the data attributes render empty. *@
                 var salvageMatrix = Model.PrincipalSalvageMatrix is { } matrix
                     ? JsonSerializer.Serialize(matrix.Bands, JsonSerializerOptions.Web)
                     : null;
