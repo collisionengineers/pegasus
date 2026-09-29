@@ -80,10 +80,3 @@ internal static class CaseTerminalReadinessGuard
         }
     }
 }
-
-internal sealed class CaseTerminalMutationException(Guid caseId)
-    : InvalidOperationException(
-        $"Closed case '{caseId}' is application read-only until an authorized reopen.")
-{
-    public Guid CaseId { get; } = caseId;
-}
