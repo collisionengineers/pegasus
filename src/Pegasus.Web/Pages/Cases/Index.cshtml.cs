@@ -289,7 +289,7 @@ public sealed class IndexModel(
 
     public QuickDetail? Selected { get; private set; }
 
-    /// <summary>The version rendered with the awaiting-image confirmation form.</summary>
+    /// <summary>The receipt version the Attach form reviews.</summary>
     public long? SelectedImageReceiptVersion { get; private set; }
 
     /// <summary>The existing submission workflow owns a manual multi-image decision.</summary>
@@ -332,6 +332,10 @@ public sealed class IndexModel(
             "/Cases",
             values.Where(item => !string.IsNullOrWhiteSpace(item.Value)));
     }
+
+    // The Cases page has no review dialog: one press resolves the typed
+    // reference and adds the image to that Case.
+    protected override bool AttachInOnePress => true;
 
     protected override IActionResult RedirectToSurface(Guid id) =>
         RedirectToPage(new { tab = "awaiting", selected = id });
