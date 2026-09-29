@@ -540,9 +540,9 @@ internal static partial class CaseWebTestSupport
 
     /// <summary>
     /// v26: the record's actions live in the ribbon's own actions cluster —
-    /// the primary (Edit Case / Cancel + Save) and the one Actions menu —
-    /// which the section row closes. Nothing below the sticky block is an
-    /// action of the record itself.
+    /// the primary (Edit Case / Editing + Done, with the Case form's default
+    /// Save now) and the one Actions menu — which the section row closes.
+    /// Nothing below the sticky block is an action of the record itself.
     /// </summary>
 
     internal static string RecordBar(string html)

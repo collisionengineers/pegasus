@@ -145,7 +145,8 @@ the utility bar: the 56px **ribbon** — the reference as the page's heading
 under "Case workspace · registration", Claimant, Principal and Engineer; chips
 for state ("Held · review on 24 Sep"), Case type (Audit, Inspection + Audit)
 and a colleague editing; then Edit Case, or while editing the Editing badge,
-Cancel and Save, and one **Actions** menu — and the 40px **section row** of
+its status word (Saving…, Saved 14:02, or why the last change was not saved)
+and Done, and one **Actions** menu — and the 40px **section row** of
 section links, Refresh and the Scroll/Tabs switch. Scroll is the default in
 every state; a Tabs choice lasts for the browser session. The section row
 links Case details, Claim, Original report on Audit Cases, Inspection details,
@@ -222,7 +223,7 @@ the 64px mark. The sign-in password field carries a Show / Hide control
 | Ctrl K | Command palette dialog (also Enter in the utility search) |
 | Ctrl U | Upload (`/upload`) |
 | Ctrl N | Create Case |
-| Ctrl S | Save and keep editing, only while a Case is in edit |
+| Ctrl S | Save now, only while a Case is in edit; every change already saves as it is made (29 September 2026) |
 | F5 | Refresh — re-query the current page, never a browser reload |
 | ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, result rows) |
 | Escape | Close the open dialog |
@@ -291,7 +292,7 @@ shared `.dismiss` × so it can be put away before it expires.
   hosts and one edit form. Scroll is the no-script fallback: its identity
   ribbon, action bar and section navigation are sticky, sections below the
   fold load lazily, and `?section=` reaches a section. Tabs hide inactive
-  sections without removing their loaded fields or discarding unsaved edits.
+  sections without removing their loaded fields or a change not yet sent.
   Retain the personal display preference and the single Case Notes timeline.
 - <a id="source-tags"></a>**Source tags.** Where a value came from is one
   visible word in a small `src-tag` pill in the cell's label line, the same in
@@ -776,11 +777,11 @@ Case's own mileage is used; a card has none, 24 September 2026)
 valuation button that looks the figures up and fills the boxes in place
 (a source with no working provider shows the card's notice from the start and
 has no button) and a Use this value button that chooses the card and records
-the decision on the one Save (28 September 2026); the boxes are typed by hand
+the decision on the next save (28 September 2026); the boxes are typed by hand
 just as well. The card has no Save of
-its own (23 September 2026): its boxes belong to the Case form and the
-ribbon Save records a changed card with whatever was entered; any box may be
-left blank. The ribbon Save is the Case's one save (23 September 2026): the
+its own (23 September 2026): its boxes belong to the Case form and each save
+records a changed card with whatever was entered; any box may be left blank.
+Every change to the Case saves as it is made (29 September 2026): the
 Repair Spec and the valuation calculator carry no Save or Apply of their own.
 There is no separate Add valuation
 dialog. This does not

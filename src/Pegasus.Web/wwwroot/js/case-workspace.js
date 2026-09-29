@@ -5,7 +5,7 @@
 // Blocks, in order:
 //   frame       sticky measure, Scroll/Tabs, lazy section bodies, the
 //               section nav, in-place actions (fetch + swap), the edit
-//               session (dirty guard, heartbeat, expiry)
+//               session (save as you go, heartbeat, expiry)
 //   sections    the section-owned enhancements (damage clicker, valuation
 //               calculator, estimate grid, report images, files, viewer)
 //
@@ -31,18 +31,23 @@
     var layout = 'scroll';
     var activeKey = record.getAttribute('data-section-current') || 'overview';
     var fragmentPath = window.location.pathname.replace(/\/+$/, '') + '/Section';
-    var dirty = false;
-    var dirtyEditors = new Map();
-    var activeEditor = null;
     var submitting = false;
-    // One editor: the record's Save form (one Save, 23 September 2026). The
-    // Repair Spec and the valuation calculator are controls of it.
+    // Save as you go (operator, 29 September 2026): a change to the Case
+    // form is committed through the one Save handler as soon as it is made,
+    // at once for a simple cell and after a short idle for a composite
+    // editor, and the page keeps editing. One commit is in flight at a time;
+    // a change made during it commits again when it lands, and whatever
+    // waits on the queue (an action, a link away) runs once it is empty.
+    var COMMIT_IDLE_MS = 1000;
+    var commitTimer = null;
+    var commitPending = false;
+    var commitWaiters = [];
+    var commitStatus = null;
+    // One editor: the record's Save form. The Repair Spec and the valuation
+    // calculator are controls of it.
     var editorLabels = {
         'case-edit-form': 'Case'
     };
-    // Whether the unsaved Case changes include the Repair Spec's, which an
-    // import must not overwrite. Cleared with the Case's draft.
-    var estimateTouched = false;
     var pendingAnchor = null;
     var navigationVersion = 0;
 
@@ -457,44 +462,109 @@
         new ResizeObserver(measure).observe(block);
     }
 
-    // ---- the edit session: dirty guard, heartbeat, expiry ------------------
-    function setDirty(isDirty) {
-        dirty = isDirty;
-        if (!isDirty) { estimateTouched = false; }
-    }
-    function estimateIsDirty() { return estimateTouched && dirtyEditors.has('case-edit-form'); }
+    // ---- the edit session: save as you go, heartbeat, expiry ---------------
+    function caseForm() { return document.getElementById('case-edit-form'); }
     function editorFor(control) {
         var form = control.form || (control.closest ? control.closest('form') : null);
         return form && editorLabels[form.getAttribute('id')] ? form : null;
     }
-    function markDirty(form) {
-        var id = form.getAttribute('id');
-        dirtyEditors.set(id, (dirtyEditors.get(id) || 0) + 1);
-        activeEditor = id;
-        setDirty(true);
+    // A composite editor commits when focus leaves it or after an idle: its
+    // parts are typed one after another, and it announces a change by
+    // dispatching input on a hidden control, never change.
+    var COMPOSITE = '[data-estimate-form], [data-damage-editor], [data-valuation-form], [data-valuation-card], [data-report-wording]';
+    function compositeOf(control) {
+        return control.closest ? control.closest(COMPOSITE) : null;
     }
-    ['input', 'change'].forEach(function (name) {
-        document.addEventListener(name, function (event) {
-            var form = editorFor(event.target);
-            if (!form) { return; }
-            markDirty(form);
-            if (event.target.closest && event.target.closest('[data-estimate-form]')) { estimateTouched = true; }
-        });
-    });
-    document.addEventListener('focusin', function (event) {
-        var form = editorFor(event.target);
-        if (form) { activeEditor = form.getAttribute('id'); }
-    });
-    function activeDirtyForm() {
-        var id = dirtyEditors.has(activeEditor) ? activeEditor : dirtyEditors.keys().next().value;
-        return id ? document.getElementById(id) : null;
+    function queueBusy() {
+        return submitting || commitTimer !== null || commitPending;
     }
-    window.pegasusDirtyEditForm = activeDirtyForm;
-    window.addEventListener('beforeunload', function (event) {
-        if (!dirty) { return; }
-        event.preventDefault();
-        event.returnValue = '';
+    function scheduleCommit() {
+        if (commitTimer !== null) { window.clearTimeout(commitTimer); }
+        commitTimer = window.setTimeout(function () { commitTimer = null; commitNow(); }, COMMIT_IDLE_MS);
+    }
+    // A commit is the Case form's own submit, so everything a submit means
+    // (the scale preview putting its cells back, the in-place post) holds.
+    function commitNow() {
+        if (commitTimer !== null) { window.clearTimeout(commitTimer); commitTimer = null; }
+        var form = caseForm();
+        if (!form || record.getAttribute('data-case-editing') !== 'true') { settleQueue(); return; }
+        if (submitting) { commitPending = true; return; }
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }
+    // Runs once nothing is in flight or waiting to commit.
+    function afterCommit(next) {
+        if (!queueBusy()) { next(); return; }
+        commitWaiters.push(next);
+        if (commitTimer !== null) { commitNow(); }
+    }
+    function settleQueue() {
+        if (submitting) { return; }
+        if (commitPending) { commitPending = false; commitNow(); return; }
+        if (commitTimer !== null) { return; }
+        var waiters = commitWaiters;
+        commitWaiters = [];
+        waiters.forEach(function (next) { next(); });
+    }
+    document.addEventListener('change', function (event) {
+        var control = event.target;
+        if (!editorFor(control)) { return; }
+        if (compositeOf(control)) { scheduleCommit(); return; }
+        // A simple cell commits as it is left. A value the browser cannot
+        // accept is said so there and then, and nothing is sent.
+        if (typeof control.reportValidity === 'function' && !control.reportValidity()) { return; }
+        commitNow();
     });
+    document.addEventListener('input', function (event) {
+        var control = event.target;
+        if (!editorFor(control)) { return; }
+        // Typing waits for the cell to be left; a script's fill (the damage
+        // plan, a bank wording, a slider's figure) and a composite's typing
+        // commit after the idle.
+        if (!event.isTrusted || control.type === 'hidden' || compositeOf(control)) { scheduleCommit(); }
+    });
+    document.addEventListener('focusout', function (event) {
+        if (commitTimer === null) { return; }
+        var host = compositeOf(event.target);
+        if (host && !(event.relatedTarget && host.contains(event.relatedTarget))) { commitNow(); }
+    });
+    // Closing the tab with a change not yet sent: the change goes by beacon,
+    // and the lease lapses by server time (FRD-14).
+    window.addEventListener('pagehide', function () {
+        if (commitTimer === null && !commitPending) { return; }
+        var form = caseForm();
+        if (form && typeof navigator.sendBeacon === 'function') {
+            navigator.sendBeacon(form.getAttribute('action') || window.location.href, new FormData(form));
+        }
+    });
+    // The ribbon's status word: what the last commit did.
+    function setCommitStatus(kind, text) {
+        commitStatus = kind ? { kind: kind, text: text } : null;
+        paintCommitStatus();
+    }
+    function paintCommitStatus() {
+        var line = record.querySelector('[data-lease-line]');
+        if (!line || line.classList.contains('is-expiring')) { return; }
+        line.classList.remove('is-refused');
+        if (!commitStatus) { line.hidden = true; line.textContent = ''; return; }
+        var words = commitStatus.kind === 'saving' ? line.getAttribute('data-lease-saving-text')
+            : commitStatus.kind === 'saved' ? (line.getAttribute('data-lease-saved-text') || '') + ' ' + commitStatus.text
+            : commitStatus.text;
+        line.textContent = words || '';
+        line.classList.toggle('is-refused', commitStatus.kind === 'refused');
+        line.hidden = !words;
+    }
+    function clockNow() {
+        var now = new Date();
+        return (now.getHours() < 10 ? '0' : '') + now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes();
+    }
+    // With script the ribbon's Save now is the commit's own submit, reached
+    // by Ctrl S and by Enter in a cell; without script it is the save. It is
+    // drawn and hidden here, as the estimate import's fallback is.
+    function bindEditControls() {
+        var saveNow = record.querySelector('[data-case-save-now]');
+        if (saveNow) { saveNow.hidden = true; }
+        paintCommitStatus();
+    }
 
     var heartbeat = null;
     var heartbeatGeneration = 0;
@@ -570,49 +640,6 @@
 
     // ---- in-place actions: every form in the record posts by fetch and the
     //      record's parts are swapped for the response's (v25 decision 3) ----
-    var confirmDialog = document.getElementById('edit-finish-confirm');
-    var confirmResolve = null;
-    var confirmInvoker = null;
-    function askUnsaved() {
-        if (!confirmDialog) {
-            return Promise.resolve('keep');
-        }
-        return new Promise(function (resolve) {
-            confirmResolve = resolve;
-            confirmInvoker = document.activeElement;
-            var form = activeDirtyForm();
-            var label = form ? editorLabels[form.getAttribute('id')] : 'Case';
-            confirmDialog.querySelector('h2').textContent = 'Unsaved ' + Array.from(dirtyEditors.keys()).map(function (id) { return editorLabels[id]; }).join(', ') + ' changes';
-            confirmDialog.querySelector('[data-edit-finish-save]').textContent = 'Save ' + label;
-            confirmDialog.hidden = false;
-            var keep = confirmDialog.querySelector('[data-edit-finish-keep]');
-            if (keep) { keep.focus(); }
-        });
-    }
-    function settleUnsaved(answer) {
-        if (!confirmDialog || !confirmResolve) {
-            return;
-        }
-        confirmDialog.hidden = true;
-        var resolve = confirmResolve;
-        confirmResolve = null;
-        if (confirmInvoker && confirmInvoker.isConnected) { confirmInvoker.focus(); }
-        resolve(answer);
-    }
-    if (confirmDialog) {
-        confirmDialog.querySelector('[data-edit-finish-keep]').addEventListener('click', function () { settleUnsaved('keep'); });
-        confirmDialog.querySelector('[data-edit-finish-discard]').addEventListener('click', function () { settleUnsaved('discard'); });
-        confirmDialog.querySelector('[data-edit-finish-save]').addEventListener('click', function () { settleUnsaved('save'); });
-        confirmDialog.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') { event.preventDefault(); settleUnsaved('keep'); }
-            if (event.key === 'Tab') {
-                var buttons = confirmDialog.querySelectorAll('button');
-                if (event.shiftKey && document.activeElement === buttons[0]) { event.preventDefault(); buttons[buttons.length - 1].focus(); }
-                else if (!event.shiftKey && document.activeElement === buttons[buttons.length - 1]) { event.preventDefault(); buttons[0].focus(); }
-            }
-        });
-    }
-
     function anchor() {
         var line = readingLine() + 8;
         var best = null;
@@ -662,6 +689,19 @@
     }
 
     var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
+    // The inputs a commit consumes or moves on (its authority, the valuation
+    // calculation the page opened on) are copied from the response's Save
+    // form into the one the operator keeps typing in, so the next commit
+    // carries the Case's new version, lease and operation key.
+    function carryForward(parsed) {
+        var form = caseForm();
+        var next = form ? parsed.getElementById(form.id) : null;
+        if (!form || !next) { return; }
+        Array.prototype.forEach.call(next.querySelectorAll('[data-carry-forward]'), function (input) {
+            var current = form.querySelector('[data-carry-forward][name="' + input.name + '"]');
+            if (current) { current.value = input.value; }
+        });
+    }
     function swap(html, command, preferred) {
         glassRefreshGeneration += 1;
         var parsed = new DOMParser().parseFromString(html, 'text/html');
@@ -670,75 +710,57 @@
             return false;
         }
         var commit = null;
-        try { commit = JSON.parse(incoming.getAttribute('data-editor-commit') || 'null'); } catch (_) { /* An unrecognised response cannot clear a draft. */ }
+        try { commit = JSON.parse(incoming.getAttribute('data-editor-commit') || 'null'); } catch (_) { /* An unrecognised response cannot confirm a commit. */ }
         var confirmed = command && commit && commit.editor === command.editor
             && commit.operationKey === command.operationKey && String(commit.expectedVersion) === command.expectedVersion;
         var mayAdvance = confirmed && String(commit.version) === incoming.getAttribute('data-case-version')
             && incoming.getAttribute('data-case-editing') === 'true';
-        if (confirmed && dirtyEditors.get(command.editor) === command.revision) {
-            dirtyEditors.delete(command.editor);
-        }
-        // Keep the live controls (including grid rows, form-associated fields and
-        // preparation state) rather than reconstructing drafts from fresh HTML.
-        var retainedSections = new Set();
-        dirtyEditors.forEach(function (_, id) {
-            var form = document.getElementById(id);
-            if (!form) { return; }
-            var nextForm = parsed.getElementById(id);
-            var oldVersion = form.querySelector('[name="expectedVersion"]');
-            if (mayAdvance && nextForm && oldVersion && oldVersion.value === command.expectedVersion) {
-                var authorityFields = ['expectedVersion', 'editLeaseToken'];
-                if (id === command.editor) { authorityFields.push('operationKey'); }
-                authorityFields.forEach(function (name) {
-                    var current = form.querySelector('[name="' + name + '"]');
-                    var next = nextForm.querySelector('[name="' + name + '"]');
-                    if (current && next) { current.value = next.value; }
-                });
-            }
-            [form].concat(Array.from(form.elements)).forEach(function (control) {
-                var host = control.closest('.record-section');
-                if (host) { retainedSections.add(host); }
-            });
-            if (form.__pegasusPreparationStaged) {
-                main.querySelectorAll('[data-preparation-card]').forEach(function (card) {
-                    var host = card.closest('.record-section');
-                    if (host) { retainedSections.add(host); }
-                });
-            }
-        });
-        // A refusal or unknown outcome must not replace any draft or its original
-        // authority. Server notices can still explain the failed command.
-        var noticesOnly = dirtyEditors.size > 0 && !confirmed;
+        var isCommit = !!command && command.editor === 'case-edit-form'
+            && record.getAttribute('data-case-editing') === 'true';
+        // A commit that landed keeps every section as the operator has it and
+        // redraws what the Case's new facts change: the notices, the ribbon,
+        // the aside and the dialogs. A refused commit redraws only the notices
+        // and the aside, so the typed value stays for another go. Anything
+        // else, a commit whose session ended included, is the whole record as
+        // the server now draws it.
+        var commitLanded = isCommit && mayAdvance;
+        var commitRefused = isCommit && !confirmed;
+        var keepSections = commitLanded || commitRefused;
         // The section a head Edit was pressed on keeps its place; any other
         // swap keeps the section at the reading line.
         var saved = preferred || anchor();
-        var collapsed = {};
-        sections().forEach(function (host) { collapsed[host.getAttribute('data-section')] = host.classList.contains('is-collapsed'); });
-        if (!noticesOnly) {
-            retainedSections.forEach(function (host) {
-                var next = parsed.getElementById(host.id);
-                if (mayAdvance) {
-                    var newLease = incoming.querySelector('[name="editLeaseToken"]');
-                    host.querySelectorAll('form').forEach(function (form) {
-                        // A Case's own forms name the version expectedVersion; the
-                        // Glass's and report forms name it expectedCaseVersion.
-                        var version = form.querySelector('[name="expectedVersion"], [name="expectedCaseVersion"]');
-                        var lease = form.querySelector('[name="editLeaseToken"]');
-                        if (lease && newLease && lease.value === command.editLeaseToken
-                            && (!version || version.value === command.expectedVersion)) {
-                            lease.value = newLease.value;
-                            if (version) { version.value = String(commit.version); }
-                        }
-                    });
+        if (commitLanded) {
+            var newLease = incoming.querySelector('[name="editLeaseToken"]');
+            Array.prototype.forEach.call(document.querySelectorAll('form'), function (form) {
+                // A Case's own forms name the version expectedVersion; the
+                // Glass's and report forms name it expectedCaseVersion.
+                var version = form.querySelector('[name="expectedVersion"], [name="expectedCaseVersion"]');
+                var lease = form.querySelector('[name="editLeaseToken"]');
+                if (lease && newLease && lease.value === command.editLeaseToken
+                    && (!version || version.value === command.expectedVersion)) {
+                    lease.value = newLease.value;
+                    if (version) { version.value = String(commit.version); }
                 }
-                if (next) { next.replaceWith(host); }
             });
+            carryForward(parsed);
+            // Staged crops and rotations are recorded now: Files is drawn
+            // afresh from the response, and holds no typed control to lose.
+            var form = caseForm();
+            if (form && form.__pegasusPreparationStaged) {
+                form.__pegasusPreparationStaged = null;
+                Array.prototype.forEach.call(form.querySelectorAll('[data-preparation-hidden]'), function (input) { input.remove(); });
+                var files = sectionFor('files');
+                var nextFiles = parsed.getElementById('section-files');
+                if (files && nextFiles) { files.replaceWith(nextFiles); bindMounted(nextFiles); }
+            }
         }
+        var openDialog = document.querySelector('[data-case-dialogs] [data-dialog]:not([hidden])');
         swapRoots.forEach(function (selector) {
-            // The aside holds no drafts and carries the stale notice (issue 899),
-            // so it refreshes with the notices.
-            if (noticesOnly && selector !== '[data-case-notices]' && selector !== '[data-case-aside]') { return; }
-            if (selector === '[data-case-ribbon-actions]' && dirtyEditors.size > 0 && !mayAdvance) { return; }
+            if (keepSections && (selector === '#case-main' || selector === '[data-case-viewer-host]')) { return; }
+            if (commitRefused && selector !== '[data-case-notices]' && selector !== '[data-case-aside]') { return; }
+            // A dialog the operator has open stays open across a commit; its
+            // forms already carry the new authority.
+            if (commitLanded && selector === '[data-case-dialogs]' && openDialog) { return; }
             var current = document.querySelector(selector);
             var next = parsed.querySelector(selector);
             if (!current || !next) {
@@ -751,7 +773,12 @@
             });
             current.replaceWith(next);
         });
-        (noticesOnly ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current', 'data-case-view']).forEach(function (name) {
+        if (commitLanded) {
+            // The ribbon's status word says it; the notice would say it again.
+            var confirmation = document.querySelector('[data-case-notices] [data-confirmation]');
+            if (confirmation) { confirmation.remove(); }
+        }
+        (commitRefused ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current', 'data-case-view']).forEach(function (name) {
             var value = incoming.getAttribute(name);
             if (value === null) { record.removeAttribute(name); } else { record.setAttribute(name, value); }
         });
@@ -762,25 +789,30 @@
             var root = document.querySelector(selector);
             if (root) { bindMounted(root); }
         });
-        if (dirtyEditors.size > 0) {
-            record.classList.add('is-editing');
-            record.setAttribute('data-case-editing', 'true');
+        if (!keepSections) {
+            if (layout === 'tabs') {
+                applyTabState();
+                var selected = sectionFor(activeKey);
+                if (selected && selected.hasAttribute('data-lazy')) { mount(selected, applyTabState); }
+            } else { applyScrollState(); }
         }
-        if (layout === 'tabs') {
-            applyTabState();
-            var selected = sectionFor(activeKey);
-            if (selected && selected.hasAttribute('data-lazy')) { mount(selected, applyTabState); }
-        } else { applyScrollState(); }
         updateSectionFields();
         measure();
-        keep(saved);
-        setDirty(dirtyEditors.size > 0);
-        if (confirmed && dirtyEditors.size > 0 && !mayAdvance) {
-            showActionError('The save completed, but the Case changed again or editing expired. Your other unsaved changes still use their original version.');
+        if (!keepSections) { keep(saved); }
+        if (commitLanded) {
+            setCommitStatus('saved', clockNow());
+        } else if (commitRefused) {
+            var refusal = document.querySelector('[data-case-notices] [role="alert"]');
+            setCommitStatus('refused', refusal ? refusal.textContent.trim() : 'The change was not saved.');
+        } else if (incoming.getAttribute('data-case-editing') !== 'true') {
+            setCommitStatus(null);
         }
         bindHeartbeat();
-        mountApproaching();
-        spy();
+        bindEditControls();
+        if (!keepSections) {
+            mountApproaching();
+            spy();
+        }
         announceNotices();
         document.dispatchEvent(new CustomEvent('pegasus:case-swapped'));
         return true;
@@ -812,9 +844,11 @@
         var isImport = form.hasAttribute('data-estimate-import-form');
         var command = editorLabels[form.getAttribute('id')] || isImport ? {
             editor: form.getAttribute('id'), operationKey: body.get('operationKey'),
-            expectedVersion: body.get('expectedVersion'), editLeaseToken: body.get('editLeaseToken'),
-            revision: dirtyEditors.get(form.getAttribute('id'))
+            expectedVersion: body.get('expectedVersion'), editLeaseToken: body.get('editLeaseToken')
         } : null;
+        var isCommit = !!command && command.editor === 'case-edit-form'
+            && record.getAttribute('data-case-editing') === 'true';
+        if (isCommit) { setCommitStatus('saving'); }
         var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
         var method = ((submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get').toUpperCase();
         var request = { method: method, credentials: 'same-origin', redirect: 'follow', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' } };
@@ -839,7 +873,7 @@
         return fetch(action, request).then(function (response) {
             var landed = response.url || action;
             if (!samePage(landed)) {
-                if (dirty) { throw new Error('The action left the Case before its result was confirmed.'); }
+                if (commitPending || commitTimer !== null) { throw new Error('The action left the Case before its result was confirmed.'); }
                 window.location.assign(landed);
                 return null;
             }
@@ -858,12 +892,12 @@
             if (editKey && editFocus) { focusControl(editKey, editFocus); }
             if (form.hasAttribute('data-glass-close-form')) { return refreshGlassControls(); }
         }).catch(function (error) {
-            // A failed save runs nothing after it.
-            if (afterSave && afterSave.cancel) { afterSave.cancel(); }
-            afterSave = null;
             var failure = isImport
-                ? error.message + ' Import completion was not confirmed. Your unsaved changes are still here; reload the Case before retrying. If the source was already stored, it will be reused.'
-                : error.message + ' Your unsaved changes are still here.';
+                ? error.message + ' Import completion was not confirmed. Reload the Case before retrying. If the source was already stored, it will be reused.'
+                : isCommit
+                    ? error.message + ' Your last change was not saved; it is still on the page.'
+                    : error.message + ' Your last change is still on the page.';
+            if (isCommit) { setCommitStatus('refused', error.message); }
             showActionError(failure);
         }).finally(function () {
             form.removeAttribute('aria-busy');
@@ -878,6 +912,7 @@
                 importStatus.textContent = '';
             }
             submitting = false;
+            settleQueue();
         });
     }
     function showActionError(message) {
@@ -896,17 +931,12 @@
         }
     }
 
-    function proceedDocumentAction(form, submitter) {
-        submitting = true;
-        form.dataset.inplaceSubmitting = 'true';
-        submitDocumentAction(form, submitter);
-    }
-    // A document action posts at once and the editor keeps its unsaved
-    // changes. Only what the action changed is drawn again: the image's tile
+    // A document action posts at once and the sections stay as the operator
+    // has them. Only what the action changed is drawn again: the image's tile
     // (or every tag picker, for a new tag), the notices and the aside. A tag
     // moves the Case version and the edit lease, so the new pair is carried
     // into every form that held the old one, the Save form included: the
-    // next Save still holds the operator's edit.
+    // next commit still carries the Case's authority.
     function submitDocumentAction(form, submitter) {
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
         var previousLease = body.get('editLeaseToken');
@@ -944,11 +974,12 @@
             }
             announceNotices();
         }).catch(function (error) {
-            showActionError(error.message + ' Your unsaved changes are still here.');
+            showActionError(error.message + ' Your last change is still on the page.');
         }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
             submitting = false;
+            settleQueue();
         });
     }
     // Moves every form that held the lease the action consumed onto the one it
@@ -958,7 +989,7 @@
         var nextLease = incoming.querySelector('[name="editLeaseToken"]');
         var nextVersion = incoming.getAttribute('data-case-version');
         if (incoming.getAttribute('data-case-editing') !== 'true' || !nextLease) {
-            showActionError('The action was applied, but editing has ended. Your unsaved changes are still here and cannot be saved; copy them, then reload the Case.');
+            showActionError('The action was applied, but editing has ended. Reload the Case to carry on.');
             return;
         }
         if (nextLease.value === previousLease) { return; }
@@ -1054,8 +1085,10 @@
                 return Boolean(event.dataTransfer)
                     && Array.prototype.slice.call(event.dataTransfer.types || []).indexOf('Files') >= 0;
             };
+            // The frame's submit queue lets an import follow a commit; only
+            // an import already on its way refuses another.
             function canAccept() {
-                return !submitting && !confirmResolve && form.dataset.inplaceSubmitting !== 'true';
+                return form.dataset.inplaceSubmitting !== 'true';
             }
             function clearDrag() {
                 depth = 0;
@@ -1093,11 +1126,6 @@
                     showActionError(error);
                     return;
                 }
-                if (estimateIsDirty()) {
-                    input.value = '';
-                    showActionError(importMessage('Dirty', 'Save or cancel the estimate changes before importing another estimate.'));
-                    return;
-                }
                 if (!canAccept()) {
                     input.value = '';
                     showActionError(importMessage('Busy', 'Wait for the current Case action to finish before importing an estimate.'));
@@ -1108,10 +1136,6 @@
 
             picker.addEventListener('click', function () {
                 if (!canAccept()) { return; }
-                if (estimateIsDirty()) {
-                    showActionError(importMessage('Dirty', 'Save or cancel the estimate changes before importing another estimate.'));
-                    return;
-                }
                 input.click();
             });
             input.addEventListener('change', submitSelectedFile);
@@ -1119,13 +1143,13 @@
                 if (!isFileDrag(event)) { return; }
                 event.preventDefault();
                 depth += 1;
-                showDrag(!canAccept() || estimateIsDirty());
+                showDrag(!canAccept());
             });
             section.addEventListener('dragover', function (event) {
                 if (!isFileDrag(event)) { return; }
                 event.preventDefault();
-                event.dataTransfer.dropEffect = canAccept() && !estimateIsDirty() ? 'copy' : 'none';
-                showDrag(!canAccept() || estimateIsDirty());
+                event.dataTransfer.dropEffect = canAccept() ? 'copy' : 'none';
+                showDrag(!canAccept());
             });
             section.addEventListener('dragleave', function (event) {
                 depth = Math.max(0, depth - 1);
@@ -1142,10 +1166,6 @@
                     ? Array.prototype.slice.call(event.dataTransfer.files) : [];
                 var error = validate(files);
                 if (error) { showActionError(error); return; }
-                if (estimateIsDirty()) {
-                    showActionError(importMessage('Dirty', 'Save or cancel the estimate changes before importing another estimate.'));
-                    return;
-                }
                 if (!canAccept()) {
                     showActionError(importMessage('Busy', 'Wait for the current Case action to finish before importing an estimate.'));
                     return;
@@ -1185,83 +1205,66 @@
             return;
         }
         event.preventDefault();
-        var isImport = form.hasAttribute('data-estimate-import-form');
-        if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') {
-            // A Refresh already in flight (F5 bypasses the disabled button)
-            // stays busy until its own response lands.
-            if (form.dataset.inplaceSubmitting !== 'true') { resetRefresh(form); }
+        var isCommit = !!editorLabels[form.getAttribute('id')];
+        if (form.dataset.inplaceSubmitting === 'true') {
             return;
         }
-        if (isImport && estimateIsDirty()) {
-            showActionError(form.dataset.estimateImportDirty
-                || 'Save or cancel the estimate changes before importing another estimate.');
+        if (submitting) {
+            // A commit behind a post in flight follows it. A second press of
+            // an action while one is in flight is dropped; a Refresh already
+            // in flight (F5 bypasses the disabled button) stays busy until
+            // its own response lands.
+            if (isCommit) { commitPending = true; } else { resetRefresh(form); }
             return;
         }
-        var isSave = !!editorLabels[form.getAttribute('id')];
-        var proceed = function () {
+        var name = submitter ? submitter.name : '';
+        var value = submitter ? submitter.value : '';
+        var formaction = submitter ? submitter.getAttribute('formaction') : null;
+        function proceed() {
+            // A form that waited on a commit is found again: the ribbon's and
+            // the dialogs' forms are drawn afresh with the Case's new authority.
+            var next = refind(form);
+            if (!next || next.dataset.inplaceSubmitting === 'true') { return; }
+            var button = submitter && next !== form ? Array.prototype.find.call(next.elements, function (element) {
+                return element.type === 'submit' && element.name === name && element.value === value
+                    && element.getAttribute('formaction') === formaction;
+            }) || null : submitter;
             submitting = true;
-            if (isSave && !dirtyEditors.has(form.getAttribute('id'))) { markDirty(form); }
-            form.dataset.inplaceSubmitting = 'true';
-            submitInPlace(form, submitter);
-        };
-        // A command that reads what the Case records (Apply and Remove scaling
-        // work on the saved repair spec) saves the Case's own unsaved changes
-        // first and follows in the same press. Its section renders afresh
-        // after the save, so it reads the spec as saved; its choices ride
-        // across (again()).
-        var caseForm = document.getElementById('case-edit-form');
-        if (form.hasAttribute('data-case-save-first') && caseForm && dirtyEditors.has('case-edit-form')) {
-            saveThen(caseForm, again(form, submitter));
-            return;
+            next.dataset.inplaceSubmitting = 'true';
+            // A document action (tag, untag, new tag, In report) while editing
+            // is not an edit of the Case: it posts at once and redraws only
+            // its own tile, so the sections stay as the operator has them.
+            if (next.hasAttribute('data-document-action') && record.getAttribute('data-case-editing') === 'true') {
+                submitDocumentAction(next, button);
+                return;
+            }
+            submitInPlace(next, button);
         }
-        // A document action (tag, untag, new tag, In report) is not an edit of
-        // the Case: with unsaved changes it posts at once, asks nothing and
-        // leaves the changes where they are.
-        if (!isSave && dirty && form.hasAttribute('data-document-action')) {
-            proceedDocumentAction(form, submitter);
-            return;
-        }
-        // Cancel is the operator discarding: it needs no second question.
-        var isCancel = form.hasAttribute('data-case-cancel-form');
-        if (!isSave && dirty && !isCancel && !form.hasAttribute('data-glass-close-form')) {
-            askUnsaved().then(function (answer) {
-                if (answer === 'keep') {
-                    resetRefresh(form);
-                    return;
-                }
-                if (answer === 'save') {
-                    // Saving carries on into what was asked for. A refresh
-                    // ends here: the save's own response is the fresh Case.
-                    resetRefresh(form);
-                    var save = activeDirtyForm();
-                    if (save) { saveThen(save, again(form, submitter)); }
-                    return;
-                }
-                dirtyEditors.clear();
-                setDirty(false);
-                proceed();
-            });
-            return;
-        }
-        if (isCancel) {
-            dirtyEditors.clear();
-            setDirty(false);
-        }
-        proceed();
+        // Every other post (an action, Done, a refresh) follows the change
+        // not yet sent, so it reads the Case as the operator has it.
+        if (isCommit) { proceed(); } else { afterCommit(proceed); }
     });
+    function refind(form) {
+        if (form.isConnected) { return form; }
+        var id = form.getAttribute('id');
+        if (id && document.getElementById(id)) { return document.getElementById(id); }
+        var action = form.getAttribute('action');
+        var dialogs = document.querySelector('[data-case-dialogs]');
+        var candidates = Array.prototype.slice.call(record.querySelectorAll('form[action]'))
+            .concat(dialogs ? Array.prototype.slice.call(dialogs.querySelectorAll('form[action]')) : []);
+        return candidates.find(function (candidate) { return candidate.getAttribute('action') === action; }) || null;
+    }
 
     // The frame owns this shortcut even inside a field; site.js handles it on
-    // other pages. It saves the Case and keeps editing (no finishEditing).
+    // other pages. It commits the Case form now, a composite's typing included.
     document.addEventListener('keydown', function (event) {
         if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') { return; }
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (submitting || confirmResolve) { return; }
-        var form = activeDirtyForm();
-        if (form) { form.requestSubmit(); }
+        commitNow();
     }, true);
-    // Leaving the Case by a link ends edit mode (FRD-14): unsaved changes are
-    // asked about first, and the lease is released as the operator goes, so
+    // Leaving the Case by a link ends edit mode (FRD-14): a change not yet
+    // sent lands first, and the lease is released as the operator goes, so
     // the Case is free rather than held until its lease lapses. A link to
     // this same Case (a section, a view, one of its own pages) keeps editing.
     function leavesCase(link) {
@@ -1292,107 +1295,20 @@
             || link.hasAttribute('target') || link.hasAttribute('download') || link.hasAttribute('data-section-link')
             || link.getAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
             || link.getAttribute('href').startsWith('#')) { return; }
-        if (!dirty) {
-            // A post still in flight decides the lease itself; a release
-            // overtaking it could refuse a save.
-            if (!submitting) { releaseOnLeaving(link); }
+        if (!queueBusy()) {
+            releaseOnLeaving(link);
             return;
         }
+        // A post in flight decides the lease itself, and a change not yet
+        // sent lands first; then the lease goes with the operator.
         event.preventDefault();
-        if (submitting || confirmResolve) { return; }
-        askUnsaved().then(function (answer) {
-            if (answer === 'save') {
-                var form = activeDirtyForm();
-                if (form) {
-                    saveThen(form, function () {
-                        releaseOnLeaving(link);
-                        window.location.assign(link.href);
-                    });
-                }
-            } else if (answer === 'discard') {
-                dirtyEditors.clear();
-                setDirty(false);
-                releaseOnLeaving(link);
-                window.location.assign(link.href);
-            }
+        afterCommit(function () {
+            releaseOnLeaving(link);
+            window.location.assign(link.href);
         });
     });
 
-    // ---- save, then carry on: the unsaved-changes question's Save (and Apply
-    //      over unsaved Case changes) runs what was asked for once the save
-    //      has landed, rather than dropping it ------------------------------
-    var afterSave = null;
-    function saveThen(save, next, cancel) {
-        if (!save.reportValidity()) { if (cancel) { cancel(); } return; }
-        afterSave = { editor: save.getAttribute('id'), next: next, cancel: cancel };
-        save.requestSubmit();
-    }
-    // The action's form is found again after the save's swap, which renders
-    // it afresh with the Case's new version and a new operation key, and the
-    // operator's choices in it are put back before it is sent. A form that
-    // says what to tell the operator when the saved Case no longer offers it
-    // (data-save-first-dropped) has that said rather than the press lost.
-    function again(form, submitter) {
-        var id = form.getAttribute('id');
-        var action = form.getAttribute('action');
-        var choices = visibleChoices(form);
-        var name = submitter ? submitter.name : '';
-        var value = submitter ? submitter.value : '';
-        var formaction = submitter ? submitter.getAttribute('formaction') : null;
-        var dropped = form.getAttribute('data-save-first-dropped');
-        return function () {
-            var next = id ? document.getElementById(id) : Array.prototype.find.call(
-                record.querySelectorAll('form[action]'),
-                function (candidate) { return candidate.getAttribute('action') === action; });
-            if (!next) {
-                if (dropped) { showActionError(dropped); }
-                return;
-            }
-            restoreChoices(next, choices);
-            var button = submitter ? Array.prototype.find.call(next.elements, function (element) {
-                return element.type === 'submit' && element.name === name && element.value === value
-                    && element.getAttribute('formaction') === formaction;
-            }) : null;
-            next.requestSubmit(button || null);
-        };
-    }
-    // The operator's own choices in a form (never its hidden authority
-    // fields), and putting them back into its freshly rendered copy.
-    function visibleChoices(form) {
-        return Array.prototype.filter.call(form.elements, function (element) {
-            return element.name && element.type !== 'hidden' && element.type !== 'submit' && element.type !== 'button';
-        }).map(function (element) {
-            return { name: element.name, type: element.type, value: element.value, checked: element.checked };
-        });
-    }
-    function restoreChoices(form, choices) {
-        var seen = {};
-        Array.prototype.forEach.call(form.elements, function (element) {
-            if (!element.name || element.type === 'hidden' || element.type === 'submit' || element.type === 'button') { return; }
-            var same = choices.filter(function (choice) { return choice.name === element.name; });
-            if (element.type === 'radio' || element.type === 'checkbox') {
-                element.checked = same.some(function (choice) { return choice.value === element.value && choice.checked; });
-                if (element.checked && element.type === 'radio') {
-                    element.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-                return;
-            }
-            var at = seen[element.name] || 0;
-            seen[element.name] = at + 1;
-            if (same[at]) { element.value = same[at].value; }
-        });
-    }
-    document.addEventListener('pegasus:case-swapped', function () {
-        var pending = afterSave;
-        afterSave = null;
-        // A save the server refused leaves its editor unsaved: nothing follows.
-        if (!pending) { return; }
-        if (dirtyEditors.has(pending.editor)) { if (pending.cancel) { pending.cancel(); } return; }
-        // After the save's own submission has finished.
-        window.setTimeout(pending.next, 0);
-    });
-
-    // Glass's controls are independent of the Case draft and its authority.
+    // Glass's controls are independent of the Case form and its authority.
     var glassRefreshGeneration = 0;
     var glassOpening = false;
     var glassWindow = null;
@@ -1408,14 +1324,14 @@
     }
     function refreshGlassControls() {
         var host = record.querySelector('[data-glass-controls="launch"]');
-        if (!host) { return Promise.reject(new Error("Glass's controls are unavailable. Reload the Case after saving your changes.")); }
+        if (!host) { return Promise.reject(new Error("Glass's controls are unavailable. Reload the Case.")); }
         var generation = ++glassRefreshGeneration;
         var lease = record.querySelector('#case-edit-form [name="editLeaseToken"]');
         return fetch(host.dataset.glassControlsUrl, {
             credentials: 'same-origin', cache: 'no-store',
             headers: { 'X-Pegasus-Edit-Lease': lease ? lease.value : '', 'Accept': 'text/html' }
         }).then(function (response) {
-            if (!response.ok) { throw new Error("Glass's controls could not be refreshed. Save your changes and reload the Case before retrying."); }
+            if (!response.ok) { throw new Error("Glass's controls could not be refreshed. Reload the Case before retrying."); }
             return response.text();
         }).then(function (html) {
             if (generation !== glassRefreshGeneration) { return; }
@@ -1423,7 +1339,7 @@
             var nextLaunch = parsed.querySelector('[data-glass-controls="launch"]');
             var nextSession = parsed.querySelector('[data-glass-controls="session"]');
             var nextOutcome = parsed.querySelector('[data-glass-controls="outcome"]');
-            if (!nextLaunch || !nextSession || !nextOutcome) { throw new Error("Sign in again to refresh Glass's controls. Your Case changes are still here."); }
+            if (!nextLaunch || !nextSession || !nextOutcome) { throw new Error("Sign in again to refresh Glass's controls."); }
             var current = record.querySelector('[data-glass-controls="session"]');
             if (current && current.dataset.glassId === nextSession.dataset.glassId
                 && Number(current.dataset.glassVersion) > Number(nextSession.dataset.glassVersion)) { return; }
@@ -1446,44 +1362,29 @@
     window.pegasusGlassHandoff = function () {
         return refreshGlassControls().catch(function (error) { showActionError(error.message); }).finally(finishGlassOpening);
     };
-    function showGlassReturnNotice(state) {
-        var host = record.querySelector('[data-glass-controls="outcome"]');
-        var session = record.querySelector('[data-glass-controls="session"]');
-        if (!host || !session) { return; }
-        var text = state === 'Completed'
-            ? (session.dataset.glassImportedDirty || "The Glass's estimate was recorded as a repair spec, and your unsaved changes are still here. Save or cancel them to view it.")
-            : (session.dataset.glassReturnedDirty || "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.");
-        var notice = host.querySelector('[data-estimate-notice]');
-        if (!notice) {
-            notice = document.createElement('p'); notice.setAttribute('data-estimate-notice', '');
-            notice.appendChild(document.createElement('span')); host.appendChild(notice);
-        }
-        host.hidden = false;
-        notice.className = state === 'Completed' ? 'notice notice--success' : 'notice';
-        notice.setAttribute('role', 'status');
-        notice.querySelector('span').textContent = text;
-    }
     window.pegasusGlassReturn = function (url) {
         if (!samePage(url) || new URL(url, window.location.href).origin !== window.location.origin) {
             return Promise.reject(new Error('The Glass return does not belong to this Case.'));
         }
-        return refreshGlassControls().then(function (state) {
-            if (dirty || submitting) {
-                showGlassReturnNotice(state);
-                return;
-            }
-            var versionBeforeRead = record.getAttribute('data-case-version');
-            var generationBeforeRead = glassRefreshGeneration;
-            return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function (response) {
-                if (!response.ok || !samePage(response.url)) { throw new Error('The Case could not be refreshed.'); }
-                return response.text();
-            }).then(function (html) {
-                // A save or another refresh may have finished during this read.
-                // An older response cannot put the record back on its old version.
-                if (submitting || generationBeforeRead !== glassRefreshGeneration
-                    || versionBeforeRead !== record.getAttribute('data-case-version')) { return; }
-                if (!swap(html)) { throw new Error('The Case could not be refreshed.'); }
-                if (dirty) { showGlassReturnNotice(state); }
+        // The controls first; then, once any change not yet sent has landed,
+        // the Case as it now stands, the recorded spec included.
+        return refreshGlassControls().then(function () {
+            return new Promise(function (resolve, reject) {
+                afterCommit(function () {
+                    var versionBeforeRead = record.getAttribute('data-case-version');
+                    var generationBeforeRead = glassRefreshGeneration;
+                    fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function (response) {
+                        if (!response.ok || !samePage(response.url)) { throw new Error('The Case could not be refreshed.'); }
+                        return response.text();
+                    }).then(function (html) {
+                        // A post or another refresh may have finished during this
+                        // read. An older response cannot put the record back on
+                        // its old version.
+                        if (submitting || generationBeforeRead !== glassRefreshGeneration
+                            || versionBeforeRead !== record.getAttribute('data-case-version')) { return; }
+                        if (!swap(html)) { throw new Error('The Case could not be refreshed.'); }
+                    }).then(resolve, reject);
+                });
             });
         }).catch(function (error) { showActionError(error.message); throw error; }).finally(finishGlassOpening);
     };
@@ -1491,7 +1392,7 @@
         var form = event.target;
         if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-glass-window')) { return; }
         event.preventDefault();
-        if (glassOpening || submitting || confirmResolve) { return; }
+        if (glassOpening) { return; }
         var windowName = 'pegasus-glass-' + window.location.pathname;
         glassWindow = window.open('', windowName, 'popup=yes,width=1280,height=900');
         if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }
@@ -1501,23 +1402,21 @@
             if (glassWindow.closed) { finishGlassOpening(); }
         }, 500);
         var action = form.getAttribute('action');
-        function launchSaved() {
-            // A save renders the form again with its current lease and session
-            // version. Never reuse the detached form's authority.
+        // A change not yet sent lands first, and the launch carries the
+        // Case's current lease and session version, never a detached form's.
+        afterCommit(function () {
             var next = Array.from(record.querySelectorAll('form[data-glass-window]')).find(function (candidate) {
                 return candidate.getAttribute('action') === action;
             });
-            if (!next || dirty || glassWindow.closed) {
+            if (!next || glassWindow.closed) {
                 cancelGlassOpening();
-                showActionError("Glass's was not opened. Check the Case changes and try again.");
+                showActionError("Glass's was not opened. Check the Case and try again.");
                 return;
             }
             next.target = windowName;
             next.setAttribute('aria-busy', 'true');
             HTMLFormElement.prototype.submit.call(next);
-        }
-        var save = activeDirtyForm();
-        if (save) { saveThen(save, launchSaved, cancelGlassOpening); } else { launchSaved(); }
+        });
     });
 
     // ---- the section-head Edit posts the ribbon's claim and remembers the
@@ -1541,6 +1440,7 @@
     bindEstimateImport(record);
     setLayout(layout, false);
     bindHeartbeat();
+    bindEditControls();
     var addressed = new URLSearchParams(window.location.search).get('section');
     if (addressed && layout === 'scroll' && addressed.trim().toLowerCase() !== 'overview') {
         jumpTo(addressed.trim().toLowerCase(), false);
@@ -2522,8 +2422,8 @@
                     useInput.disabled = false;
                     setUseButton(button, true);
                     fillFromCard(card);
-                    // The decision is a change to the Case form, so it is unsaved
-                    // until the ribbon Save records it.
+                    // The decision is a change to the Case form: the frame
+                    // commits it once the card is left.
                     useInput.dispatchEvent(new Event('input', { bubbles: true }));
                 });
             });
@@ -2744,8 +2644,8 @@
             body.querySelectorAll('tr[data-estimate-line] button[name="removeLine"]').forEach(function (button, index) {
                 button.value = String(index);
             });
-            // The frame's dirty guard listens for input on the Case form's
-            // controls: a removed line is an unsaved change of the spec.
+            // The frame listens for input on the Case form's controls: a
+            // removed line is a change of the spec, committed after the idle.
             form.querySelector('input[name="estimateId"]').dispatchEvent(new Event('input', { bubbles: true }));
             appendPhantom();
         }
@@ -4137,7 +4037,8 @@
             });
             index += 1;
         });
-        // The frame's dirty guard listens for input on the form's controls.
+        // The frame listens for input on the form's controls and commits the
+        // staged edits after the idle.
         var marker = form.querySelector('input[name="editLeaseToken"]') || form;
         marker.dispatchEvent(new Event('input', { bubbles: true }));
     }

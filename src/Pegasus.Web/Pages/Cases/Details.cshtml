@@ -228,8 +228,14 @@
                 }
                 @if (editing)
                 {
-                    <span class="lease-line" data-lease-line data-lease-expired-text="@Frame.EditingExpired" hidden></span>
-                    <form method="post" asp-page-handler="ReleaseLease" id="case-finish-editing-form" data-case-cancel-form hidden>
+                    @* The status word of the session: what the last commit did,
+                       or that editing has expired (save as you go, operator,
+                       29 September 2026). *@
+                    <span class="lease-line" data-lease-line data-lease-expired-text="@Frame.EditingExpired"
+                          data-lease-saving-text="@Frame.Saving" data-lease-saved-text="@Frame.Saved" hidden></span>
+                    @* Done ends editing and frees the Case; every change is
+                       already recorded, so there is nothing to discard. *@
+                    <form method="post" asp-page-handler="ReleaseLease" id="case-finish-editing-form" data-case-done-form hidden>
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
@@ -260,17 +266,21 @@
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     </form>
                     <span class="status status--navy status--plain case-edit-badge">@Frame.Editing</span>
-                    <button type="submit" form="case-finish-editing-form" class="btn" data-case-cancel>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                        <span>@Frame.Cancel</span>
-                    </button>
                     @if (editingCaseData && details.Data is not null && !Model.IsInspectionView)
                     {
-                        <button type="submit" form="case-edit-form" class="btn btn--primary" name="finishEditing" value="true" data-case-save>
+                        @* The Case form's default submit. With script it is the
+                           commit Ctrl S and Enter reach, and the script hides it;
+                           without script it is the save. It stands first so
+                           Enter in a cell never lands on a Repair Spec line button. *@
+                        <button type="submit" form="case-edit-form" class="btn btn--small" data-case-save-now>
                             <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                            <span>@Frame.Save</span>
+                            <span>@Frame.SaveNow</span>
                         </button>
                     }
+                    <button type="submit" form="case-finish-editing-form" class="btn" data-case-done>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                        <span>@Frame.Done</span>
+                    </button>
                 }
                 else if (!Model.IsInspectionView
                     && (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff))
@@ -641,5 +651,4 @@
 </article>
 
 <div data-case-viewer-host><partial name="Cases/Shared/_CaseViewer" model="Model" /></div>
-<partial name="Shared/_EditFinishConfirm" />
 <div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>

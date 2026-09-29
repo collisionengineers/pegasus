@@ -207,8 +207,15 @@ public sealed class CaseEditModeWebTests
         Assert.Equal(2, store.EditBasisReads);
     }
 
+    /// <summary>
+    /// Save as you go (operator, 29 September 2026): the ribbon offers Done
+    /// and the Case form's default Save now, never a Save that ends editing,
+    /// and no unsaved-changes dialog is rendered. Every save is a commit of
+    /// the open session: the lease it consumed is claimed again and the page
+    /// keeps editing, whatever the form posts.
+    /// </summary>
     [Fact]
-    public async Task TheRibbonSaveEndsEditMode()
+    public async Task TheRibbonOffersDoneAndEverySaveKeepsEditing()
     {
         var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
         using var workspace = await EnterEditModeAsync(store, services =>
@@ -216,25 +223,37 @@ public sealed class CaseEditModeWebTests
             Substitute<ISaveCaseWorkspace>(services, store);
             Substitute<IReleaseCaseEditLease>(services, store);
         });
-        var leased = await workspace.GetWorkspaceAsync();
-        Assert.Contains("name=\"finishEditing\" value=\"true\" data-case-save", leased, StringComparison.Ordinal);
+        var before = store.CaseVersion;
+        // Decoded: the status words carry an ellipsis the encoder writes as an entity.
+        var leased = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
+        Assert.Contains("form=\"case-edit-form\" class=\"btn btn--small\" data-case-save-now", leased, StringComparison.Ordinal);
+        Assert.Contains("data-case-done-form", leased, StringComparison.Ordinal);
+        Assert.Contains("form=\"case-finish-editing-form\" class=\"btn\" data-case-done", leased, StringComparison.Ordinal);
+        Assert.Contains("data-lease-saving-text=\"Saving…\" data-lease-saved-text=\"Saved\"", leased, StringComparison.Ordinal);
+        Assert.DoesNotContain("finishEditing", leased, StringComparison.Ordinal);
+        Assert.DoesNotContain("edit-finish-confirm", leased, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-save-first", leased, StringComparison.Ordinal);
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
             Form(workspace.AntiforgeryToken,
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("expectedVersion", before.ToString(CultureInfo.InvariantCulture)),
                 ("operationKey", DetailsModelOperationKey),
                 ("editLeaseToken", store.LeaseToken),
                 ("finishEditing", "true"),
                 ("claimNumber", "CLM-42")));
         AssertPrg(response, store.CaseId);
         Assert.Single(store.Saves);
-        // The save consumed the lease and none is claimed again: there is
-        // nothing left to release.
-        Assert.Single(store.Claims);
+        // The save consumed the lease and the session claimed it again; a
+        // posted finishEditing, which no control sends any more, changes nothing.
+        Assert.Equal(2, store.Claims.Count);
+        Assert.Equal(before + 1, store.Claims[1].ExpectedVersion);
         Assert.Empty(store.LeaseReleases);
         var after = await workspace.GetWorkspaceAsync();
-        Assert.Contains("Case saved.", after, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"editLeaseToken\"", after, StringComparison.Ordinal);
-        Assert.Contains("handler=ClaimLease", after, StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", after, StringComparison.Ordinal);
+        Assert.Contains("name=\"editLeaseToken\"", after, StringComparison.Ordinal);
+        // The authority the next commit carries forward, named for the script.
+        Assert.Contains("name=\"operationKey\" value=\"", after, StringComparison.Ordinal);
+        Assert.True(Occurrences(after, "data-carry-forward") >= 3, "The Save form's version, lease and operation key carry forward.");
+        Assert.DoesNotContain("handler=ClaimLease", RecordBar(after), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -1450,14 +1469,14 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
-    /// In edit mode Generate report is a save-first action: its form carries
-    /// the session's lease and <c>data-case-save-first</c>, so the script
-    /// saves the Case's unsaved changes, keeps editing, and then posts the
-    /// Generate form the save rendered afresh. The generation runs under the
-    /// session's own lease; the handler claims and releases nothing.
+    /// In edit mode Generate report posts under the session's own lease. Its
+    /// form carries that lease and no save-first marker: every change is
+    /// saved as it is made (operator, 29 September 2026), so the script only
+    /// lets a change not yet sent land and then posts the form with the
+    /// Case's new version. The handler claims and releases nothing.
     /// </summary>
     [Fact]
-    public async Task GenerateReportInEditModeSavesFirstAndGeneratesUnderTheSessionsLease()
+    public async Task GenerateReportInEditModeGeneratesUnderTheSessionsLeaseWithNoSaveFirst()
     {
         var store = new RecordingCaseDetailsStore
         {
@@ -1471,7 +1490,8 @@ public sealed class CaseEditModeWebTests
             ReadyReportPorts(services, store, generator);
         });
         var form = GenerateReportForm(await ReportSectionAsync(workspace));
-        Assert.Contains("data-case-save-first", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-save-first", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-save-first-dropped", form, StringComparison.Ordinal);
         Assert.Equal(store.LeaseToken, InputValue(form, "editLeaseToken"));
 
         using var saved = await workspace.Client.PostAsync(
@@ -1935,11 +1955,14 @@ public sealed class CaseEditModeWebTests
         Assert.Contains("id=\"case-finish-editing-form\"", holderRecord, StringComparison.Ordinal);
         Assert.Contains("form=\"case-finish-editing-form\"", holderRecord, StringComparison.Ordinal);
         Assert.Contains("form=\"case-edit-form\"", holderRecord, StringComparison.Ordinal);
-        Assert.Equal(1, Occurrences(holderRecord, ">Cancel</span>"));
-        Assert.Equal(1, Occurrences(holderRecord, ">Save</span>"));
-        // WP6: both ways out of an edit are on the one action row.
-        Assert.Equal(1, Occurrences(StickyActionRow(holderHtml), ">Cancel</span>"));
-        Assert.Equal(1, Occurrences(StickyActionRow(holderHtml), ">Save</span>"));
+        Assert.Equal(1, Occurrences(holderRecord, ">Done</span>"));
+        Assert.Equal(1, Occurrences(holderRecord, ">Save now</span>"));
+        // WP6: the way out of an edit and the form's default submit are on
+        // the one action row; there is no Save that ends editing and no Cancel.
+        Assert.Equal(1, Occurrences(StickyActionRow(holderHtml), ">Done</span>"));
+        Assert.Equal(1, Occurrences(StickyActionRow(holderHtml), ">Save now</span>"));
+        Assert.DoesNotContain(">Cancel</span>", holderRecord, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Save</span>", holderRecord, StringComparison.Ordinal);
         Assert.DoesNotContain("Finish editing", holderRecord, StringComparison.Ordinal);
         Assert.DoesNotContain("Save case data", holderRecord, StringComparison.Ordinal);
         AssertNoBannedVocabulary(holderRecord);

@@ -478,16 +478,18 @@ public sealed class CaseDetailsWebTests
         Assert.Contains("title=\"Refresh\"", refresh, StringComparison.Ordinal);
         Assert.Contains("data-refresh-label", refresh, StringComparison.Ordinal);
 
-        // The ribbon's actions: Cancel and Save beside the Editing badge and
-        // the one Actions menu; no reason dialog stands between Save and the
+        // The ribbon's actions: the Case form's default Save now and Done
+        // beside the Editing badge and the one Actions menu (save as you go,
+        // 29 September 2026); no reason dialog stands between a save and the
         // record (v25 decision A).
         var actions = StickyActionRow(html);
         Assert.Contains("form=\"case-finish-editing-form\"", actions, StringComparison.Ordinal);
-        Assert.Contains("data-case-cancel-form", actions, StringComparison.Ordinal);
+        Assert.Contains("data-case-done-form", actions, StringComparison.Ordinal);
         Assert.Contains("form=\"case-edit-form\"", actions, StringComparison.Ordinal);
         Assert.DoesNotContain("case-save-reason-dialog", html, StringComparison.Ordinal);
-        Assert.Equal(1, Occurrences(actions, ">Cancel</span>"));
-        Assert.Equal(1, Occurrences(actions, ">Save</span>"));
+        Assert.Equal(1, Occurrences(actions, ">Done</span>"));
+        Assert.Equal(1, Occurrences(actions, ">Save now</span>"));
+        Assert.DoesNotContain(">Cancel</span>", actions, StringComparison.Ordinal);
         Assert.Contains("case-edit-badge", actions, StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(actions, "data-case-actions"));
         Assert.DoesNotContain("You are editing this case", html, StringComparison.Ordinal);

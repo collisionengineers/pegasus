@@ -24,7 +24,8 @@ The ribbon owns:
 - state chip, including held review date when applicable;
 - Case type chip;
 - colleague-editing state when applicable;
-- Edit Case, or Editing + Cancel + Save while editing;
+- Edit Case, or Editing + its status word + Done while editing (save as you go, operator,
+  29 September 2026), with the Case form's default Save now that the script hides;
 - one Actions menu.
 
 Do not turn the ribbon into a button shelf.
@@ -114,13 +115,15 @@ Read and edit share one geometry and one look (operator, 23 September 2026).
 - Entering edit must not teleport the operator or substantially reflow the page.
 - Edit from a section head enters the one Case-wide edit session; that section stays where it was
   on the screen.
-- Save and Cancel act in place.
+- Every change saves as it is made (operator, 29 September 2026): a cell as it is left, a
+  composite editor when it is left or after a short pause. A landed save redraws the notices,
+  the ribbon, the aside and the dialogs and never a section the operator is typing in. Done
+  releases the lease. There is no Save and no Cancel; do not reintroduce either, or an
+  unsaved-changes question.
 - Immediate-post actions should not end the edit session unless their contract requires it.
+  An action, Refresh or a link away waits for a change not yet sent to land first.
 - A colleague's lease is read-only until an eligible staff member uses the
   audited Take over action required by FRD-14.
-
-Normal Cancel discards the edit without a redundant confirmation. Dirty-navigation protection may
-still guard leaving/switching when appropriate.
 
 ## Availability
 
@@ -173,15 +176,15 @@ lookup and recorded with a calculated Engineer's Value when the Case has one.
 The boxes are greyed while reading and inputs of the Case form while editing. Get valuation fills
 the same card in place, without redrawing the page, or shows the card's notice when the source has
 no working provider. A source with no connected provider shows that notice from the start and has
-no Get valuation button (an unavailable action is omitted, not disabled). The ribbon Save is the
-writer (23 September 2026): it records every changed card with whatever was entered — any box may
-be left blank — and an untouched or blank card records nothing. A card opens holding only what is
-recorded, in both modes.
+no Get valuation button (an unavailable action is omitted, not disabled). The Case's save is the
+writer (23 September 2026, saved as you go since 29 September 2026): it records every changed card
+with whatever was entered — any box may be left blank — and an untouched or blank card records
+nothing. A card opens holding only what is recorded, in both modes.
 
 The calculator has no Apply (operator, 23 September 2026): its result fills the Engineer's Value
-box, and the ribbon Save records a calculation that changed since the page opened, or one the
-Engineer chose with **Use this value** (28 September 2026), against its basis card. Any other save
-records no calculation. **Use this value** is one button on the card, not a second writer: it
+box, and a save records a calculation that changed since the last save, or one the Engineer chose
+with **Use this value** (28 September 2026), against its basis card. Any other save records no
+calculation. **Use this value** is one button on the card, not a second writer: it
 chooses the card, fills the three boxes and switches on a field of the Case form. The preview lines
 use the retail as typed and the claimant's VAT as the form holds it, are dimmed while pending, and
 show a failure or Core's own reason, never "None yet" unless no card is chosen. Where a surface
@@ -205,8 +208,8 @@ Preserve the Estimate workbench and its existing Expand/full-screen presentation
 Do not move its main controls into the Case ribbon.
 
 The spec has no Save of its own (operator, 23 September 2026): its controls belong to the Case form
-and the ribbon Save records it with everything else. Do not reintroduce a Save repair spec button.
-Apply and Remove scaling save the Case first and then act on the saved spec.
+and each save records it with everything else. Do not reintroduce a Save repair spec button.
+Apply and Remove scaling wait for a change not yet sent to land and then act on the saved spec.
 
 Do not restore the redundant locked "A confirmed Engineer's Value is required" pill. The Send to
 AI control is simply unavailable/absent until its requirement is met, according to the current
