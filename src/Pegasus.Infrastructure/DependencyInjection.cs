@@ -250,6 +250,7 @@ public static class DependencyInjection
         services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
         services.AddScoped<IAutomaticEvaReviewSubmissionStore, EfAutomaticEvaReviewSubmissionStore>();
         services.AddScoped<IReportRecipientSuggestionQueries, EfReportRecipientSuggestionQueries>();
+        services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
@@ -321,6 +322,7 @@ public static class DependencyInjection
         services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
+        services.AddScoped<IUpdatePrincipalSalvageMatrix, UpdatePrincipalSalvageMatrix>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());

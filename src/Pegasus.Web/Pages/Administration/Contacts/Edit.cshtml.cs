@@ -1,11 +1,14 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Address;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Reports;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration.Contacts;
 
@@ -22,6 +25,7 @@ public sealed class EditModel(
     IRevokePrincipalCredential revokeCredential,
     IUpdatePrincipalReportSettings updatePrincipalReportSettings,
     IUpdatePrincipalDefaultInspectionLocation updatePrincipalDefaultInspectionLocation,
+    IUpdatePrincipalSalvageMatrix updatePrincipalSalvageMatrix,
     IReplacePrincipal replacePrincipal) : AdministrationPageModel
 {
     public ContactDirectoryRecord? Contact { get; private set; }
@@ -59,6 +63,10 @@ public sealed class EditModel(
     [BindProperty] public bool IncludeOriginalInstructionSender { get; set; }
     [BindProperty] public string[] AdditionalReportRecipients { get; set; } = [];
     [BindProperty] public string? ReportSettingsOperationKey { get; set; } = NewOperationKey();
+    [BindProperty] public string? SalvageMatrixOperationKey { get; set; } = NewOperationKey();
+    // The salvage matrix rows as shown: the stored bands, or what was typed
+    // when a save was refused.
+    public IReadOnlyList<SalvageMatrixEntry> SalvageRows { get; private set; } = [];
     [BindProperty] public bool LocationIsImageBasedAssessment { get; set; }
     [BindProperty, StringLength(200)] public string? LocationLabel { get; set; }
     [BindProperty, StringLength(500)] public string? LocationAddress { get; set; }
@@ -162,6 +170,40 @@ public sealed class EditModel(
             catch (StaffAuthorizationException) { return Forbid(); }
         }
         await PopulateAsync(actor, cancellationToken);
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostUpdateSalvageMatrixAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (id == Guid.Empty) return BadRequest();
+        ContactId = id;
+        ClearModelStatePreservingErrors(
+            nameof(PrincipalExpectedVersion),
+            nameof(ExpectedVersion),
+            nameof(SalvageMatrixOperationKey));
+        var expectedVersion = PrincipalExpectedVersion;
+        var posted = PostedSalvageRows();
+        if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
+        if (!IsOperationKeyValid(SalvageMatrixOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                await updatePrincipalSalvageMatrix.ExecuteAsync(new(
+                    Principal!.Id, expectedVersion, actor, SalvageMatrixOperationKey!,
+                    SalvageMatrix.FromEntries(posted), ExpectedVersion), cancellationToken);
+                TempData["AdministrationStatus"] = "The principal's salvage matrix was updated.";
+                return RedirectToPage(new { id = ContactId });
+            }
+            catch (SalvageMatrixException exception) { ModelState.AddModelError(string.Empty, SalvageMatrixErrorMessage(exception)); }
+            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
+            catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The settings were not accepted."); }
+            catch (StaffAuthorizationException) { return Forbid(); }
+        }
+        await PopulateAsync(actor, cancellationToken);
+        // What was typed stays; the blank spare rows are drawn again anyway.
+        SalvageRows = [.. posted.Where(row => !row.IsBlank)];
         return Page();
     }
 
@@ -356,6 +398,31 @@ public sealed class EditModel(
         LocationAddress = Principal.DefaultInspectionAddress;
         LocationPostcode = Principal.DefaultInspectionPostcode;
         CredentialVersion = Credential?.Version ?? 0;
+        SalvageRows = (Principal.SalvageMatrix?.Bands ?? [])
+            .Select(band => new SalvageMatrixEntry(
+                band.Category,
+                band.From.ToString("0.00", CultureInfo.InvariantCulture),
+                band.To.ToString("0.00", CultureInfo.InvariantCulture),
+                band.Percentage.ToString("0.00", CultureInfo.InvariantCulture)))
+            .ToArray();
+    }
+
+    // The rows post as four repeated fields read in order, so a blank cell
+    // keeps its row's place.
+    private SalvageMatrixEntry[] PostedSalvageRows()
+    {
+        var form = Request.Form;
+        var categories = form["SalvageBandCategory"];
+        var from = form["SalvageBandFrom"];
+        var to = form["SalvageBandTo"];
+        var percentage = form["SalvageBandPercentage"];
+        return Enumerable.Range(0, categories.Count)
+            .Select(index => new SalvageMatrixEntry(
+                categories[index] ?? string.Empty,
+                index < from.Count ? from[index] : null,
+                index < to.Count ? to[index] : null,
+                index < percentage.Count ? percentage[index] : null))
+            .ToArray();
     }
 
     private void CopyFrom(ContactDirectoryRecord contact)
@@ -379,6 +446,23 @@ public sealed class EditModel(
 
     public static string RoleLabel(ContactRole role) => role switch { ContactRole.Principal => "Principal", ContactRole.ClaimSource => "Claim Source", ContactRole.Repairer => "Repairer", ContactRole.Storage => "Storage", ContactRole.ThirdPartyEngineer => "Third Party Engineer", _ => role.ToString() };
     private static string ContactErrorMessage(ContactDirectoryError error) => error switch { ContactDirectoryError.DuplicateOrganizationName => "A contact with that organisation name already exists. Select it before adding a role.", ContactDirectoryError.DuplicatePrincipalCode => "That principal code already exists.", ContactDirectoryError.InvalidPrincipalAssociation => "A contact cannot link to itself as a principal, and only non-principal types can link to principals.", ContactDirectoryError.StaleVersion => "The contact changed after you opened it. Reload it and try again.", _ => "The contact could not be saved." };
+    private static string SalvageMatrixErrorMessage(SalvageMatrixException exception)
+    {
+        var category = OperatorLabels.PrincipalAdministration.SalvageCategory(exception.Category);
+        return exception.Rule switch
+        {
+            SalvageMatrixRule.Incomplete => $"{category}: each band needs From, To and Percentage paid.",
+            SalvageMatrixRule.FromAfterTo => $"{category}: From must not be more than To.",
+            SalvageMatrixRule.InvalidAmount => $"{category}: amounts must be £0.00 or more.",
+            SalvageMatrixRule.InvalidPercentage => $"{category}: Percentage paid must be 0 to 100.",
+            SalvageMatrixRule.Overlap => $"{category}: bands overlap ({BandRange(exception.Band!)} and {BandRange(exception.OtherBand!)}).",
+            _ => "The settings were not accepted."
+        };
+    }
+
+    private static string BandRange(SalvageMatrixBand band) =>
+        $"{band.From.ToString("#,##0.00", CultureInfo.InvariantCulture)} to {band.To.ToString("#,##0.00", CultureInfo.InvariantCulture)}";
+
     private string PrincipalAdministrationErrorMessage(OrganizationAdministrationException exception) =>
         exception.Error == OrganizationAdministrationError.StaleVersion
             && Contact is { } contact

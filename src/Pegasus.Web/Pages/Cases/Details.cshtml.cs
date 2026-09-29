@@ -71,6 +71,7 @@ public sealed partial class DetailsModel(
     IEnumerable<IEstimateDocumentParser> estimateParsers,
     IRepairSpecificationSnapshotStore specificationSnapshots,
     IUnroadworthyReasonBankStore unroadworthyReasonBank,
+    IPrincipalSalvageMatrixQueries principalSalvageMatrices,
     ISaveUnroadworthyReason saveUnroadworthyReasonAction,
     IScaleRepairSpecification scaleRepairSpecification,
     IRemoveRepairSpecificationScaling removeRepairSpecificationScaling,
@@ -627,6 +628,25 @@ public sealed partial class DetailsModel(
     public IReadOnlyList<string> UnroadworthyReasonWordings { get; private set; } =
         UnroadworthyReasonBank.Standard;
 
+    /// <summary>
+    /// The salvage matrix of this Case's Principal (29 September 2026), read
+    /// while the Engineer sections edit; null when the Principal has none.
+    /// </summary>
+    public SalvageMatrix? PrincipalSalvageMatrix { get; private set; }
+
+    /// <summary>
+    /// Whether the salvage value the box opens with is still the matrix's to
+    /// fill: empty, or the figure the matrix gives for the category and
+    /// Engineer's Value the page opens with.
+    /// </summary>
+    public bool SalvageMatrixFollows =>
+        PrincipalSalvageMatrix is { } matrix
+        && matrix.Follows(
+            RecordedOutcome,
+            AssessmentEditorValue(AssessmentVocabulary.SalvageCategory),
+            EngineerValue,
+            SalvageValueFigure);
+
     /// <summary>The repair reserve the Current repair specification implies (v28 P30), or null.</summary>
     public decimal? ComputedRepairReserve =>
         SettlementPolicy.ComputedRepairReserve(RepairCostIncVat, RecordedOutcome);
@@ -971,6 +991,9 @@ public sealed partial class DetailsModel(
         var estimates = reads.Start(token => listEstimates.ExecuteAsync(id, work, token));
         var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
         var savedReasons = reads.Start(token => unroadworthyReasonBank.ListAsync(principalCode, token));
+        var salvageMatrix = CanEditEngineering
+            ? reads.Start(token => principalSalvageMatrices.GetForCaseAsync(id, token))
+            : null;
         var readinessInputs = canOpen
             ? reads.Start(token => reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, reuse, token))
             : null;
@@ -993,6 +1016,7 @@ public sealed partial class DetailsModel(
         ApplyEstimateSelection(estimate);
         var saved = await savedReasons;
         UnroadworthyReasonWordings = [.. UnroadworthyReasonBank.Standard, .. saved.Select(item => item.Text)];
+        PrincipalSalvageMatrix = salvageMatrix is null ? null : await salvageMatrix;
         var inputs = readinessInputs is null ? null : await readinessInputs;
         if (inputs is not null)
         {
