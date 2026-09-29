@@ -270,12 +270,21 @@
         {
             <section class="panel" aria-labelledby="image-intake-candidates-title">
                 <div class="panel-head"><h2 id="image-intake-candidates-title">Eligible case candidates</h2></div>
+                @if (Model.AutomationWithheld is { } withheld)
+                {
+                    <div class="panel-section">
+                        <p class="notice notice--info" data-image-automation-withheld="@withheld">@OperatorLabels.ImageIntakeWithheldReason(withheld)</p>
+                    </div>
+                }
                 <table class="table table--compact">
-                    <thead><tr><th scope="col">Case/PO</th></tr></thead>
+                    <thead><tr><th scope="col">Case/PO</th><th scope="col">@OperatorLabels.Principal</th></tr></thead>
                     <tbody>
                         @foreach (var candidate in Model.AssociationCandidates)
                         {
-                            <tr><td class="mono"><a asp-page="/Cases/Details" asp-route-id="@candidate.CaseId">@candidate.CaseReference</a></td></tr>
+                            <tr>
+                                <td class="mono"><a asp-page="/Cases/Details" asp-route-id="@candidate.CaseId">@candidate.CaseReference</a></td>
+                                <td data-image-candidate-principal>@(candidate.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</td>
+                            </tr>
                         }
                     </tbody>
                 </table>
