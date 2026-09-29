@@ -97,6 +97,11 @@ and approved-mailbox identifiers, and acknowledges promptly. It does not
 download, classify, extract, associate, allocate or change a message.
 Unknown, expired, malformed or wrongly scoped notifications fail closed
 without queuing work or revealing the secret.
+Graph hangs up on a slow answer and resends only minutes later. So once the
+endpoint has read a batch, it finishes queuing it even if Graph has gone,
+within a 30 s bound. The resend is then a safe duplicate. The Web start-up
+warm-up runs the endpoint's subscription read, so the first notification after
+a restart does not pay for it.
 
 The Worker alone owns the mailbox lease, the cursor or delta read,
 retention, the shared intake call and the retry outcome. A creation
