@@ -11,6 +11,7 @@
     the record's one Save form.
 *@
 @using System.Globalization
+@using System.Text.Json
 @using Pegasus.Core.Assessment
 @using Pegasus.Core.Reports
 @using Pegasus.Web.Presentation
@@ -185,9 +186,17 @@
                 var engineerValueText = engineerValueForShare is { } valueForText
                     ? Pegasus.Web.Pages.Cases.DetailsModel.FormatPounds(valueForText)
                     : "—";
+                @* The Principal's salvage matrix, read only while the value
+                   edits: script fills the money field from it (29 September 2026).
+                   Without one the data attributes render empty. *@
+                var salvageMatrix = Model.PrincipalSalvageMatrix is { } matrix
+                    ? JsonSerializer.Serialize(matrix.Bands, JsonSerializerOptions.Web)
+                    : null;
                 @* P14: the salvage value as a share of the Engineer's Value. The
                    money field stays the posted control; the slider writes into it. *@
-                <div class="salvage-share" data-salvage-share>
+                <div class="salvage-share" data-salvage-share
+                     data-salvage-matrix="@salvageMatrix"
+                     data-salvage-matrix-follows="@(salvageMatrix is null ? null : Model.SalvageMatrixFollows ? "true" : "false")">
                     @if (engineerValueForShare is null)
                     {
                         <span class="muted">@SettlementLabels.SetInValuation</span>
