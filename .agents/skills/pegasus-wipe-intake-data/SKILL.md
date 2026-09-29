@@ -64,7 +64,8 @@ zero, so the next allocation is `QDOSyy001`.
   `Organizations*`/`Principals*`, `PrincipalDomain*`/
   `PrincipalReferences`, `WorkflowConfigurations`, `SendToAiControl`,
   `SecurityEvents`, `ValuationPresets` and `EmailTemplates`
-  (administrator-managed configuration),
+  (administrator-managed configuration), `ImageTags` (the image-tag
+  vocabulary, whose built-in rows only a migration seeds),
   and the reference-sequence tables `CaseSequences`, `ImageIntakeSequences`
   and `UnidentifiedSequences`, plus `TriageSequences` only while the schema
   still has it (so no case/image/Triage/unidentified reference is ever
@@ -116,7 +117,9 @@ messages whose occurrence identities the wipe removed.
 3. **Execute (only after approval):** stop the exact Worker app for the
    approved maintenance window and exclude application writes. The script
    refuses `-Execute` unless the Worker is already stopped; it does not
-   change service state itself.
+   change service state itself. It also refuses when no built-in image tag
+   exists: the report reads Overview and Close-up by their seeded
+   identifiers, so restore the rows first.
    ```powershell
    pwsh ./scripts/Invoke-IntakeDataWipe.ps1 -Execute
    ```
@@ -134,8 +137,9 @@ messages whose occurrence identities the wipe removed.
    (expect 0) and "Wiped tables still holding rows" (expect 0), plus an
    exact before/after comparison of every value in the reference-sequence
    tables (`CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences`, and
-   `TriageSequences` where it still exists) and the `ValuationPresets` row
-   count (expect 0 changes). The expanded reset instead expects only its inventoried QDOS row
+   `TriageSequences` where it still exists) and the `ValuationPresets`,
+   `EmailTemplates` and built-in image tag row counts (expect 0 changes). The
+   expanded reset instead expects only its inventoried QDOS row
    to become zero and verifies that `alex` is the sole remaining account with
    no attributable OpenIddict or security-event rows for deleted account IDs.
    Reload the
