@@ -1697,7 +1697,6 @@ public sealed partial class DetailsModel(
         string operationKey,
         string? reason,
         bool saveUnroadworthyReason,
-        bool finishEditing,
         string editLeaseToken,
         string? claimantName,
         string? claimNumber,
@@ -2101,11 +2100,11 @@ public sealed partial class DetailsModel(
                 }
             },
             "Case saved.",
-            // The ribbon Save ends edit mode (operator, 23 September 2026): the
-            // save consumed the lease and none is claimed again. A save the page
-            // continues from, and Ctrl S, keep it.
+            // Save as you go (operator, 29 September 2026): every save is a
+            // commit of the open edit session, so the lease the save consumed
+            // is claimed again and the page keeps editing. Done releases it.
             caseId => RedirectToSection(caseId, section, savedEstimate),
-            keepEditing: !finishEditing);
+            keepEditing: true);
 
         if (bankError is not null)
         {

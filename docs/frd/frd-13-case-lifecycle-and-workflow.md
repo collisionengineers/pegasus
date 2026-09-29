@@ -97,7 +97,11 @@ Engineer, or skip Review.
 
 **Saving does not unlock.** An action is available exactly when its stated
 prerequisites are met. Saving unchanged or unrelated data never unlocks an
-action and never resets readiness, lifecycle or advisory state.
+action and never resets readiness, lifecycle or advisory state. A saved
+required fact clears its blocker at once: on the Case record every change is
+saved as it is made, so the blocker goes, the state moves and the action
+appears within the round trip
+([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
 
 ### Hand to Engineer
 

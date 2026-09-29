@@ -136,10 +136,11 @@ terms, the changed cells show its figures in amber and cannot be typed in,
 and the rollup and the readout follow. The readout, previewed and recorded
 alike, ends `labour at floor` when the labour rate stops at its floor.
 Nothing is recorded until Apply, and any save records the spec as
-edited, not as previewed. Apply saves the Case first (the one Save, which records the spec as
-edited), then freezes the saved spec, saves the scaled specification and
-freezes it again as the scaled version; Remove scaling likewise saves first
-and returns the spec to the version frozen before. A contract repair's agreed sum is Case data the
+edited, not as previewed. Apply waits for a change not yet sent to land
+(every save records the spec as edited, [FRD-16](frd-16-case-record-workspace.md#case-workspace)),
+then freezes the saved spec, saves the scaled specification and freezes it
+again as the scaled version; Remove scaling likewise waits and returns the
+spec to the version frozen before. A contract repair's agreed sum is Case data the
 Engineer records beside the specification; recording it sets the outcome to
 Contract repair, and a different sum is a scaling target. Every import,
 scale, removal, restore and sent report freezes a numbered version with how
@@ -260,8 +261,8 @@ spec, which becomes Current. When that authority is no longer current — a
 Case save while Glass's was open, or an expired or lost lease — the return
 takes a fresh lease for the returning staff member and lands the spec, as long
 as nobody holds the Case. While anyone holds it, the same staff member in
-another window included, the retained result waits for **Resume**, so unsaved
-edits are never overtaken. Callback replay creates neither another spec nor
+another window included, the retained result waits for **Resume**, so the
+holder's session is never overtaken. Callback replay creates neither another spec nor
 another change.
 
 **Unknown answers hold the account.** A provider write whose answer was lost

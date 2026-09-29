@@ -558,7 +558,6 @@
                       data-estimate-import-max-bytes="@Model.EstimateImportMaximumBytes"
                       data-estimate-import-extensions="@Model.EstimateImportExtensions"
                       data-estimate-import-unsupported="@ImportLabels.UnsupportedFile"
-                      data-estimate-import-dirty="@ImportLabels.UnsavedEstimate"
                       data-estimate-import-busy="@ImportLabels.ActionInProgress">
                     <input type="hidden" name="id" value="@caseId" />
                     <input type="hidden" name="expectedVersion" value="@caseVersion" />
@@ -752,7 +751,7 @@
         {
             if (editable)
             {
-                @* The editor's controls belong to the Case form; the ribbon Save
+                @* The editor's controls belong to the Case form; each commit
                    records the spec with the rest of the Case. *@
                 <div class="stack" data-estimate-form
                      data-line-removed-label="@EstimateLabels.LineRemoved" data-lines-removed-label="@EstimateLabels.LinesRemoved(2).Replace("2 ", string.Empty)">
@@ -762,7 +761,7 @@
                 if (estimate is not null && !Model.EditingNewEstimate && engineerValue is not null)
                 {
                     <form id="case-estimate-scale-form" method="post" asp-page="/Cases/Details" asp-page-handler="ScaleEstimate"
-                          asp-route-id="@caseId" asp-route-section="estimate" data-case-save-first>
+                          asp-route-id="@caseId" asp-route-section="estimate">
                         <input type="hidden" name="expectedVersion" value="@caseVersion" />
                         <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
@@ -772,7 +771,7 @@
                 if (scaled && estimate is not null)
                 {
                     <form id="remove-scaling-form" method="post" asp-page="/Cases/Details" asp-page-handler="RemoveEstimateScaling"
-                          asp-route-id="@caseId" asp-route-section="estimate" data-case-save-first>
+                          asp-route-id="@caseId" asp-route-section="estimate">
                         <input type="hidden" name="expectedVersion" value="@caseVersion" />
                         <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />

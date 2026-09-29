@@ -327,12 +327,13 @@
              data-text-preview-failed="@(editable ? ValuationLabels.PreviewFailed : null)">
             @if (editable)
             {
-                @* The calculation the page opened on: the Save records one
-                   that differs from it, or one the Engineer chose to use.
-                   Use this value switches the two hidden fields on (a card
-                   typed in this edit has no identity, so it is named by its
-                   source); they post nothing until then. *@
-                <input type="hidden" name="selection.Opening" value="@Model.OpeningValuationCanonical" form="case-edit-form" />
+                @* The calculation the last commit recorded: a commit records
+                   one that differs from it, or one the Engineer chose to use,
+                   and the script carries the recorded one forward. Use this
+                   value switches the two hidden fields on (a card typed in
+                   this edit has no identity, so it is named by its source);
+                   they post nothing until then. *@
+                <input type="hidden" name="selection.Opening" value="@Model.OpeningValuationCanonical" form="case-edit-form" data-carry-forward />
                 <input type="hidden" name="selection.GuideSource" value="" form="case-edit-form" disabled data-valuation-source-input />
                 <input type="hidden" name="selection.Use" value="true" form="case-edit-form" disabled data-valuation-use-input />
             }
