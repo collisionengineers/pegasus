@@ -94,7 +94,15 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.NotNull(input);
         Assert.Null(input.Signatory);
         Assert.Equal(2, input.Photos.Count);
-        Assert.Equal(1, contentStore.BatchReadCount);
+        // Nothing is read while the projection loads. Each image is read
+        // alone, when the renderer opens it (issue 850).
+        Assert.Equal(0, contentStore.BatchReadCount);
+        foreach (var photo in input.Photos)
+        {
+            Assert.NotEmpty(await photo.OpenAsync());
+        }
+        Assert.Equal(2, contentStore.BatchReadCount);
+        Assert.Equal(1, contentStore.LargestBatch);
         Assert.Equal(0, contentStore.SingleReadCount);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
         // Box reads an exact file and version, so the preview's read names
@@ -2282,17 +2290,20 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     {
         public int BatchReadCount { get; private set; }
         public int SingleReadCount { get; private set; }
-        public IReadOnlyList<ManagedDocumentContentRead> Reads { get; private set; } = [];
+        public int LargestBatch { get; private set; }
+        public List<ManagedDocumentContentRead> Reads { get; } = [];
 
         public Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
             IReadOnlyList<ManagedDocumentContentRead> reads,
             CancellationToken cancellationToken)
         {
             BatchReadCount++;
-            Reads = reads;
+            LargestBatch = Math.Max(LargestBatch, reads.Count);
+            Reads.AddRange(reads);
+            // The seeded version of each ordinal is the one byte of its own number.
             return Task.FromResult<IReadOnlyList<ReadOnlyMemory<byte>>>(
-                reads.Select((_, index) =>
-                    (ReadOnlyMemory<byte>)new byte[] { checked((byte)(index + 1)) }).ToArray());
+                reads.Select(read =>
+                    (ReadOnlyMemory<byte>)new byte[] { checked((byte)read.Address.OccurrenceOrdinal) }).ToArray());
         }
 
         public Task<Stream> OpenReadAsync(

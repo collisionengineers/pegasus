@@ -206,7 +206,7 @@ internal static class TemplateSampleJobs
             return new ReportImageEvidence(
                 $"sample-{index + 1}.jpg",
                 "image/jpeg",
-                content,
+                ReportImageContent.Opened(_ => Task.FromResult(content)),
                 Convert.ToHexStringLower(SHA256.HashData(content)),
                 photo.Role,
                 photo.Order);

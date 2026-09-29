@@ -16,17 +16,6 @@ namespace Pegasus.Infrastructure.Reports;
 /// </summary>
 internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : IAssessmentReportRenderer
 {
-    /// <summary>
-    /// A slot's width in pixels: 80.4 mm at 300 dpi needs 950, so neither
-    /// the grid nor page 1 prints a soft image, and each embeds at most 1000
-    /// px across whatever the source size.
-    /// </summary>
-    private const int SlotPixels = 1000;
-
-    /// <summary>The longest edge of an image that prints on a page of its own.</summary>
-    private const int FullPagePixels = 2000;
-    private const int PhotoJpegQuality = 85;
-
     private readonly ReportRenderGate gate = gate ?? throw new ArgumentNullException(nameof(gate));
 
     public string EngineVersion { get; } =
@@ -47,20 +36,33 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
         };
         var fileName = $"{ReportChrome.Slug(snapshot.OurReference)}_{suffix}.pdf";
-        var pdf = await gate.RunAsync(() => Render(snapshot, kind), cancellationToken)
+        var pdf = await gate.RunAsync(token => RenderPdfAsync(snapshot, kind, token), cancellationToken)
             .ConfigureAwait(false);
         return Artifact(fileName, pdf);
     }
 
-    private static byte[] Render(AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind) =>
-        AssessmentReportLayout.Compose(snapshot, kind, Prepare(snapshot, kind)).GeneratePdf();
+    /// <summary>
+    /// Prepares the images, one source image in memory at a time, then lays
+    /// the document out. The token is the gate's: cancelled when the caller
+    /// stops waiting, and checked between images so an abandoned render stops
+    /// instead of running on.
+    /// </summary>
+    private static async Task<byte[]> RenderPdfAsync(
+        AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
+    {
+        var images = await PrepareAsync(snapshot, kind, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return AssessmentReportLayout.Compose(snapshot, kind, images).GeneratePdf();
+    }
 
     /// <summary>
     /// The images one artifact prints. The report leads page 1 with the
     /// Close-up and prints it nowhere else; the image pack prints every
-    /// image in the grid. Full page has no effect on the Close-up.
+    /// image in the grid. Full page has no effect on the Close-up. Each
+    /// image is opened, prepared and let go of before the next is opened.
     /// </summary>
-    private static PreparedReportImages Prepare(AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind)
+    private static async Task<PreparedReportImages> PrepareAsync(
+        AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
     {
         if (kind == CaseReportArtifactKind.FeeNote)
         {
@@ -69,21 +71,32 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         var ordered = snapshot.OrderedPhotos;
         var closeUp = ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.CloseUp);
         var lead = kind == CaseReportArtifactKind.AssessmentReport ? closeUp : null;
-        var photos = ordered
-            .Where(photo => !ReferenceEquals(photo, lead))
-            .Select(photo =>
+        var leadImage = lead is null
+            ? null
+            : await PreparePhotoAsync(lead, ReportChrome.LeadSlotHeight, cancellationToken).ConfigureAwait(false);
+        var photos = new List<PreparedReportPhoto>(ordered.Count);
+        foreach (var photo in ordered)
+        {
+            if (ReferenceEquals(photo, lead))
             {
-                var fullPage = photo.FullPage && !ReferenceEquals(photo, closeUp);
-                return new PreparedReportPhoto(
-                    PreparePhoto(photo, fullPage ? null : ReportChrome.GridSlotHeight),
-                    fullPage);
-            })
-            .ToArray();
-        return new(
-            lead is null ? null : PreparePhoto(lead, ReportChrome.LeadSlotHeight),
-            photos,
-            PrepareSignature(snapshot.Signatory),
-            ReportResources.Logo());
+                continue;
+            }
+            var fullPage = photo.FullPage && !ReferenceEquals(photo, closeUp);
+            photos.Add(new PreparedReportPhoto(
+                await PreparePhotoAsync(photo, fullPage ? null : ReportChrome.GridSlotHeight, cancellationToken)
+                    .ConfigureAwait(false),
+                fullPage));
+        }
+        return new(leadImage, photos, PrepareSignature(snapshot.Signatory), ReportResources.Logo());
+    }
+
+    private static async Task<byte[]> PreparePhotoAsync(
+        ReportImageEvidence photo, float? slotHeight, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var content = await photo.OpenAsync(cancellationToken).ConfigureAwait(false);
+        return ReportPhotoPreparation.Prepare(
+            content, photo.CustodyReference, photo.Rotation, photo.AppliedCrop, slotHeight, cancellationToken);
     }
 
     private RenderedReportArtifact Artifact(string fileName, byte[] pdf)
@@ -97,111 +110,6 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             AssessmentReportContract.TemplateVersion,
             EngineVersion);
     }
-
-    /// <summary>
-    /// What the page prints for one prepared image: the confirmed bytes
-    /// decoded once, shown the way the crop editor showed them (EXIF
-    /// orientation first, then the Engineer's whole-turn rotation), and the
-    /// persisted crop taken as fractions of that rotated source. An image
-    /// for a slot is then trimmed about its centre to the slot's shape, so it
-    /// fills the slot; an image for a page of its own keeps its whole crop.
-    /// Neither is ever enlarged. Bytes that do not decode fail the render
-    /// closed: the report never prints a placeholder.
-    /// </summary>
-    private static byte[] PreparePhoto(ReportImageEvidence photo, float? slotHeight)
-    {
-        using var data = SKData.CreateCopy(photo.Content);
-        using var codec = SKCodec.Create(data)
-            ?? throw new ReportRenderRejectedException($"Report image '{photo.CustodyReference}' could not be decoded.");
-        var origin = codec.EncodedOrigin;
-        var transposed = EncodedImageOrientation.IsTransposed(origin);
-        var quarterTurn = photo.Rotation is CaseAssetRotation.Clockwise90 or CaseAssetRotation.Clockwise270;
-        var crop = photo.AppliedCrop;
-        var shape = slotHeight is { } height ? ReportChrome.SlotWidth / height : (float?)null;
-
-        // Decode no larger than the print needs from the part it keeps. The
-        // codec picks the nearest scale it supports, and the next one up when
-        // that would leave the print short of its pixels.
-        var displayedWidth = transposed ? codec.Info.Height : codec.Info.Width;
-        var displayedHeight = transposed ? codec.Info.Width : codec.Info.Height;
-        var rotatedWidth = quarterTurn ? displayedHeight : displayedWidth;
-        var rotatedHeight = quarterTurn ? displayedWidth : displayedHeight;
-        var wanted = Kept((float)crop.Width * rotatedWidth, (float)crop.Height * rotatedHeight, shape);
-        var decodeScale = Scale(wanted, shape);
-        var decodedSize = codec.GetScaledDimensions(decodeScale);
-        if (decodedSize.Width < codec.Info.Width * decodeScale)
-        {
-            decodedSize = codec.GetScaledDimensions(Math.Min(1f, decodeScale + 0.125f));
-        }
-        using var decoded = SKBitmap.Decode(
-            codec,
-            new SKImageInfo(decodedSize.Width, decodedSize.Height, SKColorType.Rgba8888, SKAlphaType.Premul))
-            ?? throw new ReportRenderRejectedException($"Report image '{photo.CustodyReference}' could not be decoded.");
-
-        // The rotated source, exactly as the crop editor drew it.
-        var shownWidth = transposed ? decoded.Height : decoded.Width;
-        var shownHeight = transposed ? decoded.Width : decoded.Height;
-        var sourceWidth = quarterTurn ? shownHeight : shownWidth;
-        var sourceHeight = quarterTurn ? shownWidth : shownHeight;
-        using var rotated = new SKBitmap(new SKImageInfo(sourceWidth, sourceHeight, SKColorType.Rgba8888, SKAlphaType.Opaque));
-        using (var canvas = new SKCanvas(rotated))
-        {
-            canvas.Clear(SKColors.White);
-            canvas.Translate(sourceWidth / 2f, sourceHeight / 2f);
-            canvas.RotateDegrees((int)photo.Rotation);
-            canvas.Translate(-shownWidth / 2f, -shownHeight / 2f);
-            EncodedImageOrientation.Apply(canvas, origin, shownWidth, shownHeight);
-            canvas.DrawBitmap(decoded, 0, 0);
-        }
-
-        // The crop as fractions of the rotated source, then the part of it
-        // the print keeps, about the crop's centre.
-        var cropLeft = (float)crop.Left * sourceWidth;
-        var cropTop = (float)crop.Top * sourceHeight;
-        var cropWidth = Math.Max(1f, (float)crop.Width * sourceWidth);
-        var cropHeight = Math.Max(1f, (float)crop.Height * sourceHeight);
-        var kept = Kept(cropWidth, cropHeight, shape);
-        var left = cropLeft + (cropWidth - kept.Width) / 2f;
-        var top = cropTop + (cropHeight - kept.Height) / 2f;
-        var scale = Scale(kept, shape);
-        var outputWidth = Math.Max(1, (int)Math.Round(kept.Width * scale));
-        var outputHeight = Math.Max(1, (int)Math.Round(kept.Height * scale));
-        using var output = new SKBitmap(new SKImageInfo(outputWidth, outputHeight, SKColorType.Rgba8888, SKAlphaType.Opaque));
-        using (var canvas = new SKCanvas(output))
-        using (var source = SKImage.FromBitmap(rotated))
-        {
-            canvas.Clear(SKColors.White);
-            canvas.DrawImage(
-                source,
-                new SKRect(left, top, left + kept.Width, top + kept.Height),
-                new SKRect(0, 0, outputWidth, outputHeight),
-                new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
-        }
-        using var image = SKImage.FromBitmap(output);
-        using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, PhotoJpegQuality)
-            ?? throw new ReportRenderRejectedException($"Report image '{photo.CustodyReference}' could not be prepared for print.");
-        return encoded.ToArray();
-    }
-
-    /// <summary>
-    /// The part of a crop the print keeps: all of it, or for a slot the
-    /// largest part of the slot's shape, width over height.
-    /// </summary>
-    private static SKSize Kept(float cropWidth, float cropHeight, float? shape)
-    {
-        if (shape is not { } widthOverHeight)
-        {
-            return new(cropWidth, cropHeight);
-        }
-        return cropWidth / cropHeight > widthOverHeight
-            ? new(cropHeight * widthOverHeight, cropHeight)
-            : new(cropWidth, cropWidth / widthOverHeight);
-    }
-
-    /// <summary>What brings the kept part within its pixel budget, never more than one.</summary>
-    private static float Scale(SKSize kept, float? shape) => shape is null
-        ? Math.Min(1f, FullPagePixels / Math.Max(1f, Math.Max(kept.Width, kept.Height)))
-        : Math.Min(1f, SlotPixels / Math.Max(1f, kept.Width));
 
     /// <summary>
     /// The signature as the page prints it: decoded once, EXIF orientation
