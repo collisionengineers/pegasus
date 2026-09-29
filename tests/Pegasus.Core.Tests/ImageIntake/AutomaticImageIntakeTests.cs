@@ -12,7 +12,7 @@ public sealed class AutomaticImageIntakeTests
 
     [Theory]
     [InlineData(IntakeSourceChannel.Mailbox)]
-    [InlineData(IntakeSourceChannel.ProviderApi)]
+    [InlineData(IntakeSourceChannel.PrincipalApi)]
     public async Task NonManualConfidentReadRegistersAndAssociatesTheSingleEligibleCase(
         IntakeSourceChannel sourceChannel)
     {

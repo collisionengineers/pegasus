@@ -25,7 +25,7 @@ received material. Paths are under `src/` unless stated.
 | [FRD-12](../../../../../../docs/frd/frd-12-operator-experience.md) | Create Case opens direct staff creation with the identity-critical facts and no invented receipt; opened from an Unidentified item or an upload decision, the same form uses that receipt and the normal allocation path; a file that cannot become a Case is refused with Open message or Open file. |
 | [FRD-01](../../../../../../docs/frd/frd-01-case-identity-and-lifecycle.md) | A reference is allocated once Principal and Case type are settled; missing business detail keeps the Case Not ready; the three Case types; a standalone Audit on manual upload needs a staff member to accept the proposal. |
 | [FRD-02](../../../../../../docs/frd/frd-02-intake-and-source-identity.md) | The ways intake starts, including staff acceptance of a proposal. |
-| [FRD-09](../../../../../../docs/frd/frd-09-provider-and-intermediary-routes.md) | Provider API Case types `inspection`, `audit`, `auditreport` (Inspection + Audit) and `triage`. |
+| [FRD-09](../../../../../../docs/frd/frd-09-principal-and-intermediary-routes.md) | Provider API Case types `inspection`, `audit`, `auditreport` (Inspection + Audit) and `triage`. |
 | [FRD-22](../../../../../../docs/frd/frd-22-pre-case-gates-matching-and-association.md) | The gates before a Case/PO: an unambiguous Case type and Principal. |
 | [CONTEXT.md](../../../../../../CONTEXT.md) | Case, Case/PO, Audit, Inspection + Audit, Triage. |
 

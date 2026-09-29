@@ -56,10 +56,10 @@ Assert-Flags -Case 'empty diff' -ChangedPath @() -Build $false -Infrastructure $
 # without implying a release-script change.
 Assert-Flags -Case 'LocalDB lifecycle classifier tests' -ChangedPath 'scripts/Test-PegasusPlatform.ps1' -Build $false -Infrastructure $false -LocalDevelopment $true
 
-# The provider-reference component and its only callers.
-Assert-Flags -Case 'reference-data generator' -ChangedPath 'scripts/reference_data/build_provider_reference_data.py' -Build $false -Infrastructure $false -ReferenceData $true
-Assert-Flags -Case 'reference-data generator tests' -ChangedPath 'scripts/reference_data/tests/test_build_provider_reference_data.py' -Build $false -Infrastructure $false -ReferenceData $true
-Assert-Flags -Case 'provider-reference wrapper' -ChangedPath 'scripts/Build-ProviderReferenceData.ps1' -Build $false -Infrastructure $false -ReferenceData $true
+# The principal-reference component and its only callers.
+Assert-Flags -Case 'reference-data generator' -ChangedPath 'scripts/reference_data/build_principal_reference_data.py' -Build $false -Infrastructure $false -ReferenceData $true
+Assert-Flags -Case 'reference-data generator tests' -ChangedPath 'scripts/reference_data/tests/test_build_principal_reference_data.py' -Build $false -Infrastructure $false -ReferenceData $true
+Assert-Flags -Case 'principal-reference wrapper' -ChangedPath 'scripts/Build-PrincipalReferenceData.ps1' -Build $false -Infrastructure $false -ReferenceData $true
 Assert-Flags -Case 'principal-corpus wrapper' -ChangedPath 'scripts/Build-PrincipalIdentificationCorpus.ps1' -Build $false -Infrastructure $false -ReferenceData $true
 
 # Refreshing the shard duration table changes the partition, so a real run has

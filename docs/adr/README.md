@@ -83,3 +83,10 @@ is intentional and the number is not reused.
 Acceptance of a decision is design authority within its scope. No ADR proves
 implementation, a real caller, deployment, live verification, or operator
 acceptance unless separately named evidence records that exact state.
+
+Vocabulary. ADRs issued before 29 September 2026 say "provider" and
+"Provider API" for the instructing organisation and its machine surface. The
+current terms are Principal and Principal API (issue 857). Their wire names
+(`/api/principal/v1`, `PegasusPrincipalApi`, `Features:PrincipalApi`) are owned
+by [FRD-09](../frd/frd-09-principal-and-intermediary-routes.md). File names and
+issued titles stay as filed.

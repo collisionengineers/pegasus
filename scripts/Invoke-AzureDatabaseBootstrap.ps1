@@ -378,21 +378,22 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|AiJobs")
     }
-    # 20260828104139_GrantPrincipalApiCredentials: one Provider API credential
+    # 20260828104139_GrantPrincipalApiCredentials: one Principal API credential
     # per Principal (API-04). Only Web touches it —
     # Administrators issue, reset, pause, resume and revoke from the
-    # application and the Provider API verifies a presented secret in the
-    # same process; the Worker never authenticates a provider. A row is
+    # application and the Principal API verifies a presented secret in the
+    # same process; the Worker never authenticates a Principal. A row is
     # created once and then rotated or moved through its states in place, so
     # Web holds SELECT, INSERT and UPDATE. A revoked credential stays as the
     # record of what was revoked: no DELETE, and the Worker is granted nothing.
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
     }
-    # 20260828111732_GrantProviderSubmissions: the Provider API submission
+    # 20260828111732_GrantProviderSubmissions (table renamed to PrincipalSubmissions
+    # by 20260929120000_PrincipalVocabulary): the Principal API submission
     # record (API-01). Web hosts the API: it inserts one row per
     # accepted submission and reads rows back for idempotent replay and the
-    # provider's own result lookup. The Worker processes the staged files and
+    # Principal's own result lookup. The Worker processes the staged files and
     # reads the row to bind each one to the Principal whose credential
     # submitted it; it never writes one. The row is created when the
     # submission is received and completed in place once the request has been
@@ -400,9 +401,9 @@ function Get-MigrationPermissionMatrix {
     # so Web also holds UPDATE. A submission is never removed: no DELETE for
     # either role.
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|ProviderSubmissions")
+        $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalSubmissions")
     }
-    $expected.Add('pegasus_worker_runtime_role|G|SELECT|ProviderSubmissions')
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|PrincipalSubmissions')
     # 20260829212237_GrantProviderSubmissionAcceptRecovery: the accept path
     # was made recoverable. Web writes the four accept records in four
     # separate transactions, so a process loss between them used to leave a
@@ -411,7 +412,7 @@ function Get-MigrationPermissionMatrix {
     # never appended. A Worker reconciliation pass now completes those records
     # in place, which is why the Worker holds UPDATE here and no longer only
     # SELECT. It still never inserts a submission and never removes one.
-    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|ProviderSubmissions')
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|PrincipalSubmissions')
     # 20260829095336_CaseValuations: the Web Case workspace creates and edits
     # valuation rows, and the Assessment workspace reads the current Engineer
     # value in the same process. Worker has no caller and no grant. Valuations
@@ -594,7 +595,22 @@ function Get-MigrationPermissionMatrix {
     # The grant is table-level (the audit rejects column grants); neither role
     # deletes a message.
     $expected.Add('pegasus_web_runtime_role|G|UPDATE|RetainedMailboxMessages')
-    return @($expected | Sort-Object -Unique)
+    # 20260929120000_PrincipalVocabulary renames these tables. The earlier
+    # migrations this matrix reads still name them, and SQL Server keeps a
+    # table's permission rows across a rename, so the rows read here are the
+    # same grants under the new names.
+    $renamedTables = @{
+        ProviderSubmissions = 'PrincipalSubmissions'
+        ProviderDomainPackages = 'PrincipalDomainPackages'
+        ProviderReferences = 'PrincipalReferences'
+        ProviderDomainEvidence = 'PrincipalDomainEvidence'
+    }
+    $renamed = foreach ($row in $expected) {
+        $parts = $row.Split('|')
+        if ($renamedTables.ContainsKey($parts[3])) { $parts[3] = $renamedTables[$parts[3]] }
+        $parts -join '|'
+    }
+    return @($renamed | Sort-Object -Unique)
 }
 
 $values = Get-AzdValues $Environment

@@ -6,7 +6,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// A principal's EVA submission settings, read the way
-/// <see cref="EfProviderInspectionModeStore"/> reads its inspection mode
+/// <see cref="EfPrincipalInspectionModeStore"/> reads its inspection mode
 /// (EXT-04, following ADR-0018).
 /// </summary>
 public sealed class EfEvaSubmissionModeStore(

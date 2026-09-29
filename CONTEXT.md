@@ -9,8 +9,8 @@ A permanent record of Collision Engineers work. An Instruction-initiated Case is
 _Avoid_: Job
 
 **Principal**:
-The organisation that instructs Collision Engineers and pays for the work.
-_Avoid_: Client, Work Provider, sender
+The organisation that instructs Collision Engineers and pays for the work. Its machine surface is the Principal API ([FRD-09](docs/frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary)); EVA export still names the field `Work Provider`.
+_Avoid_: Client, Provider, Work Provider, sender
 
 **Case/PO**:
 Collision Engineers’ immutable internal reference, allocated from the accepted Principal’s sequence to a Case: no prefix for an Inspection or Inspection + Audit Case (`QDOS26001`), `a.` for a standalone Audit (`a.QDOS26002`) and `t.` for a Triage (`t.QDOS26003`). The Audit reference of an Inspection + Audit Case (`a.QDOS26001`) names its Audit report; it is not a Case/PO and consumes no number.

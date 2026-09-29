@@ -8,7 +8,7 @@
   instruction. Its Case/PO is `t.` plus the next number from the Principal's
   shared sequence, for example `t.QDOS26003`.
 - A Triage Case is created only once its Principal is established and its
-  registration is known: by route classification, a Provider API
+  registration is known: by route classification, a Principal API
   declaration, Open the Triage on an Unidentified item, or Create case.
 - It moves `Open` → `Awaiting information` → `Finding recorded` →
   `Completed`, or `Cancelled`. Sending a message is never required.
@@ -56,15 +56,15 @@ is not offered on a Triage Case.
 
 **How a Triage starts.** One of four ways:
 
-- the accepted route policy classifies a provider request as an assessment
+- the accepted route policy classifies a Principal request as an assessment
   request;
-- an authenticated Principal declares one over the Provider API;
+- an authenticated Principal declares one over the Principal API;
 - an authorised staff member classifies safely retained, attributable
   material on an Unidentified item as Triage with **Open the Triage**;
 - an authorised staff member chooses Triage in **Create case**, giving only
   the Principal and the registration.
 
-Automatic creation, from a route classification or a Provider API
+Automatic creation, from a route classification or a Principal API
 declaration, rests on accepted route evidence, the same trust as allocating
 an instructed Case. It has no approval step
 ([ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md)). A
@@ -248,7 +248,7 @@ evidence tiers ([engineering](../engineering.md#required-evidence-tiers)).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-10](frd-10-mcp-automation-and-actor-boundary.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-15](frd-15-work-centre-queues-and-search.md),

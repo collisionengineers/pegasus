@@ -745,7 +745,7 @@ public sealed class CaseRecordGapsV26WebTests
         Assert.DoesNotContain(">Source<", panel, StringComparison.Ordinal);
         // The Principal's default is its own cell only where the Case holds
         // something else; here the Case holds a physical address of its own.
-        Assert.Contains("data-inspection-provider-default hidden", panel, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-principal-default hidden", panel, StringComparison.Ordinal);
         // The mode reads once, in Inspection type.
         Assert.Contains("Physical address", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("status--navy", AddressCell(panel), StringComparison.Ordinal);
@@ -760,15 +760,15 @@ public sealed class CaseRecordGapsV26WebTests
         Assert.Equal(1, Occurrences(addressCell, "Image Based Assessment"));
         Assert.Contains("data-provenance-word=\"Principal\"", addressCell, StringComparison.Ordinal);
         Assert.DoesNotContain("status--navy", addressCell, StringComparison.Ordinal);
-        Assert.Contains("data-inspection-provider-default hidden", imagePanel, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-principal-default hidden", imagePanel, StringComparison.Ordinal);
 
         // The same Principal setting where staff recorded somewhere else: the
         // default is a fact the operator cannot read off the value.
         var corrected = new RecordingCaseDetailsStore();
         corrected.DataOverride = await InspectionOverrideAsync(corrected, "9 Other Road");
         var correctedPanel = InspectionPanel(await ReadCaseAsync(corrected));
-        Assert.DoesNotContain("data-inspection-provider-default hidden", correctedPanel, StringComparison.Ordinal);
-        Assert.Contains("data-inspection-provider-default", correctedPanel, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-inspection-principal-default hidden", correctedPanel, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-principal-default", correctedPanel, StringComparison.Ordinal);
         Assert.Contains("Principal default", correctedPanel, StringComparison.Ordinal);
         Assert.Contains("9 Other Road", AddressCell(correctedPanel), StringComparison.Ordinal);
         Assert.Contains("Image Based Assessment", correctedPanel, StringComparison.Ordinal);
@@ -876,7 +876,7 @@ public sealed class CaseRecordGapsV26WebTests
     {
         var start = panel.IndexOf("data-inspection-address>", StringComparison.Ordinal);
         Assert.True(start >= 0, "The inspection address cell must render.");
-        var end = panel.IndexOf("data-inspection-provider-default", start, StringComparison.Ordinal);
+        var end = panel.IndexOf("data-inspection-principal-default", start, StringComparison.Ordinal);
         Assert.True(end > start, "The inspection address cell must end before the default cell.");
         return panel[start..end];
     }
@@ -890,7 +890,7 @@ public sealed class CaseRecordGapsV26WebTests
         var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The case fixture returned no data.");
         var setting = new CaseDataSource(
-            CaseDataSourceKind.ProviderSetting, "QDOS", "Principal setting", "provider-inspection", 1);
+            CaseDataSourceKind.PrincipalSetting, "QDOS", "Principal setting", "principal-inspection", 1);
         var staff = new CaseDataSource(
             CaseDataSourceKind.StaffCorrection, "staff", "Staff correction", "case-edit", 1);
         return data with

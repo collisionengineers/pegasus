@@ -34,7 +34,7 @@ public sealed class StaffForwardBodyCleanerTests
     }
 
     [Fact]
-    public void StaffForwardFocusesTheProviderOriginalAndDropsTheForwarderSignature()
+    public void StaffForwardFocusesThePrincipalOriginalAndDropsTheForwarderSignature()
     {
         var cleaned = StaffForwardBodyCleaner.Clean(StaffForward, isStaffForward: true);
 
@@ -111,7 +111,7 @@ public sealed class StaffForwardBodyCleanerTests
     }
 
     [Fact]
-    public void ProviderFooterIsTrimmedAtTheEarliestMarkerKeepingTheSignOff()
+    public void PrincipalFooterIsTrimmedAtTheEarliestMarkerKeepingTheSignOff()
     {
         // The letter-with-signature shape measured in the corpus: the
         // provider's message and sign-off, then the signature block opening
@@ -134,7 +134,7 @@ public sealed class StaffForwardBodyCleanerTests
             This email and any attachments are for the exclusive use of the intended recipient.
             """;
 
-        var trimmed = StaffForwardBodyCleaner.TrimProviderFooter(body);
+        var trimmed = StaffForwardBodyCleaner.TrimPrincipalFooter(body);
 
         Assert.Contains("Our Client: Mr Cheddae Singh", trimmed, StringComparison.Ordinal);
         Assert.Contains("Please let us have your report as soon as possible.", trimmed, StringComparison.Ordinal);
@@ -156,7 +156,7 @@ public sealed class StaffForwardBodyCleanerTests
             You are dealing with QDOS Accident Assistance Limited.
             """;
 
-        Assert.Equal(body, StaffForwardBodyCleaner.TrimProviderFooter(body));
+        Assert.Equal(body, StaffForwardBodyCleaner.TrimPrincipalFooter(body));
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public sealed class StaffForwardBodyCleanerTests
             Dawn
             """;
 
-        Assert.Equal(body, StaffForwardBodyCleaner.TrimProviderFooter(body));
+        Assert.Equal(body, StaffForwardBodyCleaner.TrimPrincipalFooter(body));
     }
 
     /// <summary>

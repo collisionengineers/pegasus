@@ -1326,7 +1326,7 @@ public sealed class RetainedMailPersistenceTests
         // call -- not a fabricated result -- would change and the
         // assertions below would fail.
         var policy = Assert.Single(services.GetServices<IMailClassificationPolicy>(),
-            candidate => candidate.WorkProviderCode == "QDOS");
+            candidate => candidate.PrincipalCode == "QDOS");
         var original = policy.Classify(new(
             IntakeSourceReadStatus.Readable,
             [
@@ -1438,7 +1438,7 @@ public sealed class RetainedMailPersistenceTests
             Assets: [],
             MailRouteDecision: new(
                 MailRouteDisposition.Accepted,
-                new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+                new("QDOS", MailRouteKind.DirectPrincipal, "QDOS"),
                 [],
                 "Fixture accepted route.",
                 "qdos_mail_route",

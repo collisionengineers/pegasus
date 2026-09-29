@@ -243,8 +243,8 @@ public sealed class QdosIntakeWebTests
         Assert.Equal(PrincipalMailRoutePolicy.Version, route.PolicyVersion);
         var selectedRoute = Assert.IsType<MailRouteSelection>(route.SelectedRoute);
         Assert.Equal("QDOS", selectedRoute.RouteOwnerCode);
-        Assert.Equal(MailRouteKind.DirectProvider, selectedRoute.Kind);
-        Assert.Equal("QDOS", selectedRoute.WorkProviderCode);
+        Assert.Equal(MailRouteKind.DirectPrincipal, selectedRoute.Kind);
+        Assert.Equal("QDOS", selectedRoute.PrincipalCode);
         Assert.Contains(route.Predicates, predicate =>
             predicate.Key == "forward.staff-transport" && predicate.Matched);
         Assert.Contains(route.Predicates, predicate =>

@@ -2,7 +2,7 @@ namespace Pegasus.Core.Cases;
 
 public static class CaseDataFieldNames
 {
-    public const string WorkProviderCode = "work_provider_code";
+    public const string PrincipalCode = "principal_code";
     public const string ClaimantName = "claimant_name";
     public const string ClaimantContactNumber = "claimant_contact_number";
     public const string ClaimantAddress = "claimant_address";

@@ -77,10 +77,10 @@ public sealed class QdosAllocationRecoveryTests
             var receipt = Assert.IsType<IntakeReceipt>(await services.GetRequiredService<IIntakeReceiptQueries>().GetAsync(evaluation.ProcessedReceiptId, CancellationToken.None));
             var allocation = await services.GetRequiredService<IIntakeAllocationStore>()
                 .GetCurrentAsync(receipt.Id, CancellationToken.None);
-            Assert.True(receipt.MailRouteDecision?.SelectedRoute?.WorkProviderCode == original.Principal,
+            Assert.True(receipt.MailRouteDecision?.SelectedRoute?.PrincipalCode == original.Principal,
                 $"{original.Principal}, delivery {delivery + 1}: {receipt.MailRouteDecision?.Reason}");
             Assert.Equal(MailRouteDisposition.Accepted, receipt.MailRouteDecision!.Disposition);
-            Assert.Equal(MailRouteKind.DirectProvider, receipt.MailRouteDecision.SelectedRoute!.Kind);
+            Assert.Equal(MailRouteKind.DirectPrincipal, receipt.MailRouteDecision.SelectedRoute!.Kind);
             Assert.Equal(original.Images, InstructionEvidenceImages.Select(receipt.AssetRecords).Count);
             if (expectedIdentity is null)
             {
@@ -305,7 +305,7 @@ public sealed class QdosAllocationRecoveryTests
                 .GetAsync(guardedEvaluation.ProcessedReceiptId, CancellationToken.None));
             Assert.Equal("structural-profile-signal-probe", guardedReceipt.SourceReaderKey);
             Assert.Equal(MailRouteDisposition.Accepted, guardedReceipt.MailRouteDecision?.Disposition);
-            Assert.Equal("ALS", guardedReceipt.MailRouteDecision?.SelectedRoute?.WorkProviderCode);
+            Assert.Equal("ALS", guardedReceipt.MailRouteDecision?.SelectedRoute?.PrincipalCode);
             Assert.Equal(IntakeDecision.NeedsSorting, guardedReceipt.Decision);
             Assert.Null(guardedReceipt.CaseMatchDecision);
             Assert.Null(guardedReceipt.InstructionDraft);
@@ -837,7 +837,7 @@ public sealed class QdosAllocationRecoveryTests
                     .GetAsync(receiptId, CancellationToken.None));
             Assert.True(
                 await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts") == 1,
-                $"decision={diagnostic.Decision}; route={diagnostic.MailRouteDecision?.Disposition}/{diagnostic.MailRouteDecision?.SelectedRoute?.WorkProviderCode}; classification={diagnostic.MailClassificationDecision?.Outcome}/{diagnostic.MailClassificationDecision?.CaseType}");
+                $"decision={diagnostic.Decision}; route={diagnostic.MailRouteDecision?.Disposition}/{diagnostic.MailRouteDecision?.SelectedRoute?.PrincipalCode}; classification={diagnostic.MailClassificationDecision?.Outcome}/{diagnostic.MailClassificationDecision?.CaseType}");
         }
 
         await using (var scope = factory.Services.CreateAsyncScope())
@@ -1134,7 +1134,7 @@ public sealed class QdosAllocationRecoveryTests
                 workStore,
                 artifactStore,
                 services.GetRequiredService<ProcessIntake>(),
-                new RecordingProviderAssociationStore(events),
+                new RecordingPrincipalAssociationStore(events),
                 new NoOpAllocateIntake(),
                 clock,
                 automaticMailCaseAssociation: null);
@@ -1158,7 +1158,7 @@ public sealed class QdosAllocationRecoveryTests
             workStore,
             artifactStore,
             services.GetRequiredService<ProcessIntake>(),
-            new RecordingProviderAssociationStore(events),
+            new RecordingPrincipalAssociationStore(events),
             allocation,
             clock,
             automaticMailAssociation,
@@ -1192,7 +1192,7 @@ public sealed class QdosAllocationRecoveryTests
         IIntakeWorkStore workStore,
         IIntakeArtifactStore artifactStore,
         ProcessIntake processIntake,
-        IAutomaticCaseAssociationStore providerAssociationStore,
+        IAutomaticCaseAssociationStore principalAssociationStore,
         IAllocateIntake allocateIntake,
         TimeProvider clock,
         AssociateRetainedMailWithCase? automaticMailCaseAssociation,
@@ -1203,14 +1203,14 @@ public sealed class QdosAllocationRecoveryTests
             services.GetRequiredService<IIntakeReceiptQueries>(),
             services.GetRequiredService<ICreateTriageFromIntake>(),
             services.GetRequiredService<ITriagePrincipalGate>(),
-            providerAssociationStore,
+            principalAssociationStore,
             allocateIntake,
             clock,
             services.GetRequiredService<IIntakeOcrOperationStore>(),
             imageIntakeAutomation: imageIntakeAutomation,
             automaticMailCaseAssociation: automaticMailCaseAssociation);
 
-    private sealed class RecordingProviderAssociationStore(List<string> events)
+    private sealed class RecordingPrincipalAssociationStore(List<string> events)
         : IAutomaticCaseAssociationStore
     {
         public Task<AutomaticCaseAssociationOutcome> AssociateFromMatchAsync(
@@ -2034,7 +2034,7 @@ internal static class AllocationTestData
                 1,
                 MailRouteDecision: routeDecision ?? new(
                     MailRouteDisposition.Accepted,
-                    new(principalCode, MailRouteKind.DirectProvider, principalCode),
+                    new(principalCode, MailRouteKind.DirectPrincipal, principalCode),
                     [],
                     "Accepted allocation test route.",
                     "allocation-test-route",
@@ -2286,7 +2286,7 @@ internal static class AllocationTestData
 
 internal sealed class ConsumerTypedClassificationPolicy : IMailClassificationPolicy
 {
-    public string WorkProviderCode => "QDOS";
+    public string PrincipalCode => "QDOS";
 
     public string PolicyKey => "qdos-allocation-recovery-test-classification";
 

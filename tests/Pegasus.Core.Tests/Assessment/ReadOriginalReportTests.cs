@@ -33,7 +33,7 @@ public sealed class ReadOriginalReportTests
     private static readonly ActionActor Staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
     [Fact]
-    public async Task TheRetainedReportAttachmentIsReadAsAutomationNotAsTheProviderApi()
+    public async Task TheRetainedReportAttachmentIsReadAsAutomationNotAsThePrincipalApi()
     {
         var harness = new Harness();
 

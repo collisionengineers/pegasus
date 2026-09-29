@@ -222,7 +222,7 @@ public sealed class DocumentCustodyDurabilityTests
     }
 
     /// <summary>
-    /// A fileless Provider API Audit keeps its declared verdict on the Case from
+    /// A fileless Principal API Audit keeps its declared verdict on the Case from
     /// creation (#919). Marking its report later fills Repairable status from
     /// that verdict when the report printed no outcome or the same one, and
     /// leaves the cell blank when the report disagrees.

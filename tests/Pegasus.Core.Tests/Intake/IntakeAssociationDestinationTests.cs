@@ -35,7 +35,7 @@ public sealed class IntakeAssociationDestinationTests
     [Theory]
     [InlineData(IntakeSourceChannel.Mailbox)]
     [InlineData(IntakeSourceChannel.Automation)]
-    [InlineData(IntakeSourceChannel.ProviderApi)]
+    [InlineData(IntakeSourceChannel.PrincipalApi)]
     public void SafeNonManualReceiptsCanOfferAReasonedStaffDestination(IntakeSourceChannel channel)
     {
         foreach (var decision in new[] { IntakeDecision.NeedsSorting, IntakeDecision.OcrRequired, IntakeDecision.CaseCreated })
@@ -51,7 +51,7 @@ public sealed class IntakeAssociationDestinationTests
     [Theory]
     [InlineData(IntakeSourceChannel.Mailbox)]
     [InlineData(IntakeSourceChannel.Automation)]
-    [InlineData(IntakeSourceChannel.ProviderApi)]
+    [InlineData(IntakeSourceChannel.PrincipalApi)]
     public void RegisteredImagesCanOfferAStaffDestinationAcrossSources(IntakeSourceChannel channel)
     {
         Assert.True(IntakeAssociationDestinationPolicy.CanOffer(

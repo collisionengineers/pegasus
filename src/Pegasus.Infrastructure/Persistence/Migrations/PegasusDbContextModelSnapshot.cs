@@ -1336,7 +1336,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CaseDataFields_PolicyVersion", "[PolicyVersion] > 0");
 
-                            t.HasCheckConstraint("CK_CaseDataFields_SourceKind", "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup', 'provider_setting', 'provider_api')");
+                            t.HasCheckConstraint("CK_CaseDataFields_SourceKind", "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup', 'principal_setting', 'principal_api')");
 
                             t.HasCheckConstraint("CK_CaseDataFields_ValueKind", "[ValueKind] IN ('fact', 'suggestion', 'confirmed')");
 
@@ -2110,21 +2110,21 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("WorkProviderCode")
+                    b.Property<string>("PrincipalCode")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.HasKey("CaseId");
 
-                    b.HasIndex("WorkProviderCode", "DurableClaimToken");
+                    b.HasIndex("PrincipalCode", "DurableClaimToken");
 
-                    b.HasIndex("WorkProviderCode", "NormalizedSurname");
+                    b.HasIndex("PrincipalCode", "NormalizedSurname");
 
-                    b.HasIndex("WorkProviderCode", "NormalizedVrm");
+                    b.HasIndex("PrincipalCode", "NormalizedVrm");
 
                     b.ToTable("CaseMatchIndex", (string)null);
                 });
@@ -4906,6 +4906,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PrincipalCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Reason")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -4922,10 +4926,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("TransportIdentitiesJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("WorkProviderCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("IntakeReceiptId");
 
@@ -5856,7 +5856,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("OrganizationRoles", null, t =>
                         {
-                            t.HasCheckConstraint("CK_OrganizationRoles_Role", "[Role] IN ('work_provider', 'instruction_intermediary')");
+                            t.HasCheckConstraint("CK_OrganizationRoles_Role", "[Role] IN ('principal', 'instruction_intermediary')");
                         });
                 });
 
@@ -6224,7 +6224,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderDomainEvidenceEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalDomainEvidenceEntity", b =>
                 {
                     b.Property<string>("Version")
                         .HasMaxLength(64)
@@ -6242,10 +6242,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Version", "DomainSuffix");
 
-                    b.ToTable("ProviderDomainEvidence", (string)null);
+                    b.ToTable("PrincipalDomainEvidence", (string)null);
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderDomainPackageEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalDomainPackageEntity", b =>
                 {
                     b.Property<string>("Version")
                         .HasMaxLength(64)
@@ -6279,15 +6279,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Version");
 
-                    b.ToTable("ProviderDomainPackages", null, t =>
+                    b.ToTable("PrincipalDomainPackages", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ProviderDomainPackages_SchemaVersion", "[SchemaVersion] > 0");
+                            t.HasCheckConstraint("CK_PrincipalDomainPackages_SchemaVersion", "[SchemaVersion] > 0");
 
-                            t.HasCheckConstraint("CK_ProviderDomainPackages_SourceRowCount", "[SourceRowCount] > 0");
+                            t.HasCheckConstraint("CK_PrincipalDomainPackages_SourceRowCount", "[SourceRowCount] > 0");
                         });
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderReferenceEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalReferenceEntity", b =>
                 {
                     b.Property<string>("Version")
                         .HasMaxLength(64)
@@ -6302,13 +6302,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Version", "Code");
 
-                    b.ToTable("ProviderReferences", null, t =>
+                    b.ToTable("PrincipalReferences", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ProviderReferences_SourceRow", "[SourceRow] > 0");
+                            t.HasCheckConstraint("CK_PrincipalReferences_SourceRow", "[SourceRow] > 0");
                         });
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderSubmissionEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalSubmissionEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -6337,7 +6337,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("PrincipalId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("ProviderReference")
+                    b.Property<string>("PrincipalReference")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -6352,7 +6352,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("PrincipalId", "IdempotencyKey")
                         .IsUnique();
 
-                    b.ToTable("ProviderSubmissions", (string)null);
+                    b.ToTable("PrincipalSubmissions", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ReleaseNoteAcknowledgementEntity", b =>
@@ -9107,21 +9107,21 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Successor");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderDomainEvidenceEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalDomainEvidenceEntity", b =>
                 {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.ProviderReferenceEntity", "Provider")
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalReferenceEntity", "Principal")
                         .WithMany("DomainEvidence")
                         .HasForeignKey("Version", "Code")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Provider");
+                    b.Navigation("Principal");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderReferenceEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalReferenceEntity", b =>
                 {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.ProviderDomainPackageEntity", "Package")
-                        .WithMany("Providers")
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalDomainPackageEntity", "Package")
+                        .WithMany("Principals")
                         .HasForeignKey("Version")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -9129,7 +9129,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Package");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderSubmissionEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalSubmissionEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalEntity", "Principal")
                         .WithMany()
@@ -9449,12 +9449,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Sequences");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderDomainPackageEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalDomainPackageEntity", b =>
                 {
-                    b.Navigation("Providers");
+                    b.Navigation("Principals");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderReferenceEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalReferenceEntity", b =>
                 {
                     b.Navigation("DomainEvidence");
                 });

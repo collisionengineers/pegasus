@@ -1420,7 +1420,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             INSERT INTO [dbo].[CaseWorkflows] ([CaseId], [State], [Version], [ConcurrencyToken])
             VALUES ('{caseId:D}', N'{nameof(CaseLifecycleState.Review)}', 0, '{Guid.NewGuid():D}');
             INSERT INTO [dbo].[CaseMatchIndex] (
-                [CaseId], [WorkProviderCode], [NormalizedVrm], [MatchPolicyKey],
+                [CaseId], [PrincipalCode], [NormalizedVrm], [MatchPolicyKey],
                 [MatchPolicyVersion], [UpdatedAtUtc])
             VALUES ('{caseId:D}', N'QDOS', N'PG18BTY', N'runtime-role-test', 1,
                 '2031-05-06T10:31:00+00:00');

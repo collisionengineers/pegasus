@@ -11,25 +11,25 @@ public static class ReferenceDataPolicy
 
     private static readonly JsonSerializerOptions SerializerOptions = JsonSerializerOptions.Strict;
 
-    public static ProviderDomainValidationResult Validate(
-        ProviderDomainPackageVersion requested,
+    public static PrincipalDomainValidationResult Validate(
+        PrincipalDomainPackageVersion requested,
         ReadOnlySpan<byte> canonicalPackageBytes)
     {
-        var issues = ImmutableArray.CreateBuilder<ProviderDomainValidationIssue>();
+        var issues = ImmutableArray.CreateBuilder<PrincipalDomainValidationIssue>();
 
         if (requested.SchemaVersion != SupportedSchemaVersion)
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.SchemaMismatch, "$.requested.schemaVersion");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.SchemaMismatch, "$.requested.schemaVersion");
         }
 
         if (!IsCanonicalVersion(requested.Version))
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.VersionMismatch, "$.requested.version");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.VersionMismatch, "$.requested.version");
         }
 
         if (!IsLowercaseSha256(requested.PackageSha256))
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.PackageHashMismatch, "$.requested.packageSha256");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.PackageHashMismatch, "$.requested.packageSha256");
         }
         else
         {
@@ -37,45 +37,45 @@ public static class ReferenceDataPolicy
             SHA256.HashData(canonicalPackageBytes, actualHash);
             if (!MatchesLowercaseSha256(actualHash, requested.PackageSha256))
             {
-                AddIssue(issues, ProviderDomainValidationIssueCode.PackageHashMismatch, "$.requested.packageSha256");
+                AddIssue(issues, PrincipalDomainValidationIssueCode.PackageHashMismatch, "$.requested.packageSha256");
             }
         }
 
-        ProviderDomainPackage? package;
+        PrincipalDomainPackage? package;
         try
         {
-            package = JsonSerializer.Deserialize<ProviderDomainPackage>(canonicalPackageBytes, SerializerOptions);
+            package = JsonSerializer.Deserialize<PrincipalDomainPackage>(canonicalPackageBytes, SerializerOptions);
         }
         catch (JsonException)
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.InvalidJson, "$");
-            return new ProviderDomainValidationResult(issues.ToImmutable());
+            AddIssue(issues, PrincipalDomainValidationIssueCode.InvalidJson, "$");
+            return new PrincipalDomainValidationResult(issues.ToImmutable());
         }
 
         if (package is null)
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.InvalidJson, "$");
-            return new ProviderDomainValidationResult(issues.ToImmutable());
+            AddIssue(issues, PrincipalDomainValidationIssueCode.InvalidJson, "$");
+            return new PrincipalDomainValidationResult(issues.ToImmutable());
         }
 
         if (package.SchemaVersion != SupportedSchemaVersion || package.SchemaVersion != requested.SchemaVersion)
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.SchemaMismatch, "$.schemaVersion");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.SchemaMismatch, "$.schemaVersion");
         }
 
         if (!IsCanonicalVersion(package.Version) ||
             !StringComparer.Ordinal.Equals(package.Version, requested.Version))
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.VersionMismatch, "$.version");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.VersionMismatch, "$.version");
         }
 
         ValidateSource(package.Source, issues);
-        ValidateProviders(package.Providers, package.Source?.RowCount ?? 0, issues);
+        ValidatePrincipals(package.Principals, package.Source?.RowCount ?? 0, issues);
 
-        return new ProviderDomainValidationResult(issues.ToImmutable());
+        return new PrincipalDomainValidationResult(issues.ToImmutable());
     }
 
-    public static bool IsValidPackageVersion(ProviderDomainPackageVersion packageVersion) =>
+    public static bool IsValidPackageVersion(PrincipalDomainPackageVersion packageVersion) =>
         packageVersion.SchemaVersion == SupportedSchemaVersion &&
         IsCanonicalVersion(packageVersion.Version) &&
         IsLowercaseSha256(packageVersion.PackageSha256);
@@ -117,21 +117,21 @@ public static class ReferenceDataPolicy
         return labelCount >= 2;
     }
 
-    public static ProviderDomainCandidates CreateCandidates(
+    public static PrincipalDomainCandidates CreateCandidates(
         string? domainSuffix,
-        ImmutableArray<string> providerCodes)
+        ImmutableArray<string> principalCodes)
     {
         if (!IsCanonicalDomainSuffix(domainSuffix))
         {
-            return EmptyCandidates(ProviderDomainCandidateStatus.InvalidSuffix);
+            return EmptyCandidates(PrincipalDomainCandidateStatus.InvalidSuffix);
         }
 
-        if (providerCodes.IsDefaultOrEmpty)
+        if (principalCodes.IsDefaultOrEmpty)
         {
-            return EmptyCandidates(ProviderDomainCandidateStatus.Unknown);
+            return EmptyCandidates(PrincipalDomainCandidateStatus.Unknown);
         }
 
-        var sorted = providerCodes.ToArray();
+        var sorted = principalCodes.ToArray();
         Array.Sort(sorted, StringComparer.Ordinal);
 
         var uniqueCount = 0;
@@ -151,11 +151,11 @@ public static class ReferenceDataPolicy
         var codes = ImmutableArray.Create(sorted);
         var status = codes.Length switch
         {
-            0 => ProviderDomainCandidateStatus.Unknown,
-            1 => ProviderDomainCandidateStatus.Found,
-            _ => ProviderDomainCandidateStatus.Ambiguous
+            0 => PrincipalDomainCandidateStatus.Unknown,
+            1 => PrincipalDomainCandidateStatus.Found,
+            _ => PrincipalDomainCandidateStatus.Ambiguous
         };
-        return new ProviderDomainCandidates(status, codes);
+        return new PrincipalDomainCandidates(status, codes);
     }
 
     public static bool TryExtractDomainSuffix(
@@ -186,110 +186,110 @@ public static class ReferenceDataPolicy
     }
 
     private static void ValidateSource(
-        ProviderDomainSource? source,
-        ImmutableArray<ProviderDomainValidationIssue>.Builder issues)
+        PrincipalDomainSource? source,
+        ImmutableArray<PrincipalDomainValidationIssue>.Builder issues)
     {
         if (source is null)
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.MissingValue, "$.source");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.MissingValue, "$.source");
             return;
         }
 
         if (!IsNormalizedRepositoryRelativePosixPath(source.Path))
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.InvalidSource, "$.source.path");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.InvalidSource, "$.source.path");
         }
 
         if (!IsLowercaseSha256(source.ContentSha256))
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.InvalidSource, "$.source.contentSha256");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.InvalidSource, "$.source.contentSha256");
         }
 
         if (string.IsNullOrWhiteSpace(source.Sheet) ||
             source.Sheet.Length > 31 ||
             HasControlCharacter(source.Sheet))
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.InvalidSource, "$.source.sheet");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.InvalidSource, "$.source.sheet");
         }
 
         if (source.RowCount <= 0)
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.InvalidSource, "$.source.rowCount");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.InvalidSource, "$.source.rowCount");
         }
     }
 
-    private static void ValidateProviders(
-        ImmutableArray<ProviderDomainReference> providers,
+    private static void ValidatePrincipals(
+        ImmutableArray<PrincipalDomainReference> principals,
         int sourceRowCount,
-        ImmutableArray<ProviderDomainValidationIssue>.Builder issues)
+        ImmutableArray<PrincipalDomainValidationIssue>.Builder issues)
     {
-        if (providers.IsDefault)
+        if (principals.IsDefault)
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.MissingValue, "$.providers");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.MissingValue, "$.providers");
             return;
         }
 
-        if (providers.IsEmpty)
+        if (principals.IsEmpty)
         {
-            AddIssue(issues, ProviderDomainValidationIssueCode.EmptyPackage, "$.providers");
+            AddIssue(issues, PrincipalDomainValidationIssueCode.EmptyPackage, "$.providers");
             return;
         }
 
-        var providerCodes = new HashSet<string>(StringComparer.Ordinal);
+        var principalCodes = new HashSet<string>(StringComparer.Ordinal);
         var sourceRows = new HashSet<int>();
 
-        for (var index = 0; index < providers.Length; index++)
+        for (var index = 0; index < principals.Length; index++)
         {
-            var providerPath = $"$.providers[{index}]";
-            var provider = providers[index];
-            if (provider is null)
+            var principalPath = $"$.providers[{index}]";
+            var principal = principals[index];
+            if (principal is null)
             {
-                AddIssue(issues, ProviderDomainValidationIssueCode.MissingValue, providerPath);
+                AddIssue(issues, PrincipalDomainValidationIssueCode.MissingValue, principalPath);
                 continue;
             }
 
-            if (!IsCanonicalProviderCode(provider.Code))
+            if (!IsCanonicalPrincipalCode(principal.Code))
             {
-                AddIssue(issues, ProviderDomainValidationIssueCode.InvalidProviderCode, $"{providerPath}.code");
+                AddIssue(issues, PrincipalDomainValidationIssueCode.InvalidPrincipalCode, $"{principalPath}.code");
             }
-            else if (!providerCodes.Add(provider.Code))
+            else if (!principalCodes.Add(principal.Code))
             {
-                AddIssue(issues, ProviderDomainValidationIssueCode.DuplicateProviderCode, $"{providerPath}.code");
-            }
-
-            if (provider.SourceRow <= 0 || provider.SourceRow > sourceRowCount)
-            {
-                AddIssue(issues, ProviderDomainValidationIssueCode.InvalidSourceRow, $"{providerPath}.sourceRow");
-            }
-            else if (!sourceRows.Add(provider.SourceRow))
-            {
-                AddIssue(issues, ProviderDomainValidationIssueCode.DuplicateSourceRow, $"{providerPath}.sourceRow");
+                AddIssue(issues, PrincipalDomainValidationIssueCode.DuplicatePrincipalCode, $"{principalPath}.code");
             }
 
-            if (provider.DomainSuffixes.IsDefault)
+            if (principal.SourceRow <= 0 || principal.SourceRow > sourceRowCount)
             {
-                AddIssue(issues, ProviderDomainValidationIssueCode.MissingValue, $"{providerPath}.domainSuffixes");
+                AddIssue(issues, PrincipalDomainValidationIssueCode.InvalidSourceRow, $"{principalPath}.sourceRow");
+            }
+            else if (!sourceRows.Add(principal.SourceRow))
+            {
+                AddIssue(issues, PrincipalDomainValidationIssueCode.DuplicateSourceRow, $"{principalPath}.sourceRow");
+            }
+
+            if (principal.DomainSuffixes.IsDefault)
+            {
+                AddIssue(issues, PrincipalDomainValidationIssueCode.MissingValue, $"{principalPath}.domainSuffixes");
                 continue;
             }
 
-            if (provider.DomainSuffixes.IsEmpty)
+            if (principal.DomainSuffixes.IsEmpty)
             {
-                AddIssue(issues, ProviderDomainValidationIssueCode.MissingValue, $"{providerPath}.domainSuffixes");
+                AddIssue(issues, PrincipalDomainValidationIssueCode.MissingValue, $"{principalPath}.domainSuffixes");
                 continue;
             }
 
             var suffixes = new HashSet<string>(StringComparer.Ordinal);
-            for (var suffixIndex = 0; suffixIndex < provider.DomainSuffixes.Length; suffixIndex++)
+            for (var suffixIndex = 0; suffixIndex < principal.DomainSuffixes.Length; suffixIndex++)
             {
-                var suffixPath = $"{providerPath}.domainSuffixes[{suffixIndex}]";
-                var suffix = provider.DomainSuffixes[suffixIndex];
+                var suffixPath = $"{principalPath}.domainSuffixes[{suffixIndex}]";
+                var suffix = principal.DomainSuffixes[suffixIndex];
                 if (!IsCanonicalDomainSuffix(suffix))
                 {
-                    AddIssue(issues, ProviderDomainValidationIssueCode.InvalidDomainSuffix, suffixPath);
+                    AddIssue(issues, PrincipalDomainValidationIssueCode.InvalidDomainSuffix, suffixPath);
                 }
                 else if (!suffixes.Add(suffix))
                 {
-                    AddIssue(issues, ProviderDomainValidationIssueCode.DuplicateDomainSuffix, suffixPath);
+                    AddIssue(issues, PrincipalDomainValidationIssueCode.DuplicateDomainSuffix, suffixPath);
                 }
             }
         }
@@ -298,7 +298,7 @@ public static class ReferenceDataPolicy
     private static bool IsCanonicalVersion(string? value) =>
         IsSegmentedAsciiIdentifier(value, 64, lowercase: true);
 
-    private static bool IsCanonicalProviderCode(string? value) =>
+    private static bool IsCanonicalPrincipalCode(string? value) =>
         IsSegmentedAsciiIdentifier(value, 20, lowercase: false);
 
     private static bool IsSegmentedAsciiIdentifier(string? value, int maxLength, bool lowercase)
@@ -430,12 +430,12 @@ public static class ReferenceDataPolicy
         return true;
     }
 
-    private static ProviderDomainCandidates EmptyCandidates(ProviderDomainCandidateStatus status) =>
+    private static PrincipalDomainCandidates EmptyCandidates(PrincipalDomainCandidateStatus status) =>
         new(status, ImmutableArray<string>.Empty);
 
     private static void AddIssue(
-        ImmutableArray<ProviderDomainValidationIssue>.Builder issues,
-        ProviderDomainValidationIssueCode code,
+        ImmutableArray<PrincipalDomainValidationIssue>.Builder issues,
+        PrincipalDomainValidationIssueCode code,
         string subject) =>
-        issues.Add(new ProviderDomainValidationIssue(code, subject));
+        issues.Add(new PrincipalDomainValidationIssue(code, subject));
 }

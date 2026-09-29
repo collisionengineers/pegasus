@@ -26,7 +26,7 @@ internal static class IntakeEvidenceSourceCodes
         IntakeEvidenceSource.MimeType => "mime_type",
         IntakeEvidenceSource.StaffCorrection => "staff_correction",
         IntakeEvidenceSource.SystemDefault => "system_default",
-        IntakeEvidenceSource.ProviderDeclaration => "provider_declaration",
+        IntakeEvidenceSource.PrincipalDeclaration => "principal_declaration",
         _ => throw new InvalidOperationException(
             $"Unknown intake evidence source '{(int)value}'.")
     };
@@ -43,7 +43,7 @@ internal static class IntakeEvidenceSourceCodes
         "mime_type" => IntakeEvidenceSource.MimeType,
         "staff_correction" => IntakeEvidenceSource.StaffCorrection,
         "system_default" => IntakeEvidenceSource.SystemDefault,
-        "provider_declaration" => IntakeEvidenceSource.ProviderDeclaration,
+        "principal_declaration" => IntakeEvidenceSource.PrincipalDeclaration,
         _ => throw new InvalidDataException(
             $"Unknown persisted intake evidence source '{code}'.")
     };

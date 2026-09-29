@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// The evidenced principal mail routes: prove the provider route from the effective
+/// The evidenced principal mail routes: prove the Principal route from the effective
 /// sender (unwrapping a staff forward to the proved original sender). Route identity is a
 /// different fact from message-type classification and case association, which stay with
 /// their own policies.
@@ -294,7 +294,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
         return Result(
             MailRouteDisposition.Accepted,
             matchesDirectIdentity
-                ? new(matchedPrincipal!, MailRouteKind.DirectProvider, matchedPrincipal!)
+                ? new(matchedPrincipal!, MailRouteKind.DirectPrincipal, matchedPrincipal!)
                 : new(effectiveDomain, MailRouteKind.Intermediary, "PCH"),
             predicates,
             "The effective sender matches an evidenced principal mail route.",

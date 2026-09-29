@@ -211,7 +211,7 @@ internal sealed class IntakeMailRouteDecisionEntity
     public required string Disposition { get; set; }
     public string? RouteOwnerCode { get; set; }
     public string? RouteKind { get; set; }
-    public string? WorkProviderCode { get; set; }
+    public string? PrincipalCode { get; set; }
     public required string PredicatesJson { get; set; }
     public required string Reason { get; set; }
     public required string PolicyKey { get; set; }

@@ -96,9 +96,9 @@ link is recorded.
 | File count | 20 |
 | Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook`, `video/mp4`, `video/quicktime` |
 
-The Provider API has its own separate limits: 30 MiB decoded envelope and
+The Principal API has its own separate limits: 30 MiB decoded envelope and
 42 MiB encoded request
-([FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)).
+([FRD-09](frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary)).
 
 `IntakeEnvelopeLimits` in Core is the single owner of the manual per-file,
 file-count, and aggregate ceilings. Host and ingress limits may tighten them
@@ -123,7 +123,7 @@ explicit destination decision, not a passive status label. Manual upload
 keeps the source and its extraction but never associates it automatically
 with a Case that existed when it was registered, never allocates a Case/PO,
 and never treats a unique match as consent.
-Mailbox and Provider routes keep their own automatic policy.
+Mailbox and Principal routes keep their own automatic policy.
 
 The decision table, judged against the current retained material:
 
@@ -235,7 +235,7 @@ are separate tiers
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
-  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-19](frd-19-image-led-intake-and-pairing.md).
 - Operations: [operations](../operations.md) for deployed limit

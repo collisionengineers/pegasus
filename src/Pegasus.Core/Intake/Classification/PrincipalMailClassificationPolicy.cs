@@ -21,7 +21,7 @@ namespace Pegasus.Core.Intake;
 /// cohort counts belong to the versioned evidence/evaluation output rather than this
 /// policy comment. All supported tells produce one triage candidate.
 /// </summary>
-public sealed partial class PrincipalMailClassificationPolicy(string workProviderCode) : IMailClassificationPolicy
+public sealed partial class PrincipalMailClassificationPolicy(string principalCode) : IMailClassificationPolicy
 {
     public const string Key = "principal_mail_classification";
     public const int Version = 2;
@@ -36,7 +36,7 @@ public sealed partial class PrincipalMailClassificationPolicy(string workProvide
     // behind this reading; the placeholder only satisfies its provenance field.
     private const string ExtractionSha256 = "audit-mail-classification";
 
-    public string WorkProviderCode { get; } = workProviderCode;
+    public string PrincipalCode { get; } = principalCode;
     public string PolicyKey => Key;
     public int PolicyVersion => Version;
 
@@ -46,7 +46,7 @@ public sealed partial class PrincipalMailClassificationPolicy(string workProvide
     {
         ArgumentNullException.ThrowIfNull(readResult);
 
-        if (WorkProviderCode != QdosInstructionExtractionPolicy.SupportedPrincipalCode)
+        if (PrincipalCode != QdosInstructionExtractionPolicy.SupportedPrincipalCode)
         {
             return ClassifySelectedInstruction(readResult, instructionContent ?? []);
         }
@@ -273,15 +273,15 @@ public sealed partial class PrincipalMailClassificationPolicy(string workProvide
         var texts = instructionContent
             .Select(fragment => StaffForwardBodyCleaner.SplitForwardedHeader(fragment.Text).Body)
             .ToArray();
-        var audit = WorkProviderCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
+        var audit = PrincipalCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
             && texts.Any(text => text.Contains("NEW INSTRUCTION (Connexus Audit Report)", StringComparison.OrdinalIgnoreCase));
-        var creditRepair = WorkProviderCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
+        var creditRepair = PrincipalCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
             && texts.Any(text => text.Contains("CREDIT REPAIR", StringComparison.OrdinalIgnoreCase)
                 && text.Contains("Inspection Request", StringComparison.OrdinalIgnoreCase));
         var inspection = creditRepair || (!audit && texts.Any(text =>
             ExplicitInspectionRequestRegex().IsMatch(text)
-            || (WorkProviderCode == "DFD" && text.Contains("Engineer instruction request", StringComparison.OrdinalIgnoreCase))
-            || (WorkProviderCode == "FW" && text.Contains("New INSTRUCTIONS:", StringComparison.OrdinalIgnoreCase))));
+            || (PrincipalCode == "DFD" && text.Contains("Engineer instruction request", StringComparison.OrdinalIgnoreCase))
+            || (PrincipalCode == "FW" && text.Contains("New INSTRUCTIONS:", StringComparison.OrdinalIgnoreCase))));
         MailClassificationPredicateResult[] predicates =
         [
             new("instruction.explicit-audit", audit, "The selected PCH instruction explicitly requests a Connexus Audit Report."),

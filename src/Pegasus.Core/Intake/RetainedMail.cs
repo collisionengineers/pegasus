@@ -255,7 +255,7 @@ public static class MailClassificationActor
         [ActorKind.Staff] = "staff",
         [ActorKind.SystemWorker] = "system-worker",
         [ActorKind.Automation] = "automation",
-        [ActorKind.Provider] = "provider"
+        [ActorKind.Principal] = "principal"
     };
 
     public static string Format(ActionActor actor)

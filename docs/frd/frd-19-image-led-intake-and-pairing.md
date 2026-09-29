@@ -108,7 +108,7 @@ Triage Case records no image completeness.
 Pairing uses the Case's current accepted registration and Principal, not
 its original instruction draft. A known Principal is a hard scope on the
 candidates, as an established Principal is on the mail path
-([FRD-09](frd-09-provider-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association)):
+([FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association)):
 only that Principal's Cases are candidates, and they are chosen before any
 uniqueness count (operator, 28 September 2026). Two Principals' Cases with
 the same registration are then no tie. An unknown Principal leaves every

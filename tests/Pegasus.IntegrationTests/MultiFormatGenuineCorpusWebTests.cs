@@ -45,8 +45,8 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         Assert.NotNull(route);
         Assert.Equal(MailRouteDisposition.Accepted, route!.Disposition);
         Assert.Equal("QDOS", route.SelectedRoute?.RouteOwnerCode);
-        Assert.Equal(MailRouteKind.DirectProvider, route.SelectedRoute?.Kind);
-        Assert.Equal("QDOS", route.SelectedRoute?.WorkProviderCode);
+        Assert.Equal(MailRouteKind.DirectPrincipal, route.SelectedRoute?.Kind);
+        Assert.Equal("QDOS", route.SelectedRoute?.PrincipalCode);
         Assert.Equal(PrincipalMailRoutePolicy.Key, route.PolicyKey);
         Assert.Equal(PrincipalMailRoutePolicy.Version, route.PolicyVersion);
         AssertRoutePredicate(route, "direct.sender-exactly-one", matched: true);

@@ -1,29 +1,29 @@
 using Pegasus.Core.Address;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Core.Tests.Qdos;
 
 public sealed class QdosBoundaryContractTests
 {
     /// <summary>
-    /// The Provider API's decoded envelope is 30 MiB across files, with a
+    /// The Principal API's decoded envelope is 30 MiB across files, with a
     /// separate 10 MiB ceiling on each file.
     /// </summary>
     [Fact]
-    public void TheProviderApiEnvelopeBoundsEveryFileItCarries()
+    public void ThePrincipalApiEnvelopeBoundsEveryFileItCarries()
     {
-        Assert.Equal(30 * 1024 * 1024, IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength);
+        Assert.Equal(30 * 1024 * 1024, IntakeEnvelopeLimits.MaximumPrincipalApiEnvelopeLength);
         Assert.True(
-            IntakeEnvelopeLimits.MaximumProviderApiFileLength
-                <= IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
-            "A single Provider API file may never be allowed past the envelope.");
+            IntakeEnvelopeLimits.MaximumPrincipalApiFileLength
+                <= IntakeEnvelopeLimits.MaximumPrincipalApiEnvelopeLength,
+            "A single Principal API file may never be allowed past the envelope.");
 
         // One file inside the per-file cap is accepted; a batch past 30 MiB
         // is refused as an envelope failure.
-        var withinBounds = ProviderSubmissionPolicy.RequireEnvelope(
-            [ProviderFile(0, 1024)]);
+        var withinBounds = PrincipalSubmissionPolicy.RequireEnvelope(
+            [PrincipalFile(0, 1024)]);
         Assert.Single(withinBounds);
 
         // Four files, each well inside the per-file bound, still sum past the
@@ -31,48 +31,48 @@ public sealed class QdosBoundaryContractTests
         // file.
         var overEnvelope = Enumerable
             .Range(0, 4)
-            .Select(ordinal => ProviderFile(ordinal, 8 * 1024 * 1024))
+            .Select(ordinal => PrincipalFile(ordinal, 8 * 1024 * 1024))
             .ToArray();
         Assert.All(
             overEnvelope,
             file => Assert.True(
-                file.Content.Length <= IntakeEnvelopeLimits.MaximumProviderApiFileLength,
+                file.Content.Length <= IntakeEnvelopeLimits.MaximumPrincipalApiFileLength,
                 "Each file must be inside the per-file bound, or this proves "
                     + "the per-file check rather than the envelope."));
         Assert.True(
             overEnvelope.Sum(file => (long)file.Content.Length)
-                > IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
+                > IntakeEnvelopeLimits.MaximumPrincipalApiEnvelopeLength,
             "The fixture must exceed the envelope for this to prove anything.");
-        var refused = Assert.Throws<ProviderSubmissionException>(
-            () => ProviderSubmissionPolicy.RequireEnvelope(overEnvelope));
-        Assert.Equal(ProviderSubmissionError.EnvelopeExceeded, refused.Error);
+        var refused = Assert.Throws<PrincipalSubmissionException>(
+            () => PrincipalSubmissionPolicy.RequireEnvelope(overEnvelope));
+        Assert.Equal(PrincipalSubmissionError.EnvelopeExceeded, refused.Error);
     }
 
     /// <summary>
-    /// The Provider API per-file bound at the limit and one byte past it. The
+    /// The Principal API per-file bound at the limit and one byte past it. The
     /// manual channel's 100 MB cap does not reach this channel: a file that
     /// the staff form would accept is refused here (C07 item 5).
     /// </summary>
     [Fact]
-    public void TheProviderApiPerFileBoundAcceptsItsLimitAndRefusesOneByteMore()
+    public void ThePrincipalApiPerFileBoundAcceptsItsLimitAndRefusesOneByteMore()
     {
-        var atTheLimit = ProviderSubmissionPolicy.RequireEnvelope(
-            [ProviderFile(0, IntakeEnvelopeLimits.MaximumProviderApiFileLength)]);
+        var atTheLimit = PrincipalSubmissionPolicy.RequireEnvelope(
+            [PrincipalFile(0, IntakeEnvelopeLimits.MaximumPrincipalApiFileLength)]);
         Assert.Single(atTheLimit);
 
-        var overTheLimit = Assert.Throws<ProviderSubmissionException>(
-            () => ProviderSubmissionPolicy.RequireEnvelope(
-                [ProviderFile(0, IntakeEnvelopeLimits.MaximumProviderApiFileLength + 1)]));
-        Assert.Equal(ProviderSubmissionError.EnvelopeExceeded, overTheLimit.Error);
+        var overTheLimit = Assert.Throws<PrincipalSubmissionException>(
+            () => PrincipalSubmissionPolicy.RequireEnvelope(
+                [PrincipalFile(0, IntakeEnvelopeLimits.MaximumPrincipalApiFileLength + 1)]));
+        Assert.Equal(PrincipalSubmissionError.EnvelopeExceeded, overTheLimit.Error);
 
         Assert.True(
             IntakeEnvelopeLimits.MaximumContentLength
-                > IntakeEnvelopeLimits.MaximumProviderApiFileLength,
+                > IntakeEnvelopeLimits.MaximumPrincipalApiFileLength,
             "This test only means something while the manual per-file cap is "
                 + "the larger of the two.");
     }
 
-    private static ProviderSubmissionFile ProviderFile(int ordinal, int length) => new(
+    private static PrincipalSubmissionFile PrincipalFile(int ordinal, int length) => new(
         ordinal,
         $"provider-{ordinal:00}.pdf",
         "application/pdf",

@@ -383,7 +383,7 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
-    public async Task TriageRowRendersTheTriageReferenceRegistrationProviderAndAssignee()
+    public async Task TriageRowRendersTheTriageReferenceRegistrationPrincipalAndAssignee()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);

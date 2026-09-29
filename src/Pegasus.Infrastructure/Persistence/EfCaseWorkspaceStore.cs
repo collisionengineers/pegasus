@@ -29,7 +29,7 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfCaseWorkspaceStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider,
-    IEnumerable<IProviderCaseMatchPolicy>? caseMatchPolicies = null) : ICaseWorkspaceStore
+    IEnumerable<IPrincipalCaseMatchPolicy>? caseMatchPolicies = null) : ICaseWorkspaceStore
 {
     private const string EventType = "case_workspace_saved";
 

@@ -455,7 +455,7 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         { name: 'GitHub__ProblemReports__Repository', value: gitHubProblemReportRepository }
         { name: 'GitHub__ProblemReports__Labels', value: 'problem-report' }
         { name: 'Features__AutomationMcp', value: 'true' }
-        { name: 'Features__ProviderApi', value: 'true' }
+        { name: 'Features__PrincipalApi', value: 'true' }
         { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
         { name: 'AutomationMcp__KeyVaultUri', value: keyVault.properties.vaultUri }
         { name: 'AutomationMcp__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${automationMcpClientSecretUri})' }

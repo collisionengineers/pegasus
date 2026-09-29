@@ -366,7 +366,7 @@ public sealed partial class TriageCaseWebTests
         {
             await context.CaseWorkflows.Where(item => item.CaseId == inspection.CaseId)
                 .ExecuteUpdateAsync(update => update.SetProperty(
-                    item => item.State, nameof(CaseLifecycleState.ProviderCancelled)));
+                    item => item.State, nameof(CaseLifecycleState.PrincipalCancelled)));
         }
         var workflow = Assert.IsType<CaseWorkflowRecord>(await services.GetRequiredService<ICaseWorkflowQueries>()
             .GetAsync(inspection.CaseId, CancellationToken.None));
@@ -388,7 +388,7 @@ public sealed partial class TriageCaseWebTests
 
         Assert.Equal(inspection.CaseId, (await GetReceiptAsync(services, caseReceiptId)).CurrentCaseId);
         Assert.Equal(
-            CaseLifecycleState.ProviderCancelled,
+            CaseLifecycleState.PrincipalCancelled,
             Assert.IsType<CaseWorkflowRecord>(await services.GetRequiredService<ICaseWorkflowQueries>()
                 .GetAsync(inspection.CaseId, CancellationToken.None)).State);
     }

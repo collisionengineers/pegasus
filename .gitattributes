@@ -6,7 +6,7 @@
 # checkable (ENG-014 review).
 reference/eva_information/*.json text eol=lf
 reference/**/*.xlsm binary
-src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json binary
+src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json binary
 reference/workproviders-and-repairers/principal-identification-corpus.v1.json binary
 *.doc binary
 *.docx binary

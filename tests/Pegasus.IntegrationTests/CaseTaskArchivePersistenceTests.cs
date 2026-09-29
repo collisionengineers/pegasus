@@ -49,7 +49,7 @@ public sealed class CaseTaskArchivePersistenceTests
             CaseLifecycleState[] states =
             [
                 CaseLifecycleState.SourceEmailUnlinked,
-                CaseLifecycleState.ProviderCancelled,
+                CaseLifecycleState.PrincipalCancelled,
                 CaseLifecycleState.CollisionEngineersRejected,
                 CaseLifecycleState.CreatedInError
             ];
@@ -140,7 +140,7 @@ public sealed class CaseTaskArchivePersistenceTests
 
     [Theory]
     [InlineData(CaseClosureOutcome.PostReportComplete)]
-    [InlineData(CaseClosureOutcome.ProviderCancelled)]
+    [InlineData(CaseClosureOutcome.PrincipalCancelled)]
     [InlineData(CaseClosureOutcome.CollisionEngineersRejected)]
     [InlineData(CaseClosureOutcome.CreatedInError)]
     public async Task EveryTerminalCloseOutcomeRejectsOpenTasks(
@@ -177,7 +177,7 @@ public sealed class CaseTaskArchivePersistenceTests
         await harness.SeedOpenTaskAsync(Guid.NewGuid());
         await harness.SetWorkflowStateAsync(
             harness.TaskCaseId,
-            CaseLifecycleState.ProviderCancelled);
+            CaseLifecycleState.PrincipalCancelled);
         await harness.SetCustodyStateAsync(harness.TaskCaseId, "confirmed");
         var lease = await harness.AcquireLease.ExecuteAsync(
             new(harness.TaskCaseId, 0, harness.UserActor, "claim-legacy-terminal-archive"),
@@ -288,7 +288,7 @@ public sealed class CaseTaskArchivePersistenceTests
                 "race-case-close",
                 "Exercise task creation and closure serialization",
                 lease.Token,
-                CaseClosureOutcome.ProviderCancelled),
+                CaseClosureOutcome.PrincipalCancelled),
             default);
 
         await Assert.ThrowsAnyAsync<Exception>(() => Task.WhenAll(create, close));
@@ -458,7 +458,7 @@ public sealed class CaseTaskArchivePersistenceTests
             "case-close-before-archive",
             "The provider cancelled this case",
             closeLease.Token,
-            CaseClosureOutcome.ProviderCancelled);
+            CaseClosureOutcome.PrincipalCancelled);
         var closed = await harness.CloseCase.ExecuteAsync(closeRequest, default);
         var closeReplay = await harness.CloseCase.ExecuteAsync(closeRequest, default);
         Assert.Equal(closed, closeReplay);
@@ -513,7 +513,7 @@ public sealed class CaseTaskArchivePersistenceTests
             replayedArchive.ArchivedBy.Roles.OrderBy(role => role).ToArray());
         Assert.NotNull(archived.Archive);
         Assert.Equal("Retain the completed file as read-only", archived.Archive.Reason);
-        Assert.Equal(CaseLifecycleState.ProviderCancelled, archived.State);
+        Assert.Equal(CaseLifecycleState.PrincipalCancelled, archived.State);
         await Assert.ThrowsAsync<CaseArchivedException>(() => harness.AcquireLease.ExecuteAsync(
             new(harness.TaskCaseId, archived.Version, harness.AdministratorActor, "claim-archived-case"),
             default));
@@ -593,7 +593,7 @@ public sealed class CaseTaskArchivePersistenceTests
                 $"close-{operationSuffix}",
                 "Prepare a terminal case for archive readiness testing",
                 closeLease.Token,
-                CaseClosureOutcome.ProviderCancelled),
+                CaseClosureOutcome.PrincipalCancelled),
             default);
         await harness.SetCustodyStateAsync(harness.TaskCaseId, "confirmed");
         var archiveLease = await harness.AcquireLease.ExecuteAsync(

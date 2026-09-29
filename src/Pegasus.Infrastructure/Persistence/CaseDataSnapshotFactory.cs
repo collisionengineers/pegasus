@@ -3,7 +3,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -68,34 +68,34 @@ internal static class CaseDataSnapshotFactory
             AcceptedAtUtc = acceptedAtUtc
         };
 
-        AddProviderFact(snapshot, receipt, request, acceptedAtUtc);
+        AddPrincipalFact(snapshot, receipt, request, acceptedAtUtc);
         AddInstructionSuggestions(snapshot, receipt);
         AddResolvedInspection(
             snapshot,
             receipt,
-            request.ProviderInspectionMode == CaseInspectionMode.ImageBasedAssessment);
-        AddProviderInspectionMode(snapshot, request, acceptedAtUtc);
+            request.PrincipalInspectionMode == CaseInspectionMode.ImageBasedAssessment);
+        AddPrincipalInspectionMode(snapshot, request, acceptedAtUtc);
         AddAcceptedDeadline(snapshot, receipt, request, acceptedAtUtc);
         return snapshot;
     }
 
-    private static void AddProviderInspectionMode(
+    private static void AddPrincipalInspectionMode(
         CaseDataSnapshotEntity snapshot,
         CaseAcceptanceRequest request,
         DateTimeOffset acceptedAtUtc)
     {
-        if (request.ProviderInspectionMode != CaseInspectionMode.ImageBasedAssessment)
+        if (request.PrincipalInspectionMode != CaseInspectionMode.ImageBasedAssessment)
         {
             return;
         }
 
-        // The provider setting determines the mode even when the instruction
+        // The Principal setting determines the mode even when the instruction
         // carried a physical location or staff resolved one at intake; those
         // remain as suggestion rows and staff may still override on the case.
         snapshot.Fields.RemoveAll(item =>
             item.FieldName is CaseDataFieldNames.InspectionAddress or CaseDataFieldNames.InspectionMode
             && item.ValueKind == CaseDataCodes.Confirmed);
-        var sourceLabel = $"provider setting:{request.PrincipalCode}";
+        var sourceLabel = $"principal setting:{request.PrincipalCode}";
         snapshot.Fields.Add(new()
         {
             WorkId = snapshot.WorkId,
@@ -104,11 +104,11 @@ internal static class CaseDataSnapshotFactory
             ValueKind = CaseDataCodes.Confirmed,
             ValueType = CaseDataCodes.Text,
             Value = Ext18InspectionAddressPolicy.ImageBasedAssessment,
-            SourceKind = CaseDataCodes.ProviderSetting,
+            SourceKind = CaseDataCodes.PrincipalSetting,
             SourceIdentity = (snapshot.OriginIntakeReceiptId ?? throw new InvalidOperationException("Receipt-backed case data requires its intake receipt identity.")).ToString("D"),
             SourceLabel = sourceLabel,
-            PolicyKey = ProviderInspectionModePolicy.PolicyKey,
-            PolicyVersion = ProviderInspectionModePolicy.PolicyVersion,
+            PolicyKey = PrincipalInspectionModePolicy.PolicyKey,
+            PolicyVersion = PrincipalInspectionModePolicy.PolicyVersion,
             ConfirmedByActor = request.Actor.SubjectId,
             ConfirmedAtUtc = acceptedAtUtc
         });
@@ -119,18 +119,18 @@ internal static class CaseDataSnapshotFactory
             FieldName = CaseDataFieldNames.InspectionMode,
             ValueKind = CaseDataCodes.Confirmed,
             ValueType = CaseDataCodes.InspectionMode,
-            Value = ProviderInspectionModePolicy.ImageBasedAssessmentCode,
-            SourceKind = CaseDataCodes.ProviderSetting,
+            Value = PrincipalInspectionModePolicy.ImageBasedAssessmentCode,
+            SourceKind = CaseDataCodes.PrincipalSetting,
             SourceIdentity = (snapshot.OriginIntakeReceiptId ?? throw new InvalidOperationException("Receipt-backed case data requires its intake receipt identity.")).ToString("D"),
             SourceLabel = sourceLabel,
-            PolicyKey = ProviderInspectionModePolicy.PolicyKey,
-            PolicyVersion = ProviderInspectionModePolicy.PolicyVersion,
+            PolicyKey = PrincipalInspectionModePolicy.PolicyKey,
+            PolicyVersion = PrincipalInspectionModePolicy.PolicyVersion,
             ConfirmedByActor = request.Actor.SubjectId,
             ConfirmedAtUtc = acceptedAtUtc
         });
     }
 
-    private static void AddProviderFact(
+    private static void AddPrincipalFact(
         CaseDataSnapshotEntity snapshot,
         IntakeReceiptEntity receipt,
         CaseAcceptanceRequest request,
@@ -144,10 +144,10 @@ internal static class CaseDataSnapshotFactory
         int policyVersion;
         if (route is not null
             && string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)
-            && !string.IsNullOrWhiteSpace(route.WorkProviderCode))
+            && !string.IsNullOrWhiteSpace(route.PrincipalCode))
         {
             RequirePolicy(route.PolicyKey, route.PolicyVersion, "mail-route");
-            value = route.WorkProviderCode.Trim();
+            value = route.PrincipalCode.Trim();
             sourceKind = CaseDataCodes.MailRoute;
             sourceLabel = string.IsNullOrWhiteSpace(route.RouteOwnerCode)
                 ? "accepted mail route"
@@ -157,13 +157,13 @@ internal static class CaseDataSnapshotFactory
         }
         else if (route is null
             && EfIntakeReceiptStore.ParseSourceChannel(receipt.SourceChannel)
-                == IntakeSourceChannel.ProviderApi
+                == IntakeSourceChannel.PrincipalApi
             // Only automatic allocation's PrincipalCode is the credential
             // binding's. AttemptAutomaticAsync derives it from
             // EstablishedPrincipalCode(receipt, binding) and acts as
             // ActionActor.SystemWorker (IntakeAllocation.cs:259,283); the staff
             // create path takes whatever an operator keyed, and staff can key a
-            // different principal entirely to correct a provider that posted
+            // different principal entirely to correct a Principal that posted
             // under the wrong account. Labelling that "authenticated credential
             // binding" would export a provenance to the EVA archive that no
             // credential ever supplied — the same falsehood AddExtractedValue
@@ -173,17 +173,17 @@ internal static class CaseDataSnapshotFactory
             && request.Actor.Kind == ActorKind.SystemWorker
             && !string.IsNullOrWhiteSpace(request.PrincipalCode))
         {
-            // The work provider comes from the authenticated credential binding,
+            // The Principal comes from the authenticated credential binding,
             // not from a value declared in the instruction body.
             value = request.PrincipalCode.Trim();
-            sourceKind = CaseDataCodes.ProviderApi;
+            sourceKind = CaseDataCodes.PrincipalApi;
             sourceLabel = "authenticated credential binding";
-            policyKey = ProviderInstructionPolicy.PolicyKey;
-            policyVersion = ProviderInstructionPolicy.PolicyVersion;
+            policyKey = PrincipalInstructionPolicy.PolicyKey;
+            policyVersion = PrincipalInstructionPolicy.PolicyVersion;
         }
         else
         {
-            AddStaffAllocatedProvider(snapshot, request, acceptedAtUtc);
+            AddStaffAllocatedPrincipal(snapshot, request, acceptedAtUtc);
             return;
         }
 
@@ -191,7 +191,7 @@ internal static class CaseDataSnapshotFactory
         {
             WorkId = snapshot.WorkId,
             Snapshot = snapshot,
-            FieldName = CaseDataFieldNames.WorkProviderCode,
+            FieldName = CaseDataFieldNames.PrincipalCode,
             ValueKind = CaseDataCodes.Fact,
             ValueType = CaseDataCodes.Text,
             Value = value,
@@ -212,11 +212,11 @@ internal static class CaseDataSnapshotFactory
     /// document that named the wrong party. It is therefore recorded as their
     /// confirmation at acceptance, not as something a document or a credential
     /// stated. A confirmation is a person's decision, so a non-staff caller
-    /// without a route or binding records nothing here. Recording nothing left the case with no work provider at all:
+    /// without a route or binding records nothing here. Recording nothing left the case with no Principal at all:
     /// the EVA export sent an empty Work Provider and the case-match index
     /// projected no row, so images never associated automatically.
     /// </summary>
-    private static void AddStaffAllocatedProvider(
+    private static void AddStaffAllocatedPrincipal(
         CaseDataSnapshotEntity snapshot,
         CaseAcceptanceRequest request,
         DateTimeOffset acceptedAtUtc)
@@ -233,7 +233,7 @@ internal static class CaseDataSnapshotFactory
             "case acceptance");
         UpsertConfirmed(
             snapshot,
-            CaseDataFieldNames.WorkProviderCode,
+            CaseDataFieldNames.PrincipalCode,
             CaseDataCodes.Text,
             request.PrincipalCode.Trim(),
             request.Actor.SubjectId,
@@ -362,7 +362,7 @@ internal static class CaseDataSnapshotFactory
     private static void AddResolvedInspection(
         CaseDataSnapshotEntity snapshot,
         IntakeReceiptEntity receipt,
-        bool providerIsImageBased)
+        bool principalIsImageBased)
     {
         if (receipt.InstructionDraft is null)
         {
@@ -370,13 +370,13 @@ internal static class CaseDataSnapshotFactory
         }
 
         // The same rule the create screen applies, asked of Core rather than
-        // composed again here. An Image Based Assessment provider needs nothing
+        // composed again here. An Image Based Assessment Principal needs nothing
         // settled first, and anything this adds for one is replaced by the
-        // provider's own recorded mode below.
+        // Principal's own recorded mode below.
         var resolution = InspectionAddressResolutionStore.CreateSnapshot(receipt);
         if (!InspectionAddressResolutionPolicy.SatisfiesCaseCreation(
                 resolution.State,
-                providerIsImageBased)
+                principalIsImageBased)
             || string.IsNullOrWhiteSpace(resolution.ResolvedValue)
             || resolution.ResolvedByStaffId is not { } staffId
             || resolution.ResolvedAtUtc is not { } resolvedAtUtc)
@@ -524,10 +524,10 @@ internal static class CaseDataSnapshotFactory
             SourceKind = candidate.Source switch
             {
                 IntakeEvidenceSource.StaffCorrection => CaseDataCodes.StaffCorrection,
-                // FRD-23 names the provider API as a provenance in its own
+                // FRD-23 names the Principal API as a provenance in its own
                 // right. A value the instructing Principal stated is neither
                 // something a document said nor something a person here keyed.
-                IntakeEvidenceSource.ProviderDeclaration => CaseDataCodes.ProviderApi,
+                IntakeEvidenceSource.PrincipalDeclaration => CaseDataCodes.PrincipalApi,
                 _ => CaseDataCodes.IntakeEvidence
             },
             SourceIdentity = receipt.Id.ToString("D"),

@@ -4,7 +4,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
-using Pegasus.Core.ProviderApi;
+using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -22,7 +22,7 @@ public sealed class ProcessIntakeTests
         var receipt = await CreateSut(new StubReader(read), new RecordingStore(),
             extractionPolicy: new FwInstructionExtractionPolicy()).ExecuteAsync(CreateSource());
         Assert.Equal(MailRouteDisposition.Accepted, receipt.MailRouteDecision?.Disposition);
-        Assert.Equal("QDOS", receipt.MailRouteDecision?.SelectedRoute?.WorkProviderCode);
+        Assert.Equal("QDOS", receipt.MailRouteDecision?.SelectedRoute?.PrincipalCode);
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Null(receipt.InstructionDraft);
         Assert.Null(receipt.ExtractionPolicyKey);
@@ -994,7 +994,7 @@ public sealed class ProcessIntakeTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task ProviderApiAuditRecordsItsDeclaredVerdictOnlyWithARetainedReport(bool withReport)
+    public async Task PrincipalApiAuditRecordsItsDeclaredVerdictOnlyWithARetainedReport(bool withReport)
     {
         // The report file is optional (operator, 2026-09-28). Without it the
         // Audit is still processed, on first run and on replay, and records no
@@ -1010,7 +1010,7 @@ public sealed class ProcessIntakeTests
                 ?
                 [
                     new(
-                        ProviderInstructionPolicy.OriginalReportSourceLabel,
+                        PrincipalInstructionPolicy.OriginalReportSourceLabel,
                         "original-report.pdf",
                         "application/pdf",
                         new byte[] { 2 },
@@ -1018,18 +1018,18 @@ public sealed class ProcessIntakeTests
                         IntakeAssetDisposition.Attachment)
                 ]
                 : []);
-        var identity = new IntakeSourceIdentity(IntakeSourceChannel.ProviderApi, "provider-audit");
+        var identity = new IntakeSourceIdentity(IntakeSourceChannel.PrincipalApi, "principal-audit");
         var store = new RecordingStore();
         var sut = CreateSut(
             new StubReader(readResult),
             store,
             automaticStandaloneAuditEvidence: automaticEvidence,
-            providerSubmissionBindings: new SingleProviderBinding(identity, new(
+            principalSubmissionBindings: new SinglePrincipalBinding(identity, new(
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 "QDOS",
-                new ProviderInstruction(
-                    ProviderInstructionKind.Audit,
+                new PrincipalInstruction(
+                    PrincipalInstructionKind.Audit,
                     AuditAssessment.Repairable,
                     null,
                     ClaimNumber: "Q-AUDIT",
@@ -1037,8 +1037,8 @@ public sealed class ProcessIntakeTests
                     VehicleRegistration: "AB12CDE"))));
         var source = CreateSource() with
         {
-            FileName = ProviderInstructionPolicy.SourceFileName,
-            MediaType = ProviderInstructionPolicy.SourceMediaType,
+            FileName = PrincipalInstructionPolicy.SourceFileName,
+            MediaType = PrincipalInstructionPolicy.SourceMediaType,
             SourceIdentity = identity
         };
 
@@ -1060,14 +1060,14 @@ public sealed class ProcessIntakeTests
         }
     }
 
-    private sealed class SingleProviderBinding(
+    private sealed class SinglePrincipalBinding(
         IntakeSourceIdentity identity,
-        ProviderSubmissionBinding binding) : IProviderSubmissionBindings
+        PrincipalSubmissionBinding binding) : IPrincipalSubmissionBindings
     {
-        public Task<ProviderSubmissionBinding?> FindAsync(
+        public Task<PrincipalSubmissionBinding?> FindAsync(
             IntakeSourceIdentity sourceIdentity,
             CancellationToken cancellationToken) =>
-            Task.FromResult<ProviderSubmissionBinding?>(sourceIdentity == identity ? binding : null);
+            Task.FromResult<PrincipalSubmissionBinding?>(sourceIdentity == identity ? binding : null);
     }
 
     [Fact]
@@ -1376,9 +1376,9 @@ public sealed class ProcessIntakeTests
         Assert.Equal(without.DecisionReason, ambiguous.DecisionReason);
     }
 
-    private sealed class FixedKeysMatchPolicy(CaseMatchKeys keys) : IProviderCaseMatchPolicy
+    private sealed class FixedKeysMatchPolicy(CaseMatchKeys keys) : IPrincipalCaseMatchPolicy
     {
-        public string WorkProviderCode => "QDOS";
+        public string PrincipalCode => "QDOS";
         public string PolicyKey => "qdos_case_match";
         public int PolicyVersion => 1;
         public CaseMatchKeys ExtractMatchKeys(IntakeSourceReadResult readResult) => keys;
@@ -1390,7 +1390,7 @@ public sealed class ProcessIntakeTests
         : ICaseMatchCandidateQueries
     {
         public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
-            string workProviderCode,
+            string principalCode,
             CaseMatchKeys keys,
             CancellationToken cancellationToken) =>
             Task.FromResult(candidates);
@@ -1785,7 +1785,7 @@ public sealed class ProcessIntakeTests
         IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
         IRegisterUnidentified? registerUnidentified = null,
         RetainIncomingArtifact? retainIncomingArtifact = null,
-        IProviderSubmissionBindings? providerSubmissionBindings = null) =>
+        IPrincipalSubmissionBindings? principalSubmissionBindings = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             new InstructionExtractionPolicySelector(
                 extractionPolicies ?? [extractionPolicy ?? new QdosInstructionExtractionPolicy()]),
@@ -1795,13 +1795,13 @@ public sealed class ProcessIntakeTests
             new FixedTimeProvider(ProcessedAtUtc),
             automaticStandaloneAuditEvidence,
             registerUnidentified,
-            providerSubmissionBindings,
+            principalSubmissionBindings,
             retainIncomingArtifact: retainIncomingArtifact);
 
     private sealed class NoCaseMatchCandidates : ICaseMatchCandidateQueries
     {
         public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
-            string workProviderCode,
+            string principalCode,
             CaseMatchKeys keys,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseMatchCandidate>>([]);
