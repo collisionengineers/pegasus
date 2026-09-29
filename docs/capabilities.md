@@ -104,6 +104,7 @@ exclusion.
 | UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | ENG-03 | Damage record: zones with severity and note, tyres, belts, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
 | ENG-04 | Settlement fields with derived equity | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
+| ENG-05 | Principal salvage matrix fills the Case salvage value | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
 | AI-11 | Market Research AI job completed outside Pegasus | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
 | RPT-06 | Fee note preview on the Report section | [Report-draft entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point) |
 | DOC-01 | Automatic Box case-folder creation using the Case/PO name | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) |

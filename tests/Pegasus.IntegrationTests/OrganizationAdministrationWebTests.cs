@@ -176,6 +176,66 @@ public sealed partial class OrganizationAdministrationWebTests
                 $"SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = '{replacementOperationKey}' AND ActorSubjectId = '{DevelopmentOfflineIdentity.AdministratorId:D}' AND Reason IS NULL;"));
     }
 
+    /// <summary>
+    /// The Principal's salvage matrix (29 September 2026): one table per
+    /// category, each with a spare row; a refused save names the category and
+    /// the rule and keeps what was typed; blank rows clear the matrix.
+    /// </summary>
+    [Fact]
+    public async Task ASalvageMatrixSavesFromTheContactAndARefusalKeepsTheTypedRows()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var principalId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM Principals WHERE Code = 'QDOS';");
+        var contactId = await factory.Database.ScalarAsync<Guid>(
+            $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
+        var path = $"/Administration/Contacts/Edit/{contactId:D}";
+        var noMatrix = $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND SalvageMatrixJson IS NULL;";
+
+        var html = await EditContactAsync(client, path);
+        Assert.Contains("Salvage matrix", html, StringComparison.Ordinal);
+        foreach (var category in new[] { "A", "B", "S", "N" })
+        {
+            Assert.Contains($"data-salvage-bands=\"{category}\"", html, StringComparison.Ordinal);
+        }
+        Assert.Equal(4, Regex.Count(html, "name=\"SalvageBandFrom\""));
+
+        using var refused = await client.PostAsync(
+            $"{path}?handler=UpdateSalvageMatrix",
+            SalvageForm(html, [("S", "1000.01", "2500", "2"), ("S", "2000", "5000", "4")]));
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        var refusedHtml = await refused.Content.ReadAsStringAsync();
+        Assert.Contains(
+            "Cat S: bands overlap (1,000.01 to 2,500.00 and 2,000.00 to 5,000.00).",
+            WebUtility.HtmlDecode(refusedHtml),
+            StringComparison.Ordinal);
+        Assert.Contains("value=\"2000\"", refusedHtml, StringComparison.Ordinal);
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(noMatrix));
+
+        html = await EditContactAsync(client, path);
+        using var saved = await client.PostAsync(
+            $"{path}?handler=UpdateSalvageMatrix",
+            SalvageForm(html, [("S", "0.01", "1000", "0"), ("S", "1000.01", "9999999.99", "2"), ("N", "", "", "")]));
+        Assert.True(
+            saved.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {saved.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(saved)}");
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(noMatrix));
+        var reloaded = await EditContactAsync(client, path);
+        Assert.Contains(
+            "The principal's salvage matrix was updated.",
+            WebUtility.HtmlDecode(reloaded),
+            StringComparison.Ordinal);
+        Assert.Contains("value=\"1000.01\"", reloaded, StringComparison.Ordinal);
+        Assert.Contains("value=\"9999999.99\"", reloaded, StringComparison.Ordinal);
+
+        using var cleared = await client.PostAsync(
+            $"{path}?handler=UpdateSalvageMatrix",
+            SalvageForm(reloaded, [("S", "", "", "")]));
+        Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(noMatrix));
+    }
+
     [Fact]
     public async Task PrincipalRoutesDenyNonAdministratorSession()
     {
@@ -369,6 +429,27 @@ public sealed partial class OrganizationAdministrationWebTests
         ["CredentialOperationKey"] = InputValue(html, "CredentialOperationKey"),
         ["CredentialVersion"] = InputValue(html, "CredentialVersion")
     };
+
+    private static FormUrlEncodedContent SalvageForm(
+        string html,
+        IEnumerable<(string Category, string From, string To, string Percentage)> rows)
+    {
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", InputValue(html, "__RequestVerificationToken")),
+            new("SalvageMatrixOperationKey", InputValue(html, "SalvageMatrixOperationKey")),
+            new("PrincipalExpectedVersion", InputValue(html, "PrincipalExpectedVersion")),
+            new("ExpectedVersion", InputValue(html, "ExpectedVersion"))
+        };
+        foreach (var row in rows)
+        {
+            fields.Add(new("SalvageBandCategory", row.Category));
+            fields.Add(new("SalvageBandFrom", row.From));
+            fields.Add(new("SalvageBandTo", row.To));
+            fields.Add(new("SalvageBandPercentage", row.Percentage));
+        }
+        return new FormUrlEncodedContent(fields);
+    }
 
     private static Task<string> EditContactAsync(HttpClient client, string path) =>
         IntakeWebDriver.GetHtmlAsync(client, path);

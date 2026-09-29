@@ -250,6 +250,22 @@ recorded on the Case and not printed on the report (operator, 27 September
 Current repair specification's VAT-inclusive cost rounded up to the next £50
 on a Repairable outcome, and Not applicable otherwise; it is never written.
 
+**The salvage matrix (operator, 29 September 2026).** When the Case's
+Principal has a salvage matrix
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
+the matrix fills the Salvage value while the Case edits. Once the outcome is
+Total loss, a category is chosen and the Engineer's Value is known, the
+value is the Engineer's Value times the percentage of the category's band
+that holds it, to the penny, with a half penny rounding away from zero. A
+change of outcome, category or Engineer's Value fills it again. When no
+figure applies any more (N/A, no Engineer's Value, a value in a gap between
+bands) a figure the matrix filled is cleared. A figure the Engineer sets by
+typing, the slider or a snap is their own and the matrix leaves it;
+emptying the value hands it back. A saved value equal to the matrix's figure
+counts as the matrix's. Opening the edit fills nothing. The Save records the
+value as it records a typed one, with no separate provenance. A Principal
+without a matrix changes nothing.
+
 **The unroadworthy reason bank (v28 P15).** An Engineer inserts a wording
 into the reason, joined to what is already there with "and", and may save
 the typed reason to the Principal's own bank. Seven standard wordings are
@@ -326,8 +342,11 @@ tests cover typed values saving without a mileage and clearing their
 blockers, a calculation recorded against its basis card, a card typed in the
 same save being used, an overtyped Engineer's Value staying the Engineer's
 own, the preview and the Save recording one figure, and a research result
-filed while a staff member holds the edit lease. Web tests cover Airbags deployed and
-the temporary repair rows in read and edit and through the Case Save. Live
+filed while a staff member holds the edit lease. Core tests cover the
+salvage matrix's rules, band lookup, rounding and when a value follows the
+matrix. Web tests cover Airbags deployed and
+the temporary repair rows in read and edit and through the Case Save, and
+the salvage matrix handed to the Case only while it edits. Live
 Glass's evidence is a separate tier
 ([engineering](../engineering.md#required-evidence-tiers)).
 

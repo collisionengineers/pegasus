@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Address;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -100,6 +101,13 @@ public sealed class OrganizationAdministrationPersistenceTests
                 "Directory Web Caller Yard", "1 Directory Way, DW1 2EF", "DW1 2EF",
                 "manual", null, null,
                 initialContactVersion), default);
+        var salvageMatrix = SalvageMatrix.Normalize([new("N", 0.01m, 9999999.99m, 20m)]);
+        var configuredMatrix = await scope.ServiceProvider
+            .GetRequiredService<IUpdatePrincipalSalvageMatrix>()
+            .ExecuteAsync(new(
+                predecessor.Id, configuredLocation.Version, Administrator,
+                "principal:salvage-matrix:replacement", salvageMatrix,
+                initialContactVersion + 1), default);
         var receipt = await CreateReadyReceiptAsync(factory.Services);
         var receiptVersion = await factory.Database.ScalarAsync<long>(
             $"SELECT Version FROM IntakeReceipts WHERE Id = '{receipt.Id:D}';");
@@ -118,7 +126,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             $"SELECT Version FROM Organizations WHERE Id = '{predecessor.OrganizationId:D}';");
         var replacementRequest = new ReplacePrincipalRequest(
             predecessor.Id,
-            configuredLocation.Version,
+            configuredMatrix.Version,
             "QDOSNEXT",
             Administrator,
             "principal:replace:qdos",
@@ -153,6 +161,15 @@ public sealed class OrganizationAdministrationPersistenceTests
                 persistedSuccessor.DefaultInspectionSourceKind,
                 persistedSuccessor.DefaultInspectionSourceRecordId,
                 persistedSuccessor.DefaultInspectionSourceVersion));
+        Assert.Equal(salvageMatrix, persistedSuccessor.SalvageMatrix);
+        Assert.Equal(salvageMatrix, persistedPredecessor.SalvageMatrix);
+        var caseMatrices = scope.ServiceProvider.GetRequiredService<IPrincipalSalvageMatrixQueries>();
+        Assert.Equal(salvageMatrix, await caseMatrices.GetForCaseAsync(accepted.Identity.CaseId, default));
+        Assert.Null(await caseMatrices.GetForCaseAsync(Guid.NewGuid(), default));
+        Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:salvage-matrix:replacement' AND EventKind = 'principal_salvage_matrix_updated';"));
         Assert.False(persistedPredecessor.IsActive);
         Assert.Equal(successor.Id, persistedPredecessor.SuccessorId);
         Assert.Equal("QDOS", persistedPredecessor.Code);
@@ -176,7 +193,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             await factory.Database.ScalarAsync<int>(
                 "SELECT COUNT(*) FROM OrganizationAdministrationOperations WHERE OperationKey = 'principal:replace:qdos';"));
         Assert.Equal(
-            initialContactVersion + 2,
+            initialContactVersion + 3,
             await factory.Database.ScalarAsync<long>(
                 $"SELECT Version FROM Organizations WHERE Id = '{predecessor.OrganizationId:D}';"));
 
