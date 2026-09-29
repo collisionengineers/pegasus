@@ -44,7 +44,9 @@ public sealed class UploadStatusModel(
     public int? AutomaticRefreshMilliseconds =>
         Status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing
             ? UploadStatusRefresh.DelayMilliseconds(Status, timeProvider.GetUtcNow())
-            : null;
+            : UploadReviewFile.AwaitsPhotographs(Receipt)
+                ? UploadStatusRefresh.MinimumMilliseconds
+                : null;
 
     /// <summary>
     /// The terminal failure value when the authenticated principal has no
