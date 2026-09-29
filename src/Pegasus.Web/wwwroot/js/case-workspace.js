@@ -638,6 +638,29 @@
         window.scrollBy({ top: host.getBoundingClientRect().top - saved.top, behavior: 'instant' });
     }
 
+    // The toasts the notices now on the page ask for: what was done, work not
+    // yet finished, and a refusal the server rendered.
+    function announceNotices() {
+        var confirmation = document.querySelector('[data-case-notices] [data-confirmation]');
+        if (confirmation && typeof window.pegasusToast === 'function') {
+            var text = confirmation.querySelector('span');
+            if (text) { window.pegasusToast(text.textContent.trim()); }
+        }
+        // Work the server reports as not yet finished is announced in amber.
+        var warning = document.querySelector('[data-case-notices] [data-case-warning]');
+        if (warning && typeof window.pegasusToast === 'function') {
+            var warningText = warning.querySelector('span');
+            if (warningText) { window.pegasusToast(warningText.textContent.trim(), 'warning'); }
+        }
+        // Only a refusal the server rendered into the swapped-in notices;
+        // showActionError has already toasted its own [data-inplace-error].
+        var alertNotice = document.querySelector('[data-case-notices] [role="alert"]:not([data-inplace-error])');
+        if (alertNotice && typeof window.pegasusToast === 'function') {
+            var alertText = alertNotice.textContent.trim();
+            if (alertText) { window.pegasusToast(alertText, 'danger'); }
+        }
+    }
+
     var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
     function swap(html, command, preferred) {
         glassRefreshGeneration += 1;
@@ -756,24 +779,7 @@
         bindHeartbeat();
         mountApproaching();
         spy();
-        var confirmation = document.querySelector('[data-case-notices] [data-confirmation]');
-        if (confirmation && typeof window.pegasusToast === 'function') {
-            var text = confirmation.querySelector('span');
-            if (text) { window.pegasusToast(text.textContent.trim()); }
-        }
-        // Work the server reports as not yet finished is announced in amber.
-        var warning = document.querySelector('[data-case-notices] [data-case-warning]');
-        if (warning && typeof window.pegasusToast === 'function') {
-            var warningText = warning.querySelector('span');
-            if (warningText) { window.pegasusToast(warningText.textContent.trim(), 'warning'); }
-        }
-        // Only a refusal the server rendered into the swapped-in notices;
-        // showActionError has already toasted its own [data-inplace-error].
-        var alertNotice = document.querySelector('[data-case-notices] [role="alert"]:not([data-inplace-error])');
-        if (alertNotice && typeof window.pegasusToast === 'function') {
-            var alertText = alertNotice.textContent.trim();
-            if (alertText) { window.pegasusToast(alertText, 'danger'); }
-        }
+        announceNotices();
         document.dispatchEvent(new CustomEvent('pegasus:case-swapped'));
         return true;
     }
@@ -886,6 +892,115 @@
         if (typeof window.pegasusToast === 'function') {
             window.pegasusToast(message, 'danger');
         }
+    }
+
+    function proceedDocumentAction(form, submitter) {
+        submitting = true;
+        form.dataset.inplaceSubmitting = 'true';
+        submitDocumentAction(form, submitter);
+    }
+    // A document action posts at once and the editor keeps its unsaved
+    // changes. Only what the action changed is drawn again: the image's tile
+    // (or every tag picker, for a new tag), the notices and the aside. A tag
+    // moves the Case version and the edit lease, so the new pair is carried
+    // into every form that held the old one, the Save form included: the
+    // next Save still holds the operator's edit.
+    function submitDocumentAction(form, submitter) {
+        var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
+        var previousLease = body.get('editLeaseToken');
+        var previousVersion = record.getAttribute('data-case-version');
+        var changesTile = body.has('occurrenceId');
+        var tile = form.closest('[data-image-tile]');
+        var tileId = tile ? tile.getAttribute('data-image-tile') : null;
+        var toReport = form.hasAttribute('data-image-in-report-form');
+        form.setAttribute('aria-busy', 'true');
+        var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
+        return fetch(action, {
+            method: 'POST', body: body, credentials: 'same-origin', redirect: 'follow',
+            headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
+        }).then(function (response) {
+            if (!samePage(response.url || action)) {
+                throw new Error('The action left the Case before its result was confirmed.');
+            }
+            if (response.status === 403 || response.status === 404) {
+                throw new Error('The action is unavailable or no longer permitted.');
+            }
+            if (!response.ok) { throw new Error('The server could not confirm the action.'); }
+            return response.text();
+        }).then(function (html) {
+            var parsed = new DOMParser().parseFromString(html, 'text/html');
+            var incoming = parsed.querySelector('[data-case-record]');
+            if (!incoming) { throw new Error('The server did not return the Case.'); }
+            carryAuthority(incoming, previousLease, previousVersion);
+            ['[data-case-notices]', '[data-case-aside]'].forEach(function (selector) {
+                var current = document.querySelector(selector);
+                var next = parsed.querySelector(selector);
+                if (current && next) { current.replaceWith(next); bindMounted(next); }
+            });
+            if (tileId) {
+                if (changesTile) { redrawImageTile(parsed, tileId, toReport); } else { redrawTagPickers(parsed, tileId); }
+            }
+            announceNotices();
+        }).catch(function (error) {
+            showActionError(error.message + ' Your unsaved changes are still here.');
+        }).finally(function () {
+            form.removeAttribute('aria-busy');
+            form.removeAttribute('data-inplace-submitting');
+            submitting = false;
+        });
+    }
+    // Moves every form that held the lease the action consumed onto the one it
+    // reclaimed, with the Case version beside it. A response that is no longer
+    // editing means the session ended: the changes stay on screen unsaved.
+    function carryAuthority(incoming, previousLease, previousVersion) {
+        var nextLease = incoming.querySelector('[name="editLeaseToken"]');
+        var nextVersion = incoming.getAttribute('data-case-version');
+        if (incoming.getAttribute('data-case-editing') !== 'true' || !nextLease) {
+            showActionError('The action was applied, but editing has ended. Your unsaved changes are still here and cannot be saved; copy them, then reload the Case.');
+            return;
+        }
+        if (nextLease.value === previousLease) { return; }
+        Array.prototype.forEach.call(document.querySelectorAll('input[name="editLeaseToken"]'), function (lease) {
+            if (lease.value !== previousLease) { return; }
+            lease.value = nextLease.value;
+            var owner = lease.form || lease.closest('form');
+            if (!owner) { return; }
+            Array.prototype.forEach.call(owner.elements, function (element) {
+                if (element.name === 'expectedVersion' && element.value === previousVersion) { element.value = nextVersion; }
+            });
+        });
+        if (nextVersion !== null) { record.setAttribute('data-case-version', nextVersion); }
+    }
+    function redrawImageTile(parsed, id, focusInReport) {
+        var current = document.querySelector('[data-image-tile="' + id + '"]');
+        var next = parsed.querySelector('[data-image-tile="' + id + '"]');
+        if (!current || !next) { return; }
+        var grid = current.parentElement;
+        if (window.pegasusCasePreparation && window.pegasusCasePreparation.adopt) {
+            window.pegasusCasePreparation.adopt(id, next);
+        }
+        current.replaceWith(next);
+        bindMounted(grid);
+        var count = document.querySelector('[data-image-report-count]');
+        var nextCount = parsed.querySelector('[data-image-report-count]');
+        if (count && nextCount) { count.textContent = nextCount.textContent; }
+        var target = next.querySelector(focusInReport ? '[data-image-in-report]' : 'details.tag-picker > summary');
+        if (target) { target.focus(); }
+    }
+    // A new tag joins the vocabulary every picker offers. The picker it was
+    // made in stays open, so the tag is there to apply.
+    function redrawTagPickers(parsed, id) {
+        Array.prototype.forEach.call(document.querySelectorAll('[data-image-tile]'), function (tile) {
+            var tileKey = tile.getAttribute('data-image-tile');
+            var picker = tile.querySelector('details.tag-picker');
+            var next = parsed.querySelector('[data-image-tile="' + tileKey + '"] details.tag-picker');
+            if (!picker || !next) { return; }
+            if (tileKey === id) { next.setAttribute('open', ''); }
+            picker.replaceWith(next);
+        });
+        bindMounted(main);
+        var name = document.querySelector('[data-image-tile="' + id + '"] .tag-picker-new input[name="name"]');
+        if (name) { name.focus(); }
     }
 
     var estimateDragResetters = new WeakMap();
@@ -1097,6 +1212,13 @@
             saveThen(caseForm, again(form, submitter));
             return;
         }
+        // A document action (tag, untag, new tag, In report) is not an edit of
+        // the Case: with unsaved changes it posts at once, asks nothing and
+        // leaves the changes where they are.
+        if (!isSave && dirty && form.hasAttribute('data-document-action')) {
+            proceedDocumentAction(form, submitter);
+            return;
+        }
         // Cancel is the operator discarding: it needs no second question.
         var isCancel = form.hasAttribute('data-case-cancel-form');
         if (!isSave && dirty && !isCancel && !form.hasAttribute('data-glass-close-form')) {
@@ -1125,100 +1247,6 @@
         }
         proceed();
     });
-
-    // Image tags while the Case has unsaved changes. Tagging, untagging and a
-    // new tag post at once, so they neither ask the unsaved-changes question
-    // nor swap the page over the draft. The post moves the Case version and
-    // lease, so the draft's own authority moves with it; only the tiles' tag
-    // markup is redrawn. A tag that also takes the image out of the report
-    // (data-tag-leaves-report) changes what a staged preparation is saved
-    // against, so it keeps the ordinary question and the save-first route.
-    document.addEventListener('submit', function (event) {
-        var form = event.target;
-        if (!(form instanceof HTMLFormElement) || !form.closest('[data-tag-picker]')
-            || form.hasAttribute('data-tag-leaves-report')
-            || dirtyEditors.size === 0 || !record.contains(form)) {
-            return;
-        }
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') { return; }
-        submitting = true;
-        form.dataset.inplaceSubmitting = 'true';
-        form.setAttribute('aria-busy', 'true');
-        var oldVersion = record.getAttribute('data-case-version');
-        var oldLeaseInput = form.querySelector('[name="editLeaseToken"]');
-        var oldLease = oldLeaseInput ? oldLeaseInput.value : '';
-        var action = form.getAttribute('action') || window.location.href;
-        fetch(action, {
-            method: 'POST',
-            body: new FormData(form),
-            credentials: 'same-origin',
-            redirect: 'follow',
-            headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
-        }).then(function (response) {
-            if (!samePage(response.url || action)) { throw new Error('The action left the Case before its result was confirmed.'); }
-            if (!response.ok) { throw new Error('The server could not confirm the action.'); }
-            return response.text();
-        }).then(function (html) {
-            var parsed = new DOMParser().parseFromString(html, 'text/html');
-            var incoming = parsed.querySelector('[data-case-record]');
-            if (!incoming) { throw new Error('The server did not return the Case.'); }
-            // The draft keeps its place; when the edit session carried on,
-            // its version and lease move to the ones the server now holds.
-            var newLeaseInput = incoming.querySelector('#case-edit-form [name="editLeaseToken"]');
-            var newVersion = incoming.getAttribute('data-case-version');
-            if (incoming.getAttribute('data-case-editing') === 'true' && newLeaseInput && newVersion) {
-                document.querySelectorAll('input[name="expectedVersion"]').forEach(function (input) {
-                    if (input.value === oldVersion) { input.value = newVersion; }
-                });
-                document.querySelectorAll('input[name="editLeaseToken"]').forEach(function (input) {
-                    if (input.value === oldLease) { input.value = newLeaseInput.value; }
-                });
-                record.setAttribute('data-case-version', newVersion);
-            } else if (newVersion !== oldVersion) {
-                showActionError('The tag was applied, but the Case changed again or editing expired. Your unsaved changes still use their original version.');
-            }
-            incoming.querySelectorAll('[data-image-tile]').forEach(function (fresh) {
-                var tile = main.querySelector('[data-image-tile="' + fresh.getAttribute('data-image-tile') + '"]');
-                if (!tile) { return; }
-                var link = tile.querySelector('a.th');
-                var freshLink = fresh.querySelector('a.th');
-                if (link && freshLink) {
-                    var freshTag = freshLink.getAttribute('data-tag');
-                    if (freshTag === null) { link.removeAttribute('data-tag'); } else { link.setAttribute('data-tag', freshTag); }
-                    var badge = link.querySelector(':scope > .tag');
-                    if (badge) { badge.remove(); }
-                    var freshBadge = freshLink.querySelector(':scope > .tag');
-                    var picture = link.querySelector('img');
-                    if (freshBadge && picture) { picture.insertAdjacentElement('afterend', document.importNode(freshBadge, true)); }
-                }
-                var chips = tile.querySelector(':scope > .tag-chips');
-                if (chips) { chips.remove(); }
-                var freshChips = fresh.querySelector(':scope > .tag-chips');
-                if (freshChips && link) { link.insertAdjacentElement('afterend', document.importNode(freshChips, true)); }
-                var actions = tile.querySelector(':scope > .image-tile-actions');
-                var freshActions = fresh.querySelector(':scope > .image-tile-actions');
-                if (actions && freshActions) {
-                    var replacement = document.importNode(freshActions, true);
-                    actions.replaceWith(replacement);
-                    bindMounted(replacement);
-                }
-            });
-            var notice = incoming.querySelector('[data-case-notices] [data-confirmation] span');
-            var refusal = incoming.querySelector('[data-case-notices] [role="alert"]');
-            if (typeof window.pegasusToast === 'function') {
-                if (refusal && refusal.textContent.trim()) { window.pegasusToast(refusal.textContent.trim(), 'danger'); }
-                else if (notice) { window.pegasusToast(notice.textContent.trim()); }
-            }
-        }).catch(function (error) {
-            showActionError(error.message + ' Your unsaved changes are still here.');
-        }).finally(function () {
-            form.removeAttribute('aria-busy');
-            form.removeAttribute('data-inplace-submitting');
-            submitting = false;
-        });
-    }, true);
 
     // The frame owns this shortcut even inside a field; site.js handles it on
     // other pages. It saves the Case and keeps editing (no finishEditing).
@@ -4012,7 +4040,25 @@
         if (!value || !form || value.inReport === on) { return; }
         form.requestSubmit();
     }
+    // A document action (a tag, In report) changed the image on the server while
+    // the Case form holds unsaved changes: take the preparation version, the
+    // report flag and the order the server now holds, and keep the staged
+    // rotation and crop.
+    function adopt(id, tile) {
+        var store = staged();
+        var value = store && store[id];
+        if (!value) { return; }
+        value.version = number(tile.getAttribute('data-preparation-version'), value.version);
+        var inReport = tile.getAttribute('data-preparation-in-report') === 'true';
+        if (inReport !== value.inReport) {
+            value.inReport = inReport;
+            value.order = tile.getAttribute('data-preparation-order') ? number(tile.getAttribute('data-preparation-order'), null) : null;
+            if (!inReport) { value.fullPage = false; }
+        }
+        if (value.changed) { writeHidden(); }
+    }
     window.pegasusCasePreparation = {
+        adopt: adopt,
         get: get,
         set: set,
         openCrop: function (id) { if (viewer) { viewer.openCrop(id); } },
