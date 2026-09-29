@@ -104,7 +104,11 @@ public sealed class GlassEstimatePdfParserTests
             Assert.Equal(source[5], actual.Description);
             Assert.Equal(Blank(source[3]), actual.GuideCode);
             Assert.Equal(Number(source[6]), section == "paint" ? actual.PaintWorkUnits : actual.WorkUnits);
-            Assert.Equal(Number(source[9]), source[4] == "RP" ? actual.Price : actual.Materials);
+            // A part and an additional operation print a unit amount; every
+            // other row prints row materials.
+            Assert.Equal(Number(source[9]), source[4] is "RP" or "EC" ? actual.Price : actual.Materials);
+            if (source[4] == "EC")
+                Assert.Equal(Number(source[6]) > 0m ? "specialist_wu" : "specialist_fixed", actual.Type);
             if (source[2] == "included")
             {
                 Assert.Null(actual.Price);
@@ -159,7 +163,10 @@ public sealed class GlassEstimatePdfParserTests
         }
         if (identity == "LT72PYX")
         {
-            Assert.Equal("check_labour", bySource["B59"].Type);
+            // A user-defined body row with hours and an amount: Specialist by
+            // work units, its amount kept in Specialist treatment.
+            Assert.Equal("specialist_wu", bySource["B59"].Type);
+            Assert.Equal(52.14m, bySource["B59"].Price);
             Assert.Equal(2, parsed.Lines.Count(line => string.Equals(line.Description, "Rear camera reset", StringComparison.OrdinalIgnoreCase)));
         }
         if (identity == "LG73ZCJ")

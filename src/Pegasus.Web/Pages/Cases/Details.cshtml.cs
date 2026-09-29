@@ -412,6 +412,19 @@ public sealed partial class DetailsModel(
                     LabourRate: null,
                     OtherCosts: null,
                     VatPercent: EstimatePolicy.DefaultVatPercent);
+            var stored = SelectedEstimate?.Lines.ToDictionary(line => line.Id)
+                ?? new Dictionary<Guid, CaseEstimateLineRecord>();
+            // A stored line keeps its Specialist kind, as the Save carries it,
+            // so hours priced by work units stay priced here too.
+            string LineType(EstimateEditorLine line)
+            {
+                var edited = EstimateOperations.TryParse(line.Operation, out var operation)
+                    ? EstimateOperations.ToLineType(operation)
+                    : "specialist_fixed";
+                return line.ExistingLineId is { } id && stored.TryGetValue(id, out var saved)
+                    ? EstimateOperations.Carry(edited, saved.Type)
+                    : edited;
+            }
             return EstimateTotals.Compute(new(
                 SelectedEstimate?.SpecificationId ?? Guid.Empty,
                 SelectedEstimate?.CaseId ?? Guid.Empty,
@@ -421,9 +434,7 @@ public sealed partial class DetailsModel(
                 [.. EditorLines.Select((line, index) => new CaseEstimateLineRecord(
                     Guid.Empty,
                     index + 1,
-                    EstimateOperations.TryParse(line.Operation, out var operation)
-                        ? EstimateOperations.ToLineType(operation)
-                        : "specialist_fixed",
+                    LineType(line),
                     null,
                     line.Description,
                     ParseNumber(line.LabourHours),
@@ -1767,7 +1778,7 @@ public sealed partial class DetailsModel(
                 {
                     try
                     {
-                        estimate = await EstimateEditorPartAsync(id, cancellationToken);
+                        estimate = await EstimateEditorPartAsync(id, actor, cancellationToken);
                     }
                     catch (InvalidOperationException exception)
                     {
@@ -2991,7 +3002,8 @@ public sealed partial class DetailsModel(
     /// shows, whole, read on exactly the terms the estimate editor always read
     /// it. A line that does not read as a number refuses the save.
     /// </summary>
-    private async Task<CaseWorkspaceEstimate> EstimateEditorPartAsync(Guid caseId, CancellationToken cancellationToken)
+    private async Task<CaseWorkspaceEstimate> EstimateEditorPartAsync(
+        Guid caseId, ActionActor actor, CancellationToken cancellationToken)
     {
         var editor = ReadEditorPost();
         if (editor.Lines is null)
@@ -3008,7 +3020,7 @@ public sealed partial class DetailsModel(
             details,
             editor.Lines,
             editor.ExistingLineIds,
-            await ReadSupplementaryAsync(caseId, existing, details, editor.Lines, cancellationToken))
+            await ReadSupplementaryAsync(caseId, actor, existing, details, editor, cancellationToken))
         {
             SelectedRateCardId = selectedRateCard.Id,
             SelectedRateCardVersion = selectedRateCard.Version,
@@ -3051,9 +3063,10 @@ public sealed partial class DetailsModel(
     /// </summary>
     private async Task<RepairSpecificationSupplementary?> ReadSupplementaryAsync(
         Guid caseId,
+        ActionActor actor,
         RepairSpecificationVersion? existing,
         EstimateDetails details,
-        IReadOnlyList<EstimateLineInput> lines,
+        EstimateEditorPost editor,
         CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(Request.Form["supplementaryOf"], out var baseId) || baseId == Guid.Empty)
@@ -3070,8 +3083,12 @@ public sealed partial class DetailsModel(
         {
             return null;
         }
+        // The spec a Save would record: the save's own carry, so a stored
+        // Specialist line compares as its own kind and its hours stay priced.
         var diff = RepairSpecificationComparison.Compare(
-            baseSpecification, EstimatePolicy.Provisional(caseId, existing, details, lines, DateTimeOffset.UtcNow));
+            baseSpecification,
+            EstimatePolicy.Edited(
+                caseId, actor, existing, details, editor.Lines!, editor.ExistingLineIds, DateTimeOffset.UtcNow));
         var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
         return new(baseId, reason, explain, RepairSpecificationComparison.SupplementaryStatement(diff, reason));
     }
