@@ -1663,6 +1663,7 @@ public sealed class EfImageIntakeCaseCandidates(
     internal static IQueryable<ImageIntakeCaseCandidate> EligibleQuery(PegasusDbContext context) =>
         from workflow in context.CaseWorkflows.AsNoTracking()
         join caseEntity in context.Cases.AsNoTracking() on workflow.CaseId equals caseEntity.Id
+        join principal in context.Principals.AsNoTracking() on caseEntity.PrincipalId equals principal.Id
         join index in context.CaseMatchIndex.AsNoTracking() on caseEntity.Id equals index.CaseId into indices
         from index in indices.DefaultIfEmpty()
         where EligibleStates.Contains(workflow.State)
@@ -1672,7 +1673,7 @@ public sealed class EfImageIntakeCaseCandidates(
         select new ImageIntakeCaseCandidate(
             caseEntity.Id, caseEntity.Reference, workflow.Version,
             index == null ? string.Empty : index.NormalizedVrm ?? string.Empty, caseEntity.CreatedAtUtc,
-            caseEntity.PrincipalId);
+            caseEntity.PrincipalId, principal.Code);
 
     internal static async Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(
         PegasusDbContext context,

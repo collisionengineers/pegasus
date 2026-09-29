@@ -5,6 +5,16 @@ using Pegasus.Core.Custody;
 
 namespace Pegasus.Core.ImageIntake;
 
+/// <summary>The reasons automatic association leaves a registered image record to staff.</summary>
+public enum ImageIntakeAutomationWithheld
+{
+    /// <summary>A known Principal has no eligible Case with this registration.</summary>
+    PrincipalDisagrees,
+
+    /// <summary>More than one eligible Case, or candidate, fits the registration.</summary>
+    RegistrationAmbiguous
+}
+
 public sealed record ImageIntakePairingResult(
     int Candidates,
     int Merged,
@@ -36,6 +46,23 @@ public sealed class ImageIntakeCasePairing(
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.ImageIntake");
 
+    /// <summary>
+    /// A known intake Principal is a hard scope on the candidate Cases, the
+    /// way an established Principal is on the mail path
+    /// ([FRD-09](../../../docs/frd/frd-09-provider-and-intermediary-routes.md)):
+    /// only that Principal's Cases are candidates, and they are restricted
+    /// BEFORE any uniqueness count. An unknown Principal leaves the full set.
+    /// </summary>
+    public static IReadOnlyList<ImageIntakeCaseCandidate> ScopeToPrincipal(
+        IReadOnlyList<ImageIntakeCaseCandidate> candidates,
+        Guid? principalId)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        return principalId is null
+            ? candidates
+            : candidates.Where(candidate => candidate.PrincipalId == principalId).ToArray();
+    }
+
     public static ImageIntakeCaseCandidate? SelectRegisteredTarget(
         IReadOnlyList<ImageIntakeCaseCandidate> candidates,
         string registration,
@@ -44,20 +71,46 @@ public sealed class ImageIntakeCasePairing(
         IntakeSourceChannel sourceChannel,
         DateTimeOffset registeredAtUtc)
     {
-        ArgumentNullException.ThrowIfNull(candidates);
+        var scoped = ScopeToPrincipal(candidates, principalId);
         // A registered identity is immutable: no near-miss completion here.
         // Preserve single-image exact precedence and the group's stricter
         // complete-candidate-count rule from its original routing decision.
-        var exact = candidates.Where(candidate => candidate.ConfirmedRegistration == registration).ToArray();
+        var exact = scoped.Where(candidate => candidate.ConfirmedRegistration == registration).ToArray();
         return exact.Length == 1
-            && (groupExpectedMemberCount <= 1 || candidates.Count == 1)
-            && (principalId is null || exact[0].PrincipalId == principalId)
+            && (groupExpectedMemberCount <= 1 || scoped.Count == 1)
             // Manual upload (operator, 28 September 2026): a Case that already
             // existed when the images registered stays the staff decision the
             // upload offered; only a Case created afterwards pairs by itself.
             && (sourceChannel != IntakeSourceChannel.ManualUpload || exact[0].CreatedAtUtc > registeredAtUtc)
                 ? exact[0]
                 : null;
+    }
+
+    /// <summary>
+    /// Why automatic association is withheld for a registered image record,
+    /// from the same scope and counts <see cref="SelectRegisteredTarget"/>
+    /// applies; null when there is nothing to explain (a target is selected,
+    /// no Case carries the registration, or manual upload leaves it to staff).
+    /// </summary>
+    public static ImageIntakeAutomationWithheld? ExplainWithheld(
+        IReadOnlyList<ImageIntakeCaseCandidate> candidates,
+        string registration,
+        Guid? principalId,
+        int groupExpectedMemberCount)
+    {
+        var scoped = ScopeToPrincipal(candidates, principalId);
+        var exact = scoped.Count(candidate => candidate.ConfirmedRegistration == registration);
+        if (exact == 0)
+        {
+            return principalId is not null
+                && candidates.Any(candidate => candidate.ConfirmedRegistration == registration)
+                    ? ImageIntakeAutomationWithheld.PrincipalDisagrees
+                    : null;
+        }
+
+        return exact > 1 || (groupExpectedMemberCount > 1 && scoped.Count != 1)
+            ? ImageIntakeAutomationWithheld.RegistrationAmbiguous
+            : null;
     }
 
     /// <summary>
