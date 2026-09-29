@@ -527,7 +527,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Equal(
             [
                 "CaseDataFields:INSERT", "CaseDataFields:SELECT", "CaseDataFields:UPDATE",
-                "CaseDataSnapshots:INSERT", "CaseDataSnapshots:SELECT",
+                "CaseDataSnapshots:INSERT", "CaseDataSnapshots:SELECT", "CaseDataSnapshots:UPDATE",
                 "CaseDueWork:INSERT", "CaseDueWork:SELECT", "CaseDueWork:UPDATE",
                 "CaseHistory:INSERT", "CaseHistory:SELECT",
                 "CaseIntakeLinks:INSERT", "CaseIntakeLinks:SELECT",
@@ -1060,6 +1060,77 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             (await ReadGrantedPermissionsAsync(database, WebRole))
                 .Where(value => value.StartsWith("RetainedMailboxMessages:", StringComparison.Ordinal))
                 .ToArray());
+    }
+
+    // 20260929150000_GrantCaseDataSnapshotUpdate: completing a Case's images
+    // (Worker) and a Case save (Web) record re-evaluated readiness on the
+    // snapshot row, which both roles could only read and insert. Production
+    // refused every such write while these tests, running full-privilege,
+    // passed; this asserts the grant itself.
+    [Fact]
+    public async Task LatestMigrationGrantsBothRuntimeRolesUpdateOnCaseDataSnapshots()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        foreach (var role in new[] { WebRole, WorkerRole })
+        {
+            Assert.Equal(
+                ["CaseDataSnapshots:INSERT", "CaseDataSnapshots:SELECT", "CaseDataSnapshots:UPDATE"],
+                (await ReadGrantedPermissionsAsync(database, role))
+                    .Where(value => value.StartsWith("CaseDataSnapshots:", StringComparison.Ordinal))
+                    .ToArray());
+            Assert.Contains("CaseDataSnapshots", await ReadDeniedDeleteTablesAsync(database, role));
+        }
+    }
+
+    // The same migration queues again a fold the refused snapshot write failed:
+    // its files are already in the Case folder and nothing was recorded. A
+    // fold that failed for any other reason stays failed.
+    [Fact]
+    public async Task GrantCaseDataSnapshotUpdateQueuesAgainOnlyTheFoldsTheRefusalFailed()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync("20260929120000_PrincipalVocabulary");
+        var refused = Guid.NewGuid();
+        var otherFailure = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"""
+            INSERT INTO [dbo].[ExternalWorkItems]
+                ([Id], [Kind], [OperationKey], [State], [AttemptCount], [DueAtUtc],
+                 [LeaseToken], [LeaseExpiresAtUtc], [FailureCode], [FailureReason], [CompletedAtUtc])
+            VALUES
+                ('{refused}', N'merge_image_case_custody', N'fold-refused', N'failed', 2,
+                 '2026-09-29T10:16:15+00:00', N'lease', '2026-09-29T10:21:15+00:00',
+                 N'custody_unexpected_failure:DbUpdateException', N'Case evidence could not be stored.',
+                 '2026-09-29T10:16:16+00:00'),
+                ('{otherFailure}', N'merge_image_case_custody', N'fold-other', N'failed', 1,
+                 '2026-09-29T10:16:15+00:00', NULL, NULL,
+                 N'source_integrity_conflict', N'The retained evidence no longer matches the accepted source.',
+                 '2026-09-29T10:16:16+00:00');
+            """);
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            ["pending||||"],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT([State], N'|', [LeaseToken], N'|', [FailureCode], N'|', [FailureReason], N'|', [CompletedAtUtc])
+                FROM [dbo].[ExternalWorkItems] WHERE [Id] = '{refused}'
+                """));
+        Assert.Equal(
+            ["failed|source_integrity_conflict"],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT([State], N'|', [FailureCode])
+                FROM [dbo].[ExternalWorkItems] WHERE [Id] = '{otherFailure}'
+                """));
     }
 
     // The Worker's thumbnail sweep lists confirmed versions and reads and
