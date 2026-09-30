@@ -256,16 +256,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 association.Case.Reference
             })
             .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
-        var allocationStates = (await context.IntakeAllocationAttempts
-            .AsNoTracking()
-            .Where(item => receiptIds.Contains(item.IntakeReceiptId))
-            .OrderByDescending(item => item.AttemptNumber)
-            .ToListAsync(cancellationToken))
-            .GroupBy(item => item.IntakeReceiptId)
-            .ToDictionary(
-                group => group.Key,
-                group => IntakeAllocationState.FromAttempt(
-                    EfIntakeAllocationStore.Map(group.First())));
+        var allocationStates = await GetAllocationStatesAsync(context, receiptIds, cancellationToken);
 
         return rows.Select(item =>
         {
@@ -285,10 +276,25 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         }).ToArray();
     }
 
-    public async Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        (await GetManyAsync([id], cancellationToken)).SingleOrDefault();
+
+    /// <summary>
+    /// Three queries whatever the number of receipts: the receipts with their
+    /// parts, their accepted Cases and their latest allocation attempts.
+    /// </summary>
+    public async Task<IReadOnlyList<IntakeReceipt>> GetManyAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken)
     {
+        var receiptIds = ids.Distinct().ToArray();
+        if (receiptIds.Length == 0)
+        {
+            return [];
+        }
+
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.IntakeReceipts
+        var entities = await context.IntakeReceipts
             .AsNoTracking()
             .Include(item => item.Assets)
             .Include(item => item.InstructionDraft)
@@ -297,27 +303,38 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
             .ThenInclude(item => item!.Case)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        if (entity is null)
+            .Where(item => receiptIds.Contains(item.Id))
+            .ToListAsync(cancellationToken);
+        if (entities.Count == 0)
         {
-            return null;
+            return [];
         }
 
-        var acceptedCase = await context.CaseIntakeLinks
+        var acceptedCases = await context.CaseIntakeLinks
             .AsNoTracking()
-            .Where(item => item.IntakeReceiptId == id)
-            .Select(item => new { item.CaseId, item.Case.Reference })
-            .SingleOrDefaultAsync(cancellationToken);
-        var allocationState = await GetAllocationStateAsync(context, id, cancellationToken);
-        return Map(
-            entity,
-            false,
-            acceptedCase?.CaseId,
-            allocationState,
-            acceptedCase?.Reference,
-            entity.ManualAssociation is { IsActive: true } association
-                ? association.Case.Reference
-                : null);
+            .Where(item => receiptIds.Contains(item.IntakeReceiptId))
+            .Select(item => new { item.IntakeReceiptId, item.CaseId, item.Case.Reference })
+            .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
+        var allocationStates = await GetAllocationStatesAsync(context, receiptIds, cancellationToken);
+        var entitiesById = entities.ToDictionary(item => item.Id);
+        return receiptIds
+            .Where(entitiesById.ContainsKey)
+            .Select(id =>
+            {
+                var entity = entitiesById[id];
+                acceptedCases.TryGetValue(id, out var acceptedCase);
+                allocationStates.TryGetValue(id, out var allocationState);
+                return Map(
+                    entity,
+                    false,
+                    acceptedCase?.CaseId,
+                    allocationState,
+                    acceptedCase?.Reference,
+                    entity.ManualAssociation is { IsActive: true } association
+                        ? association.Case.Reference
+                        : null);
+            })
+            .ToArray();
     }
 
     public async Task<IntakeReceipt?> FindBySourceIdentityAsync(
@@ -601,6 +618,22 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             ? null
             : IntakeAllocationState.FromAttempt(EfIntakeAllocationStore.Map(attempt));
     }
+
+    /// <summary>The latest allocation attempt of each receipt, one query for all of them.</summary>
+    private static async Task<Dictionary<Guid, IntakeAllocationState>> GetAllocationStatesAsync(
+        PegasusDbContext context,
+        Guid[] receiptIds,
+        CancellationToken cancellationToken) =>
+        (await context.IntakeAllocationAttempts
+            .AsNoTracking()
+            .Where(item => receiptIds.Contains(item.IntakeReceiptId))
+            .OrderByDescending(item => item.AttemptNumber)
+            .ToListAsync(cancellationToken))
+            .GroupBy(item => item.IntakeReceiptId)
+            .ToDictionary(
+                group => group.Key,
+                group => IntakeAllocationState.FromAttempt(
+                    EfIntakeAllocationStore.Map(group.First())));
 
     private static InstructionDraft MapInstructionDraft(InstructionDraftEntity entity) => new(
         entity.SuggestedPrincipalCode,

@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -126,7 +127,7 @@ public sealed class UnidentifiedPersistenceTests
                 null,
                 CreatedAtUtc));
 
-        var closedRow = Assert.Single(await store.ListClosedQueueAsync(null));
+        var closedRow = Assert.Single(await store.ListClosedQueueAsync(null, 100));
         Assert.Equal(closed.Id, closedRow.Id);
         Assert.Equal("No further action is required.", closedRow.ResolutionReason);
         var openRow = Assert.Single(await store.ListQueueAsync(null));
@@ -226,6 +227,104 @@ public sealed class UnidentifiedPersistenceTests
         var documentRow = Assert.Single(documentRows, row => row.Id == documentItem.Id);
         Assert.Equal(UnidentifiedMediaKind.Document, documentRow.MediaKind);
         Assert.Equal("instruction-letter.pdf", documentRow.FileName);
+    }
+
+    /// <summary>
+    /// Each queue read is one statement that reads the few receipt columns a
+    /// row shows: never the receipt's JSON columns, and the e-mail subject
+    /// (which lives in the evidence JSON) only for an e-mail row.
+    /// </summary>
+    [Fact]
+    public async Task TheQueueReadsOneStatementOfJustTheColumnsARowShows()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using var scope = database.CreateAsyncScope();
+        var receiptStore = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var register = scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var emailItem = await RegisterAsync(register, await StoreReceiptAsync(
+            receiptStore,
+            IntakeSourceChannel.Mailbox,
+            "message/rfc822",
+            "unread-message.eml",
+            subject: "Vehicle damage claim",
+            senderAddress: "claimant@example.test"));
+        var imageItem = await RegisterAsync(register, await StoreReceiptAsync(
+            receiptStore, IntakeSourceChannel.ManualUpload, "image/jpeg", "damage-photo.jpg"));
+        var noReceiptItem = await RegisterAsync(register, Guid.NewGuid());
+
+        counter.Reset();
+        var all = await store.ListQueueAsync(null);
+
+        Assert.Equal(1, counter.Count);
+        var statement = Assert.Single(counter.Statements);
+        Assert.DoesNotContain("[FieldsJson]", statement, StringComparison.Ordinal);
+        Assert.DoesNotContain("[OcrCandidatesJson]", statement, StringComparison.Ordinal);
+        Assert.Equal(3, all.Count);
+        var email = Assert.Single(all, row => row.Id == emailItem.Id);
+        Assert.Equal("Vehicle damage claim", email.EmailSubject);
+        Assert.Equal("claimant@example.test", email.EmailSender);
+        Assert.Equal("damage-photo.jpg", Assert.Single(all, row => row.Id == imageItem.Id).FileName);
+        var orphan = Assert.Single(all, row => row.Id == noReceiptItem.Id);
+        Assert.Equal(UnidentifiedMediaKind.Image, orphan.MediaKind);
+        Assert.Null(orphan.FileName);
+
+        counter.Reset();
+        var emails = await store.ListQueueAsync(UnidentifiedMediaKind.Email);
+        Assert.Equal(1, counter.Count);
+        Assert.Equal(emailItem.Id, Assert.Single(emails).Id);
+    }
+
+    /// <summary>
+    /// The Closed filter asks for its page size and the store returns only
+    /// that many, newest closed first, in one statement.
+    /// </summary>
+    [Fact]
+    public async Task TheClosedListIsBoundedInTheStoreAndNewestClosedFirst()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using var scope = database.CreateAsyncScope();
+        var receiptStore = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var register = scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var actor = ActionActor.Automation("test-worker");
+        var closedIds = new List<Guid>();
+        for (var index = 0; index < 4; index++)
+        {
+            var receiptId = await StoreReceiptAsync(
+                receiptStore,
+                index == 3 ? IntakeSourceChannel.Mailbox : IntakeSourceChannel.ManualUpload,
+                index == 3 ? "message/rfc822" : "image/jpeg",
+                $"closed-{index}.jpg");
+            var item = await RegisterAsync(register, receiptId);
+            await store.ResolveAsync(
+                new(
+                    item.Id,
+                    item.Version,
+                    actor,
+                    $"unidentified-close-test:{Guid.NewGuid():N}",
+                    $"Closed {index}.",
+                    UnidentifiedResolutionTargetKind.Closed,
+                    CloseUnidentified.ClosedTargetId,
+                    null,
+                    CreatedAtUtc.AddHours(index)));
+            closedIds.Add(item.Id);
+        }
+
+        counter.Reset();
+        var newestTwo = await store.ListClosedQueueAsync(null, 2);
+
+        Assert.Equal(1, counter.Count);
+        Assert.Equal(new[] { closedIds[3], closedIds[2] }, newestTwo.Select(row => row.Id));
+        Assert.Equal("Closed 3.", newestTwo[0].ResolutionReason);
+        Assert.Equal(4, (await store.ListClosedQueueAsync(null, 100)).Count);
+        var imagesOnly = await store.ListClosedQueueAsync(UnidentifiedMediaKind.Image, 2);
+        Assert.Equal(new[] { closedIds[2], closedIds[1] }, imagesOnly.Select(row => row.Id));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => store.ListClosedQueueAsync(null, 0));
     }
 
     private static async Task<UnidentifiedItem> RegisterAsync(IRegisterUnidentified register, Guid receiptId)

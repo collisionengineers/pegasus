@@ -577,8 +577,7 @@ public sealed class IndexModel(
     /// was closed, which its queue row carries.
     /// </summary>
     private async Task<IReadOnlyList<QueueRow>> LoadClosedUnidentifiedAsync(CancellationToken cancellationToken) =>
-        (await _unidentifiedStore.ListClosedQueueAsync(null, cancellationToken))
-            .Take(MergedPageSize)
+        (await _unidentifiedStore.ListClosedQueueAsync(null, MergedPageSize, cancellationToken))
             .Select(ClosedUnidentifiedRow)
             .ToArray();
 

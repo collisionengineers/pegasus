@@ -644,6 +644,46 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.Equal(AuditAssessment.Repairable, report.Assessment);
     }
 
+    /// <summary>
+    /// Several receipts are three statements, not three each: the receipts
+    /// with their parts, their accepted Cases and their latest allocation
+    /// attempts. The result follows the order asked, holds each receipt once
+    /// and leaves out an id that has no receipt.
+    /// </summary>
+    [Fact]
+    public async Task GetManyReadsReceiptsTogetherInTheOrderAskedAndSkipsWhatIsMissing()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        var first = await database.StoreAsync(CreateDraft(1, IntakeDecision.CaseCreated));
+        var second = await database.StoreAsync(CreateDraft(2, IntakeDecision.NeedsSorting));
+        var third = await database.StoreAsync(CreateDraft(3, IntakeDecision.Unsupported));
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+        counter.Reset();
+
+        var receipts = await queries.GetManyAsync(
+            [third.Id, first.Id, Guid.NewGuid(), third.Id, second.Id],
+            CancellationToken.None);
+
+        Assert.Equal(3, counter.Count);
+        Assert.Equal(new[] { third.Id, first.Id, second.Id }, receipts.Select(receipt => receipt.Id));
+        foreach (var receipt in receipts)
+        {
+            var single = Assert.IsType<IntakeReceipt>(
+                await queries.GetAsync(receipt.Id, CancellationToken.None));
+            Assert.Equal(single.SourceFileName, receipt.SourceFileName);
+            Assert.Equal(single.Decision, receipt.Decision);
+            Assert.Equal(single.Version, receipt.Version);
+            Assert.Equal(single.AssetRecords.Count, receipt.AssetRecords.Count);
+        }
+
+        counter.Reset();
+        Assert.Empty(await queries.GetManyAsync([Guid.NewGuid()], CancellationToken.None));
+        Assert.Equal(1, counter.Count);
+    }
+
     private static IntakeReceiptDraft CreateDraft(
         int id,
         IntakeDecision decision) => new(
