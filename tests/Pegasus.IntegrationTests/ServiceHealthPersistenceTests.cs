@@ -1,6 +1,9 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Eva;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
 
@@ -127,6 +130,136 @@ public sealed class ServiceHealthPersistenceTests
 
         Assert.Equal(new EvaSubmissionActivity(null), await queries.GetActivityAsync(CancellationToken.None));
         Assert.Empty(await queries.GetRecentFailuresAsync(FixedUtcNow.AddDays(-1), 20, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The snapshot reads its ten sources in thirteen statements. Overlapping
+    /// them changes how long the page waits, not how many statements it
+    /// sends, so this pins the count the overlap must not change. The Health
+    /// page adds the ingress switch (through the request's own context), the
+    /// shell's reads and the metrics read below.
+    /// </summary>
+    [Fact]
+    public async Task TheSnapshotReadsItsSourcesInThirteenStatements()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var health = new GetServiceHealth(
+            services.GetRequiredService<IApprovedMailboxPollStatusQueries>(),
+            services.GetRequiredService<IServiceHealthQueries>(),
+            services.GetRequiredService<GetRequestOperations>(),
+            services.GetRequiredService<IEvaSubmissionQueries>(),
+            services.GetRequiredService<IAiJobQueries>(),
+            services.GetRequiredService<ISendToAiControl>(),
+            new IngressSwitch(),
+            new EfAutomationActivityStore(
+                services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()),
+            TimeProvider.System);
+        counter.Reset();
+
+        var snapshot = await health.ExecuteAsync(
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            CancellationToken.None);
+
+        // Mailbox polls 1, Sent-items polls 1, intake dispatch 2, external
+        // work 1, EVA activity 1, EVA failures 1, AI counts 2, newest AI job
+        // 1, Send to AI switch 1, Automation activity 2.
+        Assert.Equal(13, counter.Count);
+        Assert.Equal(
+            new[]
+            {
+                ServiceHealthArea.Intake,
+                ServiceHealthArea.Custody,
+                ServiceHealthArea.Eva,
+                ServiceHealthArea.Ai,
+                ServiceHealthArea.Automation
+            },
+            snapshot.Rows.Select(row => row.Area));
+    }
+
+    /// <summary>The metrics read, which the page now runs beside the snapshot, is eight statements.</summary>
+    [Fact]
+    public async Task TheAdministrationMetricsReadIsEightStatements()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IAdministrationHealthMetricsQueries>();
+        counter.Reset();
+
+        await queries.GetAsync(FixedUtcNow, CancellationToken.None);
+
+        Assert.Equal(8, counter.Count);
+    }
+
+    /// <summary>
+    /// The Health page sends its shell's statements plus exactly its own:
+    /// thirteen for the snapshot, whatever the row count. It used to read the
+    /// administration metrics too (eight more) and never draw them; the Logs
+    /// page draws them. The shell is measured on the Administration hub, which
+    /// renders the same layout, the same filters and the same middleware and
+    /// reads nothing else. The Automation ingress switch is unconfigured in
+    /// this host, so it sends none. The page reads the Sent-items cursors once,
+    /// for the poll list.
+    /// </summary>
+    [Fact]
+    public async Task TheHealthPageSendsTheShellsStatementsAndThirteenOfItsOwnWhateverTheRowCount()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        // The first request to each page pays one-off start-up reads; count the next.
+        _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration");
+        _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
+
+        counter.Reset();
+        _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration");
+        var shell = counter.Count;
+        Assert.True(shell > 0, "The interceptor observed no statements at all.");
+
+        counter.Reset();
+        _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
+        var withNoRows = counter.Count;
+        const int snapshotStatements = 13;
+        Assert.Equal(shell + snapshotStatements, withNoRows);
+        Assert.Equal(1, counter.CountContaining("[ApprovedSentPollStates]"));
+
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            for (var index = 0; index < 3; index++)
+            {
+                context.ApprovedSentPollStates.Add(new ApprovedSentPollStateEntity
+                {
+                    MailboxId = $"health-page-{index}",
+                    MailboxAddress = $"health-page-{index}@collisionengineers.co.uk",
+                    SentFolderIdentity = $"sent-{index}",
+                    DueAtUtc = FixedUtcNow.AddMinutes(5),
+                    LastCompletedAtUtc = FixedUtcNow.AddMinutes(-4),
+                    LastFailureCode = index == 0 ? "graph_unavailable" : null
+                });
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        counter.Reset();
+        var page = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
+        Assert.Contains("health-page-1@collisionengineers.co.uk", page, StringComparison.Ordinal);
+        Assert.Equal(withNoRows, counter.Count);
+        Assert.Equal(1, counter.CountContaining("[ApprovedSentPollStates]"));
+    }
+
+    private sealed class IngressSwitch : IAutomationIngressStatusQueries
+    {
+        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) => Task.FromResult(true);
     }
 
     private static IntakeStagedReceiptEntity Staged(string state, DateTimeOffset? completedAtUtc)

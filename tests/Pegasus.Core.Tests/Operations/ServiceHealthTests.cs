@@ -222,6 +222,30 @@ public sealed class ServiceHealthTests
     }
 
     [Fact]
+    public async Task SnapshotStartsEveryContextOwningReadTogetherAndReadsTheIngressSwitchAlone()
+    {
+        // Ten sources open their own context; each one waits here until all
+        // ten are in flight, so awaiting them one after another cannot pass.
+        var sources = new Sources { ConcurrentReadsExpected = 10 };
+
+        var snapshot = await Build(sources).ExecuteAsync(StaffActor(), CancellationToken.None);
+
+        Assert.Equal(
+            new[]
+            {
+                ServiceHealthArea.Intake,
+                ServiceHealthArea.Custody,
+                ServiceHealthArea.Eva,
+                ServiceHealthArea.Ai,
+                ServiceHealthArea.Automation
+            },
+            snapshot.Rows.Select(row => row.Area));
+        // The ingress switch uses the request's scoped context, so nothing
+        // else is reading while it runs.
+        Assert.Equal(0, sources.InFlightWhenIngressRead);
+    }
+
+    [Fact]
     public async Task SnapshotUsesTheClosedTimeOfTheNewestAiJobWhenItIsLater()
     {
         var created = FixedUtcNow.AddMinutes(-30);
@@ -341,24 +365,61 @@ public sealed class ServiceHealthTests
         public bool Read { get; private set; }
         public DateTimeOffset? EvaFailuresSinceUtc { get; private set; }
 
+        /// <summary>
+        /// When above zero, each factory-backed read waits until this many
+        /// reads are in flight together, so a snapshot that awaits its reads
+        /// one at a time times out instead of passing.
+        /// </summary>
+        public int ConcurrentReadsExpected { get; init; }
+
+        /// <summary>How many reads were in flight when the ingress switch was read.</summary>
+        public int InFlightWhenIngressRead { get; private set; } = -1;
+
+        private readonly TaskCompletionSource allInFlight =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int inFlight;
+
+        private async Task<T> Overlapped<T>(T value)
+        {
+            var current = Interlocked.Increment(ref inFlight);
+            try
+            {
+                if (ConcurrentReadsExpected > 0)
+                {
+                    if (current >= ConcurrentReadsExpected)
+                    {
+                        allInFlight.TrySetResult();
+                    }
+
+                    await allInFlight.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+
+                return value;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref inFlight);
+            }
+        }
+
         Task<IReadOnlyList<ApprovedMailboxPollStatus>> IApprovedMailboxPollStatusQueries.ListAsync(
             CancellationToken cancellationToken)
         {
             Read = true;
-            return Task.FromResult(MailboxPolls);
+            return Overlapped(MailboxPolls);
         }
 
         public Task<IReadOnlyList<SentEvidencePollStatus>> ListSentEvidencePollStatusAsync(
-            CancellationToken cancellationToken) => Task.FromResult(SentPolls);
+            CancellationToken cancellationToken) => Overlapped(SentPolls);
 
         public Task<IntakeDispatchHealth> GetIntakeDispatchHealthAsync(
-            CancellationToken cancellationToken) => Task.FromResult(Dispatch);
+            CancellationToken cancellationToken) => Overlapped(Dispatch);
 
         public Task<RequestOperationsProjection> GetAsync(
             int maximumItems,
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) =>
-            Task.FromResult(new RequestOperationsProjection(Operations.ToImmutableArray(), LimitReached));
+            Overlapped(new RequestOperationsProjection(Operations.ToImmutableArray(), LimitReached));
 
         public bool LimitReached { get; init; }
 
@@ -373,11 +434,11 @@ public sealed class ServiceHealthTests
             CancellationToken cancellationToken = default)
         {
             EvaFailuresSinceUtc = sinceUtc;
-            return Task.FromResult(EvaFailures);
+            return Overlapped(EvaFailures);
         }
 
         public Task<EvaSubmissionActivity> GetActivityAsync(
-            CancellationToken cancellationToken = default) => Task.FromResult(EvaActivity);
+            CancellationToken cancellationToken = default) => Overlapped(EvaActivity);
 
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the snapshot.");
@@ -393,17 +454,20 @@ public sealed class ServiceHealthTests
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken)
         {
             Assert.Equal(1, max);
-            return Task.FromResult(RecentJobs);
+            return Overlapped(RecentJobs);
         }
 
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(AiCounts);
+            Overlapped(AiCounts);
 
         Task<bool> ISendToAiControl.IsEnabledAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(SendToAiEnabled);
+            Overlapped(SendToAiEnabled);
 
-        Task<bool> IAutomationIngressStatusQueries.IsEnabledAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(IngressEnabled);
+        Task<bool> IAutomationIngressStatusQueries.IsEnabledAsync(CancellationToken cancellationToken)
+        {
+            InFlightWhenIngressRead = Volatile.Read(ref inFlight);
+            return Task.FromResult(IngressEnabled);
+        }
 
         public Task<bool> SetEnabledAsync(
             bool enabled,
@@ -434,7 +498,7 @@ public sealed class ServiceHealthTests
                         null)
                 ]
                 : [];
-            return Task.FromResult(new ListAutomationActivityResult(records, null, 1, 1, false, false));
+            return Overlapped(new ListAutomationActivityResult(records, null, 1, 1, false, false));
         }
     }
 }

@@ -263,4 +263,21 @@ public sealed class GetIntake(IIntakeReceiptQueries queries) : IGetIntake
 
         return queries.GetAsync(query.ReceiptId, cancellationToken);
     }
+
+    public Task<IReadOnlyList<IntakeReceipt>> ExecuteManyAsync(
+        IReadOnlyCollection<Guid> receiptIds,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(receiptIds);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (receiptIds.Contains(Guid.Empty))
+        {
+            throw new ArgumentException(
+                "An intake receipt identifier is required.",
+                nameof(receiptIds));
+        }
+
+        return queries.GetManyAsync(receiptIds, cancellationToken);
+    }
 }

@@ -526,6 +526,13 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     public async Task<RetainedMailDetail?> GetByOriginReceiptAsync(
         Guid originReceiptId,
+        CancellationToken cancellationToken) =>
+        await FindIdByOriginReceiptAsync(originReceiptId, cancellationToken) is { } retainedId
+            ? await GetAsync(retainedId, cancellationToken)
+            : null;
+
+    public async Task<Guid?> FindIdByOriginReceiptAsync(
+        Guid originReceiptId,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -545,9 +552,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 "The origin receipt matches more than one retained mailbox message.");
         }
 
-        return retainedIds.Count == 0
-            ? null
-            : await GetAsync(retainedIds[0], cancellationToken);
+        return retainedIds.Count == 0 ? null : retainedIds[0];
     }
 
     public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(

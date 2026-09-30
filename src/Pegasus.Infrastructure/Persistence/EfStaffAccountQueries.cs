@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 
@@ -45,6 +46,7 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
             .ThenBy(item => item.Id)
             .Skip(offset)
             .Take(limit + 1)
+            .Select(ToRow)
             .ToListAsync(cancellationToken);
         var hasMoreAccounts = users.Count > limit;
         if (hasMoreAccounts)
@@ -78,27 +80,14 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
             hasMoreAccounts);
     }
 
+    /// <summary>
+    /// One account is the batch read of one id: the summary columns and the
+    /// role in one statement, under the same exactly-one-role rule.
+    /// </summary>
     public async Task<StaffAccountSummary?> GetAsync(
         Guid staffId,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var user = await context.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == staffId, cancellationToken);
-        if (user is null)
-        {
-            return null;
-        }
-
-        var roleNames = await (
-            from userRole in context.UserRoles.AsNoTracking()
-            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-            where userRole.UserId == staffId
-            select role.Name!)
-            .ToListAsync(cancellationToken);
-        return Summary(user, ParseSingleRole(roleNames));
-    }
+        CancellationToken cancellationToken) =>
+        (await GetManyAsync([staffId], cancellationToken)).SingleOrDefault();
 
     public async Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
         IReadOnlyCollection<Guid> staffIds,
@@ -113,14 +102,29 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
         var ids = staffIds.Distinct().ToArray();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // One row per user with its role names collected, so an account with
-        // no role or two roles fails the same exactly-one-role invariant as
-        // GetAsync instead of vanishing or appearing twice.
+        // no role or two roles fails the exactly-one-role invariant instead
+        // of vanishing or appearing twice. The row is the
+        // columns a summary shows, never the password hash or the sign-off
+        // signature bytes. It repeats ToRow because a correlated role list
+        // cannot be composed into that expression, and its signature flag is
+        // DATALENGTH for the same reason ToRow's is.
         var accounts = await (
             from user in context.Users.AsNoTracking()
             where ids.Contains(user.Id)
             select new
             {
-                User = user,
+                Row = new StaffAccountRow(
+                    user.Id,
+                    user.UserName,
+                    user.IsEnabled,
+                    user.MustChangePassword,
+                    user.Version,
+                    user.WorkCentreLastSeenUtc,
+                    user.IsSignOffEngineer,
+                    user.SignOffPrintedName,
+                    user.SignOffQualifications,
+                    EF.Functions.DataLength(user.SignOffSignature) > 0,
+                    user.IsDefaultSignOffEngineer),
                 RoleNames = (
                     from userRole in context.UserRoles
                     join role in context.Roles on userRole.RoleId equals role.Id
@@ -130,7 +134,7 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
             .ToListAsync(cancellationToken);
 
         return accounts
-            .Select(account => Summary(account.User, ParseSingleRole(account.RoleNames)))
+            .Select(account => Summary(account.Row, ParseSingleRole(account.RoleNames)))
             .ToArray();
     }
 
@@ -168,26 +172,89 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
             .ToArray();
     }
 
-    /// <summary>Shared with <see cref="EfStaffAccountAdministration"/> so the mapping lives once.</summary>
+    /// <summary>
+    /// What a <see cref="StaffAccountSummary"/> shows of an account, without
+    /// the password hash, the security stamps or the sign-off signature bytes
+    /// (a signature can be up to 1 MiB). Whether there is a signature is
+    /// worked out in SQL from the stored length (<see cref="ToRow"/>).
+    /// </summary>
+    private sealed record StaffAccountRow(
+        Guid Id,
+        string? UserName,
+        bool IsEnabled,
+        bool MustChangePassword,
+        long Version,
+        DateTimeOffset? WorkCentreLastSeenUtc,
+        bool IsSignOffEngineer,
+        string? SignOffPrintedName,
+        string? SignOffQualifications,
+        bool HasSignature,
+        bool IsDefaultSignOffEngineer);
+
+    /// <summary>
+    /// The row as SQL reads it: only the summary columns, with "has a
+    /// signature" as <c>DATALENGTH</c> of the stored bytes so the bytes stay
+    /// in the database. EF does not translate <c>byte[].Length</c>; written
+    /// that way it selects the whole column and measures it in memory.
+    /// <c>EF.Functions</c> has no in-memory form, so <see cref="RowOf"/> builds
+    /// the same row from an entity that is already loaded.
+    /// </summary>
+    private static readonly Expression<Func<PegasusIdentityUser, StaffAccountRow>> ToRow =
+        user => new StaffAccountRow(
+            user.Id,
+            user.UserName,
+            user.IsEnabled,
+            user.MustChangePassword,
+            user.Version,
+            user.WorkCentreLastSeenUtc,
+            user.IsSignOffEngineer,
+            user.SignOffPrintedName,
+            user.SignOffQualifications,
+            EF.Functions.DataLength(user.SignOffSignature) > 0,
+            user.IsDefaultSignOffEngineer);
+
+    private static StaffAccountRow RowOf(PegasusIdentityUser user) =>
+        new(
+            user.Id,
+            user.UserName,
+            user.IsEnabled,
+            user.MustChangePassword,
+            user.Version,
+            user.WorkCentreLastSeenUtc,
+            user.IsSignOffEngineer,
+            user.SignOffPrintedName,
+            user.SignOffQualifications,
+            user.SignOffSignature is { Length: > 0 },
+            user.IsDefaultSignOffEngineer);
+
+    /// <summary>
+    /// The summary of an account already loaded as a tracked entity: the
+    /// administration writes in <see cref="EfStaffAccountAdministration"/>,
+    /// which hold the user to change it. The reads here project
+    /// <see cref="StaffAccountRow"/> instead, so the mapping still lives once.
+    /// </summary>
     internal static StaffAccountSummary Summary(
         PegasusIdentityUser user,
         StaffRole role) =>
+        Summary(RowOf(user), role);
+
+    private static StaffAccountSummary Summary(StaffAccountRow row, StaffRole role) =>
         new(
-            user.Id,
-            user.UserName ?? throw new InvalidOperationException(
+            row.Id,
+            row.UserName ?? throw new InvalidOperationException(
                 "A staff account has no username."),
-            user.IsEnabled,
-            user.MustChangePassword,
+            row.IsEnabled,
+            row.MustChangePassword,
             role)
         {
-            Version = user.Version,
-            WorkCentreLastSeenUtc = user.WorkCentreLastSeenUtc,
+            Version = row.Version,
+            WorkCentreLastSeenUtc = row.WorkCentreLastSeenUtc,
             SignOff = new(
-                user.IsSignOffEngineer,
-                user.SignOffPrintedName,
-                user.SignOffQualifications,
-                user.SignOffSignature is { Length: > 0 },
-                user.IsDefaultSignOffEngineer)
+                row.IsSignOffEngineer,
+                row.SignOffPrintedName,
+                row.SignOffQualifications,
+                row.HasSignature,
+                row.IsDefaultSignOffEngineer)
         };
 
     private static SignOffEngineerProfile Profile(PegasusIdentityUser user) =>
