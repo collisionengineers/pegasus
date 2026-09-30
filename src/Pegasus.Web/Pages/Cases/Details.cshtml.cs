@@ -98,8 +98,8 @@ public sealed partial class DetailsModel(
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
     ICreateAudit createAudit,
-    IAiDraftQueries aiDrafts,
-    IMarketResearchQueries marketResearchQueries,
+    IAiJobQueries aiJobs,
+    ICaseWorkflowConfiguration workflowConfiguration,
     IStartMarketResearch startMarketResearch,
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
@@ -1479,7 +1479,8 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// The record's remaining reads: the directory choices, the Principal's
     /// previous addresses, the Files galleries, the frame's names and EVA
-    /// state, the lease holder and the AI drafts.
+    /// state, the lease holder, and the Case's AI jobs, read once for both
+    /// the Next action's drafts and the Valuation section's pending research.
     /// </summary>
     private async Task LoadExtrasAsync(Guid id, ActionActor actor, CancellationToken cancellationToken)
     {
@@ -1517,7 +1518,8 @@ public sealed partial class DetailsModel(
                 actor,
                 token))
             : null;
-        var drafts = reads.Start(token => aiDrafts.ListForCaseAsync(id, token));
+        var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
+        var configuration = reads.Start(token => workflowConfiguration.GetCurrentAsync(token));
         await reads.WhenAllAsync();
 
         if (claimSources is not null)
@@ -1546,7 +1548,9 @@ public sealed partial class DetailsModel(
             ViewerHoldsEditAuthority = viewerHoldsLease;
             EditAuthorityHolder = holder is null ? CaseEditAuthorityHolder.Unnamed : await holder;
         }
-        AiDrafts = await drafts;
+        var jobs = await caseAiJobs;
+        AiDrafts = AiDraftPolicy.Drafts(jobs, (await configuration).AiDraftTargetDays);
+        PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
         CanAssignToMe = CaseLifecycleRules.CanAssignToSelf(details.Workflow);
     }
 
