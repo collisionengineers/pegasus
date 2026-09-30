@@ -25,8 +25,9 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     ///
     /// A write here is one upload for each call, and this gate does not bound
     /// it. The Worker's custody processor files up to three files of one work
-    /// item at the same time (<c>EfQueuedCustodyProcessor</c>), each as its own
-    /// request.
+    /// item at the same time (<c>EfQueuedCustodyProcessor</c>), but those
+    /// uploads do not come through this store: <c>BoxCaseCustody</c> sends
+    /// them to <see cref="BoxContentClient"/> directly.
     ///
     /// This was the batch's degree of parallelism only, so sixty
     /// gallery tiles opened sixty single reads at once and nothing bounded
