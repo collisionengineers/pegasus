@@ -601,8 +601,6 @@ public sealed class CaseCursorQueryPersistenceTests
 
     [Fact]
     public async Task GetHeaderReturnsNullForACaseThatDoesNotExist()
-
-
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
