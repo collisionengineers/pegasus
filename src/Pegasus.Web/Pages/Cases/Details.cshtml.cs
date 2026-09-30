@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -1254,6 +1255,22 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
+    /// A fragment's 404. Script asks for a fragment and reads only its status,
+    /// so the status pages middleware is switched off for this response and the
+    /// refusal has an empty body instead of the full status page and its reads.
+    /// A full-page 404 keeps the designed page.
+    /// </summary>
+    private NotFoundResult FragmentNotFound()
+    {
+        var statusPages = HttpContext.Features.Get<IStatusCodePagesFeature>();
+        if (statusPages is not null)
+        {
+            statusPages.Enabled = false;
+        }
+        return NotFound();
+    }
+
+    /// <summary>
     /// One Case section's body, for the frame's lazy mount, on the record's
     /// own fragment path <c>/Cases/{id}/Section?section=&lt;key&gt;</c>. It runs the same
     /// authorized load, lease restoration and section-specific supplemental
@@ -1273,13 +1290,13 @@ public sealed partial class DetailsModel(
         }
         if (id == Guid.Empty)
         {
-            return NotFound();
+            return FragmentNotFound();
         }
 
         var key = NormalizeSection(section);
         if (!LazySectionViews.TryGetValue(key, out var view))
         {
-            return NotFound();
+            return FragmentNotFound();
         }
 
         using var activity = DocumentReadTelemetry.Start("web.case.fragment." + key);
@@ -1295,7 +1312,7 @@ public sealed partial class DetailsModel(
                         new(id, actor, Work: WorkSelector), cancellationToken);
                     if (VehicleSection is null)
                     {
-                        return NotFound();
+                        return FragmentNotFound();
                     }
                     Assessment = VehicleSection.Assessment;
                     break;
@@ -1304,7 +1321,7 @@ public sealed partial class DetailsModel(
                         new(id, actor, Work: WorkSelector), cancellationToken);
                     if (ValuationSection is null)
                     {
-                        return NotFound();
+                        return FragmentNotFound();
                     }
                     Assessment = ValuationSection.Assessment;
                     break;
@@ -1312,14 +1329,14 @@ public sealed partial class DetailsModel(
                     NotesSection = await getCaseNotesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (NotesSection is null)
                     {
-                        return NotFound();
+                        return FragmentNotFound();
                     }
                     break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (FilesSection is null)
                     {
-                        return NotFound();
+                        return FragmentNotFound();
                     }
                     break;
             }
@@ -3471,9 +3488,9 @@ public sealed partial class DetailsModel(
         Response.Headers.CacheControl = "no-store";
         if (!TryGetActor(out var actor)) { return Forbid(); }
         Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
-        if (Case is null) { return NotFound(); }
+        if (Case is null) { return FragmentNotFound(); }
         var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true) { return NotFound(); }
+        if (access?.CanOpen != true) { return FragmentNotFound(); }
         AssessmentCanOpen = true;
         AssessmentIsReadOnly = access.IsReadOnly;
         // Like lazy section reads, this GET never restores or writes TempData.

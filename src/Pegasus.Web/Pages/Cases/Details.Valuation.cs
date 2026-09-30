@@ -495,7 +495,7 @@ public sealed partial class DetailsModel
         }
         if (!await HasAssessmentAccessAsync(id, actor, cancellationToken))
         {
-            return NotFound();
+            return FragmentNotFound();
         }
 
         // No basis chosen is not a fault: there is nothing to calculate yet.
