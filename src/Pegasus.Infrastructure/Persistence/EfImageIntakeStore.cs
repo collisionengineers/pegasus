@@ -912,18 +912,13 @@ public sealed class EfImageIntakeStore(
             return [];
         }
 
-        var eligible = await EfImageIntakeCaseCandidates.EligibleQuery(context)
+        // An automatic target is chosen among the Cases whose registration
+        // matches the read (SelectRegisteredTarget scopes and counts only the
+        // matches it is given), so the Case read is bounded to the Cases the
+        // waiting reads can match. The near-miss rule still decides each one.
+        var eligible = await EfImageIntakeCaseCandidates
+            .EligibleQuery(context, rows.Select(row => row.NormalizedVehicleRegistration))
             .ToArrayAsync(cancellationToken);
-        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
-        // The Case-id bound is in the query: a lease on any other Case cannot
-        // change what this call returns.
-        var leases = context.CaseWorkflows.AsNoTracking()
-            .Where(workflow => workflow.EditLeaseExpiresAtUtc > now);
-        if (caseId is { } boundCaseId)
-        {
-            leases = leases.Where(workflow => workflow.CaseId == boundCaseId);
-        }
-        var leasedCases = await leases.Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
         // Only a staff link can name an archived Case (an automatic target is
         // never archived), so only the Cases the waiting records are linked to
         // can matter.
@@ -943,7 +938,7 @@ public sealed class EfImageIntakeStore(
         var associations = new Dictionary<Guid, IntakeManualAssociationEntity>();
         await LoadAssociationsAsync(
             context, associations, rows.Select(row => row.OriginReceiptId), cancellationToken);
-        var pending = new List<ImageIntakeSummary>();
+        var targeted = new List<(ImageIntakeSummary Intake, Guid Target, Guid? AutomaticTarget, bool StaffDecision)>();
         foreach (var intake in rows)
         {
             var matches = eligible.Where(candidate => VrmRegistrationMatching.IsMatch(
@@ -969,8 +964,28 @@ public sealed class EfImageIntakeStore(
                     targetCaseId = null;
                 }
             }
-            if (targetCaseId is not { } target || (caseId is not null && target != caseId)
-                || leasedCases.Contains(target))
+            if (targetCaseId is { } target && (caseId is null || target == caseId))
+            {
+                targeted.Add((intake, target, automaticTarget?.CaseId, staffDecision));
+            }
+        }
+        if (targeted.Count == 0)
+        {
+            return [];
+        }
+
+        // Only a lease on a target can hold a record back, so the lease read
+        // covers the targets alone.
+        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
+        var targetIds = targeted.Select(item => item.Target).Distinct().ToArray();
+        var leasedCases = await context.CaseWorkflows.AsNoTracking()
+            .Where(workflow => targetIds.Contains(workflow.CaseId) && workflow.EditLeaseExpiresAtUtc > now)
+            .Select(workflow => workflow.CaseId)
+            .ToArrayAsync(cancellationToken);
+        var pending = new List<ImageIntakeSummary>();
+        foreach (var (intake, target, automaticTargetId, staffDecision) in targeted)
+        {
+            if (leasedCases.Contains(target))
             {
                 continue;
             }
@@ -982,7 +997,7 @@ public sealed class EfImageIntakeStore(
                 cancellationToken);
             if (images.Any(image => associations.TryGetValue(image.ReceiptId, out var association)
                     ? !association.IsActive || association.CaseId != target
-                    : !staffDecision && automaticTarget?.CaseId != target))
+                    : !staffDecision && automaticTargetId != target))
             {
                 continue;
             }
@@ -1713,7 +1728,53 @@ public sealed class EfImageIntakeCaseCandidates(
         .Select(state => state.ToString())
         .ToArray();
 
+    private const string LikeEscape = "\\";
+
     internal static IQueryable<ImageIntakeCaseCandidate> EligibleQuery(PegasusDbContext context) =>
+        Project(EligibleCases(context));
+
+    /// <summary>
+    /// The eligible Cases whose registration one of <paramref name="reads"/>
+    /// can match. Each read's candidate forms are sent as LIKE patterns: the
+    /// form itself, and the form with one '_' at every position. The database
+    /// ignores case, so the patterns can keep a Case the match rule refuses,
+    /// and never leave out one it accepts. The caller still applies
+    /// <see cref="VrmRegistrationMatching.IsMatch"/> to every Case it reads.
+    /// </summary>
+    internal static IQueryable<ImageIntakeCaseCandidate> EligibleQuery(
+        PegasusDbContext context,
+        IEnumerable<string> reads)
+    {
+        var patterns = RegistrationPatterns(reads);
+        // One JSON parameter rather than one parameter a pattern: a busy
+        // estate's patterns must never reach the 2,100-parameter limit.
+        return Project(EligibleCases(context).Where(item => EF.Parameter(patterns)
+            .Any(pattern => EF.Functions.Like(item.Registration, pattern, LikeEscape))));
+    }
+
+    internal static string[] RegistrationPatterns(IEnumerable<string> reads)
+    {
+        ArgumentNullException.ThrowIfNull(reads);
+        var patterns = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var form in reads.Distinct(StringComparer.Ordinal).SelectMany(VrmRegistrationMatching.CandidateForms))
+        {
+            var characters = form.Select(EscapeLike).ToArray();
+            patterns.Add(string.Concat(characters));
+            for (var position = 0; position <= characters.Length; position++)
+            {
+                patterns.Add(string.Concat(characters[..position]) + "_" + string.Concat(characters[position..]));
+            }
+        }
+        return [.. patterns];
+    }
+
+    private static string EscapeLike(char character)
+    {
+        var text = character.ToString(CultureInfo.InvariantCulture);
+        return character is '%' or '_' or '[' or '\\' ? LikeEscape + text : text;
+    }
+
+    private static IQueryable<EligibleCase> EligibleCases(PegasusDbContext context) =>
         from workflow in context.CaseWorkflows.AsNoTracking()
         join caseEntity in context.Cases.AsNoTracking() on workflow.CaseId equals caseEntity.Id
         join principal in context.Principals.AsNoTracking() on caseEntity.PrincipalId equals principal.Id
@@ -1722,11 +1783,33 @@ public sealed class EfImageIntakeCaseCandidates(
         where EligibleStates.Contains(workflow.State)
             && workflow.ReportSentEvidenceId == null
             && workflow.ArchivedAtUtc == null
-        orderby caseEntity.Reference
-        select new ImageIntakeCaseCandidate(
-            caseEntity.Id, caseEntity.Reference, workflow.Version,
-            index == null ? string.Empty : index.NormalizedVrm ?? string.Empty, caseEntity.CreatedAtUtc,
-            caseEntity.PrincipalId, principal.Code);
+        select new EligibleCase
+        {
+            CaseId = caseEntity.Id,
+            Reference = caseEntity.Reference,
+            Version = workflow.Version,
+            Registration = index == null ? string.Empty : index.NormalizedVrm ?? string.Empty,
+            CreatedAtUtc = caseEntity.CreatedAtUtc,
+            PrincipalId = caseEntity.PrincipalId,
+            PrincipalCode = principal.Code
+        };
+
+    private static IQueryable<ImageIntakeCaseCandidate> Project(IQueryable<EligibleCase> cases) =>
+        cases.OrderBy(item => item.Reference)
+            .Select(item => new ImageIntakeCaseCandidate(
+                item.CaseId, item.Reference, item.Version, item.Registration, item.CreatedAtUtc,
+                item.PrincipalId, item.PrincipalCode));
+
+    private sealed class EligibleCase
+    {
+        public Guid CaseId { get; init; }
+        public required string Reference { get; init; }
+        public long Version { get; init; }
+        public required string Registration { get; init; }
+        public DateTimeOffset CreatedAtUtc { get; init; }
+        public Guid PrincipalId { get; init; }
+        public required string PrincipalCode { get; init; }
+    }
 
     internal static async Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(
         PegasusDbContext context,
