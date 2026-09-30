@@ -620,8 +620,9 @@ internal sealed class BoxContentClient(
     /// unchanged until this returns. Box's answer must name the proved folder
     /// as the file's parent. A name Box already holds is Box's 409
     /// <c>item_name_in_use</c>: the file is then the same file only when it is
-    /// a file of this length and type, in this folder, holding these bytes, and
-    /// the result says it was not created.
+    /// a file of this length, in this folder, holding these bytes, and the
+    /// result says it was not created. Its type is compared only if Box sends
+    /// one, and Box does not (<see cref="IsExpectedRevision"/>).
     /// </summary>
     public async Task<BoxUpload> UploadAsync(
         ProvedFolder folder,
@@ -729,9 +730,10 @@ internal sealed class BoxContentClient(
 
     /// <summary>
     /// The file Box says already holds an upload's name: a file, not a folder,
-    /// with a version identity, and this content's parent, length and type. A
-    /// file that is not is a refusal; whether its bytes are these bytes is the
-    /// caller's next check.
+    /// with a version identity, and this content's parent and length. Its type
+    /// is compared only if Box sends one, and Box does not
+    /// (<see cref="IsExpectedRevision"/>). A file that is not is a refusal;
+    /// whether its bytes are these bytes is the caller's next check.
     /// </summary>
     private async Task<BoxItem> FindOccupyingFileAsync(
         ProvedFolder folder,
