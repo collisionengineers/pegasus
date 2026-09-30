@@ -21,8 +21,12 @@ public sealed class HealthModel(
             return Forbid();
         }
 
-        Snapshot = await getServiceHealth.ExecuteAsync(actor, cancellationToken);
-        Metrics = await getMetrics.ExecuteAsync(actor, timeProvider.GetUtcNow(), cancellationToken);
+        // The metrics read opens its own context, so it runs beside the snapshot.
+        var snapshot = getServiceHealth.ExecuteAsync(actor, cancellationToken);
+        var metrics = getMetrics.ExecuteAsync(actor, timeProvider.GetUtcNow(), cancellationToken);
+        await Task.WhenAll(snapshot, metrics);
+        Snapshot = await snapshot;
+        Metrics = await metrics;
         return Page();
     }
 }

@@ -1088,6 +1088,27 @@ public interface IIntakeReceiptQueries
     Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The receipts for <paramref name="ids"/>, each once, in the order the
+    /// ids first appear. An id with no receipt is left out. A store that can
+    /// read them together overrides this; the default reads them one by one.
+    /// </summary>
+    async Task<IReadOnlyList<IntakeReceipt>> GetManyAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken)
+    {
+        var receipts = new List<IntakeReceipt>();
+        foreach (var id in ids.Distinct())
+        {
+            if (await GetAsync(id, cancellationToken) is { } receipt)
+            {
+                receipts.Add(receipt);
+            }
+        }
+
+        return receipts;
+    }
+
+    /// <summary>
     /// One retained asset of a receipt (the original report at standalone
     /// Audit acceptance reads it), or null when the receipt has no such asset.
     /// </summary>
@@ -1105,6 +1126,28 @@ public interface IGetIntake
     Task<IntakeReceipt?> ExecuteAsync(
         GetIntakeQuery query,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Several receipts for one actor, in the order the ids first appear;
+    /// an id with no receipt is left out. <see cref="GetIntake"/> reads them
+    /// together; the default asks for each one in turn.
+    /// </summary>
+    async Task<IReadOnlyList<IntakeReceipt>> ExecuteManyAsync(
+        IReadOnlyCollection<Guid> receiptIds,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        var receipts = new List<IntakeReceipt>();
+        foreach (var receiptId in receiptIds.Distinct())
+        {
+            if (await ExecuteAsync(new GetIntakeQuery(receiptId, actor), cancellationToken) is { } receipt)
+            {
+                receipts.Add(receipt);
+            }
+        }
+
+        return receipts;
+    }
 }
 
 public sealed record DownloadIntakeSourceQuery(Guid ReceiptId, ActionActor Actor);

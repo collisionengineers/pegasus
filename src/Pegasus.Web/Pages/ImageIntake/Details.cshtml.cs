@@ -143,20 +143,12 @@ public sealed class DetailsModel(
         Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
         if (TryGetActor(out var sourceActor))
         {
-            var retainedReceipts = new List<IntakeReceipt>();
-            foreach (var receiptId in new[] { detail.Record.Origin.ReceiptId }
-                         .Concat(Images.Select(image => image.ReceiptId))
-                         .Distinct())
-            {
-                var receipt = await getIntake.ExecuteAsync(
-                    new GetIntakeQuery(receiptId, sourceActor), cancellationToken);
-                if (receipt is not null)
-                {
-                    retainedReceipts.Add(receipt);
-                }
-            }
-
-            RetainedReceipts = retainedReceipts;
+            RetainedReceipts = await getIntake.ExecuteManyAsync(
+                new[] { detail.Record.Origin.ReceiptId }
+                    .Concat(Images.Select(image => image.ReceiptId))
+                    .ToArray(),
+                sourceActor,
+                cancellationToken);
         }
         if (TryGetActor(out var preparationActor))
         {
@@ -190,10 +182,10 @@ public sealed class DetailsModel(
             && detail.Record.Origin.SourceIdentity.Channel == Pegasus.Core.Intake.IntakeSourceChannel.Mailbox
             && TryGetActor(out var actor))
         {
-            SourceMessageId = (await getRetainedMail.ExecuteByOriginReceiptAsync(
+            SourceMessageId = await getRetainedMail.FindIdByOriginReceiptAsync(
                 actor,
                 detail.Record.Origin.ReceiptId,
-                cancellationToken))?.Summary.Id;
+                cancellationToken);
         }
 
         return Page();
