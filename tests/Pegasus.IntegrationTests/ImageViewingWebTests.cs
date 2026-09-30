@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -162,8 +163,12 @@ public sealed class ImageViewingWebTests
         // browser may keep the image.
         var contentHash = Assert.IsType<string>(galleryImage.ContentHash);
         var expectedHref = $"{expectedSource}?v={contentHash}";
+        // The tile is the same rendering at tile size on both pages; only the
+        // link and the download are the original.
+        var expectedTile = $"{expectedSource}?size=thumb&amp;v={contentHash}&amp;prep=0&amp;renderer={CaseDocumentThumbnails.RendererIdentity}";
         var imageCasePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
         Assert.Contains(expectedSource, imageCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<img src=\"{expectedTile}\"", imageCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("alt=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
         Assert.Contains("loading=\"lazy\"", imageCasePage, StringComparison.Ordinal);
         // Each tile is still a real link -- so it works with no
@@ -185,6 +190,12 @@ public sealed class ImageViewingWebTests
             $"/Cases/{caseId:D}?section=files");
         Assert.Contains(expectedSource, casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"<a href=\"{expectedHref}\"", casePage, StringComparison.OrdinalIgnoreCase);
+        // An unmerged photograph's tile and filmstrip thumbnail are the tile
+        // address, not the original; the link and the download keep the
+        // original.
+        Assert.Contains($"data-download-href=\"{expectedHref}\"", casePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"data-thumb=\"{expectedTile}\"", casePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<img src=\"{expectedTile}\"", casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AB12CDE-01", casePage, StringComparison.Ordinal);
         // v26 § Image viewer: the Case record carries its own full-screen
         // viewer rather than the shell's dialog; the intake photographs join
@@ -198,6 +209,34 @@ public sealed class ImageViewingWebTests
             "No images are available to display",
             casePage,
             StringComparison.OrdinalIgnoreCase);
+
+        // A photograph with a crop recorded on its record keeps the address it
+        // had before tiles were renderings: the original, so this page still
+        // shows it whole and the browser keeps it as before. (Showing the crop
+        // here is not decided.) An unprepared one, above, is the tile address.
+        await scope.ServiceProvider.GetRequiredService<ISavePreCaseImageCrop>().ExecuteAsync(
+            new SavePreCaseImageCropRequest(
+                imageAssetId,
+                ExpectedVersion: 0,
+                CaseAssetRotation.Clockwise90,
+                new CaseAssetCrop(0.1m, 0.2m, 0.5m, 0.6m),
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                Guid.NewGuid().ToString("N")));
+        var croppedCasePage = await IntakeWebDriver.GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}?section=files");
+        Assert.Contains($"data-thumb=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<img src=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"data-download-href=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(expectedTile, croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"{expectedSource}?size=thumb", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        // The original's address is kept for a week, as it was before.
+        using (var kept = await client.GetAsync(expectedHref))
+        {
+            Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+            Assert.Equal(TimeSpan.FromDays(7), kept.Headers.CacheControl!.MaxAge);
+            Assert.Equal($"\"{contentHash.ToLowerInvariant()}\"", kept.Headers.ETag!.Tag);
+        }
 
         // The overview tab does not pay the gallery query cost.
         var overview = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");

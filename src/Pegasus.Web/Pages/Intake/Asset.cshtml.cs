@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Pegasus.Core.Identity;
@@ -25,8 +26,9 @@ public sealed partial class AssetModel(
 {
     /// <summary>
     /// <c>size=thumb</c> asks for a pre-Case image's tile: the recorded crop and
-    /// rotation drawn as the Case gallery draws them. An image with nothing
-    /// recorded, or one that cannot be rendered, is served whole as before.
+    /// rotation, or the whole frame when none is recorded, drawn as the Case
+    /// gallery draws them. An image that cannot be rendered is served whole as
+    /// before.
     /// </summary>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
@@ -84,7 +86,7 @@ public sealed partial class AssetModel(
                 && !mediaType.MediaType.Equals("image/webp", StringComparison.OrdinalIgnoreCase))
             {
                 return File(
-                    asset.Content.ToArray(),
+                    ContentStream(asset.Content),
                     "application/octet-stream",
                     SafeFileName(asset.FileName));
             }
@@ -99,7 +101,7 @@ public sealed partial class AssetModel(
             {
                 FileName = asset.FileName
             }.ToString();
-            return File(asset.Content.ToArray(), asset.ContentType);
+            return File(ContentStream(asset.Content), asset.ContentType);
         }
         catch (StaffAuthorizationException)
         {
@@ -124,6 +126,16 @@ public sealed partial class AssetModel(
             };
         }
     }
+
+    /// <summary>
+    /// The verified bytes as a read-only stream over the array they already
+    /// sit in, so the response is not a second copy of the file. Only bytes
+    /// that are not held in an array are copied.
+    /// </summary>
+    private static MemoryStream ContentStream(ReadOnlyMemory<byte> content) =>
+        MemoryMarshal.TryGetArray(content, out var segment)
+            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
+            : new MemoryStream(content.ToArray(), writable: false);
 
     private static ContentResult CustodyUnavailable() => new()
     {

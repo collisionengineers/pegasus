@@ -1,5 +1,7 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Documents;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 
 namespace Pegasus.IntegrationTests;
@@ -52,6 +54,36 @@ public sealed partial class QdosTriageIntegrationTests
         // receipt — not copied anywhere, and not a second custody of the same
         // bytes.
         Assert.Contains($"/Received/{receiptId:D}/Asset/", html, StringComparison.Ordinal);
+
+        // Nothing is recorded on either photograph, yet each tile is a
+        // rendering at tile size, not the 4032 by 3024 original; the viewer's
+        // link and Open file are still the original.
+        IReadOnlyList<IntakeAssetRecord> photographs;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var receipt = Assert.IsType<IntakeReceipt>(
+                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receiptId, CancellationToken.None));
+            photographs =
+            [
+                .. receipt.AssetRecords.Where(asset =>
+                    asset.Kind == IntakeAssetKind.Attachment && asset.MediaType == "image/png")
+            ];
+        }
+        Assert.Equal(2, photographs.Count);
+        foreach (var photograph in photographs)
+        {
+            var route = $"/Received/{receiptId:D}/Asset/{photograph.Id:D}";
+            Assert.Contains(
+                $"href=\"{route}?v={photograph.ContentHash}\"",
+                html,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(
+                $"src=\"{route}?size=thumb&amp;v={photograph.ContentHash}&amp;prep=0&amp;renderer={CaseDocumentThumbnails.RendererIdentity}\"",
+                html,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain($"src=\"{route}?v=", html, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]

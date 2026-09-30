@@ -6,9 +6,9 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Core.Tests.ImageIntake;
 
 /// <summary>
-/// A pre-Case image's tile draws its recorded crop and rotation the way a Case
-/// image's tile does; with nothing recorded the original is served and nothing
-/// is read or rendered.
+/// A pre-Case image's tile is a rendering at tile size, as a Case image's tile
+/// is: it draws the recorded crop and rotation, or the whole frame when nothing
+/// is recorded.
 /// </summary>
 public sealed class PreCaseImageThumbnailTests
 {
@@ -33,16 +33,40 @@ public sealed class PreCaseImageThumbnailTests
     }
 
     [Fact]
-    public async Task AnUnpreparedImageIsServedWholeWithoutAReadOrARender()
+    public async Task AnUnpreparedImageRendersWholeAndReportsNoPreparation()
     {
+        var receiptId = Guid.NewGuid();
         var assetId = Guid.NewGuid();
-        var none = new Fixture(null);
+        var never = new Fixture(null);
+        // A cleared crop is recorded at a later version but draws the same
+        // whole frame, so it is named exactly as an image never prepared is.
         var cleared = new Fixture(PreCaseImagePreparation.Original(assetId) with { Version = 2 });
 
-        Assert.Null(await none.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
-        Assert.Null(await cleared.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
-        Assert.Null(none.Download.Read);
-        Assert.Null(cleared.Renderer.Rendered);
+        await using var neverPrepared = await never.Sut.OpenAsync(new PreCaseImageThumbnailQuery(receiptId, assetId, Staff));
+        await using var afterClear = await cleared.Sut.OpenAsync(new PreCaseImageThumbnailQuery(receiptId, assetId, Staff));
+
+        Assert.NotNull(neverPrepared);
+        Assert.NotNull(afterClear);
+        Assert.Equal(PreCaseImagePreparation.NoPreparationVersion, neverPrepared.PreparationVersion);
+        Assert.Equal(PreCaseImagePreparation.NoPreparationVersion, afterClear.PreparationVersion);
+        Assert.Equal(CaseDocumentThumbnails.MediaType, neverPrepared.Rendering.MediaType);
+        Assert.Equal("source-sha", neverPrepared.Rendering.SourceSha256);
+        Assert.Equal((receiptId, assetId), never.Download.Read);
+        Assert.Equal((CaseAssetRotation.None, CaseAssetCrop.Full), never.Renderer.Rendered);
+        Assert.Equal((CaseAssetRotation.None, CaseAssetCrop.Full), cleared.Renderer.Rendered);
+    }
+
+    [Fact]
+    public void OnlyARecordedCropOrRotationNamesATileByItsVersion()
+    {
+        var assetId = Guid.NewGuid();
+        var rotated = new PreCaseImagePreparation(assetId, CaseAssetRotation.Half, CaseAssetCrop.Full, [], 4);
+        var cropped = new PreCaseImagePreparation(assetId, CaseAssetRotation.None, new CaseAssetCrop(0.1m, 0.1m, 0.5m, 0.5m), [], 5);
+
+        Assert.Equal(PreCaseImagePreparation.NoPreparationVersion, PreCaseImagePreparation.Original(assetId).TileVersion);
+        Assert.Equal(PreCaseImagePreparation.NoPreparationVersion, (PreCaseImagePreparation.Original(assetId) with { Version = 3 }).TileVersion);
+        Assert.Equal(4, rotated.TileVersion);
+        Assert.Equal(5, cropped.TileVersion);
     }
 
     [Fact]
@@ -51,11 +75,16 @@ public sealed class PreCaseImageThumbnailTests
         var assetId = Guid.NewGuid();
         var prepared = new PreCaseImagePreparation(assetId, CaseAssetRotation.Clockwise270, CaseAssetCrop.Full, [], 1);
         var svg = new Fixture(prepared, contentType: "image/svg+xml");
+        var unpreparedSvg = new Fixture(null, contentType: "image/svg+xml");
         var unrenderable = new Fixture(prepared, renders: false);
+        var unpreparedUnrenderable = new Fixture(null, renders: false);
 
         Assert.Null(await svg.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
         Assert.Null(svg.Renderer.Rendered);
+        Assert.Null(await unpreparedSvg.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
+        Assert.Null(unpreparedSvg.Renderer.Rendered);
         Assert.Null(await unrenderable.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
+        Assert.Null(await unpreparedUnrenderable.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
     }
 
     [Fact]
