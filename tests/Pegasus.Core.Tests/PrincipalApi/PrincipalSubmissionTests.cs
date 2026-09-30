@@ -1021,7 +1021,5 @@ public sealed class PrincipalSubmissionTests
         Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Receipts.GetValueOrDefault(id));
 
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 }

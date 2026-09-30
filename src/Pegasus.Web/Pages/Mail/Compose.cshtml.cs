@@ -35,7 +35,8 @@ namespace Pegasus.Web.Pages.Mail;
 public sealed class ComposeModel(
     IStaffMailSend staffMailSend,
     IApprovedMailboxStore approvedMailboxes,
-    IGetCase getCase,
+    IGetCaseHeader getCaseHeader,
+    IListCaseReferences listCaseReferences,
     ISearchCases searchCases,
     IStaffMailAttachmentResolver attachmentResolver) : StaffPageModel
 {
@@ -344,10 +345,11 @@ public sealed class ComposeModel(
             return RedirectToPage();
         }
 
-        var context = await getCase.ExecuteAsync(new(Operation.ContextId, actor), cancellationToken);
-        return context is null
-            ? NotFound()
-            : RedirectToPage(new { caseReference = context.Summary.Reference, operationId = Operation.Id });
+        var references = await listCaseReferences.ExecuteAsync(
+            new(actor, [Operation.ContextId]), cancellationToken);
+        return references.TryGetValue(Operation.ContextId, out var reference)
+            ? RedirectToPage(new { caseReference = reference, operationId = Operation.Id })
+            : NotFound();
     }
 
     private static StaffMailRecipient[] ParseRecipients(string? value) =>
@@ -418,7 +420,7 @@ public sealed class ComposeModel(
             actor, details.Summary.CaseId, cancellationToken);
     }
 
-    private async Task<CaseDetails?> ResolveCaseAsync(
+    private async Task<CaseHeader?> ResolveCaseAsync(
         ActionActor actor,
         string? reference,
         CancellationToken cancellationToken)
@@ -434,7 +436,7 @@ public sealed class ComposeModel(
             string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase));
         return match is null
             ? null
-            : await getCase.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
+            : await getCaseHeader.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
     }
 
     private async Task<IReadOnlyList<CaseSearchItem>> SearchCasesAsync(

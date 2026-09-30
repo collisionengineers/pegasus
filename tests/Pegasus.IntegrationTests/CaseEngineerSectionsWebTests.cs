@@ -30,17 +30,13 @@ public sealed class CaseEngineerSectionsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
-                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISendToAiControl>();
-                services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
-                services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
                 services.AddSingleton<ICaseReportSnapshotSource>(source);
                 services.AddSingleton<IListCaseEstimates>(source);
@@ -109,17 +105,13 @@ public sealed class CaseEngineerSectionsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
-                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISendToAiControl>();
-                services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
-                services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
                 services.AddSingleton<ICaseReportSnapshotSource>(source);
                 services.AddSingleton<IListCaseEstimates>(source);
@@ -141,14 +133,13 @@ public sealed class CaseEngineerSectionsWebTests
     }
 
     private sealed class EngineerSectionSource :
-        IGetCase, IGetCaseEditBasis,
+        IGetCaseEditBasis,
         IGetCasePageFrame,
-        IGetAssessmentAccess,
         IGetAssessmentWorkspace,
         ICaseReportSnapshotSource,
         IListCaseEstimates
     {
-        private readonly CaseDetails details;
+        private readonly CaseSectionFrame frame;
         private readonly AssessmentWorkspace workspace;
         private readonly RepairSpecificationVersion estimate;
         public EngineerSectionSource(CaseLifecycleState state)
@@ -192,18 +183,7 @@ public sealed class CaseEngineerSectionsWebTests
                 new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,
                     null, "Alex Example", "P-100"));
             workspace = AssessmentWorkspaceTestData.Create(assessment);
-            details = new(
-                summary,
-                workflow,
-                null,
-                [],
-                null,
-                CaseCustodyState.Pending,
-                [],
-                [])
-            {
-                Data = workspace.Data
-            };
+            frame = new(summary, workflow, null);
             estimate = Estimate(CaseId);
             workspace = workspace with
             {
@@ -214,32 +194,16 @@ public sealed class CaseEngineerSectionsWebTests
 
         public Guid CaseId { get; }
 
-        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+        Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
             GetCaseQuery query, CancellationToken cancellationToken) =>
-            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
-
-        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? details : null);
+            Task.FromResult<CaseEditBasis?>(query.CaseId == CaseId ? new(frame, workspace.Data) : null);
 
         Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(query.CaseId == CaseId
-                ? new(
-                    new(details.Summary, details.Workflow, details.ActiveEditLease),
-                    details.Documents,
-                    details.AvailableReportSentEvidence,
-                    details.RecordNotes,
-                    details.Data!)
+                ? new(frame, [], [], CaseRecordNotes.None, workspace.Data)
                 : null);
-
-        public Task<AssessmentAccessState?> ExecuteAsync(
-            GetAssessmentAccessQuery query,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<AssessmentAccessState?>(
-                query.CaseId == CaseId
-                    ? new(details.Workflow.State)
-                    : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
@@ -257,7 +221,7 @@ public sealed class CaseEngineerSectionsWebTests
             Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
                 new(workspace.Assessment, workspace.Assessment.Reference, [], null, [], [], estimate),
                 new(workspace.Assessment, null, null, [], estimate, null, [], new Dictionary<Guid, DocumentVersion>()),
-                workspace.Assessment.Reference, details.Workflow.Version));
+                workspace.Assessment.Reference, frame.Workflow.Version));
 
         private static IReadOnlyList<AssessmentFieldValue> Fields()
         {

@@ -324,9 +324,6 @@ public sealed class DurableIntakeLinkTests
 
     private sealed class ReceiptQueries(IntakeReceipt receipt) : IIntakeReceiptQueries
     {
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<IntakeReceipt?>(id == receipt.Id ? receipt : null);
 

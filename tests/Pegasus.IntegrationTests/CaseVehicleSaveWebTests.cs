@@ -153,6 +153,82 @@ public sealed class CaseVehicleSaveWebTests
     }
 
     /// <summary>
+    /// What the Case page costs in SQL commands in an edit session, and what one
+    /// accepted single-field save costs, against the real stores (Roadmap Lane
+    /// D, parts D2 and D5). Every save-as-you-go commit is that save followed by
+    /// the page, so both are the price of one field. Both are pinned at their
+    /// exact counts, so any change to either is seen, and a mismatch lists
+    /// every command sent.
+    /// </summary>
+    [Fact]
+    public async Task TheCasePageInAnEditSessionAndOneAcceptedSaveSendTheirPinnedStatements()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-statement-count", withMileage: false);
+        using var client = CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        // The first render of each shape pays one-off work; the counts are later ones.
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+
+        counter.Reset();
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var pageCommands = counter.Count;
+        var pageDescription = counter.Describe();
+        var aiJobReads = counter.CountMentioning("[AiJobs]");
+        var vehicleObservationReads = counter.CountMentioning("[VehicleLookupObservations]");
+        Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
+
+        counter.Reset();
+        using (var save = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(editing),
+                       CurrentCaseSaveValues(
+                           editing,
+                           caseId,
+                           vehicleMake: "Vauxhall",
+                           reason: "Statement count fixture."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
+        }
+        var saveCommands = counter.Count;
+        var saveDescription = counter.Describe();
+
+        // Measured on this branch with LocalDB. The page sent 62 until it took the
+        // assessment's access answer from the workflow state its frame reads, then 61, and
+        // 47 after these folds:
+        // - the vehicle section takes the workspace's latest observation, even when there is
+        //   none, rather than reading the Case's vehicle evidence (4 commands) to find none;
+        // - the per-work reads (data, valuations, applied valuations, estimates, the current
+        //   report) resolve the Case's current work inside their own command (5);
+        // - the frame reads the Principal's notes and the claim source in one command (2);
+        // - the data read takes the workflow's version and state and the workflow
+        //   configuration in one command (1);
+        // - the report snapshot takes the Case's works from the frame at the same version (1);
+        // - the Case's AI jobs are read once for the drafts and the pending research (1).
+        // The save sent 43 until the lease it reclaims read only the Case's workflow row,
+        // then 37, and 35 once its edit basis read the data in two fewer commands.
+        // Measured again at the lane's base (2ee268507) in this scenario: 62 and 43.
+        Assert.True(
+            pageCommands == CasePageCommands,
+            $"The Case page in an edit session sent {pageCommands} SQL commands; it is pinned at {CasePageCommands}."
+            + Environment.NewLine + pageDescription);
+        Assert.Equal(1, aiJobReads);
+        Assert.Equal(1, vehicleObservationReads);
+        Assert.True(
+            saveCommands == CaseSaveCommands,
+            $"One accepted save sent {saveCommands} SQL commands; it is pinned at {CaseSaveCommands}."
+            + Environment.NewLine + saveDescription);
+    }
+
+    private const int CasePageCommands = 47;
+
+    private const int CaseSaveCommands = 35;
+
+    /// <summary>
     /// The record form defaults the unit to miles when the Case carries neither
     /// part of an odometer reading.
     /// </summary>

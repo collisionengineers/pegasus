@@ -259,7 +259,7 @@ internal sealed partial class StartupWarmup(
             {
                 // The page reads its three sections side by side, each on its own
                 // database context and connection, so the pass touches the three
-                // together. The drafts read follows the jobs read on the page.
+                // together.
                 var attention = services.GetRequiredService<IGetOperationsSnapshot>().ExecuteAsync(
                     new NeedsAttentionQuery(actor, NeedsAttentionScope.Office, 1, null, now), cancellationToken);
                 var newCases = services.GetRequiredService<IListRecentCases>().ExecuteAsync(
@@ -279,8 +279,6 @@ internal sealed partial class StartupWarmup(
                         caseId = (await newCases).Page.Items.Select(item => (Guid?)item.CaseId).FirstOrDefault();
                     }
                 }
-
-                await services.GetRequiredService<IAiDraftQueries>().ListOpenAsync(cancellationToken);
             }, stoppingToken);
             await KeepWarmStepAsync(
                 "inbox", cancellationToken => ReadInboxAsync(services, cancellationToken), stoppingToken);
@@ -363,7 +361,7 @@ internal sealed partial class StartupWarmup(
         await services.GetRequiredService<GetRetainedMailFreshness>().ExecuteAsync(actor, cancellationToken);
     }
 
-    /// <summary>The Case page's frame, access and workspace reads; a Triage Case has none.</summary>
+    /// <summary>The Case page's frame and workspace reads; a Triage Case has none.</summary>
     private async Task ReadCasePageAsync(IServiceProvider services, Guid id, CancellationToken cancellationToken)
     {
         if (await services.GetRequiredService<IGetCaseKind>().ExecuteAsync(id, cancellationToken)
@@ -374,8 +372,6 @@ internal sealed partial class StartupWarmup(
 
         await services.GetRequiredService<IGetCasePageFrame>().ExecuteAsync(
             new(id, actor, Work: CaseWorkSelector.Current), cancellationToken);
-        await services.GetRequiredService<IGetAssessmentAccess>().ExecuteAsync(
-            new(id, actor), cancellationToken);
         await services.GetRequiredService<IGetAssessmentWorkspace>().ExecuteAsync(
             new(id, actor, CaseWorkSelector.Current), cancellationToken);
     }
@@ -441,8 +437,6 @@ internal sealed partial class StartupWarmup(
         {
             await services.GetRequiredService<IGetOperationsSnapshot>().ExecuteAsync(
                 new NeedsAttentionQuery(actor, NeedsAttentionScope.Office, 1, null, now), cancellationToken);
-            await services.GetRequiredService<IAiJobQueries>().ListOpenAsync(cancellationToken);
-            await services.GetRequiredService<IAiDraftQueries>().ListOpenAsync(cancellationToken);
         }, stoppingToken, cancellationToken);
 
         Guid? caseId = null;

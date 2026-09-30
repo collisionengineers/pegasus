@@ -233,7 +233,8 @@ public sealed class StartupWarmupTests
 
         Assert.Equal(2, reads.Calls("case-kind"));
         Assert.Equal(2, reads.Calls("case-frame"));
-        Assert.Equal(2, reads.Calls("case-access"));
+        // The page takes its access answer from the workflow it already read.
+        Assert.Equal(0, reads.Calls("case-access"));
         Assert.Equal(2, reads.Calls("case-workspace"));
         Assert.All(reads.CaseIdsRead, id => Assert.Equal(RecordingReads.NewestCaseId, id));
     }
@@ -463,7 +464,6 @@ public sealed class StartupWarmupTests
             services.AddSingleton<IGetAssessmentAccess>(reads);
             services.AddSingleton<IGetAssessmentWorkspace>(reads);
             services.AddSingleton<IAiJobQueries>(reads);
-            services.AddSingleton<IAiDraftQueries>(reads);
             services.AddSingleton<IWarmReportRenderer>(reads);
             services.AddSingleton(new ListRetainedMail(reads));
             services.AddSingleton(new GetRetainedMailFreshness(reads, Time));
@@ -630,7 +630,6 @@ public sealed class StartupWarmupTests
         IGetAssessmentAccess,
         IGetAssessmentWorkspace,
         IAiJobQueries,
-        IAiDraftQueries,
         IRetainedMailQueries,
         IWarmReportRenderer
     {
@@ -800,16 +799,6 @@ public sealed class StartupWarmupTests
 
         Task<AiJobCounts> IAiJobQueries.GetCountsAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-
-        Task<IReadOnlyList<AiDraft>> IAiDraftQueries.ListForCaseAsync(
-            Guid caseId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        Task<IReadOnlyList<AiDraft>> IAiDraftQueries.ListOpenAsync(CancellationToken cancellationToken)
-        {
-            Note("ai-drafts");
-            return Task.FromResult<IReadOnlyList<AiDraft>>([]);
-        }
 
         public Task<RetainedMailPage> ListAsync(
             MailWorkspaceScope scope, int page, int pageSize, CancellationToken cancellationToken)

@@ -647,7 +647,6 @@ public sealed class CaseRecordGapsV26WebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
@@ -839,13 +838,12 @@ public sealed class CaseRecordGapsV26WebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
-                services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -898,12 +896,11 @@ public sealed class CaseRecordGapsV26WebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
-                services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

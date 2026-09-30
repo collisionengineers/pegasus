@@ -413,9 +413,6 @@ public sealed class InstructionEvidenceImagesTests
 
     private sealed class FakeReceiptQueries(IntakeReceipt receipt) : IIntakeReceiptQueries
     {
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(id == receipt.Id ? receipt : null);
     }

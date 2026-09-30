@@ -316,19 +316,15 @@ public sealed class DashboardBoundaryTests
         var assignedCase = Guid.NewGuid();
         var unknownCase = Guid.NewGuid();
         var workflows = new RecordingAssignedEngineers(new Dictionary<Guid, Guid?> { [assignedCase] = engineerId });
-        var drafts = new StubAiDrafts
-        {
-            Drafts =
-            [
-                NewDraft(AiJobSubjectKind.Case, assignedCase, "D1"),
-                NewDraft(AiJobSubjectKind.Case, assignedCase, "D2"),
-                NewDraft(AiJobSubjectKind.Case, unknownCase, "D3"),
-                NewDraft(AiJobSubjectKind.Unidentified, Guid.NewGuid(), "D4")
-            ]
-        };
+        var jobs = new StubAiJobs(
+        [
+            NewDraft(AiJobSubjectKind.Case, assignedCase, "D1").Job,
+            NewDraft(AiJobSubjectKind.Case, assignedCase, "D2").Job,
+            NewDraft(AiJobSubjectKind.Case, unknownCase, "D3").Job,
+            NewDraft(AiJobSubjectKind.Unidentified, Guid.NewGuid(), "D4").Job
+        ]);
 
         var snapshot = await new GetOperationsSnapshot(
-            new StubIntakeReceiptQueries(),
             new StubListTriage(),
             new StubDueWorkQueries(),
             new RecordingDashboardQueries(),
@@ -337,7 +333,7 @@ public sealed class DashboardBoundaryTests
             new UnknownStaffAccounts(),
             new FixedWorkflowConfiguration(new("case-workflow", 1)),
             new FixedTimeProvider(NowUtc),
-            drafts,
+            jobs,
             workflows).ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
 
         var owners = snapshot.Attention.Items
@@ -407,7 +403,6 @@ public sealed class DashboardBoundaryTests
         var mine = NewHeldCase(Guid.NewGuid(), "H-MINE") with { EngineerId = staffId };
         var theirs = NewHeldCase(Guid.NewGuid(), "H-THEIRS") with { EngineerId = Guid.NewGuid() };
         var snapshotFor = (ActionActor actor) => new GetOperationsSnapshot(
-            new StubIntakeReceiptQueries(),
             new StubListTriage { Items = [NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open)] },
             new StubDueWorkQueries(),
             new RecordingDashboardQueries(),
@@ -432,7 +427,6 @@ public sealed class DashboardBoundaryTests
     {
         var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var snapshot = await new GetOperationsSnapshot(
-            new StubIntakeReceiptQueries(),
             new StubListTriage { Items = [NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open)] },
             new StubDueWorkQueries(),
             new RecordingDashboardQueries(),
@@ -460,7 +454,6 @@ public sealed class DashboardBoundaryTests
     {
         var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var snapshot = await new GetOperationsSnapshot(
-            new StubIntakeReceiptQueries(),
             new StubListTriage { Items = [NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open)] },
             new StubDueWorkQueries(),
             new RecordingDashboardQueries(),
@@ -528,6 +521,59 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(2, snapshot.Attention.TotalPages);
         Assert.Equal(rows.Length, snapshot.Attention.KindCounts[NeedsAttentionKind.Unidentified]);
         Assert.Equal(rows.Length, snapshot.Metrics.Unidentified);
+    }
+
+    [Fact]
+    public async Task APageBeyondTheEndLandsOnTheLastPageFromTheSameReads()
+    {
+        var triage = new StubListTriage();
+        var rows = Enumerable.Range(1, GetOperationsSnapshot.PageSize + 10)
+            .Select(index => NewUnidentified(Guid.NewGuid(), $"U{3000 + index}"))
+            .ToArray();
+        var snapshot = await BuildSnapshot(
+                new RecordingDashboardQueries(), NowUtc, null,
+                new StubUnidentifiedQueue { Rows = rows }, triage, null, null, null)
+            .ExecuteAsync(new NeedsAttentionQuery(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), Page: 9));
+
+        // Page 9 does not exist; the last page is 2, with the ten rows past the first fifty.
+        Assert.Equal(2, snapshot.Attention.Page);
+        Assert.Equal(10, snapshot.Attention.Items.Count);
+        Assert.Equal(rows.Length, snapshot.Attention.TotalCount);
+        // Both no-finding Triage states were read once each: the clamp re-cuts the
+        // list already read and never runs the snapshot again.
+        Assert.Equal(2, triage.ListAllStates.Count);
+    }
+
+    [Fact]
+    public async Task HandedOpenJobsAndConfigurationAreNotReadAgain()
+    {
+        var draft = NewDraft(AiJobSubjectKind.Case, Guid.NewGuid(), "D1");
+        var jobs = new StubAiJobs([draft.Job]);
+        var configuration = new FixedWorkflowConfiguration(new("case-workflow", 1));
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        GetOperationsSnapshot Snapshot() => new(
+            new StubListTriage(),
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries(),
+            new StubSearchCases(),
+            new StubUnidentifiedQueue(),
+            new UnknownStaffAccounts(),
+            configuration,
+            new FixedTimeProvider(NowUtc),
+            jobs);
+
+        var read = await Snapshot().ExecuteAsync(new NeedsAttentionQuery(actor));
+        var afterOwnRead = (jobs.OpenReads, configuration.Reads);
+        var handed = await Snapshot().ExecuteAsync(new NeedsAttentionQuery(
+            actor, OpenAiJobs: [draft.Job], Configuration: new("case-workflow", 1)));
+
+        // Read for itself, the snapshot asks once for each and derives the drafts
+        // from that one read; handed both, it asks for neither.
+        Assert.Equal((1, 1), afterOwnRead);
+        Assert.Equal((1, 1), (jobs.OpenReads, configuration.Reads));
+        Assert.Equal(NeedsAttentionKind.AiDraft, Assert.Single(read.Attention.Items).Kind);
+        Assert.Equal(NeedsAttentionKind.AiDraft, Assert.Single(handed.Attention.Items).Kind);
     }
 
     [Fact]
@@ -646,7 +692,6 @@ public sealed class DashboardBoundaryTests
     {
         var timeProvider = new FixedTimeProvider(nowUtc);
         return new GetOperationsSnapshot(
-            new StubIntakeReceiptQueries(),
             triage ?? new StubListTriage(),
             dueWork ?? new StubDueWorkQueries(),
             recorder,
@@ -740,17 +785,15 @@ public sealed class DashboardBoundaryTests
     private sealed class FixedWorkflowConfiguration(CaseWorkflowConfiguration configuration)
         : ICaseWorkflowConfiguration
     {
-        public Task<CaseWorkflowConfiguration> GetCurrentAsync(
-            CancellationToken cancellationToken) => Task.FromResult(configuration);
-    }
+        private int reads;
 
-    private sealed class StubIntakeReceiptQueries : IIntakeReceiptQueries
-    {
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
+        public int Reads => Volatile.Read(ref reads);
 
-        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<IntakeReceipt?>(null);
+        public Task<CaseWorkflowConfiguration> GetCurrentAsync(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref reads);
+            return Task.FromResult(configuration);
+        }
     }
 
     /// <summary>
@@ -801,15 +844,29 @@ public sealed class DashboardBoundaryTests
         }
     }
 
-    private sealed class StubAiDrafts : IAiDraftQueries
+    private sealed class StubAiJobs(IReadOnlyList<AiJobRecord> open) : IAiJobQueries
     {
-        public IReadOnlyList<AiDraft> Drafts { get; init; } = [];
+        private int openReads;
 
-        public Task<IReadOnlyList<AiDraft>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public int OpenReads => Volatile.Read(ref openReads);
+
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref openReads);
+            return Task.FromResult(open);
+        }
+
+        public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<AiDraft>> ListOpenAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(Drafts);
+        public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>Answers only the batch engineer read, and records each set of Cases it was asked for.</summary>

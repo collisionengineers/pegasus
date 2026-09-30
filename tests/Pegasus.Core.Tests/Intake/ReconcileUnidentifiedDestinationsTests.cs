@@ -1078,9 +1078,6 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     {
         public Dictionary<Guid, IntakeReceipt> Receipts { get; } = [];
 
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Receipts.TryGetValue(id, out var receipt) ? receipt : null);
     }

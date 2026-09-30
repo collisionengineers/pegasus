@@ -765,8 +765,6 @@ public sealed class IntakeOcrTests
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(id == receipt.Id ? receipt : null);
 
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
     }
 
     private sealed class FakeAnalysis : IAnalyzeRetainedInstruction

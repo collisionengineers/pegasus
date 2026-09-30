@@ -26,7 +26,6 @@ public static class DocumentReadTelemetry
         "web.workcentre.refresh.result",
         "web.workcentre.refresh.main",
         "web.case.frame",
-        "web.case.access",
         "web.case.workspace",
         "web.case.direct-sections",
         "web.case.engineer-sections",

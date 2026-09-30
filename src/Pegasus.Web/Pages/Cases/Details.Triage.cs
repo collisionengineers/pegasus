@@ -884,7 +884,7 @@ public sealed partial class DetailsModel
             .ToArray();
         if (triage.Record.LinkedInstructionCaseId is { } linkedCaseId)
         {
-            var linkedCase = await ports.GetCase.ExecuteAsync(
+            var linkedCase = await ports.GetCaseHeader.ExecuteAsync(
                 new(linkedCaseId, actor),
                 cancellationToken);
             if (linkedCase is null)
@@ -921,8 +921,12 @@ public sealed partial class DetailsModel
             {
                 if (ports.AttachmentResolver is not null)
                 {
-                    view.AvailableAttachments = await ports.AttachmentResolver.ListIntakeAsync(
-                        actor, origin.ReceiptId, cancellationToken);
+                    // The receipt read above is the one the attachment list is drawn from.
+                    view.AvailableAttachments = receipt is null
+                        ? await ports.AttachmentResolver.ListIntakeAsync(
+                            actor, origin.ReceiptId, cancellationToken)
+                        : await ports.AttachmentResolver.ListIntakeAsync(
+                            actor, receipt, cancellationToken);
                 }
                 view.ReplyOperation = await ports.StaffMailSend.GetLatestForOriginalAsync(
                     actor,
@@ -985,7 +989,7 @@ public sealed partial class DetailsModel
 
         try
         {
-            var targetCase = await ports.GetCase.ExecuteAsync(
+            var targetCase = await ports.GetCaseHeader.ExecuteAsync(
                 new(caseId, actor),
                 cancellationToken)
                 ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");

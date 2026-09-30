@@ -83,6 +83,44 @@ public sealed class AssessmentPolicyTests
         Assert.Equal(expectedIsReadOnly, access.IsReadOnly);
     }
 
+    /// <summary>
+    /// A page that has read the Case's workflow takes its access answer from
+    /// that workflow's state rather than reading the state again, under the
+    /// casework right the access query requires.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.Held)]
+    [InlineData(CaseLifecycleState.PostReportComplete)]
+    public void AReadWorkflowGivesTheAccessOfItsOwnState(CaseLifecycleState state)
+    {
+        Assert.Equal(
+            new AssessmentAccessState(state),
+            AssessmentAccessPolicy.For(Engineer, AccessWorkflow(state)));
+        Assert.Equal(
+            new AssessmentAccessState(state),
+            AssessmentAccessPolicy.For(Automation, AccessWorkflow(state)));
+    }
+
+    [Fact]
+    public void AReadWorkflowGivesNoAccessAnswerWithoutTheCaseworkRight()
+    {
+        Assert.Throws<StaffAuthorizationException>(() =>
+            AssessmentAccessPolicy.For(
+                ActionActor.SystemWorker("worker"),
+                AccessWorkflow(CaseLifecycleState.Review)));
+    }
+
+    private static CaseWorkflowRecord AccessWorkflow(CaseLifecycleState state)
+    {
+        var caseId = Guid.NewGuid();
+        return new(
+            caseId,
+            new CaseIdentity(caseId, "QDOS", 2031, 1, "QDOS/2031/001"),
+            state,
+            null, null, null, null, null, null, null, 1);
+    }
+
     [Theory]
     [InlineData(CaseLifecycleState.NotReady, true)]
     [InlineData(CaseLifecycleState.Review, true)]
