@@ -75,17 +75,22 @@ public sealed class CaseReportContentSourceTests
 
     /// <summary>
     /// An image whose stored bytes are not the ones the generation froze is
-    /// refused when it opens, however the lookups were made.
+    /// refused when it opens, however the lookups were made. The stored bytes
+    /// are the frozen length with one byte changed, so it is the hash that
+    /// refuses them, not a short read.
     /// </summary>
     [Fact]
     public async Task AnImageWhoseBytesChangedIsRefusedWhenItOpens()
     {
         var caseId = Guid.NewGuid();
         var staffId = Guid.NewGuid();
-        var image = Image("the photograph the generation froze"u8.ToArray(), 1);
+        var frozen = "the photograph the generation froze"u8.ToArray();
+        var stored = frozen.ToArray();
+        stored[^1] ^= 0x01;
+        var image = Image(frozen, 1);
         var reader = new PreparedReader(new()
         {
-            [image.VersionId] = "the photograph as it is stored now"u8.ToArray()
+            [image.VersionId] = stored
         });
         var source = new EfCaseReportContentSource(
             reader,
@@ -96,8 +101,11 @@ public sealed class CaseReportContentSourceTests
             ActionActor.Staff(staffId, [StaffRole.Engineer]),
             CancellationToken.None);
 
-        await Assert.ThrowsAnyAsync<Exception>(
+        Assert.Equal(frozen.Length, stored.Length);
+        var refused = await Assert.ThrowsAsync<ReportRenderRejectedException>(
             () => composed.Photos[0].OpenAsync(CancellationToken.None));
+        Assert.StartsWith("The stored version of photograph-1.png has changed.", refused.Message, StringComparison.Ordinal);
+        Assert.Equal([image.VersionId], reader.Opened);
     }
 
     /// <summary>
