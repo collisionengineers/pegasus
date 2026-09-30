@@ -12,6 +12,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 
@@ -1068,6 +1069,131 @@ public sealed class ImageCaseCustodyIntegrationTests
         }
     }
 
+    /// <summary>
+    /// The files of one Vehicle images record are filed three at a time, never
+    /// more, and each asset keeps its own ordinal-numbered file whichever
+    /// finishes first. The probe holds the first three uploads until all three
+    /// are in flight together, so only a concurrent loop gets past it.
+    /// </summary>
+    [Fact]
+    public async Task TheFilesOfOneRecordAreFiledThreeAtATimeAndEachKeepsItsOrdinal()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var (record, memberReceiptIds) = await RegisterPhotographsAsync(
+            factory, client, services, ["one.png", "two.png", "three.png", "four.png"]);
+        var workId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3);
+
+        await ProcessorWith(services, probe).ExecuteAsync(workId, CancellationToken.None);
+
+        Assert.Equal(3, probe.MaxInFlight);
+        Assert.Equal([1, 2, 3, 4], probe.Started.Order().ToArray());
+        var assetIds = await PhotographIdsAsync(services, memberReceiptIds);
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var intake = await context.ImageIntakes.AsNoTracking().SingleAsync(item => item.Id == record.Id);
+        Assert.Equal("confirmed", intake.CustodyState);
+        for (var index = 0; index < assetIds.Length; index++)
+        {
+            var asset = await context.IntakeAssets.AsNoTracking()
+                .SingleAsync(item => item.Id == assetIds[index]);
+            Assert.Equal("confirmed", asset.CustodyStatus);
+            Assert.Equal(
+                $"{intake.CustodyRootRemoteId}/images/{index + 1:000}-{assetIds[index]:N}",
+                asset.BoxFileId);
+        }
+    }
+
+    /// <summary>
+    /// A Box 429 on the second file fails the work item as it always did: the
+    /// throttled exception is what surfaces, not a sibling's cancellation, and
+    /// the item is re-armed for the queue to retry, with nothing confirmed.
+    /// </summary>
+    [Fact]
+    public async Task AThrottledSecondFileFailsTheWorkItemForTheQueueToRetry()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var (record, _) = await RegisterPhotographsAsync(
+            factory, client, services, ["one.png", "two.png", "three.png"]);
+        var workId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3)
+        {
+            Failure = ordinal => ordinal == 2 ? new BoxThrottledException(TimeSpan.FromSeconds(1)) : null
+        };
+
+        await Assert.ThrowsAsync<BoxThrottledException>(() =>
+            ProcessorWith(services, probe).ExecuteAsync(workId, CancellationToken.None));
+
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var work = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == workId);
+        Assert.Equal("pending", work.State);
+        Assert.Equal("custody_dependency_failure", work.FailureCode);
+        Assert.Equal("pending", await ReadImageCustodyStateAsync(context, record.Id));
+        Assert.Null((await context.ImageIntakes.AsNoTracking().SingleAsync(item => item.Id == record.Id))
+            .CustodyRootRemoteId);
+    }
+
+    /// <summary>
+    /// The lease is five minutes and is not renewed, so a batch that outlives
+    /// it must not be recorded. The lease is taken while all three files are in
+    /// flight, so only the check after the batch can see it gone.
+    /// </summary>
+    [Fact]
+    public async Task ALeaseLostWhileTheFilesAreInFlightIsDetectedAfterTheBatch()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var (record, _) = await RegisterPhotographsAsync(
+            factory, client, services, ["one.png", "two.png", "three.png"]);
+        var workId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3)
+        {
+            WhenAllInFlight = async () =>
+            {
+                await using var context = await contextFactory.CreateDbContextAsync();
+                await context.ExternalWorkItems.Where(item => item.Id == workId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(item => item.State, "processing")
+                        .SetProperty(item => item.LeaseToken, "newer-holder")
+                        .SetProperty(item => item.LeaseExpiresAtUtc, DateTimeOffset.UtcNow.AddMinutes(5)));
+            }
+        };
+
+        await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() =>
+            ProcessorWith(services, probe).ExecuteAsync(workId, CancellationToken.None));
+
+        Assert.Equal(3, probe.MaxInFlight);
+        await using var verify = await contextFactory.CreateDbContextAsync();
+        var work = await verify.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == workId);
+        Assert.Equal(("processing", "newer-holder"), (work.State, work.LeaseToken));
+        Assert.NotEqual("confirmed", await ReadImageCustodyStateAsync(verify, record.Id));
+    }
+
+    private static EfQueuedCustodyProcessor ProcessorWith(IServiceProvider services, ICaseCustody custody) => new(
+        services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+        services.GetRequiredService<IExternalWorkStore>(),
+        custody,
+        services.GetRequiredService<TimeProvider>());
+
     private static async Task<string?> ReadImageCustodyStateAsync(
         PegasusDbContext context,
         Guid imageIntakeId)
@@ -1112,20 +1238,28 @@ public sealed class ImageCaseCustodyIntegrationTests
     /// Two photographs uploaded together and registered as one Vehicle images
     /// record, through the upload and registration staff use.
     /// </summary>
-    private static async Task<(ImageIntakeRecord Record, Guid[] MemberReceiptIds)> RegisterTwoPhotographsAsync(
+    private static Task<(ImageIntakeRecord Record, Guid[] MemberReceiptIds)> RegisterTwoPhotographsAsync(
         IntakeWebApplicationFactory factory,
         HttpClient client,
-        IServiceProvider services)
+        IServiceProvider services) =>
+        RegisterPhotographsAsync(factory, client, services, ["overview.png", "close-up.png"]);
+
+    /// <summary>
+    /// Photographs uploaded together, one file each, and registered as one
+    /// Vehicle images record, through the upload and registration staff use.
+    /// </summary>
+    private static async Task<(ImageIntakeRecord Record, Guid[] MemberReceiptIds)> RegisterPhotographsAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        IServiceProvider services,
+        IReadOnlyList<string> fileNames)
     {
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
         var upload = await IntakeWebDriver.PostUploadManyAsync(
             client,
             form.AntiforgeryToken,
             form.ExternalReceiptToken,
-            [
-                ("overview.png", "image/png", PngBytes),
-                ("close-up.png", "image/png", PngBytes)
-            ]);
+            [.. fileNames.Select(name => (name, "image/png", PngBytes))]);
         var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
         var group = await services.GetRequiredService<IIntakeSubmissionGroupStore>().GetAsync(groupId);
         var memberReceiptIds = new List<Guid>();

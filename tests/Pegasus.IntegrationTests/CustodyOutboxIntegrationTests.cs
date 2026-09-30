@@ -2292,6 +2292,89 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
+    /// The attachments of one accepted instruction are filed three at a time,
+    /// after the source, and each keeps the ordinal its place in the file-name
+    /// order gave it, whichever upload finishes first. The probe holds the
+    /// first three uploads until all three are in flight together, so only a
+    /// concurrent loop gets past it. A throttled second attachment fails the
+    /// work item for the queue to retry, as it always did.
+    /// </summary>
+    [Fact]
+    public async Task AnInstructionsAttachmentsAreFiledTogetherAndKeepTheirOrdinals()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var letter = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Three Attachments {fixtureId}", claimNumber: $"ATT3-{fixtureId}");
+        var report = "%PDF-1.4 synthetic bodyshop report"u8.ToArray();
+        var photograph = SyntheticJpeg();
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder { TextBody = "Please see the attached instruction." };
+        builder.Attachments.Add(
+            "43127_1_LtrtoAuditEngin.pdf", letter, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "Bodyshopreport236502-V1.pdf", report, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "1_CLVoffside-V1.jpg", photograph, MimeKit.ContentType.Parse("image/jpeg"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"custody-three-attachments-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-three:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        EfQueuedCustodyProcessor ProcessorWith(ICaseCustody custody) => new(
+            contextFactory,
+            services.GetRequiredService<IExternalWorkStore>(),
+            custody,
+            services.GetRequiredService<TimeProvider>());
+
+        // A Box 429 on the second attachment fails the item, and the first
+        // failure is what surfaces.
+        var throttled = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3)
+        {
+            Failure = ordinal => ordinal == 3 ? new Pegasus.Infrastructure.Custody.BoxThrottledException(TimeSpan.FromSeconds(1)) : null
+        };
+        await Assert.ThrowsAsync<Pegasus.Infrastructure.Custody.BoxThrottledException>(() =>
+            ProcessorWith(throttled).ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None));
+        Assert.Equal("pending", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+
+        // The retry files all three at once, and each keeps its ordinal.
+        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3);
+        await ProcessorWith(probe).ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal("completed", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+        Assert.Equal(3, probe.MaxInFlight);
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var ordinals = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == outcome.Identity.CaseId
+                select new { version.FileName, occurrence.Ordinal })
+            .ToDictionaryAsync(item => item.FileName, item => item.Ordinal);
+        Assert.Equal(2, ordinals["1_CLVoffside-V1.jpg"]);
+        Assert.Equal(3, ordinals["43127_1_LtrtoAuditEngin.pdf"]);
+        Assert.Equal(4, ordinals["Bodyshopreport236502-V1.pdf"]);
+    }
+
+    /// <summary>
     /// A JPEG large enough to clear the embedded-photograph byte floor and
     /// square enough to clear the banner shape test, so it is judged a
     /// photograph on its own merits rather than by its file name.

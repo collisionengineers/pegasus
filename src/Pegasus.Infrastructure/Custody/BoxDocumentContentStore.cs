@@ -17,12 +17,16 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// How many Box downloads this store has in flight at once, whether they
     /// come from a batch or from separate callers.
     ///
-    /// Every other Box primitive here serialises, and reads are the one place
-    /// that fans out, so the number is deliberately small: a case may hold far
-    /// more photographs than the handful a typical one does, and Box rate
-    /// limits per application. Four overlaps essentially all of a normal
-    /// export's download time while keeping the burst close to what the
-    /// sequential version already asked of Box.
+    /// Reads are the fan-out this gate bounds, so the number is deliberately
+    /// small: a case may hold far more photographs than the handful a typical
+    /// one does, and Box rate limits per application. Four overlaps essentially
+    /// all of a normal export's download time while keeping the burst close to
+    /// what the sequential version already asked of Box.
+    ///
+    /// A write here is one upload for each call, and this gate does not bound
+    /// it. The Worker's custody processor files up to three files of one work
+    /// item at the same time (<c>EfQueuedCustodyProcessor</c>), each as its own
+    /// request.
     ///
     /// This was the batch's degree of parallelism only, so sixty
     /// gallery tiles opened sixty single reads at once and nothing bounded
