@@ -8,8 +8,9 @@ namespace Pegasus.Core.ImageIntake;
 public sealed record PreCaseImageThumbnailQuery(Guid ReceiptId, Guid IntakeAssetId, ActionActor Actor);
 
 /// <summary>
-/// A pre-Case image's prepared rendering and the preparation version it drew,
-/// so the route can tell a current tile address from a stale one.
+/// A pre-Case image's rendering and the preparation version it drew
+/// (<see cref="PreCaseImagePreparation.TileVersion"/>), so the route can tell a
+/// current tile address from a stale one.
 /// </summary>
 public sealed record PreCaseImageThumbnail(CaseDocumentThumbnail Rendering, long PreparationVersion)
     : IAsyncDisposable
@@ -18,17 +19,19 @@ public sealed record PreCaseImageThumbnail(CaseDocumentThumbnail Rendering, long
 }
 
 /// <summary>
-/// The tile of a pre-Case image with a recorded crop or rotation shows the
-/// prepared region, exactly as a Case image's tile does
-/// (<see cref="IReadCaseDocumentThumbnail"/>). The original is unchanged: Open
-/// file and the viewer still read the retained bytes.
+/// The tile of a pre-Case image is a rendering at tile size, exactly as a Case
+/// image's tile is (<see cref="IReadCaseDocumentThumbnail"/>): the prepared
+/// region when a crop or rotation is recorded, otherwise the whole frame. The
+/// original is unchanged: Open file and the viewer still read the retained
+/// bytes.
 /// </summary>
 public interface IReadPreCaseImageThumbnail
 {
     /// <summary>
-    /// The prepared rendering, or <c>null</c> when the image has no recorded
-    /// crop or rotation, is not a renderable image, or could not be rendered —
-    /// the caller then serves the original.
+    /// The rendering, or <c>null</c> when the image is not a renderable image
+    /// or could not be rendered — the caller then serves the original. An image
+    /// with nothing recorded renders whole and reports
+    /// <see cref="PreCaseImagePreparation.NoPreparationVersion"/>.
     /// </summary>
     Task<PreCaseImageThumbnail?> OpenAsync(
         PreCaseImageThumbnailQuery query,
@@ -52,12 +55,11 @@ public sealed class ReadPreCaseImageThumbnail(
             return null;
         }
 
-        // The preparation first: an unprepared image needs no read and no render.
+        // An image nobody has prepared, or whose crop was cleared, is drawn
+        // whole: no rotation and the full frame.
         var recorded = await preparations.ListAsync([query.IntakeAssetId], cancellationToken);
-        if (!recorded.TryGetValue(query.IntakeAssetId, out var preparation) || !preparation.IsPrepared)
-        {
-            return null;
-        }
+        var preparation = recorded.GetValueOrDefault(query.IntakeAssetId)
+            ?? PreCaseImagePreparation.Original(query.IntakeAssetId);
 
         // The authorised, hash-verified read of that receipt's asset.
         var asset = await downloadAsset.ExecuteAsync(
@@ -77,6 +79,6 @@ public sealed class ReadPreCaseImageThumbnail(
                     CaseDocumentThumbnails.MediaType,
                     rendered.LongLength,
                     asset.Sha256),
-                preparation.Version);
+                preparation.TileVersion);
     }
 }
