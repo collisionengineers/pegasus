@@ -494,14 +494,17 @@ internal sealed class BoxContentClient(
             using var document = await ReadSuccessJsonAsync(response, cancellationToken);
             var folder = ParseItem(document.RootElement);
             if (!string.Equals(folder.Id, folderId, StringComparison.Ordinal)
-                || !string.Equals(folder.Type, "folder", StringComparison.Ordinal)
-                || !string.Equals(folder.Name, caseFolderName, StringComparison.Ordinal))
+                || !string.Equals(folder.Type, "folder", StringComparison.Ordinal))
             {
-                throw new InvalidDataException("The Box custody folder identity is inconsistent.");
+                throw new InvalidDataException("Box returned the wrong object for a custody folder.");
             }
             if (IsTrashed(document.RootElement))
             {
                 throw new UnauthorizedAccessException("A Box custody object is in trash.");
+            }
+            if (!string.Equals(folder.Name, caseFolderName, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("The Box custody folder is not the Case's own folder.");
             }
             if (!string.Equals(folder.ParentId, options.RootFolderId, StringComparison.Ordinal))
             {

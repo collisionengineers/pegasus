@@ -210,6 +210,62 @@ public sealed class ProductionBoxCustodyTests
     }
 
     /// <summary>
+    /// Files filed at the same time share the one proof of their root: however
+    /// many arrive together, the Case folder is read once.
+    /// </summary>
+    [Fact]
+    public async Task FilesFiledTogetherShareOneProofOfTheirRoot()
+    {
+        var box = new StatefulBox();
+        var bytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        var created = box.Requests.Count;
+
+        await Task.WhenAll(Enumerable.Range(1, 3).Select(ordinal => custody.RetainImageCaseAssetAsync(
+            root, ImagePhoto(bytes, $"photo {ordinal}.jpg"), ordinal, $"retain-{ordinal}", default)));
+
+        var requests = box.Requests.Skip(created).ToArray();
+        Assert.Equal(1, requests.Count(request => IsCaseFolderProof(request, root.RemoteId)));
+        Assert.Equal(3, requests.Count(IsUpload));
+        Assert.Equal(4, requests.Length);
+        Assert.True(box.PathExists("AB12CDE-01/001 photo 1.jpg"));
+        Assert.True(box.PathExists("AB12CDE-01/003 photo 3.jpg"));
+    }
+
+    /// <summary>
+    /// A proof that fails is not kept: the next file to use the same root proves
+    /// it again, so a folder put right in Box is not refused for good.
+    /// </summary>
+    [Fact]
+    public async Task AProofThatFailedIsMadeAgainByTheNextFile()
+    {
+        var current = "trashed";
+        var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/2.0/folders/case-folder" => current == "trashed"
+                ? CaseFolder("QDOS31001", "405543781910", trashedAt: "2031-01-01T00:00:00Z")
+                : CaseFolder("QDOS31001", "405543781910"),
+            "/api/2.0/files/content" => Json(
+                """{"entries":[{"id":"file-1","name":"001 instruction.eml","type":"file","etag":"1","file_version":{"id":"v1"},"parent":{"id":"case-folder"}}]}"""),
+            _ => throw new InvalidOperationException(request.RequestUri.AbsoluteUri)
+        });
+        var bytes = Encoding.UTF8.GetBytes("accepted source");
+        var custody = Create(handler, new MemoryArtifactStore(bytes));
+        var root = new CaseCustodyRoot(Guid.NewGuid(), "case-folder", "QDOS31001");
+        var source = new IntakeSourceCustodyReference(
+            Guid.NewGuid(), "instruction.eml", "message/rfc822", Sha256(bytes), "source-key", bytes.Length);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            custody.RetainAcceptedIntakeSourceAsync(root, source, "retain-operation", default));
+        current = "restored";
+        var retained = await custody.RetainAcceptedIntakeSourceAsync(root, source, "retain-operation", default);
+
+        Assert.Equal("file-1", retained.RemoteId);
+    }
+
+    /// <summary>
     /// The upload is the first thing asked for a file. A name Box already
     /// holds comes back as its 409, and only then is the existing file found,
     /// and accepted when its content is the content offered.
@@ -316,7 +372,7 @@ public sealed class ProductionBoxCustodyTests
     /// </summary>
     [Theory]
     [InlineData("trashed", typeof(UnauthorizedAccessException))]
-    [InlineData("renamed", typeof(InvalidDataException))]
+    [InlineData("renamed", typeof(UnauthorizedAccessException))]
     [InlineData("moved", typeof(UnauthorizedAccessException))]
     [InlineData("missing", typeof(HttpRequestException))]
     public async Task ARecordedFolderThatIsNotTheCasesOwnIsRefusedAndForgotten(string state, Type refusal)
@@ -982,9 +1038,20 @@ public sealed class ProductionBoxCustodyTests
         /// <summary>Every request Box has received, as "METHOD /path?query", in order.</summary>
         public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
 
+        private readonly object gate = new();
+
+        /// <summary>One request at a time, as Box's answers to files filed together would be ordered.</summary>
         public HttpResponseMessage Handle(HttpRequestMessage request)
         {
             Requests.Enqueue($"{request.Method} {request.RequestUri!.PathAndQuery}");
+            lock (gate)
+            {
+                return HandleCore(request);
+            }
+        }
+
+        private HttpResponseMessage HandleCore(HttpRequestMessage request)
+        {
             var path = request.RequestUri!.AbsolutePath;
             if (request.Method == HttpMethod.Get && path.StartsWith("/2.0/folders/", StringComparison.Ordinal)
                 && path.EndsWith("/items", StringComparison.Ordinal))

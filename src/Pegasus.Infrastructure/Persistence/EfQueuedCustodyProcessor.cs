@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
@@ -284,7 +285,10 @@ internal sealed class EfQueuedCustodyProcessor(
     /// Each attachment of the accepted instruction lands beside the
     /// retained source as its own file. The assets were retained at intake
     /// (attachment kind); ordinals follow the source at 002 onward, in stable
-    /// file-name order, and replay verifies rather than re-uploads.
+    /// file-name order, and replay verifies rather than re-uploads. The
+    /// attachments go up to three at a time, then the photographs do, and the
+    /// list this returns keeps the ordinal order whichever upload finishes
+    /// first. The lease is checked after each batch.
     /// </summary>
     private async Task<IReadOnlyList<RetainedCaseFile>> RetainInstructionAttachmentsAsync(
         CaseCustodyRoot root,
@@ -306,42 +310,44 @@ internal sealed class EfQueuedCustodyProcessor(
             .OrderBy(asset => asset.FileName)
             .ThenBy(asset => asset.Id)
             .ToList();
-        for (var index = 0; index < attachments.Count; index++)
-        {
-            var attachment = attachments[index];
-            var version = await caseCustody.RetainAcceptedIntakeAttachmentAsync(
-                root,
-                new(
-                    receiptId,
+        retained.AddRange(await RetainTogetherAsync(
+            attachments,
+            leaseGuard,
+            async (attachment, index, token) =>
+            {
+                var version = await caseCustody.RetainAcceptedIntakeAttachmentAsync(
+                    root,
+                    new(
+                        receiptId,
+                        attachment.FileName,
+                        attachment.MediaType,
+                        attachment.ContentHash,
+                        attachment.StorageKey,
+                        attachment.ContentLength),
+                    index + 2,
+                    $"{casePayload.OperationKey}:attachment:{attachment.Id:N}",
+                    leaseGuard,
+                    token);
+                return new RetainedCaseFile(
+                    index + 2,
                     attachment.FileName,
                     attachment.MediaType,
+                    attachment.ContentLength,
                     attachment.ContentHash,
-                    attachment.StorageKey,
-                    attachment.ContentLength),
-                index + 2,
-                $"{casePayload.OperationKey}:attachment:{attachment.Id:N}",
-                leaseGuard,
-                cancellationToken);
-            await leaseGuard.RequireCurrentAsync(cancellationToken);
-            retained.Add(new(
-                index + 2,
-                attachment.FileName,
-                attachment.MediaType,
-                attachment.ContentLength,
-                attachment.ContentHash,
-                // A photograph attached to the instruction is a
-                // photograph. Filing every attachment as Instruction hid the
-                // case's own damage images from the evidence gallery's image
-                // test and from EVA image selection, which both ask this
-                // question by semantic role.
-                InstructionEvidenceImages.IsImage(attachment.MediaType)
-                    ? DocumentSemanticRole.Image
-                    : DocumentSemanticRole.Instruction,
-                $"{casePayload.OperationKey}:attachment:{attachment.Id:N}",
-                version.RemoteId,
-                version.BoxVersionId,
-                attachment.Id));
-        }
+                    // A photograph attached to the instruction is a
+                    // photograph. Filing every attachment as Instruction hid the
+                    // case's own damage images from the evidence gallery's image
+                    // test and from EVA image selection, which both ask this
+                    // question by semantic role.
+                    InstructionEvidenceImages.IsImage(attachment.MediaType)
+                        ? DocumentSemanticRole.Image
+                        : DocumentSemanticRole.Instruction,
+                    $"{casePayload.OperationKey}:attachment:{attachment.Id:N}",
+                    version.RemoteId,
+                    version.BoxVersionId,
+                    attachment.Id);
+            },
+            cancellationToken));
 
         // Photographs embedded in the instruction's documents land
         // as their own files after the attachments, resolved through the one
@@ -351,35 +357,37 @@ internal sealed class EfQueuedCustodyProcessor(
             .Select(candidates.Select(EfIntakeReceiptStore.MapAsset))
             .Where(record => record.Kind == IntakeAssetKind.EmbeddedImage)
             .ToArray();
-        for (var index = 0; index < photographs.Length; index++)
-        {
-            var photograph = photographs[index];
-            var version = await caseCustody.RetainAcceptedIntakeAttachmentAsync(
-                root,
-                new(
-                    receiptId,
+        retained.AddRange(await RetainTogetherAsync(
+            photographs,
+            leaseGuard,
+            async (photograph, index, token) =>
+            {
+                var version = await caseCustody.RetainAcceptedIntakeAttachmentAsync(
+                    root,
+                    new(
+                        receiptId,
+                        photograph.FileName,
+                        photograph.MediaType,
+                        photograph.ContentHash,
+                        photograph.StorageKey,
+                        photograph.ContentLength),
+                    attachments.Count + index + 2,
+                    $"{casePayload.OperationKey}:embedded:{photograph.Id:N}",
+                    leaseGuard,
+                    token);
+                return new RetainedCaseFile(
+                    attachments.Count + index + 2,
                     photograph.FileName,
                     photograph.MediaType,
+                    photograph.ContentLength,
                     photograph.ContentHash,
-                    photograph.StorageKey,
-                    photograph.ContentLength),
-                attachments.Count + index + 2,
-                $"{casePayload.OperationKey}:embedded:{photograph.Id:N}",
-                leaseGuard,
-                cancellationToken);
-            await leaseGuard.RequireCurrentAsync(cancellationToken);
-            retained.Add(new(
-                attachments.Count + index + 2,
-                photograph.FileName,
-                photograph.MediaType,
-                photograph.ContentLength,
-                photograph.ContentHash,
-                DocumentSemanticRole.Image,
-                $"{casePayload.OperationKey}:embedded:{photograph.Id:N}",
-                version.RemoteId,
-                version.BoxVersionId,
-                photograph.Id));
-        }
+                    DocumentSemanticRole.Image,
+                    $"{casePayload.OperationKey}:embedded:{photograph.Id:N}",
+                    version.RemoteId,
+                    version.BoxVersionId,
+                    photograph.Id);
+            },
+            cancellationToken));
 
         return retained;
     }
@@ -1044,28 +1052,96 @@ internal sealed class EfQueuedCustodyProcessor(
             leaseGuard,
             cancellationToken);
         await leaseGuard.RequireCurrentAsync(cancellationToken);
-        var retained = new List<(Guid AssetId, CustodyDocumentVersion Version)>(payload.Assets.Count);
-        for (var index = 0; index < payload.Assets.Count; index++)
-        {
-            var asset = payload.Assets[index];
-            var version = await caseCustody.RetainImageCaseAssetAsync(
-                root,
-                new(
-                    asset.IntakeReceiptId,
-                    asset.FileName,
-                    asset.MediaType,
-                    asset.ContentHash,
-                    asset.StorageKey,
-                    asset.ContentLength,
-                    IntakeAssetId: asset.AssetId),
-                index + 1,
-                $"{payload.OperationKey}:asset:{asset.AssetId:N}",
-                leaseGuard,
-                cancellationToken);
-            retained.Add((asset.AssetId, version));
-        }
-        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        var retained = await RetainTogetherAsync(
+            payload.Assets,
+            leaseGuard,
+            async (asset, index, token) =>
+            {
+                var version = await caseCustody.RetainImageCaseAssetAsync(
+                    root,
+                    new(
+                        asset.IntakeReceiptId,
+                        asset.FileName,
+                        asset.MediaType,
+                        asset.ContentHash,
+                        asset.StorageKey,
+                        asset.ContentLength,
+                        IntakeAssetId: asset.AssetId),
+                    index + 1,
+                    $"{payload.OperationKey}:asset:{asset.AssetId:N}",
+                    leaseGuard,
+                    token);
+                return (AssetId: asset.AssetId, Version: version);
+            },
+            cancellationToken);
         await CompleteImageCreateAsync(workId, leaseToken, root, retained, cancellationToken);
+    }
+
+    /// <summary>
+    /// How many files of one work item go to Box at the same time. A filing is
+    /// nearly all Box time, so two or three at once cut it roughly in step.
+    /// The number stays small because Box limits each application by request
+    /// and a Worker instance runs several work items at once.
+    /// </summary>
+    private const int MaximumConcurrentUploads = 3;
+
+    /// <summary>
+    /// Runs <paramref name="retain"/> for every item, up to
+    /// <see cref="MaximumConcurrentUploads"/> at a time, and returns the results
+    /// in the items' own order. Each result goes into the slot of its item, so
+    /// the order never depends on which upload finishes first.
+    ///
+    /// The first failure stops the batch: uploads not yet started never start,
+    /// running ones are cancelled, and that first failure, not a sibling's
+    /// cancellation, is what surfaces. A throttled Box (429) is therefore the
+    /// work item's failure as it was, and the queue retries the item.
+    ///
+    /// The lease is checked once after the batch, and the caller checked it
+    /// before. The adapter checks it once more before each upload, as it always
+    /// has; this adds none, because each check is a SQL read.
+    /// </summary>
+    private static async Task<TResult[]> RetainTogetherAsync<TItem, TResult>(
+        IReadOnlyList<TItem> items,
+        CustodyEffectLeaseGuard leaseGuard,
+        Func<TItem, int, CancellationToken, Task<TResult>> retain,
+        CancellationToken cancellationToken)
+    {
+        var results = new TResult[items.Count];
+        ExceptionDispatchInfo? first = null;
+        try
+        {
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, items.Count),
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = MaximumConcurrentUploads,
+                    CancellationToken = cancellationToken
+                },
+                async (index, token) =>
+                {
+                    try
+                    {
+                        results[index] = await retain(items[index], index, token);
+                    }
+                    catch (Exception exception)
+                    {
+                        Interlocked.CompareExchange(
+                            ref first,
+                            ExceptionDispatchInfo.Capture(exception),
+                            null);
+                        throw;
+                    }
+                });
+        }
+        catch when (first is not null)
+        {
+            first.Throw();
+        }
+        if (items.Count > 0)
+        {
+            await leaseGuard.RequireCurrentAsync(cancellationToken);
+        }
+        return results;
     }
 
     private async Task ProcessImageMergeAsync(
