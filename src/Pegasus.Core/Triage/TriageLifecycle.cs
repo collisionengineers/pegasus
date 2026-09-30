@@ -43,38 +43,43 @@ public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
         Guid? triageCaseId, Guid? instructionCaseId, int maximumItems, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
-        using var activity = Telemetry.StartActivity("triage_case_pairing");
-        var count = 0;
-        var linked = 0;
-        var failures = 0;
-        string? firstFailure = null;
+        IReadOnlyList<TriageCaseLinkCandidate> candidates;
         try
         {
-            var candidates = await store.ListAutomaticLinkCandidatesAsync(
+            candidates = await store.ListAutomaticLinkCandidatesAsync(
                 triageCaseId, instructionCaseId, maximumItems, cancellationToken);
-            count = candidates.Count;
-            foreach (var candidate in candidates)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                try
-                {
-                    if (await store.LinkAutomaticallyAsync(
-                            candidate, ActionActor.SystemWorker(ActorId), cancellationToken))
-                    {
-                        linked++;
-                    }
-                }
-                catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-                {
-                    failures++;
-                    firstFailure ??= exception.GetType().Name;
-                }
-            }
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            failures++;
-            firstFailure ??= exception.GetType().Name;
+            return new(0, 0, 1, exception.GetType().Name);
+        }
+        if (candidates.Count == 0)
+        {
+            // The Worker asks every ten seconds and usually nothing is waiting.
+            // A span is opened only for a pass that has something to link.
+            return new(0, 0, 0);
+        }
+
+        using var activity = Telemetry.StartActivity("triage_case_pairing");
+        var linked = 0;
+        var failures = 0;
+        string? firstFailure = null;
+        foreach (var candidate in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (await store.LinkAutomaticallyAsync(
+                        candidate, ActionActor.SystemWorker(ActorId), cancellationToken))
+                {
+                    linked++;
+                }
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                failures++;
+                firstFailure ??= exception.GetType().Name;
+            }
         }
 
         activity?.SetTag("triage.pairing_failures", failures);
@@ -83,7 +88,7 @@ public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
         {
             activity?.SetStatus(ActivityStatusCode.Error, "triage_pairing_failed");
         }
-        return new(count, linked, failures, firstFailure);
+        return new(candidates.Count, linked, failures, firstFailure);
     }
 
     public static async Task<Guid?> MatchAsync(
