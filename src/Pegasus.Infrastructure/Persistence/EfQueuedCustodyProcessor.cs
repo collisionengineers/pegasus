@@ -15,7 +15,8 @@ internal sealed class EfQueuedCustodyProcessor(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
     IExternalWorkStore workStore,
     ICaseCustody caseCustody,
-    TimeProvider timeProvider) : IProcessQueuedCustody
+    TimeProvider timeProvider,
+    IDocumentContentCachePublisher? cachePublisher = null) : IProcessQueuedCustody
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(5);
 
@@ -411,7 +412,8 @@ internal sealed class EfQueuedCustodyProcessor(
         string caseRootRemoteId,
         IReadOnlyList<RetainedCaseFile> retainedFiles,
         DateTimeOffset now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ICollection<FiledRetainedContent>? recorded = null)
     {
         if (retainedFiles.Count == 0)
         {
@@ -424,12 +426,12 @@ internal sealed class EfQueuedCustodyProcessor(
                 && operationKeys.Contains(occurrence.OperationKey))
             .Select(occurrence => occurrence.OperationKey)
             .ToListAsync(cancellationToken);
-        var recorded = alreadyRecorded.ToHashSet(StringComparer.Ordinal);
+        var recordedKeys = alreadyRecorded.ToHashSet(StringComparer.Ordinal);
         var added = false;
 
         foreach (var file in retainedFiles)
         {
-            if (!recorded.Add(file.OperationKey))
+            if (!recordedKeys.Add(file.OperationKey))
             {
                 continue;
             }
@@ -468,6 +470,13 @@ internal sealed class EfQueuedCustodyProcessor(
                     .SingleAsync(value => value.Id == intakeAssetId, cancellationToken);
                 // The Case folder holds the confirmed copy: readers expect it.
                 asset.ConfirmCustody(file.BoxFileId, file.BoxVersionId, caseRootRemoteId);
+                // The version is new, and the copy intake retained is the file
+                // that was just filed: its read-cache copy follows the commit.
+                recorded?.Add(new(
+                    DocumentContentCacheKey.ForVersion(version.Id),
+                    asset.StorageKey,
+                    version.Sha256,
+                    version.ContentLength));
             }
             var occurrence = new DocumentOccurrenceEntity
             {
@@ -496,6 +505,60 @@ internal sealed class EfQueuedCustodyProcessor(
             await EfCaseReportGenerationStore.MarkStaleAsync(
                 context, caseId, Pegasus.Core.Reports.CaseReportStaleReasons.SourceDocumentsChanged,
                 now, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// A file a completion has just filed: the identity it is read by (a new
+    /// Case document version, or a Vehicle images asset), and the copy intake
+    /// retained of the file, which is what the Box upload was read from. The
+    /// custody adapter held the bytes before the completion committed, and
+    /// what it filed is readable only once it has, so the read-cache copy is
+    /// written after the commit from the retained copy. Box is not read.
+    /// </summary>
+    internal sealed record FiledRetainedContent(
+        DocumentContentCacheKey Key,
+        string StorageKey,
+        string Sha256,
+        long ContentLength);
+
+    /// <summary>
+    /// Writes the read-cache copy of each file a committed completion filed,
+    /// up to <see cref="MaximumConcurrentUploads"/> at a time, each with its
+    /// own database context. It is best effort: the publisher never
+    /// throws, so a failure here can never fail the work item. Each publish
+    /// gives up after five seconds, and once one has failed the publisher skips
+    /// the rest of this work item's, so a store that is down holds the work
+    /// item for one wait and not one for each wave. The first view of a file
+    /// that was not published then misses and publishes as it always did.
+    /// </summary>
+    private async Task PublishFiledAsync(
+        List<FiledRetainedContent> filed,
+        CancellationToken cancellationToken)
+    {
+        if (cachePublisher is null || filed.Count == 0)
+        {
+            return;
+        }
+        try
+        {
+            await Parallel.ForEachAsync(
+                filed,
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = MaximumConcurrentUploads,
+                    CancellationToken = cancellationToken
+                },
+                (item, token) => new ValueTask(cachePublisher.PublishRetainedIntakeCopyAsync(
+                    item.Key,
+                    item.StorageKey,
+                    item.Sha256,
+                    item.ContentLength,
+                    token)));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The host is stopping; the work is complete and the first read publishes.
         }
     }
 
@@ -690,8 +753,9 @@ internal sealed class EfQueuedCustodyProcessor(
             AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
                 context, workflow, checked(workflow.Version + 1), now);
         }
+        var recorded = new List<FiledRetainedContent>(retainedFiles.Count);
         await RecordRetainedCaseFilesAsync(
-            context, caseEntity.Id, root.RemoteId, retainedFiles, now, cancellationToken);
+            context, caseEntity.Id, root.RemoteId, retainedFiles, now, cancellationToken, recorded);
         authority.CompleteSystemMutation();
         CompleteWork(work, now, version.RemoteId);
         context.Set<CaseHistoryEntity>().Add(new()
@@ -708,6 +772,7 @@ internal sealed class EfQueuedCustodyProcessor(
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        await PublishFiledAsync(recorded, cancellationToken);
     }
 
     private async Task CompleteManualCaseCustodyAsync(
@@ -1213,7 +1278,7 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid workId,
         string leaseToken,
         CaseCustodyRoot root,
-        IReadOnlyList<(Guid AssetId, CustodyDocumentVersion Version)> retained,
+        (Guid AssetId, CustodyDocumentVersion Version)[] retained,
         CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -1240,6 +1305,7 @@ internal sealed class EfQueuedCustodyProcessor(
         var assets = await context.IntakeAssets
             .Where(value => assetIds.Contains(value.Id))
             .ToDictionaryAsync(value => value.Id, cancellationToken);
+        var filed = new List<FiledRetainedContent>(retained.Length);
         foreach (var (assetId, version) in retained)
         {
             if (!assets.TryGetValue(assetId, out var asset))
@@ -1247,10 +1313,19 @@ internal sealed class EfQueuedCustodyProcessor(
                 throw new InvalidDataException("A registered image file no longer has its retained asset.");
             }
             asset.ConfirmCustody(version.RemoteId, version.BoxVersionId, root.RemoteId);
+            filed.Add(new(
+                DocumentContentCacheKey.ForIntakeAsset(asset.Id),
+                asset.StorageKey,
+                asset.ContentHash,
+                asset.ContentLength));
         }
         CompleteWork(work, now, root.RemoteId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        // These files are never held (a Vehicle images record files its own),
+        // so nothing else publishes them. Each is read by its asset before any
+        // Case has it, and is published from the copy intake retained.
+        await PublishFiledAsync(filed, cancellationToken);
     }
 
     private async Task CompleteImageMergeAsync(
@@ -1315,6 +1390,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 }
             }
         }
+        var recorded = new List<FiledRetainedContent>(moved.Count);
         if (authority is not null)
         {
             intake.CustodyState = ImageCustodyStates.Merged;
@@ -1325,7 +1401,7 @@ internal sealed class EfQueuedCustodyProcessor(
             // documents (operator, 28 September 2026). Filed by this
             // completion, under its version.
             var filed = await RecordFoldedFilesAsync(
-                context, intake, authority.Case, work.OperationKey, moved, now, cancellationToken);
+                context, intake, authority.Case, work.OperationKey, moved, now, cancellationToken, recorded);
             if (filed > 0 && authority.Workflow is { } workflow && !authority.Case.ImagesComplete)
             {
                 await CompleteCaseImagesAsync(
@@ -1358,6 +1434,9 @@ internal sealed class EfQueuedCustodyProcessor(
             throw new IOException(CaseIsBeingEditedMessage);
         }
         await transaction.CommitAsync(cancellationToken);
+        // Nothing was uploaded by the fold, so nobody held the bytes; each file
+        // it recorded as a Case document is published from the retained copy.
+        await PublishFiledAsync(recorded, cancellationToken);
     }
 
     private const string CaseIsBeingEditedMessage =
@@ -1413,7 +1492,8 @@ internal sealed class EfQueuedCustodyProcessor(
         string foldOperationKey,
         IReadOnlyCollection<IntakeAssetEntity> moved,
         DateTimeOffset now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ICollection<FiledRetainedContent>? recorded = null)
     {
         // A file the record shows is filed only when the record's folder held
         // it: nothing else has a file in the Case folder.
@@ -1481,7 +1561,8 @@ internal sealed class EfQueuedCustodyProcessor(
                 ?? throw new InvalidDataException("The Case the record merged into has no evidence folder."),
             files,
             now,
-            cancellationToken);
+            cancellationToken,
+            recorded);
         return photographCount;
     }
 

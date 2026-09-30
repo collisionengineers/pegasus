@@ -18,7 +18,8 @@ internal sealed class EfCaseArtifactCustody(
     IIntakeQuarantineArtifactStore quarantineArtifactStore,
     TimeProvider timeProvider,
     BoxContentClient? box = null,
-    string? holdingFolderId = null) : ICaseArtifactCustody, ICaseArtifactCustodyStatus
+    string? holdingFolderId = null,
+    IDocumentContentCachePublisher? cachePublisher = null) : ICaseArtifactCustody, ICaseArtifactCustodyStatus
 {
     internal const long MaximumArtifactContentLength = 128L * 1024 * 1024;
     public async Task<CaseArtifactCustodyResult> RetainAsync(
@@ -341,8 +342,31 @@ internal sealed class EfCaseArtifactCustody(
                 request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
         }
         await confirmation.CommitAsync(cancellationToken);
+        // The version is confirmed and committed, and the staged bytes are still
+        // in hand: the cache copy is written now so its first read is a hit. It
+        // is best effort and never changes what this call answers.
+        await PublishFiledAsync(
+            DocumentContentCacheKey.ForVersion(version.Id),
+            content,
+            version.Sha256,
+            request.ContentLength,
+            cancellationToken);
         return Confirmed(version, occurrence.Id);
     }
+
+    /// <summary>
+    /// Publishes the read-cache copy of a file this call has just filed, from
+    /// the staged and verified bytes. It never throws.
+    /// </summary>
+    private Task PublishFiledAsync(
+        DocumentContentCacheKey key,
+        Stream staged,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken) =>
+        cachePublisher is null
+            ? Task.CompletedTask
+            : cachePublisher.PublishAsync(key, staged, sha256, contentLength, cancellationToken);
 
     private async Task RequireAutomaticPromotionTargetAsync(
         PegasusDbContext db,
@@ -695,6 +719,14 @@ internal sealed class EfCaseArtifactCustody(
         }
         asset.ConfirmCustody(file.Id, file.VersionId, holdingFolderId);
         await db.SaveChangesAsync(cancellationToken);
+        // The asset is confirmed and its staged bytes are still in hand, so its
+        // first read is a cache hit. Best effort; it never changes the answer.
+        await PublishFiledAsync(
+            DocumentContentCacheKey.ForIntakeAsset(asset.Id),
+            content,
+            NormalizeHash(request.Sha256),
+            request.ContentLength,
+            cancellationToken);
         return new(
             CaseArtifactCustodyDisposition.Confirmed,
             null, null, null,
@@ -895,18 +927,21 @@ public sealed class ReconcilePendingArtifactCustody
     private readonly IDocumentContentStore contentStore;
     private readonly IIntakeArtifactStore artifactStore;
     private readonly TimeProvider timeProvider;
+    private readonly IDocumentContentCachePublisher? cachePublisher;
     private const string AttemptEvent = "ArtifactCustodyReconciliationAttempt";
 
     public ReconcilePendingArtifactCustody(
         IDbContextFactory<PegasusDbContext> dbContextFactory,
         IDocumentContentStore contentStore,
         IIntakeArtifactStore artifactStore,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDocumentContentCachePublisher? cachePublisher = null)
     {
         this.dbContextFactory = dbContextFactory;
         this.contentStore = contentStore;
         this.artifactStore = artifactStore;
         this.timeProvider = timeProvider ?? TimeProvider.System;
+        this.cachePublisher = cachePublisher;
     }
     public async Task<PendingArtifactCustodyReconciliationResult> ExecuteAsync(
         int maximumItems,
@@ -1026,6 +1061,16 @@ public sealed class ReconcilePendingArtifactCustody
                     }
                     await confirmation.CommitAsync(cancellationToken);
                     confirmed++;
+                    // The file is filed and confirmed, and its verified bytes are
+                    // still in hand, so the cache copy is written now. It never throws.
+                    if (cachePublisher is not null)
+                    {
+                        await cachePublisher.PublishAsync(
+                            DocumentContentCacheKey.ForVersion(candidate.Version.Id),
+                            bytes,
+                            candidate.Version.Sha256,
+                            cancellationToken);
+                    }
                 }
                 else
                 {
