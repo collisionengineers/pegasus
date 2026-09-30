@@ -422,7 +422,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             entity.ImmutableMessageId,
             entity.InternetMessageIdentity,
             entity.ConversationIdentity,
-            await LoadClassificationAsync(context, id, cancellationToken));
+            await LoadClassificationByTokenAsync(context, entity.ExternalReceiptToken, cancellationToken));
     }
 
     /// <summary>
@@ -642,17 +642,30 @@ internal sealed class EfRetainedMailboxMessageStore(
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        var retained = await context.RetainedMailboxMessages
+        var externalReceiptToken = await context.RetainedMailboxMessages
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == messageId, cancellationToken);
-        if (retained is null)
-        {
-            return null;
-        }
+            .Where(item => item.Id == messageId)
+            .Select(item => item.ExternalReceiptToken)
+            .SingleOrDefaultAsync(cancellationToken);
+        return externalReceiptToken is null
+            ? null
+            : await LoadClassificationByTokenAsync(context, externalReceiptToken, cancellationToken);
+    }
+
+    /// <summary>
+    /// The classification dossier of the message whose receipt token is known.
+    /// A caller that has already read the message passes its token and skips the
+    /// message read <see cref="LoadClassificationAsync"/> would repeat.
+    /// </summary>
+    private static async Task<MailClassificationDossier?> LoadClassificationByTokenAsync(
+        PegasusDbContext context,
+        string externalReceiptToken,
+        CancellationToken cancellationToken)
+    {
         var decision = await context.IntakeReceipts
             .AsNoTracking()
             .Where(item => item.SourceChannel == "mailbox"
-                && item.ExternalReceiptToken == retained.ExternalReceiptToken)
+                && item.ExternalReceiptToken == externalReceiptToken)
             .Select(item => item.MailClassificationDecision)
             .SingleOrDefaultAsync(cancellationToken);
         if (decision is null)
