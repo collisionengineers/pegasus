@@ -774,6 +774,24 @@ When you read `AppTraces`, read both `Properties.Category` (the host) and
 `Properties.CategoryName` (the worker process). The effect of these filters
 shows only in a query after the next release.
 
+### The Worker's own spans and slow SQL
+
+Core opens spans on the intake, image intake, custody and Triage paths. The Worker
+sends each stopped span as one `AppEvents` row named `Pegasus.Worker.Span`. The
+`span` property is the span name, `durationMs` is its length, and the row carries the
+trace's operation id and parent id, so it joins the invocation's `AppRequests` row.
+The rows join adaptive sampling like other events. They carry no tag values: the
+intake receipt and custody work item ids the spans are tagged with are never sent.
+`triage_case_pairing` opens a span on every ten-second tick, so it is the most
+frequent row.
+
+`SqlDependencyTelemetryFilter` still drops a successful SQL call, but keeps one that
+took 250 ms or more, and every failed one. `AppDependencies` therefore shows a lock
+wait or a slow statement on an intake run. Dependencies are not sampled.
+
+Use the two together. A run that took 26 s with no dependency shows its spans by
+stage, and a slow statement in the same trace shows as a dependency.
+
 ### A failing sweep step names its cause
 
 The ten-second sweep logs each step's result line at Information. The line

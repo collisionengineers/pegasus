@@ -84,6 +84,35 @@ public sealed class ApplicationTelemetryVolumeContractTests
         Assert.Equal(LogLevel.None, rule.LogLevel);
     }
 
+    /// <summary>
+    /// Program composes the span bridge beside the SQL dependency filter, and
+    /// resolves it before the host runs: the listener is a singleton's constructor,
+    /// so it exists only once something asks for the singleton.
+    /// </summary>
+    [Fact]
+    public void WorkerProgramComposesAndStartsTheSpanBridgeBeforeTheHostRuns()
+    {
+        var program = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Pegasus.Worker",
+            "Program.cs"));
+
+        var filter = program.IndexOf(
+            "AddApplicationInsightsTelemetryProcessor<SqlDependencyTelemetryFilter>()",
+            StringComparison.Ordinal);
+        var compose = program.IndexOf("services.AddWorkerSpanTelemetry()", StringComparison.Ordinal);
+        var resolve = program.IndexOf(
+            "GetRequiredService<WorkerSpanTelemetryBridge>()",
+            StringComparison.Ordinal);
+        var run = program.IndexOf("host.Run()", StringComparison.Ordinal);
+
+        Assert.True(filter >= 0, "The SQL dependency filter is composed.");
+        Assert.True(compose > filter, "The span bridge is composed after the filter.");
+        Assert.True(resolve > compose, "The span bridge is resolved after it is composed.");
+        Assert.True(run > resolve, "The span bridge is resolved before the host runs.");
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
