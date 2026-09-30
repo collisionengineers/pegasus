@@ -192,7 +192,9 @@ temporary. A file is written to the cache when it is filed, so its first view
 is a cache hit and asks Box for nothing. The copy is written after Box has
 confirmed the file and the record of it is saved. A copy that cannot be
 written is logged and never fails the filing: the first view reads Box and
-writes the copy then. A cached file is kept 14 days after its last use. A
+writes the copy then. A write gives up after five seconds, and once one write
+of a work item has failed the rest of that work item's are skipped, so a store
+that is down never holds intake for long. A cached file is kept 14 days after its last use. A
 plain gallery thumbnail is kept 30 days after its last use. SQL keeps the arrival, idempotency and provenance
 identities. Receipt, logical access and definitive association are three
 separate claims. A temporary file or a cache hit never establishes an

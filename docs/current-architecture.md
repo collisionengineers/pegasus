@@ -71,7 +71,9 @@ flowchart LR
   implements. `EfCaseArtifactCustody` (Case and holding artifacts),
   `ReconcilePendingArtifactCustody`, `EfDocumentCustodyStore` (staff uploads and
   the market research file) and `EfQueuedCustodyProcessor` (Case completions
-  and the image fold, from the copy intake retained) call it. It never throws.
+  and the image fold, from the copy intake retained) call it. It never throws,
+  gives up on a write after five seconds, and skips the rest of its work item's
+  writes once one has failed.
 - Core route/classification/matching policy determines formal Case, Triage,
   image-origin and Unidentified outcomes. Their identities remain distinct.
 - SQL owns application state and provenance. Box owns durable file custody;
