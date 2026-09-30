@@ -8,6 +8,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 using Microsoft.AspNetCore.DataProtection;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Mcp;
@@ -78,8 +79,9 @@ internal sealed class StartupWarmupHealthCheck(StartupWarmupState state) : IHeal
 /// and nothing it meets stops the host. Setting <c>Startup:Warmup</c> to false
 /// skips it.
 /// <para>
-/// After that first pass, which readiness waits for, the service runs a
-/// keep-warm pass every <see cref="StartupWarmupState.KeepWarmInterval"/>
+/// Right after that first pass, which readiness waits for, the service warms
+/// the report renderer, off the 45 s path. Then it runs a keep-warm pass every
+/// <see cref="StartupWarmupState.KeepWarmInterval"/>
 /// (<c>Startup:WarmupInterval</c>, three minutes) until the host stops. A pass
 /// makes the reads a signed-in page makes, so no staff request is the first to
 /// touch a cold path after a quiet spell: the Work Centre's three sections
@@ -119,6 +121,7 @@ internal sealed partial class StartupWarmup(
 
         await Task.Yield();
         await FirstPassAsync(stoppingToken);
+        await WarmRendererAsync(stoppingToken);
         await KeepWarmAsync(stoppingToken);
     }
 
@@ -147,6 +150,22 @@ internal sealed partial class StartupWarmup(
         {
             state.Complete();
         }
+    }
+
+    /// <summary>
+    /// The report renderer's first-use cost, paid after readiness: the first
+    /// pass has ended, so this is not on the 45 s path, and it is bounded on its
+    /// own. It is CPU work, which is why it does not run beside the reads.
+    /// </summary>
+    private async Task WarmRendererAsync(CancellationToken stoppingToken)
+    {
+        using var bound = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        bound.CancelAfter(KeepWarmStepBound);
+        await StepAsync("report-renderer", async () =>
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IWarmReportRenderer>().WarmAsync(bound.Token);
+        }, stoppingToken, bound.Token);
     }
 
     /// <summary>
@@ -213,6 +232,11 @@ internal sealed partial class StartupWarmup(
                 await KeepWarmStepAsync(
                     "case-page", cancellationToken => ReadCasePageAsync(services, id, cancellationToken), stoppingToken);
             }
+
+            await KeepWarmStepAsync(
+                "report-renderer",
+                cancellationToken => services.GetRequiredService<IWarmReportRenderer>().WarmAsync(cancellationToken),
+                stoppingToken);
 
             var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             LogKeepWarmPassFinished(logger, elapsedMs);

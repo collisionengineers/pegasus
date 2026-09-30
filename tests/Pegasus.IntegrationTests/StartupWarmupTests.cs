@@ -13,6 +13,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 using Pegasus.Web.Health;
 using Pegasus.Web.Mcp;
 
@@ -300,6 +301,51 @@ public sealed class StartupWarmupTests
     }
 
     [Fact]
+    public async Task EveryPassWarmsTheReportRenderer()
+    {
+        var reads = new RecordingReads();
+        await using var run = new KeepWarmRun(reads, TimeSpan.FromMinutes(3));
+        await run.StartAsync();
+
+        // Once after the first pass, then once in each keep-warm pass.
+        Assert.Equal(1, reads.Calls("renderer"));
+        await run.PassAsync(TimeSpan.FromMinutes(3));
+        await run.PassAsync(TimeSpan.FromMinutes(3));
+        Assert.Equal(3, reads.Calls("renderer"));
+    }
+
+    [Fact]
+    public async Task TheRendererIsWarmedOnlyOnceTheFirstPassHasEnded()
+    {
+        // The certificates are never ready, so the first pass waits on them.
+        var store = new OAuthCertificateStore();
+        var state = new StartupWarmupState(warms: true, keepWarmInterval: TimeSpan.Zero);
+        var renderer = new ReadinessRecordingRenderer(state);
+        var services = new ServiceCollection();
+        services.AddSingleton(store);
+        services.AddSingleton<IWarmReportRenderer>(renderer);
+        await using var provider = services.BuildServiceProvider();
+        using var warmup = new StartupWarmup(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            state,
+            TimeProvider.System,
+            NullLogger<StartupWarmup>.Instance);
+
+        await warmup.StartAsync(CancellationToken.None);
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+        Assert.False(renderer.Called.IsCompleted);
+        Assert.False(state.IsReady);
+
+        store.Complete(new OAuthCertificateSet([], []));
+        var readyWhenWarmed = await renderer.Called.WaitAsync(TimeSpan.FromMinutes(1));
+
+        // Readiness was released first, so the renderer is not on its path.
+        Assert.True(readyWhenWarmed);
+        await Assert.IsAssignableFrom<Task>(warmup.ExecuteTask).WaitAsync(TimeSpan.FromMinutes(1));
+        await warmup.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task StoppingTheHostEndsTheKeepWarmLoopAtOnce()
     {
         var reads = new RecordingReads();
@@ -369,6 +415,7 @@ public sealed class StartupWarmupTests
             services.AddSingleton<IGetAssessmentWorkspace>(reads);
             services.AddSingleton<IAiJobQueries>(reads);
             services.AddSingleton<IAiDraftQueries>(reads);
+            services.AddSingleton<IWarmReportRenderer>(reads);
             services.AddSingleton(new ListRetainedMail(reads));
             services.AddSingleton(new GetRetainedMailFreshness(reads, Time));
             provider = services.BuildServiceProvider();
@@ -534,7 +581,8 @@ public sealed class StartupWarmupTests
         IGetAssessmentWorkspace,
         IAiJobQueries,
         IAiDraftQueries,
-        IRetainedMailQueries
+        IRetainedMailQueries,
+        IWarmReportRenderer
     {
         internal static readonly Guid NewestCaseId = new("5c0e6b0a-3f0a-4c0e-9e0f-000000000001");
 
@@ -735,6 +783,12 @@ public sealed class StartupWarmupTests
             Guid originReceiptId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task WarmAsync(CancellationToken cancellationToken = default)
+        {
+            Note("renderer");
+            return Task.CompletedTask;
+        }
+
         private void Note(string call)
         {
             var current = Activity.Current;
@@ -807,6 +861,20 @@ public sealed class StartupWarmupTests
             {
                 entries.Add(new LogEntry(logLevel, formatter(state, exception)));
             }
+        }
+    }
+
+    /// <summary>A renderer warm-up that says whether the instance was ready when it was asked.</summary>
+    private sealed class ReadinessRecordingRenderer(StartupWarmupState state) : IWarmReportRenderer
+    {
+        private readonly TaskCompletionSource<bool> called = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<bool> Called => called.Task;
+
+        public Task WarmAsync(CancellationToken cancellationToken = default)
+        {
+            called.TrySetResult(state.IsReady);
+            return Task.CompletedTask;
         }
     }
 
