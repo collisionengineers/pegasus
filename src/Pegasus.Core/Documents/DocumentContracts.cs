@@ -594,10 +594,12 @@ public sealed record DocumentContentCacheKey(Guid? DocumentVersionId, Guid? Inta
 /// takes longer than five seconds, is logged and forgotten: it never throws
 /// to the caller, so it can never fail the filing it follows, and it never
 /// holds it for longer than that. Once one publish has failed or timed out, the
-/// publisher's remaining publishes are skipped: it is scoped to a work item
-/// or a request, so a store that is down costs that work item one wait and
-/// not one for each file. The next read of a file that was not published then
-/// misses and publishes as it always did.
+/// publisher's remaining publishes are skipped. The publisher is scoped: one
+/// request, one queued work item, or one whole run of the Worker's
+/// reconciliation timer, which can file up to 50 pending versions. So a store
+/// that is down costs that scope one wait and not one for each file. The next
+/// read of a file that was not published then misses and publishes as it
+/// always did.
 ///
 /// A caller publishes only after custody has confirmed the file and its own
 /// transaction has committed, because the cache row refers to the version or

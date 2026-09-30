@@ -73,8 +73,9 @@ flowchart LR
   the market research file) and `EfQueuedCustodyProcessor` (Case completions,
   a Vehicle images record's filing and the image fold, from the copy intake
   retained) call it. It never throws,
-  gives up on a write after five seconds, and skips the rest of its work item's
-  writes once one has failed.
+  gives up on a write after five seconds. Once one write has failed it skips
+  the rest of its scope's: a Web request, a queued work item, or a whole run of
+  the Worker's reconciliation timer, which can file up to 50 pending versions.
 - Core route/classification/matching policy determines formal Case, Triage,
   image-origin and Unidentified outcomes. Their identities remain distinct.
 - SQL owns application state and provenance. Box owns durable file custody;
