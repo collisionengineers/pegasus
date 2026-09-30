@@ -239,8 +239,8 @@ public sealed record ImageIntakeImage(
     /// <summary>
     /// The crop and rotation recorded on the image (no tags), or null when none
     /// is recorded. The batched image list sets it from the same query, so a
-    /// page that draws the image's tile can name the rendering the tile route
-    /// will draw without a read of its own.
+    /// page can tell a prepared image from an unprepared one, and name the
+    /// rendering the tile route will draw, without a read of its own.
     /// </summary>
     public PreCaseImagePreparation? Preparation { get; init; }
 }
