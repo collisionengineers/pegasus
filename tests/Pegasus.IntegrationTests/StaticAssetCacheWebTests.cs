@@ -103,6 +103,16 @@ public sealed partial class StaticAssetCacheWebTests
         Assert.False(asset.Headers.TryGetValues("Set-Cookie", out _));
         Assert.Equal("max-age=31536000, immutable", asset.Headers.CacheControl?.ToString());
 
+        // The font the stylesheet names is a fingerprinted address too, so the
+        // browser keeps it without revalidating.
+        var fontMatch = InterFontFaceRegex().Match(await asset.Content.ReadAsStringAsync());
+        Assert.True(fontMatch.Success, "Site CSS must declare the Inter face.");
+        var fontPath = new Uri(asset.RequestMessage!.RequestUri!, fontMatch.Groups["url"].Value).AbsolutePath;
+        using var font = await client.GetAsync(fontPath);
+        font.EnsureSuccessStatusCode();
+        Assert.False(font.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.Equal("max-age=31536000, immutable", font.Headers.CacheControl?.ToString());
+
         // The same cookie still reaches authentication for protected routes and
         // therefore renews when it is eligible.
         using var protectedPage = await client.GetAsync("/Account/PasswordChange");
@@ -129,6 +139,9 @@ public sealed partial class StaticAssetCacheWebTests
 
     [GeneratedRegex("href=\"(?<path>/css/site\\.[a-z0-9]+\\.css)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex FingerprintedSiteCssRegex();
+
+    [GeneratedRegex("@font-face\\{font-family:Inter;[^}]*src:url\\((?<url>[^)]+\\.woff2)\\)", RegexOptions.CultureInvariant)]
+    private static partial Regex InterFontFaceRegex();
 
     private sealed class AdjustableTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
