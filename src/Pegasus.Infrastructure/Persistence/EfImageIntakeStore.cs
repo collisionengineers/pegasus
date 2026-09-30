@@ -1124,16 +1124,31 @@ public sealed class EfImageIntakeStore(
                 item.SubmissionGroupId is { } groupId && groups.TryGetValue(groupId, out var members)
                     ? members.Select(member => member.ProcessedReceiptId) : []));
             var assetsByReceipt = new Dictionary<Guid, IReadOnlyList<IntakeAssetRecord>>();
+            var preparations = new Dictionary<Guid, PreCaseImagePreparation>();
             foreach (var receiptIds in receipts.Values.SelectMany(value => value).Distinct().Chunk(200))
             {
-                var rows = await context.IntakeAssets.AsNoTracking()
-                    .Where(asset => receiptIds.Contains(asset.IntakeReceiptId))
+                // The crop and rotation recorded on each asset come back in the
+                // same read (a left join on the asset's key), so the tile's
+                // address can name what the tile route will draw at no extra
+                // round trip.
+                var rows = await (
+                    from asset in context.IntakeAssets.AsNoTracking()
+                    where receiptIds.Contains(asset.IntakeReceiptId)
+                    join recorded in context.Set<IntakeAssetPreparationEntity>().AsNoTracking()
+                        on asset.Id equals recorded.IntakeAssetId into recordedPreparations
+                    from recorded in recordedPreparations.DefaultIfEmpty()
+                    select new { Asset = asset, Recorded = recorded })
                     .ToArrayAsync(cancellationToken);
-                foreach (var receiptAssets in rows.GroupBy(asset => asset.IntakeReceiptId))
+                foreach (var row in rows.Where(row => row.Recorded is not null))
+                {
+                    preparations[row.Asset.Id] =
+                        EfPreCaseImagePreparationStore.Map(row.Asset.Id, row.Recorded, []);
+                }
+                foreach (var receiptAssets in rows.GroupBy(row => row.Asset.IntakeReceiptId))
                 {
                     assetsByReceipt.Add(
                         receiptAssets.Key,
-                        receiptAssets.Select(EfIntakeReceiptStore.MapAsset).ToArray());
+                        receiptAssets.Select(row => EfIntakeReceiptStore.MapAsset(row.Asset)).ToArray());
                 }
             }
             foreach (var intake in intakes)
@@ -1144,7 +1159,7 @@ public sealed class EfImageIntakeStore(
                         .Where(assetsByReceipt.ContainsKey)
                         .SelectMany(receiptId => InstructionEvidenceImages
                             .Select(assetsByReceipt[receiptId])
-                            .Select(asset => ToImage(receiptId, asset)))
+                            .Select(asset => ToImage(receiptId, asset, preparations.GetValueOrDefault(asset.Id))))
                         .ToArray());
             }
         }
@@ -1207,11 +1222,15 @@ public sealed class EfImageIntakeStore(
         ImageIntakeLifecycleRules.IsImageAutomationEligible(
             EfIntakeReceiptStore.Map(receipt, isDuplicate: false, acceptedCaseId: acceptedCaseId));
 
-    private static ImageIntakeImage ToImage(Guid receiptId, IntakeAssetRecord asset) =>
+    private static ImageIntakeImage ToImage(
+        Guid receiptId,
+        IntakeAssetRecord asset,
+        PreCaseImagePreparation? preparation = null) =>
         new(receiptId, asset.FileName, asset.MediaType, asset.CustodyState)
         {
             AssetId = asset.Id,
-            ContentHash = asset.ContentHash
+            ContentHash = asset.ContentHash,
+            Preparation = preparation
         };
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(

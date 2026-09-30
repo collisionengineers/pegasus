@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -208,6 +209,35 @@ public sealed class ImageViewingWebTests
             "No images are available to display",
             casePage,
             StringComparison.OrdinalIgnoreCase);
+
+        // A photograph with a crop recorded on its record is addressed with the
+        // preparation version the tile route draws it with. Named that way the
+        // browser may keep it; addressed as "no preparation" it would be drawn
+        // cropped and never kept.
+        await scope.ServiceProvider.GetRequiredService<ISavePreCaseImageCrop>().ExecuteAsync(
+            new SavePreCaseImageCropRequest(
+                imageAssetId,
+                ExpectedVersion: 0,
+                CaseAssetRotation.Clockwise90,
+                new CaseAssetCrop(0.1m, 0.2m, 0.5m, 0.6m),
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                Guid.NewGuid().ToString("N")));
+        var preparedTile = $"{expectedSource}?size=thumb&amp;v={contentHash}&amp;prep=1&amp;renderer={CaseDocumentThumbnails.RendererIdentity}";
+        var croppedCasePage = await IntakeWebDriver.GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}?section=files");
+        Assert.Contains($"data-thumb=\"{preparedTile}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<img src=\"{preparedTile}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(expectedTile, croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"data-download-href=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        using (var kept = await client.GetAsync(preparedTile.Replace("&amp;", "&", StringComparison.Ordinal)))
+        {
+            Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+            Assert.Equal(TimeSpan.FromDays(7), kept.Headers.CacheControl!.MaxAge);
+            Assert.Equal(
+                $"\"{contentHash.ToLowerInvariant()}-p1-{CaseDocumentThumbnails.RendererIdentity}\"",
+                kept.Headers.ETag!.Tag);
+        }
 
         // The overview tab does not pay the gallery query cost.
         var overview = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");

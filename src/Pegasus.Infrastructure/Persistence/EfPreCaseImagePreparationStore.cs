@@ -262,7 +262,7 @@ internal sealed class EfPreCaseImagePreparationStore(
                     row.AppliedAtUtc));
     }
 
-    private static PreCaseImagePreparation Map(
+    internal static PreCaseImagePreparation Map(
         Guid intakeAssetId,
         IntakeAssetPreparationEntity? preparation,
         IEnumerable<ImageTagAssignment> tags) =>
