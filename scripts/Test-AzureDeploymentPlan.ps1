@@ -176,7 +176,7 @@ $sourceWorkerNames = @($sourceWorkerNameMatches | ForEach-Object { $_.Groups[1].
 Assert-ExactOrdinalCensus `
     -Expected $expectedWorkerSettings `
     -Actual $sourceWorkerNames `
-    -Failure 'The Worker template must contain the exact seven-function disabled-setting name census.'
+    -Failure 'The Worker template must contain the exact six-function disabled-setting name census.'
 $sourceWorkerConditionalMatches = [regex]::Matches(
     $platformBicep,
     "name:\s*'(AzureWebJobs\.[^']+\.Disabled)'\s*,\s*value:\s*workerActivationApproved\s*\?\s*'false'\s*:\s*'true'"
@@ -228,7 +228,7 @@ $compiledWorkerNames = @($compiledWorkerNameMatches | ForEach-Object { $_.Groups
 Assert-ExactOrdinalCensus `
     -Expected $expectedWorkerSettings `
     -Actual $compiledWorkerNames `
-    -Failure 'The compiled template must contain the exact seven-function disabled-setting name census.'
+    -Failure 'The compiled template must contain the exact six-function disabled-setting name census.'
 $compiledWorkerConditionalMatches = [regex]::Matches(
     $compiledTemplateJson,
     '"name"\s*:\s*"(AzureWebJobs\.[^"]+\.Disabled)"\s*,\s*"value"\s*:\s*"\[if\(variables\(''workerActivationApproved''\), ''false'', ''true''\)\]"'
@@ -239,7 +239,7 @@ $compiledConditionalWorkerNames = @(
 Assert-ExactOrdinalCensus `
     -Expected $expectedWorkerSettings `
     -Actual $compiledConditionalWorkerNames `
-    -Failure 'The compiled template must contain the exact seven-function fail-closed Worker setting expressions.'
+    -Failure 'The compiled template must contain the exact six-function fail-closed Worker setting expressions.'
 Assert-Text $compiledTemplateJson '"workerActivationApproved"\s*:\s*"\[equals\(parameters\(''workerActivation''\), ''approved-live-worker''\)\]"' 'The compiled template must enable the Worker only for the exact approved-live-worker input.'
 Assert-Text $compiledTemplateJson '"workerActivation"\s*:\s*\{\s*"type"\s*:\s*"string"\s*,\s*"defaultValue"\s*:\s*"disabled"' 'The compiled template must retain the fail-closed Worker activation default.'
 

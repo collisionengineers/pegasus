@@ -234,7 +234,7 @@ function Assert-CensusRejected {
 
     $result = Invoke-WorkerSmoke -Settings $Settings -ExpectedActivation 'disabled'
     Assert-True ($result.ExitCode -ne 0) $Case 'should fail.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('census differs from the exact seven-function release contract')) $Case 'did not report the census.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('census differs from the exact six-function release contract')) $Case 'did not report the census.' $result.Diagnostic
     # The rejection names no live setting: the diagnostic must not echo what
     # the production Worker carries.
     Assert-True (-not $result.Output.Contains($ProtectedSettingName)) $Case 'echoed a live setting name.' $result.Diagnostic
@@ -272,25 +272,25 @@ try {
     Assert-CensusRejected -Case 'Malformed disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.Extra-Function.Disabled'
 
     $settings = New-ExactSettings 'true'
-    $settings.RemoveAll({ param($s) $s.name -eq 'AzureWebJobs.InboxRecoveryFunction.Disabled' }) | Out-Null
-    $settings.Add([ordered]@{ name = 'AzureWebJobs.inboxpollfunction.Disabled'; value = 'true' })
-    Assert-CensusRejected -Case 'Case-variant disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.inboxpollfunction.Disabled'
+    $settings.RemoveAll({ param($s) $s.name -eq 'AzureWebJobs.SentEvidencePollFunction.Disabled' }) | Out-Null
+    $settings.Add([ordered]@{ name = 'AzureWebJobs.sentevidencepollfunction.Disabled'; value = 'true' })
+    Assert-CensusRejected -Case 'Case-variant disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.sentevidencepollfunction.Disabled'
 
     $settings = New-ExactSettings 'true'
-    $settings.RemoveAll({ param($s) $s.name -eq 'AzureWebJobs.InboxRecoveryFunction.Disabled' }) | Out-Null
-    Assert-CensusRejected -Case 'Missing disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.InboxRecoveryFunction.Disabled'
+    $settings.RemoveAll({ param($s) $s.name -eq 'AzureWebJobs.SentEvidencePollFunction.Disabled' }) | Out-Null
+    Assert-CensusRejected -Case 'Missing disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.SentEvidencePollFunction.Disabled'
 
     $settings = New-ExactSettings 'true'
-    $settings.Add([ordered]@{ name = 'AzureWebJobs.InboxRecoveryFunction.Disabled'; value = 'true' })
-    Assert-CensusRejected -Case 'Duplicate disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.InboxRecoveryFunction.Disabled'
+    $settings.Add([ordered]@{ name = 'AzureWebJobs.SentEvidencePollFunction.Disabled'; value = 'true' })
+    Assert-CensusRejected -Case 'Duplicate disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.SentEvidencePollFunction.Disabled'
 
     $settings = New-ExactSettings 'true'
-    ($settings | Where-Object { $_.name -eq 'AzureWebJobs.InboxRecoveryFunction.Disabled' }).value = 'false'
+    ($settings | Where-Object { $_.name -eq 'AzureWebJobs.SentEvidencePollFunction.Disabled' }).value = 'false'
     $result = Invoke-WorkerSmoke -Settings $settings -ExpectedActivation 'disabled'
     $case = 'Mixed disabled values'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("do not match the intended 'disabled' activation value")) $case 'did not report the value mismatch.' $result.Diagnostic
-    Assert-True (-not $result.Output.Contains('InboxRecoveryFunction') -and -not $result.Output.Contains('false')) $case 'echoed a live setting.' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('SentEvidencePollFunction') -and -not $result.Output.Contains('false')) $case 'echoed a live setting.' $result.Diagnostic
 
     # --- Test-AzureDeploymentPlan.ps1 -Mode PreProvision ---------------------
 

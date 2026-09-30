@@ -794,9 +794,10 @@ not leave the old Container App serving while consumers are moved.
    when a mailbox generation advances. The operator step, per approved intake
    mailbox in `/Administration/Mailboxes`, is: set the mailbox **Disabled**,
    save, then set it **Approved** again and save, in one sitting. The next
-   `InboxRecoveryFunction` run (every five minutes) creates a new subscription
-   at the new URL. Confirm the current generation's `Active` subscription in
-   Mailboxes and read back the Worker's exact `Graph__ChangeNotificationUrl`.
+   approved-inbox recovery (inside `PendingWorkRecoveryFunction`, every fifth
+   minute) creates a new subscription at the new URL. Confirm the current
+   generation's `Active` subscription in Mailboxes and read back the Worker's
+   exact `Graph__ChangeNotificationUrl`.
    The generic smoke liveness line alone does not prove either condition:
 
    ```powershell

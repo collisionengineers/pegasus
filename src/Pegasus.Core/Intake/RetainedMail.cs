@@ -778,7 +778,7 @@ public sealed class GetRetainedMailFreshness(
     /// </summary>
     /// <remarks>
     /// PROVISIONAL. Graph change notifications are the primary wake; the recovery
-    /// poll (<c>InboxRecoveryFunction</c>, <c>ApprovedInboxPollSchedule</c>) runs
+    /// poll (run by <c>PendingWorkRecoveryFunction</c> on every fifth minute) runs
     /// every five minutes, so fifteen minutes is three consecutive missed recovery
     /// ticks — long enough that a single slow or skipped run never shows a chip,
     /// short enough that a stopped Worker is visible within a quarter of an hour.

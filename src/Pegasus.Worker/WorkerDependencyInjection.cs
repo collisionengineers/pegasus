@@ -164,6 +164,8 @@ public static class WorkerDependencyInjection
         services.AddScoped<ReconcilePoisonedExternalWork>();
         services.AddScoped<ReconcilePoisonedQueueWork>();
         services.AddScoped<DispatchPendingWork>();
+        // Composed in both profiles: it does nothing when no Graph adapter is present.
+        services.AddScoped<MaintainMailboxChangeSubscriptions>();
         services.AddScoped<ProcessAutomaticEvaReviewSubmissions>();
         return services;
     }
