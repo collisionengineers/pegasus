@@ -871,9 +871,9 @@ public sealed class RetainedMailPersistenceTests
         }
 
         await using var scope = database.CreateAsyncScope();
-        var details = Assert.IsType<CaseDetails>(await scope.ServiceProvider
+        var details = Assert.IsType<CaseFilesSectionData>(await scope.ServiceProvider
             .GetRequiredService<ICaseQueryStore>()
-            .GetAsync(new(caseId, ActionActor.SystemWorker("query-test")), CancellationToken.None));
+            .GetFilesSectionAsync(caseId, includeDocuments: false, frame: null, CancellationToken.None));
 
         Assert.Equal(
             [caseUpdateId, billingId, sharedFirstId, sharedSecondId, queryId, disputeId, instructionId],

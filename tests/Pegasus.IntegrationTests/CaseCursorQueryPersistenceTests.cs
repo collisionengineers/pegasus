@@ -441,8 +441,8 @@ public sealed class CaseCursorQueryPersistenceTests
 
     /// <summary>
     /// Stream A review: <see cref="ICaseQueryStore.GetHeaderAsync"/>
-    /// returns the same summary/workflow facts <see cref="GetCase"/> would,
-    /// with the document, history and open-task lists reduced to counts.
+    /// returns the Case's summary and workflow facts, with the document,
+    /// history and open-task lists reduced to counts.
     /// </summary>
     [Fact]
     public async Task GetHeaderReturnsCountsWithoutMaterializingTheFullDetails()
@@ -521,11 +521,11 @@ public sealed class CaseCursorQueryPersistenceTests
 
     /// <summary>
     /// The documents-only read a mail attachment list uses returns the same
-    /// documents the full Case read carries, in the same order, and none for a
+    /// documents the Files section carries, in the same order, and none for a
     /// Case that does not exist.
     /// </summary>
     [Fact]
-    public async Task TheDocumentsOnlyReadMatchesTheFullCaseReadsDocuments()
+    public async Task TheDocumentsOnlyReadMatchesTheFilesSectionsDocuments()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "DOCS");
@@ -547,16 +547,16 @@ public sealed class CaseCursorQueryPersistenceTests
             await context.SaveChangesAsync();
         }
 
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await using var scope = database.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<ICaseQueryStore>();
         var documents = scope.ServiceProvider.GetRequiredService<ICaseDocumentQueries>();
 
         var only = await documents.ListAsync(caseId, CancellationToken.None);
-        var full = await store.GetAsync(new(caseId, actor), CancellationToken.None);
+        var files = await store.GetFilesSectionAsync(
+            caseId, includeDocuments: true, frame: null, CancellationToken.None);
 
         Assert.Equal(2, only.Count);
-        Assert.Equal(full!.Documents.Select(item => item.Id), only.Select(item => item.Id));
+        Assert.Equal(files!.Documents.Select(item => item.Id), only.Select(item => item.Id));
         Assert.Empty(await documents.ListAsync(Guid.NewGuid(), CancellationToken.None));
     }
 
@@ -564,10 +564,11 @@ public sealed class CaseCursorQueryPersistenceTests
     /// A Case header is four commands: the workflow with its owners, the
     /// summary row, the three counts as one command, and the Case's works. Before
     /// the counts were folded it was six. A caller that needs only a Case's
-    /// identity, workflow and lease pays this instead of the whole Case's reads.
+    /// documents pays less than the Files section, which reads them with the
+    /// Case's frame and correspondence.
     /// </summary>
     [Fact]
-    public async Task TheCaseHeaderIsFourCommandsAndTheDocumentsOnlyReadIsFewerThanTheWholeCase()
+    public async Task TheCaseHeaderIsFourCommandsAndTheDocumentsOnlyReadIsFewerThanTheFilesSection()
     {
         var counter = new CommandCountingInterceptor();
         await using var database = await LocalDbTestDatabase.CreateAsync(
@@ -585,8 +586,8 @@ public sealed class CaseCursorQueryPersistenceTests
         var headerCommands = counter.Count;
 
         counter.Reset();
-        _ = await store.GetAsync(new(caseId, actor), CancellationToken.None);
-        var storeCommands = counter.Count;
+        _ = await store.GetFilesSectionAsync(caseId, includeDocuments: true, frame: null, CancellationToken.None);
+        var filesCommands = counter.Count;
 
         counter.Reset();
         _ = await documents.ListAsync(caseId, CancellationToken.None);
@@ -594,17 +595,12 @@ public sealed class CaseCursorQueryPersistenceTests
 
         Assert.Equal(4, headerCommands);
         Assert.True(
-            headerCommands < storeCommands,
-            $"The header ({headerCommands}) must cost less than the store's whole-Case read ({storeCommands}).");
-        Assert.True(
-            documentCommands < storeCommands,
-            $"The documents-only read ({documentCommands}) must cost less than the store's whole-Case read ({storeCommands}).");
+            documentCommands < filesCommands,
+            $"The documents-only read ({documentCommands}) must cost less than the Files section ({filesCommands}).");
     }
 
     [Fact]
     public async Task GetHeaderReturnsNullForACaseThatDoesNotExist()
-
-
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);

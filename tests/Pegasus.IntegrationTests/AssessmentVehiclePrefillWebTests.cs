@@ -27,12 +27,10 @@ public sealed class AssessmentVehiclePrefillWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetCaseVehicleSection>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId);
-                services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
@@ -72,12 +70,10 @@ public sealed class AssessmentVehiclePrefillWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetCaseVehicleSection>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId, includeConfirmedFacts: true);
-                services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
@@ -111,12 +107,10 @@ public sealed class AssessmentVehiclePrefillWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetCaseVehicleSection>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId, includePartialConfirmedFacts: true);
-                services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
@@ -141,9 +135,10 @@ public sealed class AssessmentVehiclePrefillWebTests
         Guid caseId,
         bool includeConfirmedFacts = false,
         bool includePartialConfirmedFacts = false)
-        : IGetCase, IGetCaseEditBasis, IGetCasePageFrame, IGetCaseVehicleSection, IGetAssessmentWorkspace
+        : IGetCaseEditBasis, IGetCasePageFrame, IGetCaseVehicleSection, IGetAssessmentWorkspace
     {
-        private CaseDetails? Details(Guid requestedCaseId)
+        /// <summary>The Case's frame as a focused read returns it; null for any other Case.</summary>
+        private CaseSectionFrame? Frame(Guid requestedCaseId)
         {
             if (requestedCaseId != caseId)
             {
@@ -158,54 +153,37 @@ public sealed class AssessmentVehiclePrefillWebTests
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
-            var observation = Observation(caseId);
-            var confirmed = includePartialConfirmedFacts
-                ? new ConfirmedVehicleEvidence(null, ConfirmedField("FORD"), null, null, null)
-                : null;
-            CaseDetails details = new(
-                summary, workflow, null, [], null, CaseCustodyState.Pending, [], [])
-            {
-                Data = Data(identity, workflow, includeConfirmedFacts, includePartialConfirmedFacts),
-                VehicleEvidence = new(caseId, confirmed, observation, [observation]),
-            };
-            return details;
+            return new(summary, workflow, null);
         }
 
-        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
-            GetCaseQuery query, CancellationToken cancellationToken) =>
-            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
+        private CaseDataProjection CaseData(CaseSectionFrame frame) =>
+            Data(frame.Workflow.Identity, frame.Workflow, includeConfirmedFacts, includePartialConfirmedFacts);
 
-        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
-            Task.FromResult(Details(query.CaseId));
+        Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseEditBasis?>(Frame(query.CaseId) is { } frame
+                ? new(frame, CaseData(frame))
+                : null);
 
         Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = Details(query.CaseId);
-            return Task.FromResult<CasePageFrame?>(details is null
-                ? null
-                : new(
-                    new(details.Summary, details.Workflow, details.ActiveEditLease),
-                    details.Documents,
-                    details.AvailableReportSentEvidence,
-                    details.RecordNotes,
-                    details.Data!));
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
+                ? new(frame, [], [], CaseRecordNotes.None, CaseData(frame))
+                : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
             GetCaseSectionQuery query,
             CancellationToken cancellationToken)
         {
-            var details = Details(query.CaseId);
-            if (details is null)
+            if (Frame(query.CaseId) is not { } frame)
             {
                 return Task.FromResult<CaseVehicleSection?>(null);
             }
 
-            var workspace = query.AssessmentWorkspace ?? Workspace(details);
+            var workspace = query.AssessmentWorkspace ?? Workspace(frame);
             return Task.FromResult<CaseVehicleSection?>(new(
-                new(details.Summary, details.Workflow, details.ActiveEditLease),
+                frame,
                 workspace.Data,
                 workspace.LatestVehicleObservation,
                 workspace.Assessment));
@@ -213,24 +191,21 @@ public sealed class AssessmentVehiclePrefillWebTests
 
         public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
-            CancellationToken cancellationToken = default)
-        {
-            var details = Details(query.CaseId);
-            return Task.FromResult(details is null ? null : Workspace(details));
-        }
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Frame(query.CaseId) is { } frame ? Workspace(frame) : null);
 
-        private AssessmentWorkspace Workspace(CaseDetails details)
+        private AssessmentWorkspace Workspace(CaseSectionFrame frame)
         {
             var assessment = new CaseAssessmentProjection(
                 caseId,
-                details.Summary.Reference,
-                details.Workflow.Version,
-                details.Workflow.State,
+                frame.Summary.Reference,
+                frame.Workflow.Version,
+                frame.Workflow.State,
                 null,
                 [],
                 [],
                 new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
-            return AssessmentWorkspaceTestData.Create(details, assessment);
+            return AssessmentWorkspaceTestData.Create(frame, assessment, CaseData(frame), Observation(caseId));
         }
     }
 
@@ -248,17 +223,6 @@ public sealed class AssessmentVehiclePrefillWebTests
             new(45123, VehicleMileageUnit.Miles, new DateOnly(2026, 3, 4), VehicleMileagePolicy.MethodKey, VehicleMileagePolicy.MethodVersion, 1),
             null,
             DateTimeOffset.UtcNow);
-
-    private static ConfirmedVehicleField<string> ConfirmedField(string value) => new(
-        value,
-        "staff_correction",
-        "engineer-1",
-        "Staff correction",
-        "case_data_edit",
-        1,
-        "engineer-1",
-        DateTimeOffset.UtcNow,
-        null);
 
     private static CaseDataProjection Data(
         CaseIdentity identity,

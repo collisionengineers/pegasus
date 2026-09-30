@@ -35,7 +35,6 @@ public sealed class CaseReportApprovalWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
@@ -82,7 +81,6 @@ public sealed class CaseReportApprovalWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: false));
@@ -153,7 +151,6 @@ public sealed class CaseReportApprovalWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<IGetCaseVehicleSection>();
@@ -162,7 +159,6 @@ public sealed class CaseReportApprovalWebTests
                 services.RemoveAll<IGetCaseFilesSection>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<IRecordCaseReportApproval>();
-                services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 services.AddSingleton<IGetCasePageFrame>(store);
                 services.AddSingleton<IGetAssessmentWorkspace>(store);
@@ -263,7 +259,7 @@ public sealed class CaseReportApprovalWebTests
             ("approvedAtUtc", "2099-01-01T00:00:00.0000000+00:00"));
 
     private sealed class ApprovalCaseDetailsStore :
-        IGetCase, IGetCaseEditBasis,
+        IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetAssessmentWorkspace,
         IGetCaseVehicleSection,
@@ -285,7 +281,7 @@ public sealed class CaseReportApprovalWebTests
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
         public List<RecordCaseReportApprovalRequest> Approvals { get; } = [];
 
-        private CaseDetails Details()
+        private CaseSectionFrame Frame()
         {
             var identity = new CaseIdentity(CaseId, "QDOS", 2031, 42, "QDOS3100042");
             var workflow = new CaseWorkflowRecord(
@@ -314,31 +310,28 @@ public sealed class CaseReportApprovalWebTests
                 now.AddDays(-2),
                 "Email",
                 now.AddDays(-2));
-            CaseDetails details = new(
+            return new(
                 summary,
                 workflow,
                 leaseHolder is null
                     ? null
-                    : new(leaseHolder, ActorKind.Staff, now.AddMinutes(5), leaseOperationKey!),
-                [],
-                null,
-                CaseCustodyState.Pending,
-                [],
-                [])
-            {
-                Data = AssessmentWorkspaceTestData.Create(Assessment(workflow)).Data
-            };
-            return details;
+                    : new(leaseHolder, ActorKind.Staff, now.AddMinutes(5), leaseOperationKey!));
         }
 
-        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
-            GetCaseQuery query, CancellationToken cancellationToken) =>
-            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
+        private CaseDataProjection Data(CaseSectionFrame frame) =>
+            AssessmentWorkspaceTestData.Create(Assessment(frame.Workflow)).Data;
 
-        public Task<CaseDetails?> ExecuteAsync(
-            GetCaseQuery query,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? Details() : null);
+        Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken)
+        {
+            if (query.CaseId != CaseId)
+            {
+                return Task.FromResult<CaseEditBasis?>(null);
+            }
+
+            var frame = Frame();
+            return Task.FromResult<CaseEditBasis?>(new(frame, Data(frame)));
+        }
 
         private CaseAssessmentProjection Assessment(CaseWorkflowRecord workflow) => new(
             CaseId,
@@ -350,12 +343,6 @@ public sealed class CaseReportApprovalWebTests
             [],
             new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
 
-        private CaseSectionFrame Frame()
-        {
-            var details = Details();
-            return new(details.Summary, details.Workflow, details.ActiveEditLease);
-        }
-
         Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
             GetCaseSectionQuery query,
             CancellationToken cancellationToken)
@@ -365,13 +352,8 @@ public sealed class CaseReportApprovalWebTests
                 return Task.FromResult<CasePageFrame?>(null);
             }
 
-            var details = Details();
-            return Task.FromResult<CasePageFrame?>(new(
-                new(details.Summary, details.Workflow, details.ActiveEditLease),
-                details.Documents,
-                details.AvailableReportSentEvidence,
-                details.RecordNotes,
-                details.Data!));
+            var frame = Frame();
+            return Task.FromResult<CasePageFrame?>(new(frame, [], [], CaseRecordNotes.None, Data(frame)));
         }
 
         Task<AssessmentWorkspace?> IGetAssessmentWorkspace.ExecuteAsync(

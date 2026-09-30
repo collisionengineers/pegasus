@@ -2,6 +2,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
@@ -59,25 +60,27 @@ internal static class AssessmentWorkspaceTestData
     }
 
     public static AssessmentWorkspace Create(
-        CaseDetails details,
+        CaseSectionFrame frame,
         CaseAssessmentProjection assessment,
+        CaseDataProjection? data = null,
+        VehicleLookupObservation? latestVehicleObservation = null,
         RepairSpecificationVersion? currentSpecification = null)
     {
         var fallback = Create(assessment);
         return fallback with
         {
             Header = new AssessmentWorkspaceHeader(
-                details.Summary.CaseId,
-                details.Summary.Reference,
-                details.Summary.Principal,
-                details.Summary.Registration,
-                details.Summary.CaseType,
-                details.Summary.State,
-                details.Workflow.Version,
-                details.Workflow.DueWork?.DueBy,
-                details.CustodyFolderRemoteId),
-            Data = details.Data ?? fallback.Data,
-            LatestVehicleObservation = details.VehicleEvidence?.LatestObservation,
+                frame.Summary.CaseId,
+                frame.Summary.Reference,
+                frame.Summary.Principal,
+                frame.Summary.Registration,
+                frame.Summary.CaseType,
+                frame.Summary.State,
+                frame.Workflow.Version,
+                frame.Workflow.DueWork?.DueBy,
+                frame.CustodyFolderRemoteId),
+            Data = data ?? fallback.Data,
+            LatestVehicleObservation = latestVehicleObservation,
             CurrentSpecification = currentSpecification
         };
     }
