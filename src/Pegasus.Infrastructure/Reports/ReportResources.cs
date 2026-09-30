@@ -8,6 +8,18 @@ internal static class ReportResources
     private static readonly Lock FontLock = new();
     private static bool fontsRegistered;
 
+    /// <summary>Whether this process has registered the report's fonts.</summary>
+    internal static bool FontsRegistered
+    {
+        get
+        {
+            lock (FontLock)
+            {
+                return fontsRegistered;
+            }
+        }
+    }
+
     internal static void RegisterFonts()
     {
         lock (FontLock)

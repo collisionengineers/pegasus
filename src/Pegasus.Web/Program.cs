@@ -602,15 +602,25 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompress
     options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
 // A new instance warms its hot reads before it reports ready (at most 45 s).
 // /health/warm answers the platform's start-up ping from the warm-up alone, so
-// a database outage never keeps a new instance from starting.
-builder.Services.AddSingleton(provider => new StartupWarmupState(
-    provider.GetRequiredService<IConfiguration>().GetValue("Startup:Warmup", true)));
+// a database outage never keeps a new instance from starting. The warm-up then
+// repeats its reads every Startup:WarmupInterval (three minutes; 00:00:00 runs
+// it once) so no staff request is the first to touch a cold path.
+builder.Services.AddSingleton(provider =>
+{
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    return StartupWarmupState.FromSettings(
+        configuration.GetValue("Startup:Warmup", true),
+        configuration["Startup:WarmupInterval"]);
+});
 builder.Services.AddHostedService<StartupWarmup>();
 if (applicationInsightsConfigured)
 {
     // Its trace reaches Application Insights only where that is configured.
     builder.Services.AddHostedService<RuntimeHeartbeat>();
 }
+// The database check remembers a current schema, so it is one instance for the
+// process and not one per probe.
+builder.Services.AddSingleton<DatabaseReadinessHealthCheck>();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"])
     .AddCheck<StartupWarmupHealthCheck>("warmup", tags: ["ready", "warm"]);
