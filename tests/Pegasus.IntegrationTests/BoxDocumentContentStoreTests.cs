@@ -761,7 +761,9 @@ public sealed class BoxDocumentContentStoreTests
 
     /// <summary>
     /// Box's rate limit on the metadata request retries the whole read once,
-    /// metadata and content together, and the retry serves the file.
+    /// metadata and content together. The first attempt's content was already
+    /// asked for and is discarded, so it is asked for again, and the retry
+    /// serves the file.
     /// </summary>
     [Fact]
     public async Task AThrottledMetadataRequestRetriesTheWholeReadOnce()
@@ -773,6 +775,7 @@ public sealed class BoxDocumentContentStoreTests
         var hash = Sha256(content);
         var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
         var metadataBefore = box.FileMetadataRequestCount;
+        var contentBefore = box.ContentRequestCount;
         var filesBefore = TemporaryDownloadFiles();
         box.ThrottleNextMetadataRequests = 1;
 
@@ -783,12 +786,14 @@ public sealed class BoxDocumentContentStoreTests
 
         Assert.Equal(1, box.ThrottledMetadataCount);
         Assert.Equal(2, box.FileMetadataRequestCount - metadataBefore);
+        Assert.Equal(2, box.ContentRequestCount - contentBefore);
         Assert.Empty(TemporaryDownloadFiles().Except(filesBefore));
     }
 
     /// <summary>
-    /// The same for the content request: the metadata is asked for again on the
-    /// retry, because the whole read is what is retried.
+    /// The same for the content request: the throttled content is asked for
+    /// again and the metadata is asked for again on the retry, because the whole
+    /// read is what is retried.
     /// </summary>
     [Fact]
     public async Task AThrottledContentRequestRetriesTheWholeReadOnce()
@@ -800,6 +805,7 @@ public sealed class BoxDocumentContentStoreTests
         var hash = Sha256(content);
         var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
         var metadataBefore = box.FileMetadataRequestCount;
+        var contentBefore = box.ContentRequestCount;
         box.ThrottleNextDownloads = 1;
 
         await using var stream = await store.OpenReadVersionAsync(address, hash, content.Length, default);
@@ -807,6 +813,7 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Equal(content, await ReadAllAsync(stream));
         Assert.Equal(1, box.ThrottledDownloadCount);
         Assert.Equal(2, box.FileMetadataRequestCount - metadataBefore);
+        Assert.Equal(2, box.ContentRequestCount - contentBefore);
     }
 
     private static HashSet<string> TemporaryDownloadFiles() =>
@@ -883,6 +890,9 @@ public sealed class BoxDocumentContentStoreTests
     {
         public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
             Task.FromResult("Bearer test-token");
+
+        public Task<bool> RenewIfDueAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     /// <summary>Minimal stateful Box: folders, files, paged listing.</summary>

@@ -213,6 +213,42 @@ public sealed class BoxAuthorizationHeaderTests
     }
 
     /// <summary>
+    /// Inside the early-renewal window the held token is due for renewal but is
+    /// still live for a request. A request that arrives while a renewal is
+    /// minting gets that live token at once, without waiting on the renewal's
+    /// gate, and starts no mint of its own. This is the intended behaviour, not
+    /// a gap: the request path is unchanged by the background renewal.
+    /// </summary>
+    [Fact]
+    public async Task ARequestInsideTheEarlyWindowGetsTheLiveTokenAtOnceWhileARenewalMints()
+    {
+        var mint = new CountingMint("window");
+        var time = new CaseDataCompletenessPersistenceTests.MutableTimeProvider(Start);
+        using var provider = new BoxJwtAuthorizationHeaderProvider(mint.ExecuteAsync, time);
+        await provider.GetAuthorizationHeaderAsync(default);
+        // 3,200 s of 3,600: due for the background renewal (from 3,180 s) and
+        // still live for a request (until 3,480 s).
+        time.Advance(TimeSpan.FromSeconds(3200));
+        mint.Hold();
+
+        var renewal = provider.RenewIfDueAsync(default);
+        await mint.Entered;
+        var request = provider.GetAuthorizationHeaderAsync(default);
+
+        Assert.True(request.IsCompletedSuccessfully, "The request waited on the renewal's mint.");
+        Assert.Equal("Bearer window-1", await request);
+        // Only the first mint has finished. The held renewal is the one in flight.
+        Assert.Equal(1, mint.Count);
+
+        mint.Release();
+        Assert.True(await renewal);
+        // The first mint and the one renewal: the request made none.
+        Assert.Equal(2, mint.Count);
+        Assert.Equal("Bearer window-2", await provider.GetAuthorizationHeaderAsync(default));
+        Assert.Equal(2, mint.Count);
+    }
+
+    /// <summary>
     /// The renewal takes the request path's gate. A request that arrives while
     /// it mints waits for that mint and gets its token, and no second token is
     /// minted, both at the very first mint and at an expiry the request path
