@@ -524,7 +524,13 @@ public sealed class UnidentifiedReconciliationTests
         var oldest = await store.ListOldestAsync(UnidentifiedState.Open, 3);
 
         Assert.Equal(references.Take(3), oldest.Select(item => item.Reference));
+        // The interface default also sends one statement: it lists the whole
+        // queue and cuts it in memory. Only the store's own read limits the
+        // statement and reads just the head.
         Assert.Equal(1, statements.Count);
+        var read = Assert.Single(statements.Reads);
+        Assert.Contains("TOP(", read.CommandText, StringComparison.Ordinal);
+        Assert.Equal(3, read.Rows);
         Assert.Equal(4, (await store.ListAsync(UnidentifiedState.Open)).Count);
     }
 
