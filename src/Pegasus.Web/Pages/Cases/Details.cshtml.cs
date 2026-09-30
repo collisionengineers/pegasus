@@ -4560,10 +4560,17 @@ public sealed partial class DetailsModel(
     {
         var details = inputs.Details;
         var workflow = details.Workflow;
+        // In Review the Engineer choices list the staff accounts, which name
+        // the assigned Engineer too, so that account is read on its own only
+        // when the list does not hold it.
+        IReadOnlyList<StaffAccountSummary> roster = workflow.State == CaseLifecycleState.Review
+            ? (await staffAccountQueries.ListAsync(0, 100, cancellationToken)).Accounts
+            : [];
         string? engineerDisplayName = null;
         if (workflow.AssignedEngineerId is { } engineerId)
         {
-            var account = await staffAccountQueries.GetAsync(engineerId, cancellationToken);
+            var account = roster.FirstOrDefault(listed => listed.Id == engineerId)
+                ?? await staffAccountQueries.GetAsync(engineerId, cancellationToken);
             engineerDisplayName = account?.UserName ?? ActorDisplayNames.UnknownStaff;
         }
 
@@ -4576,15 +4583,10 @@ public sealed partial class DetailsModel(
         var signOffEngineerDisplayName = signOffEngineer?.PrintedName
             ?? Labels.CaseWorkspace.Unassigned;
 
-        IReadOnlyList<EvaHandoffEngineerOption> engineerOptions = [];
-        if (workflow.State == CaseLifecycleState.Review)
-        {
-            var accounts = await staffAccountQueries.ListAsync(0, 100, cancellationToken);
-            engineerOptions = accounts.Accounts
-                .Where(account => account.IsEnabled)
-                .Select(account => new EvaHandoffEngineerOption(account.Id, account.UserName))
-                .ToArray();
-        }
+        IReadOnlyList<EvaHandoffEngineerOption> engineerOptions = roster
+            .Where(account => account.IsEnabled)
+            .Select(account => new EvaHandoffEngineerOption(account.Id, account.UserName))
+            .ToArray();
 
         var modes = await evaModeStore.GetForPrincipalAsync(
             workflow.Identity.PrincipalCode,
