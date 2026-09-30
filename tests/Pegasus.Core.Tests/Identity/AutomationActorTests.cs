@@ -116,10 +116,6 @@ public sealed class AutomationActorTests
             return Task.FromResult(new SearchCasesResult([], query.Page, query.PageSize, false, false));
         }
 
-        public Task<CaseDetails?> GetAsync(
-            GetCaseQuery query,
-            CancellationToken cancellationToken) => Task.FromResult<CaseDetails?>(null);
-
         public Task<CaseHeader?> GetHeaderAsync(
             GetCaseHeaderQuery query,
             CancellationToken cancellationToken) => Task.FromResult<CaseHeader?>(null);

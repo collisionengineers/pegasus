@@ -141,7 +141,7 @@ public sealed record CaseHistoryEntry(
     long AfterVersion)
 {
     /// <summary>
-    /// The operator-facing name for <see cref="Actor"/>, resolved by <c>GetCase</c>
+    /// The operator-facing name for <see cref="Actor"/>, resolved by <see cref="GetCaseNotesSection"/>
     /// (see <see cref="ActorDisplayNames"/>). Defaults to the
     /// same honest "not yet resolved" fallback a missing account gets, so a caller
     /// that forgets to populate it never renders the raw subject id.
@@ -169,32 +169,12 @@ public sealed record CaseCorrespondenceEmail(
     MailCategory? Classification,
     string? SourceSha256 = null);
 
-public sealed record CaseDetails(
-    CaseSearchItem Summary,
-    CaseWorkflowRecord Workflow,
-    CaseEditLeaseSnapshot? ActiveEditLease,
-    IReadOnlyList<CaseDocument> Documents,
-    string? CustodyFolderRemoteId,
-    CaseCustodyState CustodyState,
-    IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
-    IReadOnlyList<CaseHistoryEntry> History)
-{
-    public CaseDataProjection? Data { get; init; }
-    public IReadOnlyList<CaseTaskRecord> Tasks { get; init; } = [];
-    public GeneratedCaseChaser? LatestChaser { get; init; }
-    public CaseVehicleEvidence? VehicleEvidence { get; init; }
-    public IReadOnlyList<CaseCustodyPreparation> Custody { get; init; } = [];
-    public IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails { get; init; } = [];
-
-    /// <summary>
-    /// The Principal record's and the Claim source record's "Notes on every Case", read
-    /// live from the records when the Case is read and never copied onto it, so a
-    /// change to a record shows on every Case at once. Absent when a record has none.
-    /// </summary>
-    public CaseRecordNotes RecordNotes { get; init; } = CaseRecordNotes.None;
-}
-
-/// <summary>The record-level notes shown read-only on a Case's Overview beside the Case's own.</summary>
+/// <summary>
+/// The record-level notes shown read-only on a Case's Overview beside the Case's own:
+/// the Principal record's and the Claim source record's "Notes on every Case". They are
+/// read live from the records when the Case is read and never copied onto it, so a change
+/// to a record shows on every Case at once.
+/// </summary>
 public sealed record CaseRecordNotes(string? PrincipalNotes, string? ClaimSourceNotes)
 {
     public static readonly CaseRecordNotes None = new(null, null);
@@ -203,10 +183,9 @@ public sealed record CaseRecordNotes(string? PrincipalNotes, string? ClaimSource
 public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);
 
 /// <summary>
-/// A bounded read of a case: everything
-/// <see cref="GetCaseQuery"/> reads except the document, history and task
-/// lists, which collapse to their counts so a host that only needs to know
-/// how much a case carries never pays to read it all.
+/// A bounded read of a case: its identity, workflow and lease, with the
+/// document, history and task lists collapsed to their counts so a host that
+/// only needs to know how much a case carries never pays to read it all.
 /// </summary>
 public sealed record GetCaseHeaderQuery(Guid CaseId, ActionActor Actor);
 
@@ -320,14 +299,10 @@ public interface ICaseQueryStore
         SearchCasesQuery query,
         CancellationToken cancellationToken);
 
-    Task<CaseDetails?> GetAsync(
-        GetCaseQuery query,
-        CancellationToken cancellationToken);
-
     /// <summary>
-    /// The bounded sibling of <see cref="GetAsync"/>: the same summary/workflow/edit-lease facts, with the case's
-    /// document, history and open-task lists reduced to their counts instead
-    /// of materializing every row.
+    /// A case's summary, workflow and edit-lease facts, with its document,
+    /// history and open-task lists reduced to their counts instead of
+    /// materializing every row.
     /// </summary>
     Task<CaseHeader?> GetHeaderAsync(
         GetCaseHeaderQuery query,
@@ -423,13 +398,6 @@ public interface ISearchCases
 {
     Task<SearchCasesResult> ExecuteAsync(
         SearchCasesQuery query,
-        CancellationToken cancellationToken);
-}
-
-public interface IGetCase
-{
-    Task<CaseDetails?> ExecuteAsync(
-        GetCaseQuery query,
         CancellationToken cancellationToken);
 }
 
@@ -785,9 +753,8 @@ internal static class CaseSectionQueries
 }
 
 /// <summary>
-/// The bounded sibling of <see cref="GetCase"/>:
-/// the same actor boundary and case-identifier validation, delegated
-/// straight to the store's counted read.
+/// Requires <see cref="StaffAccessRight.PerformCasework"/> and a case
+/// identifier, then delegates straight to the store's counted read.
 /// </summary>
 public sealed class GetCaseHeader(ICaseQueryStore store) : IGetCaseHeader
 {
@@ -921,87 +888,6 @@ public sealed class SearchCases(ICaseQueryStore store) : ISearchCases
         };
 
         return _store.SearchAsync(normalized, cancellationToken);
-    }
-}
-
-public sealed class GetCase(
-    ICaseQueryStore store,
-    ICaseDataQueries caseDataQueries,
-    IVehicleEvidenceQueries vehicleEvidenceQueries,
-    ICaseCustodyQueries caseCustodyQueries,
-    ICaseDueChaserQueries dueChaserQueries,
-    ICaseTaskQueries taskQueries,
-    IStaffAccountQueries staffAccountQueries) : IGetCase
-{
-    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly ICaseDataQueries _caseDataQueries =
-        caseDataQueries ?? throw new ArgumentNullException(nameof(caseDataQueries));
-    private readonly IVehicleEvidenceQueries _vehicleEvidenceQueries =
-        vehicleEvidenceQueries ?? throw new ArgumentNullException(nameof(vehicleEvidenceQueries));
-    private readonly ICaseCustodyQueries _caseCustodyQueries =
-        caseCustodyQueries ?? throw new ArgumentNullException(nameof(caseCustodyQueries));
-    private readonly ICaseDueChaserQueries _dueChaserQueries =
-        dueChaserQueries ?? throw new ArgumentNullException(nameof(dueChaserQueries));
-    private readonly ICaseTaskQueries _taskQueries =
-        taskQueries ?? throw new ArgumentNullException(nameof(taskQueries));
-    private readonly IStaffAccountQueries _staffAccountQueries =
-        staffAccountQueries ?? throw new ArgumentNullException(nameof(staffAccountQueries));
-
-    public async Task<CaseDetails?> ExecuteAsync(
-        GetCaseQuery query,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
-        if (query.CaseId == Guid.Empty)
-        {
-            throw new ArgumentException("A case identifier is required.", nameof(query));
-        }
-
-        var details = await _store.GetAsync(query, cancellationToken);
-        if (details is null)
-        {
-            return null;
-        }
-
-        var data = await _caseDataQueries.GetAsync(query.CaseId, CaseWorkSelector.Current, cancellationToken)
-            ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
-        var vehicleEvidence = await _vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken);
-        var custody = await _caseCustodyQueries.GetPreparationsAsync(query.CaseId, cancellationToken);
-        var latestChaser = await _dueChaserQueries.GetLatestAsync(query.CaseId, cancellationToken);
-        var tasks = await _taskQueries.ListAsync(query.CaseId, cancellationToken);
-        if (data.Identity.CaseId != details.Workflow.CaseId
-            || vehicleEvidence is not null && vehicleEvidence.CaseId != details.Workflow.CaseId
-            || latestChaser is not null && latestChaser.CaseId != details.Workflow.CaseId
-            || tasks.Any(item => item.CaseId != details.Workflow.CaseId))
-        {
-            throw new InvalidDataException("A composed case projection belongs to another case.");
-        }
-
-        var staffIds = details.History
-            .Where(entry => entry.ActorKind == nameof(ActorKind.Staff) && Guid.TryParse(entry.Actor, out _))
-            .Select(entry => Guid.Parse(entry.Actor));
-        var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
-            _staffAccountQueries,
-            staffIds,
-            cancellationToken);
-
-        return details with
-        {
-            Data = data,
-            VehicleEvidence = vehicleEvidence,
-            Custody = custody,
-            LatestChaser = latestChaser,
-            Tasks = tasks,
-            History = details.History
-                .Select(entry => entry with
-                {
-                    ActorDisplayName = Enum.TryParse<ActorKind>(entry.ActorKind, out var actorKind)
-                        ? ActorDisplayNames.Resolve(actorKind, entry.Actor, staffNames)
-                        : ActorDisplayNames.UnknownStaff
-                })
-                .ToArray()
-        };
     }
 }
 
@@ -1178,7 +1064,7 @@ public interface IListCaseHistoryByCursor
 }
 
 /// <summary>
-/// Applies the same actor boundary <see cref="GetCase"/> applies
+/// Applies the Case actor boundary
 /// (<see cref="StaffAccessRight.PerformCasework"/>) before reading a case's
 /// documents, newest occurrence first then occurrence id.
 /// </summary>
@@ -1224,8 +1110,9 @@ public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store, ICursorProt
 }
 
 /// <summary>
-/// Applies the same actor boundary <see cref="GetCase"/> applies before
-/// reading a case's history, newest event first then entry id.
+/// Applies the Case actor boundary
+/// (<see cref="StaffAccessRight.PerformCasework"/>) before reading a
+/// case's history, newest event first then entry id.
 /// </summary>
 public sealed class ListCaseHistoryByCursor(ICaseQueryStore store, ICursorProtector protector)
     : IListCaseHistoryByCursor

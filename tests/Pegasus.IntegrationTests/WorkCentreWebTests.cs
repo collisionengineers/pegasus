@@ -199,13 +199,13 @@ public sealed class WorkCentreWebTests
 
     /// <summary>
     /// assign=true reopens the Assign Engineer dialog for the selected Unassigned
-    /// Engineer row. Its facts come from the Case header (one bounded read), not
-    /// the full Case, and a page without assign=true renders the same dialog shut.
+    /// Engineer row. Its facts come from the Case header (one bounded read), and
+    /// a page without assign=true renders the same dialog shut.
     /// </summary>
     [Fact]
     public async Task AssignTrueOpensTheAssignmentDialogFromTheCaseHeader()
     {
-        var store = new CaseWebTestSupport.RecordingCaseDetailsStore { ThrowOnBroadCaseRead = true };
+        var store = new CaseWebTestSupport.RecordingCaseDetailsStore();
         var unassigned = Item(NeedsAttentionKind.UnassignedEngineer, "QDOS3100042", NeedsAttentionPriority.Today, Now.AddHours(3)) with
         {
             Id = store.CaseId,

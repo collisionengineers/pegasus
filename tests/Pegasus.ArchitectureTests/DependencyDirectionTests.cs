@@ -415,9 +415,8 @@ public sealed class DependencyDirectionTests
         var casePageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(DetailsModel));
         var custodyPageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(CustodyModel));
 
-        // The Case page's handlers read the header or a focused body, never the whole Case.
+        // The Case page's handlers read the header or a focused body.
         Assert.Contains(typeof(IGetCaseHeader), casePageDependencies);
-        Assert.DoesNotContain(typeof(IGetCase), casePageDependencies);
         Assert.Contains(typeof(IRetryCaseCustody), custodyPageDependencies);
         Assert.Contains(typeof(ILogicallyRemoveDocument), custodyPageDependencies);
     }

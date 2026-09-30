@@ -77,7 +77,6 @@ public sealed class CaseEstimateHeaderWebTests
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
-            Substitute<IGetCase>(services, store);
             Substitute<IGetCaseEditBasis>(services, store);
             SubstituteDetailsPageReaders(services, store);
             Substitute<IListCaseEstimates>(services, estimates);
@@ -124,7 +123,6 @@ public sealed class CaseEstimateHeaderWebTests
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
-            Substitute<IGetCase>(services, store);
             Substitute<IGetCaseEditBasis>(services, store);
             SubstituteDetailsPageReaders(services, store);
             Substitute<IListCaseEstimates>(services, estimates);
@@ -188,7 +186,6 @@ public sealed class CaseEstimateHeaderWebTests
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
-            Substitute<IGetCase>(services, store);
             Substitute<IGetCaseEditBasis>(services, store);
             SubstituteDetailsPageReaders(services, store);
             Substitute<IListCaseEstimates>(services, estimates);

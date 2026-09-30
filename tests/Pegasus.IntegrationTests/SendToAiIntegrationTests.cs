@@ -385,19 +385,24 @@ public sealed partial class SendToAiIntegrationTests
                 DateTimeOffset.UtcNow.AddMinutes(5)));
         }
 
-        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+        Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
             GetCaseQuery query, CancellationToken cancellationToken) =>
-            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
+            Task.FromResult<CaseEditBasis?>(Frame(query.CaseId) is { } frame
+                ? new(frame, CreateData())
+                : null);
 
-        async Task<CaseHeader?> IGetCaseHeader.ExecuteAsync(
+        Task<CaseHeader?> IGetCaseHeader.ExecuteAsync(
             GetCaseHeaderQuery query, CancellationToken cancellationToken) =>
-            CaseHeaderTestData.Of(await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken));
+            Task.FromResult<CaseHeader?>(Frame(query.CaseId) is { } frame
+                ? new(frame.Summary, frame.Workflow, frame.ActiveEditLease, 0, 0, 0)
+                : null);
 
-        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
+        /// <summary>The Case's frame as a focused read returns it; null for any other Case.</summary>
+        private CaseSectionFrame? Frame(Guid requestedCaseId)
         {
-            if (query.CaseId != caseId)
+            if (requestedCaseId != caseId)
             {
-                return Task.FromResult<CaseDetails?>(null);
+                return null;
             }
 
             var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
@@ -408,75 +413,48 @@ public sealed partial class SendToAiIntegrationTests
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
-            CaseDetails details = new(
-                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [])
-            {
-                Data = CreateData()
-            };
-            return Task.FromResult<CaseDetails?>(details);
+            return new(summary, workflow, activeLease);
         }
 
-        async Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            return details is null
-                ? null
-                : new(
-                    new(details.Summary, details.Workflow, details.ActiveEditLease),
-                    details.Documents,
-                    details.AvailableReportSentEvidence,
-                    details.RecordNotes,
-                    details.Data!);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
+                ? new(frame, [], [], CaseRecordNotes.None, CreateData())
+                : null);
 
-        async Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+        Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            return details is null
-                ? null
-                : new(
-                    CreateFrame(details),
-                    query.AssessmentWorkspace?.Data ?? query.Data ?? details.Data!,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseVehicleSection?>(Frame(query.CaseId) is { } frame
+                ? new(
+                    frame,
+                    query.AssessmentWorkspace?.Data ?? query.Data ?? CreateData(),
                     null,
-                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment());
-        }
+                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment())
+                : null);
 
-        async Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
+        Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            return details is null
-                ? null
-                : new(
-                    CreateFrame(details),
-                    query.AssessmentWorkspace?.Data ?? query.Data ?? details.Data!,
-                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment());
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseValuationSection?>(Frame(query.CaseId) is { } frame
+                ? new(
+                    frame,
+                    query.AssessmentWorkspace?.Data ?? query.Data ?? CreateData(),
+                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment())
+                : null);
 
-        async Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
+        Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            return details is null ? null : new(CreateFrame(details), details.History);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseNotesSection?>(Frame(query.CaseId) is { } frame ? new(frame, []) : null);
 
-        public async Task<AssessmentWorkspace?> ExecuteAsync(
+        public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
-            CancellationToken cancellationToken = default)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            if (details is null)
-            {
-                return null;
-            }
-            return AssessmentWorkspaceTestData.Create(details, CreateAssessment());
-        }
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Frame(query.CaseId) is { } frame
+                ? AssessmentWorkspaceTestData.Create(frame, CreateAssessment(), CreateData())
+                : null);
 
         private CaseAssessmentProjection CreateAssessment() => new(
             caseId,
@@ -496,8 +474,5 @@ public sealed partial class SendToAiIntegrationTests
             new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 1), null, null, null, null, null));
 
         private CaseDataProjection CreateData() => AssessmentWorkspaceTestData.Create(CreateAssessment()).Data;
-
-        private static CaseSectionFrame CreateFrame(CaseDetails details) =>
-            new(details.Summary, details.Workflow, details.ActiveEditLease);
     }
 }
