@@ -588,6 +588,7 @@ public partial class IndexModel(
         bool assign,
         CancellationToken cancellationToken)
     {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.attention");
         var filter = kinds.Count > 0 ? kinds : null;
         var snapshot = await getOperationsSnapshot.ExecuteAsync(
             new NeedsAttentionQuery(actor, scope, page, filter, NowUtc, search),
@@ -677,8 +678,11 @@ public partial class IndexModel(
     private async Task<RecentCasesFeed> ReadNewCasesAsync(
         ActionActor actor,
         bool markSeen,
-        CancellationToken cancellationToken) =>
-        await listRecentCases.ExecuteAsync(actor, NewCasesPage, markSeen, cancellationToken, NowUtc);
+        CancellationToken cancellationToken)
+    {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.newcases");
+        return await listRecentCases.ExecuteAsync(actor, NewCasesPage, markSeen, cancellationToken, NowUtc);
+    }
 
     /// <summary>
     /// The office's unfinished AI work (D9): Queued, Taken and Draft ready from
@@ -689,6 +693,7 @@ public partial class IndexModel(
         string? clientId,
         CancellationToken cancellationToken)
     {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.aijobs");
         var open = await aiJobQueries.ListOpenAsync(cancellationToken);
         var drafts = (await aiDrafts.ListOpenAsync(cancellationToken))
             .ToDictionary(draft => draft.Job.JobId);

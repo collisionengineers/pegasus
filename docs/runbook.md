@@ -739,6 +739,71 @@ are recorded in [operations](operations.md) and
 [operations § Production environment](operations.md);
 dated names are not current identity proof.
 
+### Runtime diagnostics
+
+Web records what the runtime was doing, so a slow request can say why. Each
+item below has one query for Log Analytics. Web telemetry is sampled, and it
+stops mid-afternoon on days the daily cap is reached, so read counts as lower
+bounds.
+
+- **Counters.** Twelve runtime and SqlClient counters go to `AppMetrics`, one
+  row each a minute, and are not sampled. `System.Runtime` gives
+  `working-set`, `gc-heap-size`, `gen-2-gc-count`, `time-in-gc`,
+  `threadpool-thread-count`, `threadpool-queue-length` and
+  `monitor-lock-contention-count`. `Microsoft.Data.SqlClient.EventSource` gives
+  `hard-connects`, `soft-connects`, `number-of-active-connections`,
+  `number-of-free-connections` and `number-of-stasis-connections`. The metric
+  name is the source, a bar, then the counter's display name. Query:
+  `AppMetrics | where AppRoleName startswith "pegasus-prod-web" and (Name startswith "System.Runtime|" or Name startswith "Microsoft.Data.SqlClient.EventSource|") | summarize avg(Sum / ItemCount) by Name, bin(TimeGenerated, 5m)`.
+- **Request properties.** Each page request row carries `tp.threads` and
+  `tp.pending` (thread-pool threads and queued work when the request began),
+  `gc.gen2.delta` and `gc.pause.ms.delta` (second-generation collections and
+  milliseconds paused during it) and `majflt.delta` (major page faults during
+  it; absent where `/proc` is). The deltas are the process's, not the
+  request's alone. Query:
+  `AppRequests | where TimeGenerated > ago(1d) and isnotempty(tostring(Properties["tp.threads"])) | project TimeGenerated, Name, DurationMs, threads=toint(Properties["tp.threads"]), pending=toint(Properties["tp.pending"]), gen2=toint(Properties["gc.gen2.delta"]), pauseMs=todouble(Properties["gc.pause.ms.delta"]), majflt=toint(Properties["majflt.delta"]) | order by DurationMs desc`.
+- **Memory heartbeat.** Every five minutes (`Diagnostics:HeartbeatInterval`;
+  `00:00:00` turns it off) Web logs one trace, "Runtime heartbeat", of
+  `name=value` pairs: resident memory (`vmrss_mb`, `rssanon_mb`, `rssfile_mb`,
+  `rssshmem_mb`), `majflt`, the host's `mem_total_mb` and `mem_available_mb`,
+  the container's cgroup (`cg_current_mb`, `cg_max_mb`, `cg_anon_mb`,
+  `cg_file_mb`, `cg_pgmajfault`), `load1`, the runtime's `gc_heap_mb` and
+  `gc_total_mb`, and `threads`. A figure whose source does not exist is left
+  out. Query:
+  `AppTraces | where Message startswith "Runtime heartbeat" | extend rssMb=toint(extract(@"vmrss_mb=(\d+)", 1, Message)), availableMb=toint(extract(@"mem_available_mb=(\d+)", 1, Message)) | project TimeGenerated, rssMb, availableMb, Message`.
+- **Slow connection opens.** A database connection open of 100 ms or more is
+  the `db.connection.open` phase, an event of the same kind as the document
+  phases. Faster opens record nothing; the counters give their totals. Query:
+  `AppEvents | where Name == "Pegasus.Document.Read" and tostring(Properties.phase) == "db.connection.open" | summarize n=count(), p50=percentile(todouble(Measurements.durationMs),50), maxMs=max(todouble(Measurements.durationMs)) by bin(TimeGenerated, 1h)`.
+- **Work Centre sections.** `web.workcentre.attention`, `web.workcentre.newcases`
+  and `web.workcentre.aijobs` time the page's three reads. The page waits for
+  the slowest. Query: the same as the line above with those phase names.
+- **Start-up marks.** Four marks join the existing ones: `telemetry bridge
+  resolved`, `OAuth certificate store resolved`, `static assets mapped` and
+  `Razor Pages and MCP mapped`. They show which step holds the 17 s between
+  "host built" and "pipeline built". Query:
+  `AppTraces | where Message has "Web is listening" | project TimeGenerated, Message`.
+- **Warm-up timings.** The `model` step's line has two timings: `model build`
+  (local CPU, including Entity Framework's own service provider) and `first
+  connection` (the managed-identity token and the SQL login). Query:
+  `AppTraces | where Message startswith "Startup warm-up step model" | project TimeGenerated, Message`.
+- **Report phases.** A Generate or Preview also records `report.photos.prepare`,
+  `report.pdf.generate` and `report.pdf.pagecount`, three events that join
+  `report.renderer.initialize`, which is kept and fires once per process.
+  Query: the phase query above with those names.
+- **Deadlocks.** A command that loses a deadlock (SQL error 1205) logs a
+  warning with its statement and how long it ran, once. Nothing is retried.
+  Query:
+  `AppTraces | where Message startswith "SQL deadlock victim" | project TimeGenerated, AppRoleName, Message`.
+
+Some requests are no longer recorded. Readiness probes (`/health`), the
+version endpoint (`/diagnostics`), static files (`/css`, `/js`, `/fonts`,
+`/images`) and the Always On ping (`GET /` answered with a redirect) leave no
+request row, and their SQL calls leave no dependency row. A failed one
+(unsuccessful, or a 5xx) is always kept, so the failed-request alert and a
+failing probe still show. Count probes from the platform's own health view,
+not from `AppRequests`.
+
 ## Web start
 
 Web binds its port before any remote read. The data-protection key ring, the
@@ -751,11 +816,17 @@ and run the hot reads, or after 45 s.
 
 Every start prints `[startup] +<ms since process start> ms (+<ms since previous
 mark>) <phase>` lines to stdout (`Main entered`, `configuration loaded`,
-`services composed`, `host built`, `pipeline built`, `listening`, then
-`verification account reconciled`). When `APPLICATIONINSIGHTS_CONNECTION_STRING`
+`services composed`, `host built`, `telemetry bridge resolved`, `OAuth
+certificate store resolved`, `static assets mapped`, `Razor Pages and MCP
+mapped`, `pipeline built`, `listening`, then `verification account
+reconciled`). The four marks between `host built` and `pipeline built` split the
+one phase that took 17 s on two starts of 29 September 2026. When `APPLICATIONINSIGHTS_CONNECTION_STRING`
 is set, the same phases are one trace, "Web is listening. Startup phases: ...",
 and each warm-up step logs `Startup warm-up step <name> finished in <ms> ms`
-(traces for `Pegasus.Web.Startup` and `Pegasus.Web.Health.StartupWarmup`).
+(traces for `Pegasus.Web.Startup` and `Pegasus.Web.Health.StartupWarmup`); the
+`model` step's line adds `(model build <ms> ms, first connection <ms> ms)`.
+The warm-up begins a few seconds before the `listening` mark, because it starts
+with the host.
 A slow start shows there which phase took the time. The start limit
 `WEBSITES_CONTAINER_START_TIME_LIMIT` is not part of this design.
 
