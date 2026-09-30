@@ -60,7 +60,14 @@ public sealed class ProductionCompositionTests
         "web.auth.validation",
         "web.shell.counts",
         "web.shell.notifications",
-        "report.renderer.initialize"
+        "report.renderer.initialize",
+        "web.workcentre.attention",
+        "web.workcentre.newcases",
+        "web.workcentre.aijobs",
+        "report.photos.prepare",
+        "report.pdf.generate",
+        "report.pdf.pagecount",
+        "db.connection.open"
     ];
 
     [Fact]
@@ -348,6 +355,101 @@ public sealed class ProductionCompositionTests
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
             initializer => initializer is GlassCallbackTelemetryInitializer);
+    }
+
+    [Fact]
+    public void ProductionWebTelemetryCollectsTheTwelveRuntimeCountersAndNoOthers()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            });
+
+        // The module is configured when the telemetry configuration is built.
+        _ = factory.Services.GetRequiredService<TelemetryConfiguration>();
+        var module = factory.Services.GetServices<ITelemetryModule>()
+            .OfType<Microsoft.ApplicationInsights.Extensibility.EventCounterCollector.EventCounterCollectionModule>()
+            .Single();
+
+        Assert.Equal(
+            Pegasus.Web.Health.RuntimeCounters.Requested
+                .Select(counter => $"{counter.Source}/{counter.Counter}")
+                .Order(StringComparer.Ordinal),
+            module.Counters
+                .Select(counter => $"{counter.EventSourceName}/{counter.EventCounterName}")
+                .Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void ProductionWebTelemetryDropsQuietRowsBeforeAdaptiveSampling()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            });
+
+        var processors = factory.Services.GetRequiredService<TelemetryConfiguration>()
+            .TelemetryProcessors.ToList();
+
+        var filter = processors.FindIndex(processor => processor is QuietRequestTelemetryFilter);
+        var sampling = processors.FindIndex(processor => processor.GetType().Name.Contains("Sampling", StringComparison.Ordinal));
+        Assert.True(filter >= 0, "The quiet-row filter is not in the telemetry processor chain.");
+        Assert.True(
+            sampling < 0 || filter < sampling,
+            "The quiet-row filter must run before adaptive sampling so dropped rows do not spend its budget.");
+    }
+
+    [Fact]
+    public void ProductionWebRunsTheRuntimeHeartbeat()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            });
+
+        Assert.Contains(
+            factory.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>(),
+            service => service is Pegasus.Web.Health.RuntimeHeartbeat);
+    }
+
+    [Fact]
+    public void ARecordedPhaseReachesTheBridgeWithItsMeasuredDuration()
+    {
+        var channel = new RecordingTelemetryChannel();
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            })
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ITelemetryChannel>();
+                services.AddSingleton<ITelemetryChannel>(channel);
+            }));
+
+        _ = factory.Services.GetRequiredService<DocumentReadTelemetryBridge>();
+        using var request = new Activity("test.request").Start();
+
+        DocumentReadTelemetry.Record("db.connection.open", TimeSpan.FromMilliseconds(250));
+
+        var timing = Assert.Single(
+            channel.Sent.OfType<EventTelemetry>()
+                .Where(item => item.Context.Operation.Id == request.TraceId.ToHexString()),
+            item => item.Name == "Pegasus.Document.Read");
+        Assert.Equal("db.connection.open", timing.Properties["phase"]);
+        Assert.Equal(250, timing.Metrics["durationMs"], 1);
+        Assert.Equal(request.Id, timing.Context.Operation.ParentId);
     }
 
     [Fact]
