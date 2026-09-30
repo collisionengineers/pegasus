@@ -255,20 +255,20 @@ trashed, in Box itself may be noticed up to 10 minutes late. A not-found,
 trashed or outside-root answer drops what was remembered. The Box access token
 is renewed in the background before a request would need to renew it.
 
-A write never uses that memory. Before it files anything into a Case folder,
-it reads that folder once. The folder must carry the Case's name, sit directly
-under the approved root and not be in the trash. One piece of work reads its
-Case folder once, however many files it files. A document filed on its own
-reads its folder for that file. That folder may be the Audit's `a.` folder
-inside the Case folder, so the read checks that the folder is under the
-approved root and not in the trash. An upload does not look for its name
-first. Box's answer to the upload must name the folder that was read as the
-file's parent. A name Box already holds comes back as Box's own refusal.
-Pegasus then accepts the file that holds it only when it is a file of the same
-length and type, in that folder, with the same bytes. A not-found, trashed or
-outside-root answer to any of these reads drops what was remembered. Folder
-create, rename and delete, and file move and delete, still check the whole path
-every time.
+A write never uses that memory. Before a piece of work files anything into a
+Case folder, it reads that folder once. The folder must carry the Case's name,
+sit directly under the approved root and not be in the trash. The piece of
+work reads its Case folder once, however many files it files. A document filed
+on its own is different. Its folder may be the Case folder or the Audit's `a.`
+folder inside it. The read for that folder checks that it is under the
+approved root and not in the trash, and it is made for each document. An
+upload does not look for its name first. Box's answer to the upload must name
+the folder that was read as the file's parent. A name Box already holds comes
+back as Box's own refusal. Pegasus then accepts the file that holds it only
+when it is a file of the same length and type, in that folder, with the same
+bytes. A not-found, trashed or outside-root answer to any of these reads drops
+what was remembered. Folder create, rename and delete, and file move and
+delete, still check the whole path every time.
 
 A browser may keep a private copy of an image or PDF preview for a week. It
 keeps one only when the address names the exact bytes. For a Case document
