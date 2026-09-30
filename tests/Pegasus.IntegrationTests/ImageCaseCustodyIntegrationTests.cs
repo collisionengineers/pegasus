@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -1188,11 +1189,152 @@ public sealed class ImageCaseCustodyIntegrationTests
         Assert.NotEqual("confirmed", await ReadImageCustodyStateAsync(verify, record.Id));
     }
 
-    private static EfQueuedCustodyProcessor ProcessorWith(IServiceProvider services, ICaseCustody custody) => new(
+    /// <summary>
+    /// The lease is lost once the last file is in Box, after every file's own
+    /// lease check has passed. Only the check after the batch can see that,
+    /// and it does: nothing is recorded, and the newer holder keeps the item.
+    /// The work store writes each lease check's answer into the same timeline
+    /// as the filings, so the test shows which check it was.
+    /// </summary>
+    [Fact]
+    public async Task ALeaseLostAfterTheLastFileIsFiledIsCaughtByTheCheckAfterTheBatch()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var (record, memberReceiptIds) = await RegisterPhotographsAsync(
+            factory, client, services, ["one.png", "two.png", "three.png"]);
+        var workId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var timeline = new ConcurrentQueue<string>();
+        var filed = 0;
+        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>())
+        {
+            WhenFiled = async _ =>
+            {
+                timeline.Enqueue("filed");
+                if (Interlocked.Increment(ref filed) < 3)
+                {
+                    return;
+                }
+                await using var context = await contextFactory.CreateDbContextAsync();
+                await context.ExternalWorkItems.Where(item => item.Id == workId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(item => item.State, "processing")
+                        .SetProperty(item => item.LeaseToken, "newer-holder")
+                        .SetProperty(
+                            item => item.LeaseExpiresAtUtc,
+                            services.GetRequiredService<TimeProvider>().GetUtcNow().AddMinutes(5)));
+            }
+        };
+        var workStore = new LeaseCheckTimeline(services.GetRequiredService<IExternalWorkStore>(), timeline);
+        var assetIds = await PhotographIdsAsync(services, memberReceiptIds);
+        var assetsBefore = await AssetCustodyAsync();
+
+        await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() =>
+            ProcessorWith(services, workStore, probe).ExecuteAsync(workId, CancellationToken.None));
+
+        var entries = timeline.ToArray();
+        Assert.Equal(3, entries.Count(entry => entry == "filed"));
+        Assert.Equal("lease lost", entries[^1]);
+        Assert.DoesNotContain("lease lost", entries[..^1]);
+        await using var verify = await contextFactory.CreateDbContextAsync();
+        var work = await verify.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == workId);
+        Assert.Equal(("processing", "newer-holder"), (work.State, work.LeaseToken));
+        var intake = await verify.ImageIntakes.AsNoTracking().SingleAsync(item => item.Id == record.Id);
+        Assert.NotEqual("confirmed", intake.CustodyState);
+        Assert.Null(intake.CustodyRootRemoteId);
+        Assert.Equal(assetsBefore, await AssetCustodyAsync());
+
+        async Task<string[]> AssetCustodyAsync()
+        {
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var assets = await context.IntakeAssets.AsNoTracking()
+                .Where(item => assetIds.Contains(item.Id))
+                .OrderBy(item => item.Id)
+                .Select(item => new { item.CustodyStatus, item.BoxFileId, item.BoxVersionId })
+                .ToListAsync();
+            return [.. assets.Select(item => $"{item.CustodyStatus} {item.BoxFileId} {item.BoxVersionId}")];
+        }
+    }
+
+    private static EfQueuedCustodyProcessor ProcessorWith(IServiceProvider services, ICaseCustody custody) =>
+        ProcessorWith(services, services.GetRequiredService<IExternalWorkStore>(), custody);
+
+    private static EfQueuedCustodyProcessor ProcessorWith(
+        IServiceProvider services,
+        IExternalWorkStore workStore,
+        ICaseCustody custody) => new(
         services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
-        services.GetRequiredService<IExternalWorkStore>(),
+        workStore,
         custody,
         services.GetRequiredService<TimeProvider>());
+
+    /// <summary>
+    /// The work store, writing each lease check's answer into a timeline in the
+    /// order the checks finish.
+    /// </summary>
+    private sealed class LeaseCheckTimeline(
+        IExternalWorkStore inner,
+        ConcurrentQueue<string> timeline) : IExternalWorkStore
+    {
+        public async Task<bool> HoldsProcessingLeaseAsync(
+            Guid workItemId,
+            string leaseToken,
+            CancellationToken cancellationToken)
+        {
+            var holds = await inner.HoldsProcessingLeaseAsync(workItemId, leaseToken, cancellationToken);
+            timeline.Enqueue(holds ? "lease held" : "lease lost");
+            return holds;
+        }
+
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) =>
+            inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
+
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
+            Guid workItemId,
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) =>
+            inner.ClaimDispatchAsync(workItemId, nowUtc, leaseDuration, cancellationToken);
+
+        public Task MarkDispatchedAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dispatchedAtUtc,
+            CancellationToken cancellationToken) =>
+            inner.MarkDispatchedAsync(workItemId, leaseToken, dispatchedAtUtc, cancellationToken);
+
+        public Task ReleaseDispatchAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dueAtUtc,
+            CancellationToken cancellationToken) =>
+            inner.ReleaseDispatchAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
+
+        public Task MarkPoisonedAsync(
+            Guid workItemId,
+            DateTimeOffset failedAtUtc,
+            CancellationToken cancellationToken) =>
+            inner.MarkPoisonedAsync(workItemId, failedAtUtc, cancellationToken);
+
+        public Task FailProcessingAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset failedAtUtc,
+            string failureCode,
+            string failureReason,
+            CancellationToken cancellationToken) =>
+            inner.FailProcessingAsync(
+                workItemId, leaseToken, failedAtUtc, failureCode, failureReason, cancellationToken);
+    }
 
     private static async Task<string?> ReadImageCustodyStateAsync(
         PegasusDbContext context,
