@@ -985,12 +985,14 @@ public sealed partial class DetailsModel(
         var readsInspectionReport = Works is { HasAudit: true };
         var principalCode = Case!.Workflow.Identity.PrincipalCode;
         // The snapshot source takes what this page already read for the work
-        // rather than reading the workspace, preparations and valuations again.
+        // rather than reading the workspace, preparations, valuations and the
+        // Case's works again.
         var reuse = new ReportProjectionReuse(
             work,
             workspace,
             AssetPreparations,
-            appliedValuationsLoaded ? AppliedValuations : null);
+            appliedValuationsLoaded ? AppliedValuations : null,
+            Case.Frame);
 
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
         var estimates = reads.Start(token => listEstimates.ExecuteAsync(id, work, token));

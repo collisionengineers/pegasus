@@ -488,14 +488,32 @@ public interface ICaseReportSnapshotSource
 /// Reads a page already made for one Case and work, handed to the snapshot
 /// source so it does not repeat them. The workspace and the applied valuations
 /// are the work's own and are used only for that work; the image preparations
-/// are the Case's. A value that belongs to another Case is refused.
+/// and the frame's works are the Case's. A value that belongs to another Case
+/// is refused.
 /// </summary>
 public sealed record ReportProjectionReuse(
     CaseWorkSelector Work,
     AssessmentWorkspace? Workspace = null,
     IReadOnlyList<CaseAssetPreparation>? Preparations = null,
-    IReadOnlyList<AppliedValuation>? AppliedValuations = null)
+    IReadOnlyList<AppliedValuation>? AppliedValuations = null,
+    CaseSectionFrame? Frame = null)
 {
+    /// <summary>
+    /// The Case's works as the reused frame read them, while the Case is still
+    /// at <paramref name="version"/>. Only Create audit adds a work, and it
+    /// moves the version, so a frame read at another version is not used.
+    /// </summary>
+    public CaseWorkSet? WorksFor(Guid caseId, long version)
+    {
+        if (Frame is { } frame
+            && (frame.Summary.CaseId != caseId || frame.Workflow.CaseId != caseId))
+        {
+            throw new ArgumentException("The reused Case frame belongs to another Case.", nameof(caseId));
+        }
+
+        return Frame is { Works: { } works } read && read.Workflow.Version == version ? works : null;
+    }
+
     public AssessmentWorkspace? WorkspaceFor(Guid caseId, CaseWorkSelector work)
     {
         if (Workspace is { Header.CaseId: var workspaceCaseId } && workspaceCaseId != caseId)
