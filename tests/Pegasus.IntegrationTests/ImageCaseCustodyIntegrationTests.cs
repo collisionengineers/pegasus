@@ -1140,6 +1140,68 @@ public sealed class ImageCaseCustodyIntegrationTests
     }
 
     /// <summary>
+    /// A Vehicle images record's files are never held, so nothing else
+    /// publishes their read-cache copies: once the record's filing commits,
+    /// each file is published under its intake asset, which is what the record
+    /// reads it by before any Case has it, from the copy intake retained. A
+    /// redelivered work item publishes nothing again.
+    /// </summary>
+    [Fact]
+    public async Task EachFileTheRecordFiledIsPublishedUnderItsAssetAfterTheFilingCommits()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var workId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var foldersWhenPublished = new ConcurrentQueue<string?>();
+        var publisher = new RecordingCachePublisher(async key =>
+        {
+            await using var db = await contextFactory.CreateDbContextAsync();
+            foldersWhenPublished.Enqueue(await db.IntakeAssets.AsNoTracking()
+                .Where(asset => asset.Id == key.IntakeAssetId && asset.CustodyStatus == "confirmed")
+                .Select(asset => asset.BoxParentFolderId)
+                .SingleOrDefaultAsync());
+        });
+        var processor = new EfQueuedCustodyProcessor(
+            contextFactory,
+            services.GetRequiredService<IExternalWorkStore>(),
+            services.GetRequiredService<ICaseCustody>(),
+            services.GetRequiredService<TimeProvider>(),
+            publisher);
+
+        await processor.ExecuteAsync(workId, CancellationToken.None);
+        await processor.ExecuteAsync(workId, CancellationToken.None);
+
+        var photographIds = await PhotographIdsAsync(services, memberReceiptIds);
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var intake = await context.ImageIntakes.AsNoTracking().SingleAsync(item => item.Id == record.Id);
+        var filed = await context.IntakeAssets.AsNoTracking()
+            .Where(asset => asset.BoxParentFolderId == intake.CustodyRootRemoteId)
+            .ToListAsync();
+        Assert.Subset(filed.Select(asset => asset.Id).ToHashSet(), photographIds.ToHashSet());
+        var published = publisher.Published;
+        Assert.Equal(filed.Count, published.Count);
+        foreach (var asset in filed)
+        {
+            var copy = Assert.Single(published, item =>
+                item.Key == DocumentContentCacheKey.ForIntakeAsset(asset.Id));
+            Assert.Null(copy.Bytes);
+            Assert.Equal(asset.StorageKey, copy.StorageKey);
+            Assert.Equal(asset.ContentHash, copy.Sha256);
+            Assert.Equal(asset.ContentLength, copy.ContentLength);
+        }
+        // Each was published once its asset was confirmed in the record's
+        // folder, so a read at that moment already finds it there.
+        Assert.All(foldersWhenPublished, folder => Assert.Equal(intake.CustodyRootRemoteId, folder));
+    }
+
+    /// <summary>
     /// A Box 429 on the second file fails the work item as it always did: the
     /// throttled exception is what surfaces, not a sibling's cancellation, and
     /// the item is re-armed for the queue to retry, with nothing confirmed.
