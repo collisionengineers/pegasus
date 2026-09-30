@@ -842,7 +842,8 @@ public static class DependencyInjection
 
         services.AddSingleton(provider => boxOptions(provider));
         services.AddHttpClient(nameof(BoxContentClient), client =>
-            client.Timeout = BoxJwtAuthorizationHeaderProvider.RequestTimeout);
+                client.Timeout = BoxJwtAuthorizationHeaderProvider.RequestTimeout)
+            .WithRotatingConnectionPool();
         // The header provider needs a clock. Every caller reaches this through
         // AddPegasusInfrastructure, which registers one, but the storage
         // profile should stand up on its own rather than depend on the order
@@ -937,7 +938,8 @@ public static class DependencyInjection
         services.AddSingleton(graphOptions);
         services.AddSingleton(vehicleOptions);
         services.AddHttpClient(nameof(GraphMailClient), client =>
-            client.Timeout = TimeSpan.FromSeconds(100));
+                client.Timeout = TimeSpan.FromSeconds(100))
+            .WithRotatingConnectionPool();
         services.AddHttpClient(nameof(DvlaDvsaProductionAdapter), client =>
             client.Timeout = TimeSpan.FromSeconds(100));
         services.AddSingleton(provider => new GraphMailClient(
@@ -975,7 +977,8 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         var baseUri = GraphApprovedMailboxOptions.ParseBaseUri(graphBaseUri);
         services.AddHttpClient(nameof(GraphMailClient), client =>
-            client.Timeout = TimeSpan.FromSeconds(100));
+                client.Timeout = TimeSpan.FromSeconds(100))
+            .WithRotatingConnectionPool();
         services.AddSingleton(provider => new GraphApprovedMailboxResolver(
             provider.GetRequiredService<TokenCredential>(),
             baseUri,
@@ -998,6 +1001,20 @@ public static class DependencyInjection
         services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;
     }
+
+    /// <summary>
+    /// Gives a client's connection pool a bounded life. The Box and Graph clients are
+    /// created once inside singletons, so the factory's own handler rotation never
+    /// reaches them, and without this their connections, and the DNS answers behind
+    /// them, would live as long as the process. Nothing else about the handler changes:
+    /// redirects, cookies, proxy and decompression keep the defaults the factory's
+    /// handler already had.
+    /// </summary>
+    private static IHttpClientBuilder WithRotatingConnectionPool(this IHttpClientBuilder builder) =>
+        builder.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10)
+        });
 
     private static void AddStaffMailSending(IServiceCollection services)
     {

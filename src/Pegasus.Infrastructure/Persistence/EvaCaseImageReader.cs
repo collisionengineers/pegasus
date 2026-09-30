@@ -135,7 +135,7 @@ public sealed class EvaCaseImageReader(
                 selected.SemanticRole,
                 selected.Source,
                 selected.SourceOccurrenceIdentity,
-                contents[index].ToArray(),
+                contents[index],
                 selected.Sha256,
                 CustodyConfirmed: true,
                 IsCurrent: true,
