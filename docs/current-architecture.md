@@ -70,8 +70,9 @@ flowchart LR
   `IDocumentContentCachePublisher`, which `CachedDocumentContentStore`
   implements. `EfCaseArtifactCustody` (Case and holding artifacts),
   `ReconcilePendingArtifactCustody`, `EfDocumentCustodyStore` (staff uploads and
-  the market research file) and `EfQueuedCustodyProcessor` (Case completions
-  and the image fold, from the copy intake retained) call it. It never throws,
+  the market research file) and `EfQueuedCustodyProcessor` (Case completions,
+  a Vehicle images record's filing and the image fold, from the copy intake
+  retained) call it. It never throws,
   gives up on a write after five seconds, and skips the rest of its work item's
   writes once one has failed.
 - Core route/classification/matching policy determines formal Case, Triage,
