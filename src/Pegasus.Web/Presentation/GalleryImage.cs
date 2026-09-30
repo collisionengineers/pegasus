@@ -26,8 +26,8 @@ namespace Pegasus.Web.Presentation;
 /// <paramref name="IntakeAssetId"/> marks a pre-Case image (image record, Triage,
 /// Unidentified): the viewer then offers Crop (Apply / Clear / Cancel) and the
 /// Tag select, and <paramref name="Preparation"/> is what is already recorded.
-/// <paramref name="IntakeReceiptId"/> is the receipt that asset belongs to, so a
-/// prepared image's tile can ask for its prepared rendering.
+/// <paramref name="IntakeReceiptId"/> is the receipt that asset belongs to, so
+/// the image's tile can ask for its rendering.
 /// <paramref name="ContentHash"/> is that asset's content hash, which names the
 /// tile's address so the browser may keep it (<see cref="IntakeImageAddress"/>).
 /// </summary>
@@ -45,14 +45,22 @@ public sealed record GalleryImage(
     string? ContentHash = null)
 {
     /// <summary>
-    /// The tile source: a pre-Case image with a recorded crop or rotation shows
-    /// the prepared region (the intake asset route's <c>size=thumb</c>, named by
-    /// content, preparation version and renderer so a new crop is a new
-    /// address); otherwise the route's own rendering or the image itself. The
-    /// viewer and Open file keep <see cref="Href"/>.
+    /// The tile source: every pre-Case image that can be rendered shows a
+    /// rendering at tile size (the intake asset route's <c>size=thumb</c>),
+    /// prepared or not: the recorded region, or the whole frame when nothing is
+    /// recorded. The address names the content, the preparation version and the
+    /// renderer, so a new crop is a new address. Any other image shows the
+    /// route's own rendering or the image itself. The viewer and Open file keep
+    /// <see cref="Href"/>.
     /// </summary>
     public string TileHref =>
-        IntakeReceiptId is { } receiptId && IntakeAssetId is { } assetId && Preparation is { IsPrepared: true } preparation
-            ? IntakeImageAddress.PreparedTile(receiptId, assetId, ContentHash, preparation.Version)
+        IntakeReceiptId is { } receiptId
+        && IntakeAssetId is { } assetId
+        && Pegasus.Core.Documents.CaseDocumentThumbnails.IsThumbnailable(MediaType)
+            ? IntakeImageAddress.Tile(
+                receiptId,
+                assetId,
+                ContentHash,
+                Preparation?.TileVersion ?? Pegasus.Core.ImageIntake.PreCaseImagePreparation.NoPreparationVersion)
             : ThumbnailHref ?? Href;
 }

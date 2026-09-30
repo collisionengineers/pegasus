@@ -162,8 +162,12 @@ public sealed class ImageViewingWebTests
         // browser may keep the image.
         var contentHash = Assert.IsType<string>(galleryImage.ContentHash);
         var expectedHref = $"{expectedSource}?v={contentHash}";
+        // The tile is the same rendering at tile size on both pages; only the
+        // link and the download are the original.
+        var expectedTile = $"{expectedSource}?size=thumb&amp;v={contentHash}&amp;prep=0&amp;renderer={CaseDocumentThumbnails.RendererIdentity}";
         var imageCasePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
         Assert.Contains(expectedSource, imageCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<img src=\"{expectedTile}\"", imageCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("alt=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
         Assert.Contains("loading=\"lazy\"", imageCasePage, StringComparison.Ordinal);
         // Each tile is still a real link -- so it works with no
@@ -185,6 +189,12 @@ public sealed class ImageViewingWebTests
             $"/Cases/{caseId:D}?section=files");
         Assert.Contains(expectedSource, casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"<a href=\"{expectedHref}\"", casePage, StringComparison.OrdinalIgnoreCase);
+        // An unmerged photograph's tile and filmstrip thumbnail are the tile
+        // address, not the original; the link and the download keep the
+        // original.
+        Assert.Contains($"data-download-href=\"{expectedHref}\"", casePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"data-thumb=\"{expectedTile}\"", casePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<img src=\"{expectedTile}\"", casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AB12CDE-01", casePage, StringComparison.Ordinal);
         // v26 § Image viewer: the Case record carries its own full-screen
         // viewer rather than the shell's dialog; the intake photographs join
