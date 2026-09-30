@@ -3,7 +3,6 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -39,7 +38,6 @@ public sealed class CaseAssetPreparationWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
@@ -82,7 +80,6 @@ public sealed class CaseAssetPreparationWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
@@ -153,7 +150,6 @@ public sealed class CaseAssetPreparationWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
@@ -625,7 +621,6 @@ public sealed class CaseAssetPreparationWebTests
         var store = new PreparedImages().Store();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
-            Substitute<IGetAssessmentAccess>(services, store);
             Substitute<ICaseAssetPreparationQueries>(services, store);
             Substitute<ICaseReportSnapshotSource>(services,
                 new AssessmentReportDraftWebTests.FakeProjectionSource(
@@ -650,7 +645,6 @@ public sealed class CaseAssetPreparationWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
@@ -832,13 +826,10 @@ public sealed class CaseAssetPreparationWebTests
     [Fact]
     public async Task TheLazyFilesFragmentOffersImagePreparationFromTheHeldLeaseNotAssessmentAccess()
     {
-        var store = new PreparedImages().Store();
+        // A Held Case: the assessment cannot open, the edit lease is still held.
+        var store = new PreparedImages().Store(CaseLifecycleState.Held);
         using var workspace = await EnterEditModeAsync(store, services =>
-        {
-            Substitute<ICaseAssetPreparationQueries>(services, store);
-            services.RemoveAll<IGetAssessmentAccess>();
-            services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen: false));
-        });
+            Substitute<ICaseAssetPreparationQueries>(services, store));
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             $"/Cases/{store.CaseId:D}/Section?section=files");

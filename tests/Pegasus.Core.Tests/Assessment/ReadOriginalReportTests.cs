@@ -219,9 +219,6 @@ public sealed class ReadOriginalReportTests
 
     private sealed class ReceiptQueries(Guid receiptId, IntakeAssetRecord asset) : IIntakeReceiptQueries
     {
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

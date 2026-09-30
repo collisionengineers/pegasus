@@ -3,7 +3,6 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
@@ -30,7 +29,8 @@ public sealed class CaseDetailsWebTests
     /// <summary>
     /// D30: the Engineer's work is Case sections, so the record carries no
     /// Open Assessment action and no assessment gate — neither enabled nor
-    /// drawn disabled — whatever the shared access decision says.
+    /// drawn disabled — whatever the shared access decision says. The page
+    /// takes that decision from the Case's state; Held is one it cannot open.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -38,11 +38,13 @@ public sealed class CaseDetailsWebTests
     public async Task TheRecordOffersNoAssessmentAction(bool canOpen)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = canOpen ? CaseLifecycleState.NotReady : CaseLifecycleState.Held
+        };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -50,8 +52,6 @@ public sealed class CaseDetailsWebTests
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
-                services.RemoveAll<IGetAssessmentAccess>();
-                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -81,7 +81,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -143,7 +142,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -175,7 +173,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -212,7 +209,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -251,7 +247,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -297,7 +292,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -522,7 +516,8 @@ public sealed class CaseDetailsWebTests
     [Fact]
     public async Task FocusedVehicleAndValuationReadsReuseOneDirectWorkspaceAndMatchLazyAssessmentProvenance()
     {
-        var store = new RecordingCaseDetailsStore { ThrowOnBroadCaseRead = true };
+        // Held: a state the assessment cannot open.
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Held };
         var assessment = new CaseAssessmentProjection(
             store.CaseId,
             "QDOS3100042",
@@ -544,14 +539,12 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
-                Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: false));
                 Substitute<IGetAssessmentWorkspace>(services, assessmentWorkspace);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -700,7 +693,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -741,7 +733,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);

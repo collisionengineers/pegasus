@@ -429,7 +429,6 @@ public sealed class CaseViewsWebTests
             factory = baseFactory.WithWebHostBuilder(builder =>
                 builder.ConfigureServices(services =>
                 {
-                    Substitute<IGetCase>(services, store);
                     Substitute<IGetCaseEditBasis>(services, store);
                     SubstituteDetailsPageReaders(services, store);
                     substitute?.Invoke(services);

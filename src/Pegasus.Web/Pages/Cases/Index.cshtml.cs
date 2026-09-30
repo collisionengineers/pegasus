@@ -39,8 +39,7 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed class IndexModel(
     IListTriage listTriage,
     ISearchCases searchCases,
-    IGetCase getCase,
-    IGetAssessmentAccess getAssessmentAccess,
+    IGetCaseEditBasis getCaseEditBasis,
     ICaseReportSnapshotSource reportSnapshotSource,
     ICaseReportGenerationStore reportGenerations,
     ICaseReportDeliveryPreparationStore deliveryPreparations,
@@ -65,10 +64,8 @@ public sealed class IndexModel(
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly ISearchCases _searchCases =
         searchCases ?? throw new ArgumentNullException(nameof(searchCases));
-    private readonly IGetCase _getCase =
-        getCase ?? throw new ArgumentNullException(nameof(getCase));
-    private readonly IGetAssessmentAccess _getAssessmentAccess =
-        getAssessmentAccess ?? throw new ArgumentNullException(nameof(getAssessmentAccess));
+    private readonly IGetCaseEditBasis _getCaseEditBasis =
+        getCaseEditBasis ?? throw new ArgumentNullException(nameof(getCaseEditBasis));
     private readonly ICaseReportSnapshotSource _reportSnapshotSource =
         reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
     private readonly ICaseReportGenerationStore _reportGenerations =
@@ -612,10 +609,10 @@ public sealed class IndexModel(
             return RecordDetail(row);
         }
 
-        var details = await _getCase.ExecuteAsync(new(row.Id, actor), cancellationToken)
+        var basis = await _getCaseEditBasis.ExecuteAsync(new(row.Id, actor), cancellationToken)
             ?? throw new InvalidOperationException($"Case '{row.Id}' was listed but could not be read.");
-        var missingRequirements = details.Data?.Completeness.Evaluation.MissingRequirements;
-        var outstanding = details.Workflow.State == CaseLifecycleState.NotReady && missingRequirements is not null
+        var missingRequirements = basis.Data.Completeness.Evaluation.MissingRequirements;
+        var outstanding = basis.Workflow.State == CaseLifecycleState.NotReady && missingRequirements is not null
             ? OperatorLabels.CaseRequirements(missingRequirements)
             : [];
 
@@ -624,14 +621,13 @@ public sealed class IndexModel(
         // missing requirement, and once the report is the Case's concern its
         // readiness while the assessment can open, the current report and its
         // delivery preparation.
-        var caseId = details.Workflow.CaseId;
+        var caseId = basis.Workflow.CaseId;
         IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
         CaseReportGenerationRecord? currentReport = null;
         CaseReportDeliveryPreparationRecord? deliveryPreparation = null;
-        if (CaseNextAction.ReadsTheReport(details.Workflow))
+        if (CaseNextAction.ReadsTheReport(basis.Workflow))
         {
-            var access = await _getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
-            if (access?.CanOpen == true
+            if (AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
                 && await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, cancellationToken) is { } reportInputs)
             {
                 reportBlockers = CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons;
@@ -642,7 +638,7 @@ public sealed class IndexModel(
                 : await _deliveryPreparations.GetCurrentAsync(actor, caseId, cancellationToken);
         }
         var next = CaseNextAction.Of(
-            details.Workflow,
+            basis.Workflow,
             missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
             reportBlockers,
             _ => null,
@@ -652,19 +648,19 @@ public sealed class IndexModel(
         var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
 
         var engineer = "Not assigned";
-        if (details.Workflow.AssignedEngineerId is { } engineerId)
+        if (basis.Workflow.AssignedEngineerId is { } engineerId)
         {
             var names = await ActorDisplayNames.ResolveStaffNamesAsync(_staffAccounts, [engineerId], cancellationToken);
             engineer = ActorDisplayNames.Resolve(ActorKind.Staff, engineerId.ToString("D"), names);
         }
         work.Add(("Engineer", engineer));
 
-        if (details.Summary.DueAtUtc is { } due)
+        if (basis.Summary.DueAtUtc is { } due)
         {
             work.Add(("Due", OperatorLabels.DueDate(due)));
         }
 
-        var summary = details.Summary;
+        var summary = basis.Summary;
         var vehicle = string.Join(" ", new[] { summary.VehicleMake, summary.VehicleModel }.Where(part => !string.IsNullOrWhiteSpace(part)));
         return new(
             RowKind.Case,
@@ -679,7 +675,7 @@ public sealed class IndexModel(
                 ("Vehicle", vehicle.Length > 0 ? vehicle : "Not recorded"),
                 ("Type", OperatorLabels.CaseTypeName(summary.CaseType))
             ],
-            details.Workflow.State,
+            basis.Workflow.State,
             outstanding,
             Work: work,
             StateChip: row.Chip,

@@ -37,13 +37,15 @@ namespace Pegasus.Web.Pages.Cases;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 [RequestSizeLimit(ImportRawEstimate.MaximumDocumentBytes + 64 * 1024)]
 public sealed partial class DetailsModel(
-    IGetCase getCase,
+    IGetCaseHeader getCaseHeader,
     IGetCaseEditBasis getCaseEditBasis,
+    ICaseWorkflowQueries caseWorkflows,
     IGetCasePageFrame getCasePageFrame,
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
     IGetCaseFilesSection getCaseFilesSection,
+    ICaseDocumentQueries caseDocuments,
     IListCaseReferences listCaseReferences,
     IGetAssessmentAccess getAssessmentAccess,
     IGetAssessmentWorkspace getAssessmentWorkspace,
@@ -96,8 +98,8 @@ public sealed partial class DetailsModel(
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
     ICreateAudit createAudit,
-    IAiDraftQueries aiDrafts,
-    IMarketResearchQueries marketResearchQueries,
+    IAiJobQueries aiJobs,
+    ICaseWorkflowConfiguration workflowConfiguration,
     IStartMarketResearch startMarketResearch,
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
@@ -889,26 +891,34 @@ public sealed partial class DetailsModel(
         using var activity = DocumentReadTelemetry.Start("web.case.main");
         try
         {
-            using (DocumentReadTelemetry.Start("web.case.frame"))
+            // The frame and the workspace each need only the Case id and read on
+            // their own database context, so they start together. Each keeps its
+            // own phase, timed around its own read. The access answer is the
+            // frame's workflow state. The lease is restored after both reads,
+            // because it uses TempData.
+            var work = WorkSelector;
+            using var firstReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+            var frameRead = firstReads.Start(async token =>
             {
-                Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
-            }
+                using (DocumentReadTelemetry.Start("web.case.frame"))
+                {
+                    return await getCasePageFrame.ExecuteAsync(new(id, actor, Work: work), token);
+                }
+            });
+            var workspaceRead = firstReads.Start(async token =>
+            {
+                using (DocumentReadTelemetry.Start("web.case.workspace"))
+                {
+                    return await getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), token);
+                }
+            });
+            await firstReads.WhenAllAsync();
+            Case = await frameRead;
             if (Case is null)
             {
                 return NotFound();
             }
-            // No access answer is not an editable record: an unresolved
-            // result fails closed to read-only, the same direction the
-            // pre-case gates fail.
-            AssessmentAccessState? assessmentAccess;
-            using (DocumentReadTelemetry.Start("web.case.access"))
-            {
-                assessmentAccess = await getAssessmentAccess.ExecuteAsync(
-                    new(id, actor),
-                    cancellationToken);
-            }
-            AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
-            AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
+            ApplyAssessmentAccess(actor, Case.Workflow);
             // The lease decides how much of the record is rendered now, so it is
             // restored before deciding which section bodies render directly.
             await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
@@ -917,16 +927,11 @@ public sealed partial class DetailsModel(
                 // Only this page renders a manual renew control, so only it needs that key.
                 RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
             }
-            AssessmentWorkspace? workspace;
-            using (DocumentReadTelemetry.Start("web.case.workspace"))
-            {
-                workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor, WorkSelector), cancellationToken);
-            }
+            var workspace = await workspaceRead;
             // Each phase below starts its independent reads together, at most
             // four at a time and each on its own database context, and sets the
             // page's state only once all of them have finished. The phases stay
             // in order because each uses what the one before it read.
-            var work = WorkSelector;
             using (DocumentReadTelemetry.Start("web.case.direct-sections"))
             {
                 await LoadDirectSectionsAsync(id, actor, workspace, work, cancellationToken);
@@ -980,12 +985,14 @@ public sealed partial class DetailsModel(
         var readsInspectionReport = Works is { HasAudit: true };
         var principalCode = Case!.Workflow.Identity.PrincipalCode;
         // The snapshot source takes what this page already read for the work
-        // rather than reading the workspace, preparations and valuations again.
+        // rather than reading the workspace, preparations, valuations and the
+        // Case's works again.
         var reuse = new ReportProjectionReuse(
             work,
             workspace,
             AssetPreparations,
-            appliedValuationsLoaded ? AppliedValuations : null);
+            appliedValuationsLoaded ? AppliedValuations : null,
+            Case.Frame);
 
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
         var estimates = reads.Start(token => listEstimates.ExecuteAsync(id, work, token));
@@ -1298,6 +1305,7 @@ public sealed partial class DetailsModel(
                         return NotFound();
                     }
                     Assessment = VehicleSection.Assessment;
+                    ApplyAssessmentAccess(actor, VehicleSection.Frame.Workflow);
                     break;
                 case "valuation":
                     ValuationSection = await getCaseValuationSection.ExecuteAsync(
@@ -1307,6 +1315,7 @@ public sealed partial class DetailsModel(
                         return NotFound();
                     }
                     Assessment = ValuationSection.Assessment;
+                    ApplyAssessmentAccess(actor, ValuationSection.Frame.Workflow);
                     break;
                 case "notes":
                     NotesSection = await getCaseNotesSection.ExecuteAsync(new(id, actor), cancellationToken);
@@ -1321,19 +1330,10 @@ public sealed partial class DetailsModel(
                     {
                         return NotFound();
                     }
+                    ApplyAssessmentAccess(actor, FilesSection.Frame.Workflow);
                     break;
             }
 
-            // The access decision is used solely to render the section's
-            // current controls. An absent answer fails closed. It neither
-            // restores cookies nor grants a lease; every POST repeats Core
-            // authorization against the live record.
-            if (key is "vehicle" or "valuation" or "files")
-            {
-                var assessmentAccess = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-                AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
-                AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
-            }
             // A mounted body is an asynchronous GET. It must not read or write
             // cookie-backed TempData: its response can otherwise race a Claim,
             // Save or release redirect and replace the browser's lease state.
@@ -1479,7 +1479,8 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// The record's remaining reads: the directory choices, the Principal's
     /// previous addresses, the Files galleries, the frame's names and EVA
-    /// state, the lease holder and the AI drafts.
+    /// state, the lease holder, and the Case's AI jobs, read once for both
+    /// the Next action's drafts and the Valuation section's pending research.
     /// </summary>
     private async Task LoadExtrasAsync(Guid id, ActionActor actor, CancellationToken cancellationToken)
     {
@@ -1517,7 +1518,8 @@ public sealed partial class DetailsModel(
                 actor,
                 token))
             : null;
-        var drafts = reads.Start(token => aiDrafts.ListForCaseAsync(id, token));
+        var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
+        var configuration = reads.Start(token => workflowConfiguration.GetCurrentAsync(token));
         await reads.WhenAllAsync();
 
         if (claimSources is not null)
@@ -1546,7 +1548,9 @@ public sealed partial class DetailsModel(
             ViewerHoldsEditAuthority = viewerHoldsLease;
             EditAuthorityHolder = holder is null ? CaseEditAuthorityHolder.Unnamed : await holder;
         }
-        AiDrafts = await drafts;
+        var jobs = await caseAiJobs;
+        AiDrafts = AiDraftPolicy.Drafts(jobs, (await configuration).AiDraftTargetDays);
+        PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
         CanAssignToMe = CaseLifecycleRules.CanAssignToSelf(details.Workflow);
     }
 
@@ -2981,15 +2985,15 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id);
         }
 
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
+        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
+        if (header is null)
         {
             return NotFound();
         }
 
         var trimmedDirection = direction?.Trim();
         var instruction = string.IsNullOrWhiteSpace(trimmedDirection)
-            ? $"Draft an estimate for case {details.Summary.Reference}."
+            ? $"Draft an estimate for case {header.Summary.Reference}."
             : trimmedDirection;
         try
         {
@@ -2997,7 +3001,7 @@ public sealed partial class DetailsModel(
                 new(
                     AiJobKind.Estimate,
                     id,
-                    details.Summary.Reference,
+                    header.Summary.Reference,
                     instruction,
                     targetPercent,
                     actor,
@@ -3472,10 +3476,8 @@ public sealed partial class DetailsModel(
         if (!TryGetActor(out var actor)) { return Forbid(); }
         Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
         if (Case is null) { return NotFound(); }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true) { return NotFound(); }
-        AssessmentCanOpen = true;
-        AssessmentIsReadOnly = access.IsReadOnly;
+        ApplyAssessmentAccess(actor, Case.Workflow);
+        if (!AssessmentCanOpen) { return NotFound(); }
         // Like lazy section reads, this GET never restores or writes TempData.
         if (!string.IsNullOrWhiteSpace(renderLeaseToken) && validateCaseRenderLease is not null
             && await validateCaseRenderLease.ExecuteAsync(new(id, actor, renderLeaseToken), cancellationToken))
@@ -3847,12 +3849,12 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id);
         }
 
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
+        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
+        if (header is null)
         {
             return NotFound();
         }
-        currentCaseVersion = details.Workflow.Version;
+        currentCaseVersion = header.Workflow.Version;
         return null;
     }
 
@@ -4119,7 +4121,7 @@ public sealed partial class DetailsModel(
         IFormFile? estimateFile,
         CancellationToken cancellationToken)
     {
-        var (actor, details, refusal) = await StartEstimateImportAsync(
+        var (actor, documents, refusal) = await StartEstimateImportAsync(
             id, expectedVersion, operationKey, cancellationToken);
         if (refusal is not null)
         {
@@ -4176,7 +4178,7 @@ public sealed partial class DetailsModel(
         // when that stored file is itself importable: the import reads its
         // stored name and type, not the dropped file's.
         var sourceIdentity = $"estimate-import:{operationKey}";
-        var reusable = CaseFiles.Live(details!.Documents)
+        var reusable = CaseFiles.Live(documents)
             .Where(file => file.Version.ContentLength == fileBytes.LongLength
                 && string.Equals(file.Version.Sha256, uploadedSha256, StringComparison.OrdinalIgnoreCase)
                 && IsImportableEstimate(file))
@@ -4266,13 +4268,13 @@ public sealed partial class DetailsModel(
         Guid versionId,
         CancellationToken cancellationToken)
     {
-        var (actor, details, refusal) = await StartEstimateImportAsync(
+        var (actor, documents, refusal) = await StartEstimateImportAsync(
             id, expectedVersion, operationKey, cancellationToken);
         if (refusal is not null)
         {
             return refusal;
         }
-        var source = CaseFiles.Live(details!.Documents)
+        var source = CaseFiles.Live(documents)
             .FirstOrDefault(file => file.Occurrence.Id == occurrenceId && file.Version.Id == versionId);
         if (source is null || !IsImportableEstimate(source))
         {
@@ -4331,9 +4333,10 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// The checks every estimate import makes before it reads or retains a
     /// source: the staff member, assessment access, a writable Case, a live
-    /// form and the Case version the form was rendered at.
+    /// form and the Case version the form was rendered at. Once they pass, the
+    /// Case's documents, which the import reuses or reads its source from.
     /// </summary>
-    private async Task<(ActionActor? Actor, CaseDetails? Details, IActionResult? Refusal)> StartEstimateImportAsync(
+    private async Task<(ActionActor? Actor, IReadOnlyList<CaseDocument> Documents, IActionResult? Refusal)> StartEstimateImportAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
@@ -4342,29 +4345,29 @@ public sealed partial class DetailsModel(
         if (!TryGetActor(out var actor))
         {
             ClearLeaseState();
-            return (null, null, Forbid());
+            return (null, [], Forbid());
         }
         var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true) return (null, null, NotFound());
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null) return (null, null, NotFound());
-        if (access.IsReadOnly || details.Workflow.Archive is not null
-            || CaseLifecycleRules.IsTerminal(details.Workflow.State))
+        if (access?.CanOpen != true) return (null, [], NotFound());
+        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
+        if (header is null) return (null, [], NotFound());
+        if (access.IsReadOnly || header.Workflow.Archive is not null
+            || CaseLifecycleRules.IsTerminal(header.Workflow.State))
         {
             TempData["CaseError"] = "The Case is read-only and cannot accept estimate imports.";
-            return (null, null, RedirectToEstimate(id));
+            return (null, [], RedirectToEstimate(id));
         }
         if (!IsOperationKeyValid(operationKey))
         {
             TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return (null, null, RedirectToEstimate(id));
+            return (null, [], RedirectToEstimate(id));
         }
-        if (details.Workflow.Version != expectedVersion)
+        if (header.Workflow.Version != expectedVersion)
         {
             TempData["CaseError"] = "The Case changed before the estimate was imported. Reload and try again.";
-            return (null, null, RedirectToEstimate(id));
+            return (null, [], RedirectToEstimate(id));
         }
-        return (actor, details, null);
+        return (actor, await caseDocuments.ListAsync(id, cancellationToken), null);
     }
 
     /// <summary>
@@ -4453,7 +4456,7 @@ public sealed partial class DetailsModel(
             // A source-hash replay consumes no edit authority, so the posted
             // token is still live and is kept; a real import consumed it, and
             // the session carries on with a fresh lease (v25 decision F).
-            var after = await getCase.ExecuteAsync(new(request.CaseId, request.Actor), cancellationToken);
+            var after = await getCaseHeader.ExecuteAsync(new(request.CaseId, request.Actor), cancellationToken);
             if (after?.ActiveEditLease is null)
             {
                 ClearLeaseState();
@@ -4508,6 +4511,19 @@ public sealed partial class DetailsModel(
             new(caseId, actor),
             cancellationToken))?.CanOpen == true;
 
+    /// <summary>
+    /// A GET's access answer, from the workflow its own read already carries.
+    /// It decides only which controls render: it neither restores cookies nor
+    /// grants a lease, and every POST repeats Core authorization against the
+    /// live record.
+    /// </summary>
+    private void ApplyAssessmentAccess(ActionActor actor, CaseWorkflowRecord workflow)
+    {
+        var access = AssessmentAccessPolicy.For(actor, workflow);
+        AssessmentIsReadOnly = access.IsReadOnly;
+        AssessmentCanOpen = access.CanOpen;
+    }
+
     private static bool IsOperationKeyValid(string value) =>
         Guid.TryParseExact(value, "N", out var operationId) && operationId != Guid.Empty;
 
@@ -4544,10 +4560,17 @@ public sealed partial class DetailsModel(
     {
         var details = inputs.Details;
         var workflow = details.Workflow;
+        // In Review the Engineer choices list the staff accounts, which name
+        // the assigned Engineer too, so that account is read on its own only
+        // when the list does not hold it.
+        IReadOnlyList<StaffAccountSummary> roster = workflow.State == CaseLifecycleState.Review
+            ? (await staffAccountQueries.ListAsync(0, 100, cancellationToken)).Accounts
+            : [];
         string? engineerDisplayName = null;
         if (workflow.AssignedEngineerId is { } engineerId)
         {
-            var account = await staffAccountQueries.GetAsync(engineerId, cancellationToken);
+            var account = roster.FirstOrDefault(listed => listed.Id == engineerId)
+                ?? await staffAccountQueries.GetAsync(engineerId, cancellationToken);
             engineerDisplayName = account?.UserName ?? ActorDisplayNames.UnknownStaff;
         }
 
@@ -4560,15 +4583,10 @@ public sealed partial class DetailsModel(
         var signOffEngineerDisplayName = signOffEngineer?.PrintedName
             ?? Labels.CaseWorkspace.Unassigned;
 
-        IReadOnlyList<EvaHandoffEngineerOption> engineerOptions = [];
-        if (workflow.State == CaseLifecycleState.Review)
-        {
-            var accounts = await staffAccountQueries.ListAsync(0, 100, cancellationToken);
-            engineerOptions = accounts.Accounts
-                .Where(account => account.IsEnabled)
-                .Select(account => new EvaHandoffEngineerOption(account.Id, account.UserName))
-                .ToArray();
-        }
+        IReadOnlyList<EvaHandoffEngineerOption> engineerOptions = roster
+            .Where(account => account.IsEnabled)
+            .Select(account => new EvaHandoffEngineerOption(account.Id, account.UserName))
+            .ToArray();
 
         var modes = await evaModeStore.GetForPrincipalAsync(
             workflow.Identity.PrincipalCode,

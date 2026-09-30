@@ -21,8 +21,8 @@ namespace Pegasus.Web.Pages.Search;
 /// <c>receivedDate</c>, <c>kind</c>) stay bound and pager-preserved, so the
 /// <c>/Cases</c> bookmarks the shell redirects here keep working with their
 /// values intact. The preview pane is built from
-/// the row projection plus one batched Engineer-name resolve rather than
-/// <c>IGetCase</c>: the wave-1 selection script needs a preview template
+/// the row projection plus one batched Engineer-name resolve rather than a
+/// per-row Case read: the wave-1 selection script needs a preview template
 /// per row regardless, and this keeps the page at its two queries.
 /// Terminal outcomes render their D3 "Closed · outcome" chip here — this
 /// is the one work view that lists them.

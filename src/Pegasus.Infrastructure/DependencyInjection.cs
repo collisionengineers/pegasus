@@ -105,6 +105,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<ListRetainedMail>();
         services.AddScoped<GetRetainedMail>();
+        services.AddScoped<GetRetainedMailPreview>();
         services.AddScoped<CorrectRetainedMailClassification>();
         services.TryAddSingleton<IRetainedMailFolderMover, UnavailableRetainedMailFolderMover>();
         services.AddScoped<EfRetainedMailFolderMoveStore>();
@@ -436,13 +437,14 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseKindQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
+        services.AddScoped<ICaseDocumentQueries>(
+            provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
         services.AddScoped<ISearchCases, SearchCases>();
         services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
         services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCaseHeader, GetCaseHeader>();
-        services.AddScoped<IGetCase, GetCase>();
         services.AddScoped<IGetCaseEditBasis, GetCaseEditBasis>();
         services.AddScoped<IGetCasePageFrame, GetCasePageFrame>();
         services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
@@ -542,7 +544,6 @@ public static class DependencyInjection
         // so the set is empty and Get valuation answers with a notice.
         services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
-        services.AddScoped<IAiDraftQueries, AiDraftQueries>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();
         services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();

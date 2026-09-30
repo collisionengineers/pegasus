@@ -604,8 +604,6 @@ public sealed class ImageIntakeCasePairingTests
                     : null));
         }
 
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,
             CancellationToken cancellationToken) =>

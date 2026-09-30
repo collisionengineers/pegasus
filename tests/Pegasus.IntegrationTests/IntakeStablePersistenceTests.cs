@@ -78,23 +78,18 @@ public sealed class IntakeStablePersistenceTests
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
 
-        var countsError = await Assert.ThrowsAsync<InvalidDataException>(
-            () => queries.GetCountsAsync(CancellationToken.None));
         var unfilteredListError = await Assert.ThrowsAsync<InvalidDataException>(
             () => queries.ListByCursorAsync(null, null, 100, CancellationToken.None));
 
-        Assert.Contains("future_decision", countsError.Message, StringComparison.Ordinal);
         Assert.Contains("future_decision", unfilteredListError.Message, StringComparison.Ordinal);
 
         // A filtered list now selects by persisted code in SQL, so it does not
         // read a row it did not ask for and cannot throw on one. What the rule
         // forbids is silent reinterpretation, and that still holds: the row is
         // absent from a filter for a known decision rather than appearing under
-        // it. The always-on guarantee is the counts, which still scan every
-        // non-case-linked receipt and so throw on a corrupt code wherever it
-        // sits; the unfiltered list is paged in SQL, so it throws only when the
+        // it. The unfiltered list is paged in SQL, so it throws only when the
         // page it reads contains the corrupt row. A corrupt code on a
-        // case-linked receipt is invisible to both. Recovering the throw here
+        // case-linked receipt is invisible to it. Recovering the throw here
         // would mean scanning every receipt on every page load, which is the
         // defect this filter fixed.
         var filtered = await queries.ListByCursorAsync(
