@@ -32,9 +32,6 @@ public interface IAiDraftQueries
 {
     /// <summary>The Case's Draft ready jobs, oldest draft first.</summary>
     Task<IReadOnlyList<AiDraft>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken);
-
-    /// <summary>Every Draft ready job in the office, oldest draft first, for the Work Centre.</summary>
-    Task<IReadOnlyList<AiDraft>> ListOpenAsync(CancellationToken cancellationToken);
 }
 
 public static class AiDraftPolicy
@@ -76,6 +73,18 @@ public static class AiDraftPolicy
         var written = job.DraftReadyAtUtc ?? job.TakenAtUtc ?? job.CreatedAtUtc;
         return new AiDraft(job, ActionFor(job.Kind), route, written, DueAt(written, targetDays));
     }
+
+    /// <summary>
+    /// The Draft ready jobs among <paramref name="jobs"/>, oldest draft first.
+    /// A caller that holds the jobs and the workflow configuration already
+    /// derives the drafts here instead of reading either again.
+    /// </summary>
+    public static AiDraft[] Drafts(IEnumerable<AiJobRecord> jobs, int targetDays) =>
+        jobs.Select(job => ToDraft(job, targetDays))
+            .OfType<AiDraft>()
+            .OrderBy(draft => draft.DraftWrittenAtUtc)
+            .ThenBy(draft => draft.Job.JobId)
+            .ToArray();
 }
 
 /// <summary>
@@ -112,20 +121,8 @@ public sealed class AiDraftQueries(
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
 
-        return Drafts(
+        return AiDraftPolicy.Drafts(
             await _jobs.ListForSubjectAsync(caseId, cancellationToken),
             (await _configuration.GetCurrentAsync(cancellationToken)).AiDraftTargetDays);
     }
-
-    public async Task<IReadOnlyList<AiDraft>> ListOpenAsync(CancellationToken cancellationToken) =>
-        Drafts(
-            await _jobs.ListOpenAsync(cancellationToken),
-            (await _configuration.GetCurrentAsync(cancellationToken)).AiDraftTargetDays);
-
-    private static AiDraft[] Drafts(IEnumerable<AiJobRecord> jobs, int targetDays) =>
-        jobs.Select(job => AiDraftPolicy.ToDraft(job, targetDays))
-            .OfType<AiDraft>()
-            .OrderBy(draft => draft.DraftWrittenAtUtc)
-            .ThenBy(draft => draft.Job.JobId)
-            .ToArray();
 }

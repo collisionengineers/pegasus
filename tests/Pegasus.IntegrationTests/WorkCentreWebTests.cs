@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
@@ -196,6 +197,34 @@ public sealed class WorkCentreWebTests
         Assert.Contains($"name=\"caseId\" value=\"{unassigned.Id}\"", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// assign=true reopens the Assign Engineer dialog for the selected Unassigned
+    /// Engineer row. Its facts come from the Case header (one bounded read), not
+    /// the full Case, and a page without assign=true renders the same dialog shut.
+    /// </summary>
+    [Fact]
+    public async Task AssignTrueOpensTheAssignmentDialogFromTheCaseHeader()
+    {
+        var store = new CaseWebTestSupport.RecordingCaseDetailsStore { ThrowOnBroadCaseRead = true };
+        var unassigned = Item(NeedsAttentionKind.UnassignedEngineer, "QDOS3100042", NeedsAttentionPriority.Today, Now.AddHours(3)) with
+        {
+            Id = store.CaseId,
+            Route = $"/Cases/{store.CaseId:D}?section=assign"
+        };
+        using var host = Host(new FakeSnapshot { Items = [unassigned], TodayCount = 1 }, caseHeader: store);
+        using var client = Client(host);
+
+        var shut = await GetOkAsync(client, $"/?selected={store.CaseId:D}");
+        Assert.Contains("id=\"wc-assign-dialog\" class=\"dialog-backdrop\" data-dialog=\"wc-assign-dialog\" hidden", shut, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open-on-load", shut, StringComparison.Ordinal);
+
+        var open = await GetOkAsync(client, $"/?selected={store.CaseId:D}&assign=true");
+        Assert.Contains("data-dialog=\"wc-assign-dialog\" data-dialog-open-on-load=\"true\"", open, StringComparison.Ordinal);
+        Assert.Contains("QDOS3100042</h2>", open, StringComparison.Ordinal);
+        Assert.Contains($"name=\"caseId\" value=\"{store.CaseId}\"", open, StringComparison.Ordinal);
+        Assert.Equal(2, store.HeaderReads);
+    }
+
     [Fact]
     public async Task NewCasesShowArrivalChipsTheSinceYouLastLookedLineAndAutomationChanges()
     {
@@ -342,15 +371,7 @@ public sealed class WorkCentreWebTests
         };
         var research = Job(AiJobKind.MarketResearch, AiJobState.DraftReady, "QDOS26204", Guid.NewGuid());
         var jobs = new FakeAiJobs { Open = [estimate, query, taken, research] };
-        var drafts = new FakeAiDrafts
-        {
-            Drafts =
-            [
-                new(estimate, AiDraftAction.ReviewEstimate, $"/Cases/{caseId:D}?section=estimate", Now.AddHours(-4), Now.AddDays(1)),
-                new(query, AiDraftAction.OpenQuery, $"/Cases/{query.SubjectId:D}?section=correspondence", Now.AddHours(-4), Now.AddDays(1))
-            ]
-        };
-        using var host = Host(new FakeSnapshot(), jobs: jobs, drafts: drafts);
+        using var host = Host(new FakeSnapshot(), jobs: jobs);
         using var client = Client(host);
         // The window is the host clock's, not the test's: the failed job closed
         // three hours before the host's now.
@@ -385,11 +406,7 @@ public sealed class WorkCentreWebTests
         };
         var jobs = new FakeAiJobs { Open = [pass] };
         // A queue pass has no record to open, so its draft carries no route.
-        var drafts = new FakeAiDrafts
-        {
-            Drafts = [new(pass, AiDraftAction.Review, null, Now.AddHours(-4), Now.AddDays(1))]
-        };
-        using var host = Host(new FakeSnapshot(), jobs: jobs, drafts: drafts);
+        using var host = Host(new FakeSnapshot(), jobs: jobs);
         using var client = Client(host);
 
         var html = await GetOkAsync(client, "/?tab=ai-jobs");
@@ -480,7 +497,7 @@ public sealed class WorkCentreWebTests
         FakeSnapshot snapshot,
         FakeRecentCases? feed = null,
         FakeAiJobs? jobs = null,
-        FakeAiDrafts? drafts = null) =>
+        IGetCaseHeader? caseHeader = null) =>
         new IntakeWebApplicationFactory().WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -490,8 +507,11 @@ public sealed class WorkCentreWebTests
                 services.AddSingleton<IListRecentCases>(feed ?? new FakeRecentCases());
                 services.RemoveAll<IAiJobQueries>();
                 services.AddSingleton<IAiJobQueries>(jobs ?? new FakeAiJobs());
-                services.RemoveAll<IAiDraftQueries>();
-                services.AddSingleton<IAiDraftQueries>(drafts ?? new FakeAiDrafts());
+                if (caseHeader is not null)
+                {
+                    services.RemoveAll<IGetCaseHeader>();
+                    services.AddSingleton(caseHeader);
+                }
             }));
 
     private static HttpClient Client(WebApplicationFactory<Program> host, string? role = null)
@@ -550,7 +570,7 @@ public sealed class WorkCentreWebTests
             var counts = UnfilteredKindCounts
                 ?? Enum.GetValues<NeedsAttentionKind>().ToDictionary(kind => kind, kind => Items.Count(item => item.Kind == kind));
             var page = new NeedsAttentionPage(Items, query.Page, GetOperationsSnapshot.PageSize, total, counts, OverdueCount, TodayCount, LaterCount);
-            return Task.FromResult(new OperationsSnapshot(Now, new IntakeQueueCounts(0), 0, 0, [], new CaseStageCounts(1, 2, 3, 0), Items)
+            return Task.FromResult(new OperationsSnapshot(Now, 0, 0, [], new CaseStageCounts(1, 2, 3, 0), Items)
             {
                 Attention = page,
                 Scope = query.Scope,
@@ -608,15 +628,5 @@ public sealed class WorkCentreWebTests
 
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new AiJobCounts(Open.Count, Recent.Count));
-    }
-
-    private sealed class FakeAiDrafts : IAiDraftQueries
-    {
-        public IReadOnlyList<AiDraft> Drafts { get; init; } = [];
-
-        public Task<IReadOnlyList<AiDraft>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<AiDraft>>(Drafts.Where(draft => draft.Job.SubjectId == caseId).ToArray());
-
-        public Task<IReadOnlyList<AiDraft>> ListOpenAsync(CancellationToken cancellationToken) => Task.FromResult(Drafts);
     }
 }

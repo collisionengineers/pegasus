@@ -344,8 +344,6 @@ public sealed class AllocateDefinitiveIntakeTests
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<IntakeReceipt?>(id == receipt.Id ? receipt : null);
 
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
     }
 
     private sealed class EvidenceQueries(Guid receiptId, Guid evidenceId) : IStandaloneAuditEvidenceQueries

@@ -782,7 +782,7 @@ internal static partial class CaseWebTestSupport
     /// </summary>
 
     internal sealed partial class RecordingCaseDetailsStore :
-        IGetCase, IGetCaseEditBasis,
+        IGetCase, IGetCaseHeader, IGetCaseEditBasis,
         IGetCasePageFrame,
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
@@ -894,6 +894,23 @@ internal static partial class CaseWebTestSupport
 
         /// <summary>How many times a Save or a reclaim read the Case's edit basis.</summary>
         public int EditBasisReads { get; private set; }
+
+        /// <summary>How many times a page read the Case's header instead of the full Case.</summary>
+        public int HeaderReads { get; private set; }
+
+        Task<CaseHeader?> IGetCaseHeader.ExecuteAsync(
+            GetCaseHeaderQuery query, CancellationToken cancellationToken)
+        {
+            HeaderReads++;
+            var workflow = CreateWorkflow();
+            return Task.FromResult<CaseHeader?>(new(
+                CreateSummary(workflow),
+                workflow,
+                ActiveLease(),
+                CaseDocuments.Count,
+                HistoryEntries.Count,
+                OpenTaskCount: 0));
+        }
 
         Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
             GetCaseQuery query, CancellationToken cancellationToken)

@@ -493,24 +493,6 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT ApprovedMailboxId FROM ApprovedInboxPoisonMessages"));
     }
 
-    /// <remarks>
-    /// Intake queue counts use the persisted decision code. Needs-sorting
-    /// receipts contribute to <see cref="IntakeQueueCounts.NeedsSorting"/>;
-    /// a terminal unsupported receipt does not.
-    /// </remarks>
-    [Fact]
-    public async Task IntakeQueueCountsUsePersistedDecisionCodes()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
-        await database.StoreAsync(CreateDraft(1, IntakeDecision.NeedsSorting));
-        await database.StoreAsync(CreateDraft(2, IntakeDecision.NeedsSorting));
-        await database.StoreAsync(CreateDraft(3, IntakeDecision.Unsupported));
-
-        var counts = await database.GetCountsAsync();
-
-        Assert.Equal(2, counts.NeedsSorting);
-    }
-
     [Fact]
     public async Task EightConcurrentDistinctSourceIdentitiesPersistEightPreCaseDrafts()
     {
@@ -624,7 +606,6 @@ public sealed class IntakePersistenceIntegrationTests
         var receipt = Assert.Single(result);
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Equal("source-1.bin", receipt.SourceFileName);
-        Assert.Equal(new IntakeQueueCounts(1), await database.GetCountsAsync());
     }
 
     [Fact]
@@ -898,13 +879,6 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await using var scope = services.CreateAsyncScope();
         return (await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
             .ListByCursorAsync(decision, null, 100, CancellationToken.None)).Items;
-    }
-
-    public async Task<IntakeQueueCounts> GetCountsAsync()
-    {
-        await using var scope = services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-            .GetCountsAsync(CancellationToken.None);
     }
 
     public Task<int> CountAsync(string tableName)

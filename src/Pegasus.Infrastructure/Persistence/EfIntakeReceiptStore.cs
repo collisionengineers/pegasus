@@ -160,31 +160,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     }
 
     /// <summary>
-    /// How much received material is still waiting for a person.
-    /// </summary>
-    /// <remarks>
-    /// Receipts that produced a case are excluded. Without that filter every
-    /// count was cumulative for all time — creating a case from a receipt never
-    /// decremented anything, so the dashboard's queue numbers only ever grew.
-    /// </remarks>
-    public async Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var decisions = await context.IntakeReceipts
-            .AsNoTracking()
-            .Where(item => !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id)
-                && !context.UnidentifiedItems.Any(unidentified =>
-                    unidentified.OriginKind == "Receipt"
-                    && unidentified.OriginId == item.Id
-                    && unidentified.State == "Resolved"
-                    && unidentified.ResolutionTargetKind == "Closed"))
-            .Select(item => item.Decision)
-            .ToListAsync(cancellationToken);
-        var parsedDecisions = decisions.Select(ParseDecision).ToArray();
-        return new(parsedDecisions.Count(item => item == IntakeDecision.NeedsSorting));
-    }
-
-    /// <summary>
     /// One keyset page of received items, newest first, strictly after the
     /// caller's recorded position.
     ///
