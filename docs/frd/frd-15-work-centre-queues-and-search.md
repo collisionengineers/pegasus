@@ -29,10 +29,10 @@ record is owned by [FRD-16](frd-16-case-record-workspace.md).
 The Work Centre (`/`) shows office-wide work in one ledger (v30 design B,
 25 September 2026). Its head reads "Updated HH:MM" with **Refresh** and
 **Create Case**; the utility bar's New case is omitted on this page and only
-this page, so the action has one home. The page refreshes itself when its
-browser tab regains focus after 30 seconds away, and every five minutes. It
-never refreshes while a dialog is open or a field has focus. A refresh does
-not mark New cases as seen.
+this page, so the action has one home. The page refreshes itself only while
+its browser tab is visible: every five minutes, and when the tab regains focus
+after 30 seconds away. It never refreshes while a dialog is open or a field has
+focus. A refresh does not mark New cases as seen.
 
 **Metrics.** Five counts in one strip, label and figure on one line, in this
 order: Not ready, Review, Held, Unidentified and Triages. Each is an exact
