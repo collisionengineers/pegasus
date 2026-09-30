@@ -8,6 +8,7 @@ using Microsoft.ApplicationInsights.Extensibility;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
+    .ConfigureLogging(logging => logging.ApplyWorkerLogFilters())
     .ConfigureServices((context, services) =>
     {
         services
