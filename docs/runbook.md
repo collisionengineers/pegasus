@@ -782,8 +782,8 @@ sends each stopped span as one `AppEvents` row named `Pegasus.Worker.Span`. The
 trace's operation id and parent id, so it joins the invocation's `AppRequests` row.
 The rows join adaptive sampling like other events. They carry no tag values: the
 intake receipt and custody work item ids the spans are tagged with are never sent.
-`triage_case_pairing` opens a span on every ten-second tick, so it is the most
-frequent row.
+`triage_case_pairing` opens a span only when a Triage Case is waiting to be
+linked, so an idle ten-second tick sends no row.
 
 `SqlDependencyTelemetryFilter` still drops a successful SQL call, but keeps one that
 took 250 ms or more, and every failed one. `AppDependencies` therefore shows a lock
