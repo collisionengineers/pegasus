@@ -196,11 +196,10 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         }
         var saveCommands = counter.Count;
 
-        // Before Lane D (2ee268507), by reading the code: about 70 for the page and
-        // about 38 for the save. After: about 69 and about 38 (the folds the reading found
-        // for the save each change the command, the lease or the conflict check, or the
-        // ports many test fakes implement, and are left). Each budget adds headroom for
-        // the data shape; the readings are estimates. To be confirmed by CI.
+        // Measured on this branch (LocalDB and CI agree): 62 commands for the page and 43
+        // for the save. The first reading from the code said about 69 and about 38, which
+        // was wrong. The folds that reading found for the save each change the command, the
+        // lease or the conflict check, or the ports many test fakes implement, and are left.
         Assert.True(
             pageCommands <= CasePageBudget,
             $"The Case page in an edit session sent {pageCommands} SQL commands; the budget is {CasePageBudget}.");
@@ -209,9 +208,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             $"One accepted save sent {saveCommands} SQL commands; the budget is {CaseSaveBudget}.");
     }
 
-    private const int CasePageBudget = 72;
+    private const int CasePageBudget = 62;
 
-    private const int CaseSaveBudget = 42;
+    private const int CaseSaveBudget = 43;
 
     /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
