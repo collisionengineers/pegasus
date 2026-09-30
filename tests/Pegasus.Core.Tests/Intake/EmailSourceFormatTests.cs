@@ -61,6 +61,85 @@ public sealed class EmailSourceFormatTests
             EmailSourceFormat.RetainedMessageFileName(paired));
     }
 
+    /// <summary>
+    /// A download saved as <c>CON.eml</c> fails or opens the device on Windows, so a
+    /// subject that is a device name, in any case and with or without an
+    /// extension, trailing dots or trailing spaces, is untitled.
+    /// </summary>
+    [Theory]
+    [InlineData("CON")]
+    [InlineData("con")]
+    [InlineData("Prn")]
+    [InlineData("AUX")]
+    [InlineData("nul")]
+    [InlineData("COM1")]
+    [InlineData("Com5")]
+    [InlineData("com9")]
+    [InlineData("LPT1")]
+    [InlineData("lpt9")]
+    [InlineData("COM¹")]
+    [InlineData("LPT³")]
+    [InlineData("CONIN$")]
+    [InlineData("conout$")]
+    [InlineData("CON.")]
+    [InlineData("con. .")]
+    [InlineData("  aux  ")]
+    [InlineData("NUL.txt")]
+    [InlineData("nul .txt")]
+    [InlineData("Com3.log.")]
+    public void AWindowsDeviceNameIsNeverUsedAsTheStem(string subject)
+    {
+        Assert.Equal("Message.eml", EmailSourceFormat.RetainedMessageFileName(subject));
+    }
+
+    [Theory]
+    [InlineData("COM10", "COM10.eml")]
+    [InlineData("LPT0", "LPT0.eml")]
+    [InlineData("CONSOLE", "CONSOLE.eml")]
+    [InlineData("Console.log", "Console.log.eml")]
+    [InlineData("CON Claim", "CON Claim.eml")]
+    [InlineData("Nullify", "Nullify.eml")]
+    [InlineData("The CON", "The CON.eml")]
+    [InlineData(".hidden", ".hidden.eml")]
+    public void ASubjectThatOnlyStartsWithOrContainsADeviceNameKeepsItsName(string subject, string expected)
+    {
+        Assert.Equal(expected, EmailSourceFormat.RetainedMessageFileName(subject));
+    }
+
+    [Theory]
+    [InlineData("Claim. ", "Claim.eml")]
+    [InlineData("Claim...", "Claim.eml")]
+    [InlineData("Claim . .", "Claim.eml")]
+    [InlineData("Claim. ", "Claim.eml")]
+    [InlineData("Re: Claim.", "Re Claim.eml")]
+    [InlineData(". . .", "Message.eml")]
+    public void TheStemNeverEndsInADotOrASpaceBeforeTheExtension(string subject, string expected)
+    {
+        var name = EmailSourceFormat.RetainedMessageFileName(subject);
+
+        Assert.Equal(expected, name);
+        var stem = name[..^".eml".Length];
+        Assert.False(stem.EndsWith('.') || stem.EndsWith(' '), $"'{name}' ends its stem in a dot or a space.");
+    }
+
+    [Fact]
+    public void ACutThatLandsOnADotLeavesNoDotBeforeTheExtension()
+    {
+        var subject = new string('a', EmailSourceFormat.MaximumNameSubjectLength - 1) + ".tail";
+
+        Assert.Equal(
+            new string('a', EmailSourceFormat.MaximumNameSubjectLength - 1) + ".eml",
+            EmailSourceFormat.RetainedMessageFileName(subject));
+    }
+
+    [Fact]
+    public void ACutThatLeavesADeviceNameFallsBackToUntitled()
+    {
+        var subject = "CON" + new string(' ', EmailSourceFormat.MaximumNameSubjectLength) + "tail";
+
+        Assert.Equal("Message.eml", EmailSourceFormat.RetainedMessageFileName(subject));
+    }
+
     [Fact]
     public void TwoMessagesWithOneSubjectShareOneName()
     {
