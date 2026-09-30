@@ -80,27 +80,14 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
             hasMoreAccounts);
     }
 
+    /// <summary>
+    /// One account is the batch read of one id: the summary columns and the
+    /// role in one statement, under the same exactly-one-role rule.
+    /// </summary>
     public async Task<StaffAccountSummary?> GetAsync(
         Guid staffId,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var user = await context.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == staffId, cancellationToken);
-        if (user is null)
-        {
-            return null;
-        }
-
-        var roleNames = await (
-            from userRole in context.UserRoles.AsNoTracking()
-            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-            where userRole.UserId == staffId
-            select role.Name!)
-            .ToListAsync(cancellationToken);
-        return Summary(user, ParseSingleRole(roleNames));
-    }
+        CancellationToken cancellationToken) =>
+        (await GetManyAsync([staffId], cancellationToken)).SingleOrDefault();
 
     public async Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
         IReadOnlyCollection<Guid> staffIds,
@@ -115,8 +102,8 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
         var ids = staffIds.Distinct().ToArray();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // One row per user with its role names collected, so an account with
-        // no role or two roles fails the same exactly-one-role invariant as
-        // GetAsync instead of vanishing or appearing twice. The row is the
+        // no role or two roles fails the exactly-one-role invariant instead
+        // of vanishing or appearing twice. The row is the
         // columns a summary shows, never the password hash or the sign-off
         // signature bytes. It repeats ToRow because a correlated role list
         // cannot be composed into that expression, and its signature flag is
@@ -240,7 +227,12 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
             user.SignOffSignature is { Length: > 0 },
             user.IsDefaultSignOffEngineer);
 
-    /// <summary>Shared with <see cref="EfStaffAccountAdministration"/> so the mapping lives once.</summary>
+    /// <summary>
+    /// The summary of an account already loaded as a tracked entity: the
+    /// administration writes in <see cref="EfStaffAccountAdministration"/>,
+    /// which hold the user to change it. The reads here project
+    /// <see cref="StaffAccountRow"/> instead, so the mapping still lives once.
+    /// </summary>
     internal static StaffAccountSummary Summary(
         PegasusIdentityUser user,
         StaffRole role) =>
