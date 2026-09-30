@@ -71,6 +71,41 @@ public sealed class ReportRendererWarmingTests
         Assert.Equal(0, gate.InFlight);
     }
 
+    /// <summary>
+    /// A render that never ends holds the slot, not the warm-up: when the
+    /// keep-warm step's bound passes or the host stops, the warm-up stops
+    /// waiting at once and leaves admission, and no render is left behind it.
+    /// </summary>
+    [Fact]
+    public async Task WarmingBehindARenderThatNeverEndsStopsWaitingWhenItsCallerCancels()
+    {
+        await using var provider = RendererProvider();
+        var warmer = provider.GetRequiredService<IWarmReportRenderer>();
+        var gate = provider.GetRequiredService<ReportRenderGate>();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        // It ignores its token, as QuestPDF does inside a render.
+        var stuck = gate.RunAsync(async _ =>
+        {
+            started.SetResult();
+            await release.Task;
+            return new byte[] { 1 };
+        }, CancellationToken.None);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        using var caller = new CancellationTokenSource();
+        var warming = warmer.WarmAsync(caller.Token);
+        Assert.Equal(2, gate.InFlight);
+
+        await caller.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => warming.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(1, gate.InFlight);
+        release.SetResult();
+        await stuck;
+        await SettledAsync(gate);
+        Assert.Equal(0, gate.InFlight);
+    }
+
     private static async Task SettledAsync(ReportRenderGate gate)
     {
         var until = DateTime.UtcNow.AddSeconds(30);
