@@ -950,9 +950,11 @@ internal sealed partial class CachedDocumentContentStore(
 
     /// <summary>
     /// Set once a publish at filing has timed out or failed. This store is
-    /// scoped, so that is one work item on the Worker and one request on the
-    /// Web: the rest of its publishes are skipped, because a store that has
-    /// just failed is not worth another wait for each remaining file, and each
+    /// scoped, so the flag lasts for one DI scope: one request on the Web, one
+    /// queued work item on the Worker, or one whole run of the Worker's
+    /// reconciliation timer, which can file up to 50 pending versions. The rest
+    /// of that scope's publishes are skipped, because a store that has just
+    /// failed is not worth another wait for each remaining file, and each
     /// skipped file is published by its first read instead.
     /// </summary>
     private int filingPublishGivenUp;
@@ -1083,7 +1085,7 @@ internal sealed partial class CachedDocumentContentStore(
 
     [LoggerMessage(
         Level = LogLevel.Warning,
-        Message = "The read-cache copy of a filed {Kind} {ContentId} could not be published, so it and any later copy of this work item are left to their first read from Box.")]
+        Message = "The read-cache copy of a filed {Kind} {ContentId} could not be published, so it and any later copy in the same request, work item or reconciliation run are left to their first read from Box.")]
     private static partial void LogFilingPublishFailed(
         ILogger logger, string kind, Guid? contentId, Exception exception);
 
