@@ -672,14 +672,14 @@ internal sealed class EfCaseArtifactCustody(
         var existing = await box.FindChildAsync(
             holdingFolderId, fileName, "file", cancellationToken);
         content.Position = 0;
-        var file = existing ?? await box.UploadAsync(
+        var file = existing ?? (await box.UploadAsync(
             holdingFolder,
             fileName,
             content,
             request.ContentLength,
             request.MediaType,
             NormalizeHash(request.Sha256),
-            cancellationToken);
+            cancellationToken)).File;
         await using (var retained = await box.OpenVersionReadAsync(
                          file.Id,
                          file.VersionId ?? throw new InvalidDataException(
