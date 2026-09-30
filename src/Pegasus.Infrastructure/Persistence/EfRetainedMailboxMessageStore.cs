@@ -319,12 +319,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                     .SingleOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
-        var currentFolderType = await context.RetainedMailFolderMoves.AsNoTracking()
-            .Where(move => move.RetainedMailboxMessageId == entity.Id && move.Outcome == "succeeded")
-            .OrderByDescending(move => move.RecordedAtUtc)
-            .ThenByDescending(move => move.Id)
-            .Select(move => move.FolderType)
-            .FirstOrDefaultAsync(cancellationToken);
+        var currentFolderType = await ReadCurrentFolderTypeAsync(context, entity.Id, cancellationToken);
 
         var summaryRows = new List<SummaryRow>
         {
@@ -429,6 +424,82 @@ internal sealed class EfRetainedMailboxMessageStore(
             entity.ConversationIdentity,
             await LoadClassificationAsync(context, id, cancellationToken));
     }
+
+    /// <summary>
+    /// The Inbox preview pane's read. A summary the caller already holds from the
+    /// list is kept as it is, search matches included; without one the message's
+    /// own summary is read. Neither reads the thread, the staff names, the folder
+    /// recommendation or the latest move.
+    /// </summary>
+    public async Task<RetainedMailPreview?> GetPreviewAsync(
+        Guid id,
+        RetainedMailSummary? summary,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .Include(item => item.Attachments)
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (entity is null)
+        {
+            return null;
+        }
+
+        if (summary is null)
+        {
+            var currentFolderType = await ReadCurrentFolderTypeAsync(context, entity.Id, cancellationToken);
+            summary = (await MapSummariesAsync(
+                context,
+                [
+                    new SummaryRow(
+                        entity.Id,
+                        entity.MailboxId ?? UploadedCorrespondence.MailboxId,
+                        entity.MailboxAddress,
+                        entity.SenderAddress,
+                        entity.SenderDisplayName,
+                        entity.Subject,
+                        entity.BodyExcerpt,
+                        entity.ReceivedAtUtc,
+                        entity.IsRead,
+                        entity.Attachments.Count,
+                        entity.ExternalReceiptToken,
+                        false,
+                        currentFolderType,
+                        entity.BodyPlainText,
+                        null,
+                        entity.DismissedAtUtc)
+                ],
+                cancellationToken))[0];
+        }
+
+        var decision = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => item.SourceChannel == "mailbox"
+                && item.ExternalReceiptToken == entity.ExternalReceiptToken)
+            .Select(item => item.MailClassificationDecision)
+            .SingleOrDefaultAsync(cancellationToken);
+        return new(
+            summary,
+            entity.Attachments
+                .OrderBy(item => item.Ordinal)
+                .Select(item => new RetainedMailAttachment(
+                    item.FileName, item.MediaType, item.ContentLength, false, null))
+                .ToArray(),
+            decision is null ? null : EfIntakeReceiptStore.MapMailClassificationDecision(decision),
+            ParseFolderScope(entity.FolderScope));
+    }
+
+    private static Task<string?> ReadCurrentFolderTypeAsync(
+        PegasusDbContext context,
+        Guid retainedMessageId,
+        CancellationToken cancellationToken) =>
+        context.RetainedMailFolderMoves.AsNoTracking()
+            .Where(move => move.RetainedMailboxMessageId == retainedMessageId && move.Outcome == "succeeded")
+            .OrderByDescending(move => move.RecordedAtUtc)
+            .ThenByDescending(move => move.Id)
+            .Select(move => move.FolderType)
+            .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<RetainedMailDetail?> GetByOriginReceiptAsync(
         Guid originReceiptId,
