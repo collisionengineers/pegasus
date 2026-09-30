@@ -69,6 +69,40 @@ public sealed class WorkCentreWebTests
         Assert.Contains(">Record / detail</th>", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Each of the three reads is timed in its own allowlisted phase, and the
+    /// page is the page it was.
+    /// </summary>
+    [Fact]
+    public async Task TheThreeSectionReadsEmitTheirOwnPhasesAndThePageStillRenders()
+    {
+        var phases = new System.Collections.Concurrent.ConcurrentBag<string>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == Pegasus.Core.Documents.DocumentReadTelemetry.ActivitySourceName,
+            Sample = static (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
+                System.Diagnostics.ActivitySamplingResult.AllData,
+            ActivityStopped = activity => phases.Add(activity.DisplayName)
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        var snapshot = new FakeSnapshot
+        {
+            Items = [Item(NeedsAttentionKind.ReviewCase, "QDOS26004", NeedsAttentionPriority.Normal, Now.AddDays(1))],
+            TodayCount = 1
+        };
+        using var host = Host(snapshot);
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, "/");
+
+        Assert.Contains("QDOS26004", html, StringComparison.Ordinal);
+        foreach (var phase in new[] { "web.workcentre.attention", "web.workcentre.newcases", "web.workcentre.aijobs" })
+        {
+            Assert.True(Pegasus.Core.Documents.DocumentReadTelemetry.IsAllowedPhase(phase), phase);
+            Assert.Contains(phase, phases);
+        }
+    }
+
     [Fact]
     public async Task AnEmptyOfficeSaysNoWorkToShowAndAnEmptyMineKeepsTheSwitch()
     {
