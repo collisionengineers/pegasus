@@ -50,9 +50,16 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
     private static async Task<byte[]> RenderPdfAsync(
         AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
     {
-        var images = await PrepareAsync(snapshot, kind, cancellationToken).ConfigureAwait(false);
+        PreparedReportImages images;
+        using (DocumentReadTelemetry.Start("report.photos.prepare"))
+        {
+            images = await PrepareAsync(snapshot, kind, cancellationToken).ConfigureAwait(false);
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
-        return AssessmentReportLayout.Compose(snapshot, kind, images).GeneratePdf();
+        var document = AssessmentReportLayout.Compose(snapshot, kind, images);
+        using var generating = DocumentReadTelemetry.Start("report.pdf.generate");
+        return document.GeneratePdf();
     }
 
     /// <summary>
@@ -101,11 +108,17 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
 
     private RenderedReportArtifact Artifact(string fileName, byte[] pdf)
     {
-        using var document = PdfDocument.Open(pdf);
+        int pageCount;
+        using (DocumentReadTelemetry.Start("report.pdf.pagecount"))
+        {
+            using var document = PdfDocument.Open(pdf);
+            pageCount = document.NumberOfPages;
+        }
+
         return new RenderedReportArtifact(
             fileName,
             pdf,
-            document.NumberOfPages,
+            pageCount,
             Convert.ToHexStringLower(SHA256.HashData(pdf)),
             AssessmentReportContract.TemplateVersion,
             EngineVersion);
