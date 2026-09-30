@@ -347,8 +347,10 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 /// folder again, still within that ten-minute bound.
 ///
 /// A write never uses that memory. An upload goes only into a
-/// <see cref="ProvedFolder"/>, which one read of the folder produces
-/// (<see cref="ProveCaseFolderAsync"/> or <see cref="ProveFolderAsync"/>).
+/// <see cref="ProvedFolder"/>, which fresh reads of the folder produce:
+/// one for a Case folder (<see cref="ProveCaseFolderAsync"/>), or one for any
+/// other folder and one for each folder above it up to the root
+/// (<see cref="ProveFolderAsync"/>).
 /// The upload does not look for its name first and does not walk the path
 /// afterwards. Box's own answer must name the proved folder as the file's
 /// parent, and a name Box already holds is Box's 409, resolved by comparing
@@ -385,7 +387,7 @@ internal sealed class BoxContentClient(
         string? ParentId);
 
     /// <summary>
-    /// A folder that one read has proved fit to be written into. Only the
+    /// A folder that fresh reads have proved fit to be written into. Only the
     /// client's own prove methods make one, and an upload takes nothing else,
     /// so no file reaches Box without its folder having been proved first.
     /// </summary>
@@ -620,8 +622,9 @@ internal sealed class BoxContentClient(
     /// unchanged until this returns. Box's answer must name the proved folder
     /// as the file's parent. A name Box already holds is Box's 409
     /// <c>item_name_in_use</c>: the file is then the same file only when it is
-    /// a file of this length and type, in this folder, holding these bytes, and
-    /// the result says it was not created.
+    /// a file of this length, in this folder, holding these bytes, and the
+    /// result says it was not created. Its type is compared only if Box sends
+    /// one, and Box does not (<see cref="IsExpectedRevision"/>).
     /// </summary>
     public async Task<BoxUpload> UploadAsync(
         ProvedFolder folder,
@@ -729,9 +732,10 @@ internal sealed class BoxContentClient(
 
     /// <summary>
     /// The file Box says already holds an upload's name: a file, not a folder,
-    /// with a version identity, and this content's parent, length and type. A
-    /// file that is not is a refusal; whether its bytes are these bytes is the
-    /// caller's next check.
+    /// with a version identity, and this content's parent and length. Its type
+    /// is compared only if Box sends one, and Box does not
+    /// (<see cref="IsExpectedRevision"/>). A file that is not is a refusal;
+    /// whether its bytes are these bytes is the caller's next check.
     /// </summary>
     private async Task<BoxItem> FindOccupyingFileAsync(
         ProvedFolder folder,
