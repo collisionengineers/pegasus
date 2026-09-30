@@ -316,6 +316,56 @@ public sealed class CaseDetailsWebTests
             new Uri($"/Cases/{store.CaseId:D}/Section?section={key}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(string.Empty, await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Script asks for a fragment and reads only its status, so a fragment's 404
+    /// has an empty body, not the 18 KB status page and its shell reads. The
+    /// same 404 on the full page still renders the designed page.
+    /// </summary>
+    [Theory]
+    [InlineData("/Section?section=vehicle")]
+    [InlineData("/Section?section=valuation")]
+    [InlineData("/Section?section=notes")]
+    [InlineData("/Section?section=files")]
+    [InlineData("?handler=GlassSession")]
+    public async Task AFragmentOfAnUnknownCaseAnswersWithAnEmptyBodyWhileTheFullPageKeepsTheStatusPage(
+        string fragment)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        var unknown = Guid.NewGuid();
+
+        using var fragmentResponse = await client.GetAsync(
+            new Uri($"/Cases/{unknown:D}{fragment}", UriKind.Relative));
+        using var pageResponse = await client.GetAsync(
+            new Uri($"/Cases/{unknown:D}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NotFound, fragmentResponse.StatusCode);
+        Assert.Equal(string.Empty, await fragmentResponse.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NotFound, pageResponse.StatusCode);
+        Assert.Contains(
+            "We could not find that page",
+            await pageResponse.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
     }
 
     /// <summary>
