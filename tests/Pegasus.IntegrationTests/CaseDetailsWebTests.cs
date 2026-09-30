@@ -943,7 +943,7 @@ public sealed class CaseDetailsWebTests
         var next = await workspace.GetWorkspaceAsync();
         Assert.DoesNotContain("Case saved.", next, StringComparison.Ordinal);
         Assert.DoesNotContain("data-confirmation", next, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-editor-commit", next, StringComparison.Ordinal);
+        AssertNoEditorCommit(next);
         Assert.Contains("data-case-editing=\"true\"", next, StringComparison.Ordinal);
         Assert.Equal(store.LeaseToken, SaveFormValue(next, "editLeaseToken"));
         Assert.Equal(
@@ -1003,7 +1003,7 @@ public sealed class CaseDetailsWebTests
         AssertBalancedMarkup(answer);
         Assert.Empty(store.Saves);
         Assert.Equal(1, Occurrences(answer, "data-case-record"));
-        Assert.DoesNotContain("data-editor-commit", answer, StringComparison.Ordinal);
+        AssertNoEditorCommit(answer);
         Assert.Contains($"data-case-version=\"{version}\"", answer, StringComparison.Ordinal);
         Assert.Contains("role=\"alert\"", answer, StringComparison.Ordinal);
         Assert.Contains("The case refused the command.", answer, StringComparison.Ordinal);
@@ -1118,6 +1118,14 @@ public sealed class CaseDetailsWebTests
         request.Headers.Accept.ParseAdd("text/html");
         return await workspace.Client.SendAsync(request);
     }
+
+    /// <summary>
+    /// The record wrapper confirms no commit. Razor draws a data-* attribute whose value is null
+    /// as <c>data-editor-commit=""</c>, and the script reads an empty one as no commit, so the
+    /// attribute may be there; a value in it may not.
+    /// </summary>
+    private static void AssertNoEditorCommit(string html) =>
+        Assert.DoesNotMatch("data-editor-commit=\"[^\"]+\"", html);
 
     /// <summary>The Save form's own input, as the script's carry-forward reads it.</summary>
     private static string SaveFormValue(string html, string name)
