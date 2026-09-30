@@ -459,8 +459,8 @@ public sealed record CaseEditBasis(CaseSectionFrame Frame, CaseDataProjection Da
 }
 
 /// <summary>
-/// The bounded read a Save, and a lease reclaimed after an immediate post,
-/// need: the frame and the data, not documents, history or tasks.
+/// The bounded read a Save needs: the frame and the data, not documents,
+/// history or tasks.
 /// </summary>
 public interface IGetCaseEditBasis
 {
@@ -584,8 +584,11 @@ public sealed class GetCaseVehicleSection(
         var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
         var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
-        var evidence = workspace?.LatestVehicleObservation
-            ?? (await vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken))?.LatestObservation;
+        // The workspace reads the Case's latest observation, so a workspace
+        // without one means the Case has none; the evidence is not read again.
+        var evidence = workspace is not null
+            ? workspace.LatestVehicleObservation
+            : (await vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken))?.LatestObservation;
         return new(frame, data, evidence, workspace?.Assessment);
     }
 }

@@ -154,7 +154,7 @@ public sealed class EfWorkflowConfigurationStore(
         entity.ReviewTargetDays,
         entity.AiDraftTargetDays);
 
-    private static CaseWorkflowConfiguration Map(WorkflowConfigurationEntity entity) =>
+    internal static CaseWorkflowConfiguration Map(WorkflowConfigurationEntity entity) =>
         Map(Snapshot(entity));
 
     private static CaseWorkflowConfiguration Map(WorkflowConfigurationSnapshot snapshot) => new(

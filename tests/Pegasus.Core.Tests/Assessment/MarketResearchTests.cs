@@ -77,6 +77,18 @@ public sealed class MarketResearchTests
     }
 
     [Fact]
+    public void TheNewestQueuedOrTakenResearchAmongACasesJobsIsTheOnePending()
+    {
+        var older = Job(AiJobKind.MarketResearch, AiJobState.Taken);
+        var newer = Job(AiJobKind.MarketResearch, AiJobState.Queued) with { CreatedAtUtc = Now.AddMinutes(5) };
+        var draft = Job(AiJobKind.MarketResearch, AiJobState.DraftReady) with { CreatedAtUtc = Now.AddMinutes(10) };
+        var estimate = Job(AiJobKind.Estimate, AiJobState.Queued) with { CreatedAtUtc = Now.AddMinutes(15) };
+
+        Assert.Same(newer, MarketResearchPolicy.PendingOf([older, draft, newer, estimate]));
+        Assert.Null(MarketResearchPolicy.PendingOf([draft, estimate]));
+    }
+
+    [Fact]
     public async Task TheGuideMonthMustBeAMonth()
     {
         var sut = new StartMarketResearch(new MarketResearchQueries(new FakeJobs()), new RecordingCreate());

@@ -629,6 +629,7 @@ public sealed class CaseCustodyWebTests
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IStaffAccountQueries>(services,
                     new StubStaffAccounts(Guid.NewGuid(), "Engineer", StaffRole.Engineer));
                 Substitute<IEvaSubmissionQueries>(services, evaStores);

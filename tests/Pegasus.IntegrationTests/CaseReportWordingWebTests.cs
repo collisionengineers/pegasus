@@ -179,7 +179,6 @@ public sealed class CaseReportWordingWebTests
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
-                Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 substitutePorts(services);
             }));
         using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions

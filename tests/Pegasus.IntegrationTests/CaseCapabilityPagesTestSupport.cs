@@ -51,6 +51,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IValidateCaseRenderLease>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts(services);
             }));
@@ -117,8 +118,16 @@ internal static partial class CaseWebTestSupport
         AssertPrg(refused, workspace.Store.CaseId);
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
+        AssertCarriesNoLease(html);
     }
+
+    /// <summary>
+    /// The page carries no edit lease: no form posts a lease token. A control
+    /// that claims its own lease from read mode, such as Import estimate on a
+    /// Case the assessment can open, posts the field empty.
+    /// </summary>
+    internal static void AssertCarriesNoLease(string html) =>
+        Assert.DoesNotMatch("name=\"editLeaseToken\"[^>]*\\svalue=\"[^\"]+\"", html);
 
     /// <summary>
     /// The port received the leased workspace's envelope: the claimant, the case and its version,
@@ -894,8 +903,11 @@ internal static partial class CaseWebTestSupport
 
         public string? RepairerName { get; init; }
 
-        /// <summary>How many times a Save or a reclaim read the Case's edit basis.</summary>
+        /// <summary>How many times a Save read the Case's edit basis.</summary>
         public int EditBasisReads { get; private set; }
+
+        /// <summary>How many times a page read the Case's workflow row alone, as a lease reclaim does.</summary>
+        public int WorkflowReads { get; private set; }
 
         /// <summary>How many times a page read the Case's header instead of the full Case.</summary>
         public int HeaderReads { get; private set; }
@@ -1077,8 +1089,11 @@ internal static partial class CaseWebTestSupport
 
         Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(
             Guid caseId,
-            CancellationToken cancellationToken) => Task.FromResult<CaseWorkflowRecord?>(
-                caseId == CaseId ? CreateWorkflow() : null);
+            CancellationToken cancellationToken)
+        {
+            WorkflowReads++;
+            return Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? CreateWorkflow() : null);
+        }
 
         Task<bool> ICaseWorkflowQueries.HasOperationAsync(
             Guid caseId,
@@ -1380,6 +1395,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IValidateCaseRenderLease>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts(services);
@@ -1403,4 +1419,19 @@ internal static class CaseEditBasisTestData
             : new(
                 new CaseSectionFrame(details.Summary, details.Workflow, details.ActiveEditLease),
                 details.Data ?? throw new InvalidOperationException("The test Case has no data."));
+}
+
+/// <summary>A test double's full Case read, narrowed to the Case header a page reads.</summary>
+internal static class CaseHeaderTestData
+{
+    public static CaseHeader? Of(CaseDetails? details) =>
+        details is null
+            ? null
+            : new(
+                details.Summary,
+                details.Workflow,
+                details.ActiveEditLease,
+                details.Documents.Count,
+                details.History.Count,
+                details.Tasks.Count(task => task.State == CaseTaskState.Open));
 }

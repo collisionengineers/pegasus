@@ -160,11 +160,12 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// What the Case page costs in SQL commands in an edit session, and what one
     /// accepted single-field save costs, against the real stores (Roadmap Lane
     /// D, parts D2 and D5). Every save-as-you-go commit is that save followed by
-    /// the page, so both are the price of one field. The budgets are upper
-    /// bounds, so a lower count passes and a page that grows fails.
+    /// the page, so both are the price of one field. Both are pinned at their
+    /// exact counts, so any change to either is seen, and a mismatch lists
+    /// every command sent.
     /// </summary>
     [Fact]
-    public async Task TheCasePageInAnEditSessionAndOneAcceptedSaveStayWithinTheirStatementBudgets()
+    public async Task TheCasePageInAnEditSessionAndOneAcceptedSaveSendTheirPinnedStatements()
     {
         var counter = new CommandCountingInterceptor();
         using var factory = new IntakeWebApplicationFactory(
@@ -179,6 +180,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         counter.Reset();
         var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
         var pageCommands = counter.Count;
+        var pageDescription = counter.Describe();
+        var aiJobReads = counter.CountMentioning("[AiJobs]");
+        var vehicleObservationReads = counter.CountMentioning("[VehicleLookupObservations]");
         Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
 
         counter.Reset();
@@ -195,22 +199,38 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
         }
         var saveCommands = counter.Count;
+        var saveDescription = counter.Describe();
 
-        // Measured on this branch (LocalDB and CI agree): 62 commands for the page and 43
-        // for the save. The first reading from the code said about 69 and about 38, which
-        // was wrong. The folds that reading found for the save each change the command, the
-        // lease or the conflict check, or the ports many test fakes implement, and are left.
+        // Measured on this branch with LocalDB. The page sent 62 until it took the
+        // assessment's access answer from the workflow state its frame reads, then 61, and
+        // 47 after these folds:
+        // - the vehicle section takes the workspace's latest observation, even when there is
+        //   none, rather than reading the Case's vehicle evidence (4 commands) to find none;
+        // - the per-work reads (data, valuations, applied valuations, estimates, the current
+        //   report) resolve the Case's current work inside their own command (5);
+        // - the frame reads the Principal's notes and the claim source in one command (2);
+        // - the data read takes the workflow's version and state and the workflow
+        //   configuration in one command (1);
+        // - the report snapshot takes the Case's works from the frame at the same version (1);
+        // - the Case's AI jobs are read once for the drafts and the pending research (1).
+        // The save sent 43 until the lease it reclaims read only the Case's workflow row,
+        // then 37, and 35 once its edit basis read the data in two fewer commands.
+        // Measured again at the lane's base (2ee268507) in this scenario: 62 and 43.
         Assert.True(
-            pageCommands <= CasePageBudget,
-            $"The Case page in an edit session sent {pageCommands} SQL commands; the budget is {CasePageBudget}.");
+            pageCommands == CasePageCommands,
+            $"The Case page in an edit session sent {pageCommands} SQL commands; it is pinned at {CasePageCommands}."
+            + Environment.NewLine + pageDescription);
+        Assert.Equal(1, aiJobReads);
+        Assert.Equal(1, vehicleObservationReads);
         Assert.True(
-            saveCommands <= CaseSaveBudget,
-            $"One accepted save sent {saveCommands} SQL commands; the budget is {CaseSaveBudget}.");
+            saveCommands == CaseSaveCommands,
+            $"One accepted save sent {saveCommands} SQL commands; it is pinned at {CaseSaveCommands}."
+            + Environment.NewLine + saveDescription);
     }
 
-    private const int CasePageBudget = 62;
+    private const int CasePageCommands = 47;
 
-    private const int CaseSaveBudget = 43;
+    private const int CaseSaveCommands = 35;
 
     /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with

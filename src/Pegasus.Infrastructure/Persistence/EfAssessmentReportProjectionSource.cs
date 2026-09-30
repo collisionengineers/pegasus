@@ -89,7 +89,9 @@ internal sealed class EfAssessmentReportProjectionSource(
         // The report is made from one work, and is referenced as that work's
         // report: a. + the Case/PO for the Audit work (Our Ref, file name,
         // email subject), the Case/PO itself otherwise.
-        var selectedWork = (await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken)).Select(work);
+        var works = reuse?.WorksFor(caseId, workflow.Version)
+            ?? await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken);
+        var selectedWork = works.Select(work);
         var reportReference = CaseReferenceFormat.ReportReference(
             new CaseIdentity(
                 caseId,

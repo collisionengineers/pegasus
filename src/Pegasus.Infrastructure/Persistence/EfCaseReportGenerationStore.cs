@@ -656,11 +656,10 @@ public sealed class EfCaseReportGenerationStore(
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken)
-            .ConfigureAwait(false);
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
         var current = await context.Set<CaseReportGenerationEntity>()
             .AsNoTracking()
-            .Where(item => item.WorkId == workId && item.SupersededById == null)
+            .Where(item => selectedWorkIds.Contains(item.WorkId) && item.SupersededById == null)
             .OrderByDescending(item => item.GeneratedAtUtc)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);

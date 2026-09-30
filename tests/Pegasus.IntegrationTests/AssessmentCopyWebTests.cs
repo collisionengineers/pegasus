@@ -111,7 +111,9 @@ public sealed class AssessmentCopyWebTests
         bool canOpen = true)
     {
         var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        source = new FakeGetCase(caseId);
+        // The page takes its access answer from the Case's state, so a Case the
+        // assessment cannot open is one in a closed state.
+        source = new FakeGetCase(caseId, canOpen ? CaseLifecycleState.Review : CaseLifecycleState.Held);
         var fakeSource = source;
         return baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -161,7 +163,7 @@ public sealed class AssessmentCopyWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
-    private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetCaseEditBasis, IGetCasePageFrame, IGetAssessmentWorkspace
+    private sealed class FakeGetCase(Guid caseId, CaseLifecycleState state) : IGetCase, IGetCaseEditBasis, IGetCasePageFrame, IGetAssessmentWorkspace
     {
         async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
             GetCaseQuery query, CancellationToken cancellationToken) =>
@@ -176,7 +178,7 @@ public sealed class AssessmentCopyWebTests
 
             var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
             var workflow = new CaseWorkflowRecord(
-                caseId, identity, CaseLifecycleState.Review, null, null,
+                caseId, identity, state, null, null,
                 null, null, null, null, null, 7);
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
@@ -218,7 +220,7 @@ public sealed class AssessmentCopyWebTests
             caseId,
             "QDOS-2026-00042",
             7,
-            CaseLifecycleState.Review,
+            state,
             null,
             [],
             [],

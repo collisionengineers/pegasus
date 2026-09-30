@@ -303,6 +303,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                     item.ReceivedAtUtc))
                 .ToListAsync(cancellationToken);
 
+        // The receipt's classification decision is read here once, for the
+        // message's classification and for its classification dossier.
         var receipt = await context.IntakeReceipts
             .AsNoTracking()
             .Where(item => item.SourceChannel == "mailbox"
@@ -310,7 +312,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             .Select(item => new
             {
                 item.Id,
-                Classification = item.MailClassificationDecision!.Outcome,
+                Decision = item.MailClassificationDecision,
                 Route = item.MailRouteDecision!.Disposition,
                 EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress,
                 BodySearchText = item.SearchDocuments
@@ -415,14 +417,14 @@ internal sealed class EfRetainedMailboxMessageStore(
                 .ToArray(),
             thread,
             ParseFolderScope(entity.FolderScope),
-            receipt?.Classification is { } classification
+            receipt?.Decision?.Outcome is { } classification
                 ? ParseClassificationOutcome(classification)
                 : null,
             receipt?.Route is { } route ? ParseRouteDisposition(route) : null,
             entity.ImmutableMessageId,
             entity.InternetMessageIdentity,
             entity.ConversationIdentity,
-            await LoadClassificationByTokenAsync(context, entity.ExternalReceiptToken, cancellationToken));
+            await ClassificationDossierAsync(context, receipt?.Decision, cancellationToken));
     }
 
     /// <summary>
@@ -652,11 +654,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             : await LoadClassificationByTokenAsync(context, externalReceiptToken, cancellationToken);
     }
 
-    /// <summary>
-    /// The classification dossier of the message whose receipt token is known.
-    /// A caller that has already read the message passes its token and skips the
-    /// message read <see cref="LoadClassificationAsync"/> would repeat.
-    /// </summary>
+    /// <summary>The classification dossier of the message whose receipt token is known.</summary>
     private static async Task<MailClassificationDossier?> LoadClassificationByTokenAsync(
         PegasusDbContext context,
         string externalReceiptToken,
@@ -668,6 +666,18 @@ internal sealed class EfRetainedMailboxMessageStore(
                 && item.ExternalReceiptToken == externalReceiptToken)
             .Select(item => item.MailClassificationDecision)
             .SingleOrDefaultAsync(cancellationToken);
+        return await ClassificationDossierAsync(context, decision, cancellationToken);
+    }
+
+    /// <summary>
+    /// The classification dossier of a decision already read: only its
+    /// correction history is read here. No decision, no dossier.
+    /// </summary>
+    private static async Task<MailClassificationDossier?> ClassificationDossierAsync(
+        PegasusDbContext context,
+        IntakeMailClassificationDecisionEntity? decision,
+        CancellationToken cancellationToken)
+    {
         if (decision is null)
         {
             return null;

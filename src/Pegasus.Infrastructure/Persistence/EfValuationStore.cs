@@ -202,10 +202,10 @@ public sealed class EfValuationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
         var entities = await context.Set<AppliedValuationSnapshotEntity>()
             .AsNoTracking()
-            .Where(item => item.WorkId == workId)
+            .Where(item => selectedWorkIds.Contains(item.WorkId))
             .ToArrayAsync(cancellationToken);
         return entities
             .OrderByDescending(item => item.AcceptedAtUtc)
@@ -463,10 +463,10 @@ public sealed class EfValuationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
         var entities = await context.CaseValuations
             .AsNoTracking()
-            .Where(item => item.WorkId == workId)
+            .Where(item => selectedWorkIds.Contains(item.WorkId))
             .ToArrayAsync(cancellationToken);
         return entities.OrderByDescending(OrderKey).Select(Map).ToArray();
     }

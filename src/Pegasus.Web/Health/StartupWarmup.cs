@@ -176,8 +176,6 @@ internal sealed partial class StartupWarmup(
 
             await services.GetRequiredService<IGetCasePageFrame>().ExecuteAsync(
                 new(id, actor, Work: CaseWorkSelector.Current), cancellationToken);
-            await services.GetRequiredService<IGetAssessmentAccess>().ExecuteAsync(
-                new(id, actor), cancellationToken);
             await services.GetRequiredService<IGetAssessmentWorkspace>().ExecuteAsync(
                 new(id, actor, CaseWorkSelector.Current), cancellationToken);
         }, stoppingToken, cancellationToken);

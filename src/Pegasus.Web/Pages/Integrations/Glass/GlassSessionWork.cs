@@ -37,7 +37,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// </remarks>
 public sealed partial class GlassSessionWork(
     IGlassRepairEstimateGateway glassEstimates,
-    IGetCase cases,
+    IGetCaseHeader caseHeaders,
     IAcquireCaseEditLease leases,
     ILogger<GlassSessionWork> logger)
 {
@@ -112,7 +112,7 @@ public sealed partial class GlassSessionWork(
     {
         try
         {
-            var current = await cases.ExecuteAsync(new(session.CaseId, actor), cancellationToken);
+            var current = await caseHeaders.ExecuteAsync(new(session.CaseId, actor), cancellationToken);
             if (current is null
                 || current.ActiveEditLease is not null
                 || current.Workflow.Archive is not null

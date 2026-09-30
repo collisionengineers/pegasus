@@ -32,7 +32,6 @@ public sealed class CaseEngineerSectionsWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
-                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IListCaseEstimates>();
@@ -40,7 +39,6 @@ public sealed class CaseEngineerSectionsWebTests
                 services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
-                services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
                 services.AddSingleton<ICaseReportSnapshotSource>(source);
                 services.AddSingleton<IListCaseEstimates>(source);
@@ -111,7 +109,6 @@ public sealed class CaseEngineerSectionsWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
-                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IListCaseEstimates>();
@@ -119,7 +116,6 @@ public sealed class CaseEngineerSectionsWebTests
                 services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
-                services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
                 services.AddSingleton<ICaseReportSnapshotSource>(source);
                 services.AddSingleton<IListCaseEstimates>(source);
@@ -143,7 +139,6 @@ public sealed class CaseEngineerSectionsWebTests
     private sealed class EngineerSectionSource :
         IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
-        IGetAssessmentAccess,
         IGetAssessmentWorkspace,
         ICaseReportSnapshotSource,
         IListCaseEstimates
@@ -232,14 +227,6 @@ public sealed class CaseEngineerSectionsWebTests
                     details.RecordNotes,
                     details.Data!)
                 : null);
-
-        public Task<AssessmentAccessState?> ExecuteAsync(
-            GetAssessmentAccessQuery query,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<AssessmentAccessState?>(
-                query.CaseId == CaseId
-                    ? new(details.Workflow.State)
-                    : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,

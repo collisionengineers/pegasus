@@ -40,7 +40,6 @@ public sealed class IndexModel(
     IListTriage listTriage,
     ISearchCases searchCases,
     IGetCaseEditBasis getCaseEditBasis,
-    IGetAssessmentAccess getAssessmentAccess,
     ICaseReportSnapshotSource reportSnapshotSource,
     ICaseReportGenerationStore reportGenerations,
     ICaseReportDeliveryPreparationStore deliveryPreparations,
@@ -67,8 +66,6 @@ public sealed class IndexModel(
         searchCases ?? throw new ArgumentNullException(nameof(searchCases));
     private readonly IGetCaseEditBasis _getCaseEditBasis =
         getCaseEditBasis ?? throw new ArgumentNullException(nameof(getCaseEditBasis));
-    private readonly IGetAssessmentAccess _getAssessmentAccess =
-        getAssessmentAccess ?? throw new ArgumentNullException(nameof(getAssessmentAccess));
     private readonly ICaseReportSnapshotSource _reportSnapshotSource =
         reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
     private readonly ICaseReportGenerationStore _reportGenerations =
@@ -630,8 +627,7 @@ public sealed class IndexModel(
         CaseReportDeliveryPreparationRecord? deliveryPreparation = null;
         if (CaseNextAction.ReadsTheReport(basis.Workflow))
         {
-            var access = await _getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
-            if (access?.CanOpen == true
+            if (AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
                 && await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, cancellationToken) is { } reportInputs)
             {
                 reportBlockers = CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons;
