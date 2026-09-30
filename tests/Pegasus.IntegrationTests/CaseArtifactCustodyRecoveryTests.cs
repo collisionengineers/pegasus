@@ -1018,6 +1018,9 @@ public sealed class CaseArtifactCustodyRecoveryTests
     {
         public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
             Task.FromResult("Bearer test-token");
+
+        public Task<bool> RenewIfDueAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     /// <summary>
