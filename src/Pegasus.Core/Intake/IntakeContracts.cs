@@ -848,17 +848,6 @@ public sealed record IntakeSearchDocument(
 }
 
 /// <summary>
-/// How much received material is waiting for a person.
-/// </summary>
-/// <remarks>
-/// Both counts exclude receipts that already produced a case. Before this,
-/// neither the counts nor the filtered list applied any such filter, so every
-/// intake count was cumulative for all time and creating a case from a receipt
-/// never decremented anything.
-/// </remarks>
-public sealed record IntakeQueueCounts(int NeedsSorting);
-
-/// <summary>
 /// One row of the Inbox.
 /// </summary>
 /// <remarks>
@@ -1062,8 +1051,6 @@ public interface IIntakeReceiptQueries
         IntakeSourceIdentity sourceIdentity,
         CancellationToken cancellationToken) =>
         Task.FromResult<IntakeReceipt?>(null);
-
-    Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// One keyset page of received items, newest first: strictly after

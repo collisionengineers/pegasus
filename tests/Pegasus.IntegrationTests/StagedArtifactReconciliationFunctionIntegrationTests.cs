@@ -483,10 +483,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
     private sealed class EmptyIntakeReceiptQueries : IIntakeReceiptQueries
     {
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            throw new InvalidOperationException(
-                "The timer's grouped-image reconciliation must not query queue counts.");
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw new InvalidOperationException(
                 "An empty grouped-image reconciliation page must not fetch a receipt.");

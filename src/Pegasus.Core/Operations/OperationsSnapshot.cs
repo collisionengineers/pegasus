@@ -54,13 +54,21 @@ public enum NeedsAttentionScope
 /// (P3) and the page (D4, fifty rows). Counts are of the whole filtered list,
 /// never of the page.
 /// </summary>
+/// <remarks>
+/// <see cref="OpenAiJobs"/> and <see cref="Configuration"/> are what a caller
+/// that already read them hands over so the snapshot does not read them again
+/// (the Work Centre's AI jobs section needs the same two reads). Absent, the
+/// snapshot reads them itself.
+/// </remarks>
 public sealed record NeedsAttentionQuery(
     ActionActor Actor,
     NeedsAttentionScope Scope = NeedsAttentionScope.Office,
     int Page = 1,
     IReadOnlyCollection<NeedsAttentionKind>? Kinds = null,
     DateTimeOffset? AsOfUtc = null,
-    string? Search = null);
+    string? Search = null,
+    IReadOnlyList<AiJobRecord>? OpenAiJobs = null,
+    CaseWorkflowConfiguration? Configuration = null);
 
 public sealed record NeedsAttentionPage(
     IReadOnlyList<NeedsAttentionItem> Items,
@@ -96,7 +104,6 @@ public sealed record WorkCentreMetrics(int NotReady, int Review, int Held, int U
 /// </remarks>
 public sealed record OperationsSnapshot(
     DateTimeOffset AsOfUtc,
-    IntakeQueueCounts Intake,
     int TriageCount,
     int UnidentifiedCount,
     IReadOnlyList<CaseDueWork> DueWork,
@@ -209,7 +216,6 @@ public static class NeedsAttentionPolicy
 }
 
 public sealed class GetOperationsSnapshot(
-    IIntakeReceiptQueries intakeQueries,
     IListTriage listTriage,
     ICaseDueWorkQueries dueWorkQueries,
     IDashboardQueries dashboardQueries,
@@ -218,7 +224,7 @@ public sealed class GetOperationsSnapshot(
     IStaffAccountQueries staffAccounts,
     ICaseWorkflowConfiguration workflowConfiguration,
     TimeProvider timeProvider,
-    IAiDraftQueries? aiDrafts = null,
+    IAiJobQueries? aiJobs = null,
     ICaseWorkflowQueries? workflows = null) : IGetOperationsSnapshot, IGetAttentionRows
 {
     /// <summary>The list's page size (D4): paged, never cut.</summary>
@@ -232,8 +238,6 @@ public sealed class GetOperationsSnapshot(
 
     private const int SourcePageSize = 100;
 
-    private readonly IIntakeReceiptQueries intakeQueries =
-        intakeQueries ?? throw new ArgumentNullException(nameof(intakeQueries));
     private readonly IListTriage listTriage =
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly ICaseDueWorkQueries dueWorkQueries =
@@ -271,25 +275,29 @@ public sealed class GetOperationsSnapshot(
         var asOfUtc = query.AsOfUtc ?? timeProvider.GetUtcNow();
         // These adapters create independent contexts. The actor-name enrichment
         // below remains sequential because it uses the scoped identity context.
-        var intakeRead = intakeQueries.GetCountsAsync(cancellationToken);
-        var attentionRead = FetchAttentionInputsAsync(query.Actor, asOfUtc, cancellationToken);
+        var attentionRead = FetchAttentionInputsAsync(
+            query.Actor, asOfUtc, query.OpenAiJobs, query.Configuration, cancellationToken);
         var stagesRead = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
         // The Triages metric counts every active Triage Case; the attention
         // inputs already hold the two no-finding states, so only the Finding
         // recorded total is read here.
         var findingRecordedRead = listTriage.CountAsync(
             query.Actor, TriageState.FindingRecorded, cancellationToken);
-        await Task.WhenAll(intakeRead, attentionRead, stagesRead, findingRecordedRead);
-        var intake = await intakeRead;
+        await Task.WhenAll(attentionRead, stagesRead, findingRecordedRead);
         var inputs = await attentionRead;
         var caseStages = await stagesRead;
         var findingRecordedTriageCount = await findingRecordedRead;
         var all = await ComposeNeedsAttentionAsync(asOfUtc, inputs, cancellationToken);
         var page = Page(all, query, asOfUtc);
+        if (page.Items.Count == 0 && query.Page > page.TotalPages)
+        {
+            // A page past the end (the list shrank) lands on the last page, cut
+            // from the list already read rather than read again.
+            page = Page(all, query with { Page = page.TotalPages }, asOfUtc);
+        }
 
         return new(
             asOfUtc,
-            intake,
             inputs.TriageTotalCount,
             inputs.Unidentified.Count,
             inputs.DueWork,
@@ -312,7 +320,7 @@ public sealed class GetOperationsSnapshot(
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
 
         var asOfUtc = timeProvider.GetUtcNow();
-        var inputs = await FetchAttentionInputsAsync(actor, asOfUtc, cancellationToken);
+        var inputs = await FetchAttentionInputsAsync(actor, asOfUtc, null, null, cancellationToken);
         var rows = await ComposeNeedsAttentionAsync(asOfUtc, inputs, cancellationToken);
         return rows.Take(MaximumAttentionRows).ToArray();
     }
@@ -364,6 +372,8 @@ public sealed class GetOperationsSnapshot(
     private async Task<AttentionInputs> FetchAttentionInputsAsync(
         ActionActor actor,
         DateTimeOffset asOfUtc,
+        IReadOnlyList<AiJobRecord>? openAiJobs,
+        CaseWorkflowConfiguration? preloadedConfiguration,
         CancellationToken cancellationToken)
     {
         // The Triage kind is work without a finding, so both no-finding states
@@ -373,14 +383,18 @@ public sealed class GetOperationsSnapshot(
         var dueRead = ReadDueWorkAsync(asOfUtc, cancellationToken);
         var heldRead = ReadCasesAsync(actor, CaseLifecycleState.Held, cancellationToken);
         var reviewRead = ReadCasesAsync(actor, CaseLifecycleState.Review, cancellationToken);
-        var configurationRead = workflowConfiguration.GetCurrentAsync(cancellationToken);
+        var configurationRead = preloadedConfiguration is { } handed
+            ? Task.FromResult(handed)
+            : workflowConfiguration.GetCurrentAsync(cancellationToken);
         var unidentifiedRead = unidentifiedStore.ListQueueAsync(null, cancellationToken);
-        var draftsRead = aiDrafts is null
-            ? Task.FromResult<IReadOnlyList<AiDraft>>([])
-            : aiDrafts.ListOpenAsync(cancellationToken);
+        var openJobsRead = openAiJobs is not null
+            ? Task.FromResult(openAiJobs)
+            : aiJobs is null
+                ? Task.FromResult<IReadOnlyList<AiJobRecord>>([])
+                : aiJobs.ListOpenAsync(cancellationToken);
         var pairedRead = dashboardQueries.ListPairedVehicleImagesAwaitingStaffAsync(cancellationToken);
         await Task.WhenAll(openRead, awaitingRead, dueRead, heldRead, reviewRead,
-            configurationRead, unidentifiedRead, draftsRead, pairedRead);
+            configurationRead, unidentifiedRead, openJobsRead, pairedRead);
         var openTriage = await openRead;
         var awaitingTriage = await awaitingRead;
         var dueWork = await dueRead;
@@ -388,7 +402,7 @@ public sealed class GetOperationsSnapshot(
         var review = await reviewRead;
         var configuration = await configurationRead;
         var unidentified = await unidentifiedRead;
-        var drafts = await draftsRead;
+        var drafts = AiDraftPolicy.Drafts(await openJobsRead, configuration.AiDraftTargetDays);
         var paired = await pairedRead;
 
         var reviewPartitions = review

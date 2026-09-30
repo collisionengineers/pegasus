@@ -152,8 +152,6 @@ internal sealed partial class StartupWarmup(
         {
             await services.GetRequiredService<IGetOperationsSnapshot>().ExecuteAsync(
                 new NeedsAttentionQuery(actor, NeedsAttentionScope.Office, 1, null, now), cancellationToken);
-            await services.GetRequiredService<IAiJobQueries>().ListOpenAsync(cancellationToken);
-            await services.GetRequiredService<IAiDraftQueries>().ListOpenAsync(cancellationToken);
         }, stoppingToken, cancellationToken);
 
         Guid? caseId = null;
