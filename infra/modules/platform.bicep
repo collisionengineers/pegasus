@@ -539,7 +539,10 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
       }
       runtime: { name: 'dotnet-isolated', version: '10.0' }
       scaleAndConcurrency: {
-        maximumInstanceCount: 20
+        // A safety bound only. Flex Consumption applies it to the on-demand instances of each
+        // function group, not to the whole app, and never counts the always-ready instance.
+        // The Worker has never run more than two instances at once.
+        maximumInstanceCount: 5
         instanceMemoryMB: 2048
         alwaysReady: [
           {
