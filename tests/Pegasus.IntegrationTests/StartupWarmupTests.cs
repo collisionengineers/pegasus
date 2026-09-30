@@ -800,6 +800,10 @@ public sealed class StartupWarmupTests
         Task<AiJobCounts> IAiJobQueries.GetCountsAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        Task<RetainedMailPreview?> IRetainedMailQueries.GetPreviewAsync(
+            Guid id, RetainedMailSummary? summary, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<RetainedMailPage> ListAsync(
             MailWorkspaceScope scope, int page, int pageSize, CancellationToken cancellationToken)
         {

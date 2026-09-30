@@ -822,7 +822,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         var logger = new RecordingLogger();
 
         var result = await new ReconcilePendingArtifactCustody(
-            factory, new SuccessfulContentStore(), new CountingArtifactStore(), TimeProvider.System, logger)
+            factory, new SuccessfulContentStore(), new CountingArtifactStore(), TimeProvider.System, logger: logger)
             .ExecuteAsync(50, default);
 
         Assert.Equal(1, result.Failures);
@@ -859,7 +859,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         var logger = new RecordingLogger();
 
         var result = await new ReconcilePendingArtifactCustody(
-            factory, new SuccessfulContentStore(), artifacts, TimeProvider.System, logger)
+            factory, new SuccessfulContentStore(), artifacts, TimeProvider.System, logger: logger)
             .ExecuteAsync(50, default);
 
         Assert.Equal(2, result.Candidates);

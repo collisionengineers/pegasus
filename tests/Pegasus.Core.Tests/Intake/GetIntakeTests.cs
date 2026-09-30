@@ -97,9 +97,6 @@ public sealed class GetIntakeTests
             Interlocked.Increment(ref singleReads);
             return Task.FromResult(Known.SingleOrDefault(receipt => receipt.Id == id));
         }
-
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
     }
 
     /// <summary>A store that answers a batch in one call, as the SQL store does.</summary>

@@ -944,7 +944,8 @@ public sealed class ProductionGraphSourceTests
                     """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
         });
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
         var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease");
 
         var polled = Assert.Single((await source.ReadAsync(lease, 10, CancellationToken.None)).Messages);
@@ -1479,7 +1480,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
         var asked = new List<(string ImmutableMessageId, string InternetMessageIdentity)>();
         var retained = new HashSet<(string, string)>([
             ("retained-first", "<a@example.test>"),
@@ -1523,7 +1525,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         var page = await source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
@@ -1558,7 +1561,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
         var asked = 0;
 
         var page = await source.ReadAsync(
