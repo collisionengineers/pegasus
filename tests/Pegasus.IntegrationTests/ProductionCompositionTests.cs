@@ -236,6 +236,10 @@ public sealed class ProductionCompositionTests
         Assert.IsType<AzureBlobIntakeArtifactStore>(services.GetRequiredService<IIntakeArtifactStore>());
         Assert.IsType<AzureBlobIntakeArtifactStore>(
             services.GetRequiredService<IIntakeQuarantineArtifactStore>());
+        // The store that serves a read is the one that publishes what is filed.
+        Assert.Same(
+            services.GetRequiredService<IReadLogicalDocumentVersion>(),
+            services.GetRequiredService<IDocumentContentCachePublisher>());
     }
 
     [Fact]

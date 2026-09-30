@@ -4,6 +4,8 @@ using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -37,6 +39,20 @@ public sealed class NoDocumentContentCacheCleanup : IDocumentContentCacheCleanup
     }
 }
 
+/// <summary>
+/// The publisher for a profile with no content cache: there is nothing to
+/// fill, so nothing is written.
+/// </summary>
+public sealed class NoDocumentContentCachePublisher : IDocumentContentCachePublisher
+{
+    public Task PublishAsync(
+        DocumentContentCacheKey key,
+        Stream content,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
 public sealed class DocumentContentCacheMetrics : IDocumentContentCacheMetrics
 {
     private long hits;
@@ -50,13 +66,17 @@ public sealed class DocumentContentCacheMetrics : IDocumentContentCacheMetrics
     public void RecordMiss() => Interlocked.Increment(ref misses);
 }
 
-internal sealed class CachedDocumentContentStore(
+internal sealed partial class CachedDocumentContentStore(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
     BlobContainerClient container,
     BoxContentClient box,
     TimeProvider timeProvider,
-    IDocumentContentCacheMetrics? metrics = null)
-    : IReadLogicalDocumentVersion, IReadCachedDocumentVersions, IDocumentContentCacheCleanup
+    IDocumentContentCacheMetrics? metrics = null,
+    ILogger<CachedDocumentContentStore>? logger = null)
+    : IReadLogicalDocumentVersion,
+        IReadCachedDocumentVersions,
+        IDocumentContentCacheCleanup,
+        IDocumentContentCachePublisher
 {
     private static readonly TimeSpan IdleLifetime = TimeSpan.FromHours(24);
 
@@ -729,8 +749,66 @@ internal sealed class CachedDocumentContentStore(
         return touched == 1;
     }
 
+    /// <summary>
+    /// The longest a publish at filing takes before it is given up. The filing
+    /// it follows is already confirmed, so a slow store must not hold its caller.
+    /// </summary>
+    private static readonly TimeSpan FilingPublishTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Publishes content a caller has just filed and holds. The bytes are
+    /// checked against <paramref name="sha256"/> and
+    /// <paramref name="contentLength"/> before anything is written, then go
+    /// through the same write, integrity check and entry as a copy made by a
+    /// read miss. Nothing escapes: a failure is logged and the first read
+    /// publishes instead.
+    /// </summary>
+    public async Task PublishAsync(
+        DocumentContentCacheKey key,
+        Stream content,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(content);
+            var filed = FiledContent.Create(key, sha256, contentLength);
+            using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            bounded.CancelAfter(FilingPublishTimeout);
+            content.Position = 0;
+            var actual = Convert.ToHexString(
+                await SHA256.HashDataAsync(content, bounded.Token)).ToLowerInvariant();
+            if (content.Length != filed.Length || !FixedHashEquals(actual, filed.Sha256))
+            {
+                throw new InvalidDataException(
+                    "The filed content does not match the length and hash it was published under.");
+            }
+            await PublishAsync(filed, content, bounded.Token);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller is stopping; the first read publishes instead.
+        }
+        catch (Exception exception)
+        {
+            LogFilingPublishFailed(
+                logger ?? NullLogger<CachedDocumentContentStore>.Instance,
+                key?.DocumentVersionId is null ? "intake asset" : "document version",
+                key?.DocumentVersionId ?? key?.IntakeAssetId,
+                exception);
+        }
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "The read-cache copy of a filed {Kind} {ContentId} could not be published, so its first read fetches it from Box.")]
+    private static partial void LogFilingPublishFailed(
+        ILogger logger, string kind, Guid? contentId, Exception exception);
+
     private async Task PublishAsync(
-        ResolvedSource source,
+        ICachedContentIdentity source,
         Stream content,
         CancellationToken cancellationToken)
     {
@@ -864,7 +942,7 @@ internal sealed class CachedDocumentContentStore(
 
     private static IQueryable<DocumentContentCacheEntryEntity> CacheQuery(
         PegasusDbContext db,
-        ResolvedSource source) =>
+        ICachedContentIdentity source) =>
         db.Set<DocumentContentCacheEntryEntity>().Where(value =>
             value.Variant == OriginalVariant
             && (source.DocumentVersionId != null
@@ -1025,6 +1103,44 @@ internal sealed class CachedDocumentContentStore(
         return value.ToLowerInvariant();
     }
 
+    /// <summary>
+    /// What a cache copy is keyed by and proved against: the version or intake
+    /// asset it belongs to, and the SHA-256 and length its bytes must have. A
+    /// copy made by a read miss has it from the resolved source; a copy made at
+    /// filing has it from the caller. One write serves both.
+    /// </summary>
+    private interface ICachedContentIdentity
+    {
+        Guid? DocumentVersionId { get; }
+
+        Guid? IntakeAssetId { get; }
+
+        string Sha256 { get; }
+
+        long Length { get; }
+    }
+
+    /// <summary>The identity of content a caller has just filed.</summary>
+    private sealed record FiledContent(
+        Guid? DocumentVersionId,
+        Guid? IntakeAssetId,
+        string Sha256,
+        long Length) : ICachedContentIdentity
+    {
+        public static FiledContent Create(DocumentContentCacheKey key, string sha256, long length)
+        {
+            if ((key.DocumentVersionId is null) == (key.IntakeAssetId is null)
+                || key.DocumentVersionId == Guid.Empty
+                || key.IntakeAssetId == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Exactly one document version or intake asset identity is required.", nameof(key));
+            }
+            ArgumentOutOfRangeException.ThrowIfNegative(length);
+            return new(key.DocumentVersionId, key.IntakeAssetId, NormalizeHash(sha256), length);
+        }
+    }
+
     private sealed record ResolvedSource(
         Guid? DocumentVersionId,
         Guid? IntakeAssetId,
@@ -1034,7 +1150,7 @@ internal sealed class CachedDocumentContentStore(
         long Length,
         string FileName,
         string MediaType,
-        string ExpectedParentId)
+        string ExpectedParentId) : ICachedContentIdentity
     {
         public static ResolvedSource Create(
             Guid? documentVersionId,

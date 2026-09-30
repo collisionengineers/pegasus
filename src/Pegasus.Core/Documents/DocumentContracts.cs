@@ -512,6 +512,70 @@ public interface IReadCachedDocumentVersions
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// What one read-cache copy is kept under: a document version or a retained
+/// intake asset, never both. The cache is keyed by the same identity a read
+/// asks for, so a copy is found by the caller that filed it.
+/// </summary>
+public sealed record DocumentContentCacheKey(Guid? DocumentVersionId, Guid? IntakeAssetId)
+{
+    public static DocumentContentCacheKey ForVersion(Guid documentVersionId) =>
+        new(documentVersionId, null);
+
+    public static DocumentContentCacheKey ForIntakeAsset(Guid intakeAssetId) =>
+        new(null, intakeAssetId);
+}
+
+/// <summary>
+/// Writes the read-cache copy of content a caller holds and has just filed to
+/// custody, so the first read of it is a cache hit instead of a Box read.
+/// </summary>
+/// <remarks>
+/// The copy is an optimisation and never the record. A publish that fails, or
+/// takes longer than half a minute, is logged and forgotten: it never throws
+/// to the caller, so it can never fail the filing it follows. The next read
+/// then misses and publishes as it always did.
+///
+/// A caller publishes only after custody has confirmed the file and its own
+/// transaction has committed, because the cache row refers to the version or
+/// asset row. Each call uses its own database context and holds no state, so
+/// several may run at the same time.
+/// </remarks>
+public interface IDocumentContentCachePublisher
+{
+    /// <summary>
+    /// Publishes <paramref name="content"/>, which must be a readable, seekable
+    /// stream of exactly <paramref name="contentLength"/> bytes whose SHA-256 is
+    /// <paramref name="sha256"/>. The publisher checks both itself and refuses
+    /// to publish bytes that differ. The stream stays the caller's.
+    /// </summary>
+    Task PublishAsync(
+        DocumentContentCacheKey key,
+        Stream content,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken);
+}
+
+public static class DocumentContentCachePublisherExtensions
+{
+    /// <summary>Publishes bytes a caller holds in memory.</summary>
+    public static async Task PublishAsync(
+        this IDocumentContentCachePublisher publisher,
+        DocumentContentCacheKey key,
+        ReadOnlyMemory<byte> content,
+        string sha256,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(publisher);
+        await using var stream = System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment)
+            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
+            : new MemoryStream(content.ToArray(), writable: false);
+        await publisher.PublishAsync(key, stream, sha256, content.Length, cancellationToken)
+            .ConfigureAwait(false);
+    }
+}
+
 public sealed record ManagedDocumentContentAddress(
     Guid CaseId,
     string CaseReference,

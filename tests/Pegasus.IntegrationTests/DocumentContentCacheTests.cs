@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -1061,6 +1062,175 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Whichever host files a document to Box publishes the copy while it holds
+    /// the bytes, under the identity the read will ask for, so the first read
+    /// of it is a hit and asks Box for nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AFiledFilesFirstReadIsACacheHitWithNoBoxCall(bool document)
+    {
+        var bytes = "filed and never opened"u8.ToArray();
+        var estate = document ? await Estate.CreateDocumentAsync(bytes) : await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            estate.Box.Unavailable = true;
+            var publisher = estate.Reader;
+
+            await publisher.PublishAsync(
+                KeyOf(estate.Request), bytes, estate.Request.ExpectedSha256, CancellationToken.None);
+
+            Assert.Equal(1, estate.Blob.UploadCount);
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var entry = await db.Set<DocumentContentCacheEntryEntity>().SingleAsync();
+                Assert.Equal(estate.Request.VersionId, entry.DocumentVersionId);
+                Assert.Equal(estate.Request.IntakeAssetId, entry.IntakeAssetId);
+                Assert.Equal(CachedDocumentContentStore.OriginalVariant, entry.Variant);
+                Assert.Equal(estate.Request.ExpectedSha256, entry.VerifiedSha256);
+                Assert.Equal(bytes.LongLength, entry.VerifiedSize);
+            }
+
+            await using var read = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None);
+            Assert.Equal(bytes, await ReadAsync(read.Content));
+            Assert.Equal(0, estate.Box.Downloads);
+        }
+    }
+
+    /// <summary>
+    /// A publish that fails is logged and forgotten: it never throws, so it
+    /// cannot fail the filing it follows, and the next read misses and
+    /// publishes as it always did.
+    /// </summary>
+    [Fact]
+    public async Task AFailedPublishNeverThrowsAndTheNextReadPublishesAsItAlwaysDid()
+    {
+        var bytes = "publish that fails"u8.ToArray();
+        var logger = new RecordingLogger();
+        var estate = await Estate.CreateDocumentAsync(bytes, logger: logger);
+        await using (estate)
+        {
+            var publisher = estate.Reader;
+            estate.Blob.FailUploads = true;
+
+            await publisher.PublishAsync(
+                KeyOf(estate.Request), bytes, estate.Request.ExpectedSha256, CancellationToken.None);
+
+            Assert.Equal([LogLevel.Warning], logger.Levels);
+            Assert.Null(estate.Blob.Content);
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+            }
+
+            estate.Blob.FailUploads = false;
+            await using var read = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None);
+            Assert.Equal(bytes, await ReadAsync(read.Content));
+            Assert.Equal(1, estate.Box.Downloads);
+            await using var verify = await estate.Database.CreateContextAsync();
+            Assert.Single(await verify.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+        }
+    }
+
+    /// <summary>
+    /// The publisher checks the bytes it is given against the hash and length
+    /// it was given, so a caller's mistake never becomes a cache copy that a
+    /// later read would refuse.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BytesThatDoNotMatchTheirHashOrLengthAreNotPublished(bool wrongLength)
+    {
+        var bytes = "bytes the caller filed"u8.ToArray();
+        var logger = new RecordingLogger();
+        var estate = await Estate.CreateDocumentAsync(bytes, logger: logger);
+        await using (estate)
+        {
+            var publisher = estate.Reader;
+            var request = estate.Request;
+
+            if (wrongLength)
+            {
+                await using var stream = new MemoryStream(bytes, writable: false);
+                await publisher.PublishAsync(
+                    KeyOf(request), stream, request.ExpectedSha256, bytes.Length + 1, CancellationToken.None);
+            }
+            else
+            {
+                await publisher.PublishAsync(
+                    KeyOf(request), "different bytes here"u8.ToArray(), request.ExpectedSha256, CancellationToken.None);
+            }
+
+            Assert.Equal([LogLevel.Warning], logger.Levels);
+            Assert.Equal(0, estate.Blob.UploadCount);
+            await using var db = await estate.Database.CreateContextAsync();
+            Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+        }
+    }
+
+    /// <summary>
+    /// Filings of one work item run three at a time, so the publisher holds no
+    /// state between calls: each publish uses its own context and one entry
+    /// results per version.
+    /// </summary>
+    [Fact]
+    public async Task PublishesOfDifferentVersionsMayRunAtTheSameTime()
+    {
+        var estate = await Estate.CreateDocumentAsync("one of three"u8.ToArray());
+        await using (estate)
+        {
+            var container = new NamedCacheContainer();
+            await using var scope = estate.Database.CreateAsyncScope();
+            var publisher = new CachedDocumentContentStore(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                container,
+                new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock),
+                estate.Clock);
+            var versions = new List<(Guid VersionId, byte[] Bytes)>();
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var document = await db.Set<CaseDocumentEntity>().SingleAsync();
+                for (var index = 0; index < 3; index++)
+                {
+                    var bytes = Encoding.UTF8.GetBytes($"concurrent filed version {index}");
+                    var version = new DocumentVersionEntity
+                    {
+                        Id = Guid.NewGuid(), DocumentId = document.Id, Version = 10 + index,
+                        FileName = $"filed-{index}.bin", MediaType = "application/octet-stream",
+                        ContentLength = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+                        BoxFileId = $"box-file-{index}", BoxVersionId = $"box-version-{index}",
+                        CustodyStatus = DocumentCustodyStatus.Confirmed, CreatedAtUtc = DateTimeOffset.UtcNow,
+                        CreatedBy = "test"
+                    };
+                    db.Add(version);
+                    versions.Add((version.Id, bytes));
+                }
+                await db.SaveChangesAsync();
+            }
+
+            await Task.WhenAll(versions.Select(item => publisher.PublishAsync(
+                DocumentContentCacheKey.ForVersion(item.VersionId),
+                item.Bytes,
+                Convert.ToHexString(SHA256.HashData(item.Bytes)).ToLowerInvariant(),
+                CancellationToken.None)));
+
+            await using var verify = await estate.Database.CreateContextAsync();
+            var entries = await verify.Set<DocumentContentCacheEntryEntity>().ToArrayAsync();
+            Assert.Equal(
+                versions.Select(item => item.VersionId).Order(),
+                entries.Select(entry => entry.DocumentVersionId!.Value).Order());
+            Assert.Equal(3, container.UploadCount);
+        }
+    }
+
+    private static DocumentContentCacheKey KeyOf(ReadLogicalDocumentVersionRequest request) =>
+        request.VersionId is { } versionId
+            ? DocumentContentCacheKey.ForVersion(versionId)
+            : DocumentContentCacheKey.ForIntakeAsset(request.IntakeAssetId!.Value);
+
     [Fact]
     public async Task APlainThumbnailIsKeptThirtyDaysAndAPreparedOneADay()
     {
@@ -1341,7 +1511,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
 
         public static async Task<Estate> CreateDocumentAsync(
             byte[] bytes,
-            string mediaType = "application/octet-stream")
+            string mediaType = "application/octet-stream",
+            ILogger<CachedDocumentContentStore>? logger = null)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             var staffId = Guid.NewGuid();
@@ -1406,7 +1577,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 "x", "holding");
             var clock = new MutableTimeProvider(new DateTimeOffset(2031, 1, 1, 0, 0, 0, TimeSpan.Zero));
             var reader = new CachedDocumentContentStore(
-                factory, new CacheContainer(blob), new BoxContentClient(options, new HttpClient(box), new Header(), clock), clock);
+                factory, new CacheContainer(blob), new BoxContentClient(options, new HttpClient(box), new Header(), clock), clock,
+                logger: logger);
             return new Estate(database, reader, blob, box, clock,
                 new(ActionActor.Staff(staffId, [StaffRole.Engineer]), documentId, versionId, null,
                     caseId, null, hash, bytes.Length))
@@ -1562,6 +1734,66 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     {
         public override BlobClient GetBlobClient(string blobName) { blob.BlobName=blobName; return blob; }
     }
+
+    /// <summary>A container that keeps one blob for each name it is asked for.</summary>
+    private sealed class NamedCacheContainer : BlobContainerClient
+    {
+        private readonly Dictionary<string, CacheBlob> blobs = [];
+
+        public int UploadCount
+        {
+            get { lock (blobs) { return blobs.Values.Sum(blob => blob.UploadCount); } }
+        }
+
+        public override BlobClient GetBlobClient(string blobName)
+        {
+            lock (blobs)
+            {
+                if (!blobs.TryGetValue(blobName, out var blob))
+                {
+                    blob = new CacheBlob { BlobName = blobName };
+                    blobs[blobName] = blob;
+                }
+                return blob;
+            }
+        }
+    }
+
+    private sealed class RecordingLogger : ILogger<CachedDocumentContentStore>
+    {
+        private readonly Lock guard = new();
+        private readonly List<LogLevel> levels = [];
+
+        public IReadOnlyList<LogLevel> Levels
+        {
+            get
+            {
+                lock (guard)
+                {
+                    return [.. levels];
+                }
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (guard)
+            {
+                levels.Add(logLevel);
+            }
+        }
+    }
+
     private sealed class CacheBlob : BlobClient
     {
         private ETag etag = new("\"1\"");
@@ -1572,10 +1804,17 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         public bool DeleteResult { get; set; } = true;
         public bool MissingContentIsNotFound { get; set; }
         public bool DeletePreconditionFails { get; set; }
+        /// <summary>Answers every upload with the store being unavailable.</summary>
+        public bool FailUploads { get; set; }
         public void ReplaceContent(byte[] content) { Content = content; etag = new ETag("\"2\""); }
         public override string Name=>BlobName;
         public override Task<Response<BlobContentInfo>> UploadAsync(Stream content,BlobUploadOptions options,CancellationToken token=default)
         {
+            if (FailUploads)
+            {
+                return Task.FromException<Response<BlobContentInfo>>(
+                    new RequestFailedException(503, "The blob store is unavailable."));
+            }
             lock (this)
             {
                 if (Content is not null)
