@@ -897,15 +897,6 @@ public sealed class EfImageIntakeStore(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var eligible = await EfImageIntakeCaseCandidates.EligibleQuery(context)
-            .ToArrayAsync(cancellationToken);
-        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
-        var leasedCases = await context.CaseWorkflows.AsNoTracking()
-            .Where(workflow => workflow.EditLeaseExpiresAtUtc > now)
-            .Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
-        var archivedCases = await context.CaseWorkflows.AsNoTracking()
-            .Where(workflow => workflow.ArchivedAtUtc != null)
-            .Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
         var awaiting = ToCode(ImageInitiatedCaseState.AwaitingInstruction);
         var rows = await ProjectAsync(
             context.ImageIntakes.AsNoTracking()
@@ -914,12 +905,44 @@ public sealed class EfImageIntakeStore(
                         association.IntakeReceiptId == intake.OriginReceiptId && !association.IsActive))
                 .OrderBy(intake => intake.CreatedAtUtc).ThenBy(intake => intake.Id),
             context, cancellationToken);
+        if (rows.Count == 0)
+        {
+            // The sweep runs every few seconds and usually nothing is waiting:
+            // that is one read, with no Case, lease, archive or association read.
+            return [];
+        }
+
+        var eligible = await EfImageIntakeCaseCandidates.EligibleQuery(context)
+            .ToArrayAsync(cancellationToken);
+        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
+        // The Case-id bound is in the query: a lease on any other Case cannot
+        // change what this call returns.
+        var leases = context.CaseWorkflows.AsNoTracking()
+            .Where(workflow => workflow.EditLeaseExpiresAtUtc > now);
+        if (caseId is { } boundCaseId)
+        {
+            leases = leases.Where(workflow => workflow.CaseId == boundCaseId);
+        }
+        var leasedCases = await leases.Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
+        // Only a staff link can name an archived Case (an automatic target is
+        // never archived), so only the Cases the waiting records are linked to
+        // can matter.
+        var linkedCaseIds = rows.Where(row => row.AssociatedCaseId is not null)
+            .Select(row => row.AssociatedCaseId!.Value).Distinct().ToArray();
+        var archivedCases = linkedCaseIds.Length == 0
+            ? []
+            : await context.CaseWorkflows.AsNoTracking()
+                .Where(workflow => workflow.ArchivedAtUtc != null && linkedCaseIds.Contains(workflow.CaseId))
+                .Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
 
         // The established near-miss rule is not SQL-translatable. Evaluate
         // current eligibility before the bound, never permanently mark a
         // no-match row: a later Case or correction can make it actionable.
-        var associations = await context.IntakeManualAssociations.AsNoTracking().ToDictionaryAsync(
-            association => association.IntakeReceiptId, cancellationToken);
+        // Manual associations are read for the waiting records' origin receipts
+        // now, and for a record's image receipts once it has a target.
+        var associations = new Dictionary<Guid, IntakeManualAssociationEntity>();
+        await LoadAssociationsAsync(
+            context, associations, rows.Select(row => row.OriginReceiptId), cancellationToken);
         var pending = new List<ImageIntakeSummary>();
         foreach (var intake in rows)
         {
@@ -952,6 +975,11 @@ public sealed class EfImageIntakeStore(
                 continue;
             }
             var images = await ListImagesAsync(intake.Id, cancellationToken);
+            await LoadAssociationsAsync(
+                context,
+                associations,
+                images.Select(image => image.ReceiptId).Where(receiptId => receiptId != intake.OriginReceiptId),
+                cancellationToken);
             if (images.Any(image => associations.TryGetValue(image.ReceiptId, out var association)
                     ? !association.IsActive || association.CaseId != target
                     : !staffDecision && automaticTarget?.CaseId != target))
@@ -975,6 +1003,31 @@ public sealed class EfImageIntakeStore(
             }
         }
         return pending;
+    }
+
+    /// <summary>
+    /// Adds the manual associations of the receipts not already in
+    /// <paramref name="loaded"/>. A receipt with no association adds nothing.
+    /// </summary>
+    private static async Task LoadAssociationsAsync(
+        PegasusDbContext context,
+        Dictionary<Guid, IntakeManualAssociationEntity> loaded,
+        IEnumerable<Guid> receiptIds,
+        CancellationToken cancellationToken)
+    {
+        var missing = receiptIds.Where(receiptId => !loaded.ContainsKey(receiptId)).Distinct().ToArray();
+        if (missing.Length == 0)
+        {
+            return;
+        }
+
+        var found = await context.IntakeManualAssociations.AsNoTracking()
+            .Where(association => missing.Contains(association.IntakeReceiptId))
+            .ToArrayAsync(cancellationToken);
+        foreach (var association in found)
+        {
+            loaded[association.IntakeReceiptId] = association;
+        }
     }
 
     public async Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken)

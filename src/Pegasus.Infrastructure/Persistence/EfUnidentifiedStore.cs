@@ -308,6 +308,22 @@ public sealed class EfUnidentifiedStore(
         return rows.Select(Map).ToArray();
     }
 
+    public async Task<IReadOnlyList<UnidentifiedItem>> ListOldestAsync(
+        UnidentifiedState state,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var code = state.ToString();
+        var rows = await context.Set<UnidentifiedItemEntity>().AsNoTracking()
+            .Where(item => item.State == code)
+            .OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.Sequence)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken);
+        return rows.Select(Map).ToArray();
+    }
+
     public async Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
         int maximum,
         CancellationToken cancellationToken = default)

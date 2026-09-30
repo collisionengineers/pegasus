@@ -520,6 +520,96 @@ public sealed class ImageIntakePersistenceTests
     }
 
     /// <summary>
+    /// The pairing sweep runs every ten seconds and usually finds nothing awaiting
+    /// an instruction. That costs one read: no Case, lease, archive or association
+    /// read follows it.
+    /// </summary>
+    [Fact]
+    public async Task APairingSweepWithNothingAwaitingReadsOnce()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IImageIntakeStore>();
+
+        statements.Reset();
+        var pending = await store.ListPendingPairingAsync(50, null, CancellationToken.None);
+
+        Assert.Empty(pending);
+        Assert.Equal(1, statements.Count);
+    }
+
+    /// <summary>
+    /// The Case bound and the lease check are in the reads: a record that would
+    /// pair with a Case is offered for that Case only, and not while it is being
+    /// edited.
+    /// </summary>
+    [Fact]
+    public async Task PendingPairingIsBoundedToTheCaseAndWaitsForItsEditor()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        var origin = await UploadCaseOriginAsync(factory, client, "AUTO-LINK-01");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "bounded-pairing-image");
+        var caseId = await SeedCaseAsync(services, origin, "IMG26031",
+            nameof(CaseLifecycleState.Review), "AB12CDE", CreatedAfterRegistration);
+        var store = services.GetRequiredService<IImageIntakeStore>();
+
+        Assert.Equal(imageReceipt,
+            Assert.Single(await store.ListPendingPairingAsync(50, null, CancellationToken.None)).OriginReceiptId);
+        Assert.Equal(imageReceipt,
+            Assert.Single(await store.ListPendingPairingAsync(50, caseId, CancellationToken.None)).OriginReceiptId);
+        Assert.Empty(await store.ListPendingPairingAsync(50, Guid.NewGuid(), CancellationToken.None));
+
+        await ClaimLeaseAsync(services, caseId, StaffActor(), "bounded-pairing-lease");
+        Assert.Empty(await store.ListPendingPairingAsync(50, null, CancellationToken.None));
+        Assert.Empty(await store.ListPendingPairingAsync(50, caseId, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A staff link reaches a Case in any state except an archived one. The
+    /// archive check reads only the Cases the waiting records are linked to.
+    /// </summary>
+    [Fact]
+    public async Task PendingPairingSkipsARecordStaffLinkedToAnArchivedCase()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        var origin = await UploadCaseOriginAsync(factory, client, "AUTO-LINK-01");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "archived-link-image");
+        var caseId = await SeedCaseAsync(services, origin, "IMG26032",
+            nameof(CaseLifecycleState.Review), "XY34ZZZ");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var lease = await ClaimLeaseAsync(services, caseId, StaffActor(), "archived-link-lease");
+        var receipt = await receipts.GetAsync(imageReceipt, CancellationToken.None);
+        await services.GetRequiredService<IIntakeMutationStore>().LinkAsync(new(
+            imageReceipt, caseId, receipt!.Version, 0, lease.Token, StaffActor(), "archived-link",
+            "Staff confirmed this source belongs with this instruction."),
+            DateTimeOffset.UtcNow, CancellationToken.None);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET EditLeaseExpiresAtUtc = {DateTimeOffset.UtcNow.AddMinutes(-1)} WHERE CaseId = {caseId}");
+        Assert.Equal(imageReceipt,
+            Assert.Single(await store.ListPendingPairingAsync(50, null, CancellationToken.None)).OriginReceiptId);
+
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET ArchivedAtUtc = {DateTimeOffset.UtcNow}, ArchivedByKind = {nameof(ActorKind.Staff)}, ArchivedBySubjectId = {Guid.NewGuid().ToString()}, ArchivedByRolesJson = {"[\"Administrator\"]"}, ArchiveReason = {"Archived for the test."} WHERE CaseId = {caseId}");
+
+        Assert.Empty(await store.ListPendingPairingAsync(50, null, CancellationToken.None));
+    }
+
+    /// <summary>
     /// Issue 905 (operator, 28 September 2026): manually uploaded images wait
     /// for staff over any Case that existed when they registered, and pair by
     /// themselves with a Case created afterwards. The pairing is on the Case
