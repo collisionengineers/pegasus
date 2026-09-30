@@ -4558,6 +4558,16 @@
             document.addEventListener('keydown', onKeydown, true);
             go(at);
             try { host.focus({ preventScroll: true }); } catch (_) { host.focus(); }
+            bringIntoView();
+        }
+        // Every way in (a tile, a preview, a card's crop) shows the viewer
+        // through show(), so this is the one place that brings it into view
+        // when the operator opened it from further up the Case.
+        function bringIntoView() {
+            var box = host.getBoundingClientRect();
+            if (box.top >= 0 && box.bottom <= window.innerHeight) { return; }
+            var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            host.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
         }
         function close() {
             if (state.crop) { cancelCrop(); }
