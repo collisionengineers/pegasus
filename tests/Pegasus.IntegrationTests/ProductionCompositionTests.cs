@@ -394,14 +394,19 @@ public sealed class ProductionCompositionTests
                     "InstrumentationKey=00000000-0000-0000-0000-000000000000"
             });
 
+        // The SDK builds the registered processors into the default sink's chain
+        // (filter, metrics extractor, live metrics, adaptive sampling, transmission).
+        // TelemetryConfiguration.TelemetryProcessors is only the configuration's own
+        // pass-through entry point that hands each item to the sinks, so it never lists them.
         var processors = factory.Services.GetRequiredService<TelemetryConfiguration>()
-            .TelemetryProcessors.ToList();
+            .DefaultTelemetrySink.TelemetryProcessors.ToList();
 
         var filter = processors.FindIndex(processor => processor is QuietRequestTelemetryFilter);
         var sampling = processors.FindIndex(processor => processor.GetType().Name.Contains("Sampling", StringComparison.Ordinal));
         Assert.True(filter >= 0, "The quiet-row filter is not in the telemetry processor chain.");
+        Assert.True(sampling >= 0, "Adaptive sampling is not in the telemetry processor chain.");
         Assert.True(
-            sampling < 0 || filter < sampling,
+            filter < sampling,
             "The quiet-row filter must run before adaptive sampling so dropped rows do not spend its budget.");
     }
 
