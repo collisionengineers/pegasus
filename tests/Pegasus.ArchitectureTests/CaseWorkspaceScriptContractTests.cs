@@ -44,6 +44,25 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Equal(1, script.Split("host.scrollIntoView(", StringSplitOptions.None).Length - 1);
     }
 
+    /// <summary>
+    /// The edit heartbeat stops on a 404, a Case that no longer exists (a stale tab
+    /// after a wipe), as it does on a refused or expired lease. It still beats in a
+    /// hidden tab, because the edit lease relies on those beats to stay alive.
+    /// </summary>
+    [Fact]
+    public void TheHeartbeatStopsOnA404AsItDoesOnAnExpiredLeaseAndStillBeatsInAHiddenTab()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var beat = FunctionBody(script, "function beat() {");
+        Assert.Contains(
+            "response.status === 409 || response.status === 403 || response.status === 404",
+            beat,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("document.hidden", beat, StringComparison.Ordinal);
+    }
+
     private static string FunctionBody(string script, string signature)
     {
         var start = script.IndexOf(signature, StringComparison.Ordinal);

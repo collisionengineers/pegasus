@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -1252,22 +1251,6 @@ public sealed partial class DetailsModel(
             : ReportDraftPreparation.CanGenerate
                 ? null
                 : Labels.CaseWorkspace.EngineerSections.NotReady;
-    }
-
-    /// <summary>
-    /// A fragment's 404. Script asks for a fragment and reads only its status,
-    /// so the status pages middleware is switched off for this response and the
-    /// refusal has an empty body instead of the full status page and its reads.
-    /// A full-page 404 keeps the designed page.
-    /// </summary>
-    private NotFoundResult FragmentNotFound()
-    {
-        var statusPages = HttpContext.Features.Get<IStatusCodePagesFeature>();
-        if (statusPages is not null)
-        {
-            statusPages.Enabled = false;
-        }
-        return NotFound();
     }
 
     /// <summary>
