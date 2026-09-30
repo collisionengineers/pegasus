@@ -100,6 +100,45 @@ public sealed class CaseReportContentSourceTests
             () => composed.Photos[0].OpenAsync(CancellationToken.None));
     }
 
+    /// <summary>
+    /// The lookups belong to no one image and no one compose. A first open that
+    /// is cancelled while they run, and a compose whose token is cancelled with
+    /// it, leave them running: an image that opens after it still gets its
+    /// bytes, from the same single lookup.
+    /// </summary>
+    [Fact]
+    public async Task ACancelledFirstOpenDoesNotStopASecondOpen()
+    {
+        var caseId = Guid.NewGuid();
+        var staffId = Guid.NewGuid();
+        var actor = ActionActor.Staff(staffId, [StaffRole.Engineer]);
+        byte[][] contents = ["a bonnet photograph"u8.ToArray(), "an offside photograph"u8.ToArray()];
+        var images = contents.Select((bytes, index) => Image(bytes, index + 1)).ToArray();
+        var reader = new PreparedReader(images.Zip(contents).ToDictionary(
+            pair => pair.First.VersionId, pair => pair.Second))
+        {
+            Gate = new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var source = new EfCaseReportContentSource(
+            reader,
+            new OneSignOffEngineer(new(staffId, "Ed Mawdsley", null, Signature, "image/png", true)));
+        using var compose = new CancellationTokenSource();
+        var composed = await source.ComposeAsync(SnapshotOf(caseId, staffId, images), actor, compose.Token);
+
+        using var firstOpen = new CancellationTokenSource();
+        var first = composed.Photos[0].OpenAsync(firstOpen.Token);
+        await reader.PrepareStarted.WaitAsync(TimeSpan.FromSeconds(30));
+        await firstOpen.CancelAsync();
+        await compose.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+
+        reader.Gate.SetResult();
+        Assert.Equal(contents[1], await composed.Photos[1].OpenAsync(CancellationToken.None));
+        Assert.Equal(contents[0], await composed.Photos[0].OpenAsync(CancellationToken.None));
+        Assert.Equal(1, reader.PrepareCalls);
+    }
+
     private static CaseReportSnapshotImage Image(byte[] bytes, int order) => new(
         OccurrenceId: Guid.NewGuid(),
         VersionId: Guid.NewGuid(),
@@ -142,9 +181,16 @@ public sealed class CaseReportContentSourceTests
     {
         private readonly object guard = new();
         private readonly List<Guid> opened = [];
+        private readonly TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int prepareCalls;
 
         public int PrepareCalls => Volatile.Read(ref prepareCalls);
+
+        /// <summary>When set, the lookups wait for it, and stop if their token is cancelled.</summary>
+        public TaskCompletionSource? Gate { get; init; }
+
+        /// <summary>Completes when the lookups have begun.</summary>
+        public Task PrepareStarted => started.Task;
 
         public Guid PreparedCaseId { get; private set; }
 
@@ -168,7 +214,7 @@ public sealed class CaseReportContentSourceTests
             throw new InvalidOperationException(
                 "The report must read its images through the prepared handles.");
 
-        public Task<IReadOnlyList<PreparedLogicalDocumentRead>> PrepareAsync(
+        public async Task<IReadOnlyList<PreparedLogicalDocumentRead>> PrepareAsync(
             ActionActor actor,
             Guid caseId,
             IReadOnlyList<LogicalDocumentVersionRead> versions,
@@ -178,23 +224,27 @@ public sealed class CaseReportContentSourceTests
             PreparedCaseId = caseId;
             PreparedActor = actor;
             Prepared = versions;
-            return Task.FromResult<IReadOnlyList<PreparedLogicalDocumentRead>>(
-                [.. versions.Select(version => new PreparedLogicalDocumentRead(token =>
+            started.TrySetResult();
+            if (Gate is not null)
+            {
+                await Gate.Task.WaitAsync(cancellationToken);
+            }
+            return [.. versions.Select(version => new PreparedLogicalDocumentRead(token =>
+            {
+                lock (guard)
                 {
-                    lock (guard)
-                    {
-                        opened.Add(version.VersionId);
-                    }
-                    return Task.FromResult(new LogicalDocumentContent(
-                        new MemoryStream(bytesByVersion[version.VersionId], writable: false),
-                        version.DocumentId,
-                        version.VersionId,
-                        null,
-                        version.ExpectedSha256,
-                        version.ExpectedContentLength,
-                        "photograph.png",
-                        "image/png"));
-                }))]);
+                    opened.Add(version.VersionId);
+                }
+                return Task.FromResult(new LogicalDocumentContent(
+                    new MemoryStream(bytesByVersion[version.VersionId], writable: false),
+                    version.DocumentId,
+                    version.VersionId,
+                    null,
+                    version.ExpectedSha256,
+                    version.ExpectedContentLength,
+                    "photograph.png",
+                    "image/png"));
+            }))];
         }
     }
 
