@@ -14,6 +14,7 @@ using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.IntegrationTests.Support;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -348,8 +349,18 @@ public sealed class ImageCaseCustodyIntegrationTests
         var workflows = services.GetRequiredService<ICaseWorkflowQueries>();
         var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
 
-        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
-        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        // The fold uploads nothing, so nobody holds the bytes: once it commits,
+        // each photograph it recorded is published to the read cache from the
+        // copy intake retained.
+        var foldPublisher = new RecordingCachePublisher();
+        var mergeProcessor = new EfQueuedCustodyProcessor(
+            contextFactory,
+            services.GetRequiredService<IExternalWorkStore>(),
+            services.GetRequiredService<ICaseCustody>(),
+            services.GetRequiredService<TimeProvider>(),
+            foldPublisher);
+        await mergeProcessor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await mergeProcessor.ExecuteAsync(mergeWorkId, CancellationToken.None);
 
         // Each photograph's filing has its own key under the fold's, so filing
         // the same photographs again records nothing twice.
@@ -450,6 +461,23 @@ public sealed class ImageCaseCustodyIntegrationTests
             Assert.Null(filed[1].Occurrence.CropLeft);
             occurrenceIds = [.. filed.Select(file => file.Occurrence.Id)];
             versionIds = [.. filed.Select(file => file.Version.Id)];
+
+            // Each version the fold recorded was published once, under its own
+            // identity, from its asset's retained copy. The replayed fold recorded
+            // nothing and published nothing.
+            var published = foldPublisher.Published;
+            Assert.Equal(2, published.Count);
+            var assets = await filedContext.IntakeAssets.AsNoTracking()
+                .Where(asset => sourceAssetIds.Contains(asset.Id)).ToListAsync();
+            for (var index = 0; index < filed.Count; index++)
+            {
+                var asset = assets.Single(item => item.Id == sourceAssetIds[index]);
+                var copy = Assert.Single(published, item =>
+                    item.Key == DocumentContentCacheKey.ForVersion(filed[index].Version.Id));
+                Assert.Equal(asset.StorageKey, copy.StorageKey);
+                Assert.Equal(filed[index].Version.Sha256, copy.Sha256);
+                Assert.Equal(filed[index].Version.ContentLength, copy.ContentLength);
+            }
             var tag = Assert.Single(await filedContext.Set<DocumentOccurrenceTagEntity>().AsNoTracking()
                 .Where(item => occurrenceIds.Contains(item.OccurrenceId))
                 .ToListAsync());

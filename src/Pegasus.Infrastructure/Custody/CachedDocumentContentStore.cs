@@ -51,6 +51,13 @@ public sealed class NoDocumentContentCachePublisher : IDocumentContentCachePubli
         string sha256,
         long contentLength,
         CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task PublishRetainedIntakeCopyAsync(
+        DocumentContentCacheKey key,
+        string storageKey,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public sealed class DocumentContentCacheMetrics : IDocumentContentCacheMetrics
@@ -72,7 +79,8 @@ internal sealed partial class CachedDocumentContentStore(
     BoxContentClient box,
     TimeProvider timeProvider,
     IDocumentContentCacheMetrics? metrics = null,
-    ILogger<CachedDocumentContentStore>? logger = null)
+    ILogger<CachedDocumentContentStore>? logger = null,
+    IIntakeArtifactStore? intakeArtifacts = null)
     : IReadLogicalDocumentVersion,
         IReadCachedDocumentVersions,
         IDocumentContentCacheCleanup,
@@ -763,29 +771,64 @@ internal sealed partial class CachedDocumentContentStore(
     /// read miss. Nothing escapes: a failure is logged and the first read
     /// publishes instead.
     /// </summary>
-    public async Task PublishAsync(
+    public Task PublishAsync(
         DocumentContentCacheKey key,
         Stream content,
         string sha256,
         long contentLength,
+        CancellationToken cancellationToken) =>
+        PublishAtFilingAsync(
+            key,
+            sha256,
+            contentLength,
+            (filed, token) => PublishVerifiedAsync(filed, content, token),
+            cancellationToken);
+
+    /// <summary>
+    /// The same for a file whose bytes the caller did not hold: they are read
+    /// from the copy intake retained, which is Azure storage and not Box.
+    /// </summary>
+    public Task PublishRetainedIntakeCopyAsync(
+        DocumentContentCacheKey key,
+        string storageKey,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken) =>
+        PublishAtFilingAsync(
+            key,
+            sha256,
+            contentLength,
+            async (filed, token) =>
+            {
+                var reader = intakeArtifacts ?? throw new InvalidOperationException(
+                    "No reader of retained intake copies is composed.");
+                if (await reader.ReadAsync(storageKey, token) is not { } bytes)
+                {
+                    throw new FileNotFoundException("The retained intake copy is unavailable.");
+                }
+                await using var retained = DocumentContentCachePublisherExtensions.StreamOf(bytes);
+                await PublishVerifiedAsync(filed, retained, token);
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// Runs one publish at filing so that nothing it does reaches the caller:
+    /// it is bounded in time, and a failure of any kind is logged at Warning.
+    /// A caller that is stopping ends it quietly.
+    /// </summary>
+    private async Task PublishAtFilingAsync(
+        DocumentContentCacheKey key,
+        string sha256,
+        long contentLength,
+        Func<FiledContent, CancellationToken, Task> publish,
         CancellationToken cancellationToken)
     {
         try
         {
-            ArgumentNullException.ThrowIfNull(key);
-            ArgumentNullException.ThrowIfNull(content);
             var filed = FiledContent.Create(key, sha256, contentLength);
             using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             bounded.CancelAfter(FilingPublishTimeout);
-            content.Position = 0;
-            var actual = Convert.ToHexString(
-                await SHA256.HashDataAsync(content, bounded.Token)).ToLowerInvariant();
-            if (content.Length != filed.Length || !FixedHashEquals(actual, filed.Sha256))
-            {
-                throw new InvalidDataException(
-                    "The filed content does not match the length and hash it was published under.");
-            }
-            await PublishAsync(filed, content, bounded.Token);
+            await publish(filed, bounded.Token);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -799,6 +842,27 @@ internal sealed partial class CachedDocumentContentStore(
                 key?.DocumentVersionId ?? key?.IntakeAssetId,
                 exception);
         }
+    }
+
+    /// <summary>
+    /// Writes the copy only when the stream really holds the bytes it is said
+    /// to, so a caller's mistake never becomes a copy that a read would refuse.
+    /// </summary>
+    private async Task PublishVerifiedAsync(
+        FiledContent filed,
+        Stream content,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        content.Position = 0;
+        var actual = Convert.ToHexString(
+            await SHA256.HashDataAsync(content, cancellationToken)).ToLowerInvariant();
+        if (content.Length != filed.Length || !FixedHashEquals(actual, filed.Sha256))
+        {
+            throw new InvalidDataException(
+                "The filed content does not match the length and hash it was published under.");
+        }
+        await PublishAsync(filed, content, cancellationToken);
     }
 
     [LoggerMessage(

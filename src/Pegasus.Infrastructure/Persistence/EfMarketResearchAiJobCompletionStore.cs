@@ -13,7 +13,8 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class EfMarketResearchAiJobCompletionStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     IDocumentContentStore contentStore,
-    TimeProvider timeProvider) : IMarketResearchAiJobCompletionStore
+    TimeProvider timeProvider,
+    IDocumentContentCachePublisher? cachePublisher = null) : IMarketResearchAiJobCompletionStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -92,6 +93,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             contentHash,
             now,
             cancellationToken);
+        MarketResearchAiJobCompletion completed;
         try
         {
             // Research for a month that already has a card replaces that card
@@ -169,7 +171,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
 
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new(
+            completed = new(
                 EfAiJobStore.Map(job, now),
                 pending.Result,
                 valuation,
@@ -219,6 +221,12 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
 
             throw;
         }
+
+        // The findings file is committed and in Box. The cache copy comes last,
+        // outside the catch above, so it can never undo the completion.
+        await EfDocumentCustodyStore.PublishAddedAsync(
+            cachePublisher, pending, documentCommand.Content, cancellationToken);
+        return completed;
     }
 
     private async Task<MarketResearchAiJobCompletion> ReplayAsync(

@@ -795,7 +795,8 @@ public static class DependencyInjection
             provider.GetRequiredService<BoxContentClient>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<IDocumentContentCacheMetrics>(),
-            provider.GetService<ILogger<CachedDocumentContentStore>>()));
+            provider.GetService<ILogger<CachedDocumentContentStore>>(),
+            provider.GetRequiredService<IIntakeArtifactStore>()));
         services.AddScoped<IReadLogicalDocumentVersion>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
         // The export and the report read their photographs cache first.
@@ -869,7 +870,8 @@ public static class DependencyInjection
             provider.GetRequiredService<IIntakeQuarantineArtifactStore>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<BoxContentClient>(),
-            provider.GetRequiredService<BoxCustodyOptions>().HoldingFolderId));
+            provider.GetRequiredService<BoxCustodyOptions>().HoldingFolderId,
+            provider.GetService<IDocumentContentCachePublisher>()));
         services.AddScoped<ICaseArtifactCustody>(provider =>
             provider.GetRequiredService<EfCaseArtifactCustody>());
         services.AddScoped<ICaseArtifactCustodyStatus>(provider =>

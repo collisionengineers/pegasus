@@ -1226,6 +1226,71 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// A completion that filed a file without holding its bytes has the
+    /// publisher read the copy intake retained. That copy is Azure storage:
+    /// Box is asked for nothing, and the first read is a hit.
+    /// </summary>
+    [Fact]
+    public async Task ARetainedIntakeCopyIsPublishedFromTheRetainedCopyAndNotFromBox()
+    {
+        var bytes = "photograph retained by intake"u8.ToArray();
+        var estate = await Estate.CreateDocumentAsync(bytes);
+        await using (estate)
+        {
+            estate.Box.Unavailable = true;
+            var publisher = await estate.RetainedCopyPublisherAsync(
+                new RetainedCopies(new() { ["retained/photo"] = bytes }));
+
+            await publisher.PublishRetainedIntakeCopyAsync(
+                DocumentContentCacheKey.ForVersion(estate.Request.VersionId!.Value),
+                "retained/photo",
+                estate.Request.ExpectedSha256,
+                bytes.LongLength,
+                CancellationToken.None);
+
+            Assert.Equal(1, estate.Blob.UploadCount);
+            await using var read = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None);
+            Assert.Equal(bytes, await ReadAsync(read.Content));
+            Assert.Equal(0, estate.Box.Downloads);
+        }
+    }
+
+    /// <summary>
+    /// A retained copy that is missing, or that no longer holds the bytes that
+    /// were filed, publishes nothing and fails nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ARetainedCopyThatIsMissingOrDiffersIsNotPublished(bool differs)
+    {
+        var bytes = "photograph filed to Box"u8.ToArray();
+        var logger = new RecordingLogger();
+        var estate = await Estate.CreateDocumentAsync(bytes, logger: logger);
+        await using (estate)
+        {
+            var copies = new Dictionary<string, byte[]>();
+            if (differs)
+            {
+                copies["retained/photo"] = "another photograph"u8.ToArray();
+            }
+            var publisher = await estate.RetainedCopyPublisherAsync(new RetainedCopies(copies), logger);
+
+            await publisher.PublishRetainedIntakeCopyAsync(
+                DocumentContentCacheKey.ForVersion(estate.Request.VersionId!.Value),
+                "retained/photo",
+                estate.Request.ExpectedSha256,
+                bytes.LongLength,
+                CancellationToken.None);
+
+            Assert.Equal([LogLevel.Warning], logger.Levels);
+            Assert.Equal(0, estate.Blob.UploadCount);
+            await using var db = await estate.Database.CreateContextAsync();
+            Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+        }
+    }
+
     private static DocumentContentCacheKey KeyOf(ReadLogicalDocumentVersionRequest request) =>
         request.VersionId is { } versionId
             ? DocumentContentCacheKey.ForVersion(versionId)
@@ -1584,11 +1649,44 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                     caseId, null, hash, bytes.Length))
                 { StaffId = staffId };
         }
+        /// <summary>
+        /// A store over this estate's database, cache blob and Box that can read
+        /// the copies intake retained.
+        /// </summary>
+        public async Task<CachedDocumentContentStore> RetainedCopyPublisherAsync(
+            IIntakeArtifactStore retained, ILogger<CachedDocumentContentStore>? logger = null)
+        {
+            await using var scope = Database.CreateAsyncScope();
+            return new CachedDocumentContentStore(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                new CacheContainer(Blob),
+                new BoxContentClient(BoxOptions(), new HttpClient(Box), new Header(), Clock),
+                Clock,
+                logger: logger,
+                intakeArtifacts: retained);
+        }
+
         public async ValueTask DisposeAsync()
         {
             if (readerScope is not null) await readerScope.DisposeAsync();
             await Database.DisposeAsync();
         }
+    }
+
+    /// <summary>The copies intake retained, by storage key.</summary>
+    private sealed class RetainedCopies(Dictionary<string, byte[]> copies) : IIntakeArtifactStore
+    {
+        public Task<string> StoreAsync(
+            string contentHash, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId, string contentHash, Stream content, long contentLength,
+            DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
+            Task.FromResult(copies.TryGetValue(storageKey, out var bytes) ? (ReadOnlyMemory<byte>?)bytes : null);
     }
 
     private sealed class GatedThumbnailSource(byte[] content) : IReadLogicalDocumentVersion
