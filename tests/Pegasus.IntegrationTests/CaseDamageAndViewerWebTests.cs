@@ -319,7 +319,7 @@ public sealed class CaseDamageAndViewerWebTests
     /// without a lease so the Damage section renders its read view.
     /// </summary>
     private sealed class DamageSource(string impacts, string? vehicleType = null) :
-        IGetCase, IGetCaseEditBasis,
+        IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetAssessmentWorkspace,
         ICaseReportSnapshotSource,
@@ -329,12 +329,10 @@ public sealed class CaseDamageAndViewerWebTests
 
         public void Substitute(IServiceCollection services)
         {
-            services.RemoveAll<IGetCase>();
             services.RemoveAll<IGetCasePageFrame>();
             services.RemoveAll<IGetAssessmentWorkspace>();
             services.RemoveAll<ICaseReportSnapshotSource>();
             services.RemoveAll<IListCaseEstimates>();
-            services.AddSingleton<IGetCase>(this);
             services.AddSingleton<IGetCaseEditBasis>(this);
             services.AddSingleton<IGetCasePageFrame>(this);
             services.AddSingleton<IGetAssessmentWorkspace>(this);
@@ -369,51 +367,30 @@ public sealed class CaseDamageAndViewerWebTests
             new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,
                 null, "Alex Example", "P-100"));
 
-        private CaseDetails Details()
+        private CaseSectionFrame Frame()
         {
             var workflow = Workflow;
-            var workspace = AssessmentWorkspaceTestData.Create(Assessment());
             return new(
                 new CaseSearchItem(
                     CaseId, workflow.Identity.Reference, null, CaseType.Inspection, "Approved Principal",
                     workflow.State, null, "AB12CDE", "Alex Example", "P-100", DateTimeOffset.UtcNow,
                     "Email", DateTimeOffset.UtcNow),
                 workflow,
-                null,
-                [],
-                null,
-                CaseCustodyState.Pending,
-                [],
-                [])
-            {
-                Data = workspace.Data
-            };
+                null);
         }
 
-        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
-            GetCaseQuery query, CancellationToken cancellationToken) =>
-            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
+        private CaseDataProjection Data() => AssessmentWorkspaceTestData.Create(Assessment()).Data;
 
-        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? Details() : null);
+        Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseEditBasis?>(query.CaseId == CaseId ? new(Frame(), Data()) : null);
 
         Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            if (query.CaseId != CaseId)
-            {
-                return Task.FromResult<CasePageFrame?>(null);
-            }
-
-            var details = Details();
-            return Task.FromResult<CasePageFrame?>(new(
-                new(details.Summary, details.Workflow, details.ActiveEditLease),
-                details.Documents,
-                details.AvailableReportSentEvidence,
-                details.RecordNotes,
-                details.Data!));
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CasePageFrame?>(query.CaseId == CaseId
+                ? new(Frame(), [], [], CaseRecordNotes.None, Data())
+                : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
@@ -452,10 +429,8 @@ public sealed class CaseDamageAndViewerWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
-                services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);

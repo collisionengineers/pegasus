@@ -583,8 +583,8 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(CaseLifecycleState.PostReport, linked.State);
         Assert.Equal(started.Version + 1, linked.Version);
         Assert.Equal(linked, replayed);
-        var details = Assert.IsType<CaseDetails>(
-            await harness.QueryStore.GetAsync(new(harness.CaseId, staff), default));
+        var details = Assert.IsType<CaseHeader>(
+            await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, staff), default));
         Assert.Equal(
             worker.Kind,
             details.Workflow.ReportSentEvidence?.LinkedBy.Kind);
@@ -979,7 +979,7 @@ public sealed class CaseWorkflowPersistenceTests
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.False(await context.EvaFirstHandoffProxies.AnyAsync(
             item => item.CaseId == harness.CaseId));
-        Assert.Null((await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default))?.ActiveEditLease);
+        Assert.Null((await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, actor), default))?.ActiveEditLease);
 
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
             sut.ExecuteAsync(request with { Reason = "Changed replay input" }, default));
@@ -1071,8 +1071,8 @@ public sealed class CaseWorkflowPersistenceTests
             await context.SaveChangesAsync();
         }
 
-        var details = Assert.IsType<CaseDetails>(
-            await harness.QueryStore.GetAsync(new(harness.CaseId, archivedBy), default));
+        var details = Assert.IsType<CaseHeader>(
+            await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, archivedBy), default));
 
         Assert.NotNull(details.Workflow.Archive);
         Assert.Equal(signOffEngineerId, details.Workflow.SignOffEngineerId);
@@ -1890,7 +1890,7 @@ public sealed class CaseWorkflowPersistenceTests
             new(harness.CaseId, 0, actor, "claim-projection"),
             default);
 
-        var whileHeld = await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default);
+        var whileHeld = await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, actor), default);
         var activeLease = whileHeld?.ActiveEditLease;
         Assert.NotNull(activeLease);
         Assert.Equal(actor.SubjectId, activeLease.Holder);
@@ -1901,11 +1901,11 @@ public sealed class CaseWorkflowPersistenceTests
         // One second before expiry the case still reads as held; at expiry it reads as free,
         // with no sweeper having run and the retained columns untouched.
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(1));
-        var justBeforeExpiry = await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default);
+        var justBeforeExpiry = await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, actor), default);
         Assert.NotNull(justBeforeExpiry?.ActiveEditLease);
 
         harness.TimeProvider.Advance(TimeSpan.FromSeconds(1));
-        var afterExpiry = await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default);
+        var afterExpiry = await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, actor), default);
         Assert.Null(afterExpiry?.ActiveEditLease);
     }
 
@@ -2025,7 +2025,7 @@ public sealed class CaseWorkflowPersistenceTests
             new(harness.CaseId, 0, actor, "hold-ends-edit-mode", "Waiting", lease.Token),
             default);
 
-        var afterSave = await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default);
+        var afterSave = await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, actor), default);
         Assert.Null(afterSave?.ActiveEditLease);
         await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
             harness.Store.HeartbeatAsync(new(harness.CaseId, actor, lease.Token), default));
@@ -2053,7 +2053,7 @@ public sealed class CaseWorkflowPersistenceTests
         await AssertCompetitorIsRefusedAsync(harness, staff, lease.Token, "staff-competes");
 
         Assert.Equal(held, await harness.ReadLeaseRowAsync(harness.CaseId));
-        var projected = await harness.QueryStore.GetAsync(new(harness.CaseId, staff), default);
+        var projected = await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, staff), default);
         Assert.Equal(ActorKind.Automation, projected?.ActiveEditLease?.HolderKind);
         Assert.Equal(automation.SubjectId, projected?.ActiveEditLease?.Holder);
 
@@ -2099,7 +2099,7 @@ public sealed class CaseWorkflowPersistenceTests
         await AssertCompetitorIsRefusedAsync(harness, automation, lease.Token, "mcp:automation-competes");
 
         Assert.Equal(held, await harness.ReadLeaseRowAsync(harness.CaseId));
-        var projected = await harness.QueryStore.GetAsync(new(harness.CaseId, automation), default);
+        var projected = await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, automation), default);
         Assert.Equal(ActorKind.Staff, projected?.ActiveEditLease?.HolderKind);
 
         var renewed = await harness.Store.RenewAsync(

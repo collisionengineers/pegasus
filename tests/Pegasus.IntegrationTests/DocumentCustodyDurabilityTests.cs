@@ -638,8 +638,8 @@ public sealed class DocumentCustodyDurabilityTests
         // The point of this test is the ROUND TRIP, not the row. A note written
         // to CaseHistory persists happily, reports success, and never appears on
         // the Notes tab — which is how the Release 22 note defect reached
-        // production. So it is asserted through CaseDetails.History, the same
-        // read the page makes.
+        // production. So it is asserted through the store's history read, the
+        // same read the Notes section makes.
         var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
         try
         {
@@ -671,11 +671,10 @@ public sealed class DocumentCustodyDurabilityTests
             // History collection the Notes tab renders. Asserting the row in
             // CaseWorkflowEvents directly would pass just as happily for a row
             // written to CaseHistory, which is the defect this guards against.
-            var details = await scope.ServiceProvider.GetRequiredService<ICaseQueryStore>()
-                .GetAsync(new(caseId, actor), CancellationToken.None);
-            Assert.NotNull(details);
+            var history = await scope.ServiceProvider.GetRequiredService<ICaseQueryStore>()
+                .ListHistoryAsync(caseId, CancellationToken.None);
             var note = Assert.Single(
-                details!.History,
+                history,
                 entry => entry.EventType == "case_document_removed");
             Assert.Equal(command.Reason, note.Reason);
             Assert.Equal(ActorKind.Staff.ToString(), note.ActorKind);
@@ -1491,7 +1490,7 @@ public sealed class DocumentCustodyDurabilityTests
                 InitialState = "NotReady",
                 // Lowercase, as ToCode writes it in production. The seed said
                 // "Confirmed" and nothing noticed, because no test in this file
-                // had ever read the case back through GetCase.
+                // had ever read the case back through the Case query store.
                 CustodyState = "confirmed",
                 CustodyRootRemoteId = "case-root-id",
                 OriginIntakeReceiptId = receiptId,

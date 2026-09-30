@@ -506,7 +506,7 @@ public sealed class ResolveUnidentified(
         {
             UnidentifiedResolutionTargetKind.InstructionCase => Guid.TryParse(targetId, out var caseId)
                 && caseQueries is not null
-                && await caseQueries.GetAsync(new(caseId, request.Actor), cancellationToken) is not null,
+                && await caseQueries.GetSectionFrameAsync(caseId, cancellationToken) is not null,
             UnidentifiedResolutionTargetKind.ImageIntake => Guid.TryParse(targetId, out var imageIntakeId)
                 && imageIntakeQueries is not null
                 && await imageIntakeQueries.GetAsync(imageIntakeId, cancellationToken) is not null,

@@ -1880,7 +1880,7 @@ public sealed class StaffCorrespondenceWebTests
     private static async Task<long> CaseVersionAsync(WebApplicationFactory<Program> factory, Guid caseId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var getCase = scope.ServiceProvider.GetRequiredService<IGetCase>();
+        var getCase = scope.ServiceProvider.GetRequiredService<IGetCaseHeader>();
         var actor = ActionActor.Staff(
             DevelopmentOfflineIdentity.AdministratorId,
             [StaffRole.Administrator]);
@@ -1930,7 +1930,7 @@ public sealed class StaffCorrespondenceWebTests
         Guid caseId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var getCase = scope.ServiceProvider.GetRequiredService<IGetCase>();
+        var getCase = scope.ServiceProvider.GetRequiredService<IGetCaseHeader>();
         var actor = ActionActor.Staff(
             DevelopmentOfflineIdentity.AdministratorId,
             [StaffRole.Administrator]);
