@@ -282,6 +282,48 @@ public sealed class EvaBundleContractTests
         Assert.Equal(principalReference, parsed.RootElement.GetProperty("Reference").GetString());
     }
 
+    // The archive is written into a buffer sized up front, and the bundle's SHA-256 is the
+    // revision fingerprint. This writes the same entries the way the archive was always
+    // written, into a stream that grows by doubling, and requires the same bytes and the
+    // same fingerprint. The large image is bigger than any margin the estimate carries.
+    [Fact]
+    public void ThePreSizedArchiveHasTheSameBytesAndFingerprintAsAnUnsizedOne()
+    {
+        var large = new byte[300_000];
+        new Random(20260930).NextBytes(large);
+        var small = "damage image"u8.ToArray();
+        var bundle = EvaBundleSchema.CreateOfflineReplay(
+            Source(),
+            new(
+            [
+                Image(OverviewOccurrenceId, "overview.jpg", "image/jpeg", large, 1),
+                Image(DamageOccurrenceId, "damage.png", "image/png", small, 2)
+            ]));
+
+        using var unsized = new MemoryStream();
+        using (var archive = new ZipArchive(unsized, ZipArchiveMode.Create, leaveOpen: true, Encoding.UTF8))
+        {
+            AddReferenceEntry(archive, "EVA-QDOS001.json", bundle.JsonContent);
+            AddReferenceEntry(archive, "Images/002 overview.jpg", large);
+            AddReferenceEntry(archive, "Images/003 damage.png", small);
+        }
+        var expected = unsized.ToArray();
+
+        Assert.Equal(expected, bundle.Content);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(expected)), bundle.Sha256);
+        using var read = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        Assert.Equal(large.Length, read.GetEntry("Images/002 overview.jpg")!.Length);
+    }
+
+    private static void AddReferenceEntry(ZipArchive archive, string name, byte[] content)
+    {
+        var entry = archive.CreateEntry(name, CompressionLevel.NoCompression);
+        entry.LastWriteTime = new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        entry.ExternalAttributes = 0;
+        using var entryStream = entry.Open();
+        entryStream.Write(content);
+    }
+
     private static EvaBundleSource Source()
     {
         var fields = new EvaReplayFields(

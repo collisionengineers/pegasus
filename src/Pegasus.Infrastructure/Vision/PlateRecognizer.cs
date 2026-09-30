@@ -31,20 +31,7 @@ internal sealed class PlateRecognizer(InferenceSession session)
             return null;
         }
 
-        var tensor = new DenseTensor<byte>([1, InputHeight, InputWidth, 3]);
-        var pixels = resized.Pixels;
-        for (var y = 0; y < InputHeight; y++)
-        {
-            var row = y * InputWidth;
-            for (var x = 0; x < InputWidth; x++)
-            {
-                var pixel = pixels[row + x];
-                tensor[0, y, x, 0] = pixel.Red;
-                tensor[0, y, x, 1] = pixel.Green;
-                tensor[0, y, x, 2] = pixel.Blue;
-            }
-        }
-
+        var tensor = ToInputTensor(resized);
         var inputName = session.InputMetadata.Keys.First();
         using var results = session.Run(
             [NamedOnnxValue.CreateFromTensor(inputName, tensor)]);
@@ -84,5 +71,39 @@ internal sealed class PlateRecognizer(InferenceSession session)
 
         var confidence = probabilities[..text.Length].Min();
         return new RecognizedPlate(text, confidence);
+    }
+
+    /// <summary>
+    /// The resized bitmap as the model's input, `[1, 64, 128, 3]` bytes, each
+    /// pixel's red, green and blue in turn. The bitmap is opaque Rgba8888, so
+    /// the tensor is filled from the bytes in memory, dropping the alpha byte.
+    /// </summary>
+    internal static DenseTensor<byte> ToInputTensor(SKBitmap resized)
+    {
+        if (resized.ColorType != SKColorType.Rgba8888
+            || resized.Width != InputWidth
+            || resized.Height != InputHeight)
+        {
+            throw new ArgumentException(
+                $"The recogniser input is a {InputWidth}x{InputHeight} Rgba8888 bitmap.", nameof(resized));
+        }
+
+        var tensor = new DenseTensor<byte>([1, InputHeight, InputWidth, 3]);
+        var pixels = resized.GetPixelSpan();
+        var stride = resized.RowBytes;
+        var values = tensor.Buffer.Span;
+        for (var y = 0; y < InputHeight; y++)
+        {
+            var source = pixels.Slice(y * stride, InputWidth * 4);
+            var target = values.Slice(y * InputWidth * 3, InputWidth * 3);
+            for (var x = 0; x < InputWidth; x++)
+            {
+                target[x * 3] = source[x * 4];
+                target[x * 3 + 1] = source[x * 4 + 1];
+                target[x * 3 + 2] = source[x * 4 + 2];
+            }
+        }
+
+        return tensor;
     }
 }

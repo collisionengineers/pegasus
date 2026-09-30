@@ -1917,7 +1917,7 @@ internal static class ImageThumbnailRendering
 
     /// <summary>
     /// The largest source a thumbnail is derived from. A larger file is served
-    /// whole rather than buffered again for a tile.
+    /// whole rather than decoded again for a tile.
     /// </summary>
     internal const long MaximumSourceBytes = 32L * 1024 * 1024;
 
@@ -1939,6 +1939,10 @@ internal static class ImageThumbnailRendering
         using var rendering = DocumentReadTelemetry.Start("document.thumbnail.render");
         ArgumentNullException.ThrowIfNull(crop);
         ArgumentNullException.ThrowIfNull(content);
+        if (!content.CanSeek)
+        {
+            throw new ArgumentException("The thumbnail source stream must be seekable.", nameof(content));
+        }
         if (contentLength <= 0 || contentLength > MaximumSourceBytes)
         {
             return null;
@@ -1949,22 +1953,16 @@ internal static class ImageThumbnailRendering
         }
         try
         {
-            // Keep the verified source stream while queued. Its copy begins
-            // only after a decode slot is available, preserving cancellation
-            // during an actual source read without retaining a second managed
-            // buffer for every queued thumbnail.
-            using var buffer = new MemoryStream(checked((int)contentLength));
-            await content.CopyToAsync(buffer, cancellationToken);
-            buffer.Position = 0;
-            using var source = SKData.Create(buffer, contentLength);
-            if (source is null)
-            {
-                return null;
-            }
-            cancellationToken.ThrowIfCancellationRequested();
+            // Keep the verified source stream while queued. The codec reads it
+            // in place, and only after a decode slot is available, so no
+            // full-size copy of the source is made, managed or native, and a
+            // queued thumbnail holds no buffer at all. Cancellation still
+            // reaches the source read: once the token is cancelled the source
+            // reads as ended and the check below throws.
+            using var codec = SKCodec.Create(new CancellableSourceStream(content, cancellationToken));
             var rendered = rotation == CaseAssetRotation.None && crop.IsFull
-                ? Render(source)
-                : RenderPrepared(source, rotation, crop);
+                ? Render(codec)
+                : RenderPrepared(codec, rotation, crop);
             cancellationToken.ThrowIfCancellationRequested();
             return rendered;
         }
@@ -1978,9 +1976,8 @@ internal static class ImageThumbnailRendering
         }
     }
 
-    private static byte[]? Render(SKData source)
+    private static byte[]? Render(SKCodec? codec)
     {
-        using var codec = SKCodec.Create(source);
         if (codec is null
             || (long)codec.Info.Width * codec.Info.Height is <= 0 or > MaximumDecodedPixels)
         {
@@ -2040,9 +2037,8 @@ internal static class ImageThumbnailRendering
     /// source - the same geometry the report renderer prints and the crop
     /// editor draws - scaled so the crop's longest edge is the thumbnail edge.
     /// </summary>
-    private static byte[]? RenderPrepared(SKData source, CaseAssetRotation rotation, CaseAssetCrop crop)
+    private static byte[]? RenderPrepared(SKCodec? codec, CaseAssetRotation rotation, CaseAssetCrop crop)
     {
-        using var codec = SKCodec.Create(source);
         if (codec is null
             || (long)codec.Info.Width * codec.Info.Height is <= 0 or > MaximumDecodedPixels)
         {
@@ -2110,5 +2106,55 @@ internal static class ImageThumbnailRendering
         using var output = SKImage.FromBitmap(target);
         using var encoded = output.Encode(SKEncodedImageFormat.Jpeg, JpegQuality);
         return encoded?.ToArray();
+    }
+
+    /// <summary>
+    /// The caller's seekable source as the codec reads it. The codec calls this
+    /// from native code, so nothing here may throw: a cancelled token, or a read
+    /// that fails, reads as the end of the source and the decode fails, and the
+    /// render then throws for the cancellation or returns no thumbnail. It never
+    /// owns the source, so the caller's stream is still open afterwards.
+    /// </summary>
+    private sealed class CancellableSourceStream(Stream source, CancellationToken cancellationToken) : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => true;
+
+        public override bool CanWrite => false;
+
+        public override long Length => source.Length;
+
+        public override long Position
+        {
+            get => source.Position;
+            set => source.Position = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return 0;
+            }
+            try
+            {
+                return source.Read(buffer, offset, count);
+            }
+            catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+            {
+                return 0;
+            }
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => source.Seek(offset, origin);
+
+        public override void Flush()
+        {
+        }
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

@@ -680,14 +680,95 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     [Fact]
     public async Task CancelledThumbnailSourceReadPropagatesCancellation()
     {
+        var sourceBytes = JpegWithOrientation(width: 960, height: 640, orientation: 1);
         using var cancellation = new CancellationTokenSource();
-        using var source = new CancellingReadStream(cancellation);
+        using var source = new CancellingReadStream(sourceBytes, cancellation);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             ImageThumbnailRendering.TryRenderAsync(
                 source,
-                1,
+                sourceBytes.LongLength,
                 cancellation.Token));
+    }
+
+    // The codec reads the source stream where it is, so the render makes no full-size copy
+    // of it. This renders the same bytes the way the code did before, copied whole into
+    // native data first, and requires identical thumbnail bytes from a memory stream and
+    // from the temporary file-backed stream the content store hands the renderer.
+    [Fact]
+    public async Task PlainThumbnailBytesAreTheRenderOfTheSourceDecodedFromACopy()
+    {
+        foreach (var sourceBytes in new[] { JpegWithOrientation(960, 640, 6), TransparentPng(960, 480) })
+        {
+            var expected = ReferenceThumbnail(sourceBytes);
+
+            using var memory = new MemoryStream(sourceBytes, writable: false);
+            Assert.Equal(
+                expected,
+                await ImageThumbnailRendering.TryRenderAsync(memory, sourceBytes.LongLength, CancellationToken.None));
+
+            var path = Path.Combine(Path.GetTempPath(), $"pegasus-thumbnail-test-{Guid.NewGuid():N}.tmp");
+            await using var file = new FileStream(
+                path,
+                FileMode.CreateNew,
+                FileAccess.ReadWrite,
+                FileShare.Read,
+                4096,
+                FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+            await file.WriteAsync(sourceBytes);
+            file.Position = 0;
+            Assert.Equal(
+                expected,
+                await ImageThumbnailRendering.TryRenderAsync(file, sourceBytes.LongLength, CancellationToken.None));
+        }
+    }
+
+    [Fact]
+    public async Task PreparedThumbnailReadsTheSourceStreamInPlace()
+    {
+        var sourceBytes = JpegWithOrientation(width: 960, height: 640, orientation: 1);
+        using var source = new MemoryStream(sourceBytes, writable: false);
+
+        var rendered = await ImageThumbnailRendering.TryRenderAsync(
+            source,
+            sourceBytes.LongLength,
+            CaseAssetRotation.Clockwise90,
+            CaseAssetCrop.Full,
+            CancellationToken.None);
+
+        Assert.NotNull(rendered);
+        using var thumbnail = SKBitmap.Decode(rendered);
+        Assert.NotNull(thumbnail);
+        Assert.Equal(320, thumbnail.Width);
+        Assert.Equal(CaseDocumentThumbnails.LongestEdge, thumbnail.Height);
+        AssertColorClose(thumbnail.GetPixel(80, 120), SKColors.Blue);
+        AssertColorClose(thumbnail.GetPixel(240, 120), SKColors.Red);
+        AssertColorClose(thumbnail.GetPixel(80, 360), SKColors.Yellow);
+        AssertColorClose(thumbnail.GetPixel(240, 360), SKColors.Green);
+    }
+
+    [Fact]
+    public async Task ThumbnailRenderLeavesTheCallersStreamOpenAndAStreamThatCannotSeekIsRefused()
+    {
+        var sourceBytes = JpegWithOrientation(width: 960, height: 640, orientation: 1);
+        using var source = new MemoryStream(sourceBytes, writable: false);
+
+        Assert.NotNull(await ImageThumbnailRendering.TryRenderAsync(
+            source,
+            sourceBytes.LongLength,
+            CancellationToken.None));
+
+        Assert.True(source.CanRead);
+        source.Position = 0;
+        Assert.Equal(sourceBytes[0], source.ReadByte());
+
+        await using var forwardOnly = new System.IO.Compression.DeflateStream(
+            Stream.Null,
+            System.IO.Compression.CompressionMode.Compress);
+        await Assert.ThrowsAsync<ArgumentException>(() => ImageThumbnailRendering.TryRenderAsync(
+            forwardOnly,
+            sourceBytes.LongLength,
+            CancellationToken.None));
     }
 
     [Fact]
@@ -1806,6 +1887,51 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         Assert.InRange((int)actual.Blue, Math.Max(0, expected.Blue - tolerance), Math.Min(byte.MaxValue, expected.Blue + tolerance));
     }
 
+    /// <summary>
+    /// The plain thumbnail as it was rendered before the codec read the source stream in
+    /// place: the source copied whole into native data, then decoded from that copy. The
+    /// quality is the renderer's <c>JpegQuality</c>.
+    /// </summary>
+    private static byte[] ReferenceThumbnail(byte[] sourceBytes)
+    {
+        using var data = SKData.CreateCopy(sourceBytes);
+        using var codec = SKCodec.Create(data);
+        Assert.NotNull(codec);
+        var origin = codec.EncodedOrigin;
+        var transposed = EncodedImageOrientation.IsTransposed(origin);
+        var displayedWidth = transposed ? codec.Info.Height : codec.Info.Width;
+        var displayedHeight = transposed ? codec.Info.Width : codec.Info.Height;
+        var scale = Math.Min(
+            1d,
+            (double)CaseDocumentThumbnails.LongestEdge / Math.Max(displayedWidth, displayedHeight));
+        var targetWidth = Math.Max(1, (int)Math.Round(displayedWidth * scale));
+        var targetHeight = Math.Max(1, (int)Math.Round(displayedHeight * scale));
+        var decodedSize = codec.GetScaledDimensions((float)scale);
+        using var decoded = SKBitmap.Decode(
+            codec,
+            new SKImageInfo(decodedSize.Width, decodedSize.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        Assert.NotNull(decoded);
+        using var scaled = decoded.Resize(
+            new SKImageInfo(
+                transposed ? targetHeight : targetWidth,
+                transposed ? targetWidth : targetHeight,
+                SKColorType.Rgba8888,
+                SKAlphaType.Premul),
+            new SKSamplingOptions(SKFilterMode.Linear));
+        Assert.NotNull(scaled);
+        using var target = new SKBitmap(
+            new SKImageInfo(targetWidth, targetHeight, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        using (var canvas = new SKCanvas(target))
+        {
+            canvas.Clear(SKColors.White);
+            EncodedImageOrientation.Apply(canvas, origin, targetWidth, targetHeight);
+            canvas.DrawBitmap(scaled, 0, 0);
+        }
+        using var image = SKImage.FromBitmap(target);
+        using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 78);
+        return encoded.ToArray();
+    }
+
     private static byte[] TransparentPng(int width, int height)
     {
         using var bitmap = new SKBitmap(
@@ -2127,50 +2253,14 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
-    private sealed class CancellingReadStream(CancellationTokenSource cancellation) : Stream
+    private sealed class CancellingReadStream(byte[] content, CancellationTokenSource cancellation)
+        : MemoryStream(content, writable: false)
     {
-        public override bool CanRead => true;
-
-        public override bool CanSeek => false;
-
-        public override bool CanWrite => false;
-
-        public override long Length => 1;
-
-        public override long Position
-        {
-            get => 0;
-            set => throw new NotSupportedException();
-        }
-
-        public override void Flush() => throw new NotSupportedException();
-
-        public override Task FlushAsync(CancellationToken cancellationToken) =>
-            Task.FromException(new NotSupportedException());
-
-        public override int Read(byte[] buffer, int offset, int count) =>
-            throw new InvalidOperationException("The thumbnail renderer must use the cancellable read path.");
-
-        public override ValueTask<int> ReadAsync(
-            Memory<byte> buffer,
-            CancellationToken cancellationToken = default)
+        public override int Read(byte[] buffer, int offset, int count)
         {
             cancellation.Cancel();
-            return ValueTask.FromCanceled<int>(cancellation.Token);
+            return base.Read(buffer, offset, count);
         }
-
-        public override Task<int> ReadAsync(
-            byte[] buffer,
-            int offset,
-            int count,
-            CancellationToken cancellationToken) =>
-            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
-
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-
-        public override void SetLength(long value) => throw new NotSupportedException();
-
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private sealed class CacheContainer(CacheBlob blob) : BlobContainerClient

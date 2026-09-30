@@ -22,7 +22,7 @@ internal static class EstimateDocumentLayout
     private const float TableLineHeight = 1.22f;
     private static readonly Color Zebra = Color.FromHex("#f5f5f5");
 
-    internal static Document Compose(EstimateDocumentSnapshot snapshot, byte[] logo) =>
+    internal static Document Compose(EstimateDocumentSnapshot snapshot, Image logo) =>
         Document.Create(document => document.Page(page => Page(
             page,
             logo,
