@@ -153,6 +153,16 @@ public sealed class ImageIntakeWebTests
             Assert.Equal(TimeSpan.FromDays(7), image.Headers.CacheControl!.MaxAge);
             Assert.Equal($"\"{receipt.SourceHash.ToLowerInvariant()}\"", image.Headers.ETag!.Tag);
         }
+        // The upload review addresses the image the same way, so the page's
+        // refreshes while a photograph is processed reuse the browser's copy.
+        var reviewImage = Pegasus.Web.Presentation.UploadReviewFile.ImageUrlOf(null, receipt);
+        Assert.Equal($"/Received/{receiptId:D}/Image?v={receipt.SourceHash}", reviewImage);
+        using (var image = await client.GetAsync(reviewImage))
+        {
+            Assert.Equal(HttpStatusCode.OK, image.StatusCode);
+            Assert.Equal(TimeSpan.FromDays(7), image.Headers.CacheControl!.MaxAge);
+            Assert.Equal($"\"{receipt.SourceHash.ToLowerInvariant()}\"", image.Headers.ETag!.Tag);
+        }
         using (var image = await client.GetAsync($"/Received/{receiptId:D}/Image"))
         {
             Assert.True(image.Headers.CacheControl!.NoStore);
