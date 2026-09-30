@@ -227,9 +227,19 @@ internal sealed class LocalDurableApprovedInboxSource(
 
             nextCursor.Add(file.Name, read.Hash);
             serializedNextCursor = SerializeCursor(nextCursor);
+            // Only the branch that materialised the content can read it. A
+            // message already observed is re-hashed without being retained, and
+            // one the adapter rejected has no content to read, so neither
+            // carries display metadata.
+            var metadata = read.Content is null || read.RetentionKey is not null
+                ? null
+                : await ReadRetainedMetadataAsync(
+                    read.Content,
+                    folder,
+                    cancellationToken);
             messages.Add(new(
                 CreateImmutableMessageId(file.Name, read.Hash),
-                file.Name,
+                MessageFileName(file, read, metadata),
                 new ReadOnlyMemory<byte>(read.Content ?? Array.Empty<byte>()),
                 new DateTimeOffset(file.LastWriteTimeUtc),
                 serializedNextCursor)
@@ -241,16 +251,7 @@ internal sealed class LocalDurableApprovedInboxSource(
                         read.SourceLength,
                         read.Hash,
                         read.RetentionKey),
-                // Only the branch that materialised the content can read it. A
-                // message already observed is re-hashed without being retained, and
-                // one the adapter rejected has no content to read, so neither
-                // carries display metadata.
-                RetainedMetadata = read.Content is null || read.RetentionKey is not null
-                    ? null
-                    : await ReadRetainedMetadataAsync(
-                        read.Content,
-                        folder,
-                        cancellationToken)
+                RetainedMetadata = metadata
             });
         }
 
@@ -326,9 +327,12 @@ internal sealed class LocalDurableApprovedInboxSource(
                 return null;
             }
 
+            var metadata = read.Content is null || read.RetentionKey is not null
+                ? null
+                : await ReadRetainedMetadataAsync(read.Content, folder, cancellationToken);
             return new(
                 immutableMessageId,
-                file.Name,
+                MessageFileName(file, read, metadata),
                 new ReadOnlyMemory<byte>(read.Content ?? Array.Empty<byte>()),
                 new DateTimeOffset(file.LastWriteTimeUtc),
                 // Carried only because a message record has the field; a wake never
@@ -343,9 +347,7 @@ internal sealed class LocalDurableApprovedInboxSource(
                         read.SourceLength,
                         read.Hash,
                         read.RetentionKey),
-                RetainedMetadata = read.Content is null || read.RetentionKey is not null
-                    ? null
-                    : await ReadRetainedMetadataAsync(read.Content, folder, cancellationToken)
+                RetainedMetadata = metadata
             };
         }
 
@@ -404,6 +406,18 @@ internal sealed class LocalDurableApprovedInboxSource(
     /// folder, the conversation is whatever the MIME References chain says, and read
     /// state is false because a file on disk has never been read by anybody.
     /// </remarks>
+    /// <summary>
+    /// A retained message is named by its subject, as the Graph source names it, so
+    /// both profiles agree. A file the adapter rejected keeps the name it has on disk.
+    /// </summary>
+    private static string MessageFileName(
+        FileInfo file,
+        ImmutableFileRead read,
+        RetainedMailboxMessageMetadata? metadata) =>
+        read.RetentionKey is not null
+            ? file.Name
+            : EmailSourceFormat.RetainedMessageFileName(metadata?.Subject);
+
     private static async Task<RetainedMailboxMessageMetadata?> ReadRetainedMetadataAsync(
         byte[] content,
         string folderIdentity,

@@ -672,6 +672,18 @@ public sealed class CaseEditModeWebTests
         // the case's real edit state, so nothing is said here.
         Assert.Equal(HttpStatusCode.Conflict, lost.StatusCode);
 
+        // A Case that no longer exists (a stale tab after a wipe) is a 404 with an empty
+        // body, not a 500 and not the status page: the browser stops beating on it too.
+        store.NextFailure = new KeyNotFoundException($"Case '{store.CaseId}' was not found.");
+        using var gone = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=HeartbeatLease",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("editLeaseToken", store.LeaseToken)));
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+        Assert.Equal(string.Empty, await gone.Content.ReadAsStringAsync());
+
         // A faulted store says nothing about the lease: the answer is the fault itself, never
         // the 409 the browser would read as the lease being gone.
         store.NextFailure = new InvalidOperationException("The lease store is unavailable.");

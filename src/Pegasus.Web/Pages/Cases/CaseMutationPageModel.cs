@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Text.Json;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -666,6 +667,22 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             fragment: "case-files-images");
 
     /// <summary>
+    /// A fragment's 404. Script asks for a fragment and reads only its status,
+    /// so the status pages middleware is switched off for this response and the
+    /// refusal has an empty body instead of the full status page and its reads.
+    /// A full-page 404 keeps the designed page.
+    /// </summary>
+    protected NotFoundResult FragmentNotFound()
+    {
+        var statusPages = HttpContext.Features.Get<IStatusCodePagesFeature>();
+        if (statusPages is not null)
+        {
+            statusPages.Enabled = false;
+        }
+        return NotFound();
+    }
+
+    /// <summary>
     /// Tells the server the editor is still here, so an open page is never timed out mid-edit.
     /// Every page that carries edit mode answers it the same way, and none of them redirect: the
     /// browser only needs to know whether to keep beating.
@@ -698,6 +715,12 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         catch (Exception exception) when (IsLeaseLoss(exception))
         {
             return new StatusCodeResult(StatusCodes.Status409Conflict);
+        }
+        catch (KeyNotFoundException)
+        {
+            // The Case no longer exists (a stale tab after a wipe). The browser stops
+            // beating on a 404, as it does for an expired lease.
+            return FragmentNotFound();
         }
 
         return new StatusCodeResult(StatusCodes.Status204NoContent);

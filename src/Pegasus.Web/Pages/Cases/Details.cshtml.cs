@@ -1322,13 +1322,13 @@ public sealed partial class DetailsModel(
         }
         if (id == Guid.Empty)
         {
-            return NotFound();
+            return FragmentNotFound();
         }
 
         var key = NormalizeSection(section);
         if (!LazySectionViews.TryGetValue(key, out var view))
         {
-            return NotFound();
+            return FragmentNotFound();
         }
 
         using var activity = DocumentReadTelemetry.Start("web.case.fragment." + key);
@@ -1344,7 +1344,7 @@ public sealed partial class DetailsModel(
                         new(id, actor, Work: WorkSelector), cancellationToken);
                     if (VehicleSection is null)
                     {
-                        return NotFound();
+                        return FragmentNotFound();
                     }
                     Assessment = VehicleSection.Assessment;
                     ApplyAssessmentAccess(actor, VehicleSection.Frame.Workflow);
@@ -1354,7 +1354,7 @@ public sealed partial class DetailsModel(
                         new(id, actor, Work: WorkSelector), cancellationToken);
                     if (ValuationSection is null)
                     {
-                        return NotFound();
+                        return FragmentNotFound();
                     }
                     Assessment = ValuationSection.Assessment;
                     ApplyAssessmentAccess(actor, ValuationSection.Frame.Workflow);
@@ -1363,14 +1363,14 @@ public sealed partial class DetailsModel(
                     NotesSection = await getCaseNotesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (NotesSection is null)
                     {
-                        return NotFound();
+                        return FragmentNotFound();
                     }
                     break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (FilesSection is null)
                     {
-                        return NotFound();
+                        return FragmentNotFound();
                     }
                     ApplyAssessmentAccess(actor, FilesSection.Frame.Workflow);
                     break;
@@ -3526,9 +3526,9 @@ public sealed partial class DetailsModel(
         Response.Headers.CacheControl = "no-store";
         if (!TryGetActor(out var actor)) { return Forbid(); }
         Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
-        if (Case is null) { return NotFound(); }
+        if (Case is null) { return FragmentNotFound(); }
         ApplyAssessmentAccess(actor, Case.Workflow);
-        if (!AssessmentCanOpen) { return NotFound(); }
+        if (!AssessmentCanOpen) { return FragmentNotFound(); }
         // Like lazy section reads, this GET never restores or writes TempData.
         if (!string.IsNullOrWhiteSpace(renderLeaseToken) && validateCaseRenderLease is not null
             && await validateCaseRenderLease.ExecuteAsync(new(id, actor, renderLeaseToken), cancellationToken))

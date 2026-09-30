@@ -644,10 +644,11 @@
                 if (generation !== heartbeatGeneration || response.status === 204) {
                     return;
                 }
-                // 409 and 403 are the server refusing the lease itself. Anything
+                // 409 and 403 are the server refusing the lease itself, and 404 is
+                // a Case that no longer exists (a stale tab after a wipe). Anything
                 // else - a faulted request, a replica restarting - says nothing
                 // about the lease, and the next beat settles it.
-                if (response.status === 409 || response.status === 403) {
+                if (response.status === 409 || response.status === 403 || response.status === 404) {
                     expired();
                 }
             }).catch(function () {
@@ -4558,6 +4559,16 @@
             document.addEventListener('keydown', onKeydown, true);
             go(at);
             try { host.focus({ preventScroll: true }); } catch (_) { host.focus(); }
+            bringIntoView();
+        }
+        // Every way in (a tile, a preview, a card's crop) shows the viewer
+        // through show(), so this is the one place that brings it into view
+        // when the operator opened it from further up the Case.
+        function bringIntoView() {
+            var box = host.getBoundingClientRect();
+            if (box.top >= 0 && box.bottom <= window.innerHeight) { return; }
+            var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            host.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
         }
         function close() {
             if (state.crop) { cancelCrop(); }
