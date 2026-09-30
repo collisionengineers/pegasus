@@ -37,13 +37,14 @@ namespace Pegasus.Web.Pages.Cases;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 [RequestSizeLimit(ImportRawEstimate.MaximumDocumentBytes + 64 * 1024)]
 public sealed partial class DetailsModel(
-    IGetCase getCase,
+    IGetCaseHeader getCaseHeader,
     IGetCaseEditBasis getCaseEditBasis,
     IGetCasePageFrame getCasePageFrame,
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
     IGetCaseFilesSection getCaseFilesSection,
+    ICaseDocumentQueries caseDocuments,
     IListCaseReferences listCaseReferences,
     IGetAssessmentAccess getAssessmentAccess,
     IGetAssessmentWorkspace getAssessmentWorkspace,
@@ -2977,15 +2978,15 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id);
         }
 
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
+        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
+        if (header is null)
         {
             return NotFound();
         }
 
         var trimmedDirection = direction?.Trim();
         var instruction = string.IsNullOrWhiteSpace(trimmedDirection)
-            ? $"Draft an estimate for case {details.Summary.Reference}."
+            ? $"Draft an estimate for case {header.Summary.Reference}."
             : trimmedDirection;
         try
         {
@@ -2993,7 +2994,7 @@ public sealed partial class DetailsModel(
                 new(
                     AiJobKind.Estimate,
                     id,
-                    details.Summary.Reference,
+                    header.Summary.Reference,
                     instruction,
                     targetPercent,
                     actor,
@@ -3841,12 +3842,12 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id);
         }
 
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
+        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
+        if (header is null)
         {
             return NotFound();
         }
-        currentCaseVersion = details.Workflow.Version;
+        currentCaseVersion = header.Workflow.Version;
         return null;
     }
 
@@ -4113,7 +4114,7 @@ public sealed partial class DetailsModel(
         IFormFile? estimateFile,
         CancellationToken cancellationToken)
     {
-        var (actor, details, refusal) = await StartEstimateImportAsync(
+        var (actor, documents, refusal) = await StartEstimateImportAsync(
             id, expectedVersion, operationKey, cancellationToken);
         if (refusal is not null)
         {
@@ -4170,7 +4171,7 @@ public sealed partial class DetailsModel(
         // when that stored file is itself importable: the import reads its
         // stored name and type, not the dropped file's.
         var sourceIdentity = $"estimate-import:{operationKey}";
-        var reusable = CaseFiles.Live(details!.Documents)
+        var reusable = CaseFiles.Live(documents)
             .Where(file => file.Version.ContentLength == fileBytes.LongLength
                 && string.Equals(file.Version.Sha256, uploadedSha256, StringComparison.OrdinalIgnoreCase)
                 && IsImportableEstimate(file))
@@ -4260,13 +4261,13 @@ public sealed partial class DetailsModel(
         Guid versionId,
         CancellationToken cancellationToken)
     {
-        var (actor, details, refusal) = await StartEstimateImportAsync(
+        var (actor, documents, refusal) = await StartEstimateImportAsync(
             id, expectedVersion, operationKey, cancellationToken);
         if (refusal is not null)
         {
             return refusal;
         }
-        var source = CaseFiles.Live(details!.Documents)
+        var source = CaseFiles.Live(documents)
             .FirstOrDefault(file => file.Occurrence.Id == occurrenceId && file.Version.Id == versionId);
         if (source is null || !IsImportableEstimate(source))
         {
@@ -4325,9 +4326,10 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// The checks every estimate import makes before it reads or retains a
     /// source: the staff member, assessment access, a writable Case, a live
-    /// form and the Case version the form was rendered at.
+    /// form and the Case version the form was rendered at. Once they pass, the
+    /// Case's documents, which the import reuses or reads its source from.
     /// </summary>
-    private async Task<(ActionActor? Actor, CaseDetails? Details, IActionResult? Refusal)> StartEstimateImportAsync(
+    private async Task<(ActionActor? Actor, IReadOnlyList<CaseDocument> Documents, IActionResult? Refusal)> StartEstimateImportAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
@@ -4336,29 +4338,29 @@ public sealed partial class DetailsModel(
         if (!TryGetActor(out var actor))
         {
             ClearLeaseState();
-            return (null, null, Forbid());
+            return (null, [], Forbid());
         }
         var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true) return (null, null, NotFound());
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null) return (null, null, NotFound());
-        if (access.IsReadOnly || details.Workflow.Archive is not null
-            || CaseLifecycleRules.IsTerminal(details.Workflow.State))
+        if (access?.CanOpen != true) return (null, [], NotFound());
+        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
+        if (header is null) return (null, [], NotFound());
+        if (access.IsReadOnly || header.Workflow.Archive is not null
+            || CaseLifecycleRules.IsTerminal(header.Workflow.State))
         {
             TempData["CaseError"] = "The Case is read-only and cannot accept estimate imports.";
-            return (null, null, RedirectToEstimate(id));
+            return (null, [], RedirectToEstimate(id));
         }
         if (!IsOperationKeyValid(operationKey))
         {
             TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return (null, null, RedirectToEstimate(id));
+            return (null, [], RedirectToEstimate(id));
         }
-        if (details.Workflow.Version != expectedVersion)
+        if (header.Workflow.Version != expectedVersion)
         {
             TempData["CaseError"] = "The Case changed before the estimate was imported. Reload and try again.";
-            return (null, null, RedirectToEstimate(id));
+            return (null, [], RedirectToEstimate(id));
         }
-        return (actor, details, null);
+        return (actor, await caseDocuments.ListAsync(id, cancellationToken), null);
     }
 
     /// <summary>
@@ -4447,7 +4449,7 @@ public sealed partial class DetailsModel(
             // A source-hash replay consumes no edit authority, so the posted
             // token is still live and is kept; a real import consumed it, and
             // the session carries on with a fresh lease (v25 decision F).
-            var after = await getCase.ExecuteAsync(new(request.CaseId, request.Actor), cancellationToken);
+            var after = await getCaseHeader.ExecuteAsync(new(request.CaseId, request.Actor), cancellationToken);
             if (after?.ActiveEditLease is null)
             {
                 ClearLeaseState();

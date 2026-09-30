@@ -208,7 +208,7 @@ public sealed partial class SendToAiIntegrationTests
         return baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCaseHeader>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetCaseVehicleSection>();
                 services.RemoveAll<IGetCaseValuationSection>();
@@ -218,7 +218,7 @@ public sealed partial class SendToAiIntegrationTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ICreateAiJob>();
                 services.RemoveAll<ISendToAiControl>();
-                services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCaseHeader>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
@@ -364,7 +364,7 @@ public sealed partial class SendToAiIntegrationTests
     }
 
     private sealed class FakeGetCase(Guid caseId, CaseLifecycleState state) :
-        IGetCase, IGetCaseEditBasis,
+        IGetCaseHeader, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetCaseVehicleSection,
         IGetCaseValuationSection,
@@ -388,6 +388,10 @@ public sealed partial class SendToAiIntegrationTests
         async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
             GetCaseQuery query, CancellationToken cancellationToken) =>
             CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
+
+        async Task<CaseHeader?> IGetCaseHeader.ExecuteAsync(
+            GetCaseHeaderQuery query, CancellationToken cancellationToken) =>
+            CaseHeaderTestData.Of(await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken));
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
