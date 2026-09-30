@@ -83,6 +83,11 @@ public sealed class UploadStatusModel(
 
         Status = status;
         IsDuplicate = duplicate;
+        // The URL names the staged receipt; once processed, the receipt this
+        // page shows is the processed one. This one derivation feeds the
+        // receipt read, the outcome and the sibling-group check here, and the
+        // retry guard (SurfaceContainsReceiptAsync) returns false unless the
+        // posted receipt is exactly this id, so the two can never differ.
         _receiptId = status.ProcessedReceiptId ?? status.StagedReceiptId;
 
         if (TryGetActor(out var actor))
