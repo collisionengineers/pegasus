@@ -123,9 +123,13 @@ is not sent: the status word says so. The page never redraws what the
 operator is typing in: after a save the notices, the ribbon, the aside and
 the dialogs are drawn afresh and every section stays as it is, so a blocker
 clears, the state chip moves and a newly permitted action appears within the
-round trip. A refusal refuses the whole save, keeps every typed value in its
-box, says why in the ribbon's status word and as a notice, and the next
-change tries again. The ribbon has **Done**, which ends editing and releases
+round trip. The server answers a save with those parts alone, and the page is
+not reloaded (operator, 30 September 2026). The answer also carries the
+version, the lease and the key the next save sends, and the Files section
+when a crop or rotation was recorded. A save that ends editing redirects to
+the page, as every other command does. A refusal refuses the whole save, keeps
+every typed value in its box, says why in the ribbon's status word and as a
+notice, and the next change tries again. The ribbon has **Done**, which ends editing and releases
 the lease; there is no Save and no Cancel, because nothing is unsaved: a
 wrong value is retyped, and the history names each change. Ctrl S saves now,
 a composite's typing included; without script the ribbon's **Save now** is
@@ -753,8 +757,9 @@ Acceptance covers the ten sections and the `?section=` jump, the Report
 readiness list in the Next action linking each blocker to its section,
 the read-only rule in Completed, the Actions menu per state, and save as
 you go: a save keeps the session and returns the authority the next one
-carries, and the ribbon offers Done and no Save or Cancel. Web tests do not
-prove the script's commit on change; the browser walk does. It also covers
+carries, and the ribbon offers Done and no Save or Cancel. Web tests cover
+what a save's answer draws and the authority it carries; they do not prove
+the script's commit on change, and the browser walk does. It also covers
 the views: no Views card without an Audit; after Create
 audit the card and the Audit view by default; the Inspection view read-only
 with its label on each editable head, including for the lease holder; Report
