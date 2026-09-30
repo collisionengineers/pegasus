@@ -304,8 +304,12 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             $"The answer is {answerBytes} bytes; the page it replaces is {pageBytes}.");
     }
 
-    /// <summary>The save (about 38) and the answer's own reads (about 37).</summary>
-    private const int CommitAnswerBudget = 86;
+    /// <summary>
+    /// The save (about 38) and the answer's own reads (about 31 for this Case, whose assessment is
+    /// read-only, so the answer skips the report readiness read an editable Case adds), with
+    /// headroom for the data shape.
+    /// </summary>
+    private const int CommitAnswerBudget = 82;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,
