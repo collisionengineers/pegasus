@@ -803,9 +803,10 @@ request row, and their SQL calls leave no dependency row. The SQL and other
 calls of a keep-warm pass (see [Web start](#web-start)) leave no dependency
 row either. A failed one (unsuccessful, or a 5xx) is always kept, so the
 failed-request alert, a failing probe and a failing keep-warm call still show.
-Count probes from the platform's own health view, not from `AppRequests`. The readiness probe reads the database with one call.
-After the first probe that finds the schema current it only connects, and a
-probe that fails remembers nothing, so the next one checks again.
+Count probes from the platform's own health view, not from `AppRequests`. The
+readiness probe reads the database with one call. After the first probe that
+finds the schema current it only connects, and a probe that fails remembers
+nothing, so the next one checks again.
 
 ## Web start
 
@@ -848,11 +849,11 @@ The renderer is warmed right after it, in a step of its own
 under one `Pegasus.Warmup` activity and makes no request row. Its successful
 SQL and other calls leave no dependency row, so `AppDependencies` holds only a
 pass's failed calls; the failed calls of one pass share one operation id. Each
-pass logs `Warm-up pass finished in <ms> ms` at
-Debug. That line reaches the log only where the
-`Pegasus.Web.Health.StartupWarmup` category is lowered to Debug. The first
-failure of a step is a warning, `Warm-up step <name> failed after <ms> ms`.
-Later failures of the same step are Debug lines.
+pass logs `Warm-up pass finished in <ms> ms` at Debug. That line reaches the
+log only where the `Pegasus.Web.Health.StartupWarmup` category is lowered to
+Debug. The first failure of a step is a warning,
+`Warm-up step <name> failed after <ms> ms`. Later failures of the same step
+are Debug lines.
 
 ## Recovery
 
