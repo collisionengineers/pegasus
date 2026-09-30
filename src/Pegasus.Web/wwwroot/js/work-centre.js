@@ -308,7 +308,10 @@
         activateTab(tabs[next], true);
     });
 
-    window.setInterval(refresh, FIVE_MINUTES);
+    window.setInterval(function () {
+        if (document.hidden) { return; }
+        refresh();
+    }, FIVE_MINUTES);
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible' && Date.now() - lastRefresh > FOCUS_GAP) {
             refresh();
