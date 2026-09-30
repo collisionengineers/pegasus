@@ -15,6 +15,8 @@ public static class PegasusSqlServer
         options.UseSqlServer(
             connectionString,
             sql => sql.ExecutionStrategy(dependencies => new PegasusSqlServerExecutionStrategy(dependencies)));
+        // One shared instance of each, so the context's service provider is reused.
+        options.AddInterceptors(ConnectionOpenTimingInterceptor.Instance, DeadlockLoggingInterceptor.Instance);
     }
 }
 
