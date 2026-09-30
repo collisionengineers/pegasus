@@ -1204,7 +1204,8 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
                 }
                 using var bytes = new MemoryStream();
                 part.Content.DecodeTo(bytes, cancellationToken);
-                attachmentHashes.Add(Convert.ToHexString(SHA256.HashData(bytes.ToArray())));
+                attachmentHashes.Add(Convert.ToHexString(
+                    SHA256.HashData(bytes.GetBuffer().AsSpan(0, (int)bytes.Length))));
             }
             return new(
                 Occurrence(lease.MailboxId, item.Id),
