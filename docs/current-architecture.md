@@ -62,7 +62,10 @@ flowchart LR
   local storage and Box accept streamed writes with explicit length and hash.
   Existing in-memory callers retain their own entry points into the same policy.
   A Box write reads its folder once to prove it, and checks each upload's
-  parent from Box's own answer; it never uses the read path's memory.
+  parent from Box's own answer; it never uses the read path's memory. The
+  files of one custody work item upload up to three at a time
+  (`EfQueuedCustodyProcessor.RetainTogetherAsync`), and the results keep the
+  files' order.
 - Core route/classification/matching policy determines formal Case, Triage,
   image-origin and Unidentified outcomes. Their identities remain distinct.
 - SQL owns application state and provenance. Box owns durable file custody;
