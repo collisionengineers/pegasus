@@ -239,8 +239,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// lease and operation key the answer before it returned, so an answer that
     /// carried the wrong authority fails the next save. The first two are
     /// answered in place; the third has no script header and keeps its redirect,
-    /// which prices what the script used to follow. Numbers are printed in the
-    /// failure messages, and the budgets are upper bounds.
+    /// which prices what the script used to follow. The answered commit is
+    /// pinned at its exact count, so any change to it is seen, and a mismatch
+    /// lists every command sent. The byte figures are printed.
     /// </summary>
     [Fact]
     public async Task ACommitAnsweredInPlaceCarriesTheNextAuthorityAndCostsLessThanTheRedirectAndPage()
@@ -262,6 +263,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         var first = await CommitAsync(
             client, editing, caseId, CurrentCaseSaveValues(editing, caseId, vehicleMake: "Vauxhall"), script: true);
         var firstCommands = counter.Count;
+        var firstDescription = counter.Describe();
         Assert.Equal(HttpStatusCode.OK, first.Status);
         var firstCommit = EditorCommit(first.Body);
         Assert.Equal(startVersion, firstCommit.ExpectedVersion);
@@ -309,26 +311,30 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             $"Lane H: an answered commit sent {firstCommands} SQL commands and {answerBytes} bytes; "
             + $"the same commit with its redirect sent {redirectedCommands} ({plainPostCommands} + {pageCommands}) "
             + $"and {pageBytes} bytes.");
-        // Measured in CI (Release, real stores): the save is 43 commands and the redirected
-        // page 62, 105 in all, with 200,959 bytes in the response. The answered commit is 84
-        // (the save and 41 for the answer) with 33,756 bytes.
+        // Measured with LocalDB after Lane D's folds: the save is 35 commands and the
+        // redirected page 47, 82 in all, with 200,668 bytes in the response. The answered
+        // commit is 66 (the save and 31 for the answer) with 33,453 bytes. Before those
+        // folds CI measured 105 (43 and 62) against 84 (43 and 41).
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
         Assert.True(
-            firstCommands <= CommitAnswerBudget,
-            $"An answered commit sent {firstCommands} SQL commands; the budget is {CommitAnswerBudget}.");
+            firstCommands == CaseSaveCommands + CommitAnswerCommands,
+            $"An answered commit sent {firstCommands} SQL commands; it is pinned at {CaseSaveCommands + CommitAnswerCommands}"
+            + $" (the save {CaseSaveCommands} and the answer {CommitAnswerCommands})."
+            + Environment.NewLine + firstDescription);
         Assert.True(
             answerBytes < pageBytes * 6 / 10,
             $"The answer is {answerBytes} bytes; the page it replaces is {pageBytes}.");
     }
 
     /// <summary>
-    /// The save (43, as <see cref="CaseSaveBudget"/>) and the answer's own reads (41 for this Case).
-    /// Measured, as the other two budgets are. The first reading from the code said 31 for the
-    /// answer, on the assumption that this Case's assessment is read-only.
+    /// The answer's own reads for this Case, after the save's <see cref="CaseSaveCommands"/>:
+    /// the frame and the workspace, the report's readiness and current generation, the Case's
+    /// AI jobs and the workflow configuration, the valuation opening, and the workspace extras.
+    /// The report snapshot takes the Case's works from the frame, as the page's does.
     /// </summary>
-    private const int CommitAnswerBudget = 84;
+    private const int CommitAnswerCommands = 31;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,
