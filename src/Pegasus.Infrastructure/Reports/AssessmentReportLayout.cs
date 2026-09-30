@@ -18,7 +18,7 @@ internal sealed record PreparedReportImages(
     byte[]? Lead,
     IReadOnlyList<PreparedReportPhoto> Photos,
     byte[] Signature,
-    byte[] Logo);
+    Image Logo);
 
 /// <summary>One decoded photo and whether it prints on a page of its own (v28 P41).</summary>
 internal sealed record PreparedReportPhoto(byte[] Content, bool FullPage);
