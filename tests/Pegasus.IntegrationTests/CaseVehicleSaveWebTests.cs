@@ -289,9 +289,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             $"Lane H: an answered commit sent {firstCommands} SQL commands and {answerBytes} bytes; "
             + $"the same commit with its redirect sent {redirectedCommands} ({plainPostCommands} + {pageCommands}) "
             + $"and {pageBytes} bytes.");
-        // Before Lane H, by reading the code: the save (about 38) plus the redirected page
-        // (about 69), and the whole page in the response (about 42 KB). After: the save plus
-        // the reads the swapped parts need. To be confirmed by CI.
+        // Measured in CI (Release, real stores): the save is 43 commands and the redirected
+        // page 62, 105 in all, with 200,959 bytes in the response. The answered commit is 84
+        // (the save and 41 for the answer) with 33,756 bytes.
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
@@ -304,11 +304,11 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The save (about 38) and the answer's own reads (about 31 for this Case, whose assessment is
-    /// read-only, so the answer skips the report readiness read an editable Case adds), with
-    /// headroom for the data shape.
+    /// The save (43, as <see cref="CaseSaveBudget"/>) and the answer's own reads (41 for this Case).
+    /// Measured, as the other two budgets are. The first reading from the code said 31 for the
+    /// answer, on the assumption that this Case's assessment is read-only.
     /// </summary>
-    private const int CommitAnswerBudget = 82;
+    private const int CommitAnswerBudget = 84;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,
