@@ -912,6 +912,47 @@ public sealed class ProductionGraphSourceTests
         Assert.All(requests, request => Assert.Equal("IdType=\"ImmutableId\"", request.Prefer));
     }
 
+    /// <summary>
+    /// A retained message is named by its subject, on the poll and on the wake
+    /// read alike (operator, 30 September 2026). The immutable id stays the
+    /// identity; the name is not unique.
+    /// </summary>
+    [Theory]
+    [InlineData("Subject: QDOS26001 instruction\r\n", "QDOS26001 instruction.eml")]
+    [InlineData("Subject: Re: Claim 12/34?\r\n", "Re Claim 1234.eml")]
+    [InlineData("", "Message.eml")]
+    public async Task ARetainedInboxMessageIsNamedBySubjectOnThePollAndOnTheWakeRead(
+        string subjectHeader,
+        string expectedName)
+    {
+        var handler = new DelegateHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(
+                    HttpStatusCode.OK,
+                    $"From: sender@example.test\r\nMessage-Id: <one@example.test>\r\n{subjectHeader}\r\nBody",
+                    "message/rfc822");
+            }
+            return path.EndsWith("/messages/immutable-1", StringComparison.Ordinal)
+                ? Response(HttpStatusCode.OK,
+                    """{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}""")
+                : Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+        });
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+        var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease");
+
+        var polled = Assert.Single((await source.ReadAsync(lease, 10, CancellationToken.None)).Messages);
+        var notified = await source.ReadNotifiedAsync(lease, "immutable-1", CancellationToken.None);
+
+        Assert.Equal("immutable-1", polled.ImmutableMessageId);
+        Assert.Equal(expectedName, polled.FileName);
+        Assert.Equal(expectedName, notified?.FileName);
+    }
+
     [Fact]
     public async Task InboxSkipsMessagesBeforeTheActivationBoundaryAndAdvancesTheOpaqueCursor()
     {

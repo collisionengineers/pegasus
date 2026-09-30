@@ -236,7 +236,9 @@ There is no received-file page. A received file is shown where it matters:
 on its message, on the upload that brought it, and on the record it became
 (Case, Triage Case, Image-initiated Case, or Unidentified item). Each of those
 offers **Open file** for the retained original and, for email, **Open
-message**.
+message**. A retained email is named by its subject with `.eml`, or
+`Message.eml` when it has none, and its download carries that name. Two emails
+may share a name, because the receipt is the identity.
 
 The receipt's history is in Administration › Logs › **Intake log**,
 Administrators only. One row per received file shows source, item, outcome
