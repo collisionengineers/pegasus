@@ -126,24 +126,121 @@ internal sealed partial class CachedDocumentContentStore(
         CancellationToken cancellationToken)
     {
         ValidateRequest(request);
-        StaffAuthorization.Require(
-            request.Actor,
-            request.Actor.Kind == ActorKind.SystemWorker
-                ? StaffAccessRight.ExecuteSystemWork
-                : StaffAccessRight.PerformCasework);
+        RequireStaffRight(request.Actor);
         await RequireCurrentActorAsync(request.Actor, cancellationToken);
         var source = await ResolveAuthorizedSourceAsync(request, cancellationToken);
+        return await ServeAsync(
+            request,
+            source,
+            token => TryOpenCachedAsync(source, timeProvider.GetUtcNow(), token),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The lookups for several versions of one Case in three SQL calls whatever
+    /// their number: the account, the authorised sources and the cache entries.
+    /// Each handle then serves its own version as <see cref="OpenAsync"/> does,
+    /// one at a time, so a render still holds one source image at a time. A
+    /// version that cannot be served fails when its handle is opened, as a
+    /// single read of it would.
+    /// </summary>
+    public async Task<IReadOnlyList<PreparedLogicalDocumentRead>> PrepareAsync(
+        ActionActor actor,
+        Guid caseId,
+        IReadOnlyList<LogicalDocumentVersionRead> versions,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(versions);
+        if (versions.Count == 0)
+        {
+            return [];
+        }
+        // Every argument is checked before any I/O starts, as a single read checks its own.
+        var requests = new ReadLogicalDocumentVersionRequest[versions.Count];
+        for (var index = 0; index < versions.Count; index++)
+        {
+            var version = versions[index];
+            requests[index] = new(
+                actor,
+                version.DocumentId,
+                version.VersionId,
+                IntakeAssetId: null,
+                caseId,
+                IntakeReceiptId: null,
+                version.ExpectedSha256,
+                version.ExpectedContentLength);
+            ValidateRequest(requests[index]);
+        }
+        RequireStaffRight(actor);
+        await RequireCurrentActorAsync(actor, cancellationToken);
+
+        var versionIds = requests.Select(request => request.VersionId!.Value).Distinct().ToArray();
+        var authorized = await ResolveAuthorizedVersionsAsync(caseId, versionIds, cancellationToken);
+        var entries = await LoadOriginalEntriesAsync(versionIds, cancellationToken);
+
+        var prepared = new PreparedLogicalDocumentRead[requests.Length];
+        for (var index = 0; index < requests.Length; index++)
+        {
+            var request = requests[index];
+            authorized.TryGetValue(request.VersionId!.Value, out var row);
+            entries.TryGetValue(request.VersionId.Value, out var entry);
+            prepared[index] = new(async token =>
+            {
+                if (row is null || row.Version.DocumentId != request.DocumentId)
+                {
+                    throw new FileNotFoundException("The authorized document version is unavailable.");
+                }
+                var source = ResolvedSource.Create(
+                    row.Version.Id,
+                    intakeAssetId: null,
+                    row.Version.BoxFileId,
+                    row.Version.BoxVersionId,
+                    row.Version.Sha256,
+                    row.Version.ContentLength,
+                    row.Version.FileName,
+                    row.Version.MediaType,
+                    row.CaseRootRemoteId);
+                return await ServeAsync(
+                    request,
+                    source,
+                    entry is null
+                        ? _ => Task.FromResult<Stream?>(null)
+                        : cachedToken => TryOpenCachedAsync(
+                            entry, source, timeProvider.GetUtcNow(), cachedToken),
+                    token);
+            });
+        }
+        return prepared;
+    }
+
+    private static void RequireStaffRight(ActionActor actor) =>
+        StaffAuthorization.Require(
+            actor,
+            actor.Kind == ActorKind.SystemWorker
+                ? StaffAccessRight.ExecuteSystemWork
+                : StaffAccessRight.PerformCasework);
+
+    /// <summary>
+    /// Serves one resolved version: the cached copy when <paramref name="tryCached"/>
+    /// finds one that verifies, otherwise Box, and then a cache copy for next time.
+    /// </summary>
+    private async Task<LogicalDocumentContent> ServeAsync(
+        ReadLogicalDocumentVersionRequest request,
+        ResolvedSource source,
+        Func<CancellationToken, Task<Stream?>> tryCached,
+        CancellationToken cancellationToken)
+    {
         if (source.Length != request.ExpectedContentLength
             || !FixedHashEquals(source.Sha256, request.ExpectedSha256))
         {
             throw new InvalidDataException("The requested logical content identity does not match durable metadata.");
         }
-        var now = timeProvider.GetUtcNow();
 
         Stream? cached;
         using (DocumentReadTelemetry.Start("document.original.cache.read"))
         {
-            cached = await TryOpenCachedAsync(source, now, cancellationToken);
+            cached = await tryCached(cancellationToken);
         }
         if (cached is not null)
         {
@@ -519,6 +616,51 @@ internal sealed partial class CachedDocumentContentStore(
         {
             return null;
         }
+        return await OpenCachedObjectAsync(entry, source, cancellationToken);
+    }
+
+    /// <summary>
+    /// The same for an entry the caller read earlier with its other lookups:
+    /// the entry is not read again, and a database context is opened only when
+    /// its expiry is due to be pushed out.
+    /// </summary>
+    private async Task<Stream?> TryOpenCachedAsync(
+        DocumentContentCacheEntryEntity entry,
+        ResolvedSource source,
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        await IsServableAsync(entry, now, cancellationToken)
+            ? await OpenCachedObjectAsync(entry, source, cancellationToken)
+            : null;
+
+    /// <summary>
+    /// Whether an entry read earlier may still be served now: it has not
+    /// expired, cleanup has not claimed it, and when its expiry is due to be
+    /// pushed out, one conditional update did so.
+    /// </summary>
+    private async Task<bool> IsServableAsync(
+        DocumentContentCacheEntryEntity entry,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (entry.ExpiresAtUtc <= now || entry.ReadLeaseExpiresAtUtc > now)
+        {
+            return false;
+        }
+        if (!NeedsTouch(entry, IdleLifetime, now))
+        {
+            return true;
+        }
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await TryTouchAsync(db, entry, IdleLifetime, now, cancellationToken);
+    }
+
+    /// <summary>The verified content of an entry's object, or <c>null</c> when it is gone or changed.</summary>
+    private async Task<Stream?> OpenCachedObjectAsync(
+        DocumentContentCacheEntryEntity entry,
+        ResolvedSource source,
+        CancellationToken cancellationToken)
+    {
         var response = await TryDownloadAsync(entry, cancellationToken);
         if (response is null)
         {
@@ -576,19 +718,9 @@ internal sealed partial class CachedDocumentContentStore(
                 address.CaseRootRemoteId);
         }
 
-        Dictionary<Guid, DocumentContentCacheEntryEntity> entries;
-        await using (var db = await dbContextFactory.CreateDbContextAsync(cancellationToken))
-        {
-            var versionIds = sources
-                .Select(source => source.DocumentVersionId!.Value)
-                .Distinct()
-                .ToArray();
-            entries = await db.Set<DocumentContentCacheEntryEntity>().AsNoTracking()
-                .Where(value => value.Variant == OriginalVariant
-                    && value.DocumentVersionId != null
-                    && versionIds.Contains(value.DocumentVersionId.Value))
-                .ToDictionaryAsync(value => value.DocumentVersionId!.Value, cancellationToken);
-        }
+        var entries = await LoadOriginalEntriesAsync(
+            sources.Select(source => source.DocumentVersionId!.Value).Distinct().ToArray(),
+            cancellationToken);
 
         var contents = new ReadOnlyMemory<byte>[reads.Count];
         await Parallel.ForEachAsync(
@@ -667,20 +799,11 @@ internal sealed partial class CachedDocumentContentStore(
         ResolvedSource source,
         CancellationToken cancellationToken)
     {
-        var now = timeProvider.GetUtcNow();
-        if (entry.ExpiresAtUtc <= now || entry.ReadLeaseExpiresAtUtc > now)
-        {
-            return null;
-        }
         try
         {
-            if (NeedsTouch(entry, IdleLifetime, now))
+            if (!await IsServableAsync(entry, timeProvider.GetUtcNow(), cancellationToken))
             {
-                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                if (!await TryTouchAsync(db, entry, IdleLifetime, now, cancellationToken))
-                {
-                    return null;
-                }
+                return null;
             }
             var response = await TryDownloadAsync(entry, cancellationToken);
             if (response is null)
@@ -697,6 +820,60 @@ internal sealed partial class CachedDocumentContentStore(
             return null;
         }
     }
+
+    /// <summary>
+    /// The cache entries of the durable content of several versions, in one
+    /// query, by version.
+    /// </summary>
+    private async Task<Dictionary<Guid, DocumentContentCacheEntryEntity>> LoadOriginalEntriesAsync(
+        Guid[] versionIds,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Set<DocumentContentCacheEntryEntity>().AsNoTracking()
+            .Where(value => value.Variant == OriginalVariant
+                && value.DocumentVersionId != null
+                && versionIds.Contains(value.DocumentVersionId.Value))
+            .ToDictionaryAsync(value => value.DocumentVersionId!.Value, cancellationToken);
+    }
+
+    /// <summary>
+    /// The versions of one Case that may be read (confirmed, not logically
+    /// removed), with the folder each is filed in, in one query, by version.
+    /// It is <see cref="ResolveAuthorizedSourceAsync"/>'s version rule for a set
+    /// of versions: a version that is missing here, or whose document is not
+    /// the one asked for, is not authorised.
+    /// </summary>
+    private async Task<Dictionary<Guid, AuthorizedVersion>> ResolveAuthorizedVersionsAsync(
+        Guid caseId,
+        Guid[] versionIds,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await (
+            from documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
+            join document in db.Set<CaseDocumentEntity>().AsNoTracking()
+                on documentVersion.DocumentId equals document.Id
+            join caseEntity in db.Cases.AsNoTracking()
+                on document.CaseId equals caseEntity.Id
+            where versionIds.Contains(documentVersion.Id)
+                && document.CaseId == caseId
+                && documentVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && !documentVersion.IsLogicallyRemoved
+            select new
+            {
+                Version = documentVersion,
+                // The document's own folder: the a. folder for an Audit report.
+                CaseRootRemoteId = document.CustodyFolder == CaseCustodyFolders.Audit
+                    ? caseEntity.AuditCustodyRemoteId
+                    : caseEntity.CustodyRootRemoteId
+            }).ToListAsync(cancellationToken);
+        return rows.ToDictionary(
+            row => row.Version.Id,
+            row => new AuthorizedVersion(row.Version, row.CaseRootRemoteId));
+    }
+
+    private sealed record AuthorizedVersion(DocumentVersionEntity Version, string? CaseRootRemoteId);
 
     private async Task<Response<BlobDownloadStreamingResult>?> TryDownloadAsync(
         DocumentContentCacheEntryEntity entry,

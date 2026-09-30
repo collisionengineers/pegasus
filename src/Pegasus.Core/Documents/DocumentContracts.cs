@@ -22,6 +22,65 @@ public interface IReadLogicalDocumentVersion
 {
     Task<LogicalDocumentContent> OpenAsync(
         ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The lookups for several versions of one Case, made together; the bytes
+    /// are still read one at a time. A caller that reads many versions of one
+    /// Case in turn (a report's pinned images) asks once, then opens each handle
+    /// when it needs that version, so it holds one source at a time and pays the
+    /// lookups once instead of once for each version.
+    /// </summary>
+    /// <remarks>
+    /// The default prepares nothing: each handle is the single read. A reader
+    /// that can share its lookups overrides it. Either way a handle answers
+    /// exactly as <see cref="OpenAsync"/> does for the same request, including
+    /// how an unavailable version fails, and it fails when it is opened, not
+    /// when it is prepared.
+    /// </remarks>
+    Task<IReadOnlyList<PreparedLogicalDocumentRead>> PrepareAsync(
+        ActionActor actor,
+        Guid caseId,
+        IReadOnlyList<LogicalDocumentVersionRead> versions,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(versions);
+        return Task.FromResult<IReadOnlyList<PreparedLogicalDocumentRead>>(
+            [.. versions.Select(version => new PreparedLogicalDocumentRead(
+                token => OpenAsync(
+                    new ReadLogicalDocumentVersionRequest(
+                        actor,
+                        version.DocumentId,
+                        version.VersionId,
+                        IntakeAssetId: null,
+                        caseId,
+                        IntakeReceiptId: null,
+                        version.ExpectedSha256,
+                        version.ExpectedContentLength),
+                    token)))]);
+    }
+}
+
+/// <summary>One document version of a Case to read, and the hash and length it must have.</summary>
+public sealed record LogicalDocumentVersionRead(
+    Guid DocumentId, Guid VersionId, string ExpectedSha256, long ExpectedContentLength);
+
+/// <summary>
+/// One version whose lookups are done. <see cref="OpenAsync"/> reads its bytes,
+/// verified against the hash and length it was prepared with, and may be
+/// called each time the bytes are needed.
+/// </summary>
+public sealed class PreparedLogicalDocumentRead
+{
+    private readonly Func<CancellationToken, Task<LogicalDocumentContent>> open;
+
+    public PreparedLogicalDocumentRead(Func<CancellationToken, Task<LogicalDocumentContent>> open)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+        this.open = open;
+    }
+
+    public Task<LogicalDocumentContent> OpenAsync(CancellationToken cancellationToken) =>
+        open(cancellationToken);
 }
 
 public enum DocumentSemanticRole
