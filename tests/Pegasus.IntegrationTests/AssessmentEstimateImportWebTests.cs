@@ -1790,6 +1790,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.RemoveAll<IGetCaseDocumentMetadata>();
                 services.RemoveAll<IReadLogicalDocumentVersion>();
                 services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ICaseWorkflowQueries>();
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISaveEstimate>();
                 services.RemoveAll<IDuplicateEstimate>();
@@ -1818,6 +1819,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.AddSingleton<IGetCaseDocumentMetadata>(store);
                 services.AddSingleton<IReadLogicalDocumentVersion>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ICaseWorkflowQueries>(store);
                 services.AddSingleton<IListCaseEstimates>(store);
                 services.AddSingleton<ISaveEstimate>(provider =>
                 {
@@ -2022,7 +2024,7 @@ public sealed partial class AssessmentEstimateImportWebTests
           IGetCaseValuationSection,
           IGetCaseNotesSection, IGetAssessmentWorkspace, IRepairSpecificationStore, IAddCaseDocument,
           IGetCaseDocumentMetadata, IReadLogicalDocumentVersion,
-          IAcquireCaseEditLease, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
+          IAcquireCaseEditLease, ICaseWorkflowQueries, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
           IDiscardEstimate, ISetCurrentEstimate, IScaleRepairSpecification,
           IRepairSpecificationSnapshotStore, ISaveCaseWorkspace, ILabourRateCardStore,
           IGetCaseFilesSection
@@ -2135,13 +2137,9 @@ public sealed partial class AssessmentEstimateImportWebTests
                 return Task.FromResult<CaseDetails?>(null);
             }
 
-            var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
-            var workflow = new CaseWorkflowRecord(
-                caseId, identity, CaseState, null, null,
-                null, null, null, null, null, WorkflowVersion);
-            workflow = workflow with { Archive = CaseArchive };
+            var workflow = Workflow();
             var summary = new CaseSearchItem(
-                caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
+                caseId, workflow.Identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
@@ -2153,6 +2151,27 @@ public sealed partial class AssessmentEstimateImportWebTests
             };
             return Task.FromResult<CaseDetails?>(details);
         }
+
+        private CaseWorkflowRecord Workflow() =>
+            new CaseWorkflowRecord(
+                caseId, new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042"), CaseState, null, null,
+                null, null, null, null, null, WorkflowVersion)
+            {
+                Archive = CaseArchive
+            };
+
+        /// <summary>The Case's workflow row alone, as the lease reclaim after an immediate post reads it.</summary>
+        Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseWorkflowRecord?>(id == caseId ? Workflow() : null);
+
+        Task<bool> ICaseWorkflowQueries.HasOperationAsync(
+            Guid id, string operationKey, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        Task<IReadOnlyDictionary<Guid, Guid?>> ICaseWorkflowQueries.GetAssignedEngineersAsync(
+            IReadOnlyCollection<Guid> caseIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, Guid?>>(caseIds.Contains(caseId)
+                ? new Dictionary<Guid, Guid?> { [caseId] = null }
+                : new Dictionary<Guid, Guid?>());
 
         async Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
             GetCaseSectionQuery query,

@@ -459,8 +459,8 @@ public sealed record CaseEditBasis(CaseSectionFrame Frame, CaseDataProjection Da
 }
 
 /// <summary>
-/// The bounded read a Save, and a lease reclaimed after an immediate post,
-/// need: the frame and the data, not documents, history or tasks.
+/// The bounded read a Save needs: the frame and the data, not documents,
+/// history or tasks.
 /// </summary>
 public interface IGetCaseEditBasis
 {

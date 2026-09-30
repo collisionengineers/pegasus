@@ -199,6 +199,7 @@ public sealed class CaseTasksWebTests
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<IRecordManualCaseChase>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

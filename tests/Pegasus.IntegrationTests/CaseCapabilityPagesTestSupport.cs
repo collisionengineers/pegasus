@@ -51,6 +51,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IValidateCaseRenderLease>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts(services);
             }));
@@ -900,8 +901,11 @@ internal static partial class CaseWebTestSupport
 
         public string? RepairerName { get; init; }
 
-        /// <summary>How many times a Save or a reclaim read the Case's edit basis.</summary>
+        /// <summary>How many times a Save read the Case's edit basis.</summary>
         public int EditBasisReads { get; private set; }
+
+        /// <summary>How many times a page read the Case's workflow row alone, as a lease reclaim does.</summary>
+        public int WorkflowReads { get; private set; }
 
         /// <summary>How many times a page read the Case's header instead of the full Case.</summary>
         public int HeaderReads { get; private set; }
@@ -1083,8 +1087,11 @@ internal static partial class CaseWebTestSupport
 
         Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(
             Guid caseId,
-            CancellationToken cancellationToken) => Task.FromResult<CaseWorkflowRecord?>(
-                caseId == CaseId ? CreateWorkflow() : null);
+            CancellationToken cancellationToken)
+        {
+            WorkflowReads++;
+            return Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? CreateWorkflow() : null);
+        }
 
         Task<bool> ICaseWorkflowQueries.HasOperationAsync(
             Guid caseId,
@@ -1386,6 +1393,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IValidateCaseRenderLease>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts(services);

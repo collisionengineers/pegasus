@@ -39,6 +39,7 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed partial class DetailsModel(
     IGetCaseHeader getCaseHeader,
     IGetCaseEditBasis getCaseEditBasis,
+    ICaseWorkflowQueries caseWorkflows,
     IGetCasePageFrame getCasePageFrame,
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
