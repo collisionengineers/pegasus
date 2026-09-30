@@ -618,6 +618,9 @@ if (applicationInsightsConfigured)
     // Its trace reaches Application Insights only where that is configured.
     builder.Services.AddHostedService<RuntimeHeartbeat>();
 }
+// The database check remembers a current schema, so it is one instance for the
+// process and not one per probe.
+builder.Services.AddSingleton<DatabaseReadinessHealthCheck>();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"])
     .AddCheck<StartupWarmupHealthCheck>("warmup", tags: ["ready", "warm"]);

@@ -408,8 +408,9 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
       minTlsVersion: '1.2'
       use32BitWorkerProcess: false
       webSocketsEnabled: false
-      // The readiness probe the Container App used; the platform recycles an
-      // instance that fails it. Liveness has no separate probe on App Service.
+      // The readiness probe the Container App used. With one instance the
+      // platform replaces the site only after an hour of continuous failure; it
+      // recycles no instance sooner. Liveness has no separate probe on App Service.
       healthCheckPath: '/health/ready'
       appSettings: concat([
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
