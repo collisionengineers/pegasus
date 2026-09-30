@@ -333,7 +333,7 @@
                    value switches the two hidden fields on (a card typed in
                    this edit has no identity, so it is named by its source);
                    they post nothing until then. *@
-                <input type="hidden" name="selection.Opening" value="@Model.OpeningValuationCanonical" form="case-edit-form" data-carry-forward />
+                <partial name="Cases/Shared/_CaseValuationOpening" model="Model" />
                 <input type="hidden" name="selection.GuideSource" value="" form="case-edit-form" disabled data-valuation-source-input />
                 <input type="hidden" name="selection.Use" value="true" form="case-edit-form" disabled data-valuation-use-input />
             }

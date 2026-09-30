@@ -111,17 +111,48 @@ public sealed partial class DetailsModel(
     ISubmitCaseToEva? submitCaseToEva = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
-    public string? CommittedEditorCommand => TempData["CaseEditorCommit"] as string;
+    /// <summary>
+    /// The commit this response confirms: the editor, its operation key and the
+    /// versions it moved between, which the page script matches against what it
+    /// sent. A commit answered in place holds it here; every other command
+    /// carries it to the redirected page in TempData.
+    /// </summary>
+    public string? CommittedEditorCommand =>
+        AnswersInPlace ? heldEditorCommit : TempData["CaseEditorCommit"] as string;
+
+    private string? heldEditorCommit;
+
+    /// <summary>
+    /// The notices the record draws above its card: what the last command
+    /// did, work not yet finished, and a refusal. A commit answered in place
+    /// holds them (<see cref="CaseMutationPageModel.AnswersInPlace"/>); every
+    /// other page reads them from the redirect's TempData.
+    /// </summary>
+    public string? StatusNotice => AnswersInPlace ? HeldNotice(StatusTempDataKey) : TempData[StatusTempDataKey] as string;
+
+    public string? WarningNotice => AnswersInPlace ? HeldNotice(WarningTempDataKey) : TempData[WarningTempDataKey] as string;
+
+    public string? ErrorNotice => AnswersInPlace ? HeldNotice(ErrorTempDataKey) : TempData[ErrorTempDataKey] as string;
+
+    private const string WarningTempDataKey = "CaseWarning";
 
     private void RecordEditorCommit(
         string editor, string operationKey, long expectedVersion, long? resultingVersion = null)
     {
         // Use the operation's original authority version and its known result
         // version, not a later read which could include an intervening write.
-        TempData["CaseEditorCommit"] = JsonSerializer.Serialize(new
+        var commit = JsonSerializer.Serialize(new
         {
             editor, operationKey, expectedVersion, version = resultingVersion ?? checked(expectedVersion + 1)
         });
+        if (AnswersInPlace)
+        {
+            heldEditorCommit = commit;
+        }
+        else
+        {
+            TempData["CaseEditorCommit"] = commit;
+        }
     }
 
     public bool StaffMailAvailable => staffMailSend is not null
@@ -891,29 +922,10 @@ public sealed partial class DetailsModel(
         using var activity = DocumentReadTelemetry.Start("web.case.main");
         try
         {
-            // The frame and the workspace each need only the Case id and read on
-            // their own database context, so they start together. Each keeps its
-            // own phase, timed around its own read. The access answer is the
-            // frame's workflow state. The lease is restored after both reads,
-            // because it uses TempData.
+            // The lease is restored after the first reads, because it uses
+            // TempData.
             var work = WorkSelector;
-            using var firstReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
-            var frameRead = firstReads.Start(async token =>
-            {
-                using (DocumentReadTelemetry.Start("web.case.frame"))
-                {
-                    return await getCasePageFrame.ExecuteAsync(new(id, actor, Work: work), token);
-                }
-            });
-            var workspaceRead = firstReads.Start(async token =>
-            {
-                using (DocumentReadTelemetry.Start("web.case.workspace"))
-                {
-                    return await getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), token);
-                }
-            });
-            await firstReads.WhenAllAsync();
-            Case = await frameRead;
+            (Case, var workspace) = await ReadFrameAndWorkspaceAsync(id, actor, work, cancellationToken);
             if (Case is null)
             {
                 return NotFound();
@@ -927,7 +939,6 @@ public sealed partial class DetailsModel(
                 // Only this page renders a manual renew control, so only it needs that key.
                 RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
             }
-            var workspace = await workspaceRead;
             // Each phase below starts its independent reads together, at most
             // four at a time and each on its own database context, and sets the
             // page's state only once all of them have finished. The phases stay
@@ -955,6 +966,37 @@ public sealed partial class DetailsModel(
             Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             return Page();
         }
+    }
+
+    /// <summary>
+    /// The frame and the workspace each need only the Case id and read on their
+    /// own database context, so they start together. Each keeps its own phase,
+    /// timed around its own read. The access answer is the frame's workflow
+    /// state. The full page and the answer to a commit both begin with them.
+    /// </summary>
+    private async Task<(CasePageFrame? Frame, AssessmentWorkspace? Workspace)> ReadFrameAndWorkspaceAsync(
+        Guid id,
+        ActionActor actor,
+        CaseWorkSelector work,
+        CancellationToken cancellationToken)
+    {
+        using var firstReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var frameRead = firstReads.Start(async token =>
+        {
+            using (DocumentReadTelemetry.Start("web.case.frame"))
+            {
+                return await getCasePageFrame.ExecuteAsync(new(id, actor, Work: work), token);
+            }
+        });
+        var workspaceRead = firstReads.Start(async token =>
+        {
+            using (DocumentReadTelemetry.Start("web.case.workspace"))
+            {
+                return await getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), token);
+            }
+        });
+        await firstReads.WhenAllAsync();
+        return (await frameRead, await workspaceRead);
     }
 
     private async Task LoadEngineerSectionsAsync(
@@ -1748,6 +1790,12 @@ public sealed partial class DetailsModel(
         string? section,
         CancellationToken cancellationToken)
     {
+        // A commit made by the page script is answered with the parts it swaps
+        // (FRD-16); every other post is answered by the redirect it always was.
+        if (IsScriptRequest)
+        {
+            AnswerInPlace();
+        }
         assessmentFields ??= [];
         // The Repair Spec editor and the valuation calculator join the Case
         // form (one Save, 23 September 2026). They read like the estimate and
@@ -2112,19 +2160,22 @@ public sealed partial class DetailsModel(
 
         if (bankError is not null)
         {
-            TempData.Remove("CaseStatus");
-            TempData["CaseError"] = bankError;
+            Say(StatusTempDataKey, null);
+            Say(ErrorTempDataKey, bankError);
         }
         else if (!string.IsNullOrEmpty(saveError))
         {
-            TempData["CaseError"] = saveError;
+            Say(ErrorTempDataKey, saveError);
         }
         else if (bankStatus is not null)
         {
-            TempData["CaseStatus"] = bankStatus;
+            Say(StatusTempDataKey, bankStatus);
         }
 
-        return result;
+        // The command ran (a refusal redirects too); only Forbid has nothing to answer.
+        return AnswersInPlace && result is RedirectToPageResult
+            ? await AnswerCommitAsync(id, section, preparationEdits is { Length: > 0 }, result, cancellationToken)
+            : result;
     }
 
     /// <summary>

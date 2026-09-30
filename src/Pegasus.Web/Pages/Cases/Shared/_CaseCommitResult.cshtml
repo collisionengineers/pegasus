@@ -1,0 +1,47 @@
+@*
+    What the server answers a save-as-you-go commit with (FRD-16): the parts of
+    the Case that case-workspace.js swaps after a commit, and nothing more. It
+    is not a page. The script keeps every section as the operator has it and
+    reads from this answer:
+
+    - the record wrapper, with the version, the session state and the commit
+      the answer confirms (data-editor-commit). A refused commit carries none,
+      which is how the script knows it was refused;
+    - the notices, the ribbon's two halves, the aside and the dialogs, each
+      redrawn from the Case as it now stands;
+    - the Save form and the valuation's opening calculation, whose
+      carry-forward inputs hold the version, lease and operation key the next
+      commit sends;
+    - the Files section, only when the commit recorded staged crops or
+      rotations, so the operator's tiles show what was saved.
+
+    The wrapper's attributes are the ones Details.cshtml gives the full page;
+    Razor cannot share an open tag, so a change to one is a change to both.
+    Each part is the partial the full page renders, never a copy of it.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+    var summary = details.Summary;
+    var editing = Model.IsEditing;
+}
+<partial name="Cases/Shared/_CaseNotices" model="Model" />
+<article class="record case-record @(editing ? "is-editing" : null)" id="case-record" data-case-record
+         data-case-id="@summary.CaseId" data-case-version="@workflow.Version"
+         data-editor-commit="@Model.CommittedEditorCommand"
+         data-layout="@Pegasus.Web.Presentation.ShellPreferences.CaseLayout(Model.Request)" data-section-current="@Model.Section"
+         data-case-editing="@(editing ? "true" : "false")" data-case-view="@Model.ViewRoute">
+    <partial name="Cases/Shared/_CaseRibbon" model="Model" />
+    <partial name="Cases/Shared/_CaseSaveForm" model="Model" />
+    @if (Model.SectionIsEditable("valuation"))
+    {
+        <partial name="Cases/Shared/_CaseValuationOpening" model="Model" />
+    }
+    <partial name="Cases/Shared/_CaseAside" model="Model" />
+</article>
+@if (Model.FilesSection is not null)
+{
+    <partial name="Cases/Shared/_CaseFiles" model="Model" />
+}
+<div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>
