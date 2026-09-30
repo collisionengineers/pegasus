@@ -251,10 +251,26 @@ and whether it is in the trash. A trashed file is refused. The file's
 metadata and content are requested together, and the content is discarded
 unless every check passes. The check that the folder sits under the approved
 Box root is remembered for 10 minutes. So a folder moved out of the root, or
-trashed, in Box itself may be noticed up to 10 minutes late. Writes, moves,
-deletes and uploads check the whole path every time. A not-found, trashed or
-outside-root answer drops what was remembered. The Box access token is
-renewed in the background before a request would need to renew it.
+trashed, in Box itself may be noticed up to 10 minutes late. A not-found,
+trashed or outside-root answer drops what was remembered. The Box access token
+is renewed in the background before a request would need to renew it.
+
+A write never uses that memory. Before a piece of work files anything into a
+Case folder, it reads that folder once. The folder must carry the Case's name,
+sit directly under the approved root and not be in the trash. The piece of
+work reads its Case folder once, however many files it files. A document filed
+on its own is different. Its folder may be the Case folder or the Audit's `a.`
+folder inside it. That folder is read, and so is each folder above it up to
+the approved root, to check that it is under that root and not in the trash.
+This is done for each document. An upload does not look for its name first.
+Box's answer to the upload must name the folder that was read as the file's
+parent. A name Box already holds comes back as Box's own refusal. Pegasus then
+accepts the file that holds it only when it is a file of the same length, in
+that folder, with the same bytes.
+Box does not report a file's type, so the type is not compared. A not-found,
+trashed or outside-root answer to any of these reads drops what was
+remembered. Folder create, rename and delete, and file move and delete, still
+check the whole path every time.
 
 A browser may keep a private copy of an image or PDF preview for a week. It
 keeps one only when the address names the exact bytes. For a Case document

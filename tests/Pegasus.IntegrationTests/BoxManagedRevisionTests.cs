@@ -50,7 +50,7 @@ public sealed class BoxManagedRevisionTests
     }
 
     private static bool IsExpected(BoxContentClient.BoxItem file) =>
-        BoxDocumentContentStore.IsExpectedRevision(file, CaseFolder, "image/jpeg", Length);
+        BoxContentClient.IsExpectedRevision(file, CaseFolder, "image/jpeg", Length);
 
     private static BoxContentClient.BoxItem File(string? mediaType) => new(
         "2421244761500",
