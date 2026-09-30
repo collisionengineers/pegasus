@@ -706,7 +706,7 @@ public sealed class CaseCursorQueryPersistenceTests
                 Reference = reference,
                 Type = "audit",
                 InitialState = "NotReady",
-                CustodyState = "Pending",
+                CustodyState = "pending",
                 OriginIntakeReceiptId = receiptId,
                 CreatedAtUtc = receivedAtUtc,
                 Version = 1,
