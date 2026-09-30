@@ -14,7 +14,7 @@ public sealed partial class SentEvidencePollFunction(
 
     [Function(nameof(SentEvidencePollFunction))]
     public async Task RunAsync(
-        [TimerTrigger("%SentEvidencePollSchedule%", RunOnStartup = false)] TimerInfo timer,
+        [TimerTrigger("%SentEvidencePollSchedule%", RunOnStartup = false, UseMonitor = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
         var result = await pollSentEvidence.ExecuteBatchAsync(
