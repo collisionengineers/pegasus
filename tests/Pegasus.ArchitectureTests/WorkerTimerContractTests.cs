@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Azure.Functions.Worker;
+using Pegasus.Worker;
 
 namespace Pegasus.ArchitectureTests;
 
@@ -79,6 +80,25 @@ public sealed partial class WorkerTimerContractTests
         Assert.Equal(
             usedSettings,
             LocalScriptScheduleNames(localScript).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// A timer of one minute or longer writes no monitor blob to storage on each run: a
+    /// missed firing after a restart is not replayed, which these idempotent recovery
+    /// sweeps allow. The 10-second sweep keeps its monitor.
+    /// </summary>
+    [Fact]
+    public void OnlyTheTenSecondSweepKeepsItsMonitorBlob()
+    {
+        var monitored = WorkerFunctionSet.Declarations()
+            .SelectMany(function => function.Method.GetParameters()
+                .Select(parameter => parameter.GetCustomAttribute<TimerTriggerAttribute>())
+                .OfType<TimerTriggerAttribute>()
+                .Select(trigger => (function.Name, trigger.UseMonitor)))
+            .Where(timer => timer.UseMonitor)
+            .Select(timer => timer.Name);
+
+        Assert.Equal([nameof(StagedArtifactReconciliationFunction)], monitored);
     }
 
     private static IEnumerable<string> ScheduleSettingNames() =>

@@ -52,7 +52,7 @@ public sealed partial class PendingWorkRecoveryFunction(
 
     [Function(nameof(PendingWorkRecoveryFunction))]
     public async Task RunAsync(
-        [TimerTrigger("%PendingWorkRecoverySchedule%", RunOnStartup = false)] TimerInfo timer,
+        [TimerTrigger("%PendingWorkRecoverySchedule%", RunOnStartup = false, UseMonitor = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
         // Read before the dispatch: a slow dispatch must not push this run into
@@ -175,7 +175,7 @@ public sealed partial class AutomaticEvaReviewSubmissionFunction(
 {
     [Function(nameof(AutomaticEvaReviewSubmissionFunction))]
     public async Task RunAsync(
-        [TimerTrigger("%AutomaticEvaReviewSubmissionSchedule%", RunOnStartup = false)] TimerInfo timer,
+        [TimerTrigger("%AutomaticEvaReviewSubmissionSchedule%", RunOnStartup = false, UseMonitor = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
         var processed = await processAutomaticEvaReviewSubmissions.ExecuteAsync(50, cancellationToken);
