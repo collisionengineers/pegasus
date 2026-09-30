@@ -1492,6 +1492,65 @@ public sealed class ProductionGraphSourceTests
         }
     }
 
+    // Graph faulting while the quarantine store reads its body is a Graph read failure,
+    // exactly as it is for a message read whole, not a retention failure.
+    [Fact]
+    public async Task InboxSurfacesAGraphReadFaultOnAnOversizedBodyAsTheReadFault()
+    {
+        const int bound = 64;
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.GraphMimeBoundTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var store = new FileSystemIntakeArtifactStore(root);
+            var source = new GraphApprovedInboxSource(
+                new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(
+                    MimeHandler(() => new FaultingMimeContent(bound + 1)))),
+                store,
+                bound);
+            var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease");
+
+            await Assert.ThrowsAsync<HttpIOException>(
+                () => source.ReadAsync(lease, 10, CancellationToken.None));
+            await Assert.ThrowsAsync<HttpIOException>(
+                () => source.ReadNotifiedAsync(lease, "immutable-1", CancellationToken.None));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    // A fault in the quarantine store itself, after Graph's body read cleanly, is the
+    // retention failure.
+    [Fact]
+    public async Task InboxReportsAQuarantineStoreFaultOnAnOversizedBodyAsARetentionFailure()
+    {
+        const int bound = 64;
+        var body = MimeOfLength(bound + 1);
+        var store = new WriteFaultQuarantineStore();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(
+                MimeHandler(() => new TestMimeContent(body, declaresLength: true, buffers: false)))),
+            store,
+            bound);
+        var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease");
+
+        var polled = await Assert.ThrowsAsync<IntakeArtifactRetentionException>(
+            () => source.ReadAsync(lease, 10, CancellationToken.None));
+        var notified = await Assert.ThrowsAsync<IntakeArtifactRetentionException>(
+            () => source.ReadNotifiedAsync(lease, "immutable-1", CancellationToken.None));
+
+        Assert.IsType<IOException>(polled.InnerException);
+        Assert.IsType<IOException>(notified.InnerException);
+        Assert.Equal(new long[] { bound + 1, bound + 1 }, store.BytesRead);
+    }
+
     private const string DefaultMailboxId = "mailbox-id";
     private const string DefaultMailboxAddress = "instructions@collisionengineers.co.uk";
     private const string DefaultInboxFolderId = "inbox-folder";
@@ -1575,6 +1634,77 @@ public sealed class ProductionGraphSourceTests
             length = body.Length;
             return declaresLength;
         }
+    }
+
+    /// <summary>
+    /// A MIME body Graph declares at a length and then fails to deliver: the
+    /// connection drops before its first byte arrives.
+    /// </summary>
+    private sealed class FaultingMimeContent(long declaredLength) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            throw new InvalidOperationException("The MIME body was buffered.");
+
+        protected override Task<Stream> CreateContentReadStreamAsync() =>
+            Task.FromResult<Stream>(new FaultingReadStream());
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = declaredLength;
+            return true;
+        }
+
+        private sealed class FaultingReadStream : Stream
+        {
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position
+            {
+                get => throw new NotSupportedException();
+                set => throw new NotSupportedException();
+            }
+
+            public override int Read(byte[] buffer, int offset, int count) => throw Fault();
+
+            public override ValueTask<int> ReadAsync(
+                Memory<byte> buffer,
+                CancellationToken cancellationToken = default) =>
+                ValueTask.FromException<int>(Fault());
+
+            public override void Flush() => throw new NotSupportedException();
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+            private static HttpIOException Fault() =>
+                new(HttpRequestError.ResponseEnded, "The response ended prematurely.");
+        }
+    }
+
+    /// <summary>
+    /// A quarantine store that reads the body to its end and then cannot write it.
+    /// </summary>
+    private sealed class WriteFaultQuarantineStore : IIntakeQuarantineArtifactStore
+    {
+        public List<long> BytesRead { get; } = [];
+
+        public async Task<IntakeQuarantineArtifact> StoreStreamAsync(
+            Stream content,
+            long contentLength,
+            CancellationToken cancellationToken)
+        {
+            using var counted = new MemoryStream();
+            await content.CopyToAsync(counted, cancellationToken);
+            BytesRead.Add(counted.Length);
+            throw new IOException("The quarantine store could not write.");
+        }
+
+        public Task VerifyAsync(
+            IntakeQuarantineArtifact artifact,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The source does not verify what it retained.");
     }
 
     /// <summary>

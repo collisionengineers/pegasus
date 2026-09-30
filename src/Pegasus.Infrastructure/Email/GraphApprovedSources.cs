@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -857,7 +858,7 @@ internal sealed class GraphApprovedInboxSource(
                     return new GraphInboxMime(await content.ReadAsByteArrayAsync(token), null);
                 }
 
-                await using var body = await content.ReadAsStreamAsync(token);
+                await using var body = new GraphBodyStream(await content.ReadAsStreamAsync(token));
                 IntakeQuarantineArtifact retained;
                 try
                 {
@@ -868,6 +869,12 @@ internal sealed class GraphApprovedInboxSource(
                 }
                 catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
                 {
+                    // A fault reading Graph's body is a Graph read failure, as it is for
+                    // a message read whole. Only a fault in the store is a retention failure.
+                    if (body.ReadFault is { } readFault)
+                    {
+                        ExceptionDispatchInfo.Throw(readFault);
+                    }
                     throw new IntakeArtifactRetentionException(exception);
                 }
 
@@ -884,6 +891,77 @@ internal sealed class GraphApprovedInboxSource(
     private sealed record GraphInboxMime(
         byte[] Content,
         ApprovedInboxSourceRejection? Rejection);
+
+    /// <summary>
+    /// Graph's response body as the quarantine store reads it. It keeps any fault the
+    /// body raises, so a Graph read fault is told apart from a fault in the store.
+    /// </summary>
+    private sealed class GraphBodyStream(Stream source) : Stream
+    {
+        public Exception? ReadFault { get; private set; }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            try
+            {
+                return source.Read(buffer);
+            }
+            catch (Exception exception)
+            {
+                ReadFault = exception;
+                throw;
+            }
+        }
+
+        public override Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return await source.ReadAsync(buffer, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                ReadFault = exception;
+                throw;
+            }
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                source.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
 
     /// <summary>
     /// The display facts of one polled message: the MIME supplies the content,
