@@ -116,6 +116,74 @@ public sealed class AutomaticVehicleLookupTests
             $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}'"));
     }
 
+    /// <summary>
+    /// The sweep runs every ten seconds. Once a Case has its lookup it costs the
+    /// sweep nothing: one read that returns no rows, whether the registration was
+    /// typed with spaces or hyphens or not.
+    /// </summary>
+    [Theory]
+    [InlineData("AB12CDE")]
+    [InlineData("ab12 cde")]
+    [InlineData("AB12-CDE")]
+    public async Task ACaseAlreadyLookedUpCostsTheSweepOneRead(string registration)
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await CreateDatabaseAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, caseId, registration, "fact");
+        Assert.Equal(1, await SweepAsync(database));
+
+        statements.Reset();
+        Assert.Equal(0, await SweepAsync(database));
+
+        Assert.Equal(1, statements.Count);
+    }
+
+    /// <summary>
+    /// The read compares a coarse form of the registration, so a value with other
+    /// punctuation is still read back each time. The exact decision that follows
+    /// finds its lookup and enqueues nothing more.
+    /// </summary>
+    [Fact]
+    public async Task ARegistrationTheReadCannotMatchIsStillDecidedExactly()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, caseId, "AB12.CDE", "fact");
+
+        Assert.Equal(1, await SweepAsync(database));
+        Assert.Equal(0, await SweepAsync(database));
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}' AND Registration = 'AB12CDE'"));
+    }
+
+    /// <summary>
+    /// A Case whose confirmed registration has its lookup is not looked up again
+    /// for a different registration left in a lower tier, and a Case beside it that
+    /// is due is still found.
+    /// </summary>
+    [Fact]
+    public async Task ALookedUpCaseWithAStaleFactStaysDoneAndADueCaseBesideItIsFound()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var doneCase = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, doneCase, "AB12CDE", "confirmed");
+        await SeedRegistrationFieldAsync(database, doneCase, "XY34ZAB", "fact");
+        Assert.Equal(1, await SweepAsync(database));
+        var dueCase = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, dueCase, "CD56EFG", "fact");
+
+        Assert.Equal(1, await SweepAsync(database));
+        Assert.Equal(0, await SweepAsync(database));
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{doneCase:D}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{dueCase:D}' AND Registration = 'CD56EFG'"));
+    }
+
     [Fact]
     public async Task SweepDoesNothingWhereLookupsAreNotComposed()
     {
@@ -274,8 +342,10 @@ public sealed class AutomaticVehicleLookupTests
     }
 
     private static Task<LocalDbTestDatabase> CreateDatabaseAsync(
-        ICommittedExternalWorkPublisher? publisher = null) =>
+        ICommittedExternalWorkPublisher? publisher = null,
+        Action<DbContextOptionsBuilder>? configureDatabase = null) =>
         LocalDbTestDatabase.CreateAsync(
+            configureDatabase: configureDatabase,
             configureServices: services =>
             {
                 services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);

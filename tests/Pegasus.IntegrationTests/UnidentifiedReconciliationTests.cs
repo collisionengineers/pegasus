@@ -494,6 +494,40 @@ public sealed class UnidentifiedReconciliationTests
         return caseId;
     }
 
+    /// <summary>
+    /// The reconciliation sweep examines the oldest open items up to its bound.
+    /// The store takes that head in one read instead of listing the whole queue.
+    /// </summary>
+    [Fact]
+    public async Task TheOldestOpenItemsAreTakenInOneBoundedRead()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var created = new DateTimeOffset(2031, 5, 6, 10, 0, 0, TimeSpan.Zero);
+        var references = new List<string>();
+        for (var index = 0; index < 4; index++)
+        {
+            var registered = await store.RegisterAsync(new RegisterUnidentifiedRequest(
+                UnidentifiedOrigin.Receipt(Guid.NewGuid()),
+                UnidentifiedReasonCode.NoUsableIdentification,
+                "Recorded safe detail.",
+                ActionActor.SystemWorker("test-intake"),
+                Guid.NewGuid().ToString("N"),
+                created.AddMinutes(index)));
+            references.Add(registered.Item.Reference);
+        }
+
+        statements.Reset();
+        var oldest = await store.ListOldestAsync(UnidentifiedState.Open, 3);
+
+        Assert.Equal(references.Take(3), oldest.Select(item => item.Reference));
+        Assert.Equal(1, statements.Count);
+        Assert.Equal(4, (await store.ListAsync(UnidentifiedState.Open)).Count);
+    }
+
     [Fact]
     public async Task APendingGroupMemberNeverGainsAnUnidentifiedRow()
     {

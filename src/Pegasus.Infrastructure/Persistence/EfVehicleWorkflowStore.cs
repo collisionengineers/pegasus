@@ -368,10 +368,24 @@ internal sealed class EfVehicleWorkflowStore(
         var terminalStates = CaseLifecycleRules.TerminalStateNames();
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // Only a Case with a registration field that no lookup request accounts
+        // for can be due, so the read leaves out every Case already looked up.
+        // The comparison is a coarse form of the normalisation below: no spaces or
+        // hyphens, and the database's collation ignores case. It can keep a Case
+        // that is not due, which the exact decision below still rejects. It cannot
+        // drop a Case that is due: a request row holds only the fully normalised
+        // registration, so a raw value that matches one in this form is already
+        // that registration.
         var candidates = await context.CaseDataFields
             .AsNoTracking()
             .Where(field => field.FieldName == CaseDataFieldNames.VehicleRegistration
-                && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact))
+                && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact)
+                && context.CaseDataFields.Any(other => other.WorkId == field.WorkId
+                    && other.FieldName == CaseDataFieldNames.VehicleRegistration
+                    && (other.ValueKind == CaseDataCodes.Confirmed || other.ValueKind == CaseDataCodes.Fact)
+                    && !context.Set<VehicleLookupRequestEntity>().Any(request =>
+                        request.CaseId == other.WorkId
+                        && request.Registration == other.Value.Replace(" ", "").Replace("-", ""))))
             .Join(
                 context.CaseWorkflows.AsNoTracking()
                     .Where(workflow => workflow.ArchivedAtUtc == null
