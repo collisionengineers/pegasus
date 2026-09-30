@@ -230,15 +230,18 @@ else
                     var href = item.AssetId is { } assetId
                         ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId, v = item.ContentHash })!
                         : Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
-                    @* The tile is the photograph's whole-frame rendering at tile size,
-                       not the original; the link and the download keep the original.
-                       This page loads no crop for these photographs, so none is drawn. *@
+                    @* The tile is the photograph's rendering at tile size, not the
+                       original, at the address its own record's tile uses: the image
+                       list already carries the crop and rotation recorded on it, so
+                       the address names what the tile route draws. The link and the
+                       download keep the original. *@
                     var tileHref = new GalleryImage(
                         href,
                         href,
                         item.FileName,
                         item.MediaType,
                         IntakeAssetId: item.AssetId,
+                        Preparation: item.Preparation,
                         IntakeReceiptId: item.ReceiptId,
                         ContentHash: item.ContentHash).TileHref;
                     <li class="image-tile">

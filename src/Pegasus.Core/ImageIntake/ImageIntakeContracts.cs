@@ -235,6 +235,14 @@ public sealed record ImageIntakeImage(
 
     /// <summary>The retained asset's content hash, which names its address.</summary>
     public string? ContentHash { get; init; }
+
+    /// <summary>
+    /// The crop and rotation recorded on the image (no tags), or null when none
+    /// is recorded. The batched image list sets it from the same query, so a
+    /// page that draws the image's tile can name the rendering the tile route
+    /// will draw without a read of its own.
+    /// </summary>
+    public PreCaseImagePreparation? Preparation { get; init; }
 }
 
 public interface IImageIntakeQueries
