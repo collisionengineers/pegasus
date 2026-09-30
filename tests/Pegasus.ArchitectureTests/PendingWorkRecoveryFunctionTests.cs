@@ -190,11 +190,11 @@ public sealed class PendingWorkRecoveryFunctionTests
     }
 
     [Fact]
-    public async Task ASweepOverItsBudgetIsCancelledLoggedAndInboxRecoveryStillRuns()
+    public async Task ASweepOverItsBudgetIsCancelledLoggedAndFailsTheInvocationAfterInboxRecoveryHasRun()
     {
         using var rig = new Rig(5);
         var sweepStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        rig.DueQueries.Answer("GetDueAsync", args => WaitUntilCancelled(args, sweepStarted));
+        rig.DueQueries.Answer("GetDueAsync", args => WaitUntilCancelled<DueCaseChaser>(args, sweepStarted));
 
         var run = rig.Function.RunAsync(null!, default);
         await sweepStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -202,8 +202,12 @@ public sealed class PendingWorkRecoveryFunctionTests
         var sweepBudget = Assert.Single(rig.Clock.Timers);
         Assert.Equal(TimeSpan.FromSeconds(60), sweepBudget.DueTime);
         await Task.Run(sweepBudget.Fire);
-        await run.WaitAsync(TimeSpan.FromSeconds(30));
+        // Not the wait's own timeout: this one names the job and its budget.
+        var failure = await Assert.ThrowsAsync<TimeoutException>(
+            () => run.WaitAsync(TimeSpan.FromSeconds(30)));
 
+        Assert.Contains("due-work sweep", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("60 second budget", failure.Message, StringComparison.Ordinal);
         Assert.Contains(InboxPoll, rig.Calls);
         Assert.Contains(rig.Logger.Entries, entry =>
             entry.Level == LogLevel.Warning
@@ -211,6 +215,35 @@ public sealed class PendingWorkRecoveryFunctionTests
             && entry.Message.Contains("due-work sweep", StringComparison.Ordinal)
             && entry.Message.Contains("60 second budget", StringComparison.Ordinal));
         Assert.DoesNotContain(rig.Logger.Entries, entry => entry.Level == LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task AnInboxRecoveryOverItsBudgetFailsTheInvocationAfterTheSweepHasRun()
+    {
+        using var rig = new Rig(5);
+        var pollStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Mailboxes.Answer("ListPollableAsync", args => WaitUntilCancelled<ApprovedIntakeMailbox>(args, pollStarted));
+
+        var run = rig.Function.RunAsync(null!, default);
+        await pollStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        // Two budgets exist by now: the sweep's, already finished, then the inbox recovery's.
+        Assert.Equal(2, rig.Clock.Timers.Count);
+        var inboxBudget = rig.Clock.Timers[1];
+        Assert.Equal(TimeSpan.FromSeconds(60), inboxBudget.DueTime);
+        await Task.Run(inboxBudget.Fire);
+        // Not the wait's own timeout: this one names the job and its budget.
+        var failure = await Assert.ThrowsAsync<TimeoutException>(
+            () => run.WaitAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Contains("approved-inbox recovery", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("60 second budget", failure.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll],
+            rig.Calls);
+        Assert.Contains(rig.Logger.Entries, entry =>
+            entry.Level == LogLevel.Warning
+            && entry.Message.Contains("approved-inbox recovery", StringComparison.Ordinal)
+            && entry.Message.Contains("60 second budget", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -256,7 +289,7 @@ public sealed class PendingWorkRecoveryFunctionTests
         rig.Mailboxes.Answer("ListPollableAsync", _ =>
             Task.FromException<IReadOnlyList<ApprovedIntakeMailbox>>(new InvalidOperationException("Graph is down")));
 
-    private static async Task<IReadOnlyList<DueCaseChaser>> WaitUntilCancelled(
+    private static async Task<IReadOnlyList<TItem>> WaitUntilCancelled<TItem>(
         object?[] args,
         TaskCompletionSource started)
     {

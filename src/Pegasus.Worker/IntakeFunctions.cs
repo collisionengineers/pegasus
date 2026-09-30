@@ -30,10 +30,12 @@ namespace Pegasus.Worker;
 /// The dispatch runs first and nothing below delays it. Each of the two jobs
 /// has its own time budget and its own failure handling, so one failing or
 /// slow job never stops the other, and a failing dispatch does not stop them
-/// either. A job that passes its budget is cancelled and logged as a warning.
-/// After every step has run, a step that threw fails the invocation, as the
-/// retired one-per-job timers did, so the failed request reaches the exception
-/// alert on the first failure. The dispatch failure is the one rethrown when
+/// either. A job that passes its budget is cancelled, logged as a warning and
+/// counted as a failed step, with a <see cref="TimeoutException"/> naming the
+/// job: a hung poll used to run until the function timed out, and that was a
+/// failed request. After every step has run, a step that failed fails the
+/// invocation, as the retired one-per-job timers did, so the failed request
+/// reaches the exception alert on the first failure. The dispatch failure is the one rethrown when
 /// there is one. Otherwise a single folded failure is rethrown as it is, and
 /// two are rethrown together in an <see cref="AggregateException"/>, sweep
 /// first. Host shutdown during a folded job propagates as cancellation, unless
@@ -146,6 +148,8 @@ public sealed partial class PendingWorkRecoveryFunction(
             when (budget.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             LogFoldedJobOverBudget(logger, job, (int)FoldedJobBudget.TotalSeconds);
+            failures.Add(ExceptionDispatchInfo.Capture(new TimeoutException(
+                $"The {job} job passed its {(int)FoldedJobBudget.TotalSeconds} second budget and was cancelled.")));
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -189,7 +193,7 @@ public sealed partial class PendingWorkRecoveryFunction(
 
     [LoggerMessage(
         Level = LogLevel.Warning,
-        Message = "The {Job} job passed its {BudgetSeconds} second budget and was cancelled; the next fifth minute tries again.")]
+        Message = "The {Job} job passed its {BudgetSeconds} second budget and was cancelled; the invocation fails after the other steps have run.")]
     private static partial void LogFoldedJobOverBudget(
         ILogger logger,
         string job,
