@@ -601,7 +601,7 @@ public sealed class CaseEditModeWebTests
         Assert.Equal(releaseKey, release.OperationKey);
         var afterRelease = await workspace.GetWorkspaceAsync();
         Assert.Contains("Edit mode was left safely.", afterRelease, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"editLeaseToken\"", afterRelease, StringComparison.Ordinal);
+        AssertCarriesNoLease(afterRelease);
         Assert.Contains("handler=ClaimLease", afterRelease, StringComparison.Ordinal);
     }
 
@@ -1127,7 +1127,7 @@ public sealed class CaseEditModeWebTests
         var resumesBeforeLeaving = store.Resumes.Count;
 
         var otherHtml = await GetHtmlAsync(client, $"/Cases/{otherStore.CaseId:D}");
-        Assert.DoesNotContain("name=\"editLeaseToken\"", otherHtml, StringComparison.Ordinal);
+        AssertCarriesNoLease(otherHtml);
 
         var returnedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
 
@@ -1227,7 +1227,7 @@ public sealed class CaseEditModeWebTests
         Assert.Equal(HttpStatusCode.NoContent, repeated.StatusCode);
 
         var after = await workspace.GetWorkspaceAsync();
-        Assert.DoesNotContain("name=\"editLeaseToken\"", after, StringComparison.Ordinal);
+        AssertCarriesNoLease(after);
         Assert.DoesNotContain("Edit mode was left safely", after, StringComparison.Ordinal);
     }
 
