@@ -336,10 +336,12 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 /// (<see cref="OpenOwnedVersionReadAsync"/>) is the one exception: it always
 /// reads the file itself — its parent and its trash state — but it remembers,
 /// for <see cref="LiveFolderMemory"/>, that the file's folder was proved to sit
-/// under the approved root. Only a successful proof is remembered. Any 404,
-/// trashed or outside-root answer that touches a folder forgets it, and so do
-/// a folder delete and a file move. A folder moved out of the root, or
-/// trashed, outside Pegasus can therefore still be read for up to that long.
+/// under the approved root. It asks for the file's bytes at the same time as
+/// it reads the file, and discards them unless every check passes. Only a
+/// successful proof is remembered. Any 404, trashed or outside-root answer
+/// that touches a folder forgets it, and so do a folder delete and a file
+/// move. A folder moved out of the root, or trashed, outside Pegasus can
+/// therefore still be read for up to that long.
 /// A walk that succeeded at the same moment as a forget may remember the
 /// folder again, still within that ten-minute bound.
 /// </remarks>
@@ -710,7 +712,27 @@ internal sealed class BoxContentClient(
         long maximumLength,
         CancellationToken cancellationToken) =>
         OpenOwnedVersionAsync(
-            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true, cancellationToken);
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true,
+            contentHash: null, cancellationToken);
+
+    /// <summary>
+    /// The managed read, hashing the content as the download is written, so the
+    /// caller that must verify it does not copy it a second time. The caller
+    /// finishes the hash and compares it; nothing is compared here.
+    /// </summary>
+    public Task<Stream> OpenOwnedVersionReadAsync(
+        string fileId,
+        string versionId,
+        string expectedParentId,
+        long maximumLength,
+        IncrementalHash contentHash,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(contentHash);
+        return OpenOwnedVersionAsync(
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true,
+            contentHash, cancellationToken);
+    }
 
     /// <summary>
     /// The same exact-version read for a write path: the folder's ancestry is
@@ -723,17 +745,37 @@ internal sealed class BoxContentClient(
         long maximumLength,
         CancellationToken cancellationToken) =>
         OpenOwnedVersionAsync(
-            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: false, cancellationToken);
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: false,
+            contentHash: null, cancellationToken);
 
+    /// <summary>
+    /// The exact version's content, once the file has passed every check.
+    /// </summary>
+    /// <remarks>
+    /// The content is requested at the same time as the file's metadata, so a
+    /// read waits for the slower of the two rather than for both. The checks
+    /// then run as before, in order: the object is a file, it is not in the
+    /// trash, its parent is the expected folder, and that folder sits under the
+    /// approved root. The content is not handed to any caller until every check
+    /// has passed. When a check fails, or the request for it does, the download
+    /// is cancelled, its temporary file is deleted, and the check's exception
+    /// is the answer. When the checks pass and the content request failed, the
+    /// content's exception is the answer.
+    /// </remarks>
     private async Task<Stream> OpenOwnedVersionAsync(
         string fileId,
         string versionId,
         string expectedParentId,
         long maximumLength,
         bool rememberAncestry,
+        IncrementalHash? contentHash,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedParentId);
+        using var abandon = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var content = DownloadVersionWithoutAncestryAsync(
+            fileId, versionId, maximumLength, contentHash, abandon.Token);
+        Stream? opened = null;
         try
         {
             using var metadataResponse = await SendAsync(
@@ -764,13 +806,41 @@ internal sealed class BoxContentClient(
             {
                 await EnsureDescendantAsync(expectedParentId, cancellationToken);
             }
-            return await DownloadVersionWithoutAncestryAsync(
-                fileId, versionId, maximumLength, cancellationToken);
+            opened = await content;
+            return opened;
         }
         catch (Exception exception) when (IsFenceFailure(exception))
         {
             Forget(expectedParentId);
             throw;
+        }
+        finally
+        {
+            if (opened is null)
+            {
+                await DiscardDownloadAsync(content, abandon);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ends a download whose bytes will never be used: stops it, lets it finish
+    /// and disposes what it produced, which deletes its temporary file. The
+    /// download's own failure is not reported, because the caller is already
+    /// reporting the reason the bytes are not wanted.
+    /// </summary>
+    private static async Task DiscardDownloadAsync(Task<Stream> content, CancellationTokenSource abandon)
+    {
+        await abandon.CancelAsync();
+        try
+        {
+            var stream = await content;
+            await stream.DisposeAsync();
+        }
+        catch (Exception)
+        {
+            // The download was cancelled or had already failed. Either way the
+            // caller's own exception is the answer, not this one.
         }
     }
 
@@ -835,12 +905,18 @@ internal sealed class BoxContentClient(
         long maximumLength,
         CancellationToken cancellationToken) =>
         await DownloadVersionWithoutAncestryAsync(
-            fileId, versionId, maximumLength, cancellationToken);
+            fileId, versionId, maximumLength, contentHash: null, cancellationToken);
 
+    /// <summary>
+    /// Downloads one exact version to a temporary file that is deleted when the
+    /// returned stream is disposed. When <paramref name="contentHash"/> is
+    /// given, each chunk is added to it as it is written.
+    /// </summary>
     private async Task<Stream> DownloadVersionWithoutAncestryAsync(
         string fileId,
         string versionId,
         long maximumLength,
+        IncrementalHash? contentHash,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
@@ -891,6 +967,7 @@ internal sealed class BoxContentClient(
                 {
                     throw new InvalidDataException("Box version content exceeds its recorded length.");
                 }
+                contentHash?.AppendData(buffer, 0, read);
                 await retained.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             }
             retained.Position = 0;
