@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Options;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
@@ -26,6 +28,7 @@ using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Glass;
+using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
@@ -122,6 +125,48 @@ public sealed class ProductionCompositionTests
         Assert.False(eva.DefaultRequestHeaders.Contains("X-Composition-Only"));
         Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
         Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
+    }
+
+    // The Box and Graph clients are created once inside singletons, so the factory never
+    // rotates their handlers. Their own connection pool has to expire connections, or a DNS
+    // change is never seen until the process restarts. Both Graph registrations are checked:
+    // the Web host's resolver and the Worker's adapters.
+    [Fact]
+    public void BoxAndGraphClientsPoolConnectionsForTenMinutes()
+    {
+        var web = NewServices();
+        web.AddProductionBoxCustody(_ => BoxOptions());
+        web.AddProductionApprovedMailboxResolver("https://graph.microsoft.com/v1.0/");
+        AssertPoolsConnectionsForTenMinutes(web, nameof(BoxContentClient));
+        AssertPoolsConnectionsForTenMinutes(web, nameof(GraphMailClient));
+
+        var worker = NewServices();
+        worker.AddProductionExternalAdapters(
+            GraphApprovedMailboxOptions.Create("https://graph.microsoft.com/v1.0/"),
+            new DvlaDvsaProductionOptions(
+                new Uri("https://driver-vehicle-licensing.api.gov.uk/"),
+                "dvla-key",
+                new Uri("https://history.mot.api.gov.uk/"),
+                new Uri("https://login.microsoftonline.com/tenant/oauth2/v2.0/token"),
+                "dvsa-client",
+                "dvsa-secret",
+                "dvsa-key",
+                "scope"));
+        AssertPoolsConnectionsForTenMinutes(worker, nameof(GraphMailClient));
+    }
+
+    private static void AssertPoolsConnectionsForTenMinutes(ServiceCollection services, string clientName)
+    {
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptionsMonitor<HttpClientFactoryOptions>>().Get(clientName);
+        var builder = provider.GetRequiredService<HttpMessageHandlerBuilder>();
+        foreach (var action in options.HttpMessageHandlerBuilderActions)
+        {
+            action(builder);
+        }
+
+        using var handler = Assert.IsType<SocketsHttpHandler>(builder.PrimaryHandler);
+        Assert.Equal(TimeSpan.FromMinutes(10), handler.PooledConnectionLifetime);
     }
 
     [Fact]
