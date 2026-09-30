@@ -788,9 +788,9 @@ bounds.
   connection` (the managed-identity token and the SQL login). Query:
   `AppTraces | where Message startswith "Startup warm-up step model" | project TimeGenerated, Message`.
 - **Report phases.** A Generate or Preview also records `report.photos.prepare`,
-  `report.pdf.generate` and `report.pdf.pagecount`, three events in place of
-  the single `report.renderer.initialize`. Query: the phase query above with
-  those names.
+  `report.pdf.generate` and `report.pdf.pagecount`, three events that join
+  `report.renderer.initialize`, which is kept and fires once per process.
+  Query: the phase query above with those names.
 - **Deadlocks.** A command that loses a deadlock (SQL error 1205) logs a
   warning with its statement and how long it ran, once. Nothing is retried.
   Query:
