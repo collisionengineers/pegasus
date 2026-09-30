@@ -363,8 +363,9 @@ public sealed class MailWorkspaceWebTests
     /// a Case, the list with its first row selected, and the list's Preview
     /// fragment. The message page reads the Case header, not the whole Case; the
     /// list draws its pane from its own row and reads only what the row lacks.
-    /// The budgets are the counts Lane D asserts; they are upper bounds, so a
-    /// lower count passes and a page that grows fails.
+    /// The message page is pinned at its exact count and a mismatch lists every
+    /// command; the list and the preview have upper bounds, so a lower count
+    /// passes and a page that grows fails.
     /// </summary>
     [Fact]
     public async Task TheInboxPagesStayWithinTheirStatementBudgets()
@@ -386,6 +387,8 @@ public sealed class MailWorkspaceWebTests
         counter.Reset();
         var message = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         var messageCommands = counter.Count;
+        var messageDescription = counter.Describe();
+        var classificationDecisionReads = counter.CountMentioning("[IntakeMailClassificationDecisions]");
         Assert.Contains(messageId.ToString("D"), message, StringComparison.Ordinal);
 
         counter.Reset();
@@ -397,12 +400,17 @@ public sealed class MailWorkspaceWebTests
         _ = await GetHtmlAsync(client, $"/Inbox?handler=Preview&id={messageId:D}");
         var previewCommands = counter.Count;
 
-        // Before Lane D (2ee268507), by reading the code: 53, 39 and
-        // 19 commands. After, by the same reading: 31, 23 and 11; each budget adds
-        // one for data shape. To be confirmed by CI.
+        // Before Lane D (2ee268507), by reading the code: 53, 39 and 19 commands.
+        // Measured with LocalDB after the Lane D reads: 30, 24 and 11. The message page
+        // then sent 29 once its read of the message took the receipt's classification
+        // decision for the classification dossier too, rather than reading that decision
+        // a second time. The other two commands that join it are the summary mapping
+        // (the row's own label) and the intake read (the receipt aggregate).
         Assert.True(
-            messageCommands <= InboxMessageBudget,
-            $"The Inbox message page sent {messageCommands} SQL commands; the budget is {InboxMessageBudget}.");
+            messageCommands == InboxMessageCommands,
+            $"The Inbox message page sent {messageCommands} SQL commands; it is pinned at {InboxMessageCommands}."
+            + Environment.NewLine + messageDescription);
+        Assert.Equal(3, classificationDecisionReads);
         Assert.True(
             listCommands <= InboxListBudget,
             $"The Inbox list sent {listCommands} SQL commands; the budget is {InboxListBudget}.");
@@ -411,11 +419,11 @@ public sealed class MailWorkspaceWebTests
             $"The Inbox preview sent {previewCommands} SQL commands; the budget is {InboxPreviewBudget}.");
     }
 
-    private const int InboxMessageBudget = 32;
+    private const int InboxMessageCommands = 29;
 
-    private const int InboxListBudget = 25;
+    private const int InboxListBudget = 24;
 
-    private const int InboxPreviewBudget = 12;
+    private const int InboxPreviewBudget = 11;
 
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
