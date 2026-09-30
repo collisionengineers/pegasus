@@ -22,7 +22,35 @@ public sealed class UploadReviewPhotographsTests
 
         var only = Assert.Single(listed);
         Assert.Equal(confirmed.Id, only.AssetId);
-        Assert.Equal($"/Received/{receipt.Id:D}/Asset/{confirmed.Id:D}", only.Url);
+        // The address names the photograph's content hash, so the browser keeps
+        // it while the page looks again every few seconds.
+        Assert.Equal(
+            $"/Received/{receipt.Id:D}/Asset/{confirmed.Id:D}?v={confirmed.ContentHash}",
+            only.Url);
+    }
+
+    [Fact]
+    public void AnImageFileIsAddressedByItsSourceHashAndAnOutcomeImageByItsOwn()
+    {
+        var image = Receipt("image/png", "A");
+        var outcomeReceiptId = Guid.NewGuid();
+        var outcome = new UploadOutcomeView(
+            UploadOutcomeKind.Working,
+            "Processing",
+            "The file is being processed.",
+            null,
+            null,
+            ThumbnailReceiptId: outcomeReceiptId,
+            ThumbnailContentHash: new string('B', 64));
+
+        Assert.Equal(
+            $"/Received/{image.Id:D}/Image?v={new string('A', 64)}",
+            UploadReviewFile.ImageUrlOf(null, image));
+        Assert.Equal(
+            $"/Received/{outcomeReceiptId:D}/Image?v={new string('B', 64)}",
+            UploadReviewFile.ImageUrlOf(outcome, image));
+        Assert.Null(UploadReviewFile.ImageUrlOf(null, Receipt("application/pdf", "C")));
+        Assert.Null(UploadReviewFile.ImageUrlOf(null, null));
     }
 
     [Theory]
@@ -64,12 +92,18 @@ public sealed class UploadReviewPhotographsTests
             state);
 
     private static IntakeReceipt Receipt(params IntakeAssetRecord[] assets) =>
+        Receipt("application/pdf", "hash", assets);
+
+    private static IntakeReceipt Receipt(string mediaType, string hashDigit) =>
+        Receipt(mediaType, new string(hashDigit[0], 64), []);
+
+    private static IntakeReceipt Receipt(string mediaType, string sourceHash, IntakeAssetRecord[] assets) =>
         new(
             Guid.NewGuid(),
             "example.pdf",
-            "application/pdf",
+            mediaType,
             1024,
-            "hash",
+            sourceHash,
             new(IntakeSourceChannel.ManualUpload, "token"),
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow,

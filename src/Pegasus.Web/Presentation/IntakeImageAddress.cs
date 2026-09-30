@@ -26,6 +26,10 @@ public static class IntakeImageAddress
     public static string Asset(Guid receiptId, Guid assetId, string? contentHash) =>
         $"/Received/{receiptId:D}/Asset/{assetId:D}{Query(contentHash)}";
 
+    /// <summary>The receipt's own image, named by its source hash when it is known.</summary>
+    public static string Image(Guid receiptId, string? contentHash) =>
+        $"/Received/{receiptId:D}/Image{Query(contentHash)}";
+
     /// <summary>
     /// A prepared pre-Case image's tile: the recorded crop and rotation, named
     /// by the content hash, the preparation version and the renderer.
