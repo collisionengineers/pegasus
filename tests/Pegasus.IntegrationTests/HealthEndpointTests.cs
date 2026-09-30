@@ -105,6 +105,13 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
     // Only 00:00:00 means once only; a negative span is a mistake, not a switch.
     [InlineData("-00:03:00", 180, "-00:03:00")]
     [InlineData("-00:00:00.0000001", 180, "-00:00:00.0000001")]
+    // A bare number parses as days, so "180" meant as seconds is not taken.
+    [InlineData("180", 180, "180")]
+    [InlineData("5", 180, "5")]
+    // Task.Delay throws past 0xFFFFFFFE ms, about 49.7 days.
+    [InlineData("49.00:00:00", 4_233_600, null)]
+    [InlineData("49.17:02:47.295", 180, "49.17:02:47.295")]
+    [InlineData("50.00:00:00", 180, "50.00:00:00")]
     public void AnUnusableKeepWarmIntervalKeepsTheDefaultAndIsRemembered(
         string? text, int expectedSeconds, string? unusable)
     {

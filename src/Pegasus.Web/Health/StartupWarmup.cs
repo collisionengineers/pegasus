@@ -29,6 +29,9 @@ internal sealed class StartupWarmupState
     /// <summary>The wait between keep-warm passes when <c>Startup:WarmupInterval</c> is not set.</summary>
     public static readonly TimeSpan DefaultKeepWarmInterval = TimeSpan.FromMinutes(3);
 
+    // Task.Delay waits at most 0xFFFFFFFE ms (about 49.7 days) and throws past it.
+    private static readonly TimeSpan LongestKeepWarmInterval = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
+
     private readonly long startedAt = Stopwatch.GetTimestamp();
     private int completed;
 
@@ -37,6 +40,8 @@ internal sealed class StartupWarmupState
         Warms = warms;
         KeepWarmInterval = keepWarmInterval ?? DefaultKeepWarmInterval;
         ArgumentOutOfRangeException.ThrowIfLessThan(KeepWarmInterval, TimeSpan.Zero, nameof(keepWarmInterval));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            KeepWarmInterval, LongestKeepWarmInterval, nameof(keepWarmInterval));
         completed = warms ? 0 : 1;
     }
 
@@ -62,9 +67,11 @@ internal sealed class StartupWarmupState
     /// <summary>
     /// The state from the two settings. The interval is the default when its
     /// text is absent or blank, zero (<c>00:00:00</c>) for the once-only
-    /// warm-up, and a time span of one second or more as given. Any other text,
-    /// a negative or sub-second span included, keeps the default and is
-    /// remembered, so a mistyped setting never stops the host.
+    /// warm-up, and a time span from one second to about 49.7 days as given.
+    /// Any other text keeps the default and is remembered, so a mistyped
+    /// setting never stops the host. That includes a negative, sub-second or
+    /// longer span, and a bare number such as <c>180</c>, which a time span
+    /// reads as days.
     /// </summary>
     public static StartupWarmupState FromSettings(bool warms, string? intervalText)
     {
@@ -73,8 +80,10 @@ internal sealed class StartupWarmupState
             return new StartupWarmupState(warms);
         }
 
-        return TimeSpan.TryParse(intervalText, CultureInfo.InvariantCulture, out var interval)
-            && (interval == TimeSpan.Zero || interval >= TimeSpan.FromSeconds(1))
+        return intervalText.Contains(':')
+            && TimeSpan.TryParse(intervalText, CultureInfo.InvariantCulture, out var interval)
+            && (interval == TimeSpan.Zero
+                || (interval >= TimeSpan.FromSeconds(1) && interval <= LongestKeepWarmInterval))
                 ? new StartupWarmupState(warms, interval)
                 : new StartupWarmupState(warms) { UnusableIntervalSetting = intervalText };
     }
