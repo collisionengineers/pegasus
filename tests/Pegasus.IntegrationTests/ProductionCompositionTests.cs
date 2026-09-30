@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
@@ -195,6 +196,33 @@ public sealed class ProductionCompositionTests
       "enterpriseID": "enterprise-id"
     }
     """;
+
+    /// <summary>
+    /// The Box token is renewed in the background wherever production Box
+    /// custody is composed, and nowhere else. Web and the Worker both compose
+    /// it through <c>AddProductionDocumentStorage</c>.
+    /// </summary>
+    [Fact]
+    public void ProductionComposesTheBoxTokenRenewalAndTheOfflineProfileDoesNot()
+    {
+        var services = NewServices();
+        services.AddPegasusInfrastructure(
+            ConfigureDatabase,
+            documentStorage: registrations => registrations.AddProductionDocumentStorage(
+                static _ => new BlobContainerClient(
+                    new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
+                static _ => false,
+                static _ => BoxOptions()));
+
+        Assert.Single(services, descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(BoxTokenRenewalService));
+
+        using var offline = new IntakeWebApplicationFactory();
+        Assert.DoesNotContain(
+            offline.Services.GetServices<IHostedService>(),
+            service => service is BoxTokenRenewalService);
+    }
 
     [Fact]
     public void ProductionProfileComposesBoxCustodyAndDocumentContent()
