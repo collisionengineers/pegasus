@@ -835,7 +835,9 @@ A slow start shows there which phase took the time. The start limit
 After its first pass the warm-up repeats its reads every three minutes for the
 life of the process. `Startup:WarmupInterval` sets the wait (default
 `00:03:00`). `00:00:00` restores the once-only behaviour, and `Startup:Warmup`
-`false` still turns the whole warm-up off. A pass reads what a signed-in page
+`false` still turns the whole warm-up off. A negative value, one under a second
+or text that is not a time span keeps the default, and the warm-up logs one
+warning naming it. A pass reads what a signed-in page
 reads and writes nothing. It covers the Work Centre, the Inbox list, the newest
 Case's page and the report renderer. Readiness waits only for the first pass.
 The renderer is warmed right after it, in a step of its own

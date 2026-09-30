@@ -102,6 +102,9 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
     [InlineData("00:00:00", 0, null)]
     [InlineData("banana", 180, "banana")]
     [InlineData("00:00:00.5", 180, "00:00:00.5")]
+    // Only 00:00:00 means once only; a negative span is a mistake, not a switch.
+    [InlineData("-00:03:00", 180, "-00:03:00")]
+    [InlineData("-00:00:00.0000001", 180, "-00:00:00.0000001")]
     public void AnUnusableKeepWarmIntervalKeepsTheDefaultAndIsRemembered(
         string? text, int expectedSeconds, string? unusable)
     {
