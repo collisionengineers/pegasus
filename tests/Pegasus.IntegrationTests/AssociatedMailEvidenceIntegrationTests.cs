@@ -335,6 +335,13 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                               select version.Id).CountAsync());
         Assert.False(await verify.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
         await File.WriteAllBytesAsync(path, original);
+        // A failed attempt waits before the sweep offers the version again, so the
+        // recorded failure is aged past its longest wait first.
+        await verify.ActionHistory
+            .Where(value => value.EventKind == "ArtifactCustodyReconciliationAttempt"
+                && value.Outcome == "Failed")
+            .ExecuteUpdateAsync(update => update.SetProperty(
+                value => value.OccurredAtUtc, DateTimeOffset.UtcNow.AddHours(-1)));
         var recovered = await reconciler.ExecuteAsync(20, default);
         Assert.Equal(1, recovered.Confirmed);
         Assert.True(await verify.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());

@@ -100,7 +100,9 @@ write keeps its pending document identities and resumes through the normal
 custody reconciliation. A confirmed replay neither duplicates files nor
 repeats the readiness transition. The current association, Case eligibility
 and edit authority are checked again when delayed custody completes. Failures
-stay visible for normal recovery.
+stay visible for normal recovery. Reconciliation offers a version whose filing
+failed again after 1, 2, 4 and 8 minutes, then every 10, so one bad file does not
+repeat every ten seconds.
 
 - Network, local or Azure staging is temporary processing storage. It never
   proves Case custody.
