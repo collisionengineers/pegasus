@@ -9,11 +9,11 @@ namespace Pegasus.Web;
 /// <summary>
 /// Drops the request rows and the SQL rows that carry no information, so the
 /// daily telemetry cap is spent on staff pages: the readiness probes (one a
-/// minute, four SQL calls each), the diagnostics version endpoint, static
-/// files, the App Service Always On ping (<c>GET /</c> answered with a
-/// redirect), and the SQL calls of the keep-warm passes. A failed one
-/// (unsuccessful, or a 5xx) is always kept, so a
-/// failing probe still shows. Everything else passes through. It runs before
+/// minute; once the schema has been found current, one SQL call each), the
+/// diagnostics version endpoint, static files, the App Service Always On
+/// ping (<c>GET /</c> answered with a redirect), and the SQL calls of the
+/// keep-warm passes. A failed one (unsuccessful, or a 5xx) is always kept, so
+/// a failing probe still shows. Everything else passes through. It runs before
 /// adaptive sampling, so what it drops does not count against the sampling
 /// budget either.
 /// </summary>
