@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
@@ -70,15 +71,15 @@ public sealed class CaseEstimateHeaderWebTests
             return;
         }
 
+        // A lifecycle state outside the former Assessment CanOpen gate
+        // remains a readable Case and still offers this read action.
+        store.State = CaseLifecycleState.Held;
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IGetCase>(services, store);
             Substitute<IGetCaseEditBasis>(services, store);
             SubstituteDetailsPageReaders(services, store);
-            // A lifecycle state outside the former Assessment CanOpen gate
-            // remains a readable Case and still offers this read action.
-            Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: false));
             Substitute<IListCaseEstimates>(services, estimates);
         }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -126,7 +127,6 @@ public sealed class CaseEstimateHeaderWebTests
             Substitute<IGetCase>(services, store);
             Substitute<IGetCaseEditBasis>(services, store);
             SubstituteDetailsPageReaders(services, store);
-            Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
             Substitute<IListCaseEstimates>(services, estimates);
         }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -191,7 +191,6 @@ public sealed class CaseEstimateHeaderWebTests
             Substitute<IGetCase>(services, store);
             Substitute<IGetCaseEditBasis>(services, store);
             SubstituteDetailsPageReaders(services, store);
-            Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
             Substitute<IListCaseEstimates>(services, estimates);
         }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

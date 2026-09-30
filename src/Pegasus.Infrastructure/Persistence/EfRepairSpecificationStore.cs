@@ -730,9 +730,9 @@ public sealed class EfRepairSpecificationStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
         var entities = await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .Where(item => item.WorkId == workId)
+            .Where(item => selectedWorkIds.Contains(item.WorkId))
             .OrderBy(item => item.Version)
             .ToArrayAsync(cancellationToken);
         return entities.Select(Map).ToArray();

@@ -7,13 +7,14 @@ namespace Pegasus.IntegrationTests;
 /// What one Work Centre load costs in SQL commands, against the real stores and
 /// an empty estate (Roadmap Lane D, part D4). The Work Centre reads its three
 /// sections together, so the count is every command they and the shell send,
-/// including the write that marks the New cases feed seen.
+/// including the write that marks the New cases feed seen. It is pinned at its
+/// exact count, so any change is seen, and a mismatch lists every command sent.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class WorkCentreStatementCountWebTests
 {
     [Fact]
-    public async Task AFullWorkCentreLoadStaysWithinItsStatementBudget()
+    public async Task AFullWorkCentreLoadSendsItsPinnedStatements()
     {
         var counter = new CommandCountingInterceptor();
         using var factory = new IntakeWebApplicationFactory(
@@ -35,16 +36,17 @@ public sealed class WorkCentreStatementCountWebTests
         // and the AI jobs section (before Lane D it was read three times: the
         // snapshot, its drafts and the section's drafts).
         Assert.True(
-            counter.CountMentioning("[WorkflowConfigurations]") <= 1,
-            "The workflow configuration was read more than once." + Environment.NewLine + counter.Describe());
-        // Before Lane D (2ee268507) a full load sent 37 commands including 5 of
-        // authentication under the offline sign-in this harness may use; the code
-        // reading says 29. To be confirmed by CI; if it prints a lower number,
-        // lower the budget to it.
+            counter.CountMentioning("[WorkflowConfigurations]") == 1,
+            "The workflow configuration was not read exactly once." + Environment.NewLine + counter.Describe());
+        // Measured with LocalDB in this scenario: 33 commands before Lane D
+        // (2ee268507) and 25 after it. The load no longer counts the intake queue,
+        // reads the workflow configuration and the open AI jobs once each rather
+        // than three times, derives the AI drafts in memory, and hands the shell
+        // the stage counts and the Unidentified count it has already read.
         Assert.True(
-            counter.Count <= WorkCentreBudget,
-            $"A full Work Centre load sent {counter.Count} SQL commands; the budget is {WorkCentreBudget}." + Environment.NewLine + counter.Describe());
+            counter.Count == WorkCentreCommands,
+            $"A full Work Centre load sent {counter.Count} SQL commands; it is pinned at {WorkCentreCommands}." + Environment.NewLine + counter.Describe());
     }
 
-    private const int WorkCentreBudget = 29;
+    private const int WorkCentreCommands = 25;
 }

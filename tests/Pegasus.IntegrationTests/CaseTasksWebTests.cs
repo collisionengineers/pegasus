@@ -199,6 +199,7 @@ public sealed class CaseTasksWebTests
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<IRecordManualCaseChase>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -256,7 +257,7 @@ public sealed class CaseTasksWebTests
         AssertPrg(firstResponse, store.CaseId);
 
         var currentHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.DoesNotContain("name=\"editLeaseToken\"", currentHtml, StringComparison.Ordinal);
+        AssertCarriesNoLease(currentHtml);
         using var replayResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
             ManualChaseForm(AntiforgeryValue(currentHtml), store, operationKey));

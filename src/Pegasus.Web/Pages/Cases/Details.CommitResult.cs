@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -70,12 +71,13 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// Loads only what <c>_CaseCommitResult</c> draws: the frame, the access
-    /// answer and the workspace; the lease; the report's readiness and current
-    /// generation, which the aside's Next action reads; the assigned Engineer,
-    /// the EVA handoff and the lease holder, which the ribbon and the dialogs
-    /// read; the AI drafts; the calculation the valuation calculator now opens
-    /// on; and, when the commit recorded staged crops or rotations, Files.
+    /// Loads only what <c>_CaseCommitResult</c> draws: the frame, with the
+    /// access answer its workflow gives, and the workspace; the lease; the
+    /// report's readiness and current generation, which the aside's Next action
+    /// reads; the assigned Engineer, the EVA handoff and the lease holder,
+    /// which the ribbon and the dialogs read; the AI drafts; the calculation
+    /// the valuation calculator now opens on; and, when the commit recorded
+    /// staged crops or rotations, Files.
     /// Nothing a section draws is read. The phases keep the page's names.
     /// </summary>
     private async Task<bool> LoadCommitResultAsync(
@@ -86,16 +88,13 @@ public sealed partial class DetailsModel
     {
         using var activity = DocumentReadTelemetry.Start("web.case.commit");
         var work = WorkSelector;
-        var (frame, assessmentAccess, workspace) =
-            await ReadFrameAccessAndWorkspaceAsync(id, actor, work, cancellationToken);
-        Case = frame;
+        (Case, var workspace) = await ReadFrameAndWorkspaceAsync(id, actor, work, cancellationToken);
         if (Case is null)
         {
             return false;
         }
 
-        AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
-        AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
+        ApplyAssessmentAccess(actor, Case.Workflow);
         await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
         if (LeaseToken is not null)
         {
@@ -118,7 +117,7 @@ public sealed partial class DetailsModel
             Documents: Case.Documents,
             Frame: Case.Frame,
             Work: work);
-        var reuse = new ReportProjectionReuse(work, workspace);
+        var reuse = new ReportProjectionReuse(work, workspace, Frame: Case.Frame);
 
         using var reads = new BoundedReads(cancellationToken);
         using (DocumentReadTelemetry.Start("web.case.engineer-sections"))
@@ -128,7 +127,8 @@ public sealed partial class DetailsModel
                 : null;
             var generation = reads.Start(token =>
                 reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, token));
-            var drafts = reads.Start(token => aiDrafts.ListForCaseAsync(id, token));
+            var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
+            var configuration = reads.Start(token => workflowConfiguration.GetCurrentAsync(token));
             var holder = activeLease is { } lease && !viewerHoldsLease
                 ? reads.Start(token => describeEditAuthorityHolder.ExecuteAsync(
                     lease.HolderKind,
@@ -161,7 +161,7 @@ public sealed partial class DetailsModel
                 SelectedSignOffEngineerId = readinessResult.Signatory?.StaffId;
             }
             CurrentReportGeneration = await generation;
-            AiDrafts = await drafts;
+            AiDrafts = AiDraftPolicy.Drafts(await caseAiJobs, (await configuration).AiDraftTargetDays);
             if (activeLease is not null)
             {
                 ViewerHoldsEditAuthority = viewerHoldsLease;

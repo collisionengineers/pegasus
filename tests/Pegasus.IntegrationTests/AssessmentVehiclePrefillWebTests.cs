@@ -30,14 +30,12 @@ public sealed class AssessmentVehiclePrefillWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetCaseVehicleSection>();
-                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId);
                 services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
-                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -77,14 +75,12 @@ public sealed class AssessmentVehiclePrefillWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetCaseVehicleSection>();
-                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId, includeConfirmedFacts: true);
                 services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
-                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -118,14 +114,12 @@ public sealed class AssessmentVehiclePrefillWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetCaseVehicleSection>();
-                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId, includePartialConfirmedFacts: true);
                 services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
-                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

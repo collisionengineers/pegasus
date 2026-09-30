@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Vehicle;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
@@ -353,8 +354,7 @@ public sealed class CaseVehicleWebTests
         Assert.Contains("<h3>Vehicle history", readOnly, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"edit-vehicle-history\"", readOnly, StringComparison.Ordinal);
 
-        using var workspace = await EnterEditModeAsync(store, services =>
-            Substitute<IGetAssessmentAccess>(services, store));
+        using var workspace = await EnterEditModeAsync(store, _ => { });
         var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
 
         Assert.Contains("data-vehicle-history>", editing, StringComparison.Ordinal);
@@ -477,7 +477,12 @@ public sealed class CaseVehicleWebTests
     [InlineData(true)]
     public async Task NoWorkspaceGateEverRendersAnEmptyCondition(bool canOpenAssessment)
     {
-        var store = new RecordingCaseDetailsStore();
+        // The page takes the assessment's access from the Case's state; Held
+        // is one it cannot open.
+        var store = new RecordingCaseDetailsStore
+        {
+            State = canOpenAssessment ? CaseLifecycleState.NotReady : CaseLifecycleState.Held
+        };
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -489,9 +494,6 @@ public sealed class CaseVehicleWebTests
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
-                Substitute<IGetAssessmentAccess>(
-                    services,
-                    (IGetAssessmentAccess)new FakeGetAssessmentAccess(canOpenAssessment));
                 Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

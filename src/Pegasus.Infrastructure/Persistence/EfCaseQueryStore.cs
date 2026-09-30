@@ -631,20 +631,26 @@ public sealed class EfCaseQueryStore(
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        // The claim source is read from the work being edited.
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
-        var claimSourceId = await context.CaseDataFields.AsNoTracking()
-            .Where(item => item.WorkId == workId
-                && item.FieldName == CaseDataFieldNames.ClaimSourceId
-                && item.ValueKind == CaseDataCodes.Confirmed)
-            .Select(item => item.Value)
-            .FirstOrDefaultAsync(cancellationToken);
+        // One command reads the Principal's notes and the claim source named by
+        // the work being edited; the claim source's own notes follow only when
+        // there is one.
+        var currentWorkIds = CaseWorkScope.SelectedIds(context, caseId, CaseWorkSelector.Current);
+        var principal = await context.Organizations.AsNoTracking()
+            .Where(item => item.Id == workflow.Case.Principal.OrganizationId)
+            .Select(item => new
+            {
+                item.NotesOnEveryCase,
+                ClaimSourceId = context.CaseDataFields
+                    .Where(field => currentWorkIds.Contains(field.WorkId)
+                        && field.FieldName == CaseDataFieldNames.ClaimSourceId
+                        && field.ValueKind == CaseDataCodes.Confirmed)
+                    .Select(field => field.Value)
+                    .FirstOrDefault()
+            })
+            .SingleAsync(cancellationToken);
         return new(
-            await context.Organizations.AsNoTracking()
-                .Where(item => item.Id == workflow.Case.Principal.OrganizationId)
-                .Select(item => item.NotesOnEveryCase)
-                .FirstOrDefaultAsync(cancellationToken),
-            Guid.TryParse(claimSourceId, out var claimSourceOrganizationId)
+            principal.NotesOnEveryCase,
+            Guid.TryParse(principal.ClaimSourceId, out var claimSourceOrganizationId)
                 ? await context.Organizations.AsNoTracking()
                     .Where(item => item.Id == claimSourceOrganizationId)
                     .Select(item => item.NotesOnEveryCase)

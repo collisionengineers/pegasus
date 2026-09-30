@@ -92,6 +92,11 @@ internal sealed class FakeGetAssessmentWorkspace(AssessmentWorkspace workspace)
         Task.FromResult<AssessmentWorkspace?>(workspace);
 }
 
+/// <summary>
+/// The access answer a Case command or preview asks for. A Case GET takes its
+/// answer from the workflow state its own frame read, so a test that fakes
+/// both gives the frame a state with the same answer.
+/// </summary>
 internal sealed class FakeGetAssessmentAccess(bool canOpen = true) : IGetAssessmentAccess
 {
     public Task<AssessmentAccessState?> ExecuteAsync(
