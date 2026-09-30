@@ -215,11 +215,14 @@ public sealed class WorkCentreWebTests
         using var client = Client(host);
 
         var shut = await GetOkAsync(client, $"/?selected={store.CaseId:D}");
-        Assert.Contains("id=\"wc-assign-dialog\" class=\"dialog-backdrop\" data-dialog=\"wc-assign-dialog\" hidden", shut, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-dialog-open-on-load", shut, StringComparison.Ordinal);
+        // Razor writes a space before the raw attribute and the attribute carries its own,
+        // so the two attributes are separated by two spaces; the markup is unchanged.
+        Assert.Matches("id=\"wc-assign-dialog\" class=\"dialog-backdrop\" data-dialog=\"wc-assign-dialog\"\\s+hidden>", shut);
+        // The shell's own notifications dialog may open on load, so look at this dialog only.
+        Assert.DoesNotMatch("data-dialog=\"wc-assign-dialog\"\\s+data-dialog-open-on-load", shut);
 
         var open = await GetOkAsync(client, $"/?selected={store.CaseId:D}&assign=true");
-        Assert.Contains("data-dialog=\"wc-assign-dialog\" data-dialog-open-on-load=\"true\"", open, StringComparison.Ordinal);
+        Assert.Matches("data-dialog=\"wc-assign-dialog\"\\s+data-dialog-open-on-load=\"true\">", open);
         Assert.Contains("QDOS3100042</h2>", open, StringComparison.Ordinal);
         Assert.Contains($"name=\"caseId\" value=\"{store.CaseId}\"", open, StringComparison.Ordinal);
         Assert.Equal(2, store.HeaderReads);
