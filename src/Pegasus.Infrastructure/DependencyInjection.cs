@@ -717,6 +717,7 @@ public static class DependencyInjection
         services.AddSingleton<ReportRenderGate>();
         services.AddSingleton<IAssessmentReportRenderer, QuestPdfAssessmentReportRenderer>();
         services.AddSingleton<IEstimateDocumentRenderer, QuestPdfEstimateDocumentRenderer>();
+        services.AddSingleton<IWarmReportRenderer, QuestPdfReportWarmer>();
         services.AddScoped<GenerateAssessmentReportDraft>();
         services.AddScoped<EfAssessmentReportProjectionSource>();
         services.AddScoped<IAssessmentReportProjectionSource>(provider =>

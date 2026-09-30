@@ -91,6 +91,19 @@ public sealed class TelemetryFilterTests
     }
 
     [Fact]
+    public void ASqlCallOfAKeepWarmPassIsDroppedUnlessItFailed()
+    {
+        using (var pass = new System.Diagnostics.Activity(StartupWarmup.PassActivityName).Start())
+        using (var call = new System.Diagnostics.Activity("sql").Start())
+        {
+            Assert.Empty(Run(Dependency(null, success: true)));
+            Assert.Single(Run(Dependency(null, success: false)));
+        }
+
+        Assert.Single(Run(Dependency(null, success: true)));
+    }
+
+    [Fact]
     public void OtherTelemetryPassesThrough()
     {
         var kept = Run(
