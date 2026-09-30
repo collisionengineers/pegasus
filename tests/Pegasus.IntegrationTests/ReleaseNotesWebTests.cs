@@ -231,6 +231,43 @@ public sealed partial class ReleaseNotesWebTests
         Assert.Contains("data-release-note-form", reloaded, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The shell asks for the newest unacknowledged note on every full page. It
+    /// is one read that joins the person's acknowledgement (before: two reads,
+    /// the newest note with its body, then the acknowledgement), and the body is
+    /// read only for a note that is about to be shown.
+    /// </summary>
+    [Fact]
+    public async Task TheShellReadsTheNewestNoteAndItsAcknowledgementInOneCommand()
+    {
+        var recorder = new ReleaseNoteReadRecorder();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            commandInterceptor: recorder);
+        using var administrator = CreateClient(factory);
+        using var user = CreateClient(factory, "User", Reader);
+        var id = await PublishNoteAsync(administrator, "One read");
+
+        recorder.Reset();
+        var unread = await GetHtmlAsync(user, "/");
+        Assert.Contains("whats-new-dialog", unread, StringComparison.Ordinal);
+        // Not yet acknowledged: the joined read, then the body of the note shown.
+        Assert.Equal(2, recorder.ReleaseNoteReads);
+
+        using var acknowledged = await user.PostAsync($"/ReleaseNotes?handler=Acknowledge&id={id}", Form(unread, new()
+        {
+            ["returnUrl"] = "/Cases"
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, acknowledged.StatusCode);
+
+        recorder.Reset();
+        Assert.DoesNotContain("whats-new-dialog", await GetHtmlAsync(user, "/"), StringComparison.Ordinal);
+        // Acknowledged: the joined read alone.
+        Assert.Equal(1, recorder.ReleaseNoteReads);
+    }
+
     [Fact]
     public async Task AnAcknowledgementPersistenceFailureIsNotReportedAsSuccess()
     {
@@ -369,6 +406,31 @@ public sealed partial class ReleaseNotesWebTests
         Assert.True(input.Success, $"No input named {name}.");
         var value = Regex.Match(input.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase);
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
+    /// <summary>Counts the reader commands that touch a release-note table. Thread-safe: the shell reads run side by side.</summary>
+    private sealed class ReleaseNoteReadRecorder : DbCommandInterceptor
+    {
+        private int releaseNoteReads;
+
+        public int ReleaseNoteReads => Volatile.Read(ref releaseNoteReads);
+
+        public void Reset() => Interlocked.Exchange(ref releaseNoteReads, 0);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.CommandSource == CommandSource.LinqQuery
+                && command.CommandText.Contains("[ReleaseNote", StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref releaseNoteReads);
+            }
+
+            return ValueTask.FromResult(result);
+        }
     }
 
     private sealed class NonDuplicateAcknowledgementFailureInterceptor : DbCommandInterceptor
