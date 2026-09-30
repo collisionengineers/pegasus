@@ -192,10 +192,12 @@ public sealed class CaseVehicleSaveWebTests
         }
         var saveCommands = counter.Count;
 
-        // Measured on this branch (LocalDB and CI agree): 62 commands for the page and 43
-        // for the save. The first reading from the code said about 69 and about 38, which
-        // was wrong. The folds that reading found for the save each change the command, the
-        // lease or the conflict check, or the ports many test fakes implement, and are left.
+        // Measured on this branch: 61 commands for the page and 43 for the save. The page
+        // sent 62 until it took the assessment's access answer from the workflow state its
+        // frame reads, rather than reading that state again. The first reading from the code
+        // said about 69 and about 38, which was wrong. The folds that reading found for the
+        // save each change the command, the lease or the conflict check, or the ports many
+        // test fakes implement, and are left.
         Assert.True(
             pageCommands <= CasePageBudget,
             $"The Case page in an edit session sent {pageCommands} SQL commands; the budget is {CasePageBudget}.");
@@ -204,7 +206,7 @@ public sealed class CaseVehicleSaveWebTests
             $"One accepted save sent {saveCommands} SQL commands; the budget is {CaseSaveBudget}.");
     }
 
-    private const int CasePageBudget = 62;
+    private const int CasePageBudget = 61;
 
     private const int CaseSaveBudget = 43;
 
