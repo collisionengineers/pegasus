@@ -101,6 +101,20 @@ public sealed partial class WorkerTimerContractTests
         Assert.Equal([nameof(StagedArtifactReconciliationFunction)], monitored);
     }
 
+    /// <summary>
+    /// A safety bound on the Worker's scale-out. Flex Consumption applies it to the on-demand
+    /// instances of each function group, so it cannot starve a group. It is not a saving:
+    /// the Worker has never run more than two instances at once.
+    /// </summary>
+    [Fact]
+    public void WorkerScaleOutIsBoundedAtFiveOnDemandInstancesPerFunctionGroup()
+    {
+        var bicep = ReadRepositoryFile("infra", "modules", "platform.bicep");
+
+        Assert.Single(Regex.Matches(bicep, @"maximumInstanceCount:\s*\d+"));
+        Assert.Contains("maximumInstanceCount: 5", bicep, StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> ScheduleSettingNames() =>
         ScheduleSettingPattern().Matches(ReadRepositoryFile("infra", "modules", "platform.bicep"))
             .Select(match => match.Groups[1].Value);
