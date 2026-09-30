@@ -1,7 +1,5 @@
-using System.Data.Common;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
@@ -16,7 +14,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
     [Fact]
     public async Task ActorDisplayNamesResolveManyStaffIdsInOneSqlCommand()
     {
-        var commandCounter = new ReaderCommandCounter();
+        var commandCounter = new SqlStatementCounter();
         await using var database = await LocalDbTestDatabase.CreateAsync(
             configureDatabase: options => options.AddInterceptors(commandCounter),
             configureServices: IdentityPersistenceTestServices.Configure);
@@ -37,13 +35,71 @@ public sealed class StaffAccountAdministrationPersistenceTests
             [enabled.Id, disabled.Id, enabled.Id, missingId, Guid.Empty],
             default);
 
-        Assert.Equal(1, commandCounter.ExecutedReaderCommands);
+        Assert.Equal(1, commandCounter.Count);
+        // A name lookup never reads the password hash, the security stamps or
+        // the sign-off signature bytes of the accounts it resolves.
+        var statement = Assert.Single(commandCounter.Statements);
+        Assert.DoesNotContain("[PasswordHash]", statement, StringComparison.Ordinal);
+        Assert.DoesNotContain("[SecurityStamp]", statement, StringComparison.Ordinal);
+        Assert.DoesNotContain("[ConcurrencyStamp]", statement, StringComparison.Ordinal);
+        Assert.Contains("DATALENGTH(", statement, StringComparison.Ordinal);
         Assert.Equal("actor-display-enabled", names[enabled.Id]);
         Assert.Equal("actor-display-disabled", names[disabled.Id]);
         Assert.False(names.ContainsKey(missingId));
         Assert.Equal(
             ActorDisplayNames.FormerStaff,
             ActorDisplayNames.Resolve(ActorKind.Staff, missingId.ToString("D"), names));
+    }
+
+    /// <summary>
+    /// The slimmer reads still build the whole summary: enabled state, role,
+    /// version and the sign-off facts, with "has a signature" worked out in
+    /// SQL from the stored length (an empty signature is none).
+    /// </summary>
+    [Fact]
+    public async Task TheAccountListAndTheBatchReadCarryTheSameSummaryWithoutTheSignatureBytes()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter),
+            configureServices: IdentityPersistenceTestServices.Configure);
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var signed = await CreateSignOffAccountAsync(
+            userManager, "summary-signed", enabled: true, signed: true, StaffRole.Engineer);
+        var unsigned = await CreateSignOffAccountAsync(
+            userManager, "summary-unsigned", enabled: false, signed: false, StaffRole.User);
+        var plain = await CreateStaffAccountAsync(userManager, "summary-plain", StaffRole.Administrator);
+        var queries = services.GetRequiredService<IStaffAccountQueries>();
+
+        counter.Reset();
+        var slice = await queries.ListAsync(0, 10, default);
+        var listStatements = counter.Statements;
+        var many = await queries.GetManyAsync([signed.Id, unsigned.Id, plain.Id], default);
+
+        Assert.Equal(3, slice.Accounts.Count);
+        foreach (var listed in slice.Accounts)
+        {
+            var single = Assert.IsType<StaffAccountSummary>(await queries.GetAsync(listed.Id, default));
+            Assert.Equal(single, listed);
+            Assert.Equal(single, Assert.Single(many, item => item.Id == listed.Id));
+        }
+
+        var signedSummary = Assert.Single(slice.Accounts, item => item.Id == signed.Id);
+        Assert.True(signedSummary.SignOff.HasSignature);
+        Assert.True(signedSummary.SignOff.IsSignOffEngineer);
+        Assert.Equal(StaffRole.Engineer, signedSummary.Role);
+        Assert.False(Assert.Single(slice.Accounts, item => item.Id == unsigned.Id).SignOff.HasSignature);
+        Assert.False(Assert.Single(slice.Accounts, item => item.Id == unsigned.Id).IsEnabled);
+        Assert.False(Assert.Single(slice.Accounts, item => item.Id == plain.Id).SignOff.HasSignature);
+        Assert.All(listStatements, statement =>
+        {
+            Assert.DoesNotContain("[PasswordHash]", statement, StringComparison.Ordinal);
+            Assert.DoesNotContain("[SecurityStamp]", statement, StringComparison.Ordinal);
+        });
+        // The list is the users and then their roles.
+        Assert.Equal(2, listStatements.Count);
     }
 
     [Fact]
@@ -287,24 +343,5 @@ public sealed class StaffAccountAdministrationPersistenceTests
         Assert.True((await userManager.CreateAsync(user, "Password-1")).Succeeded);
         Assert.True((await userManager.AddToRoleAsync(user, role.ToString())).Succeeded);
         return user;
-    }
-
-    private sealed class ReaderCommandCounter : DbCommandInterceptor
-    {
-        private int executedReaderCommands;
-
-        public int ExecutedReaderCommands => Volatile.Read(ref executedReaderCommands);
-
-        public void Reset() => Interlocked.Exchange(ref executedReaderCommands, 0);
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            Interlocked.Increment(ref executedReaderCommands);
-            return ValueTask.FromResult(result);
-        }
     }
 }
