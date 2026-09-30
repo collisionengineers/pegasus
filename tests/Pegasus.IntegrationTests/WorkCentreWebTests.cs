@@ -218,7 +218,8 @@ public sealed class WorkCentreWebTests
         // Razor writes a space before the raw attribute and the attribute carries its own,
         // so the two attributes are separated by two spaces; the markup is unchanged.
         Assert.Matches("id=\"wc-assign-dialog\" class=\"dialog-backdrop\" data-dialog=\"wc-assign-dialog\"\\s+hidden>", shut);
-        Assert.DoesNotContain("data-dialog-open-on-load", shut, StringComparison.Ordinal);
+        // The shell's own notifications dialog may open on load, so look at this dialog only.
+        Assert.DoesNotMatch("data-dialog=\"wc-assign-dialog\"\\s+data-dialog-open-on-load", shut);
 
         var open = await GetOkAsync(client, $"/?selected={store.CaseId:D}&assign=true");
         Assert.Matches("data-dialog=\"wc-assign-dialog\"\\s+data-dialog-open-on-load=\"true\">", open);
