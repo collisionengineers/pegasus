@@ -19,12 +19,23 @@ public sealed record PreCaseImagePreparation(
     IReadOnlyList<ImageTagAssignment> Tags,
     long Version)
 {
+    /// <summary>The version of an image nobody has prepared, and of every tile drawn from the whole frame.</summary>
+    public const long NoPreparationVersion = 0;
+
     /// <summary>An image nobody has prepared: no rotation, the whole frame, no tags.</summary>
     public static PreCaseImagePreparation Original(Guid intakeAssetId) =>
-        new(intakeAssetId, CaseAssetRotation.None, CaseAssetCrop.Full, [], 0);
+        new(intakeAssetId, CaseAssetRotation.None, CaseAssetCrop.Full, [], NoPreparationVersion);
 
     /// <summary>Whether a crop or rotation is recorded (the tile says Cropped).</summary>
     public bool IsPrepared => Rotation != CaseAssetRotation.None || !Crop.IsFull;
+
+    /// <summary>
+    /// The version that names this image's tile: the recorded version while a
+    /// crop or rotation is recorded, otherwise <see cref="NoPreparationVersion"/>.
+    /// A cleared crop draws the same whole frame as an image never prepared, so
+    /// both share one address.
+    /// </summary>
+    public long TileVersion => IsPrepared ? Version : NoPreparationVersion;
 }
 
 /// <summary>Apply (or, with no rotation and the full frame, Clear) the crop of one pre-Case image.</summary>

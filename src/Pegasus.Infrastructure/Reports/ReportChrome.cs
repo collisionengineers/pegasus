@@ -97,7 +97,7 @@ internal static class ReportChrome
     /// </summary>
     internal static void Page(
         PageDescriptor page,
-        byte[] logo,
+        Image logo,
         IReadOnlyList<string> companyBlock,
         string footer,
         float bodyTop,
@@ -137,7 +137,7 @@ internal static class ReportChrome
     /// first line is the company, its second the strapline, and the rest its
     /// details.
     /// </summary>
-    private static void RunningHeader(IContainer container, byte[] logo, IReadOnlyList<string> companyBlock) =>
+    private static void RunningHeader(IContainer container, Image logo, IReadOnlyList<string> companyBlock) =>
         container
             .PaddingHorizontal(HeaderEdge, Unit.Millimetre)
             .PaddingTop(8.2f, Unit.Millimetre)

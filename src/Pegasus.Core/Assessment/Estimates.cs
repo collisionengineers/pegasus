@@ -1249,9 +1249,9 @@ public sealed class ListCaseEstimates(IRepairSpecificationStore store) : IListCa
 }
 
 /// <summary>
-/// Applies the same actor boundary <see cref="Pegasus.Core.Cases.GetCase"/>
-/// applies before reading a case's estimates, newest version first then
-/// estimate id.
+/// Applies the Case actor boundary
+/// (<see cref="StaffAccessRight.PerformCasework"/>) before reading a
+/// case's estimates, newest version first then estimate id.
 /// </summary>
 public sealed class ListCaseEstimatesByCursor(IRepairSpecificationStore store, ICursorProtector protector)
     : IListCaseEstimatesByCursor

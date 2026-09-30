@@ -13,8 +13,15 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseQueryStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries
+    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseDocumentQueries
 {
+    /// <inheritdoc />
+    async Task<IReadOnlyList<CaseDocument>> ICaseDocumentQueries.ListAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ReadDocumentsAsync(context, caseId, cancellationToken);
+    }
+
     /// <inheritdoc />
     async Task<CaseType?> ICaseKindQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -252,71 +259,8 @@ public sealed class EfCaseQueryStore(
             _ => rows.OrderByDescending(item => item.ReceivedAtUtc)
         };
 
-    public async Task<CaseDetails?> GetAsync(
-        GetCaseQuery query,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workflow = await context.CaseWorkflows
-            .AsNoTracking()
-            .Include(item => item.Case)
-                .ThenInclude(item => item.Principal)
-            .Include(item => item.ReportApproval)
-            .Include(item => item.ReportSentEvidence)
-            .Include(item => item.DueWork)
-            .SingleOrDefaultAsync(item => item.CaseId == query.CaseId, cancellationToken);
-        if (workflow is null)
-        {
-            return null;
-        }
-
-        var summaryRow = await SearchRows(context)
-            .SingleAsync(item => item.CaseId == query.CaseId, cancellationToken);
-        var documents = await ReadDocumentsAsync(context, query.CaseId, cancellationToken);
-        var availableReportSentEvidence = await context.CaseReportSentEvidence
-            .AsNoTracking()
-            .Where(item => item.CaseId == null
-                && item.DiscoveredByKind == nameof(ActorKind.SystemWorker))
-            .OrderByDescending(item => item.SentAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(100)
-            .ToArrayAsync(cancellationToken);
-        var correspondenceEmails = await ReadCorrespondenceEmailsAsync(context, query.CaseId, cancellationToken);
-        var historyEntities = await context.CaseWorkflowEvents
-            .AsNoTracking()
-            .Where(item => item.CaseId == query.CaseId)
-            .OrderByDescending(item => item.OccurredAtUtc)
-            .ThenByDescending(item => item.Id)
-            .Take(200)
-            .ToArrayAsync(cancellationToken);
-        var history = historyEntities
-            .Select(MapHistoryEntry)
-            .OrderByDescending(item => item.OccurredAtUtc)
-            .ThenByDescending(item => item.EntryId)
-            .Take(200)
-            .ToArray();
-        var activeLease = ResolveActiveLease(workflow, timeProvider.GetUtcNow());
-        var recordNotes = await ReadRecordNotesAsync(context, workflow, query.CaseId, cancellationToken);
-
-        return new CaseDetails(
-            MapSearchItem(summaryRow, timeProvider.GetUtcNow()),
-            MapWorkflow(workflow),
-            activeLease,
-            documents,
-            workflow.Case.CustodyRootRemoteId,
-            ParseCustodyState(workflow.Case.CustodyState),
-            availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
-            history)
-        {
-            CorrespondenceEmails = correspondenceEmails,
-            RecordNotes = recordNotes
-        };
-    }
-
     /// <summary>
-    /// The bounded sibling of <see cref="GetAsync"/>: the same summary,
-    /// workflow and active-lease facts, with the
+    /// The case's summary, workflow and active-lease facts, with the
     /// document, history and open-task lists reduced to a single count query
     /// each instead of materializing every row.
     /// </summary>
@@ -341,25 +285,28 @@ public sealed class EfCaseQueryStore(
 
         var summaryRow = await SearchRows(context)
             .SingleAsync(item => item.CaseId == query.CaseId, cancellationToken);
-        var documentCount = await context.Set<CaseDocumentEntity>()
+        // The three counts are one command: a header read is a handful of round
+        // trips, and each one is paid for by every page that shows a Case.
+        var openTaskState = nameof(CaseTaskState.Open);
+        var counts = await context.Cases
             .AsNoTracking()
-            .CountAsync(item => item.CaseId == query.CaseId, cancellationToken);
-        var historyCount = await context.CaseWorkflowEvents
-            .AsNoTracking()
-            .CountAsync(item => item.CaseId == query.CaseId, cancellationToken);
-        var openTaskCount = await context.Set<CaseTaskEntity>()
-            .AsNoTracking()
-            .CountAsync(
-                item => item.CaseId == query.CaseId && item.State == nameof(CaseTaskState.Open),
-                cancellationToken);
+            .Where(item => item.Id == query.CaseId)
+            .Select(item => new
+            {
+                Documents = context.Set<CaseDocumentEntity>().Count(document => document.CaseId == query.CaseId),
+                History = context.CaseWorkflowEvents.Count(entry => entry.CaseId == query.CaseId),
+                OpenTasks = context.Set<CaseTaskEntity>()
+                    .Count(task => task.CaseId == query.CaseId && task.State == openTaskState)
+            })
+            .SingleAsync(cancellationToken);
 
         return new CaseHeader(
             MapSearchItem(summaryRow, timeProvider.GetUtcNow()),
             MapWorkflow(workflow),
             ResolveActiveLease(workflow, timeProvider.GetUtcNow()),
-            documentCount,
-            historyCount,
-            openTaskCount,
+            counts.Documents,
+            counts.History,
+            counts.OpenTasks,
             await CaseWorkScope.LoadSetAsync(context, query.CaseId, cancellationToken));
     }
 
@@ -577,9 +524,8 @@ public sealed class EfCaseQueryStore(
 
     /// <summary>
     /// The one rule for whether a case's edit lease is live, shared by
-    /// <see cref="GetAsync"/> and <see cref="GetHeaderAsync"/>
-    /// so the two reads can never disagree about who — if
-    /// anyone — currently holds it.
+    /// every read that reports the lease so they can never disagree about
+    /// who — if anyone — currently holds it.
     /// </summary>
     private static CaseEditLeaseSnapshot? ResolveActiveLease(CaseWorkflowEntity workflow, DateTimeOffset now) =>
         workflow.EditLeaseHolder is { } holder
@@ -621,20 +567,26 @@ public sealed class EfCaseQueryStore(
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        // The claim source is read from the work being edited.
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
-        var claimSourceId = await context.CaseDataFields.AsNoTracking()
-            .Where(item => item.WorkId == workId
-                && item.FieldName == CaseDataFieldNames.ClaimSourceId
-                && item.ValueKind == CaseDataCodes.Confirmed)
-            .Select(item => item.Value)
-            .FirstOrDefaultAsync(cancellationToken);
+        // One command reads the Principal's notes and the claim source named by
+        // the work being edited; the claim source's own notes follow only when
+        // there is one.
+        var currentWorkIds = CaseWorkScope.SelectedIds(context, caseId, CaseWorkSelector.Current);
+        var principal = await context.Organizations.AsNoTracking()
+            .Where(item => item.Id == workflow.Case.Principal.OrganizationId)
+            .Select(item => new
+            {
+                item.NotesOnEveryCase,
+                ClaimSourceId = context.CaseDataFields
+                    .Where(field => currentWorkIds.Contains(field.WorkId)
+                        && field.FieldName == CaseDataFieldNames.ClaimSourceId
+                        && field.ValueKind == CaseDataCodes.Confirmed)
+                    .Select(field => field.Value)
+                    .FirstOrDefault()
+            })
+            .SingleAsync(cancellationToken);
         return new(
-            await context.Organizations.AsNoTracking()
-                .Where(item => item.Id == workflow.Case.Principal.OrganizationId)
-                .Select(item => item.NotesOnEveryCase)
-                .FirstOrDefaultAsync(cancellationToken),
-            Guid.TryParse(claimSourceId, out var claimSourceOrganizationId)
+            principal.NotesOnEveryCase,
+            Guid.TryParse(principal.ClaimSourceId, out var claimSourceOrganizationId)
                 ? await context.Organizations.AsNoTracking()
                     .Where(item => item.Id == claimSourceOrganizationId)
                     .Select(item => item.NotesOnEveryCase)
@@ -1051,7 +1003,7 @@ public sealed class EfCaseQueryStore(
         item.RemovalReason);
 
     /// <summary>
-    /// The keyset-paged sibling of the history read in <see cref="GetAsync"/>:
+    /// The keyset-paged sibling of <see cref="ListHistoryAsync"/>:
     /// newest event first, then entry id.
     /// </summary>
     public async Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryByCursorAsync(

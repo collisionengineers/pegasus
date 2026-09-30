@@ -121,6 +121,19 @@ public interface IRetainedMailboxMessageStore
     Task RetainAsync(
         RetainedMailboxMessage message,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the mailbox has retained this provider item: a message with this
+    /// canonical Internet message id (<see cref="MailboxMessageIdentity"/>) retained
+    /// under this immutable message id. A different item that reuses the Internet
+    /// message id is not this one. A point read on the mailbox's unique identity
+    /// index.
+    /// </summary>
+    Task<bool> HasRetainedMessageAsync(
+        Guid mailboxId,
+        string immutableMessageId,
+        string canonicalInternetMessageIdentity,
+        CancellationToken cancellationToken);
 }
 
 public sealed record ApprovedInboxPage(
@@ -150,12 +163,40 @@ public sealed class ApprovedMailboxAccessDeniedException(
     Exception? innerException = null)
     : Exception(message, innerException);
 
+/// <summary>
+/// Whether the mailbox has already retained this item: the same immutable message
+/// id with the same Internet message id, as Graph reports them. A source that reads
+/// a delta asks this for each item before it downloads the item, and leaves out an
+/// item the mailbox already holds. Another item that reuses a retained Internet
+/// message id is not held: it is downloaded, and intake judges it.
+/// </summary>
+public delegate Task<bool> RetainedMessageCheck(
+    string immutableMessageId,
+    string internetMessageIdentity,
+    CancellationToken cancellationToken);
+
 public interface IApprovedInboxSource
 {
     Task<ApprovedInboxPage> ReadAsync(
         ApprovedInboxPollLease lease,
         int maximumMessages,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The same read, except that an item the mailbox has already retained
+    /// (<paramref name="alreadyRetained"/>) is neither downloaded nor returned. Its
+    /// place in the page still counts, so the page's cursors move past it. An item
+    /// with no Internet message id is read as usual.
+    ///
+    /// Default: the read without the check. A source with no Internet message id
+    /// before it reads a message has nothing to ask.
+    /// </summary>
+    Task<ApprovedInboxPage> ReadAsync(
+        ApprovedInboxPollLease lease,
+        int maximumMessages,
+        RetainedMessageCheck alreadyRetained,
+        CancellationToken cancellationToken) =>
+        ReadAsync(lease, maximumMessages, cancellationToken);
 
     Task<ApprovedInboxMessage?> ReadNotifiedAsync(
         ApprovedInboxPollLease lease,
@@ -418,6 +459,37 @@ public sealed class PollApprovedInbox(
         }
     }
 
+    /// <summary>
+    /// A message the mailbox has retained was accepted first, because the poll
+    /// retains after the shared intake call. Only the same provider item counts: an
+    /// item that reuses a retained Internet message id is read, so intake replays it
+    /// or quarantines it as a source identity conflict. An Internet message id that
+    /// cannot be canonicalised cannot have been retained, so that item is read and
+    /// rejected as it always was.
+    /// </summary>
+    private async Task<bool> IsRetainedAsync(
+        ApprovedInboxPollLease lease,
+        string immutableMessageId,
+        string internetMessageIdentity,
+        CancellationToken cancellationToken)
+    {
+        string canonical;
+        try
+        {
+            canonical = MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(internetMessageIdentity);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+
+        return await retainedMessageStore.HasRetainedMessageAsync(
+            lease.ApprovedMailboxId,
+            immutableMessageId,
+            canonical,
+            cancellationToken);
+    }
+
     private static string ValidateRequest(int maximumMessages, ActionActor actor)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumMessages);
@@ -519,7 +591,15 @@ public sealed class PollApprovedInbox(
         string actorCode,
         CancellationToken cancellationToken)
     {
-        var page = await inboxSource.ReadAsync(lease, maximumMessages, cancellationToken);
+        // The webhook wake downloads a message and retains it without moving the
+        // cursor, so the delta meets that same message again. The mailbox has
+        // already retained it, so the sweep neither downloads nor passes it on.
+        var page = await inboxSource.ReadAsync(
+            lease,
+            maximumMessages,
+            (immutableMessageId, internetMessageIdentity, token) =>
+                IsRetainedAsync(lease, immutableMessageId, internetMessageIdentity, token),
+            cancellationToken);
         ValidatePage(page, maximumMessages);
 
         var handledMessages = 0;

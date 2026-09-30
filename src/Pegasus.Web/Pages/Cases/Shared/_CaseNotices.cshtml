@@ -1,0 +1,37 @@
+@*
+    The record's notices, one swap root of case-workspace.js: what the last
+    command did, work not yet finished and a refusal. Each carries the shared
+    dismiss. The page model supplies them.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var editing = Model.IsEditing;
+}
+<div data-case-notices>
+@if (Model.StatusNotice is string caseStatus
+    && !(editing && caseStatus == "Edit mode is active."))
+{
+    <div class="notice notice--success mb-2" role="status" data-confirmation>
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>@caseStatus</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+}
+@if (Model.WarningNotice is string caseWarning)
+{
+    @* Work that is not yet finished: amber, never the green of a confirmation. *@
+    <div class="notice notice--warning mb-2" role="status" data-case-warning>
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>@caseWarning</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+}
+@if (Model.ErrorNotice is string caseError)
+{
+    <div class="notice notice--danger mb-2" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>@caseError</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+}
+</div>

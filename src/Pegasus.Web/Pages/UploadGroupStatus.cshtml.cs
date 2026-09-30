@@ -377,13 +377,13 @@ public sealed class UploadGroupStatusModel(
             IntakeReceipt? receipt = null;
             if (haveActor)
             {
-                if (status is { Status: QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed })
-                {
-                    outcome = await outcomeQueries.BuildAsync(status, group.Id, actor!, cancellationToken);
-                }
-
+                // One receipt read serves both the outcome and the page.
                 receipt = await intake.ExecuteAsync(
                     new(status?.ProcessedReceiptId ?? member.StagedReceiptId, actor!), cancellationToken);
+                if (status is { Status: QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed })
+                {
+                    outcome = await outcomeQueries.BuildAsync(status, receipt, group.Id, actor!, cancellationToken);
+                }
             }
 
             return (member.StagedReceiptId, status, outcome, receipt);
@@ -575,15 +575,13 @@ public sealed class UploadGroupStatusModel(
             _ when unreadable => (Labels.StateCouldNotBeRead, "is-error"),
             _ => (Labels.StateReady, string.Empty)
         };
-        var imageReceiptId = outcome?.ThumbnailReceiptId
-            ?? (receipt is { MediaType: var mediaType } && mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ? receipt.Id : null);
         return new UploadReviewFile(
             member.Ordinal,
             member.StagedReceiptId,
             member.SourceFileName,
             receipt?.SourceLength,
             Labels.Kind(receipt?.MediaType, member.SourceFileName),
-            imageReceiptId is { } imageId ? $"/Received/{imageId:D}/Image" : null,
+            UploadReviewFile.ImageUrlOf(outcome, receipt),
             receipt is null ? null : $"/Received/{receipt.Id:D}/Source",
             label,
             tone,

@@ -49,6 +49,19 @@ public static class AssessmentAccessPolicy
         ArgumentNullException.ThrowIfNull(access);
         return !AssessmentPolicy.IsWritableState(access.State);
     }
+
+    /// <summary>
+    /// The access answer for a Case workflow the caller has already read,
+    /// under the same casework right <see cref="IGetAssessmentAccess"/>
+    /// requires. The answer is the workflow's state, so a page that holds the
+    /// workflow does not read that state a second time.
+    /// </summary>
+    public static AssessmentAccessState For(ActionActor actor, CaseWorkflowRecord workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return new(workflow.State);
+    }
 }
 
 public sealed record GetAssessmentAccessQuery(Guid CaseId, ActionActor Actor);

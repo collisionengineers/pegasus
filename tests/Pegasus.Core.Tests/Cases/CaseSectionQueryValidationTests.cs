@@ -62,6 +62,52 @@ public sealed class CaseSectionQueryValidationTests
         Assert.Equal(0, store.SectionFrameReads);
     }
 
+    /// <summary>
+    /// The workspace reads the Case's latest vehicle observation, so a
+    /// workspace without one answers that the Case has none: the vehicle
+    /// evidence is not read a second time to find out.
+    /// </summary>
+    [Fact]
+    public async Task TheVehicleSectionTakesTheWorkspacesObservationEvenWhenThereIsNone()
+    {
+        var caseId = Guid.NewGuid();
+        var workspace = Workspace(caseId);
+        var evidence = new CountingVehicleEvidence();
+        var query = new GetCaseSectionQuery(
+            caseId,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            workspace,
+            HasAssessmentWorkspace: true,
+            Frame: Frame(caseId));
+
+        var section = await new GetCaseVehicleSection(
+                new RecordingStore(), new EmptyWorkspace(), new EmptyCaseData(), evidence)
+            .ExecuteAsync(query, CancellationToken.None);
+
+        Assert.NotNull(section);
+        Assert.Null(section!.LatestVehicleObservation);
+        Assert.Same(workspace.Data, section.Data);
+        Assert.Same(workspace.Assessment, section.Assessment);
+        Assert.Equal(0, evidence.Reads);
+    }
+
+    private static AssessmentWorkspace Workspace(Guid caseId) => new(
+        new(caseId, "QDOS3100001", "QDOS", null, CaseType.Inspection, CaseLifecycleState.Review, 1, null, null),
+        Data(caseId),
+        LatestVehicleObservation: null,
+        new CaseAssessmentProjection(
+            caseId,
+            "QDOS3100001",
+            1,
+            CaseLifecycleState.Review,
+            null,
+            [],
+            [],
+            new AssessmentCaseOwnedData(
+                null, null, null, null, null, null, "tbc", null,
+                new DateOnly(1970, 1, 1), null, null, null, null, null)),
+        CurrentSpecification: null);
+
     private static CaseSectionFrame Frame(Guid caseId) => Frame(caseId, caseId);
 
     private static CaseSectionFrame Frame(Guid summaryCaseId, Guid workflowCaseId)
@@ -105,9 +151,6 @@ public sealed class CaseSectionQueryValidationTests
         public CaseSectionFrame? FilesFrame { get; private set; }
 
         public Task<SearchCasesResult> SearchAsync(SearchCasesQuery query, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CaseDetails?> GetAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<CaseHeader?> GetHeaderAsync(GetCaseHeaderQuery query, CancellationToken cancellationToken) =>
@@ -190,6 +233,17 @@ public sealed class CaseSectionQueryValidationTests
     {
         public Task<CaseVehicleEvidence?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<CaseVehicleEvidence?>(null);
+    }
+
+    private sealed class CountingVehicleEvidence : IVehicleEvidenceQueries
+    {
+        public int Reads { get; private set; }
+
+        public Task<CaseVehicleEvidence?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<CaseVehicleEvidence?>(null);
+        }
     }
 
     private sealed class EmptyStaffAccounts : IStaffAccountQueries

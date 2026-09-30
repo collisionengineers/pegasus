@@ -100,7 +100,9 @@ write keeps its pending document identities and resumes through the normal
 custody reconciliation. A confirmed replay neither duplicates files nor
 repeats the readiness transition. The current association, Case eligibility
 and edit authority are checked again when delayed custody completes. Failures
-stay visible for normal recovery.
+stay visible for normal recovery. Reconciliation offers a version whose filing
+failed again after 1, 2, 4 and 8 minutes, then every 10, so one bad file does not
+repeat every ten seconds.
 
 - Network, local or Azure staging is temporary processing storage. It never
   proves Case custody.
@@ -188,8 +190,17 @@ custody.
 ### Custody and staging distinctions
 
 Box is durable file custody. Azure processing bytes and the idle cache are
-temporary. A cached file is kept 24 hours after its last use. A plain
-gallery thumbnail is kept 30 days after its last use. SQL keeps the arrival, idempotency and provenance
+temporary. A file is written to the cache when it is filed, so its first view
+is a cache hit and asks Box for nothing. The copy is written after Box has
+confirmed the file and the record of it is saved. A copy that cannot be
+written is logged and never fails the filing: the first view reads Box and
+writes the copy then. A write gives up after five seconds. Once one write has
+failed, the rest of the writes in the same scope are skipped. A scope is one
+Web request, one queued work item, or one whole run of the Worker's
+reconciliation timer. One timer run can file up to 50 pending versions, so one
+failed write there leaves all the rest to their first view. A store that is
+down therefore never holds intake for long. A cached file is kept 14 days after its last use. A
+plain gallery thumbnail is kept 30 days after its last use. SQL keeps the arrival, idempotency and provenance
 identities. Receipt, logical access and definitive association are three
 separate claims. A temporary file or a cache hit never establishes an
 accepted Case association.
@@ -247,12 +258,30 @@ a small cached rendering. Nothing the user sees changes. An image the
 background cannot render gets its thumbnail on first view, as before.
 
 Every read of a file from Box checks the file itself: which folder holds it
-and whether it is in the trash. A trashed file is refused. The check that
-the folder sits under the approved Box root is remembered for 10 minutes. So
-a folder moved out of the root, or trashed, in Box itself may be noticed up
-to 10 minutes late. Writes, moves, deletes and uploads check the whole path
-every time. A not-found, trashed or outside-root answer drops what was
-remembered.
+and whether it is in the trash. A trashed file is refused. The file's
+metadata and content are requested together, and the content is discarded
+unless every check passes. The check that the folder sits under the approved
+Box root is remembered for 10 minutes. So a folder moved out of the root, or
+trashed, in Box itself may be noticed up to 10 minutes late. A not-found,
+trashed or outside-root answer drops what was remembered. The Box access token
+is renewed in the background before a request would need to renew it.
+
+A write never uses that memory. Before a piece of work files anything into a
+Case folder, it reads that folder once. The folder must carry the Case's name,
+sit directly under the approved root and not be in the trash. The piece of
+work reads its Case folder once, however many files it files. A document filed
+on its own is different. Its folder may be the Case folder or the Audit's `a.`
+folder inside it. That folder is read, and so is each folder above it up to
+the approved root, to check that it is under that root and not in the trash.
+This is done for each document. An upload does not look for its name first.
+Box's answer to the upload must name the folder that was read as the file's
+parent. A name Box already holds comes back as Box's own refusal. Pegasus then
+accepts the file that holds it only when it is a file of the same length, in
+that folder, with the same bytes.
+Box does not report a file's type, so the type is not compared. A not-found,
+trashed or outside-root answer to any of these reads drops what was
+remembered. Folder create, rename and delete, and file move and delete, still
+check the whole path every time.
 
 A browser may keep a private copy of an image or PDF preview for a week. It
 keeps one only when the address names the exact bytes. For a Case document

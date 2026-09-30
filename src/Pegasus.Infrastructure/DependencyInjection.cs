@@ -75,6 +75,7 @@ public static class DependencyInjection
             provider.GetRequiredService<DocumentContentCacheMetrics>());
         services.AddSingleton(TimeProvider.System);
         services.TryAddSingleton<IDocumentContentCacheCleanup, NoDocumentContentCacheCleanup>();
+        services.TryAddSingleton<IDocumentContentCachePublisher, NoDocumentContentCachePublisher>();
         services.TryAddSingleton<IListDocumentThumbnailCandidates, NoDocumentThumbnailCandidates>();
         services.TryAddSingleton(VehicleLookupAvailability.Unavailable);
         services.AddScoped<EfIntakeReceiptStore>();
@@ -105,6 +106,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<ListRetainedMail>();
         services.AddScoped<GetRetainedMail>();
+        services.AddScoped<GetRetainedMailPreview>();
         services.AddScoped<CorrectRetainedMailClassification>();
         services.TryAddSingleton<IRetainedMailFolderMover, UnavailableRetainedMailFolderMover>();
         services.AddScoped<EfRetainedMailFolderMoveStore>();
@@ -436,13 +438,14 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseKindQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
+        services.AddScoped<ICaseDocumentQueries>(
+            provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
         services.AddScoped<ISearchCases, SearchCases>();
         services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
         services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCaseHeader, GetCaseHeader>();
-        services.AddScoped<IGetCase, GetCase>();
         services.AddScoped<IGetCaseEditBasis, GetCaseEditBasis>();
         services.AddScoped<IGetCasePageFrame, GetCasePageFrame>();
         services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
@@ -542,7 +545,6 @@ public static class DependencyInjection
         // so the set is empty and Get valuation answers with a notice.
         services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
-        services.AddScoped<IAiDraftQueries, AiDraftQueries>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();
         services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();
@@ -717,6 +719,7 @@ public static class DependencyInjection
         services.AddSingleton<ReportRenderGate>();
         services.AddSingleton<IAssessmentReportRenderer, QuestPdfAssessmentReportRenderer>();
         services.AddSingleton<IEstimateDocumentRenderer, QuestPdfEstimateDocumentRenderer>();
+        services.AddSingleton<IWarmReportRenderer, QuestPdfReportWarmer>();
         services.AddScoped<GenerateAssessmentReportDraft>();
         services.AddScoped<EfAssessmentReportProjectionSource>();
         services.AddScoped<IAssessmentReportProjectionSource>(provider =>
@@ -793,13 +796,19 @@ public static class DependencyInjection
             intakeContainerFactory(provider),
             provider.GetRequiredService<BoxContentClient>(),
             provider.GetRequiredService<TimeProvider>(),
-            provider.GetRequiredService<IDocumentContentCacheMetrics>()));
+            provider.GetRequiredService<IDocumentContentCacheMetrics>(),
+            provider.GetService<ILogger<CachedDocumentContentStore>>(),
+            provider.GetRequiredService<IIntakeArtifactStore>()));
         services.AddScoped<IReadLogicalDocumentVersion>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
         // The export and the report read their photographs cache first.
         services.AddScoped<IReadCachedDocumentVersions>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
         services.AddScoped<IDocumentContentCacheCleanup>(provider =>
+            provider.GetRequiredService<CachedDocumentContentStore>());
+        // Whichever host files a document to Box writes the cache copy while
+        // it holds the bytes, so the first read of it is a hit.
+        services.AddScoped<IDocumentContentCachePublisher>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
         // The derived-thumbnail variant of the same cache: the same container
         // and the same cleanup, one entry kind along from the content itself.
@@ -833,7 +842,8 @@ public static class DependencyInjection
 
         services.AddSingleton(provider => boxOptions(provider));
         services.AddHttpClient(nameof(BoxContentClient), client =>
-            client.Timeout = BoxJwtAuthorizationHeaderProvider.RequestTimeout);
+                client.Timeout = BoxJwtAuthorizationHeaderProvider.RequestTimeout)
+            .WithRotatingConnectionPool();
         // The header provider needs a clock. Every caller reaches this through
         // AddPegasusInfrastructure, which registers one, but the storage
         // profile should stand up on its own rather than depend on the order
@@ -843,6 +853,10 @@ public static class DependencyInjection
             new BoxJwtAuthorizationHeaderProvider(
                 provider.GetRequiredService<BoxCustodyOptions>(),
                 provider.GetRequiredService<TimeProvider>()));
+        // Replaces that token in the background before a request would need it.
+        // It belongs here, with the provider, so both hosts run it in
+        // production and no other profile has a Box token to renew.
+        services.AddHostedService<BoxTokenRenewalService>();
         services.AddSingleton(provider => new BoxContentClient(
             provider.GetRequiredService<BoxCustodyOptions>(),
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(BoxContentClient)),
@@ -859,7 +873,8 @@ public static class DependencyInjection
             provider.GetRequiredService<IIntakeQuarantineArtifactStore>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<BoxContentClient>(),
-            provider.GetRequiredService<BoxCustodyOptions>().HoldingFolderId));
+            provider.GetRequiredService<BoxCustodyOptions>().HoldingFolderId,
+            provider.GetService<IDocumentContentCachePublisher>()));
         services.AddScoped<ICaseArtifactCustody>(provider =>
             provider.GetRequiredService<EfCaseArtifactCustody>());
         services.AddScoped<ICaseArtifactCustodyStatus>(provider =>
@@ -923,7 +938,8 @@ public static class DependencyInjection
         services.AddSingleton(graphOptions);
         services.AddSingleton(vehicleOptions);
         services.AddHttpClient(nameof(GraphMailClient), client =>
-            client.Timeout = TimeSpan.FromSeconds(100));
+                client.Timeout = TimeSpan.FromSeconds(100))
+            .WithRotatingConnectionPool();
         services.AddHttpClient(nameof(DvlaDvsaProductionAdapter), client =>
             client.Timeout = TimeSpan.FromSeconds(100));
         services.AddSingleton(provider => new GraphMailClient(
@@ -961,7 +977,8 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         var baseUri = GraphApprovedMailboxOptions.ParseBaseUri(graphBaseUri);
         services.AddHttpClient(nameof(GraphMailClient), client =>
-            client.Timeout = TimeSpan.FromSeconds(100));
+                client.Timeout = TimeSpan.FromSeconds(100))
+            .WithRotatingConnectionPool();
         services.AddSingleton(provider => new GraphApprovedMailboxResolver(
             provider.GetRequiredService<TokenCredential>(),
             baseUri,
@@ -984,6 +1001,20 @@ public static class DependencyInjection
         services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;
     }
+
+    /// <summary>
+    /// Gives a client's connection pool a bounded life. The Box and Graph clients are
+    /// created once inside singletons, so the factory's own handler rotation never
+    /// reaches them, and without this their connections, and the DNS answers behind
+    /// them, would live as long as the process. Nothing else about the handler changes:
+    /// redirects, cookies, proxy and decompression keep the defaults the factory's
+    /// handler already had.
+    /// </summary>
+    private static IHttpClientBuilder WithRotatingConnectionPool(this IHttpClientBuilder builder) =>
+        builder.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10)
+        });
 
     private static void AddStaffMailSending(IServiceCollection services)
     {

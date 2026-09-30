@@ -6,10 +6,9 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Tests.Cases;
 
 /// <summary>
-/// <see cref="GetCaseHeader"/> applies the same
-/// actor boundary and case-identifier validation as <see cref="GetCase"/>
-/// (<see cref="StaffAccessRight.PerformCasework"/>) before delegating to the
-/// store's bounded, counted read.
+/// <see cref="GetCaseHeader"/> applies the Case actor boundary
+/// (<see cref="StaffAccessRight.PerformCasework"/>) and case-identifier
+/// validation before delegating to the store's bounded, counted read.
 /// </summary>
 public sealed class CaseHeaderTests
 {
@@ -75,9 +74,6 @@ public sealed class CaseHeaderTests
         public GetCaseHeaderQuery? Query { get; private set; }
 
         public Task<SearchCasesResult> SearchAsync(SearchCasesQuery query, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CaseDetails?> GetAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<CaseHeader?> GetHeaderAsync(GetCaseHeaderQuery query, CancellationToken cancellationToken)

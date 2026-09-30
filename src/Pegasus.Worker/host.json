@@ -1,6 +1,18 @@
 {
   "version": "2.0",
   "logging": {
+    "logLevel": {
+      "default": "Information",
+      "Function": "Warning",
+      "Host.Startup": "Warning",
+      "Host.Triggers": "Warning",
+      "Host.Aggregator": "Warning",
+      "Microsoft.Azure.WebJobs.Hosting.OptionsLoggingService": "Warning",
+      "Microsoft.Azure.WebJobs.Script.Description.FunctionGroupListenerDecorator": "Warning",
+      "Microsoft.Azure.WebJobs.Host.DrainModeManager": "Warning",
+      "Pegasus.Worker": "Information",
+      "Microsoft.EntityFrameworkCore.Database.Command": "None"
+    },
     "applicationInsights": {
       "samplingSettings": {
         "isEnabled": true,

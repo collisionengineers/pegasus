@@ -139,6 +139,145 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Equal(2, box.UploadCount);
     }
 
+    /// <summary>
+    /// A document costs the read that proves its folder and its upload. Before,
+    /// it cost six: the folder walked, the name looked up, the folder walked
+    /// again, the upload, then the new file and its folder read back.
+    /// </summary>
+    [Fact]
+    public async Task AFileCostsOneReadOfItsFolderAndItsUpload()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+
+        for (var ordinal = 1; ordinal <= 3; ordinal++)
+        {
+            var content = Encoding.UTF8.GetBytes($"photograph {ordinal}");
+            var before = box.RequestCount;
+
+            await store.StoreVersionAsync(
+                Address(ordinal, $"photo-{ordinal}.jpg"), content, Sha256(content), CancellationToken.None);
+
+            Assert.Equal(2, box.RequestCount - before);
+        }
+    }
+
+    /// <summary>
+    /// A document of the Audit is filed in the Audit's a. folder, inside the
+    /// Case folder. The store cannot tell that folder from the Case's, so it
+    /// proves the folder's place under the approved root: one read more.
+    /// </summary>
+    [Fact]
+    public async Task AFileInTheAuditFolderIsProvedAllTheWayUpToTheApprovedRoot()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var auditFolder = box.CreateFolderPath($"{CaseReference}/a.{CaseReference}");
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("audit report");
+        var before = box.RequestCount;
+
+        await store.StoreVersionAsync(
+            Address() with { CaseRootRemoteId = auditFolder }, content, Sha256(content), default);
+
+        Assert.Equal(3, box.RequestCount - before);
+        Assert.True(box.PathExists($"{CaseReference}/a.{CaseReference}/002 evidence.jpg"));
+    }
+
+    [Fact]
+    public async Task AFolderMovedOutOfTheRootIsNeverUploadedInto()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        box.MoveOutsideApprovedRoot(CaseRootId);
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("moved folder");
+        var uploads = box.UploadCount;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            store.StoreVersionAsync(Address(), content, Sha256(content), default));
+
+        Assert.Equal(uploads, box.UploadCount);
+    }
+
+    /// <summary>
+    /// A name Box already holds is accepted only for the same bytes, whichever
+    /// way the content arrives, and the refusal leaves the file alone.
+    /// </summary>
+    [Fact]
+    public async Task ARepeatStoreOfDifferentContentUnderTheSameNameIsRefused()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var original = Encoding.UTF8.GetBytes("AAAA original");
+        var different = Encoding.UTF8.GetBytes("BBBB original");
+        await store.StoreVersionAsync(Address(), original, Sha256(original), default);
+        var uploads = box.UploadCount;
+
+        var shorter = original[..^1];
+        using var differentStream = new MemoryStream(different);
+        using var shorterStream = new MemoryStream(shorter);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            store.StoreVersionAsync(Address(), different, Sha256(different), default));
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.StoreVersionAsync(
+            Address(), differentStream, different.Length, Sha256(different), default));
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.StoreVersionAsync(
+            Address(), shorterStream, shorter.Length, Sha256(shorter), default));
+
+        Assert.Equal(uploads, box.UploadCount);
+        Assert.Equal(0, box.DeleteCount);
+    }
+
+    /// <summary>
+    /// A file that was already there is not this write's file to remove: only
+    /// the write that created it can be rolled back.
+    /// </summary>
+    [Fact]
+    public async Task AWriteThatFoundTheFileAlreadyThereCannotRollItBack()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var content = Encoding.UTF8.GetBytes("filed once");
+        var hash = Sha256(content);
+        var first = await CreateStore(box).StoreVersionAsync(Address(), content, hash, default);
+        var later = CreateStore(box);
+
+        var replay = await later.StoreVersionAsync(Address(), content, hash, default);
+        await later.DeleteAsync(CaseId, CaseReference, VersionId, default);
+
+        Assert.Equal(DocumentContentWriteDisposition.Replay, replay.Disposition);
+        Assert.Equal(first.RemoteId, replay.RemoteId);
+        Assert.True(box.PathExists($"{CaseReference}/002 evidence.jpg"));
+        Assert.Equal(0, box.DeleteCount);
+    }
+
+    /// <summary>
+    /// The other 409 codes an upload can meet fail the write and file nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("name_temporarily_reserved")]
+    [InlineData("operation_blocked_temporary")]
+    [InlineData("conflict")]
+    public async Task AnUploadConflictThatIsNotANameInUseFilesNothing(string code)
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        box.NextUploadConflictCode = code;
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("refused for now");
+        var uploads = box.UploadCount;
+
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            store.StoreVersionAsync(Address(), content, Sha256(content), default));
+
+        Assert.Equal(HttpStatusCode.Conflict, failure.StatusCode);
+        Assert.Equal(uploads, box.UploadCount);
+        Assert.False(box.PathExists($"{CaseReference}/002 evidence.jpg"));
+    }
+
     [Fact]
     public async Task PersistedVersionReadAndReplayDoNotDriftToANewerIdenticalVersion()
     {
@@ -326,6 +465,33 @@ public sealed class BoxDocumentContentStoreTests
         await stream.CopyToAsync(buffer);
 
         Assert.Equal(content, buffer.ToArray());
+        Assert.Equal(0, box.ApprovedRootListingCount);
+    }
+
+    /// <summary>
+    /// A write trusts the case root id the database holds, as a read does. It
+    /// proves that folder and never lists the approved root, however many
+    /// Cases the root holds.
+    /// </summary>
+    [Fact]
+    public async Task ManagedWriteUsesPersistedCaseRootWithoutListingApprovedRoot()
+    {
+        var box = new InMemoryBox();
+        for (var i = 0; i < 1000; i++)
+        {
+            box.AddFolder(ApprovedRootId, $"aaaa-decoy-case-{i:D4}");
+        }
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+
+        for (var ordinal = 1; ordinal <= 3; ordinal++)
+        {
+            var content = Encoding.UTF8.GetBytes($"photograph {ordinal}");
+            var written = await store.StoreVersionAsync(
+                Address(ordinal, $"photo-{ordinal}.jpg"), content, Sha256(content), CancellationToken.None);
+            Assert.Equal(DocumentContentWriteDisposition.Created, written.Disposition);
+        }
+
         Assert.Equal(0, box.ApprovedRootListingCount);
     }
 
@@ -637,6 +803,162 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Equal(2, attempts);
     }
 
+    /// <summary>
+    /// The metadata request is held until Box has been asked for the content.
+    /// A read that asked for the content only after the metadata came back
+    /// would wait for the hold to time out and fail here.
+    /// </summary>
+    [Fact]
+    public async Task AManagedReadAsksForTheContentWhileItsMetadataIsStillOutstanding()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("requested together");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+        box.HoldMetadataUntilContentRequested = true;
+        var metadataBefore = box.FileMetadataRequestCount;
+        var contentBefore = box.ContentRequestCount;
+
+        await using var stream = await store.OpenReadVersionAsync(address, hash, content.Length, default);
+
+        Assert.Equal(content, await ReadAllAsync(stream));
+        Assert.Equal(1, box.FileMetadataRequestCount - metadataBefore);
+        Assert.Equal(1, box.ContentRequestCount - contentBefore);
+    }
+
+    /// <summary>
+    /// Every check still refuses the file, with the exception it always did,
+    /// even though the content was already being fetched. The fetched bytes are
+    /// not left behind: no temporary file outlives the refused read.
+    /// </summary>
+    [Theory]
+    [InlineData("trashed")]
+    [InlineData("wrong-parent")]
+    [InlineData("missing-metadata")]
+    public async Task ARefusedReadStillSurfacesItsOwnExceptionAndLeavesNoTemporaryFile(string refusal)
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box, new MutableClock());
+        var content = Encoding.UTF8.GetBytes("refused content");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+        Assert.Equal(3, await CountReadRequestsAsync(box, store, address, hash, content));
+        var expected = typeof(UnauthorizedAccessException);
+        switch (refusal)
+        {
+            case "trashed":
+                box.SetTrashed(address.BoxFileId!, trashed: true);
+                break;
+            case "wrong-parent":
+                address = address with { CaseRootRemoteId = box.CreateFolderPath("QDOS39999") };
+                expected = typeof(InvalidDataException);
+                break;
+            default:
+                box.FileMetadataStatus = HttpStatusCode.NotFound;
+                expected = typeof(FileNotFoundException);
+                break;
+        }
+        var filesBefore = TemporaryDownloadFiles();
+        var contentRequestsBefore = box.ContentRequestCount;
+
+        await Assert.ThrowsAsync(expected, () =>
+            store.OpenReadVersionAsync(address, hash, content.Length, default));
+
+        Assert.Equal(1, box.ContentRequestCount - contentRequestsBefore);
+        Assert.Empty(TemporaryDownloadFiles().Except(filesBefore));
+    }
+
+    /// <summary>
+    /// Good metadata and a failed content request: the content's own failure
+    /// is the answer, as it was when the content was asked for afterwards, and
+    /// it drops the remembered folder like any other not-found answer.
+    /// </summary>
+    [Fact]
+    public async Task AMissingContentWithGoodMetadataSurfacesAsBeforeAndForgetsTheFolder()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box, new MutableClock());
+        var content = Encoding.UTF8.GetBytes("content gone");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+        Assert.Equal(3, await CountReadRequestsAsync(box, store, address, hash, content));
+        Assert.Equal(2, await CountReadRequestsAsync(box, store, address, hash, content));
+        var filesBefore = TemporaryDownloadFiles();
+
+        box.ContentStatus = HttpStatusCode.NotFound;
+        await Assert.ThrowsAsync<FileNotFoundException>(() =>
+            store.OpenReadVersionAsync(address, hash, content.Length, default));
+        box.ContentStatus = null;
+
+        Assert.Empty(TemporaryDownloadFiles().Except(filesBefore));
+        Assert.Equal(3, await CountReadRequestsAsync(box, store, address, hash, content));
+    }
+
+    /// <summary>
+    /// Box's rate limit on the metadata request retries the whole read once,
+    /// metadata and content together. The first attempt's content was already
+    /// asked for and is discarded, so it is asked for again, and the retry
+    /// serves the file.
+    /// </summary>
+    [Fact]
+    public async Task AThrottledMetadataRequestRetriesTheWholeReadOnce()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("throttled metadata");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+        var metadataBefore = box.FileMetadataRequestCount;
+        var contentBefore = box.ContentRequestCount;
+        var filesBefore = TemporaryDownloadFiles();
+        box.ThrottleNextMetadataRequests = 1;
+
+        await using (var stream = await store.OpenReadVersionAsync(address, hash, content.Length, default))
+        {
+            Assert.Equal(content, await ReadAllAsync(stream));
+        }
+
+        Assert.Equal(1, box.ThrottledMetadataCount);
+        Assert.Equal(2, box.FileMetadataRequestCount - metadataBefore);
+        Assert.Equal(2, box.ContentRequestCount - contentBefore);
+        Assert.Empty(TemporaryDownloadFiles().Except(filesBefore));
+    }
+
+    /// <summary>
+    /// The same for the content request: the throttled content is asked for
+    /// again and the metadata is asked for again on the retry, because the whole
+    /// read is what is retried.
+    /// </summary>
+    [Fact]
+    public async Task AThrottledContentRequestRetriesTheWholeReadOnce()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("throttled content");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+        var metadataBefore = box.FileMetadataRequestCount;
+        var contentBefore = box.ContentRequestCount;
+        box.ThrottleNextDownloads = 1;
+
+        await using var stream = await store.OpenReadVersionAsync(address, hash, content.Length, default);
+
+        Assert.Equal(content, await ReadAllAsync(stream));
+        Assert.Equal(1, box.ThrottledDownloadCount);
+        Assert.Equal(2, box.FileMetadataRequestCount - metadataBefore);
+        Assert.Equal(2, box.ContentRequestCount - contentBefore);
+    }
+
+    private static HashSet<string> TemporaryDownloadFiles() =>
+        Directory.EnumerateFiles(Path.GetTempPath(), "pegasus-box-version-*.tmp")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
     private static async Task<int> CountReadRequestsAsync(
         InMemoryBox box,
         BoxDocumentContentStore store,
@@ -707,6 +1029,9 @@ public sealed class BoxDocumentContentStoreTests
     {
         public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
             Task.FromResult("Bearer test-token");
+
+        public Task<bool> RenewIfDueAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     /// <summary>Minimal stateful Box: folders, files, paged listing.</summary>
@@ -740,6 +1065,9 @@ public sealed class BoxDocumentContentStoreTests
         public int RequestCount { get; private set; }
         public string? LoseNextUploadResponseForName { get; set; }
 
+        /// <summary>When set, the next upload is refused with a 409 carrying this Box error code.</summary>
+        public string? NextUploadConflictCode { get; set; }
+
         /// <summary>
         /// How many of the next content downloads Box answers with its rate
         /// limit.
@@ -751,6 +1079,34 @@ public sealed class BoxDocumentContentStoreTests
 
         /// <summary>The Retry-After a throttled download carries, if any.</summary>
         public TimeSpan? ThrottleRetryAfter { get; set; }
+
+        /// <summary>How many of the next file-metadata reads Box answers with its rate limit.</summary>
+        public int ThrottleNextMetadataRequests { get; set; }
+
+        /// <summary>How many file-metadata reads have been refused that way.</summary>
+        public int ThrottledMetadataCount { get; private set; }
+
+        /// <summary>Every file-metadata read a managed read makes, throttled or not.</summary>
+        public int FileMetadataRequestCount { get; private set; }
+
+        /// <summary>Every content download, throttled or not.</summary>
+        public int ContentRequestCount { get; private set; }
+
+        /// <summary>When set, a file-metadata read is answered with this status alone.</summary>
+        public HttpStatusCode? FileMetadataStatus { get; set; }
+
+        /// <summary>When set, a content download is answered with this status alone.</summary>
+        public HttpStatusCode? ContentStatus { get; set; }
+
+        /// <summary>
+        /// When set, a file-metadata read is not answered until a content download
+        /// has been asked for, so only a read that asks for both at once completes.
+        /// </summary>
+        public bool HoldMetadataUntilContentRequested { get; set; }
+
+        /// <summary>Completes when the first content download reaches Box.</summary>
+        public TaskCompletionSource ContentRequested { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private readonly HashSet<string> trashed = new(StringComparer.Ordinal);
 
@@ -908,6 +1264,24 @@ public sealed class BoxDocumentContentStoreTests
                 return Json(JsonSerializer.Serialize(new { entries = children }));
             }
 
+            if (IsFileMetadataRead(request.Method, path, query))
+            {
+                FileMetadataRequestCount++;
+                if (ThrottleNextMetadataRequests > 0)
+                {
+                    ThrottleNextMetadataRequests--;
+                    ThrottledMetadataCount++;
+                    return new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                    {
+                        Content = new StringContent("""{"code":"rate_limit_exceeded"}""")
+                    };
+                }
+                if (FileMetadataStatus is { } metadataStatus)
+                {
+                    return new HttpResponseMessage(metadataStatus);
+                }
+            }
+
             if (request.Method == HttpMethod.Get
                 && (path.StartsWith("/2.0/folders/", StringComparison.Ordinal)
                     || path.StartsWith("/2.0/files/", StringComparison.Ordinal))
@@ -950,6 +1324,17 @@ public sealed class BoxDocumentContentStoreTests
                 using var parsed = JsonDocument.Parse(attributes);
                 var name = parsed.RootElement.GetProperty("name").GetString()!;
                 var parentId = parsed.RootElement.GetProperty("parent").GetProperty("id").GetString()!;
+                if (NextUploadConflictCode is { } conflictCode)
+                {
+                    NextUploadConflictCode = null;
+                    return new HttpResponseMessage(HttpStatusCode.Conflict)
+                    {
+                        Content = new StringContent(
+                            JsonSerializer.Serialize(new { code = conflictCode }),
+                            Encoding.UTF8,
+                            "application/json")
+                    };
+                }
                 if (FindChild(parentId, name, "file") is not null)
                 {
                     return new HttpResponseMessage(HttpStatusCode.Conflict)
@@ -990,7 +1375,8 @@ public sealed class BoxDocumentContentStoreTests
                             name,
                             type = "file",
                             etag = "1",
-                            file_version = new { id = $"version-{id}" }
+                            file_version = new { id = $"version-{id}" },
+                            parent = new { id = parentId }
                         }
                     }
                 }));
@@ -999,6 +1385,11 @@ public sealed class BoxDocumentContentStoreTests
             if (request.Method == HttpMethod.Get && path.StartsWith("/2.0/files/", StringComparison.Ordinal)
                 && path.EndsWith("/content", StringComparison.Ordinal))
             {
+                ContentRequestCount++;
+                if (ContentStatus is { } contentStatus)
+                {
+                    return new HttpResponseMessage(contentStatus);
+                }
                 if (ThrottleNextDownloads > 0)
                 {
                     ThrottleNextDownloads--;
@@ -1046,6 +1437,19 @@ public sealed class BoxDocumentContentStoreTests
             throw new InvalidOperationException($"Unexpected Box request: {request.Method} {request.RequestUri}");
         }
 
+        /// <summary>
+        /// The metadata read of one file that a managed read makes, told from the
+        /// ancestry walk's lighter read of the same file by the fields it asks for.
+        /// </summary>
+        public static bool IsFileMetadataRead(
+            HttpMethod method,
+            string path,
+            System.Collections.Specialized.NameValueCollection query) =>
+            method == HttpMethod.Get
+            && path.StartsWith("/2.0/files/", StringComparison.Ordinal)
+            && !path.EndsWith("/content", StringComparison.Ordinal)
+            && query["fields"]?.Contains("file_version", StringComparison.Ordinal) == true;
+
         private Node? FindChild(string parentId, string name, string type) =>
             nodes.Values.SingleOrDefault(node =>
                 node.ParentId == parentId && node.Name == name && node.Type == type);
@@ -1070,9 +1474,23 @@ public sealed class BoxDocumentContentStoreTests
 
     private sealed class InMemoryBoxHandler(InMemoryBox box) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
-            CancellationToken cancellationToken) => Task.FromResult(box.Handle(request));
+            CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/content", StringComparison.Ordinal))
+            {
+                box.ContentRequested.TrySetResult();
+            }
+            else if (box.HoldMetadataUntilContentRequested
+                && InMemoryBox.IsFileMetadataRead(
+                    request.Method, path, HttpUtility.ParseQueryString(request.RequestUri.Query)))
+            {
+                await box.ContentRequested.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+            }
+            return box.Handle(request);
+        }
     }
 
     private sealed class ChunkedReadStream(byte[] bytes, int maximumReadLength) : Stream

@@ -1,3 +1,7 @@
+using System.Collections.Concurrent;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
@@ -335,6 +339,13 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                               select version.Id).CountAsync());
         Assert.False(await verify.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
         await File.WriteAllBytesAsync(path, original);
+        // A failed attempt waits before the sweep offers the version again, so the
+        // recorded failure is aged past its longest wait first.
+        await verify.ActionHistory
+            .Where(value => value.EventKind == "ArtifactCustodyReconciliationAttempt"
+                && value.Outcome == "Failed")
+            .ExecuteUpdateAsync(update => update.SetProperty(
+                value => value.OccurredAtUtc, DateTimeOffset.UtcNow.AddHours(-1)));
         var recovered = await reconciler.ExecuteAsync(20, default);
         Assert.Equal(1, recovered.Confirmed);
         Assert.True(await verify.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
@@ -409,6 +420,71 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             Assert.Equal("confirmed", asset.CustodyStatus);
             Assert.Equal("case-root", asset.BoxParentFolderId);
         });
+    }
+
+    /// <summary>
+    /// A matched follow-up's message and its one attachment are filed on the
+    /// Case by the promotion the intake processor runs, into Box through the
+    /// store the Worker composes. Beside each upload, the only Box call is one
+    /// read that proves the Case folder: the name is not looked up first,
+    /// nothing is walked afterwards, and no folder is listed.
+    /// </summary>
+    [Fact]
+    public async Task FilingAMailAttachmentReadsTheCaseFolderOnceBesideEachUpload()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var box = new CaseFolderBox();
+        var client = new BoxContentClient(
+            new(
+                new Uri("https://api.box.com/2.0/"),
+                new Uri("https://upload.box.com/api/2.0/"),
+                CaseFolderBox.RootId,
+                "test", "test", "test", "test", "test", "test", "holding-folder"),
+            new HttpClient(box),
+            new StaticBoxAuthorizationHeaderProvider(),
+            TimeProvider.System);
+        var promotion = new PromoteAssociatedIntakeCaseEvidence(
+            services.GetRequiredService<IIntakeArtifactStore>(),
+            new EfCaseArtifactCustody(
+                services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                new BoxDocumentContentStore(client),
+                services.GetRequiredService<IIntakeQuarantineArtifactStore>(),
+                services.GetRequiredService<TimeProvider>()),
+            services.GetRequiredService<IAutomaticCaseEvidencePromotionStore>());
+        var email = FollowUp(includePhotos: false);
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            new(email.FileName, email.MediaType, email.Content,
+                services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
+            $"box-filing:{Guid.NewGuid():N}", default);
+        await DispatchAsync(services, received.StagedReceiptId);
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
+            await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, promotion)
+                .ExecuteAsync(received.StagedReceiptId, default));
+
+        await using var db = await factory.Database.CreateContextAsync();
+        var filed = (await (from occurrence in db.Set<DocumentOccurrenceEntity>()
+                            join version in db.Set<DocumentVersionEntity>() on occurrence.VersionId equals version.Id
+                            where occurrence.CaseId == caseId
+                            select new { version.FileName, version.CustodyStatus, version.BoxFileId })
+                .ToArrayAsync())
+            .OrderBy(file => file.FileName, StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(["1_Images-V1.pdf", "follow-up.eml"], filed.Select(file => file.FileName).ToArray());
+        Assert.All(filed, file =>
+        {
+            Assert.Equal(DocumentCustodyStatus.Confirmed, file.CustodyStatus);
+            Assert.StartsWith("file-", file.BoxFileId, StringComparison.Ordinal);
+        });
+        Assert.Equal(2, box.Requests.Count(request => request == CaseFolderBox.Upload));
+        Assert.Equal(
+            ["GET /2.0/folders/case-root", "GET /2.0/folders/case-root"],
+            box.Requests.Where(request => request != CaseFolderBox.Upload).ToArray());
     }
 
     /// <summary>
@@ -614,5 +690,111 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         using var image = SKImage.FromBitmap(bitmap);
         using var encoded = image.Encode(format, 90);
         return encoded.ToArray();
+    }
+
+    private sealed class StaticBoxAuthorizationHeaderProvider : IBoxAuthorizationHeaderProvider
+    {
+        public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult("Bearer test-token");
+
+        public Task<bool> RenewIfDueAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+    }
+
+    /// <summary>
+    /// The Box a seeded Case files into: the approved root, the Case folder
+    /// <c>case-root</c> under it, and the files uploaded there. It answers
+    /// every read the store can make of that folder and its files, and records
+    /// each request as its method and path.
+    /// </summary>
+    private sealed class CaseFolderBox : HttpMessageHandler
+    {
+        public const string RootId = "405543781910";
+        public const string Upload = "POST /api/2.0/files/content";
+        private const string CaseFolderId = "case-root";
+        private readonly Lock gate = new();
+        private readonly List<BoxFile> files = [];
+
+        public ConcurrentQueue<string> Requests { get; } = new();
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            Requests.Enqueue($"{request.Method} {path}");
+            if (request.Method == HttpMethod.Post && path == "/api/2.0/files/content")
+            {
+                var multipart = Assert.IsType<MultipartFormDataContent>(request.Content);
+                using var attributes = JsonDocument.Parse(
+                    await Part(multipart, "attributes").ReadAsStringAsync(cancellationToken));
+                Assert.Equal(
+                    CaseFolderId,
+                    attributes.RootElement.GetProperty("parent").GetProperty("id").GetString());
+                var name = attributes.RootElement.GetProperty("name").GetString()!;
+                var content = await Part(multipart, "file").ReadAsByteArrayAsync(cancellationToken);
+                lock (gate)
+                {
+                    if (files.Any(file => file.Name == name))
+                    {
+                        return new HttpResponseMessage(HttpStatusCode.Conflict)
+                        {
+                            Content = new StringContent(
+                                """{"code":"item_name_in_use"}""", Encoding.UTF8, "application/json")
+                        };
+                    }
+                    var id = $"file-{files.Count + 1}";
+                    var created = new BoxFile(id, name, content);
+                    files.Add(created);
+                    return Json(new { entries = new[] { FileJson(created) } });
+                }
+            }
+            if (request.Method == HttpMethod.Get && path == $"/2.0/folders/{CaseFolderId}")
+            {
+                return Json(new
+                {
+                    id = CaseFolderId,
+                    name = "a.QDOS31009",
+                    type = "folder",
+                    parent = new { id = RootId },
+                    trashed_at = (string?)null
+                });
+            }
+            lock (gate)
+            {
+                if (request.Method == HttpMethod.Get && path == $"/2.0/folders/{CaseFolderId}/items")
+                {
+                    return Json(new { entries = files.Select(FileJson) });
+                }
+                if (request.Method == HttpMethod.Get
+                    && files.SingleOrDefault(file => path == $"/2.0/files/{file.Id}") is { } found)
+                {
+                    return Json(FileJson(found));
+                }
+            }
+            throw new InvalidOperationException($"Unexpected Box request: {request.Method} {request.RequestUri}");
+        }
+
+        private static HttpContent Part(MultipartFormDataContent multipart, string name) =>
+            multipart.Single(part => part.Headers.ContentDisposition?.Name?.Trim('"') == name);
+
+        private static object FileJson(BoxFile file) => new
+        {
+            id = file.Id,
+            name = file.Name,
+            type = "file",
+            etag = "1",
+            file_version = new { id = $"{file.Id}-version" },
+            size = file.Content.LongLength,
+            parent = new { id = CaseFolderId },
+            trashed_at = (string?)null
+        };
+
+        private sealed record BoxFile(string Id, string Name, byte[] Content);
+
+        private static HttpResponseMessage Json(object value) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json")
+        };
     }
 }

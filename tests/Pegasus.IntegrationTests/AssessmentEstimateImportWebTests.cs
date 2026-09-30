@@ -1774,7 +1774,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCaseHeader>();
+                services.RemoveAll<ICaseDocumentQueries>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetCaseVehicleSection>();
                 services.RemoveAll<IGetCaseValuationSection>();
@@ -1789,6 +1790,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.RemoveAll<IGetCaseDocumentMetadata>();
                 services.RemoveAll<IReadLogicalDocumentVersion>();
                 services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ICaseWorkflowQueries>();
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISaveEstimate>();
                 services.RemoveAll<IDuplicateEstimate>();
@@ -1796,7 +1798,8 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.RemoveAll<ISetCurrentEstimate>();
                 services.RemoveAll<ILabourRateCardStore>();
                 services.RemoveAll<IGetCaseFilesSection>();
-                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseHeader>(store);
+                services.AddSingleton<ICaseDocumentQueries>(store);
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 services.AddSingleton<IGetCasePageFrame>(store);
                 services.AddSingleton<IGetCaseVehicleSection>(store);
@@ -1816,6 +1819,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.AddSingleton<IGetCaseDocumentMetadata>(store);
                 services.AddSingleton<IReadLogicalDocumentVersion>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ICaseWorkflowQueries>(store);
                 services.AddSingleton<IListCaseEstimates>(store);
                 services.AddSingleton<ISaveEstimate>(provider =>
                 {
@@ -2016,10 +2020,11 @@ public sealed partial class AssessmentEstimateImportWebTests
     /// exactly what the page handed to each one.
     /// </summary>
     internal sealed class RecordingStores(Guid caseId, decimal? engineerValue = null, decimal? contractSum = null)
-        : IGetCase, IGetCaseEditBasis, IGetCasePageFrame, IGetCaseVehicleSection, IGetCaseValuationSection,
+        : IGetCaseHeader, ICaseDocumentQueries, IGetCaseEditBasis, IGetCasePageFrame, IGetCaseVehicleSection,
+          IGetCaseValuationSection,
           IGetCaseNotesSection, IGetAssessmentWorkspace, IRepairSpecificationStore, IAddCaseDocument,
           IGetCaseDocumentMetadata, IReadLogicalDocumentVersion,
-          IAcquireCaseEditLease, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
+          IAcquireCaseEditLease, ICaseWorkflowQueries, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
           IDiscardEstimate, ISetCurrentEstimate, IScaleRepairSpecification,
           IRepairSpecificationSnapshotStore, ISaveCaseWorkspace, ILabourRateCardStore,
           IGetCaseFilesSection
@@ -2102,27 +2107,25 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         public Guid LastCreatedEstimateId { get; private set; }
 
-        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+        Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
             GetCaseQuery query, CancellationToken cancellationToken) =>
-            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
+            Task.FromResult<CaseEditBasis?>(Frame(query.CaseId) is { } frame
+                ? new(frame, Data(frame))
+                : null);
 
-        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
-        {
-            if (query.CaseId != caseId)
-            {
-                return Task.FromResult<CaseDetails?>(null);
-            }
+        Task<CaseHeader?> IGetCaseHeader.ExecuteAsync(
+            GetCaseHeaderQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseHeader?>(Frame(query.CaseId) is { } frame
+                ? new(frame.Summary, frame.Workflow, frame.ActiveEditLease, Documents().Length, 0, 0)
+                : null);
 
-            var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
-            var workflow = new CaseWorkflowRecord(
-                caseId, identity, CaseState, null, null,
-                null, null, null, null, null, WorkflowVersion);
-            workflow = workflow with { Archive = CaseArchive };
-            var summary = new CaseSearchItem(
-                caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
-                workflow.State, null, "AB12CDE", "Alex Example", "P-100",
-                DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
-            var documents = RetainedDocuments
+        Task<IReadOnlyList<CaseDocument>> ICaseDocumentQueries.ListAsync(
+            Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseDocument>>(id == caseId ? Documents() : []);
+
+        /// <summary>The Case's files as the Case read returns them: one document per retained version group.</summary>
+        private CaseDocument[] Documents() =>
+            RetainedDocuments
                 .GroupBy(file => file.Version.DocumentId)
                 .Select(group => new CaseDocument(
                     group.Key,
@@ -2130,75 +2133,86 @@ public sealed partial class AssessmentEstimateImportWebTests
                     group.Select(file => file.Occurrence).ToArray(),
                     group.Select(file => file.Version).ToArray()))
                 .ToArray();
-            CaseDetails details = new(
-                summary, workflow, ActiveLease,
-                documents,
-                null, CaseCustodyState.Pending, [], [])
+
+        /// <summary>The Case's frame as a focused read returns it; null for any other Case.</summary>
+        private CaseSectionFrame? Frame(Guid requestedCaseId)
+        {
+            if (requestedCaseId != caseId)
             {
-                Data = DataOverride ?? CreateData(workflow.Version)
+                return null;
+            }
+
+            var workflow = Workflow();
+            var summary = new CaseSearchItem(
+                caseId, workflow.Identity.Reference, null, CaseType.Inspection, "Approved Principal",
+                workflow.State, null, "AB12CDE", "Alex Example", "P-100",
+                DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
+            return new(summary, workflow, ActiveLease);
+        }
+
+        private CaseDataProjection Data(CaseSectionFrame frame) =>
+            DataOverride ?? CreateData(frame.Workflow.Version);
+
+        private CaseWorkflowRecord Workflow() =>
+            new CaseWorkflowRecord(
+                caseId, new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042"), CaseState, null, null,
+                null, null, null, null, null, WorkflowVersion)
+            {
+                Archive = CaseArchive
             };
-            return Task.FromResult<CaseDetails?>(details);
-        }
 
-        async Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
-            GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            return details is null
-                ? null
-                : new(
-                    CreateFrame(details),
-                    details.Documents,
-                    details.AvailableReportSentEvidence,
-                    details.RecordNotes,
-                    details.Data!);
-        }
+        /// <summary>The Case's workflow row alone, as the lease reclaim after an immediate post reads it.</summary>
+        Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseWorkflowRecord?>(id == caseId ? Workflow() : null);
 
-        async Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+        Task<bool> ICaseWorkflowQueries.HasOperationAsync(
+            Guid id, string operationKey, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        Task<IReadOnlyDictionary<Guid, Guid?>> ICaseWorkflowQueries.GetAssignedEngineersAsync(
+            IReadOnlyCollection<Guid> caseIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, Guid?>>(caseIds.Contains(caseId)
+                ? new Dictionary<Guid, Guid?> { [caseId] = null }
+                : new Dictionary<Guid, Guid?>());
+
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            return details is null
-                ? null
-                : new(
-                    CreateFrame(details),
-                    query.AssessmentWorkspace?.Data ?? query.Data ?? details.Data!,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
+                ? new(frame, Documents(), [], CaseRecordNotes.None, Data(frame))
+                : null);
+
+        Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseVehicleSection?>(Frame(query.CaseId) is { } frame
+                ? new(
+                    frame,
+                    query.AssessmentWorkspace?.Data ?? query.Data ?? Data(frame),
                     null,
-                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment(details));
-        }
+                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment(frame))
+                : null);
 
-        async Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
+        Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            return details is null
-                ? null
-                : new(
-                    CreateFrame(details),
-                    query.AssessmentWorkspace?.Data ?? query.Data ?? details.Data!,
-                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment(details));
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseValuationSection?>(Frame(query.CaseId) is { } frame
+                ? new(
+                    frame,
+                    query.AssessmentWorkspace?.Data ?? query.Data ?? Data(frame),
+                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment(frame))
+                : null);
 
-        async Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
+        Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            return details is null ? null : new(CreateFrame(details), details.History);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseNotesSection?>(Frame(query.CaseId) is { } frame ? new(frame, []) : null);
 
-        async Task<CaseFilesSection?> IGetCaseFilesSection.ExecuteAsync(
+        Task<CaseFilesSection?> IGetCaseFilesSection.ExecuteAsync(
             GetCaseSectionQuery query,
-            CancellationToken cancellationToken)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            return details is null
-                ? null
-                : new(CreateFrame(details), details.Documents, null, CaseCustodyState.Pending, []);
-        }
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseFilesSection?>(Frame(query.CaseId) is { } frame
+                ? new(frame, Documents(), null, CaseCustodyState.Pending, [])
+                : null);
 
         /// <summary>
         /// A file the Case already held before the test began — an email
@@ -2226,20 +2240,15 @@ public sealed partial class AssessmentEstimateImportWebTests
             return file;
         }
 
-        public async Task<AssessmentWorkspace?> ExecuteAsync(
+        public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
-            CancellationToken cancellationToken = default)
-        {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            if (details is null)
-            {
-                return null;
-            }
-            return AssessmentWorkspaceTestData.Create(
-                details, CreateAssessment(details), InUse);
-        }
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Frame(query.CaseId) is { } frame
+                ? AssessmentWorkspaceTestData.Create(
+                    frame, CreateAssessment(frame), Data(frame), currentSpecification: InUse)
+                : null);
 
-        private CaseAssessmentProjection CreateAssessment(CaseDetails details)
+        private CaseAssessmentProjection CreateAssessment(CaseSectionFrame frame)
         {
             var fields = new List<AssessmentFieldValue>();
             if (EngineerValue is { } value)
@@ -2269,9 +2278,9 @@ public sealed partial class AssessmentEstimateImportWebTests
 
             return new(
                 caseId,
-                details.Summary.Reference,
-                details.Workflow.Version,
-                details.Workflow.State,
+                frame.Summary.Reference,
+                frame.Workflow.Version,
+                frame.Workflow.State,
                 null,
                 fields,
                 [],
@@ -2288,9 +2297,6 @@ public sealed partial class AssessmentEstimateImportWebTests
                 [],
                 [],
                 new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null))).Data;
-
-        private static CaseSectionFrame CreateFrame(CaseDetails details) =>
-            new(details.Summary, details.Workflow, details.ActiveEditLease);
 
         public Task<RepairSpecificationVersion?> GetVersionAsync(
             Guid ownerCaseId, Guid specificationId, CancellationToken cancellationToken) =>
@@ -2451,9 +2457,8 @@ public sealed partial class AssessmentEstimateImportWebTests
                     cancellationToken);
             }
 
-            var details = await ExecuteAsync(new GetCaseQuery(caseId, request.Actor), cancellationToken)
-                ?? throw new KeyNotFoundException("The Case is unavailable.");
-            return new(details.Data!, CreateAssessment(details), written, WasReplay: false);
+            var frame = Frame(caseId) ?? throw new KeyNotFoundException("The Case is unavailable.");
+            return new(Data(frame), CreateAssessment(frame), written, WasReplay: false);
         }
 
         public Task<RepairSpecificationSnapshot> FreezeAsync(

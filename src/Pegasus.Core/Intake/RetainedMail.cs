@@ -177,6 +177,18 @@ public sealed record RetainedMailDetail(
     RetainedMailFolderMoveResult? LatestFolderMove = null,
     RetainedMailSuggestedMove? SuggestedMove = null);
 
+/// <summary>
+/// What the Inbox preview pane renders of one message: its summary, the
+/// attachments it counts by kind, the classification decision it names and the
+/// folder scope it was retained under. The thread, body, recipients, folder
+/// recommendation and latest move belong to the full message and are not read.
+/// </summary>
+public sealed record RetainedMailPreview(
+    RetainedMailSummary Summary,
+    IReadOnlyList<RetainedMailAttachment> Attachments,
+    MailClassificationResult? Classification,
+    MailFolderScope Folder);
+
 public sealed record MailClassificationHistoryEntry(
     int Version,
     MailClassificationResult Before,
@@ -429,9 +441,30 @@ public interface IRetainedMailQueries
         CancellationToken cancellationToken,
         string? searchTerm = null);
 
+    /// <summary>
+    /// The preview pane's read: the attachments, the classification decision and
+    /// the folder scope of one message. <paramref name="summary"/> is the row the
+    /// caller already holds from a list read, which keeps its search matches; without
+    /// one the store reads the message's own summary.
+    /// </summary>
+    Task<RetainedMailPreview?> GetPreviewAsync(
+        Guid id,
+        RetainedMailSummary? summary,
+        CancellationToken cancellationToken);
+
     Task<RetainedMailDetail?> GetByOriginReceiptAsync(
         Guid originReceiptId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The identifier of the retained message an origin receipt came from, or
+    /// null when it has none. A store that can answer without loading the
+    /// message overrides this; the default reads the whole detail.
+    /// </summary>
+    async Task<Guid?> FindIdByOriginReceiptAsync(
+        Guid originReceiptId,
+        CancellationToken cancellationToken) =>
+        (await GetByOriginReceiptAsync(originReceiptId, cancellationToken))?.Summary.Id;
 
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);
@@ -643,6 +676,26 @@ public sealed class GetRetainedMail(
         return await CompleteAsync(detail, detail?.Summary.Id ?? Guid.Empty, cancellationToken);
     }
 
+    /// <summary>
+    /// Only the identifier of the message an origin receipt came from, for a
+    /// caller that links to it and needs nothing else of the detail.
+    /// </summary>
+    public Task<Guid?> FindIdByOriginReceiptAsync(
+        ActionActor actor,
+        Guid originReceiptId,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (originReceiptId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "An origin receipt identifier is required.",
+                nameof(originReceiptId));
+        }
+
+        return queries.FindIdByOriginReceiptAsync(originReceiptId, cancellationToken);
+    }
+
     private async Task<RetainedMailDetail?> CompleteAsync(
         RetainedMailDetail? detail,
         Guid messageId,
@@ -763,6 +816,40 @@ public sealed class GetRetainedMail(
                 : null;
 }
 
+/// <summary>
+/// The Inbox preview pane's read, with the same actor boundary and identifier
+/// validation as <see cref="GetRetainedMail"/> and none of what only the full
+/// message page renders.
+/// </summary>
+public sealed class GetRetainedMailPreview(IRetainedMailQueries queries)
+{
+    private readonly IRetainedMailQueries queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public Task<RetainedMailPreview?> ExecuteAsync(
+        ActionActor actor,
+        Guid messageId,
+        RetainedMailSummary? summary = null,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (messageId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A retained message identifier is required.",
+                nameof(messageId));
+        }
+        if (summary is not null && summary.Id != messageId)
+        {
+            throw new ArgumentException(
+                "The summary belongs to another retained message.",
+                nameof(summary));
+        }
+
+        return queries.GetPreviewAsync(messageId, summary, cancellationToken);
+    }
+}
+
 public sealed class GetRetainedMailFreshness(
     IRetainedMailQueries queries,
     TimeProvider timeProvider)
@@ -778,7 +865,7 @@ public sealed class GetRetainedMailFreshness(
     /// </summary>
     /// <remarks>
     /// PROVISIONAL. Graph change notifications are the primary wake; the recovery
-    /// poll (<c>InboxRecoveryFunction</c>, <c>ApprovedInboxPollSchedule</c>) runs
+    /// poll (run by <c>PendingWorkRecoveryFunction</c> on every fifth minute) runs
     /// every five minutes, so fifteen minutes is three consecutive missed recovery
     /// ticks — long enough that a single slow or skipped run never shows a chip,
     /// short enough that a stopped Worker is visible within a quarter of an hour.

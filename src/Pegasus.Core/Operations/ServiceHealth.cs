@@ -324,9 +324,49 @@ public sealed class GetServiceHealth(
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var nowUtc = timeProvider.GetUtcNow();
-        var rows = new List<ServiceHealthRow>();
 
-        foreach (var poll in await mailboxPolls.ListAsync(cancellationToken))
+        // Every source below opens its own context, so the reads start
+        // together and the rows are appended afterwards in the table's fixed
+        // order.
+        var mailboxPollRead = mailboxPolls.ListAsync(cancellationToken);
+        var sentPollRead = healthQueries.ListSentEvidencePollStatusAsync(cancellationToken);
+        var dispatchRead = healthQueries.GetIntakeDispatchHealthAsync(cancellationToken);
+        var operationsRead = requestOperations.ExecuteAsync(
+            actor,
+            asOfUtc: nowUtc,
+            cancellationToken: cancellationToken);
+        var evaActivityRead = evaSubmissions.GetActivityAsync(cancellationToken);
+        var evaFailuresRead = evaSubmissions.GetRecentFailuresAsync(
+            nowUtc - ServiceHealthPolicy.EvaRecentFailureWindow,
+            ServiceHealthPolicy.MaximumEvaFailures,
+            cancellationToken);
+        var aiCountsRead = aiJobs.GetCountsAsync(cancellationToken);
+        var recentJobsRead = aiJobs.ListRecentAsync(1, cancellationToken);
+        var sendToAiRead = sendToAiControl.IsEnabledAsync(cancellationToken);
+        // The row reads the activity port directly and exposes only the
+        // newest timestamp to a PerformCasework reader. Nothing else from the
+        // record leaves here.
+        var newestActivityRead = automationActivity.ListAsync(
+            new(actor, Page: 1, PageSize: 1),
+            cancellationToken);
+        await Task.WhenAll(
+            mailboxPollRead,
+            sentPollRead,
+            dispatchRead,
+            operationsRead,
+            evaActivityRead,
+            evaFailuresRead,
+            aiCountsRead,
+            recentJobsRead,
+            sendToAiRead,
+            newestActivityRead);
+
+        // The ingress switch reads through the request's own scoped context,
+        // which is not safe beside another read, so it runs alone.
+        var ingressEnabled = await automationIngress.IsEnabledAsync(cancellationToken);
+
+        var rows = new List<ServiceHealthRow>();
+        foreach (var poll in await mailboxPollRead)
         {
             rows.Add(new(
                 ServiceHealthArea.Mail,
@@ -337,7 +377,7 @@ public sealed class GetServiceHealth(
                 FailureCode: poll.LastFailureCode));
         }
 
-        foreach (var poll in await healthQueries.ListSentEvidencePollStatusAsync(cancellationToken))
+        foreach (var poll in await sentPollRead)
         {
             rows.Add(new(
                 ServiceHealthArea.Mail,
@@ -348,7 +388,7 @@ public sealed class GetServiceHealth(
                 FailureCode: poll.LastFailureCode));
         }
 
-        var dispatch = await healthQueries.GetIntakeDispatchHealthAsync(cancellationToken);
+        var dispatch = await dispatchRead;
         rows.Add(new(
             ServiceHealthArea.Intake,
             ServiceHealthPolicy.IntakeDispatchService,
@@ -356,43 +396,31 @@ public sealed class GetServiceHealth(
             dispatch.LatestCompletedAtUtc,
             ServiceHealthDependency.Worker));
 
-        var operations = await requestOperations.ExecuteAsync(actor, asOfUtc: nowUtc, cancellationToken: cancellationToken);
+        var operations = await operationsRead;
         rows.AddRange(ServiceHealthPolicy.ExternalWorkRows(operations.Items));
 
-        var evaActivity = await evaSubmissions.GetActivityAsync(cancellationToken);
-        var evaFailures = await evaSubmissions.GetRecentFailuresAsync(
-            nowUtc - ServiceHealthPolicy.EvaRecentFailureWindow,
-            ServiceHealthPolicy.MaximumEvaFailures,
-            cancellationToken);
+        var evaActivity = await evaActivityRead;
         rows.Add(new(
             ServiceHealthArea.Eva,
             ServiceHealthPolicy.EvaService,
-            ServiceHealthPolicy.EvaState(evaActivity, evaFailures),
+            ServiceHealthPolicy.EvaState(evaActivity, await evaFailuresRead),
             evaActivity.LatestSubmittedAtUtc,
             ServiceHealthDependency.EvaApi));
 
-        var aiCounts = await aiJobs.GetCountsAsync(cancellationToken);
-        var recentJobs = await aiJobs.ListRecentAsync(1, cancellationToken);
+        var recentJobs = await recentJobsRead;
         DateTimeOffset? aiEvidence = recentJobs.Count == 0
             ? null
             : recentJobs[0].ClosedAtUtc is { } closed && closed > recentJobs[0].CreatedAtUtc
                 ? closed
                 : recentJobs[0].CreatedAtUtc;
-        var sendToAiEnabled = await sendToAiControl.IsEnabledAsync(cancellationToken);
         rows.Add(new(
             ServiceHealthArea.Ai,
             ServiceHealthPolicy.AiJobsService,
-            ServiceHealthPolicy.AiState(sendToAiEnabled, aiCounts, aiEvidence),
+            ServiceHealthPolicy.AiState(await sendToAiRead, await aiCountsRead, aiEvidence),
             aiEvidence,
             ServiceHealthDependency.AiConnector));
 
-        var ingressEnabled = await automationIngress.IsEnabledAsync(cancellationToken);
-        // The row reads the activity port directly and exposes only the
-        // newest timestamp to a PerformCasework reader. Nothing else from the
-        // record leaves here.
-        var newestActivity = await automationActivity.ListAsync(
-            new(actor, Page: 1, PageSize: 1),
-            cancellationToken);
+        var newestActivity = await newestActivityRead;
         rows.Add(new(
             ServiceHealthArea.Automation,
             ServiceHealthPolicy.AutomationService,

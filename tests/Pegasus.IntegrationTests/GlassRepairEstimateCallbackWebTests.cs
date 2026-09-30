@@ -1064,10 +1064,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public bool Armed { get; set; }
     }
 
-    /// <summary>The host's own Case read, faulting while the switch is armed.</summary>
-    private sealed class FaultingCases(IGetCase inner, CaseReadFault fault) : IGetCase
+    /// <summary>The host's own Case header read, faulting while the switch is armed.</summary>
+    private sealed class FaultingCaseHeaders(IGetCaseHeader inner, CaseReadFault fault) : IGetCaseHeader
     {
-        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
+        public Task<CaseHeader?> ExecuteAsync(GetCaseHeaderQuery query, CancellationToken cancellationToken) =>
             fault.Armed
                 ? throw new InvalidDataException("The Case read faulted on the return.")
                 : inner.ExecuteAsync(query, cancellationToken);
@@ -1199,9 +1199,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     }
                     if (caseReadFault is not null)
                     {
-                        services.AddScoped<GetCase>();
-                        services.AddScoped<IGetCase>(provider =>
-                            new FaultingCases(provider.GetRequiredService<GetCase>(), caseReadFault));
+                        services.AddScoped<GetCaseHeader>();
+                        services.AddScoped<IGetCaseHeader>(provider =>
+                            new FaultingCaseHeaders(provider.GetRequiredService<GetCaseHeader>(), caseReadFault));
                     }
                 });
             });

@@ -8,12 +8,14 @@ using Microsoft.ApplicationInsights.Extensibility;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
+    .ConfigureLogging(logging => logging.ApplyWorkerLogFilters())
     .ConfigureServices((context, services) =>
     {
         services
             .AddApplicationInsightsTelemetryWorkerService()
             .ConfigureFunctionsApplicationInsights()
             .AddApplicationInsightsTelemetryProcessor<SqlDependencyTelemetryFilter>();
+        services.AddWorkerSpanTelemetry();
 
         // Ingestion is configured for Entra — the deployed app sets
         // APPLICATIONINSIGHTS_AUTHENTICATION_STRING naming the Worker's
@@ -47,5 +49,9 @@ var host = new HostBuilder()
         services.AddPegasusWorker(context.Configuration, context.HostingEnvironment);
     })
     .Build();
+
+// The singleton owns the span listener for the process's lifetime. Resolving it
+// here starts the export before the first function runs.
+_ = host.Services.GetRequiredService<WorkerSpanTelemetryBridge>();
 
 host.Run();

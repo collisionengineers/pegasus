@@ -238,6 +238,12 @@ public sealed class UploadConfirmationWebTests
         Assert.Contains("data-upload-phase=\"decision\"", statusPage, StringComparison.Ordinal);
         Assert.Contains("2 photographs found in this file", statusPage, StringComparison.Ordinal);
         Assert.Contains($"/Received/{receiptId:D}/Asset/", statusPage, StringComparison.OrdinalIgnoreCase);
+        // The URL names the staged receipt, and the page's receipt, outcome and
+        // offered decision are the processed receipt's (ProcessedReceiptId
+        // ?? StagedReceiptId, the id every read on the page uses).
+        Assert.NotEqual(stagedReceiptId, receiptId);
+        Assert.Contains($"name=\"receiptId\" value=\"{receiptId:D}\"", statusPage, StringComparison.Ordinal);
+        Assert.DoesNotContain($"name=\"receiptId\" value=\"{stagedReceiptId:D}\"", statusPage, StringComparison.Ordinal);
 
         var (receiptVersion, caseVersion) = await AttachmentVersionsAsync(factory, receiptId, caseId);
         var redirect = await PostAttachAsync(
@@ -663,6 +669,58 @@ public sealed class UploadConfirmationWebTests
         Assert.Contains("data-upload-leave", groupPage, StringComparison.Ordinal);
         Assert.Contains("data-upload-dialog=\"upload-discard\"", groupPage, StringComparison.Ordinal);
         Assert.Contains("name=\"consequencesConfirmed\"", groupPage, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A terminal group poll reads each member's whole receipt once, and the
+    /// case suggestions may read them again. It once read each member's
+    /// receipt a second time to build the member's outcome, which is why a
+    /// three-file group cost seven whole-receipt reads here (three for the
+    /// members, three for their outcomes and one for the suggestions' first
+    /// receipt, which finds no candidate and stops). It now costs four: the
+    /// three members' reads and that one suggestion read. This fixture's
+    /// images have no readable registration, so no Case is a candidate and
+    /// the suggestions stop at the first receipt.
+    /// </summary>
+    [Fact]
+    public async Task ATerminalGroupPollReadsEachMembersReceiptOnce()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine(),
+            commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var png = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", png),
+                ("close-up.png", "image/png", png),
+                ("rear.png", "image/png", png)
+            ]);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+        }
+
+        counter.Reset();
+        var page = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
+
+        Assert.Contains("data-upload-phase=\"decision\"", page, StringComparison.Ordinal);
+        var wholeReceiptReads = counter.CountContaining(
+            "[IntakeReceipts]",
+            "[IntakeAssets]",
+            "[InstructionDrafts]",
+            "[IntakeMailRouteDecisions]");
+        Assert.Equal(4, wholeReceiptReads);
     }
 
     [Fact]
@@ -1235,6 +1293,7 @@ public sealed class UploadConfirmationWebTests
     {
         public Task<UploadOutcomeView> BuildAsync(
             QueuedIntakeStatus status,
+            IntakeReceipt? receipt,
             Guid? submissionGroupId,
             ActionActor actor,
             CancellationToken cancellationToken = default) =>

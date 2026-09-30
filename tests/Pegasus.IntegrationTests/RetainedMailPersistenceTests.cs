@@ -231,6 +231,60 @@ public sealed class RetainedMailPersistenceTests
     }
 
     /// <summary>
+    /// The Inbox preview pane is drawn from the list row plus what the row does
+    /// not carry: the attachments, the current classification decision and the
+    /// folder scope. The preview read returns the same facts the full message
+    /// read returns for them, without the thread, the recommendation or the
+    /// latest move, and reads the message's own summary only when none is given.
+    /// </summary>
+    [Fact]
+    public async Task ThePreviewReadCarriesWhatThePaneRendersAndTheFullReadWould()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        await RetainAsync(database, Message("message-preview"));
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var row = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+        var detail = Assert.IsType<RetainedMailDetail>(
+            await queries.GetAsync(row.Id, CancellationToken.None));
+
+        var withRow = Assert.IsType<RetainedMailPreview>(
+            await queries.GetPreviewAsync(row.Id, row, CancellationToken.None));
+        var withoutRow = Assert.IsType<RetainedMailPreview>(
+            await queries.GetPreviewAsync(row.Id, null, CancellationToken.None));
+
+        // A row the caller holds is kept as it is.
+        Assert.Same(row, withRow.Summary);
+        // Without one the store reads the summary the pane renders.
+        foreach (var summary in new[] { withoutRow.Summary, row })
+        {
+            Assert.Equal(detail.Summary.Id, summary.Id);
+            Assert.Equal(detail.Summary.Subject, summary.Subject);
+            Assert.Equal(detail.Summary.BodyExcerpt, summary.BodyExcerpt);
+            Assert.Equal(detail.Summary.ReceivedAtUtc, summary.ReceivedAtUtc);
+            Assert.Equal(detail.Summary.MailboxAddress, summary.MailboxAddress);
+            Assert.Equal(detail.Summary.SenderDisplayName, summary.SenderDisplayName);
+            Assert.Equal(detail.Summary.EffectiveSenderAddress, summary.EffectiveSenderAddress);
+            Assert.Equal(detail.Summary.CaseReference, summary.CaseReference);
+            Assert.Equal(detail.Summary.CurrentFolderType, summary.CurrentFolderType);
+            Assert.Equal(detail.Summary.ProcessingOutcome, summary.ProcessingOutcome);
+        }
+        foreach (var preview in new[] { withRow, withoutRow })
+        {
+            Assert.Equal(
+                detail.Attachments.Select(item => (item.FileName, item.MediaType, item.ContentLength)),
+                preview.Attachments.Select(item => (item.FileName, item.MediaType, item.ContentLength)));
+            Assert.Equal(detail.Folder, preview.Folder);
+            Assert.Equal(detail.Classification?.Current, preview.Classification);
+        }
+
+        Assert.Null(await queries.GetPreviewAsync(Guid.NewGuid(), null, CancellationToken.None));
+    }
+
+    /// <summary>
     /// The stored excerpt fills its 400-character column and never overflows
     /// it: the ellipsis counts against the limit. One character over fails the
     /// insert, and the poll would stop on that message. A line of exactly the
@@ -817,9 +871,9 @@ public sealed class RetainedMailPersistenceTests
         }
 
         await using var scope = database.CreateAsyncScope();
-        var details = Assert.IsType<CaseDetails>(await scope.ServiceProvider
+        var details = Assert.IsType<CaseFilesSectionData>(await scope.ServiceProvider
             .GetRequiredService<ICaseQueryStore>()
-            .GetAsync(new(caseId, ActionActor.SystemWorker("query-test")), CancellationToken.None));
+            .GetFilesSectionAsync(caseId, includeDocuments: false, frame: null, CancellationToken.None));
 
         Assert.Equal(
             [caseUpdateId, billingId, sharedFirstId, sharedSecondId, queryId, disputeId, instructionId],
@@ -1005,6 +1059,43 @@ public sealed class RetainedMailPersistenceTests
             .GetRequiredService<IRetainedMailQueries>()
             .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
         Assert.Equal("An instruction", Assert.Single(page.Items).Subject);
+    }
+
+    /// <summary>
+    /// The poll asks the mailbox whether it holds a delta item by the item's immutable
+    /// id and canonical Internet message id, so an item the wake already retained is
+    /// not downloaded again. It is one point read on the unique identity index, scoped
+    /// to the mailbox. Another item that reuses the Internet message id, or an id that
+    /// differs only in case, is not the retained item.
+    /// </summary>
+    [Fact]
+    public async Task TheMailboxAnswersWhetherItRetainedTheSameItemWithOnePointRead()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        await SeedPollStateAsync(database);
+        await RetainAsync(database, Message(
+            "message-1", internetMessageIdentity: "<Wake@Example.Invalid>"));
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>();
+        var mailbox = TestMailboxId.From(MailboxId);
+        var canonical = MailboxMessageIdentity.CanonicalizeInternetMessageIdentity("<wake@example.invalid>");
+
+        statements.Reset();
+        Assert.True(await store.HasRetainedMessageAsync(mailbox, "message-1", canonical, CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+        Assert.False(await store.HasRetainedMessageAsync(
+            mailbox, "message-2", canonical, CancellationToken.None));
+        Assert.False(await store.HasRetainedMessageAsync(
+            mailbox, "MESSAGE-1", canonical, CancellationToken.None));
+        Assert.False(await store.HasRetainedMessageAsync(
+            mailbox,
+            "message-1",
+            MailboxMessageIdentity.CanonicalizeInternetMessageIdentity("<other@example.invalid>"),
+            CancellationToken.None));
+        Assert.False(await store.HasRetainedMessageAsync(
+            Guid.NewGuid(), "message-1", canonical, CancellationToken.None));
     }
 
     [Fact]

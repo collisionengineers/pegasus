@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using Azure.Core;
 using MimeKit;
@@ -898,7 +899,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         var page = await source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
@@ -910,6 +912,48 @@ public sealed class ProductionGraphSourceTests
         Assert.Equal(page.NextCursor, message.NextCursor);
         Assert.All(requests, request => Assert.Equal(HttpMethod.Get, request.Method));
         Assert.All(requests, request => Assert.Equal("IdType=\"ImmutableId\"", request.Prefer));
+    }
+
+    /// <summary>
+    /// A retained message is named by its subject, on the poll and on the wake
+    /// read alike (operator, 30 September 2026). The immutable id stays the
+    /// identity; the name is not unique.
+    /// </summary>
+    [Theory]
+    [InlineData("Subject: QDOS26001 instruction\r\n", "QDOS26001 instruction.eml")]
+    [InlineData("Subject: Re: Claim 12/34?\r\n", "Re Claim 1234.eml")]
+    [InlineData("", "Message.eml")]
+    public async Task ARetainedInboxMessageIsNamedBySubjectOnThePollAndOnTheWakeRead(
+        string subjectHeader,
+        string expectedName)
+    {
+        var handler = new DelegateHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(
+                    HttpStatusCode.OK,
+                    $"From: sender@example.test\r\nMessage-Id: <one@example.test>\r\n{subjectHeader}\r\nBody",
+                    "message/rfc822");
+            }
+            return path.EndsWith("/messages/immutable-1", StringComparison.Ordinal)
+                ? Response(HttpStatusCode.OK,
+                    """{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}""")
+                : Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+        });
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
+        var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease");
+
+        var polled = Assert.Single((await source.ReadAsync(lease, 10, CancellationToken.None)).Messages);
+        var notified = await source.ReadNotifiedAsync(lease, "immutable-1", CancellationToken.None);
+
+        Assert.Equal("immutable-1", polled.ImmutableMessageId);
+        Assert.Equal(expectedName, polled.FileName);
+        Assert.Equal(expectedName, notified?.FileName);
     }
 
     [Fact]
@@ -924,7 +968,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
         var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease")
             with { StartBoundaryUtc = new DateTimeOffset(2026, 7, 31, 10, 0, 0, TimeSpan.Zero) };
 
@@ -950,7 +995,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         var message = await source.ReadNotifiedAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
@@ -982,7 +1028,8 @@ public sealed class ProductionGraphSourceTests
                 $$"""{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"{{cutoff.AddSeconds(secondsAfterCutoff):O}}"}""");
         });
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
         var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease")
             with { StartBoundaryUtc = cutoff };
 
@@ -1013,7 +1060,8 @@ public sealed class ProductionGraphSourceTests
                 """{"value":[{"id":"historic","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T09:59:59Z"},{"id":"new","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=reset"}""");
         });
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
         var cursor = GraphCursor.Serialize(new Uri(
             "https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=stale"), 0);
         var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, cursor, "lease")
@@ -1044,7 +1092,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         var page = await source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
@@ -1071,7 +1120,8 @@ public sealed class ProductionGraphSourceTests
             """{"value":[{"id":"corrupt-1","parentFolderId":"inbox-folder","receivedDateTime":"not-a-date"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}"""));
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         await Assert.ThrowsAsync<InvalidDataException>(() => source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
@@ -1087,7 +1137,8 @@ public sealed class ProductionGraphSourceTests
             """{"value":[],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders('inbox-folder==')/messages/delta?$deltatoken=final"}"""));
         var options = GraphApprovedMailboxOptions.Create("https://graph.microsoft.com/v1.0/");
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         var page = await source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, "inbox-folder==", null, "lease"),
@@ -1113,7 +1164,8 @@ public sealed class ProductionGraphSourceTests
         var handler = new DelegateHandler(_ => { calls++; return Response(HttpStatusCode.OK, "{}"); });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
         var otherFolderCursor = GraphCursor.Serialize(
             new Uri("https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/other-folder/messages/delta?$deltatoken=x"),
             0);
@@ -1138,7 +1190,8 @@ public sealed class ProductionGraphSourceTests
         var handler = new DelegateHandler(_ => { calls++; return Response(HttpStatusCode.OK, "{}"); });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
             Lease(mailboxId, DefaultMailboxAddress, inboxFolderIdentity, null, "lease"),
@@ -1157,7 +1210,8 @@ public sealed class ProductionGraphSourceTests
         var handler = new DelegateHandler(_ => Response(status, "{}"));
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         await Assert.ThrowsAsync<ApprovedMailboxAccessDeniedException>(() => source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
@@ -1188,7 +1242,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         await source.ReadAsync(
             Lease("mailbox-id", "a@collisionengineers.co.uk", "inbox-folder", null, "lease-1"),
@@ -1224,7 +1279,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
         var staleCursor = GraphCursor.Serialize(
             new Uri("https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=stale"),
             0);
@@ -1245,7 +1301,8 @@ public sealed class ProductionGraphSourceTests
         var handler = new DelegateHandler(_ => { calls++; return Response(HttpStatusCode.OK, "{}"); });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
         var escapedCursor = GraphCursor.Serialize(
             new Uri("https://graph.microsoft.com/v1.0/users/other/mailFolders/other/messages/delta?$deltatoken=x"),
             0);
@@ -1279,7 +1336,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
@@ -1381,7 +1439,8 @@ public sealed class ProductionGraphSourceTests
                 """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"},{"id":"immutable-2","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}"""));
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
 
         var first = await source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease-1"),
@@ -1395,6 +1454,267 @@ public sealed class ProductionGraphSourceTests
         Assert.Equal("immutable-1", Assert.Single(first.Messages).ImmutableMessageId);
         Assert.Equal("immutable-2", Assert.Single(second.Messages).ImmutableMessageId);
         Assert.NotEqual(first.NextCursor, second.NextCursor);
+    }
+
+    /// <summary>
+    /// The webhook wake already downloaded and retained a message, so the delta must
+    /// not download it again. The mailbox is asked by the delta item's Graph id and
+    /// Internet message id; an item it holds is neither read nor returned, and the
+    /// cursors count its place, whether it is first, in the middle or last. Another
+    /// item that reuses a retained Internet message id is still read.
+    /// </summary>
+    [Fact]
+    public async Task InboxDoesNotDownloadADeltaItemTheMailboxAlreadyRetainedAndMovesPastIt()
+    {
+        var mimeReads = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                mimeReads.Add(request.RequestUri.Segments[^2].TrimEnd('/'));
+                return Response(HttpStatusCode.OK, "From: sender@example.test\r\n\r\nBody", "message/rfc822");
+            }
+
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"retained-first","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z","internetMessageId":"<a@example.test>"},{"id":"reuses-a","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z","internetMessageId":"<a@example.test>"},{"id":"retained-last","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:02:00Z","internetMessageId":"<c@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
+        var asked = new List<(string ImmutableMessageId, string InternetMessageIdentity)>();
+        var retained = new HashSet<(string, string)>([
+            ("retained-first", "<a@example.test>"),
+            ("retained-last", "<c@example.test>")]);
+
+        var page = await source.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            10,
+            (immutableMessageId, internetMessageIdentity, _) =>
+            {
+                asked.Add((immutableMessageId, internetMessageIdentity));
+                return Task.FromResult(retained.Contains((immutableMessageId, internetMessageIdentity)));
+            },
+            CancellationToken.None);
+
+        Assert.Equal(
+            [
+                ("retained-first", "<a@example.test>"),
+                ("reuses-a", "<a@example.test>"),
+                ("retained-last", "<c@example.test>")
+            ],
+            asked);
+        Assert.Equal(["reuses-a"], mimeReads);
+        var message = Assert.Single(page.Messages);
+        Assert.Equal("reuses-a", message.ImmutableMessageId);
+        // The last message left in carries the cursor after the whole page, which
+        // is past the retained item that follows it.
+        Assert.Equal(page.NextCursor, message.NextCursor);
+        Assert.Contains("deltatoken=final", page.NextCursor, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InboxPageWhoseEveryItemIsAlreadyRetainedReturnsNoMessagesAndTheCursorAfterThem()
+    {
+        var requests = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add(request.RequestUri!.AbsolutePath);
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"retained-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z","internetMessageId":"<a@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
+
+        var page = await source.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            10,
+            (_, _, _) => Task.FromResult(true),
+            CancellationToken.None);
+
+        Assert.Empty(page.Messages);
+        Assert.DoesNotContain(requests, path => path.EndsWith("/$value", StringComparison.Ordinal));
+        Assert.Contains("deltatoken=final", page.NextCursor, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Graph is not always able to give an Internet message id, and then there is
+    /// nothing to ask: the item is downloaded as it always was, and the check is
+    /// never called for it.
+    /// </summary>
+    [Fact]
+    public async Task InboxDownloadsAnItemWithoutAnInternetMessageIdWithoutAskingTheMailbox()
+    {
+        var mimeReads = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                mimeReads.Add(request.RequestUri.Segments[^2].TrimEnd('/'));
+                return Response(HttpStatusCode.OK, "From: sender@example.test\r\n\r\nBody", "message/rfc822");
+            }
+
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"no-internet-id","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
+        var asked = 0;
+
+        var page = await source.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            10,
+            (_, _, _) =>
+            {
+                asked++;
+                return Task.FromResult(true);
+            },
+            CancellationToken.None);
+
+        Assert.Equal(0, asked);
+        Assert.Equal(["no-internet-id"], mimeReads);
+        Assert.Equal("no-internet-id", Assert.Single(page.Messages).ImmutableMessageId);
+    }
+
+    // Core quarantines a message over the mailbox bound once it has been read. A body
+    // Graph declares over the bound reaches the same quarantine without being read into
+    // memory: the content here throws if anything buffers it.
+    [Fact]
+    public async Task InboxQuarantinesAMessageDeclaredOverTheBoundWithoutBufferingIt()
+    {
+        const int bound = 64;
+        var body = MimeOfLength(bound + 1);
+        var hash = Convert.ToHexString(SHA256.HashData(body));
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.GraphMimeBoundTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var store = new FileSystemIntakeArtifactStore(root);
+            var source = new GraphApprovedInboxSource(
+                new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(
+                    MimeHandler(() => new TestMimeContent(body, declaresLength: true, buffers: false)))),
+                store,
+                bound);
+            var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease");
+
+            var polled = Assert.Single((await source.ReadAsync(lease, 10, CancellationToken.None)).Messages);
+            var notified = await source.ReadNotifiedAsync(lease, "immutable-1", CancellationToken.None);
+
+            Assert.NotNull(notified);
+            var expected = new ApprovedInboxSourceRejection(
+                "message_too_large",
+                bound + 1,
+                hash,
+                $"sha256/{hash[..2]}/{hash}");
+            foreach (var message in new[] { polled, notified })
+            {
+                Assert.Equal(expected, message.SourceRejection);
+                Assert.True(message.MimeContent.IsEmpty);
+                Assert.Null(message.RetainedMetadata);
+            }
+            await store.VerifyAsync(new(expected.RetentionKey!, hash, bound + 1), CancellationToken.None);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    // At the bound, or with no declared length to judge by (a chunked response), the
+    // message is read whole as before and the quarantine store is never touched. Core
+    // still applies the bound to whatever arrives.
+    [Theory]
+    [InlineData(64, true)]
+    [InlineData(65, false)]
+    public async Task InboxReadsAMessageAtTheBoundOrWithoutADeclaredLengthWhole(int length, bool declaresLength)
+    {
+        const int bound = 64;
+        var body = MimeOfLength(length);
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(
+                MimeHandler(() => new TestMimeContent(body, declaresLength, buffers: true)))),
+            new NoQuarantineStore(),
+            bound);
+        var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease");
+
+        var polled = Assert.Single((await source.ReadAsync(lease, 10, CancellationToken.None)).Messages);
+        var notified = await source.ReadNotifiedAsync(lease, "immutable-1", CancellationToken.None);
+
+        Assert.NotNull(notified);
+        foreach (var message in new[] { polled, notified })
+        {
+            Assert.Null(message.SourceRejection);
+            Assert.Equal(body, message.MimeContent.ToArray());
+            Assert.Equal("Bound", message.RetainedMetadata?.Subject);
+        }
+    }
+
+    // Graph faulting while the quarantine store reads its body is a Graph read failure,
+    // exactly as it is for a message read whole, not a retention failure.
+    [Fact]
+    public async Task InboxSurfacesAGraphReadFaultOnAnOversizedBodyAsTheReadFault()
+    {
+        const int bound = 64;
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.GraphMimeBoundTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var store = new FileSystemIntakeArtifactStore(root);
+            var source = new GraphApprovedInboxSource(
+                new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(
+                    MimeHandler(() => new FaultingMimeContent(bound + 1)))),
+                store,
+                bound);
+            var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease");
+
+            await Assert.ThrowsAsync<HttpIOException>(
+                () => source.ReadAsync(lease, 10, CancellationToken.None));
+            await Assert.ThrowsAsync<HttpIOException>(
+                () => source.ReadNotifiedAsync(lease, "immutable-1", CancellationToken.None));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    // A fault in the quarantine store itself, after Graph's body read cleanly, is the
+    // retention failure.
+    [Fact]
+    public async Task InboxReportsAQuarantineStoreFaultOnAnOversizedBodyAsARetentionFailure()
+    {
+        const int bound = 64;
+        var body = MimeOfLength(bound + 1);
+        var store = new WriteFaultQuarantineStore();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(
+                MimeHandler(() => new TestMimeContent(body, declaresLength: true, buffers: false)))),
+            store,
+            bound);
+        var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease");
+
+        var polled = await Assert.ThrowsAsync<IntakeArtifactRetentionException>(
+            () => source.ReadAsync(lease, 10, CancellationToken.None));
+        var notified = await Assert.ThrowsAsync<IntakeArtifactRetentionException>(
+            () => source.ReadNotifiedAsync(lease, "immutable-1", CancellationToken.None));
+
+        Assert.IsType<IOException>(polled.InnerException);
+        Assert.IsType<IOException>(notified.InnerException);
+        Assert.Equal(new long[] { bound + 1, bound + 1 }, store.BytesRead);
     }
 
     private const string DefaultMailboxId = "mailbox-id";
@@ -1435,6 +1755,139 @@ public sealed class ProductionGraphSourceTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(handler(request));
+    }
+
+    /// <summary>
+    /// One Inbox message, immutable-1, served to both the delta sweep and the
+    /// notified read, with its MIME body made fresh for each request.
+    /// </summary>
+    private static DelegateHandler MimeHandler(Func<HttpContent> mime) => new(request =>
+    {
+        var path = request.RequestUri!.AbsolutePath;
+        if (path.EndsWith("/$value", StringComparison.Ordinal))
+        {
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = mime() };
+        }
+        return path.EndsWith("/delta", StringComparison.Ordinal)
+            ? Response(HttpStatusCode.OK,
+                """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""")
+            : Response(HttpStatusCode.OK,
+                """{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}""");
+    });
+
+    private static byte[] MimeOfLength(int length)
+    {
+        const string headers = "Subject: Bound\r\nMessage-Id: <bound@example.test>\r\n\r\n";
+        return Encoding.ASCII.GetBytes(headers + new string('x', length - headers.Length));
+    }
+
+    /// <summary>
+    /// A MIME body that can refuse to be buffered, so a streamed read is told apart
+    /// from a buffered one, and can withhold its length, as a chunked response does.
+    /// </summary>
+    private sealed class TestMimeContent(byte[] body, bool declaresLength, bool buffers) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            buffers
+                ? stream.WriteAsync(body).AsTask()
+                : throw new InvalidOperationException("The MIME body was buffered.");
+
+        protected override Task<Stream> CreateContentReadStreamAsync() =>
+            Task.FromResult<Stream>(new MemoryStream(body, writable: false));
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = body.Length;
+            return declaresLength;
+        }
+    }
+
+    /// <summary>
+    /// A MIME body Graph declares at a length and then fails to deliver: the
+    /// connection drops before its first byte arrives.
+    /// </summary>
+    private sealed class FaultingMimeContent(long declaredLength) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            throw new InvalidOperationException("The MIME body was buffered.");
+
+        protected override Task<Stream> CreateContentReadStreamAsync() =>
+            Task.FromResult<Stream>(new FaultingReadStream());
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = declaredLength;
+            return true;
+        }
+
+        private sealed class FaultingReadStream : Stream
+        {
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position
+            {
+                get => throw new NotSupportedException();
+                set => throw new NotSupportedException();
+            }
+
+            public override int Read(byte[] buffer, int offset, int count) => throw Fault();
+
+            public override ValueTask<int> ReadAsync(
+                Memory<byte> buffer,
+                CancellationToken cancellationToken = default) =>
+                ValueTask.FromException<int>(Fault());
+
+            public override void Flush() => throw new NotSupportedException();
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+            private static HttpIOException Fault() =>
+                new(HttpRequestError.ResponseEnded, "The response ended prematurely.");
+        }
+    }
+
+    /// <summary>
+    /// A quarantine store that reads the body to its end and then cannot write it.
+    /// </summary>
+    private sealed class WriteFaultQuarantineStore : IIntakeQuarantineArtifactStore
+    {
+        public List<long> BytesRead { get; } = [];
+
+        public async Task<IntakeQuarantineArtifact> StoreStreamAsync(
+            Stream content,
+            long contentLength,
+            CancellationToken cancellationToken)
+        {
+            using var counted = new MemoryStream();
+            await content.CopyToAsync(counted, cancellationToken);
+            BytesRead.Add(counted.Length);
+            throw new IOException("The quarantine store could not write.");
+        }
+
+        public Task VerifyAsync(
+            IntakeQuarantineArtifact artifact,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The source does not verify what it retained.");
+    }
+
+    /// <summary>
+    /// The store a message within the mailbox bound must never reach.
+    /// </summary>
+    private sealed class NoQuarantineStore : IIntakeQuarantineArtifactStore
+    {
+        public Task<IntakeQuarantineArtifact> StoreStreamAsync(
+            Stream content,
+            long contentLength,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("A message within the mailbox bound was quarantined.");
+
+        public Task VerifyAsync(
+            IntakeQuarantineArtifact artifact,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("A message within the mailbox bound was quarantined.");
     }
 
     private sealed class MailboxEstate(IReadOnlyList<ApprovedIntakeMailbox> mailboxes)

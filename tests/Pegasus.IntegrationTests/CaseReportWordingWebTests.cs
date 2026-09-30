@@ -171,7 +171,6 @@ public sealed class CaseReportWordingWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -179,7 +178,6 @@ public sealed class CaseReportWordingWebTests
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
-                Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 substitutePorts(services);
             }));
         using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions

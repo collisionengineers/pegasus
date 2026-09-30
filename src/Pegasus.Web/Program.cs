@@ -40,6 +40,7 @@ using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Transport;
 using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.ApplicationInsights.Extensibility.EventCounterCollector;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
 const string DevelopmentOfflineProfile = "DevelopmentOffline";
@@ -244,6 +245,13 @@ if (productionProfile)
             builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
     {
         builder.Services.AddApplicationInsightsTelemetry();
+        // Probe, ping and static-file rows carry nothing and spend the daily
+        // cap; the SDK runs this before adaptive sampling.
+        builder.Services.AddApplicationInsightsTelemetryProcessor<QuietRequestTelemetryFilter>();
+        // The runtime and SqlClient counters, twelve and no others: metrics
+        // are never sampled, so this list is the whole added volume.
+        builder.Services.ConfigureTelemetryModule<EventCounterCollectionModule>(
+            (module, _) => RuntimeCounters.Apply(module));
         builder.Services.AddSingleton<ITelemetryInitializer, GlassCallbackTelemetryInitializer>();
         builder.Services.AddSingleton<DocumentReadTelemetryBridge>();
         builder.Services.Configure<TelemetryConfiguration>(
@@ -594,10 +602,25 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompress
     options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
 // A new instance warms its hot reads before it reports ready (at most 45 s).
 // /health/warm answers the platform's start-up ping from the warm-up alone, so
-// a database outage never keeps a new instance from starting.
-builder.Services.AddSingleton(provider => new StartupWarmupState(
-    provider.GetRequiredService<IConfiguration>().GetValue("Startup:Warmup", true)));
+// a database outage never keeps a new instance from starting. The warm-up then
+// repeats its reads every Startup:WarmupInterval (three minutes; 00:00:00 runs
+// it once) so no staff request is the first to touch a cold path.
+builder.Services.AddSingleton(provider =>
+{
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    return StartupWarmupState.FromSettings(
+        configuration.GetValue("Startup:Warmup", true),
+        configuration["Startup:WarmupInterval"]);
+});
 builder.Services.AddHostedService<StartupWarmup>();
+if (applicationInsightsConfigured)
+{
+    // Its trace reaches Application Insights only where that is configured.
+    builder.Services.AddHostedService<RuntimeHeartbeat>();
+}
+// The database check remembers a current schema, so it is one instance for the
+// process and not one per probe.
+builder.Services.AddSingleton<DatabaseReadinessHealthCheck>();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"])
     .AddCheck<StartupWarmupHealthCheck>("warmup", tags: ["ready", "warm"]);
@@ -791,6 +814,7 @@ if (applicationInsightsConfigured)
     // it here makes timing active only in the configured AI composition.
     _ = app.Services.GetRequiredService<DocumentReadTelemetryBridge>();
 }
+startupTimeline.Mark("telemetry bridge resolved");
 var runtimeProfile = app.Configuration["Runtime:Profile"]
     ?? throw new InvalidOperationException("Runtime:Profile is required.");
 var developmentOffline = runtimeProfile.Equals(
@@ -914,6 +938,7 @@ if (app.Services.GetService<OAuthCertificateStore>() is { } oauthCertificates)
 {
     app.Use(oauthCertificates.Gate);
 }
+startupTimeline.Mark("OAuth certificate store resolved");
 
 // Every status code that reaches a browser gets the designed page. Before this,
 // an unknown record URL, an oversized staff upload and a rate-limited sign-in
@@ -1000,6 +1025,10 @@ app.UseWhen(
 app.UseResponseCompression();
 
 app.UseRouting();
+if (applicationInsightsConfigured)
+{
+    app.Use(RequestRuntimeStamps.InvokeAsync);
+}
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method)
@@ -1157,6 +1186,7 @@ app.MapHealthChecks("/health/warm", new Microsoft.AspNetCore.Diagnostics.HealthC
 app.MapStaticAssets()
     .AllowAnonymous()
     .ShortCircuit();
+startupTimeline.Mark("static assets mapped");
 app.MapGet("/diagnostics/version", () => Results.Ok(new
 {
     version = productVersion,
@@ -1172,6 +1202,7 @@ if (automationMcpOptions is not null)
 {
     app.MapPegasusAutomationMcp();
 }
+startupTimeline.Mark("Razor Pages and MCP mapped");
 if (principalApiEnabled)
 {
     app.MapPegasusPrincipalApi();

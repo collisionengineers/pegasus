@@ -376,6 +376,55 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
+    public async Task PreviewRequiresCaseworkAnIdentifierAndASummaryOfTheSameMessage()
+    {
+        var queries = new Queries();
+        var sut = new GetRetainedMailPreview(queries);
+        var summary = Detail("mailbox-a", Unclassified()).Summary;
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            sut.ExecuteAsync(ActionActor.Principal(Guid.NewGuid()), summary.Id, summary));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            sut.ExecuteAsync(Caseworker(), Guid.Empty));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            sut.ExecuteAsync(Caseworker(), Guid.NewGuid(), summary));
+
+        Assert.Empty(queries.PreviewReads);
+    }
+
+    [Fact]
+    public async Task PreviewPassesTheListRowThroughUntouchedAndReadsNothingElse()
+    {
+        var detail = ClassifiedDetail("mailbox-a", MailCategory.Received(ReceivedMailFamily.General, "acknowledgement"));
+        var queries = new Queries { DetailToReturn = detail };
+
+        var preview = await new GetRetainedMailPreview(queries).ExecuteAsync(
+            Caseworker(), detail.Summary.Id, detail.Summary);
+
+        Assert.NotNull(preview);
+        Assert.Same(detail.Summary, preview.Summary);
+        Assert.Equal(detail.Classification!.Current, preview.Classification);
+        var read = Assert.Single(queries.PreviewReads);
+        Assert.Equal(detail.Summary.Id, read.Id);
+        Assert.Same(detail.Summary, read.Summary);
+        Assert.Equal(0, queries.FullReads);
+    }
+
+    [Fact]
+    public async Task PreviewWithoutARowAsksTheStoreToReadTheSummaryItself()
+    {
+        var detail = ClassifiedDetail("mailbox-a", MailCategory.Received(ReceivedMailFamily.General, "acknowledgement"));
+        var queries = new Queries { DetailToReturn = detail };
+
+        await new GetRetainedMailPreview(queries).ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.Null(Assert.Single(queries.PreviewReads).Summary);
+    }
+
+    private static MailClassificationDossier Unclassified() =>
+        new(1, MailClassificationResult.Unclassified([], "Fixture.", "test", 1), "system-worker:poll", NowUtc, []);
+
+    [Fact]
     public async Task GetByOriginReceiptUsesTheAuthorizedReceiptLookup()
     {
         var originReceiptId = Guid.NewGuid();
@@ -397,6 +446,43 @@ public sealed class RetainedMailTests
 
         Assert.NotNull(result);
         Assert.Equal(originReceiptId, queries.OriginReceiptId);
+    }
+
+    [Fact]
+    public async Task FindIdByOriginReceiptNeedsCaseworkAndReturnsOnlyTheIdentifier()
+    {
+        var originReceiptId = Guid.NewGuid();
+        var detail = Detail(
+            "mailbox-a",
+            new(1, MailClassificationResult.Unclassified([], "Fixture.", "test", 1),
+                "system-worker:poll", NowUtc, []));
+        var queries = new Queries { DetailToReturn = detail };
+        var getRetainedMail = new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore());
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            getRetainedMail.FindIdByOriginReceiptAsync(
+                ActionActor.Principal(Guid.NewGuid()),
+                originReceiptId,
+                CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            getRetainedMail.FindIdByOriginReceiptAsync(
+                Caseworker(),
+                Guid.Empty,
+                CancellationToken.None));
+
+        var id = await getRetainedMail.FindIdByOriginReceiptAsync(
+            Caseworker(),
+            originReceiptId,
+            CancellationToken.None);
+
+        Assert.Equal(detail.Summary.Id, id);
+        Assert.Equal(originReceiptId, queries.OriginReceiptId);
+
+        queries.DetailToReturn = null;
+        Assert.Null(await getRetainedMail.FindIdByOriginReceiptAsync(
+            Caseworker(),
+            originReceiptId,
+            CancellationToken.None));
     }
 
     [Fact]
@@ -776,6 +862,10 @@ public sealed class RetainedMailTests
 
         internal RetainedMailDetail? DetailToReturn { get; set; }
 
+        internal List<(Guid Id, RetainedMailSummary? Summary)> PreviewReads { get; } = [];
+
+        internal int FullReads { get; private set; }
+
         internal Guid? OriginReceiptId { get; private set; }
 
         public Task<RetainedMailPage> ListAsync(
@@ -815,8 +905,26 @@ public sealed class RetainedMailTests
         public Task<RetainedMailDetail?> GetAsync(
             Guid id,
             CancellationToken cancellationToken,
-            string? searchTerm = null) =>
-            Task.FromResult(DetailToReturn);
+            string? searchTerm = null)
+        {
+            FullReads++;
+            return Task.FromResult(DetailToReturn);
+        }
+
+        public Task<RetainedMailPreview?> GetPreviewAsync(
+            Guid id,
+            RetainedMailSummary? summary,
+            CancellationToken cancellationToken)
+        {
+            PreviewReads.Add((id, summary));
+            return Task.FromResult(DetailToReturn is { } detail
+                ? new RetainedMailPreview(
+                    summary ?? detail.Summary,
+                    detail.Attachments,
+                    detail.Classification?.Current,
+                    detail.Folder)
+                : null);
+        }
 
         public Task<RetainedMailDetail?> GetByOriginReceiptAsync(
             Guid originReceiptId,

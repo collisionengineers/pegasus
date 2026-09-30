@@ -679,6 +679,9 @@ public sealed class MailboxIntakeIntegrationTests
             {
                 var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
                 var summary = Assert.Single((await queries.ListByCursorAsync(null, null, 100, CancellationToken.None)).Items);
+                // The retained message is named by its subject, as the Graph
+                // source names it, not by the file's name on the local disk.
+                Assert.Equal("Forwarded protocol container.eml", summary.SourceFileName);
                 var receipt = Assert.IsType<IntakeReceipt>(
                     await queries.GetAsync(summary.Id, CancellationToken.None));
                 Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel);
@@ -1232,6 +1235,190 @@ public sealed class MailboxIntakeIntegrationTests
         }
     }
 
+    /// <summary>
+    /// A received e-mail is downloaded once. The webhook wake downloads and retains it
+    /// without moving the cursor; the five-minute sweep then meets the same message in
+    /// the delta, does not download it, and moves the cursor past it. Real intake,
+    /// retention and poll stores; only the Graph read is a double.
+    /// </summary>
+    [Fact]
+    public async Task AMessageTheWakeRetainedIsNotDownloadedAgainByTheSweepAndTheCursorMoves()
+    {
+        var workingRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.MailboxWakeThenDeltaIntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workingRoot);
+        var content = CreateForwardedProtocolMessage("<wake-once@example.invalid>");
+        var inboxSource = new WakeThenDeltaApprovedInboxSource(
+            content,
+            WakeThenDeltaApprovedInboxSource.ImmutableMessageId,
+            content,
+            "<wake-once@example.invalid>");
+
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => Path.Combine(workingRoot, "artifacts"),
+                configureServices: services =>
+                {
+                    services.AddSingleton<TimeProvider>(new AdjustableTimeProvider(RecordedAtUtc));
+                    services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
+                    services.AddScoped<ReceiveIntake>();
+                    services.AddLocalApprovedInbox(_ => new(
+                        LocalApprovedInboxOptions.RequiredRuntimeProfile,
+                        "instructions",
+                        "instructions@collisionengineers.co.uk",
+                        workingRoot));
+                    services.AddSingleton<IApprovedInboxSource>(inboxSource);
+                });
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
+            var mailboxId = TestMailboxId.From("instructions");
+            var generation = await database.ScalarAsync<long>(
+                $"SELECT MailboxGeneration FROM ApprovedMailboxes WHERE Id = '{mailboxId:D}'");
+            var actor = ActionActor.SystemWorker("approved-inbox-poller");
+
+            await using (var wakeScope = database.CreateAsyncScope())
+            {
+                var poll = wakeScope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                Assert.Equal(1, await poll.ExecuteNotificationAsync(
+                    mailboxId, generation, WakeThenDeltaApprovedInboxSource.ImmutableMessageId,
+                    actor, CancellationToken.None));
+            }
+
+            Assert.Equal(1, inboxSource.MimeReads);
+            await using (var sweepScope = database.CreateAsyncScope())
+            {
+                var poll = sweepScope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                Assert.Equal(0, await poll.ExecuteAsync(10, actor, CancellationToken.None));
+            }
+
+            Assert.Equal(1, inboxSource.MimeReads);
+            Assert.Equal(
+                [(WakeThenDeltaApprovedInboxSource.ImmutableMessageId, "<wake-once@example.invalid>")],
+                inboxSource.Asked);
+            Assert.Equal(
+                WakeThenDeltaApprovedInboxSource.CursorAfterTheMessage,
+                await database.ScalarAsync<string>("SELECT [Cursor] FROM ApprovedInboxPollStates"));
+            Assert.Equal(
+                1L,
+                await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+            Assert.Equal(
+                1L,
+                await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
+        }
+        finally
+        {
+            if (Directory.Exists(workingRoot))
+            {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A second inbox item that reuses the Message-ID the wake retained, with other
+    /// bytes, is not the retained message. The sweep downloads it, and intake
+    /// quarantines it as a source identity conflict, the poison message staff see.
+    /// The retained message and its receipt are unchanged.
+    /// </summary>
+    [Fact]
+    public async Task ASecondItemReusingTheWakesMessageIdIsDownloadedAndQuarantinedAsAConflict()
+    {
+        var workingRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.MailboxWakeThenConflictIntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workingRoot);
+        var originalContent = CreateForwardedProtocolMessage("<reused@example.invalid>");
+        var conflictingContent = originalContent.ToArray();
+        conflictingContent[^1] ^= 1;
+        var originalHash = Convert.ToHexString(SHA256.HashData(originalContent));
+        var conflictingHash = Convert.ToHexString(SHA256.HashData(conflictingContent));
+        const string secondItemId = "second-immutable-message";
+        var inboxSource = new WakeThenDeltaApprovedInboxSource(
+            originalContent,
+            secondItemId,
+            conflictingContent,
+            "<reused@example.invalid>");
+
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => Path.Combine(workingRoot, "artifacts"),
+                configureServices: services =>
+                {
+                    services.AddSingleton<TimeProvider>(new AdjustableTimeProvider(RecordedAtUtc));
+                    services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
+                    services.AddScoped<ReceiveIntake>();
+                    services.AddLocalApprovedInbox(_ => new(
+                        LocalApprovedInboxOptions.RequiredRuntimeProfile,
+                        "instructions",
+                        "instructions@collisionengineers.co.uk",
+                        workingRoot));
+                    services.AddSingleton<IApprovedInboxSource>(inboxSource);
+                });
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
+            var mailboxId = TestMailboxId.From("instructions");
+            var generation = await database.ScalarAsync<long>(
+                $"SELECT MailboxGeneration FROM ApprovedMailboxes WHERE Id = '{mailboxId:D}'");
+            var actor = ActionActor.SystemWorker("approved-inbox-poller");
+
+            await using (var wakeScope = database.CreateAsyncScope())
+            {
+                var poll = wakeScope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                Assert.Equal(1, await poll.ExecuteNotificationAsync(
+                    mailboxId, generation, WakeThenDeltaApprovedInboxSource.ImmutableMessageId,
+                    actor, CancellationToken.None));
+            }
+
+            await using (var sweepScope = database.CreateAsyncScope())
+            {
+                var poll = sweepScope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                Assert.Equal(1, await poll.ExecuteAsync(10, actor, CancellationToken.None));
+            }
+
+            Assert.Equal(2, inboxSource.MimeReads);
+            Assert.Equal([(secondItemId, "<reused@example.invalid>")], inboxSource.Asked);
+            await using (var connection = database.CreateConnection())
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    SELECT p.ImmutableMessageId, p.SourceHash, p.OriginalSourceHash,
+                           p.EvidenceMarker, p.FailureCode, s.[Cursor]
+                    FROM ApprovedInboxPoisonMessages AS p
+                    INNER JOIN ApprovedInboxPollStates AS s
+                        ON s.ApprovedMailboxId = p.ApprovedMailboxId;
+                    """;
+                await using var reader = await command.ExecuteReaderAsync();
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(secondItemId, reader.GetString(0));
+                Assert.Equal(conflictingHash, reader.GetString(1));
+                Assert.Equal(originalHash, reader.GetString(2));
+                Assert.Equal("identity_conflict", reader.GetString(3));
+                Assert.Equal("source_identity_conflict", reader.GetString(4));
+                Assert.Equal(WakeThenDeltaApprovedInboxSource.CursorAfterTheMessage, reader.GetString(5));
+                Assert.False(await reader.ReadAsync());
+            }
+
+            Assert.Equal(
+                1L,
+                await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+            Assert.Equal(
+                WakeThenDeltaApprovedInboxSource.ImmutableMessageId,
+                await database.ScalarAsync<string>("SELECT ImmutableMessageId FROM RetainedMailboxMessages"));
+        }
+        finally
+        {
+            if (Directory.Exists(workingRoot))
+            {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1379,6 +1566,75 @@ public sealed class MailboxIntakeIntegrationTests
             Path.GetTempPath()));
 
         Assert.Contains("disabled", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The Graph read as the wake and the sweep see it: the wake reads its message, and
+    /// the delta lists one item with the same Internet message id and asks the mailbox
+    /// whether it holds that item before it reads it. The delta item is either the
+    /// wake's own message or another item with its own id and bytes.
+    /// </summary>
+    private sealed class WakeThenDeltaApprovedInboxSource(
+        ReadOnlyMemory<byte> wakeContent,
+        string deltaImmutableMessageId,
+        ReadOnlyMemory<byte> deltaContent,
+        string internetMessageIdentity) : IApprovedInboxSource
+    {
+        internal const string ImmutableMessageId = "wake-immutable-message";
+        internal const string CursorAfterTheMessage = "cursor-after-the-message";
+
+        internal int MimeReads { get; private set; }
+
+        internal List<(string ImmutableMessageId, string InternetMessageIdentity)> Asked { get; } = [];
+
+        private ApprovedInboxMessage Read(
+            string immutableMessageId,
+            ReadOnlyMemory<byte> content,
+            string cursor)
+        {
+            MimeReads++;
+            return new(immutableMessageId, $"{immutableMessageId}.eml", content, RecordedAtUtc, cursor)
+            {
+                RetainedMetadata = new(
+                    DefaultInboxFolderIdentity,
+                    "conversation-1",
+                    internetMessageIdentity,
+                    "sender@example.invalid",
+                    "Sender",
+                    ["instructions@collisionengineers.co.uk"],
+                    [],
+                    ["sender@example.invalid"],
+                    "Subject",
+                    "Body",
+                    [],
+                    IsRead: false)
+            };
+        }
+
+        public Task<ApprovedInboxMessage?> ReadNotifiedAsync(
+            ApprovedInboxPollLease lease,
+            string immutableMessageId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ApprovedInboxMessage?>(Read(ImmutableMessageId, wakeContent, "not-a-scan-cursor"));
+
+        public Task<ApprovedInboxPage> ReadAsync(
+            ApprovedInboxPollLease lease,
+            int maximumMessages,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "The sweep must offer the mailbox the chance to skip a retained message.");
+
+        public async Task<ApprovedInboxPage> ReadAsync(
+            ApprovedInboxPollLease lease,
+            int maximumMessages,
+            RetainedMessageCheck alreadyRetained,
+            CancellationToken cancellationToken)
+        {
+            Asked.Add((deltaImmutableMessageId, internetMessageIdentity));
+            return await alreadyRetained(deltaImmutableMessageId, internetMessageIdentity, cancellationToken)
+                ? new([], CursorAfterTheMessage)
+                : new([Read(deltaImmutableMessageId, deltaContent, CursorAfterTheMessage)], CursorAfterTheMessage);
+        }
     }
 
     private sealed class ConflictReplayApprovedInboxSource(

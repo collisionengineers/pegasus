@@ -1,8 +1,14 @@
 using Pegasus.Core.Cases;
+using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Azure;
+using Azure.Core;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
@@ -485,6 +491,99 @@ public sealed class CaseReportGenerationPersistenceTests
 
         Assert.Equal(["freeze", "render", "retain", "confirm"], harness.Sequence);
         Assert.Equal(1, await harness.ActionHistoryCountAsync("case_report_artifact_confirmed"));
+    }
+
+    /// <summary>
+    /// Generate reopens the pinned images through the production reader's
+    /// batch lookup: the lookups for every image together, then each image's
+    /// own bytes as the renderer prints it. The report is given the images the
+    /// generation froze, with the same identities and in the same order, and
+    /// each prints its own bytes. Every image was cached when it was filed, so
+    /// none is read from Box. The reader's own SQL proves the lookups were made
+    /// together: three commands for all four images, where a single read of
+    /// each would cost three apiece.
+    /// </summary>
+    [Fact]
+    public async Task GenerateReadsThePinnedImagesThroughTheBatchLookupInTheOrderTheyWereFrozen()
+    {
+        await using var harness = await Harness.CreateAsync(supportingImages: 2);
+        // The production reader checks the account behind a read and the folder
+        // the Case's files are filed in.
+        await harness.RecordStaffAccountAsync();
+        await harness.RecordCaseFolderAsync("report-case-folder");
+        Harness.SeededDocument[] pinned = [harness.CloseUp, harness.Overview, .. harness.Supporting];
+        Assert.Equal(pinned.Length, pinned.Select(image => image.Sha256).Distinct().Count());
+
+        var box = new UnreachableBox();
+        using var boxHttp = new HttpClient(box);
+        var metrics = new DocumentContentCacheMetrics();
+        // Only the reader's commands are counted; the generation store has its own factory.
+        var readerCommands = new CountingCommandInterceptor();
+        var reader = new CachedDocumentContentStore(
+            new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>()
+                    .UseSqlServer(harness.ConnectionString)
+                    .AddInterceptors(readerCommands)
+                    .Options),
+            new InMemoryCacheContainer(),
+            new BoxContentClient(BoxOptions(), boxHttp, box, Harness.Clock),
+            Harness.Clock,
+            metrics);
+        foreach (var image in pinned)
+        {
+            // Filing caches the copy of each image it files.
+            await reader.PublishAsync(
+                DocumentContentCacheKey.ForVersion(image.VersionId),
+                image.Content,
+                image.Sha256,
+                CancellationToken.None);
+        }
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var versionIds = pinned.Select(image => (Guid?)image.VersionId).ToArray();
+            Assert.Equal(pinned.Length, await context.Set<DocumentContentCacheEntryEntity>()
+                .CountAsync(entry => versionIds.Contains(entry.DocumentVersionId)));
+        }
+
+        await using var scope = harness.CreateScope();
+        var content = new EfCaseReportContentSource(
+            reader, scope.ServiceProvider.GetRequiredService<IStaffAccountQueries>());
+        readerCommands.Reset();
+        var renderer = new RecordingRenderer(harness);
+        var printed = new List<(Guid? VersionId, byte[] Bytes)>();
+        // As the renderer does, the images are opened one at a time in the
+        // order the report prints them.
+        renderer.Before = async () =>
+        {
+            foreach (var photo in renderer.Rendered!.OrderedPhotos)
+            {
+                printed.Add((photo.VersionId, await photo.OpenAsync(CancellationToken.None)));
+            }
+        };
+
+        var result = await harness.Generate(new RecordingCustody(harness), renderer, content: content)
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        var frozen = result.Generation!.Snapshot.Images;
+        Assert.Equal(pinned.Select(image => image.VersionId), frozen.Select(image => image.VersionId));
+        Assert.Equal(
+            [
+                CaseAssetReportRole.CloseUp, CaseAssetReportRole.Overview,
+                CaseAssetReportRole.Supporting, CaseAssetReportRole.Supporting
+            ],
+            frozen.Select(image => image.Role));
+        Assert.Equal(
+            frozen.Select(image => (image.OccurrenceId, image.VersionId, image.Sha256, image.Role, image.Order)),
+            renderer.Rendered!.Photos.Select(photo => (
+                photo.OccurrenceId!.Value, photo.VersionId!.Value, photo.Sha256, photo.Role, photo.Order)));
+        Assert.Equal(pinned.Select(image => (Guid?)image.VersionId), printed.Select(item => item.VersionId));
+        Assert.Equal(pinned.Select(image => image.Content), printed.Select(item => item.Bytes));
+        Assert.Equal(new DocumentContentCacheMetricSnapshot(pinned.Length, 0), metrics.Snapshot());
+        // The account, the authorised versions and their cache entries, once
+        // for every image. The entries were written just now, so no hit
+        // extends one.
+        Assert.Equal(3, readerCommands.Count);
     }
 
     /// <summary>
@@ -1666,7 +1765,8 @@ public sealed class CaseReportGenerationPersistenceTests
             FakeSnapshotSource snapshotSource,
             SeededDocument closeUp,
             SeededDocument overview,
-            SeededDocument source)
+            SeededDocument source,
+            IReadOnlyList<SeededDocument> supporting)
         {
             this.database = database;
             this.contentRoot = contentRoot;
@@ -1678,12 +1778,16 @@ public sealed class CaseReportGenerationPersistenceTests
             CloseUp = closeUp;
             Overview = overview;
             Source = source;
+            Supporting = supporting;
             var store = new EfCaseReportGenerationStore(
                 factory, snapshotSource, new FakeDocumentReader(this), new FixedTimeProvider(StartUtc));
             Store = store;
         }
 
         public PooledDbContextFactory<PegasusDbContext> Factory { get; }
+
+        /// <summary>The database this harness made, for a reader that needs its own context options.</summary>
+        public string ConnectionString => database.ConnectionString;
 
         public Guid CaseId { get; }
 
@@ -1697,6 +1801,9 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public SeededDocument Source { get; }
 
+        /// <summary>The Supporting images the report prints after the Overview, in their order.</summary>
+        public IReadOnlyList<SeededDocument> Supporting { get; }
+
         public EfCaseReportGenerationStore Store { get; }
 
         public List<string> Sequence { get; } = [];
@@ -1708,7 +1815,8 @@ public sealed class CaseReportGenerationPersistenceTests
         public Dictionary<string, byte[]> EvidenceContent { get; } =
             new(StringComparer.Ordinal);
 
-        public static async Task<Harness> CreateAsync(StaffRole staffRole = StaffRole.Engineer)
+        public static async Task<Harness> CreateAsync(
+            StaffRole staffRole = StaffRole.Engineer, int supportingImages = 0)
         {
             var contentRoot = Path.Combine(Path.GetTempPath(), "Pegasus.ReportTests", Guid.NewGuid().ToString("N"));
             var database = await LocalDbTestDatabase.CreateAsync(
@@ -1727,17 +1835,23 @@ public sealed class CaseReportGenerationPersistenceTests
                 var overview = await SeedDocumentAsync(factory, caseId, "overview.png", "image/png", 2);
                 var source = await SeedDocumentAsync(
                     factory, caseId, "instruction.pdf", "application/pdf", 3);
+                var supporting = new List<SeededDocument>();
+                for (var index = 0; index < supportingImages; index++)
+                {
+                    supporting.Add(await SeedDocumentAsync(
+                        factory, caseId, $"supporting-{index + 1}.png", "image/png", (byte)(4 + index)));
+                }
                 var lease = await new AcquireCaseEditLease(
                         new EfCaseWorkflowStore(factory, new FixedTimeProvider(StartUtc)))
                     .ExecuteAsync(new(caseId, 1, staffActor, "lease-report"), CancellationToken.None);
                 await using var sourceContext = await factory.CreateDbContextAsync();
                 var confirmed = await EfAssessmentReportProjectionSource.ConfirmedDocumentsAsync(
                     sourceContext, caseId, default);
-                var snapshotSource = new FakeSnapshotSource(caseId, closeUp, overview, confirmed);
+                var snapshotSource = new FakeSnapshotSource(caseId, closeUp, overview, supporting, confirmed);
                 var harness = new Harness(
                     database, contentRoot, factory, caseId, staffActor, lease, snapshotSource,
-                    closeUp, overview, source);
-                foreach (var document in new[] { closeUp, overview, source })
+                    closeUp, overview, source, supporting);
+                foreach (var document in new[] { closeUp, overview, source }.Concat(supporting))
                 {
                     harness.EvidenceContent[document.Sha256] = document.Content;
                 }
@@ -1760,9 +1874,10 @@ public sealed class CaseReportGenerationPersistenceTests
             IAssessmentReportRenderer renderer,
             RecordingCustodyStatus? custodyStatus = null,
             EfCaseReportGenerationStore? store = null,
-            IRenderCaseEstimateDocument? repairSpecificationDocuments = null) => new(
+            IRenderCaseEstimateDocument? repairSpecificationDocuments = null,
+            ICaseReportContentSource? content = null) => new(
             new RecordingStore(store ?? Store, Sequence),
-            new FakeContentSource(this),
+            content ?? new FakeContentSource(this),
             renderer,
             repairSpecificationDocuments ?? new RefusingRepairSpecificationDocuments(),
                 custody,
@@ -1992,6 +2107,33 @@ public sealed class CaseReportGenerationPersistenceTests
             });
             await context.SaveChangesAsync();
             return staffId;
+        }
+
+        /// <summary>
+        /// Records the generating staff member's own account, enabled and an
+        /// Engineer, but not a sign-off Engineer: the production reader checks
+        /// the account behind every read.
+        /// </summary>
+        public async Task RecordStaffAccountAsync()
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var staffId = Guid.Parse(StaffActor.SubjectId);
+            var engineerRole = await context.Roles.SingleAsync(role => role.NormalizedName == "ENGINEER");
+            context.Users.Add(new PegasusIdentityUser
+            {
+                Id = staffId,
+                UserName = $"report-generator-{staffId:N}",
+                NormalizedUserName = $"REPORT-GENERATOR-{staffId:N}",
+                SecurityStamp = Guid.NewGuid().ToString(),
+                ConcurrencyStamp = Guid.NewGuid().ToString(),
+                IsEnabled = true,
+            });
+            context.UserRoles.Add(new IdentityUserRole<Guid>
+            {
+                UserId = staffId,
+                RoleId = engineerRole.Id,
+            });
+            await context.SaveChangesAsync();
         }
 
         public async Task MarkReviewReadyAsync()
@@ -2412,6 +2554,7 @@ public sealed class CaseReportGenerationPersistenceTests
         private readonly AssessmentReportProjectionInput projection;
         private readonly Harness.SeededDocument closeUp;
         private readonly Harness.SeededDocument overview;
+        private readonly IReadOnlyList<Harness.SeededDocument> supporting;
         private readonly IReadOnlyDictionary<Guid, DocumentVersion> confirmedSources;
         private readonly RepairSpecificationVersion estimate =
             AssessmentReportDraftWebTests.CurrentEstimate();
@@ -2425,11 +2568,13 @@ public sealed class CaseReportGenerationPersistenceTests
             Guid caseId,
             Harness.SeededDocument closeUp,
             Harness.SeededDocument overview,
+            IReadOnlyList<Harness.SeededDocument> supporting,
             IReadOnlyList<EfAssessmentReportProjectionSource.ConfirmedDocumentRow> confirmed)
         {
             this.caseId = caseId;
             this.closeUp = closeUp;
             this.overview = overview;
+            this.supporting = supporting;
             confirmedSources = EfAssessmentReportProjectionSource.ConfirmedImageSources(confirmed);
             assessment = AssessmentReportDraftWebTests.FullAssessmentProjection(caseId);
             projection = AssessmentReportDraftWebTests.ReadyInput(caseId) with
@@ -2442,6 +2587,8 @@ public sealed class CaseReportGenerationPersistenceTests
                 [
                     Photo(closeUp, CaseAssetReportRole.CloseUp),
                     Photo(overview, CaseAssetReportRole.Overview),
+                    .. supporting.Select((document, index) =>
+                        Photo(document, CaseAssetReportRole.Supporting, index + 1)),
                 ],
                 Sources = EfAssessmentReportProjectionSource.ReportSources(confirmed),
             };
@@ -2495,7 +2642,11 @@ public sealed class CaseReportGenerationPersistenceTests
                 SignatoryId, "Ed Mawdsley", "ATA VDA AQP", SignatureBytes, "image/png", IsDefault: true)],
             estimate,
             fromCard ? Valuation() : null,
-            [Preparation(closeUp, CaseAssetReportRole.CloseUp), Preparation(overview, CaseAssetReportRole.Overview)],
+            [
+                Preparation(closeUp, CaseAssetReportRole.CloseUp),
+                Preparation(overview, CaseAssetReportRole.Overview),
+                .. supporting.Select(document => Preparation(document, CaseAssetReportRole.Supporting)),
+            ],
             confirmedSources);
 
         private static CaseAssessmentProjection WithValues(
@@ -2526,9 +2677,9 @@ public sealed class CaseReportGenerationPersistenceTests
             "case-valuation-calculation/v1");
 
         private static ReportImageEvidence Photo(
-            Harness.SeededDocument document, CaseAssetReportRole role) => new(
+            Harness.SeededDocument document, CaseAssetReportRole role, int? order = null) => new(
                 $"{document.OccurrenceId:D}.png", "image/png", ReportImageContent.Opened(_ => Task.FromResult(document.Content)),
-                document.Sha256, role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
+                document.Sha256, role, order, CaseAssetRotation.None, CaseAssetCrop.Full,
                 document.OccurrenceId, document.VersionId,
                 $"box-file-{document.VersionId:N}", $"box-version-{document.VersionId:N}",
                 role == CaseAssetReportRole.CloseUp);
@@ -2539,7 +2690,12 @@ public sealed class CaseReportGenerationPersistenceTests
                 document.Sha256, "image/png", true, null, CaseAssetRotation.None, CaseAssetCrop.Full,
                 1, "engineer-1", RecordedAtUtc, role == CaseAssetReportRole.CloseUp)
             {
-                TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId],
+                TagIds = role switch
+                {
+                    CaseAssetReportRole.CloseUp => [ImageTagVocabulary.CloseUpId],
+                    CaseAssetReportRole.Overview => [ImageTagVocabulary.OverviewId],
+                    _ => [],
+                },
                 SourceFileName = $"{document.OccurrenceId:D}.png",
                 RecordedAtUtc = RecordedAtUtc,
                 CanPrint = true
@@ -2832,6 +2988,153 @@ public sealed class CaseReportGenerationPersistenceTests
                 command.Mail.ContextId,
                 command.Mail.ExpectedContextVersion,
                 null));
+        }
+    }
+
+    /// <summary>Every SQL command a context sends, whatever kind.</summary>
+    private sealed class CountingCommandInterceptor : DbCommandInterceptor
+    {
+        private int count;
+
+        public int Count => Volatile.Read(ref count);
+
+        public void Reset() => Interlocked.Exchange(ref count, 0);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<object> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private static BoxCustodyOptions BoxOptions() => BoxCustodyOptions.Create(
+        "https://api.box.com/2.0/", "https://upload.box.com/api/2.0/", "405543781910",
+        """{"boxAppSettings":{"clientID":"x","appAuth":{"publicKeyID":"x","privateKey":"x","passphrase":"x"}},"enterpriseID":"x"}""",
+        "x", "holding");
+
+    /// <summary>
+    /// Box, for a report whose images were all cached when they were filed:
+    /// any request to it fails the render.
+    /// </summary>
+    private sealed class UnreachableBox : HttpMessageHandler, IBoxAuthorizationHeaderProvider
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "A pinned image was read from Box, not from the copy cached when it was filed.");
+
+        public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult("Bearer unreachable");
+
+        public Task<bool> RenewIfDueAsync(CancellationToken cancellationToken) => Task.FromResult(false);
+    }
+
+    /// <summary>The read cache's blob container, in memory: one blob for each name asked for.</summary>
+    private sealed class InMemoryCacheContainer : BlobContainerClient
+    {
+        private readonly Dictionary<string, InMemoryCacheBlob> blobs = new(StringComparer.Ordinal);
+
+        public override BlobClient GetBlobClient(string blobName)
+        {
+            lock (blobs)
+            {
+                if (!blobs.TryGetValue(blobName, out var blob))
+                {
+                    blobs[blobName] = blob = new InMemoryCacheBlob();
+                }
+                return blob;
+            }
+        }
+    }
+
+    /// <summary>One cache blob: the bytes and metadata its upload wrote, read back as they were written.</summary>
+    private sealed class InMemoryCacheBlob : BlobClient
+    {
+        private static readonly ETag Written = new("\"1\"");
+        private byte[]? stored;
+        private IDictionary<string, string> metadata = new Dictionary<string, string>();
+
+        public override async Task<Response<BlobContentInfo>> UploadAsync(
+            Stream content, BlobUploadOptions options, CancellationToken cancellationToken = default)
+        {
+            using var copy = new MemoryStream();
+            await content.CopyToAsync(copy, cancellationToken);
+            stored = copy.ToArray();
+            metadata = options.Metadata;
+            return Response.FromValue(
+                BlobsModelFactory.BlobContentInfo(Written, DateTimeOffset.UtcNow, null, null, 0),
+                new CacheResponse());
+        }
+
+        public override Task<Response<BlobProperties>> GetPropertiesAsync(
+            BlobRequestConditions? conditions = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Response.FromValue(
+                BlobsModelFactory.BlobProperties(
+                    contentLength: stored?.LongLength ?? 0, eTag: Written, metadata: metadata),
+                (Response)new CacheResponse()));
+
+        public override Task<Response<BlobDownloadStreamingResult>> DownloadStreamingAsync(
+            BlobDownloadOptions? options = null, CancellationToken cancellationToken = default) =>
+            stored is null
+                ? Task.FromException<Response<BlobDownloadStreamingResult>>(
+                    new RequestFailedException(404, "The cache blob does not exist."))
+                : Task.FromResult(Response.FromValue(
+                    BlobsModelFactory.BlobDownloadStreamingResult(new MemoryStream(stored, writable: false)),
+                    (Response)new CacheResponse()));
+    }
+
+    private sealed class CacheResponse : Response
+    {
+        public override int Status => 200;
+
+        public override string ReasonPhrase => "OK";
+
+        public override Stream? ContentStream { get; set; }
+
+        public override string ClientRequestId { get; set; } = "";
+
+        public override void Dispose()
+        {
+        }
+
+        protected override bool ContainsHeader(string name) => false;
+
+        protected override IEnumerable<HttpHeader> EnumerateHeaders() => [];
+
+        protected override bool TryGetHeader(string name, out string value)
+        {
+            value = "";
+            return false;
+        }
+
+        protected override bool TryGetHeaderValues(string name, out IEnumerable<string> values)
+        {
+            values = [];
+            return false;
         }
     }
 

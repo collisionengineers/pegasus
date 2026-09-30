@@ -1,0 +1,113 @@
+using System.Collections.Concurrent;
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+
+namespace Pegasus.IntegrationTests;
+
+/// <summary>
+/// Counts every SQL statement a context sends, whatever its kind, and keeps
+/// the text so a test can count the statements that read one table, and the
+/// rows each query read (<see cref="Reads"/>). Reads run
+/// beside each other inside <c>Task.WhenAll</c>, so it is thread-safe. Hand it
+/// to <see cref="IntakeWebApplicationFactory"/> as <c>commandInterceptor:</c>,
+/// or to <see cref="LocalDbTestDatabase.CreateAsync"/> through
+/// <c>configureDatabase: options =&gt; options.AddInterceptors(counter)</c>.
+/// </summary>
+internal sealed class SqlStatementCounter : DbCommandInterceptor
+{
+    private readonly ConcurrentQueue<string> statements = new();
+    private readonly ConcurrentQueue<SqlRead> reads = new();
+
+    public int Count => statements.Count;
+
+    /// <summary>The statements sent since the last reset, in the order they started.</summary>
+    public IReadOnlyList<string> Statements => [.. statements];
+
+    /// <summary>Each query's text and the rows it read, in the order the readers closed.</summary>
+    public IReadOnlyList<SqlRead> Reads => [.. reads];
+
+    public void Reset()
+    {
+        statements.Clear();
+        reads.Clear();
+    }
+
+    /// <summary>How many statements contain every one of <paramref name="fragments"/>.</summary>
+    public int CountContaining(params string[] fragments) =>
+        statements.Count(text => fragments.All(fragment =>
+            text.Contains(fragment, StringComparison.Ordinal)));
+
+    public override InterceptionResult<DbDataReader> ReaderExecuting(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<DbDataReader> result)
+    {
+        statements.Enqueue(command.CommandText);
+        return result;
+    }
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        statements.Enqueue(command.CommandText);
+        return ValueTask.FromResult(result);
+    }
+
+    public override InterceptionResult<int> NonQueryExecuting(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result)
+    {
+        statements.Enqueue(command.CommandText);
+        return result;
+    }
+
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        statements.Enqueue(command.CommandText);
+        return ValueTask.FromResult(result);
+    }
+
+    public override InterceptionResult<object> ScalarExecuting(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<object> result)
+    {
+        statements.Enqueue(command.CommandText);
+        return result;
+    }
+
+    public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<object> result,
+        CancellationToken cancellationToken = default)
+    {
+        statements.Enqueue(command.CommandText);
+        return ValueTask.FromResult(result);
+    }
+
+    public override InterceptionResult DataReaderDisposing(
+        DbCommand command,
+        DataReaderDisposingEventData eventData,
+        InterceptionResult result)
+    {
+        // Entity Framework also counts the last read, the one that finds no
+        // row, so a query read to its end read one row fewer than it counts.
+        reads.Enqueue(new(command.CommandText, Math.Max(0, eventData.ReadCount - 1)));
+        return result;
+    }
+}
+
+/// <summary>
+/// One query and the rows it returned. <see cref="Rows"/> is exact for a query
+/// read to its end, such as a list; a query stopped early may show one fewer.
+/// </summary>
+internal sealed record SqlRead(string CommandText, int Rows);

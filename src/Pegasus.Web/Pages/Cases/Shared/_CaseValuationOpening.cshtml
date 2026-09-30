@@ -1,0 +1,8 @@
+@*
+    The calculation the last commit recorded (selection.Opening): a commit
+    records a calculation that differs from it, so the script carries the new
+    one forward after every commit. The Valuation calculator renders it while
+    editing, and a commit answered in place renders it again.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+<input type="hidden" name="selection.Opening" value="@Model.OpeningValuationCanonical" form="case-edit-form" data-carry-forward />

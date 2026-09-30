@@ -468,11 +468,9 @@ public sealed class QdosIntakeWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        var counts = await queries.GetCountsAsync(CancellationToken.None);
         var dashboard = await client.GetStringAsync("/");
         var sortingQueue = await queries.ListByCursorAsync(IntakeDecision.NeedsSorting, null, 25, CancellationToken.None);
 
-        Assert.Equal(new IntakeQueueCounts(1), counts);
         Assert.Matches(
             "(?s)data-value=\"unidentified\"(?:(?!</a>).)*?<span class=\"metric-value\">1</span>",
             dashboard);

@@ -57,7 +57,8 @@ public sealed class ReconcileUnidentifiedDestinations(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
 
-        var open = await unidentifiedStore.ListAsync(UnidentifiedState.Open, cancellationToken);
+        var open = await unidentifiedStore.ListOldestAsync(
+            UnidentifiedState.Open, maximumItems, cancellationToken);
         var candidates = 0;
         var resolved = 0;
         var corrected = 0;
@@ -65,11 +66,6 @@ public sealed class ReconcileUnidentifiedDestinations(
         foreach (var item in open)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (candidates >= maximumItems)
-            {
-                break;
-            }
-
             candidates++;
             try
             {

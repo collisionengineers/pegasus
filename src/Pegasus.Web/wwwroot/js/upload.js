@@ -116,6 +116,7 @@
                     var url = URL.createObjectURL(file);
                     previews.push(url);
                     var img = document.createElement('img');
+                    img.decoding = 'async';
                     img.src = url;
                     img.alt = '';
                     thumb.appendChild(img);

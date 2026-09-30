@@ -3,7 +3,6 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
@@ -30,7 +29,8 @@ public sealed class CaseDetailsWebTests
     /// <summary>
     /// D30: the Engineer's work is Case sections, so the record carries no
     /// Open Assessment action and no assessment gate — neither enabled nor
-    /// drawn disabled — whatever the shared access decision says.
+    /// drawn disabled — whatever the shared access decision says. The page
+    /// takes that decision from the Case's state; Held is one it cannot open.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -38,11 +38,13 @@ public sealed class CaseDetailsWebTests
     public async Task TheRecordOffersNoAssessmentAction(bool canOpen)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = canOpen ? CaseLifecycleState.NotReady : CaseLifecycleState.Held
+        };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -50,8 +52,6 @@ public sealed class CaseDetailsWebTests
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
-                services.RemoveAll<IGetAssessmentAccess>();
-                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -81,7 +81,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -143,7 +142,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -175,7 +173,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -212,7 +209,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -251,7 +247,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -297,7 +292,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -316,6 +310,55 @@ public sealed class CaseDetailsWebTests
             new Uri($"/Cases/{store.CaseId:D}/Section?section={key}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(string.Empty, await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Script asks for a fragment and reads only its status, so a fragment's 404
+    /// has an empty body, not the 18 KB status page and its shell reads. The
+    /// same 404 on the full page still renders the designed page.
+    /// </summary>
+    [Theory]
+    [InlineData("/Section?section=vehicle")]
+    [InlineData("/Section?section=valuation")]
+    [InlineData("/Section?section=notes")]
+    [InlineData("/Section?section=files")]
+    [InlineData("?handler=GlassSession")]
+    public async Task AFragmentOfAnUnknownCaseAnswersWithAnEmptyBodyWhileTheFullPageKeepsTheStatusPage(
+        string fragment)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCaseEditBasis>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        var unknown = Guid.NewGuid();
+
+        using var fragmentResponse = await client.GetAsync(
+            new Uri($"/Cases/{unknown:D}{fragment}", UriKind.Relative));
+        using var pageResponse = await client.GetAsync(
+            new Uri($"/Cases/{unknown:D}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NotFound, fragmentResponse.StatusCode);
+        Assert.Equal(string.Empty, await fragmentResponse.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NotFound, pageResponse.StatusCode);
+        Assert.Contains(
+            "We could not find that page",
+            await pageResponse.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -522,7 +565,8 @@ public sealed class CaseDetailsWebTests
     [Fact]
     public async Task FocusedVehicleAndValuationReadsReuseOneDirectWorkspaceAndMatchLazyAssessmentProvenance()
     {
-        var store = new RecordingCaseDetailsStore { ThrowOnBroadCaseRead = true };
+        // Held: a state the assessment cannot open.
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Held };
         var assessment = new CaseAssessmentProjection(
             store.CaseId,
             "QDOS3100042",
@@ -544,14 +588,12 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
-                Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: false));
                 Substitute<IGetAssessmentWorkspace>(services, assessmentWorkspace);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -700,7 +742,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -741,7 +782,6 @@ public sealed class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -857,4 +897,287 @@ public sealed class CaseDetailsWebTests
             $"/Cases/{store.CaseId:D}?section=files");
         Assert.DoesNotContain(OperatorLabels.MarkAsOriginalReport, filesAfter, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Roadmap Lane H (FRD-16): a save-as-you-go commit the page script posts is
+    /// answered with the parts it swaps and not with the page. The answer holds the
+    /// record wrapper that confirms the commit, the five swap roots, the Save form
+    /// with the authority the next commit sends, and no section.
+    /// </summary>
+    [Fact]
+    public async Task AFetchCommitAnswersWithTheCasePartsTheScriptSwapsAndNotThePage()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            AcceptWorkspaceSaves = true,
+            State = CaseLifecycleState.ReportPreparation
+        };
+        using var workspace = await EnterEngineerEditModeAsync(
+            store, services => Substitute<ISaveCaseWorkspace>(services, store));
+        var pageBefore = await workspace.GetWorkspaceAsync();
+        var expectedVersion = store.CaseVersion;
+
+        using var response = await PostFetchCommitAsync(workspace, ("claimantName", "Case claimant"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var answer = await response.Content.ReadAsStringAsync();
+        AssertBalancedMarkup(answer);
+        Assert.Single(store.Saves);
+        Assert.Equal(expectedVersion + 1, store.CaseVersion);
+
+        // The record wrapper: the version it moved to, the session it kept, the commit it confirms.
+        Assert.Equal(1, Occurrences(answer, "data-case-record"));
+        Assert.Contains($"data-case-version=\"{store.CaseVersion}\"", answer, StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", answer, StringComparison.Ordinal);
+        AssertEditorCommit(answer, "case-edit-form", DetailsModelOperationKey, expectedVersion);
+
+        // The five swap roots, each once, and the notice the commit itself made.
+        foreach (var root in new[]
+                 {
+                     "data-case-notices", "data-case-ribbon-facts", "data-case-ribbon-actions",
+                     "data-case-aside", "data-case-dialogs"
+                 })
+        {
+            Assert.Equal(1, Occurrences(answer, root));
+        }
+        Assert.Contains("Case saved.", answer, StringComparison.Ordinal);
+
+        // The authority the next commit sends: the Case's new version, the lease, a fresh key.
+        Assert.Equal(1, Occurrences(answer, "id=\"case-edit-form\""));
+        Assert.Equal(
+            store.CaseVersion.ToString(CultureInfo.InvariantCulture),
+            SaveFormValue(answer, "expectedVersion"));
+        Assert.Equal(store.LeaseToken, SaveFormValue(answer, "editLeaseToken"));
+        Assert.NotEqual(DetailsModelOperationKey, SaveFormValue(answer, "operationKey"));
+        Assert.Equal(store.LeaseToken, InputValue(answer, "editLeaseToken"));
+
+        // Every carry-forward input the page draws is drawn again, and no section is.
+        var after = await workspace.GetWorkspaceAsync();
+        Assert.Equal(CarryForwardNames(after).Order(), CarryForwardNames(answer).Order());
+        Assert.Contains("name=\"selection.Opening\"", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-main\"", answer, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-viewer-host", answer, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-section-nav", answer, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"section-", answer, StringComparison.Ordinal);
+        Assert.True(answer.Length < pageBefore.Length, "The answer is smaller than the page it replaces.");
+    }
+
+    /// <summary>
+    /// The notice the answer drew is not queued for the next page load, and the lease
+    /// the browser holds is: the next load reads it and must carry the one the answer did.
+    /// </summary>
+    [Fact]
+    public async Task AFetchCommitQueuesNoNoticeButKeepsTheLeaseForTheNextPage()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            AcceptWorkspaceSaves = true,
+            State = CaseLifecycleState.ReportPreparation
+        };
+        using var workspace = await EnterEngineerEditModeAsync(
+            store, services => Substitute<ISaveCaseWorkspace>(services, store));
+
+        using var response = await PostFetchCommitAsync(workspace, ("claimantName", "Case claimant"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var next = await workspace.GetWorkspaceAsync();
+        Assert.DoesNotContain("Case saved.", next, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-confirmation", next, StringComparison.Ordinal);
+        AssertNoEditorCommit(next);
+        Assert.Contains("data-case-editing=\"true\"", next, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, SaveFormValue(next, "editLeaseToken"));
+        Assert.Equal(
+            store.CaseVersion.ToString(CultureInfo.InvariantCulture),
+            SaveFormValue(next, "expectedVersion"));
+    }
+
+    /// <summary>
+    /// A commit without the script's header is a plain form post: it keeps its redirect,
+    /// and the page it lands on carries the notice and the commit it confirms.
+    /// </summary>
+    [Fact]
+    public async Task ACommitWithoutTheFetchHeaderStillRedirectsAndQueuesItsNotice()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            AcceptWorkspaceSaves = true,
+            State = CaseLifecycleState.ReportPreparation
+        };
+        using var workspace = await EnterEngineerEditModeAsync(
+            store, services => Substitute<ISaveCaseWorkspace>(services, store));
+        var expectedVersion = store.CaseVersion;
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey, "Saved as it was made.", ("claimantName", "Case claimant")));
+
+        AssertPrg(response, store.CaseId);
+        var next = await workspace.GetWorkspaceAsync();
+        Assert.Contains("Case saved.", next, StringComparison.Ordinal);
+        AssertEditorCommit(next, "case-edit-form", DetailsModelOperationKey, expectedVersion);
+    }
+
+    /// <summary>
+    /// A refused commit answers 200 in the shape the script recognises as refused: the
+    /// record wrapper with no commit to confirm, and the refusal as the notice. Nothing
+    /// is queued for the next page.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedFetchCommitAnswersTheRefusedShapeWithItsNotice()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            AcceptWorkspaceSaves = true,
+            State = CaseLifecycleState.ReportPreparation
+        };
+        using var workspace = await EnterEngineerEditModeAsync(
+            store, services => Substitute<ISaveCaseWorkspace>(services, store));
+        var version = store.CaseVersion;
+        store.NextFailure = new InvalidOperationException("The case refused the command.");
+
+        using var response = await PostFetchCommitAsync(workspace, ("claimantName", "Case claimant"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var answer = await response.Content.ReadAsStringAsync();
+        AssertBalancedMarkup(answer);
+        Assert.Empty(store.Saves);
+        Assert.Equal(1, Occurrences(answer, "data-case-record"));
+        AssertNoEditorCommit(answer);
+        Assert.Contains($"data-case-version=\"{version}\"", answer, StringComparison.Ordinal);
+        Assert.Contains("role=\"alert\"", answer, StringComparison.Ordinal);
+        Assert.Contains("The case refused the command.", answer, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(answer, "data-case-notices"));
+        Assert.Equal(1, Occurrences(answer, "data-case-aside"));
+        Assert.DoesNotContain("id=\"case-main\"", answer, StringComparison.Ordinal);
+
+        var next = await workspace.GetWorkspaceAsync();
+        Assert.DoesNotContain("The case refused the command.", next, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, SaveFormValue(next, "editLeaseToken"));
+    }
+
+    /// <summary>
+    /// A commit that recorded staged crops or rotations also answers with the Files
+    /// section, which the script replaces so the tiles show what was saved. One that
+    /// recorded nothing of the kind does not.
+    /// </summary>
+    [Fact]
+    public async Task AFetchCommitWithPreparationEditsAlsoAnswersWithTheFilesSection()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store(CaseLifecycleState.ReportPreparation, acceptWorkspaceSaves: true);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+
+        using var plain = await PostFetchCommitAsync(workspace, ("claimantName", "Case claimant"));
+        Assert.Equal(HttpStatusCode.OK, plain.StatusCode);
+        Assert.DoesNotContain("id=\"section-files\"", await plain.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        using var response = await PostFetchCommitAsync(
+            workspace,
+            ("preparationEdits[0].occurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
+            ("preparationEdits[0].expectedPreparationVersion", "4"),
+            ("preparationEdits[0].rotation", "180"),
+            ("preparationEdits[0].cropLeft", "0.05"),
+            ("preparationEdits[0].cropTop", "0.1"),
+            ("preparationEdits[0].cropWidth", "0.5"),
+            ("preparationEdits[0].cropHeight", "0.6"),
+            ("preparationEdits[0].fullPage", "false"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var answer = await response.Content.ReadAsStringAsync();
+        AssertBalancedMarkup(answer);
+        Assert.Equal(2, store.Saves.Count);
+        Assert.NotNull(store.Saves[1].ImagePreparation);
+        AssertEditorCommit(answer, "case-edit-form", DetailsModelOperationKey, store.CaseVersion - 1);
+        Assert.Equal(1, Occurrences(answer, "id=\"section-files\""));
+        Assert.Contains(
+            $"data-preparation-occurrence=\"{fixture.OverviewOccurrenceId:D}\"",
+            answer,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-main\"", answer, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A commit that landed but could not keep the session (its lease could not be claimed
+    /// again) leaves nothing to update in place: it takes the redirect, and the page it
+    /// lands on confirms the commit and says it ended editing, as the script expects.
+    /// </summary>
+    [Fact]
+    public async Task AFetchCommitThatEndsTheSessionKeepsTheRedirect()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            AcceptWorkspaceSaves = true,
+            State = CaseLifecycleState.ReportPreparation
+        };
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IAcquireCaseEditLease>(services, new ClaimsOnce(store));
+        });
+        var expectedVersion = store.CaseVersion;
+
+        using var response = await PostFetchCommitAsync(workspace, ("claimantName", "Case claimant"));
+
+        AssertPrg(response, store.CaseId);
+        var next = await workspace.GetWorkspaceAsync();
+        Assert.Contains("data-case-editing=\"false\"", next, StringComparison.Ordinal);
+        Assert.Contains("Case saved.", next, StringComparison.Ordinal);
+        AssertEditorCommit(next, "case-edit-form", DetailsModelOperationKey, expectedVersion);
+    }
+
+    /// <summary>The store's first claim enters edit mode; a later one, the reclaim after a save, is refused.</summary>
+    private sealed class ClaimsOnce(RecordingCaseDetailsStore store) : IAcquireCaseEditLease
+    {
+        private int claims;
+
+        public Task<CaseEditLease> ExecuteAsync(
+            ClaimCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            claims++ == 0
+                ? ((IAcquireCaseEditLease)store).ExecuteAsync(request, cancellationToken)
+                : throw new InvalidOperationException("The lease could not be claimed again.");
+    }
+
+    /// <summary>The Save posted the way case-workspace.js posts a commit: a fetch, expecting the page's HTML.</summary>
+    private static async Task<HttpResponseMessage> PostFetchCommitAsync(
+        LeasedWorkspace workspace,
+        params (string Name, string Value)[] fields)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/Cases/{workspace.Store.CaseId:D}?handler=Save")
+        {
+            Content = workspace.MutationForm(DetailsModelOperationKey, "Saved as it was made.", fields)
+        };
+        request.Headers.Add("X-Requested-With", "fetch");
+        request.Headers.Accept.ParseAdd("text/html");
+        return await workspace.Client.SendAsync(request);
+    }
+
+    /// <summary>
+    /// The record wrapper confirms no commit. Razor draws a data-* attribute whose value is null
+    /// as <c>data-editor-commit=""</c>, and the script reads an empty one as no commit, so the
+    /// attribute may be there; a value in it may not.
+    /// </summary>
+    private static void AssertNoEditorCommit(string html) =>
+        Assert.DoesNotMatch("data-editor-commit=\"[^\"]+\"", html);
+
+    /// <summary>The Save form's own input, as the script's carry-forward reads it.</summary>
+    private static string SaveFormValue(string html, string name)
+    {
+        var start = html.IndexOf("id=\"case-edit-form\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Save form must be drawn.");
+        var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
+        return InputValue(html[start..end], name);
+    }
+
+    /// <summary>The names of every input the script carries forward from a response.</summary>
+    private static string[] CarryForwardNames(string html) =>
+        [.. Regex.Matches(html, "<input[^>]*name=\"(?<name>[^\"]+)\"[^>]*data-carry-forward[^>]*>")
+            .Select(match => match.Groups["name"].Value)];
 }

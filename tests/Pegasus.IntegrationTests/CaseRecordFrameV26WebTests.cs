@@ -504,12 +504,8 @@ public sealed class CaseRecordFrameV26WebTests
     private static async Task<CaseDataProjection> WithCaseNotesAsync(
         RecordingCaseDetailsStore store, string? principalNotes, string? claimSourceNotes)
     {
-        var details = await store.ExecuteAsync(
-            new GetCaseQuery(
-                store.CaseId,
-                ActionActor.Staff(Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator])),
-            CancellationToken.None);
-        return details!.Data! with
+        var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None);
+        return data! with
         {
             Workspace = new CaseWorkspaceData(
                 null, null, null, null, null, null, null, null, null, null, null,

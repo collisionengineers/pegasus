@@ -47,25 +47,49 @@ internal sealed class PlateDetector(InferenceSession session)
             canvas.DrawBitmap(resized, padLeft, padTop);
         }
 
-        var tensor = new DenseTensor<float>([1, 3, InputSize, InputSize]);
-        var pixels = letterboxed.Pixels;
-        for (var y = 0; y < InputSize; y++)
-        {
-            var row = y * InputSize;
-            for (var x = 0; x < InputSize; x++)
-            {
-                var pixel = pixels[row + x];
-                tensor[0, 0, y, x] = pixel.Red / 255f;
-                tensor[0, 1, y, x] = pixel.Green / 255f;
-                tensor[0, 2, y, x] = pixel.Blue / 255f;
-            }
-        }
-
+        var tensor = ToInputTensor(letterboxed);
         var inputName = session.InputMetadata.Keys.First();
         using var results = session.Run(
             [NamedOnnxValue.CreateFromTensor(inputName, tensor)]);
         var output = results[0].AsTensor<float>();
         return Decode(output, ratio, padLeft, padTop, image.Width, image.Height, scoreThreshold);
+    }
+
+    /// <summary>
+    /// The letterboxed bitmap as the model's planar input, `[1, 3, size, size]`,
+    /// red plane then green then blue, each byte scaled to 0-1. The bitmap is
+    /// opaque Rgba8888, so the bytes in memory are the channel values and the
+    /// tensor is filled from them directly.
+    /// </summary>
+    internal static DenseTensor<float> ToInputTensor(SKBitmap letterboxed)
+    {
+        if (letterboxed.ColorType != SKColorType.Rgba8888
+            || letterboxed.Width != InputSize
+            || letterboxed.Height != InputSize)
+        {
+            throw new ArgumentException(
+                $"The detector input is a {InputSize}x{InputSize} Rgba8888 bitmap.", nameof(letterboxed));
+        }
+
+        var tensor = new DenseTensor<float>([1, 3, InputSize, InputSize]);
+        var pixels = letterboxed.GetPixelSpan();
+        var stride = letterboxed.RowBytes;
+        var planes = tensor.Buffer.Span;
+        var plane = InputSize * InputSize;
+        for (var y = 0; y < InputSize; y++)
+        {
+            var source = pixels.Slice(y * stride, InputSize * 4);
+            var row = y * InputSize;
+            for (var x = 0; x < InputSize; x++)
+            {
+                var at = x * 4;
+                planes[row + x] = source[at] / 255f;
+                planes[plane + row + x] = source[at + 1] / 255f;
+                planes[2 * plane + row + x] = source[at + 2] / 255f;
+            }
+        }
+
+        return tensor;
     }
 
     private static DetectedPlate[] Decode(

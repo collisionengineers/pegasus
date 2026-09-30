@@ -656,11 +656,10 @@ public sealed class EfCaseReportGenerationStore(
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken)
-            .ConfigureAwait(false);
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
         var current = await context.Set<CaseReportGenerationEntity>()
             .AsNoTracking()
-            .Where(item => item.WorkId == workId && item.SupersededById == null)
+            .Where(item => selectedWorkIds.Contains(item.WorkId) && item.SupersededById == null)
             .OrderByDescending(item => item.GeneratedAtUtc)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -1334,14 +1333,26 @@ public sealed class EfCaseReportContentSource(
                 "The sign-off Engineer's signature no longer matches the frozen generation.");
         }
 
-        // Nothing is read here. Each image opens through custody at its frozen
-        // length and hash when the renderer prints it, so a render holds one
-        // source image at a time and a queued render holds none.
+        // Nothing is read here, not even the lookups: they are made together
+        // the first time an image opens, in three SQL calls whatever the number
+        // of images, and each image's bytes are read through its own handle
+        // when the renderer prints it. So a render holds one source image at a
+        // time and a queued render holds none. The lookups belong to no one
+        // image: they run without any caller's token, and each open waits for
+        // them with its own, so one cancelled open never faults them for the
+        // images that open after it.
+        var lookups = new Lazy<Task<IReadOnlyList<PreparedLogicalDocumentRead>>>(() =>
+            documentReader.PrepareAsync(
+                actor,
+                snapshot.CaseId,
+                [.. snapshot.Images.Select(image => new LogicalDocumentVersionRead(
+                    image.DocumentId, image.VersionId, image.Sha256, image.ContentLength))],
+                CancellationToken.None));
         var photos = snapshot.Images
-            .Select(image => new ReportImageEvidence(
+            .Select((image, index) => new ReportImageEvidence(
                 image.FileName,
                 image.ContentType,
-                ReportImageContent.Opened(token => OpenAsync(image, snapshot.CaseId, actor, token)),
+                ReportImageContent.Opened(token => OpenAsync(image, lookups, index, token)),
                 image.Sha256,
                 image.Role,
                 image.Order,
@@ -1367,22 +1378,17 @@ public sealed class EfCaseReportContentSource(
 
     /// <summary>
     /// One pinned image's bytes. The version is opened at its frozen length,
-    /// so its bytes are read once into an array of exactly that length.
+    /// so its bytes are read once into an array of exactly that length. Its
+    /// lookups were made with every other image's, the first time any opened.
     /// </summary>
-    private async Task<byte[]> OpenAsync(
-        CaseReportSnapshotImage image, Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+    private static async Task<byte[]> OpenAsync(
+        CaseReportSnapshotImage image,
+        Lazy<Task<IReadOnlyList<PreparedLogicalDocumentRead>>> lookups,
+        int index,
+        CancellationToken cancellationToken)
     {
-        await using var content = await documentReader.OpenAsync(
-            new ReadLogicalDocumentVersionRequest(
-                actor,
-                image.DocumentId,
-                image.VersionId,
-                IntakeAssetId: null,
-                caseId,
-                IntakeReceiptId: null,
-                image.Sha256,
-                image.ContentLength),
-            cancellationToken).ConfigureAwait(false);
+        var prepared = (await lookups.Value.WaitAsync(cancellationToken).ConfigureAwait(false))[index];
+        await using var content = await prepared.OpenAsync(cancellationToken).ConfigureAwait(false);
         var bytes = new byte[image.ContentLength];
         await content.Content.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
         return bytes;

@@ -13,7 +13,9 @@
 - An authorised intake-data wipe records a receive-time cutoff. Nothing can
   lower it or bring cleared mail back.
 - Graph notifications only wake the Worker. The Worker alone reads mail, and
-  a five-minute fallback poll recovers anything a notification missed.
+  a five-minute fallback poll recovers anything a notification missed. The
+  fallback poll runs inside the Worker's one-minute recovery timer, on every
+  fifth minute.
 
 ## Purpose
 
@@ -113,13 +115,22 @@ the tenant accepted it before replicating it to the folder the delta reads.
 That empty read is not a failure: the cursor stays where it was, the message
 is still ahead of the next delta sweep, and the mailbox-scoped source
 identity that both routes derive keeps exactly one occurrence however many
-notifications arrive. Lifecycle `missed`, `subscriptionRemoved` and
-reauthorization events schedule the same delta resynchronisation; they are
-not another processing route.
+notifications arrive. A message is downloaded once. When the delta lists a
+message the wake has already retained, the sweep finds the same item, by its
+immutable message ID and Internet message ID, in the mailbox's retained mail.
+It does not download it and moves the cursor past it. Another item that
+reuses a retained Internet message ID is downloaded, so different bytes stay a
+visible identity conflict. A message with no Internet message ID in the delta
+is downloaded as usual, and a downloaded message keeps every duplicate and
+contradiction check.
+Lifecycle `missed`, `subscriptionRemoved` and reauthorization events
+schedule the same delta resynchronisation; they are not another processing
+route.
 
 Subscription maintenance runs every six hours and renews an enabled Inbox
 before it comes within 48 hours of expiry. A failure is visible per mailbox
 and leaves the five-minute per-mailbox fallback poll running. That fallback
+runs inside the Worker's one-minute recovery timer, on every fifth minute. It
 moves the same cursor and is recovery only: it creates no second receipt and
 does not bypass the fresh-start boundary. Disabling a mailbox stops
 notification work at claim time as well as its next fallback poll.
@@ -155,6 +166,10 @@ The states of a retained message are owned by
   nothing retained.
 - A notification for a message the delta cannot show yet: not a failure;
   the next sweep picks it up.
+- A delta item the mailbox already retained (its wake ran first): not
+  downloaded again; the cursor moves past it.
+- A different delta item that reuses a retained Internet message ID:
+  downloaded; different bytes are quarantined as an identity conflict.
 - A tenant that has not admitted the application: that mailbox alone fails
   and says so.
 - An unknown, expired, malformed or wrongly scoped notification: refused

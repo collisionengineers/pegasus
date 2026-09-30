@@ -29,7 +29,7 @@ public sealed class MessageModel(
     CorrectRetainedMailClassification correctClassification,
     MoveRetainedMailFolder moveRetainedMailFolder,
     ISearchCases searchCases,
-    IGetCase getCase,
+    IGetCaseHeader getCaseHeader,
     Pegasus.Core.Triage.IGetTriage getTriage,
     IIntakeAssociationDestinationQueries destinations,
     IStaffMailSend staffMailSend,
@@ -206,7 +206,7 @@ public sealed class MessageModel(
 
     public IntakeReceipt? AssociationReceipt { get; private set; }
 
-    public CaseDetails? CurrentCase { get; private set; }
+    public CaseHeader? CurrentCase { get; private set; }
 
     /// <summary>
     /// The Case the message is linked to, of either kind, in the shape of a
@@ -216,7 +216,7 @@ public sealed class MessageModel(
     /// </summary>
     public IntakeAssociationDestination? CurrentDestination { get; private set; }
 
-    public CaseDetails? TargetCase { get; private set; }
+    public CaseHeader? TargetCase { get; private set; }
 
     /// <summary>
     /// The chosen "Link to case" target, of either kind, as the destination
@@ -272,7 +272,7 @@ public sealed class MessageModel(
 
     public ApprovedMailbox? CorrespondenceMailbox { get; private set; }
 
-    public CaseDetails? CorrespondenceCase { get; private set; }
+    public CaseHeader? CorrespondenceCase { get; private set; }
 
     public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
 
@@ -1398,7 +1398,7 @@ public sealed class MessageModel(
         return true;
     }
 
-    private async Task<CaseDetails?> ResolveCaseAsync(
+    private async Task<CaseHeader?> ResolveCaseAsync(
         ActionActor actor,
         string? reference,
         CancellationToken cancellationToken)
@@ -1414,7 +1414,7 @@ public sealed class MessageModel(
             string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase));
         return match is null
             ? null
-            : await getCase.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
+            : await getCaseHeader.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
     }
 
     private async Task<IReadOnlyList<CaseSearchItem>> SearchCasesAsync(
@@ -1655,7 +1655,7 @@ public sealed class MessageModel(
             }
             else if (!TargetDestination.IsTriageCase)
             {
-                TargetCase = await getCase.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
+                TargetCase = await getCaseHeader.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
             }
         }
         if (!string.IsNullOrWhiteSpace(CaseQuery))
@@ -1683,12 +1683,12 @@ public sealed class MessageModel(
     /// Case is read from its own owner: a Case through its workflow, or a
     /// Triage Case — which has none — through its Triage record.
     /// </summary>
-    private async Task<(IntakeAssociationDestination? Destination, CaseDetails? Case)> GetCurrentDestinationAsync(
+    private async Task<(IntakeAssociationDestination? Destination, CaseHeader? Case)> GetCurrentDestinationAsync(
         Guid caseId,
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        var linkedCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
+        var linkedCase = await getCaseHeader.ExecuteAsync(new(caseId, actor), cancellationToken);
         if (linkedCase is not null)
         {
             return (

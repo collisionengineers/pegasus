@@ -368,68 +368,127 @@ internal sealed class EfVehicleWorkflowStore(
         var terminalStates = CaseLifecycleRules.TerminalStateNames();
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var candidates = await context.CaseDataFields
-            .AsNoTracking()
-            .Where(field => field.FieldName == CaseDataFieldNames.VehicleRegistration
-                && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact))
-            .Join(
-                context.CaseWorkflows.AsNoTracking()
-                    .Where(workflow => workflow.ArchivedAtUtc == null
-                        && !terminalStates.Contains(workflow.State)),
-                field => field.WorkId,
-                workflow => workflow.CaseId,
-                (field, workflow) => new { CaseId = field.WorkId, field.ValueKind, field.Value, workflow.Version })
-            .ToListAsync(cancellationToken);
-        if (candidates.Count == 0)
-        {
-            return 0;
-        }
-
-        var caseIds = candidates.Select(candidate => candidate.CaseId).Distinct().ToArray();
-        var requested = (await context.Set<VehicleLookupRequestEntity>()
-                .AsNoTracking()
-                .Where(request => caseIds.Contains(request.CaseId))
-                .Select(request => new { request.CaseId, request.Registration })
-                .ToListAsync(cancellationToken))
-            .Select(request => (request.CaseId, request.Registration))
-            .ToHashSet();
-
         var enqueued = 0;
-        foreach (var group in candidates.GroupBy(candidate => candidate.CaseId))
+        Guid? after = null;
+        // A Case whose registration never becomes due (text that is not a
+        // registration, or two different ones) stays a candidate for good. The
+        // candidates are therefore read a page at a time in Case-id order, and
+        // the next page starts after the last Case read, so such Cases can never
+        // hide a due Case behind them.
+        while (enqueued < maximumItems)
         {
-            if (enqueued >= maximumItems)
+            var page = await ReadCandidatePageAsync(context, terminalStates, after, maximumItems, cancellationToken);
+            if (page.Count == 0)
             {
                 break;
             }
 
-            var registration = CurrentRegistration(
-                group.Select(candidate => (candidate.ValueKind, candidate.Value)));
-            if (registration is null || requested.Contains((group.Key, registration)))
+            var caseIds = page.Select(candidate => candidate.CaseId).Distinct().ToArray();
+            var requested = (await context.Set<VehicleLookupRequestEntity>()
+                    .AsNoTracking()
+                    .Where(request => caseIds.Contains(request.CaseId))
+                    .Select(request => new { request.CaseId, request.Registration })
+                    .ToListAsync(cancellationToken))
+                .Select(request => (request.CaseId, request.Registration))
+                .ToHashSet();
+
+            foreach (var group in page.GroupBy(candidate => candidate.CaseId))
             {
-                continue;
+                if (enqueued >= maximumItems)
+                {
+                    break;
+                }
+
+                var registration = CurrentRegistration(
+                    group.Select(candidate => (candidate.ValueKind, candidate.Value)));
+                if (registration is null || requested.Contains((group.Key, registration)))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await EnqueueAutomaticAsync(
+                        group.Key,
+                        registration,
+                        group.First().Version,
+                        cancellationToken);
+                    enqueued++;
+                }
+                catch (DbUpdateException exception) when (IsDuplicateKeyFailure(exception))
+                {
+                    // A concurrent sweep or staff request already recorded this
+                    // pair; the durable marker exists, so this case is done. Any
+                    // other database failure (a denied permission above all)
+                    // propagates and fails the sweep visibly instead of counting
+                    // the case as already done.
+                }
             }
 
-            try
+            if (caseIds.Length < maximumItems)
             {
-                await EnqueueAutomaticAsync(
-                    group.Key,
-                    registration,
-                    group.First().Version,
-                    cancellationToken);
-                enqueued++;
+                break;
             }
-            catch (DbUpdateException exception) when (IsDuplicateKeyFailure(exception))
-            {
-                // A concurrent sweep or staff request already recorded this
-                // pair; the durable marker exists, so this case is done. Any
-                // other database failure (a denied permission above all)
-                // propagates and fails the sweep visibly instead of counting
-                // the case as already done.
-            }
+
+            // The page is in the database's Case-id order, so its last row holds
+            // the key the next page starts after.
+            after = page[^1].CaseId;
         }
 
         return enqueued;
     }
+
+    /// <summary>
+    /// The registration fields of at most <paramref name="pageSize"/> candidate
+    /// Cases after <paramref name="after"/>, in the database's Case-id order.
+    /// </summary>
+    /// <remarks>
+    /// A candidate is an active Case with a registration field that no lookup
+    /// request accounts for, so the read leaves out every Case already looked up.
+    /// The comparison is a coarse form of the normalisation in
+    /// <see cref="CurrentRegistration"/>: no spaces or hyphens, and the
+    /// database's collation ignores case. It can keep a Case that is not due,
+    /// which the exact decision still rejects. It cannot drop a Case that is due:
+    /// a request row holds only the fully normalised registration, so a raw value
+    /// that matches one in this form is already that registration.
+    /// </remarks>
+    private static async Task<List<AutomaticLookupCandidate>> ReadCandidatePageAsync(
+        PegasusDbContext context,
+        string[] terminalStates,
+        Guid? after,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var activeWorkflows = context.CaseWorkflows.AsNoTracking()
+            .Where(workflow => workflow.ArchivedAtUtc == null && !terminalStates.Contains(workflow.State));
+        var registrationFields = context.CaseDataFields.AsNoTracking()
+            .Where(field => field.FieldName == CaseDataFieldNames.VehicleRegistration
+                && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact));
+        var candidateCaseIds = registrationFields
+            .Where(field => !context.Set<VehicleLookupRequestEntity>().Any(request =>
+                request.CaseId == field.WorkId
+                && request.Registration == field.Value.Replace(" ", "").Replace("-", "")))
+            .Join(activeWorkflows, field => field.WorkId, workflow => workflow.CaseId, (field, _) => field.WorkId)
+            .Distinct();
+        if (after is { } afterCaseId)
+        {
+            candidateCaseIds = candidateCaseIds.Where(caseId => caseId.CompareTo(afterCaseId) > 0);
+        }
+        var pageCaseIds = candidateCaseIds.OrderBy(caseId => caseId).Take(pageSize);
+
+        return await registrationFields
+            .Where(field => pageCaseIds.Contains(field.WorkId))
+            .Join(
+                context.CaseWorkflows.AsNoTracking(),
+                field => field.WorkId,
+                workflow => workflow.CaseId,
+                (field, workflow) => new { CaseId = field.WorkId, field.ValueKind, field.Value, workflow.Version })
+            .OrderBy(row => row.CaseId)
+            .Select(row => new AutomaticLookupCandidate(row.CaseId, row.ValueKind, row.Value, row.Version))
+            .ToListAsync(cancellationToken);
+    }
+
+    private sealed record AutomaticLookupCandidate(Guid CaseId, string ValueKind, string Value, long Version);
 
     private async Task EnqueueAutomaticAsync(
         Guid caseId,

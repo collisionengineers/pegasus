@@ -1,9 +1,13 @@
 using System.Security.Cryptography;
+using Azure;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -13,6 +17,7 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.IntegrationTests.Support;
 
 namespace Pegasus.IntegrationTests;
 
@@ -75,13 +80,15 @@ public sealed class CaseArtifactCustodyRecoveryTests
             new HttpClient(new HoldingBoxHandler(box)),
             new StaticBoxAuthorizationHeaderProvider(),
             TimeProvider.System);
+        var publisher = new RecordingCachePublisher();
         var custody = new EfCaseArtifactCustody(
             factory,
             new BoxDocumentContentStore(client),
             new MemoryArtifactStore(),
             TimeProvider.System,
             client,
-            HoldingBox.HoldingFolderId);
+            HoldingBox.HoldingFolderId,
+            publisher);
         var request = new CaseArtifactCustodyRequest(
             ActionActor.SystemWorker("intake-processing"),
             null,
@@ -104,6 +111,15 @@ public sealed class CaseArtifactCustodyRecoveryTests
             (confirmed.BoxFileId, confirmed.BoxVersionId));
         Assert.Equal(1, box.UploadCount);
         Assert.Equal(confirmed.BoxFileId, replay.BoxFileId);
+
+        // The staged bytes were still in hand when Box confirmed the file, so the
+        // asset's read-cache copy was published then, once, under the asset. The
+        // replay uploaded nothing and published nothing.
+        var published = Assert.Single(publisher.Published);
+        Assert.Equal(DocumentContentCacheKey.ForIntakeAsset(assetId), published.Key);
+        Assert.Equal(bytes, published.Bytes);
+        Assert.Equal(hash.ToLowerInvariant(), published.Sha256);
+        Assert.Equal(bytes.LongLength, published.ContentLength);
         await using var verify = await database.CreateContextAsync();
         var stored = await verify.Set<IntakeAssetEntity>().SingleAsync(item => item.Id == assetId);
         Assert.Equal("confirmed", stored.CustodyStatus);
@@ -617,43 +633,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             caseEntity.CustodyRootRemoteId = null;
             for (var ordinal = 1; ordinal <= 2; ordinal++)
             {
-                var documentId = Guid.NewGuid();
-                var versionId = Guid.NewGuid();
-                db.Add(new CaseDocumentEntity
-                {
-                    Id = documentId,
-                    CaseId = caseId,
-                    Ordinal = ordinal,
-                    SourceOccurrenceIdentity = $"pending-{ordinal}"
-                });
-                db.Add(new DocumentVersionEntity
-                {
-                    Id = versionId,
-                    DocumentId = documentId,
-                    Version = 1,
-                    FileName = $"pending-{ordinal}.pdf",
-                    MediaType = "application/pdf",
-                    ContentLength = 0,
-                    Sha256 = Convert.ToHexString(SHA256.HashData([])).ToLowerInvariant(),
-                    PendingContentStorageKey = $"pending-{ordinal}",
-                    CustodyStatus = DocumentCustodyStatus.Pending,
-                    CreatedAtUtc = DateTimeOffset.UnixEpoch.AddMinutes(ordinal),
-                    CreatedBy = "test",
-                    IsCurrent = true
-                });
-                db.Add(new DocumentOccurrenceEntity
-                {
-                    Id = Guid.NewGuid(),
-                    CaseId = caseId,
-                    DocumentId = documentId,
-                    VersionId = versionId,
-                    Ordinal = ordinal,
-                    SemanticRole = DocumentSemanticRole.OriginalSource,
-                    Source = DocumentSource.Generated,
-                    SourceOccurrenceIdentity = $"pending-{ordinal}",
-                    RecordedAtUtc = DateTimeOffset.UnixEpoch.AddMinutes(ordinal),
-                    OperationKey = $"pending-{ordinal}"
-                });
+                AddPendingVersion(db, caseId, ordinal);
             }
             await db.SaveChangesAsync();
         }
@@ -676,6 +656,281 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal(2, attempts.Length);
     }
 
+    /// <summary>
+    /// A version whose filing failed waits 1, 2, 4 and 8 minutes after its first
+    /// four consecutive failures, then 10 minutes, and is not offered to the sweep
+    /// until the wait has passed.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 30, false)]
+    [InlineData(1, 120, true)]
+    [InlineData(2, 90, false)]
+    [InlineData(2, 150, true)]
+    [InlineData(3, 200, false)]
+    [InlineData(3, 250, true)]
+    [InlineData(4, 420, false)]
+    [InlineData(4, 540, true)]
+    [InlineData(5, 540, false)]
+    [InlineData(5, 660, true)]
+    [InlineData(30, 540, false)]
+    [InlineData(30, 660, true)]
+    public async Task AFailedCandidateIsOfferedAgainOnlyOnceItsWaitHasPassed(
+        int consecutiveFailures, int lastFailedSecondsAgo, bool triedAgain)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var clock = new FixedClock(new DateTimeOffset(2031, 5, 1, 12, 0, 0, TimeSpan.Zero));
+        await using (var db = await database.CreateContextAsync())
+        {
+            var versionId = AddPendingVersion(db, caseId, 1);
+            for (var failure = 0; failure < consecutiveFailures; failure++)
+            {
+                AddAttempt(db, versionId, "Failed",
+                    clock.GetUtcNow().AddSeconds(-lastFailedSecondsAgo).AddMinutes(-15 * failure));
+            }
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new CountingArtifactStore();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, clock).ExecuteAsync(50, default);
+
+        Assert.Equal(triedAgain ? 1 : 0, result.Candidates);
+        Assert.Equal(triedAgain ? 1 : 0, artifacts.ReadCount);
+    }
+
+    /// <summary>
+    /// A retained outcome is not a failure. It never delays the version, whether
+    /// it is the only attempt or newer than the failures before it.
+    /// </summary>
+    [Fact]
+    public async Task ARetainedCandidateIsNeverSkipped()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var clock = new FixedClock(new DateTimeOffset(2031, 5, 1, 12, 0, 0, TimeSpan.Zero));
+        await using (var db = await database.CreateContextAsync())
+        {
+            var retainedOnly = AddPendingVersion(db, caseId, 1);
+            AddAttempt(db, retainedOnly, "Retained", clock.GetUtcNow().AddSeconds(-1));
+            var retainedAfterFailures = AddPendingVersion(db, caseId, 2);
+            AddAttempt(db, retainedAfterFailures, "Failed", clock.GetUtcNow().AddSeconds(-40));
+            AddAttempt(db, retainedAfterFailures, "Failed", clock.GetUtcNow().AddSeconds(-30));
+            AddAttempt(db, retainedAfterFailures, "Retained", clock.GetUtcNow().AddSeconds(-5));
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new CountingArtifactStore();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, clock).ExecuteAsync(50, default);
+
+        Assert.Equal(2, result.Candidates);
+        Assert.Equal(2, artifacts.ReadCount);
+    }
+
+    /// <summary>
+    /// The wait counts the failures after the last retained outcome. Two failures
+    /// in all would wait 2 minutes; the one after the retained outcome waits 1.
+    /// </summary>
+    [Fact]
+    public async Task OnlyFailuresAfterTheLastRetainedOutcomeSetTheWait()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var clock = new FixedClock(new DateTimeOffset(2031, 5, 1, 12, 0, 0, TimeSpan.Zero));
+        await using (var db = await database.CreateContextAsync())
+        {
+            var versionId = AddPendingVersion(db, caseId, 1);
+            AddAttempt(db, versionId, "Failed", clock.GetUtcNow().AddMinutes(-9));
+            AddAttempt(db, versionId, "Retained", clock.GetUtcNow().AddMinutes(-8));
+            AddAttempt(db, versionId, "Failed", clock.GetUtcNow().AddSeconds(-90));
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new CountingArtifactStore();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, clock).ExecuteAsync(50, default);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(1, artifacts.ReadCount);
+    }
+
+    /// <summary>
+    /// The version that is still waiting sorts ahead of the fresh one, so it would
+    /// take the only slot if the wait were decided after Take.
+    /// </summary>
+    [Fact]
+    public async Task AWaitingCandidateDoesNotUseUpASlot()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var clock = new FixedClock(new DateTimeOffset(2031, 5, 1, 12, 0, 0, TimeSpan.Zero));
+        Guid waitingId;
+        Guid freshId;
+        await using (var db = await database.CreateContextAsync())
+        {
+            waitingId = AddPendingVersion(db, caseId, 1);
+            for (var failure = 0; failure < 5; failure++)
+            {
+                AddAttempt(db, waitingId, "Failed",
+                    clock.GetUtcNow().AddMinutes(-9).AddMinutes(-15 * failure));
+            }
+            freshId = AddPendingVersion(db, caseId, 2);
+            AddAttempt(db, freshId, "Retained", clock.GetUtcNow().AddMinutes(-1));
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new CountingArtifactStore();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, clock).ExecuteAsync(1, default);
+
+        Assert.Equal(1, result.Candidates);
+        await using var verify = await database.CreateContextAsync();
+        var attempts = await verify.ActionHistory
+            .Where(value => value.EventKind == "ArtifactCustodyReconciliationAttempt")
+            .ToArrayAsync();
+        Assert.Equal(5, attempts.Count(value => value.AggregateId == waitingId.ToString()));
+        Assert.Equal(2, attempts.Count(value => value.AggregateId == freshId.ToString()));
+    }
+
+    /// <summary>
+    /// The sweep swallows a failed candidate, so its log line is the only place
+    /// that says why: the exception type and message, once, at Warning, and the
+    /// type is returned for the Worker's count line.
+    /// </summary>
+    [Fact]
+    public async Task AFailedAttemptLogsItsCauseOnceAtWarning()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        Guid versionId;
+        await using (var db = await database.CreateContextAsync())
+        {
+            versionId = AddPendingVersion(db, caseId, 1);
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var logger = new RecordingLogger();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), new CountingArtifactStore(), TimeProvider.System, logger: logger)
+            .ExecuteAsync(50, default);
+
+        Assert.Equal(1, result.Failures);
+        Assert.Equal(nameof(FileNotFoundException), result.FirstFailure);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Contains(nameof(FileNotFoundException), entry.Message);
+        Assert.Contains("Pending artifact content is unavailable.", entry.Message);
+        Assert.Contains(versionId.ToString(), entry.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(entry.Exception);
+    }
+
+    /// <summary>
+    /// The attempt row is bookkeeping. When it cannot be written the item still
+    /// counts as failed, the failure is named in the log, and the next candidate
+    /// is still tried.
+    /// </summary>
+    [Fact]
+    public async Task AnAttemptThatCannotBeRecordedFailsOneItemAndTheSweepContinues()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var db = await database.CreateContextAsync())
+        {
+            AddPendingVersion(db, caseId, 1);
+            AddPendingVersion(db, caseId, 2);
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var inner = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        // Call 1 reads the candidates; call 2 is the first candidate's attempt record.
+        var factory = new ThrowingContextFactory(inner, throwOnCall: 2);
+        var artifacts = new CountingArtifactStore();
+        var logger = new RecordingLogger();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, TimeProvider.System, logger: logger)
+            .ExecuteAsync(50, default);
+
+        Assert.Equal(2, result.Candidates);
+        Assert.Equal(2, result.Failures);
+        Assert.Equal(2, artifacts.ReadCount);
+        await using var verify = await database.CreateContextAsync();
+        Assert.Equal(1, await verify.ActionHistory.CountAsync(
+            value => value.EventKind == "ArtifactCustodyReconciliationAttempt"));
+        Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Warning
+            && entry.Message.Contains("could not be recorded", StringComparison.Ordinal));
+    }
+
+    private static Guid AddPendingVersion(PegasusDbContext db, Guid caseId, int ordinal)
+    {
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        db.Add(new CaseDocumentEntity
+        {
+            Id = documentId,
+            CaseId = caseId,
+            Ordinal = ordinal,
+            SourceOccurrenceIdentity = $"pending-{ordinal}"
+        });
+        db.Add(new DocumentVersionEntity
+        {
+            Id = versionId,
+            DocumentId = documentId,
+            Version = 1,
+            FileName = $"pending-{ordinal}.pdf",
+            MediaType = "application/pdf",
+            ContentLength = 0,
+            Sha256 = Convert.ToHexString(SHA256.HashData([])).ToLowerInvariant(),
+            PendingContentStorageKey = $"pending-{ordinal}",
+            CustodyStatus = DocumentCustodyStatus.Pending,
+            CreatedAtUtc = DateTimeOffset.UnixEpoch.AddMinutes(ordinal),
+            CreatedBy = "test",
+            IsCurrent = true
+        });
+        db.Add(new DocumentOccurrenceEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            DocumentId = documentId,
+            VersionId = versionId,
+            Ordinal = ordinal,
+            SemanticRole = DocumentSemanticRole.OriginalSource,
+            Source = DocumentSource.Generated,
+            SourceOccurrenceIdentity = $"pending-{ordinal}",
+            RecordedAtUtc = DateTimeOffset.UnixEpoch.AddMinutes(ordinal),
+            OperationKey = $"pending-{ordinal}"
+        });
+        return versionId;
+    }
+
+    private static void AddAttempt(
+        PegasusDbContext db, Guid versionId, string outcome, DateTimeOffset occurredAtUtc) =>
+        db.Add(new ActionHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = nameof(DocumentVersionEntity),
+            AggregateId = versionId.ToString(),
+            EventKind = "ArtifactCustodyReconciliationAttempt",
+            ActorKind = nameof(ActorKind.SystemWorker),
+            ActorSubjectId = "artifact-custody-reconciliation",
+            ActorRolesJson = "[]",
+            OccurredAtUtc = occurredAtUtc,
+            Outcome = outcome,
+            CorrelationId = versionId.ToString(),
+            Reason = outcome == "Failed" ? "IOException" : "CaseRootUnavailable"
+        });
+
     [Fact]
     public async Task SystemWorkerMayRetainCaseArtifactThroughExecuteSystemWorkRight()
     {
@@ -693,6 +948,128 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
             ArtifactRequest(ActionActor.Principal(Guid.NewGuid()), caseId, bytes), default));
+    }
+
+    /// <summary>
+    /// A file custody confirms on a Case is published to the read cache while
+    /// its staged bytes are still in hand, under its version, and only once the
+    /// version is confirmed and committed: the cache row refers to the version
+    /// row, so an earlier publish could not even be recorded. A replay files
+    /// nothing and publishes nothing.
+    /// </summary>
+    [Fact]
+    public async Task AConfirmedCaseArtifactIsPublishedToTheReadCacheOnceItsVersionHasCommitted()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var statusWhenPublished = new List<DocumentCustodyStatus>();
+        var publisher = new RecordingCachePublisher(async key =>
+        {
+            await using var db = await factory.CreateDbContextAsync();
+            statusWhenPublished.Add((await db.Set<DocumentVersionEntity>().AsNoTracking()
+                .SingleAsync(version => version.Id == key.DocumentVersionId)).CustodyStatus);
+        });
+        var custody = new EfCaseArtifactCustody(
+            factory,
+            new SuccessfulContentStore(),
+            new MemoryArtifactStore(),
+            TimeProvider.System,
+            cachePublisher: publisher);
+        var bytes = "a report the caller filed and still holds"u8.ToArray();
+        var request = ArtifactRequest(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), caseId, bytes);
+
+        var result = await custody.RetainAsync(request, default);
+        var replay = await custody.RetainAsync(
+            request with { Content = new MemoryStream(bytes, writable: false) }, default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
+        Assert.Equal(result.VersionId, replay.VersionId);
+        var published = Assert.Single(publisher.Published);
+        Assert.Equal(DocumentContentCacheKey.ForVersion(result.VersionId!.Value), published.Key);
+        Assert.Equal(bytes, published.Bytes);
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), published.Sha256);
+        Assert.Equal(bytes.LongLength, published.ContentLength);
+        Assert.Equal([DocumentCustodyStatus.Confirmed], statusWhenPublished);
+    }
+
+    /// <summary>
+    /// The read cache is an optimisation, never the record: when the blob store
+    /// cannot take the copy the filing is still confirmed, and no cache entry
+    /// exists for the first read to trip over.
+    /// </summary>
+    [Fact]
+    public async Task ACachePublishThatFailsLeavesTheFilingConfirmed()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var box = new BoxContentClient(
+            new(
+                new Uri("https://api.box.com/2.0/"),
+                new Uri("https://upload.box.com/api/2.0/"),
+                HoldingBox.RootId,
+                "test", "test", "test", "test", "test", "test", HoldingBox.HoldingFolderId),
+            new HttpClient(new HoldingBoxHandler(new HoldingBox())),
+            new StaticBoxAuthorizationHeaderProvider(),
+            TimeProvider.System);
+        var cache = new CachedDocumentContentStore(
+            factory, new UnavailableCacheContainer(), box, TimeProvider.System);
+        var custody = new EfCaseArtifactCustody(
+            factory,
+            new SuccessfulContentStore(),
+            new MemoryArtifactStore(),
+            TimeProvider.System,
+            cachePublisher: cache);
+
+        var result = await custody.RetainAsync(
+            ArtifactRequest(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                caseId,
+                "filed while the cache is down"u8.ToArray()),
+            default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
+        await using var db = await database.CreateContextAsync();
+        Assert.Equal(
+            DocumentCustodyStatus.Confirmed,
+            (await db.Set<DocumentVersionEntity>().SingleAsync()).CustodyStatus);
+        Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+    }
+
+    /// <summary>
+    /// A version the Worker's reconciliation files later is published the same
+    /// way, from the bytes it read from the pending copy.
+    /// </summary>
+    [Fact]
+    public async Task AVersionFiledByReconciliationIsPublishedToTheReadCache()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var content = new FailFirstContentStore();
+        var artifacts = new MemoryArtifactStore();
+        var custody = new EfCaseArtifactCustody(factory, content, artifacts, TimeProvider.System);
+        var bytes = "filed later by reconciliation"u8.ToArray();
+        await Assert.ThrowsAsync<IOException>(() => custody.RetainAsync(
+            ArtifactRequest(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), caseId, bytes), default));
+        var publisher = new RecordingCachePublisher();
+
+        var reconciled = await new ReconcilePendingArtifactCustody(
+                factory, content, artifacts, TimeProvider.System, publisher)
+            .ExecuteAsync(10, default);
+
+        Assert.Equal(1, reconciled.Confirmed);
+        await using var db = await database.CreateContextAsync();
+        var version = await db.Set<DocumentVersionEntity>().SingleAsync();
+        var published = Assert.Single(publisher.Published);
+        Assert.Equal(DocumentContentCacheKey.ForVersion(version.Id), published.Key);
+        Assert.Equal(bytes, published.Bytes);
+        Assert.Equal(version.Sha256, published.Sha256);
+        Assert.Equal(version.ContentLength, published.ContentLength);
     }
 
     private static CaseArtifactCustodyRequest ArtifactRequest(
@@ -799,6 +1176,42 @@ public sealed class CaseArtifactCustodyRecoveryTests
             throw new InvalidOperationException("A failed save must not delete remote content.");
     }
 
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    /// <summary>Fails the context creation with the given call number, and only that one.</summary>
+    private sealed class ThrowingContextFactory(
+        IDbContextFactory<PegasusDbContext> inner, int throwOnCall) : IDbContextFactory<PegasusDbContext>
+    {
+        private int calls;
+
+        public PegasusDbContext CreateDbContext() =>
+            Interlocked.Increment(ref calls) == throwOnCall
+                ? throw new InvalidOperationException("Injected context creation failure.")
+                : inner.CreateDbContext();
+
+        public Task<PegasusDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
+            Interlocked.Increment(ref calls) == throwOnCall
+                ? throw new InvalidOperationException("Injected context creation failure.")
+                : inner.CreateDbContextAsync(cancellationToken);
+    }
+
+    private sealed class RecordingLogger : ILogger<ReconcilePendingArtifactCustody>
+    {
+        public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception), exception));
+    }
+
     private sealed class CountingArtifactStore(ReadOnlyMemory<byte>? content = null)
         : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
     {
@@ -818,6 +1231,22 @@ public sealed class CaseArtifactCustodyRecoveryTests
             throw new NotSupportedException();
         public Task VerifyAsync(IntakeQuarantineArtifact artifact, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    /// <summary>A cache container whose blobs refuse every upload.</summary>
+    private sealed class UnavailableCacheContainer : BlobContainerClient
+    {
+        public override BlobClient GetBlobClient(string blobName) => new UnavailableCacheBlob();
+    }
+
+    private sealed class UnavailableCacheBlob : BlobClient
+    {
+        public override Task<Response<BlobContentInfo>> UploadAsync(
+            Stream content,
+            BlobUploadOptions options,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<Response<BlobContentInfo>>(
+                new RequestFailedException(503, "The blob store is unavailable."));
     }
 
     private sealed class SuccessfulContentStore : IDocumentContentStore
@@ -1018,6 +1447,9 @@ public sealed class CaseArtifactCustodyRecoveryTests
     {
         public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
             Task.FromResult("Bearer test-token");
+
+        public Task<bool> RenewIfDueAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     /// <summary>

@@ -32,24 +32,36 @@ public sealed class EfCaseDataStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
+        // The selected work is resolved inside the snapshot read.
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
         var snapshot = await SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken);
+            .SingleOrDefaultAsync(item => selectedWorkIds.Contains(item.WorkId), cancellationToken);
         if (snapshot is null)
         {
             return null;
         }
 
-        var workflow = await context.CaseWorkflows.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+        // The workflow's version and state and the workflow configuration the
+        // completeness is evaluated under are one command.
+        var basis = await context.CaseWorkflows.AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => new
+            {
+                item.Version,
+                item.State,
+                Configuration = context.Set<WorkflowConfigurationEntity>()
+                    .FirstOrDefault(configuration =>
+                        configuration.Id == AdministrationPolicyModelConfiguration.WorkflowPolicyKey)
+            })
+            .SingleOrDefaultAsync(cancellationToken)
             ?? throw new InvalidDataException(
                 "The accepted case data snapshot has no workflow record.");
-        var data = Map(snapshot, workflow);
-        var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
-        return data with { Completeness = data.Completeness with
-        {
-            Evaluation = CaseCompletenessPolicy.Evaluate(data.Completeness.Values, configuration)
-        } };
+        var configuration = basis.Configuration
+            ?? throw new InvalidOperationException(
+                "The current workflow configuration has not been initialized.");
+        return ApplyConfiguration(
+            Map(snapshot, basis.Version, basis.State),
+            EfWorkflowConfigurationStore.Map(configuration));
     }
 
     public async Task<CaseDataProjection> SaveAsync(
@@ -266,7 +278,13 @@ public sealed class EfCaseDataStore(
 
     internal static CaseDataProjection Map(
         CaseDataSnapshotEntity snapshot,
-        CaseWorkflowEntity workflow) => new(
+        CaseWorkflowEntity workflow) => Map(snapshot, workflow.Version, workflow.State);
+
+    /// <summary>The projection of a snapshot at the Case workflow's version and state.</summary>
+    internal static CaseDataProjection Map(
+        CaseDataSnapshotEntity snapshot,
+        long workflowVersion,
+        string workflowState) => new(
         new(
             snapshot.Work.CaseId,
             snapshot.Work.Case.Principal.Code,
@@ -287,8 +305,8 @@ public sealed class EfCaseDataStore(
             snapshot.ExtractionPolicyKey,
             snapshot.ExtractionPolicyVersion),
         snapshot.AcceptedAtUtc,
-        workflow.Version,
-        ParseLifecycleState(workflow.State),
+        workflowVersion,
+        ParseLifecycleState(workflowState),
         new(
             new(
                 snapshot.Work.Case.InstructionComplete,

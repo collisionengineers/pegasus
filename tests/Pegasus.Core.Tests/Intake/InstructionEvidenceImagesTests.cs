@@ -274,6 +274,60 @@ public sealed class InstructionEvidenceImagesTests
 
         Assert.Null(await harness.Download().ExecuteAsync(
             new(harness.Receipt.Id, Guid.NewGuid(), StaffActor)));
+        Assert.Null(await harness.Download().ExecuteAsync(
+            new(Guid.NewGuid(), harness.SourceAsset.Id, StaffActor)));
+    }
+
+    /// <summary>
+    /// One asset is read on its own: the receipt's whole aggregate (drafts,
+    /// decisions and evidence) is not loaded to find it.
+    /// </summary>
+    [Fact]
+    public async Task OneAssetIsReadWithoutLoadingTheReceiptAggregate()
+    {
+        var harness = new DownloadHarness();
+
+        var artifactRead = await harness.Download().ExecuteAsync(
+            new(harness.Receipt.Id, harness.SourceAsset.Id, StaffActor));
+        var logicalRead = await harness.Download(new RecordingLogicalReader()).ExecuteAsync(
+            new(harness.Receipt.Id, harness.SourceAsset.Id, StaffActor));
+
+        Assert.Equal(DownloadHarness.SourceHash, artifactRead!.Sha256);
+        Assert.Equal(DownloadHarness.SourceHash, logicalRead!.Sha256);
+        Assert.Equal(2, harness.Receipts.AssetReads);
+        Assert.Equal(0, harness.Receipts.ReceiptReads);
+    }
+
+    /// <summary>
+    /// The read fills one array sized from the recorded length and hands that
+    /// array on, so the answer is not a second copy of the file.
+    /// </summary>
+    [Fact]
+    public async Task ThroughTheLogicalReaderTheBytesAreTheOneArrayTheReadFilled()
+    {
+        var harness = new DownloadHarness();
+
+        var download = await harness.Download(new RecordingLogicalReader()).ExecuteAsync(
+            new(harness.Receipt.Id, harness.SourceAsset.Id, StaffActor));
+
+        Assert.True(System.Runtime.InteropServices.MemoryMarshal.TryGetArray(download!.Content, out var segment));
+        Assert.Equal(0, segment.Offset);
+        Assert.Equal(DownloadHarness.SourceBytes.Length, segment.Array!.Length);
+        Assert.Equal(DownloadHarness.SourceBytes.Length, download.ContentLength);
+        Assert.Equal(DownloadHarness.SourceBytes, download.Content.ToArray());
+    }
+
+    [Fact]
+    public async Task ALogicalReadOfAnotherLengthThanRecordedIsRefused()
+    {
+        var harness = new DownloadHarness();
+
+        await Assert.ThrowsAsync<IntakeArtifactIntegrityException>(() =>
+            harness.Download(new RecordingLogicalReader(Encoding.UTF8.GetBytes("QDOS")))
+                .ExecuteAsync(new(harness.Receipt.Id, harness.SourceAsset.Id, StaffActor)));
+        await Assert.ThrowsAsync<IntakeArtifactIntegrityException>(() =>
+            harness.Download(new RecordingLogicalReader([.. DownloadHarness.SourceBytes, .. DownloadHarness.SourceBytes]))
+                .ExecuteAsync(new(harness.Receipt.Id, harness.SourceAsset.Id, StaffActor)));
     }
 
     private static readonly ActionActor StaffActor =
@@ -354,7 +408,11 @@ public sealed class InstructionEvidenceImagesTests
                 Version: 7);
     }
 
-    private sealed class RecordingLogicalReader : IReadLogicalDocumentVersion
+    /// <param name="served">
+    /// What the reader streams; the recorded source bytes unless a test says
+    /// the store answered with something else.
+    /// </param>
+    private sealed class RecordingLogicalReader(byte[]? served = null) : IReadLogicalDocumentVersion
     {
         public List<ReadLogicalDocumentVersionRequest> Requests { get; } = [];
 
@@ -364,7 +422,7 @@ public sealed class InstructionEvidenceImagesTests
         {
             Requests.Add(request);
             return Task.FromResult(new LogicalDocumentContent(
-                new MemoryStream(DownloadHarness.SourceBytes, writable: false),
+                new MemoryStream(served ?? DownloadHarness.SourceBytes, writable: false),
                 null,
                 null,
                 request.IntakeAssetId,
@@ -413,11 +471,29 @@ public sealed class InstructionEvidenceImagesTests
 
     private sealed class FakeReceiptQueries(IntakeReceipt receipt) : IIntakeReceiptQueries
     {
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
+        /// <summary>How many times the whole receipt aggregate was read.</summary>
+        public int ReceiptReads { get; private set; }
 
-        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult(id == receipt.Id ? receipt : null);
+        /// <summary>How many times one asset was read on its own.</summary>
+        public int AssetReads { get; private set; }
+
+        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken)
+        {
+            ReceiptReads++;
+            return Task.FromResult(id == receipt.Id ? receipt : null);
+        }
+
+        public Task<IntakeAssetRecord?> GetAssetAsync(
+            Guid receiptId,
+            Guid assetId,
+            CancellationToken cancellationToken)
+        {
+            AssetReads++;
+            return Task.FromResult(
+                receiptId == receipt.Id
+                    ? receipt.AssetRecords.SingleOrDefault(asset => asset.Id == assetId)
+                    : null);
+        }
     }
 
     private static IntakeAssetRecord Asset(

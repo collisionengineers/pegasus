@@ -20,7 +20,7 @@ namespace Pegasus.Web.Pages.Mail;
 /// </remarks>
 public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
-    GetRetainedMail getRetainedMail,
+    GetRetainedMailPreview getRetainedMailPreview,
     GetRetainedMailFreshness getFreshness,
     SearchDeletedMail searchDeletedMail,
     IDismissRetainedMail dismissRetainedMail,
@@ -93,7 +93,7 @@ public sealed class IndexModel(
     public IReadOnlyList<MailScopeOption> Scopes { get; private set; } = [];
 
     /// <summary>The message the preview pane renders, when one is selected.</summary>
-    public RetainedMailDetail? SelectedDetail { get; private set; }
+    public RetainedMailPreview? SelectedDetail { get; private set; }
 
     public MailFreshness Freshness { get; private set; } =
         new(MailFreshnessState.Unavailable, null);
@@ -137,44 +137,22 @@ public sealed class IndexModel(
 
         try
         {
-            Mailboxes = Folder == MailFolderScope.DeletedItems
-                ? await searchDeletedMail.ListMailboxesAsync(actor, cancellationToken)
-                : await listRetainedMail.ListMailboxesAsync(actor, cancellationToken);
-            if (SearchValidationMessage is null
-                && Folder == MailFolderScope.DeletedItems
-                && SearchTerm is not null)
-            {
-                DeletedResults = await searchDeletedMail.ExecuteAsync(
-                    actor,
-                    mailbox,
-                    SearchTerm,
-                    page,
-                    PageSize,
-                    cancellationToken);
-            }
-            else if (SearchValidationMessage is null)
-            {
-                Results = await listRetainedMail.ExecuteAsync(
-                    actor,
-                    new(
-                        mailbox,
-                        Folder,
-                        SearchTerm,
-                        DestinationFilter,
-                        DetailedClassificationFilter,
-                        UnreadOnly: false,
-                        OldestFirst,
-                        DismissedOnly: Dismissed),
-                    page,
-                    PageSize,
-                    cancellationToken);
-                await LoadSelectedDetailAsync(actor, cancellationToken);
-            }
-            if (SearchValidationMessage is null)
-            {
-                Scopes = await LoadScopeCountsAsync(actor, mailbox, cancellationToken);
-            }
-            Freshness = await getFreshness.ExecuteAsync(actor, cancellationToken);
+            // The mailboxes, the list, the scope counts and the freshness share
+            // nothing and each reads on its own database context, so they start
+            // together. Each starts inside its own async method, so a reader that
+            // throws before its first await still fails through the same catches.
+            var mailboxesRead = ReadAsync(() => Folder == MailFolderScope.DeletedItems
+                ? searchDeletedMail.ListMailboxesAsync(actor, cancellationToken)
+                : listRetainedMail.ListMailboxesAsync(actor, cancellationToken));
+            var listRead = ReadListAsync(actor, mailbox, page, cancellationToken);
+            var scopesRead = ReadAsync(() => SearchValidationMessage is null
+                ? LoadScopeCountsAsync(actor, mailbox, cancellationToken)
+                : Task.FromResult<IReadOnlyList<MailScopeOption>>([]));
+            var freshnessRead = ReadAsync(() => getFreshness.ExecuteAsync(actor, cancellationToken));
+            await Task.WhenAll(mailboxesRead, listRead, scopesRead, freshnessRead);
+            Mailboxes = await mailboxesRead;
+            Scopes = await scopesRead;
+            Freshness = await freshnessRead;
         }
         catch (StaffAuthorizationException)
         {
@@ -186,6 +164,53 @@ public sealed class IndexModel(
         }
 
         return Page();
+    }
+
+    private static async Task<T> ReadAsync<T>(Func<Task<T>> read) => await read();
+
+    /// <summary>
+    /// The list itself and, with it, the message the preview pane renders. The
+    /// pane is drawn from the list's own row, so the preview read adds only what
+    /// the row does not carry.
+    /// </summary>
+    private async Task ReadListAsync(
+        ActionActor actor,
+        Guid? mailbox,
+        int page,
+        CancellationToken cancellationToken)
+    {
+        if (SearchValidationMessage is not null)
+        {
+            return;
+        }
+
+        if (Folder == MailFolderScope.DeletedItems && SearchTerm is not null)
+        {
+            DeletedResults = await searchDeletedMail.ExecuteAsync(
+                actor,
+                mailbox,
+                SearchTerm,
+                page,
+                PageSize,
+                cancellationToken);
+            return;
+        }
+
+        Results = await listRetainedMail.ExecuteAsync(
+            actor,
+            new(
+                mailbox,
+                Folder,
+                SearchTerm,
+                DestinationFilter,
+                DetailedClassificationFilter,
+                UnreadOnly: false,
+                OldestFirst,
+                DismissedOnly: Dismissed),
+            page,
+            PageSize,
+            cancellationToken);
+        await LoadSelectedDetailAsync(actor, cancellationToken);
     }
 
     /// <summary>Dismiss from the row: the message leaves every incoming scope; nothing is classified, linked or deleted.</summary>
@@ -308,7 +333,7 @@ public sealed class IndexModel(
 
         try
         {
-            var detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken);
+            var detail = await getRetainedMailPreview.ExecuteAsync(actor, id, cancellationToken: cancellationToken);
             if (detail is null)
             {
                 return NotFound();
@@ -328,9 +353,7 @@ public sealed class IndexModel(
                 stateTone = OperatorLabels.StatusTone(state),
                 excerpt = summary.BodyExcerpt ?? "No excerpt available",
                 attachments = OperatorLabels.Inbox.Attachments(detail.Attachments),
-                classification = detail.Classification is { } dossier
-                    ? MessageModel.DecisionLabel(dossier.Current)
-                    : MessageModel.ClassificationLabel(detail.ClassificationOutcome),
+                classification = ClassificationValue(detail),
                 association = MessageModel.AssociationLabel(summary.CaseReference),
                 folder = FolderValue(detail),
                 // A pinned row's pane offers its own Open Case or Open Triage.
@@ -368,10 +391,11 @@ public sealed class IndexModel(
             return;
         }
 
-        SelectedDetail = await getRetainedMail.ExecuteAsync(
+        // The list row is the summary the pane draws, search matches included.
+        SelectedDetail = await getRetainedMailPreview.ExecuteAsync(
             actor,
             row.Id,
-            SearchTerm,
+            row,
             cancellationToken);
     }
 
@@ -465,10 +489,16 @@ public sealed class IndexModel(
     };
 
     /// <summary>The preview's Folder cell: the folder a confirmed move put the message in, else the scope it was read from.</summary>
-    public static string FolderValue(RetainedMailDetail detail) =>
-        detail.Summary.CurrentFolderType is { } currentFolderType
+    public static string FolderValue(RetainedMailPreview preview) =>
+        preview.Summary.CurrentFolderType is { } currentFolderType
             ? MailLogicalFolders.Definition(currentFolderType).Label
-            : FolderLabel(detail.Folder);
+            : FolderLabel(preview.Folder);
+
+    /// <summary>The preview's Classification cell: the current decision's label, else "Not yet processed".</summary>
+    public static string ClassificationValue(RetainedMailPreview preview) =>
+        preview.Classification is { } current
+            ? MessageModel.DecisionLabel(current)
+            : MessageModel.ClassificationLabel(null);
 
     public static string FreshnessStatus(MailFreshnessState state) => state switch
     {

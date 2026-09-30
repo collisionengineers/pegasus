@@ -22,6 +22,65 @@ public interface IReadLogicalDocumentVersion
 {
     Task<LogicalDocumentContent> OpenAsync(
         ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The lookups for several versions of one Case, made together; the bytes
+    /// are still read one at a time. A caller that reads many versions of one
+    /// Case in turn (a report's pinned images) asks once, then opens each handle
+    /// when it needs that version, so it holds one source at a time and pays the
+    /// lookups once instead of once for each version.
+    /// </summary>
+    /// <remarks>
+    /// The default prepares nothing: each handle is the single read. A reader
+    /// that can share its lookups overrides it. Either way a handle answers
+    /// exactly as <see cref="OpenAsync"/> does for the same request, including
+    /// how an unavailable version fails, and it fails when it is opened, not
+    /// when it is prepared.
+    /// </remarks>
+    Task<IReadOnlyList<PreparedLogicalDocumentRead>> PrepareAsync(
+        ActionActor actor,
+        Guid caseId,
+        IReadOnlyList<LogicalDocumentVersionRead> versions,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(versions);
+        return Task.FromResult<IReadOnlyList<PreparedLogicalDocumentRead>>(
+            [.. versions.Select(version => new PreparedLogicalDocumentRead(
+                token => OpenAsync(
+                    new ReadLogicalDocumentVersionRequest(
+                        actor,
+                        version.DocumentId,
+                        version.VersionId,
+                        IntakeAssetId: null,
+                        caseId,
+                        IntakeReceiptId: null,
+                        version.ExpectedSha256,
+                        version.ExpectedContentLength),
+                    token)))]);
+    }
+}
+
+/// <summary>One document version of a Case to read, and the hash and length it must have.</summary>
+public sealed record LogicalDocumentVersionRead(
+    Guid DocumentId, Guid VersionId, string ExpectedSha256, long ExpectedContentLength);
+
+/// <summary>
+/// One version whose lookups are done. <see cref="OpenAsync"/> reads its bytes,
+/// verified against the hash and length it was prepared with, and may be
+/// called each time the bytes are needed.
+/// </summary>
+public sealed class PreparedLogicalDocumentRead
+{
+    private readonly Func<CancellationToken, Task<LogicalDocumentContent>> open;
+
+    public PreparedLogicalDocumentRead(Func<CancellationToken, Task<LogicalDocumentContent>> open)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+        this.open = open;
+    }
+
+    public Task<LogicalDocumentContent> OpenAsync(CancellationToken cancellationToken) =>
+        open(cancellationToken);
 }
 
 public enum DocumentSemanticRole
@@ -510,6 +569,99 @@ public interface IReadCachedDocumentVersions
     Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
         IReadOnlyList<ManagedDocumentContentRead> reads,
         CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// What one read-cache copy is kept under: a document version or a retained
+/// intake asset, never both. The cache is keyed by the same identity a read
+/// asks for, so a copy is found by the caller that filed it.
+/// </summary>
+public sealed record DocumentContentCacheKey(Guid? DocumentVersionId, Guid? IntakeAssetId)
+{
+    public static DocumentContentCacheKey ForVersion(Guid documentVersionId) =>
+        new(documentVersionId, null);
+
+    public static DocumentContentCacheKey ForIntakeAsset(Guid intakeAssetId) =>
+        new(null, intakeAssetId);
+}
+
+/// <summary>
+/// Writes the read-cache copy of content a caller holds and has just filed to
+/// custody, so the first read of it is a cache hit instead of a Box read.
+/// </summary>
+/// <remarks>
+/// The copy is an optimisation and never the record. A publish that fails, or
+/// takes longer than five seconds, is logged and forgotten: it never throws
+/// to the caller, so it can never fail the filing it follows, and it never
+/// holds it for longer than that. Once one publish has failed or timed out, the
+/// publisher's remaining publishes are skipped. The publisher is scoped: one
+/// request, one queued work item, or one whole run of the Worker's
+/// reconciliation timer, which can file up to 50 pending versions. So a store
+/// that is down costs that scope one wait and not one for each file. The next
+/// read of a file that was not published then misses and publishes as it
+/// always did.
+///
+/// A caller publishes only after custody has confirmed the file and its own
+/// transaction has committed, because the cache row refers to the version or
+/// asset row. Each call uses its own database context, so several may run at
+/// the same time.
+/// </remarks>
+public interface IDocumentContentCachePublisher
+{
+    /// <summary>
+    /// Publishes <paramref name="content"/>, which must be a readable, seekable
+    /// stream of exactly <paramref name="contentLength"/> bytes whose SHA-256 is
+    /// <paramref name="sha256"/>. The publisher checks both itself and refuses
+    /// to publish bytes that differ. The stream stays the caller's.
+    /// </summary>
+    Task PublishAsync(
+        DocumentContentCacheKey key,
+        Stream content,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Publishes the copy of an artifact intake retained under
+    /// <paramref name="storageKey"/>, for a caller that filed the file without
+    /// holding its bytes: a custody adapter read them from the retained copy and
+    /// the version they belong to was only recorded afterwards. The publisher
+    /// reads the retained copy itself and checks it exactly as
+    /// <see cref="PublishAsync(DocumentContentCacheKey, Stream, string, long, CancellationToken)"/>
+    /// does. Box is not read.
+    /// </summary>
+    Task PublishRetainedIntakeCopyAsync(
+        DocumentContentCacheKey key,
+        string storageKey,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken);
+}
+
+public static class DocumentContentCachePublisherExtensions
+{
+    /// <summary>Publishes bytes a caller holds in memory.</summary>
+    public static async Task PublishAsync(
+        this IDocumentContentCachePublisher publisher,
+        DocumentContentCacheKey key,
+        ReadOnlyMemory<byte> content,
+        string sha256,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(publisher);
+        await using var stream = StreamOf(content);
+        await publisher.PublishAsync(key, stream, sha256, content.Length, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A read-only stream over bytes held in memory. It shares the array when the
+    /// memory is one, so the bytes are not copied.
+    /// </summary>
+    public static MemoryStream StreamOf(ReadOnlyMemory<byte> content) =>
+        System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment)
+            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
+            : new MemoryStream(content.ToArray(), writable: false);
 }
 
 public sealed record ManagedDocumentContentAddress(

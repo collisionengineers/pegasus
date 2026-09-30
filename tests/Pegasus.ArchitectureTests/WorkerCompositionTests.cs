@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -78,13 +80,7 @@ public sealed class WorkerCompositionTests
                 "Pegasus.Infrastructure.Custody.EfDocumentThumbnailCandidates",
                 provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>().GetType().FullName);
 
-            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
+            WorkerFunctionSet.AssertEveryFunctionActivates(scopedServices);
         }
         finally
         {
@@ -299,13 +295,75 @@ public sealed class WorkerCompositionTests
             Assert.IsType<Pegasus.Infrastructure.Custody.NoDocumentThumbnailCandidates>(
                 provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>());
 
-            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
+            WorkerFunctionSet.AssertEveryFunctionActivates(scopedServices);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The Worker holds the Box token provider in production, so it renews the
+    /// token in the background there. The offline profile has no Box token.
+    /// </summary>
+    [Theory]
+    [InlineData("Production", true)]
+    [InlineData("DevelopmentOffline", false)]
+    public void TheBoxTokenIsRenewedInTheBackgroundInProductionOnly(string profile, bool composed)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var services = CreateWorkerServices(
+                CreateConfiguration(profile, root), new TestHostEnvironment(root));
+
+            Assert.Equal(
+                composed,
+                services.Any(descriptor =>
+                    descriptor.ServiceType == typeof(IHostedService)
+                    && descriptor.ImplementationType?.FullName
+                        == "Pegasus.Infrastructure.Custody.BoxTokenRenewalService"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The Worker files intake evidence to Box, so in production it publishes
+    /// each filed file's read-cache copy while it holds the bytes. The offline
+    /// profile has no content cache and composes the null publisher.
+    /// </summary>
+    [Theory]
+    [InlineData("Production", false)]
+    [InlineData("DevelopmentOffline", true)]
+    public void TheWorkerComposesTheCachePublisherInProductionAndTheNullOneOffline(
+        string profile,
+        bool nullPublisher)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var services = CreateWorkerServices(
+                CreateConfiguration(profile, root), new TestHostEnvironment(root));
+
+            // The last registration is the one a scope resolves.
+            var composed = services.Last(descriptor =>
+                descriptor.ServiceType == typeof(Pegasus.Core.Documents.IDocumentContentCachePublisher));
+
+            if (nullPublisher)
+            {
+                Assert.Equal(
+                    typeof(Pegasus.Infrastructure.Custody.NoDocumentContentCachePublisher),
+                    composed.ImplementationType);
+            }
+            else
+            {
+                Assert.Equal(ServiceLifetime.Scoped, composed.Lifetime);
+                Assert.NotNull(composed.ImplementationFactory);
+            }
         }
         finally
         {
@@ -333,6 +391,22 @@ public sealed class WorkerCompositionTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public void TheSpanBridgeIsComposedOverTheApplicationInsightsClientAsOneSingleton()
+    {
+        using var telemetry = TelemetryConfiguration.CreateDefault();
+        telemetry.DisableTelemetry = true;
+        var services = new ServiceCollection();
+        services.AddSingleton(new TelemetryClient(telemetry));
+        services.AddWorkerSpanTelemetry();
+
+        using var provider = services.BuildServiceProvider(validateScopes: true);
+
+        Assert.Same(
+            provider.GetRequiredService<WorkerSpanTelemetryBridge>(),
+            provider.GetRequiredService<WorkerSpanTelemetryBridge>());
     }
 
     private static ServiceCollection CreateWorkerServices(
@@ -369,6 +443,12 @@ public sealed class WorkerCompositionTests
         if (profile.Equals("DevelopmentOffline", StringComparison.Ordinal))
         {
             values["AzureWebJobsStorage"] = "UseDevelopmentStorage=true";
+            // Building AutomaticEvaReviewSubmissionFunction reads the EVA options in
+            // both profiles, and the activation check builds every function.
+            foreach (var (key, value) in CreateProductionValues(root).Where(pair => pair.Key.StartsWith("Eva:", StringComparison.Ordinal)))
+            {
+                values[key] = value;
+            }
         }
 
         return new ConfigurationBuilder()

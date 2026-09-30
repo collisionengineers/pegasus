@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Options;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
@@ -26,6 +29,7 @@ using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Glass;
+using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
@@ -50,17 +54,24 @@ public sealed class ProductionCompositionTests
         "web.workcentre.refresh.result",
         "web.workcentre.refresh.main",
         "web.case.frame",
-        "web.case.access",
         "web.case.workspace",
         "web.case.direct-sections",
         "web.case.engineer-sections",
         "web.case.extras",
+        "web.case.commit",
         "web.case.section.resource",
         "web.case.section.result",
         "web.auth.validation",
         "web.shell.counts",
         "web.shell.notifications",
-        "report.renderer.initialize"
+        "report.renderer.initialize",
+        "web.workcentre.attention",
+        "web.workcentre.newcases",
+        "web.workcentre.aijobs",
+        "report.photos.prepare",
+        "report.pdf.generate",
+        "report.pdf.pagecount",
+        "db.connection.open"
     ];
 
     [Fact]
@@ -122,6 +133,48 @@ public sealed class ProductionCompositionTests
         Assert.False(eva.DefaultRequestHeaders.Contains("X-Composition-Only"));
         Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
         Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
+    }
+
+    // The Box and Graph clients are created once inside singletons, so the factory never
+    // rotates their handlers. Their own connection pool has to expire connections, or a DNS
+    // change is never seen until the process restarts. Both Graph registrations are checked:
+    // the Web host's resolver and the Worker's adapters.
+    [Fact]
+    public void BoxAndGraphClientsPoolConnectionsForTenMinutes()
+    {
+        var web = NewServices();
+        web.AddProductionBoxCustody(_ => BoxOptions());
+        web.AddProductionApprovedMailboxResolver("https://graph.microsoft.com/v1.0/");
+        AssertPoolsConnectionsForTenMinutes(web, nameof(BoxContentClient));
+        AssertPoolsConnectionsForTenMinutes(web, nameof(GraphMailClient));
+
+        var worker = NewServices();
+        worker.AddProductionExternalAdapters(
+            GraphApprovedMailboxOptions.Create("https://graph.microsoft.com/v1.0/"),
+            new DvlaDvsaProductionOptions(
+                new Uri("https://driver-vehicle-licensing.api.gov.uk/"),
+                "dvla-key",
+                new Uri("https://history.mot.api.gov.uk/"),
+                new Uri("https://login.microsoftonline.com/tenant/oauth2/v2.0/token"),
+                "dvsa-client",
+                "dvsa-secret",
+                "dvsa-key",
+                "scope"));
+        AssertPoolsConnectionsForTenMinutes(worker, nameof(GraphMailClient));
+    }
+
+    private static void AssertPoolsConnectionsForTenMinutes(ServiceCollection services, string clientName)
+    {
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptionsMonitor<HttpClientFactoryOptions>>().Get(clientName);
+        var builder = provider.GetRequiredService<HttpMessageHandlerBuilder>();
+        foreach (var action in options.HttpMessageHandlerBuilderActions)
+        {
+            action(builder);
+        }
+
+        using var handler = Assert.IsType<SocketsHttpHandler>(builder.PrimaryHandler);
+        Assert.Equal(TimeSpan.FromMinutes(10), handler.PooledConnectionLifetime);
     }
 
     [Fact]
@@ -196,6 +249,33 @@ public sealed class ProductionCompositionTests
     }
     """;
 
+    /// <summary>
+    /// The Box token is renewed in the background wherever production Box
+    /// custody is composed, and nowhere else. Web and the Worker both compose
+    /// it through <c>AddProductionDocumentStorage</c>.
+    /// </summary>
+    [Fact]
+    public void ProductionComposesTheBoxTokenRenewalAndTheOfflineProfileDoesNot()
+    {
+        var services = NewServices();
+        services.AddPegasusInfrastructure(
+            ConfigureDatabase,
+            documentStorage: registrations => registrations.AddProductionDocumentStorage(
+                static _ => new BlobContainerClient(
+                    new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
+                static _ => false,
+                static _ => BoxOptions()));
+
+        Assert.Single(services, descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(BoxTokenRenewalService));
+
+        using var offline = new IntakeWebApplicationFactory();
+        Assert.DoesNotContain(
+            offline.Services.GetServices<IHostedService>(),
+            service => service is BoxTokenRenewalService);
+    }
+
     [Fact]
     public void ProductionProfileComposesBoxCustodyAndDocumentContent()
     {
@@ -208,6 +288,10 @@ public sealed class ProductionCompositionTests
         Assert.IsType<AzureBlobIntakeArtifactStore>(services.GetRequiredService<IIntakeArtifactStore>());
         Assert.IsType<AzureBlobIntakeArtifactStore>(
             services.GetRequiredService<IIntakeQuarantineArtifactStore>());
+        // The store that serves a read is the one that publishes what is filed.
+        Assert.Same(
+            services.GetRequiredService<IReadLogicalDocumentVersion>(),
+            services.GetRequiredService<IDocumentContentCachePublisher>());
     }
 
     [Fact]
@@ -348,6 +432,106 @@ public sealed class ProductionCompositionTests
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
             initializer => initializer is GlassCallbackTelemetryInitializer);
+    }
+
+    [Fact]
+    public void ProductionWebTelemetryCollectsTheTwelveRuntimeCountersAndNoOthers()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            });
+
+        // The module is configured when the telemetry configuration is built.
+        _ = factory.Services.GetRequiredService<TelemetryConfiguration>();
+        var module = factory.Services.GetServices<ITelemetryModule>()
+            .OfType<Microsoft.ApplicationInsights.Extensibility.EventCounterCollector.EventCounterCollectionModule>()
+            .Single();
+
+        Assert.Equal(
+            Pegasus.Web.Health.RuntimeCounters.Requested
+                .Select(counter => $"{counter.Source}/{counter.Counter}")
+                .Order(StringComparer.Ordinal),
+            module.Counters
+                .Select(counter => $"{counter.EventSourceName}/{counter.EventCounterName}")
+                .Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void ProductionWebTelemetryDropsQuietRowsBeforeAdaptiveSampling()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            });
+
+        // The SDK builds the registered processors into the default sink's chain
+        // (filter, metrics extractor, live metrics, adaptive sampling, transmission).
+        // TelemetryConfiguration.TelemetryProcessors is only the configuration's own
+        // pass-through entry point that hands each item to the sinks, so it never lists them.
+        var processors = factory.Services.GetRequiredService<TelemetryConfiguration>()
+            .DefaultTelemetrySink.TelemetryProcessors.ToList();
+
+        var filter = processors.FindIndex(processor => processor is QuietRequestTelemetryFilter);
+        var sampling = processors.FindIndex(processor => processor.GetType().Name.Contains("Sampling", StringComparison.Ordinal));
+        Assert.True(filter >= 0, "The quiet-row filter is not in the telemetry processor chain.");
+        Assert.True(sampling >= 0, "Adaptive sampling is not in the telemetry processor chain.");
+        Assert.True(
+            filter < sampling,
+            "The quiet-row filter must run before adaptive sampling so dropped rows do not spend its budget.");
+    }
+
+    [Fact]
+    public void ProductionWebRunsTheRuntimeHeartbeat()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            });
+
+        Assert.Contains(
+            factory.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>(),
+            service => service is Pegasus.Web.Health.RuntimeHeartbeat);
+    }
+
+    [Fact]
+    public void ARecordedPhaseReachesTheBridgeWithItsMeasuredDuration()
+    {
+        var channel = new RecordingTelemetryChannel();
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            })
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ITelemetryChannel>();
+                services.AddSingleton<ITelemetryChannel>(channel);
+            }));
+
+        _ = factory.Services.GetRequiredService<DocumentReadTelemetryBridge>();
+        using var request = new Activity("test.request").Start();
+
+        DocumentReadTelemetry.Record("db.connection.open", TimeSpan.FromMilliseconds(250));
+
+        var timing = Assert.Single(
+            channel.Sent.OfType<EventTelemetry>()
+                .Where(item => item.Context.Operation.Id == request.TraceId.ToHexString()),
+            item => item.Name == "Pegasus.Document.Read");
+        Assert.Equal("db.connection.open", timing.Properties["phase"]);
+        Assert.Equal(250, timing.Metrics["durationMs"], 1);
+        Assert.Equal(request.Id, timing.Context.Operation.ParentId);
     }
 
     [Fact]
