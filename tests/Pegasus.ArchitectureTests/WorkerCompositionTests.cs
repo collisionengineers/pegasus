@@ -313,6 +313,34 @@ public sealed class WorkerCompositionTests
         }
     }
 
+    /// <summary>
+    /// The Worker holds the Box token provider in production, so it renews the
+    /// token in the background there. The offline profile has no Box token.
+    /// </summary>
+    [Theory]
+    [InlineData("Production", true)]
+    [InlineData("DevelopmentOffline", false)]
+    public void TheBoxTokenIsRenewedInTheBackgroundInProductionOnly(string profile, bool composed)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var services = CreateWorkerServices(
+                CreateConfiguration(profile, root), new TestHostEnvironment(root));
+
+            Assert.Equal(
+                composed,
+                services.Any(descriptor =>
+                    descriptor.ServiceType == typeof(IHostedService)
+                    && descriptor.ImplementationType?.FullName
+                        == "Pegasus.Infrastructure.Custody.BoxTokenRenewalService"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public void UnsupportedRuntimeProfileFailsBeforeAdaptersAreRegistered()
     {
