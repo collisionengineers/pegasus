@@ -197,13 +197,17 @@ public sealed class ServiceHealthPersistenceTests
     }
 
     /// <summary>
-    /// The Health page sends the same statements however many rows the
-    /// sources hold, and reads the Sent-items cursors twice: the poll list in
-    /// the snapshot and the failure count in the metrics. Both reads now run
-    /// beside each other rather than one after another.
+    /// The Health page sends its shell's statements plus exactly its own:
+    /// thirteen for the snapshot and eight for the metrics, whatever the row
+    /// count. The shell is measured on the Administration hub, which renders
+    /// the same layout, the same filters and the same middleware and reads
+    /// nothing else. The Automation ingress switch is unconfigured in this
+    /// host, so it sends none. The page reads the Sent-items cursors twice:
+    /// the poll list in the snapshot and the failure count in the metrics.
+    /// Those reads now run beside each other rather than one after another.
     /// </summary>
     [Fact]
-    public async Task TheHealthPageSendsTheSameStatementsWhateverTheRowCount()
+    public async Task TheHealthPageSendsTheShellsStatementsAndTwentyOneOfItsOwnWhateverTheRowCount()
     {
         var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
@@ -212,13 +216,21 @@ public sealed class ServiceHealthPersistenceTests
             useIntegrationTestAuthentication: true,
             commandInterceptor: counter);
         using var client = IntakeWebDriver.CreateClient(factory);
-        // The first request pays one-off start-up reads; count the next.
+        // The first request to each page pays one-off start-up reads; count the next.
+        _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration");
         _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
+
+        counter.Reset();
+        _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration");
+        var shell = counter.Count;
+        Assert.True(shell > 0, "The interceptor observed no statements at all.");
 
         counter.Reset();
         _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
         var withNoRows = counter.Count;
-        Assert.True(withNoRows > 0, "The interceptor observed no statements at all.");
+        const int snapshotStatements = 13;
+        const int metricsStatements = 8;
+        Assert.Equal(shell + snapshotStatements + metricsStatements, withNoRows);
         Assert.Equal(2, counter.CountContaining("[ApprovedSentPollStates]"));
 
         await using (var context = await factory.Database.CreateContextAsync())
