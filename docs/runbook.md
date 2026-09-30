@@ -802,7 +802,9 @@ version endpoint (`/diagnostics`), static files (`/css`, `/js`, `/fonts`,
 request row, and their SQL calls leave no dependency row. A failed one
 (unsuccessful, or a 5xx) is always kept, so the failed-request alert and a
 failing probe still show. Count probes from the platform's own health view,
-not from `AppRequests`.
+not from `AppRequests`. The readiness probe reads the database with one call.
+After the first probe that finds the schema current it only connects, and a
+probe that fails remembers nothing, so the next one checks again.
 
 ## Web start
 
@@ -829,6 +831,21 @@ The warm-up begins a few seconds before the `listening` mark, because it starts
 with the host.
 A slow start shows there which phase took the time. The start limit
 `WEBSITES_CONTAINER_START_TIME_LIMIT` is not part of this design.
+
+After its first pass the warm-up repeats its reads every three minutes for the
+life of the process. `Startup:WarmupInterval` sets the wait (default
+`00:03:00`). `00:00:00` restores the once-only behaviour, and `Startup:Warmup`
+`false` still turns the whole warm-up off. A pass reads what a signed-in page
+reads and writes nothing. It covers the Work Centre, the Inbox list, the newest
+Case's page and the report renderer. Readiness waits only for the first pass.
+The renderer is warmed right after it, in a step of its own
+(`Startup warm-up step report-renderer finished in <ms> ms`). Each pass runs
+under one `Pegasus.Warmup` activity, so its SQL rows share one operation id and
+it makes no request row. Each pass logs `Warm-up pass finished in <ms> ms` at
+Debug. That line reaches the log only where the
+`Pegasus.Web.Health.StartupWarmup` category is lowered to Debug. The first
+failure of a step is a warning, `Warm-up step <name> failed after <ms> ms`.
+Later failures of the same step are Debug lines.
 
 ## Recovery
 
