@@ -425,7 +425,9 @@ public static class EvaBundleSchema
         byte[] json,
         IReadOnlyList<ImageEntry> images)
     {
-        using var stream = new MemoryStream();
+        // Sized up front so the stream does not grow by doubling and copy the archive each
+        // time. Only the capacity is chosen here; the bytes written do not depend on it.
+        using var stream = new MemoryStream(ArchiveCapacity(jsonName, json, images));
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true, Encoding.UTF8))
         {
             WriteEntry(archive, jsonName, json);
@@ -436,6 +438,23 @@ public static class EvaBundleSchema
         }
 
         return stream.ToArray();
+    }
+
+    // The archive stores every entry uncompressed, so its size is the entries' content plus
+    // a fixed cost per entry: a 30-byte local header and a 46-byte central-directory record,
+    // each of which carries the entry name, and the 22-byte end record. The margin covers
+    // any extra field the writer adds. A short estimate only means the stream grows once.
+    private static int ArchiveCapacity(string jsonName, byte[] json, IReadOnlyList<ImageEntry> images)
+    {
+        const int PerEntry = 30 + 46 + 32;
+        const int EndRecord = 22 + 32;
+        var total = EndRecord + PerEntry + json.Length + 2L * Encoding.UTF8.GetByteCount(jsonName);
+        foreach (var image in images)
+        {
+            total += PerEntry + image.Image.Content.Length + 2L * Encoding.UTF8.GetByteCount(image.Name);
+        }
+
+        return (int)Math.Min(total, Array.MaxLength);
     }
 
     private static void WriteEntry(ZipArchive archive, string name, ReadOnlySpan<byte> content)
