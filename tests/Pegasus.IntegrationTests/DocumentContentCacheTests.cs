@@ -94,7 +94,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(1, estate.Box.Downloads);
             await using var db = await estate.Database.CreateContextAsync();
             Assert.Equal(
-                estate.Clock.GetUtcNow().AddHours(24),
+                estate.Clock.GetUtcNow().AddDays(14),
                 (await db.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ExpiresAtUtc);
         }
     }
@@ -365,7 +365,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(2, estate.Box.Downloads);
             await using var verify = await estate.Database.CreateContextAsync();
             Assert.Equal(
-                estate.Clock.GetUtcNow().AddHours(24),
+                estate.Clock.GetUtcNow().AddDays(14),
                 (await verify.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ExpiresAtUtc);
         }
     }
@@ -931,7 +931,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(1, estate.Box.Downloads);
             await using var db = await estate.Database.CreateContextAsync();
             Assert.Equal(
-                estate.Clock.GetUtcNow().AddHours(24),
+                estate.Clock.GetUtcNow().AddDays(14),
                 (await db.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ExpiresAtUtc);
         }
     }
@@ -1004,7 +1004,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(2, estate.Box.Downloads);
             await using var verify = await estate.Database.CreateContextAsync();
             Assert.Equal(
-                estate.Clock.GetUtcNow().AddHours(24),
+                estate.Clock.GetUtcNow().AddDays(14),
                 (await verify.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ExpiresAtUtc);
         }
     }
@@ -1289,6 +1289,65 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             await using var db = await estate.Database.CreateContextAsync();
             Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
         }
+    }
+
+    /// <summary>
+    /// An original is kept fourteen days after it was filed or last read. A read
+    /// pushes the expiry out, at most once an hour; cleanup claims nothing until
+    /// the fortnight has passed and then removes the entry and its object.
+    /// </summary>
+    [Fact]
+    public async Task AnOriginalIsKeptFourteenDaysAfterItsLastReadAndCleanupThenRemovesIt()
+    {
+        var bytes = "kept for a fortnight"u8.ToArray();
+        var estate = await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            estate.Box.Unavailable = true;
+            var filedAt = estate.Clock.GetUtcNow();
+            await estate.Reader.PublishAsync(
+                KeyOf(estate.Request), bytes, estate.Request.ExpectedSha256, CancellationToken.None);
+            Assert.Equal(filedAt.AddDays(14), await ExpiryAsync(estate));
+
+            // Thirteen days on it is still a hit, and the read pushes the expiry
+            // out to a fortnight from now.
+            estate.Clock.Advance(TimeSpan.FromDays(13));
+            await using (var read = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None))
+            {
+                Assert.Equal(bytes, await ReadAsync(read.Content));
+            }
+            var lastRead = estate.Clock.GetUtcNow();
+            Assert.Equal(lastRead.AddDays(14), await ExpiryAsync(estate));
+
+            // A hit inside the hour writes nothing.
+            estate.Clock.Advance(TimeSpan.FromMinutes(30));
+            await using (var again = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None))
+            {
+                Assert.Equal(bytes, await ReadAsync(again.Content));
+            }
+            Assert.Equal(lastRead.AddDays(14), await ExpiryAsync(estate));
+
+            // Cleanup claims nothing while the entry is live.
+            estate.Clock.Advance(TimeSpan.FromDays(13));
+            Assert.Equal(0, (await estate.Reader.ExecuteAsync(10, CancellationToken.None)).Candidates);
+            Assert.Equal(0, estate.Blob.DeleteCount);
+
+            // Fourteen days after its last read it is expired, and cleanup removes it.
+            estate.Clock.Advance(TimeSpan.FromDays(1).Add(TimeSpan.FromMinutes(1)));
+            var cleanup = await estate.Reader.ExecuteAsync(10, CancellationToken.None);
+            Assert.Equal(1, cleanup.Candidates);
+            Assert.Equal(1, cleanup.Deleted);
+            Assert.Null(estate.Blob.Content);
+            await using var db = await estate.Database.CreateContextAsync();
+            Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+            Assert.Equal(0, estate.Box.Downloads);
+        }
+    }
+
+    private static async Task<DateTimeOffset> ExpiryAsync(Estate estate)
+    {
+        await using var db = await estate.Database.CreateContextAsync();
+        return (await db.Set<DocumentContentCacheEntryEntity>().AsNoTracking().SingleAsync()).ExpiresAtUtc;
     }
 
     private static DocumentContentCacheKey KeyOf(ReadLogicalDocumentVersionRequest request) =>
