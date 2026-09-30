@@ -786,11 +786,24 @@ intake receipt and custody work item ids the spans are tagged with are never sen
 linked, so an idle ten-second tick sends no row.
 
 `SqlDependencyTelemetryFilter` still drops a successful SQL call, but keeps one that
-took 250 ms or more, and every failed one. `AppDependencies` therefore shows a lock
-wait or a slow statement on an intake run. Dependencies are not sampled.
+took 250 ms or more, and every failed one. It runs before sampling, so a dropped
+call does not count towards the sampling rate. `AppDependencies` therefore shows a
+lock wait or a slow statement on an intake run, unless sampling dropped it.
+
+Dependencies are sampled. The worker process samples everything it sends itself.
+`AddApplicationInsightsTelemetryWorkerService` in `src/Pegasus.Worker/Program.cs`
+keeps the SDK's default adaptive sampling: events at about five a second, and all
+other types together at about five a second. The other types are the worker
+process's dependencies, exceptions and log lines. The `excludedTypes` list in
+`host.json` reaches only what the Functions host writes, such as the `AppRequests`
+row of each run. A quiet Worker stays under those rates and loses nothing. A kept
+row that stands for dropped rows has `ItemCount` above 1, so count with
+`sum(ItemCount)`.
 
 Use the two together. A run that took 26 s with no dependency shows its spans by
-stage, and a slow statement in the same trace shows as a dependency.
+stage, and a slow statement in the same trace shows as a dependency. Sampling keeps
+or drops a whole operation, but events and the other types are sampled apart. Under
+load a run can keep its spans and lose its slow statement, or the reverse.
 
 ### A failing sweep step names its cause
 
