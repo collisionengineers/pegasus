@@ -1123,6 +1123,12 @@ internal sealed class BoxContentClient(
         public override Task FlushAsync(CancellationToken cancellationToken) =>
             Task.FromException(new NotSupportedException());
 
+        // Only the synchronous Stream contract needs this override, and it blocks on the
+        // asynchronous read. No production caller reaches it. This stream is built once,
+        // for the upload's StreamContent, and HttpClient.SendAsync copies it with
+        // CopyToAsync, which calls ReadAsync(Memory). Read(Span), ReadByte, CopyTo,
+        // BeginRead and the synchronous HttpContent APIs (CopyTo, HttpClient.Send) are
+        // not used on it. Keep it that way: do not read this stream synchronously.
         public override int Read(byte[] buffer, int offset, int count) =>
             ReadAsync(buffer.AsMemory(offset, count), CancellationToken.None).AsTask().GetAwaiter().GetResult();
 
