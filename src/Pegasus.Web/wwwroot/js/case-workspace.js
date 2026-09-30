@@ -644,10 +644,11 @@
                 if (generation !== heartbeatGeneration || response.status === 204) {
                     return;
                 }
-                // 409 and 403 are the server refusing the lease itself. Anything
+                // 409 and 403 are the server refusing the lease itself, and 404 is
+                // a Case that no longer exists (a stale tab after a wipe). Anything
                 // else - a faulted request, a replica restarting - says nothing
                 // about the lease, and the next beat settles it.
-                if (response.status === 409 || response.status === 403) {
+                if (response.status === 409 || response.status === 403 || response.status === 404) {
                     expired();
                 }
             }).catch(function () {
