@@ -845,6 +845,10 @@ public static class DependencyInjection
             new BoxJwtAuthorizationHeaderProvider(
                 provider.GetRequiredService<BoxCustodyOptions>(),
                 provider.GetRequiredService<TimeProvider>()));
+        // Replaces that token in the background before a request would need it.
+        // It belongs here, with the provider, so both hosts run it in
+        // production and no other profile has a Box token to renew.
+        services.AddHostedService<BoxTokenRenewalService>();
         services.AddSingleton(provider => new BoxContentClient(
             provider.GetRequiredService<BoxCustodyOptions>(),
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(BoxContentClient)),

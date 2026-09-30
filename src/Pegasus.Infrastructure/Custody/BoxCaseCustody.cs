@@ -120,6 +120,12 @@ public sealed record BoxCustodyOptions(
 internal interface IBoxAuthorizationHeaderProvider
 {
     Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Mints a new token now if the held one is close enough to expiry that a
+    /// request would soon have to. Answers whether it minted.
+    /// </summary>
+    Task<bool> RenewIfDueAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>The access token Box granted, and how long it said it lasts.</summary>
@@ -139,6 +145,11 @@ internal readonly record struct BoxAccessToken(string? Value, long? LifetimeSeco
 /// The lifetime is read from Box's own response rather than assumed, and the
 /// mint is single-flight so a burst of concurrent Box work takes one token,
 /// not one each.
+///
+/// <see cref="BoxTokenRenewalService"/> calls <see cref="RenewIfDueAsync"/>
+/// so the token is normally replaced in the background, before any request
+/// would have to. The request path still mints on demand, so a renewal that
+/// fails costs a request the mint it always paid, never a failed read.
 /// </summary>
 internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeaderProvider, IDisposable
 {
@@ -158,6 +169,13 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
     /// intermittent-looking 401 this class exists to remove.
     /// </summary>
     private static readonly TimeSpan RenewalMargin = RequestTimeout + TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// How much sooner than a request would need it the background renewal
+    /// replaces the token, so the request path finds a live token and never
+    /// waits on a mint.
+    /// </summary>
+    private static readonly TimeSpan EarlyRenewal = TimeSpan.FromMinutes(5);
 
     private readonly Func<CancellationToken, Task<BoxAccessToken>> mint;
     private readonly TimeProvider timeProvider;
@@ -192,6 +210,9 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 
     public async Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken)
     {
+        // A token that is still live for a request is returned without the
+        // gate, even inside the early-renewal window while a background
+        // renewal is minting. The request does not wait and mints nothing.
         if (Live(timeProvider.GetUtcNow()) is { } current)
         {
             return current;
@@ -206,25 +227,38 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
                 return renewed;
             }
 
-            var token = await mint(cancellationToken);
-            // A token that expires inside the renewal margin would never be
-            // live, so every Box call would mint another — a silent storm
-            // against Box's token endpoint instead of a fault anyone can see.
-            // Box JWT tokens last an hour; anything shorter is a broken
-            // premise, and this says so rather than absorbing it.
-            if (string.IsNullOrWhiteSpace(token.Value)
-                || token.LifetimeSeconds is not > 0
-                || TimeSpan.FromSeconds(token.LifetimeSeconds.Value) <= RenewalMargin)
+            return await MintAsync(now, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Replaces the token when there is none, or when it is within the
+    /// renewal margin and the early-renewal window of expiry. It takes the
+    /// same gate as a request's mint, so a request that arrives while this
+    /// mints waits for this mint and does not start another.
+    /// </summary>
+    public async Task<bool> RenewIfDueAsync(CancellationToken cancellationToken)
+    {
+        if (!RenewalDue(timeProvider.GetUtcNow()))
+        {
+            return false;
+        }
+
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            var now = timeProvider.GetUtcNow();
+            if (!RenewalDue(now))
             {
-                throw new InvalidOperationException(
-                    "Box JWT authentication returned no usable access token.");
+                return false;
             }
 
-            var renewal = new Lease(
-                $"Bearer {token.Value}",
-                now + TimeSpan.FromSeconds(token.LifetimeSeconds.Value));
-            Volatile.Write(ref lease, renewal);
-            return renewal.Header;
+            await MintAsync(now, cancellationToken);
+            return true;
         }
         finally
         {
@@ -234,10 +268,40 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 
     public void Dispose() => gate.Dispose();
 
+    /// <summary>Mints and holds a new token. The caller holds <see cref="gate"/>.</summary>
+    private async Task<string> MintAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var token = await mint(cancellationToken);
+        // A token that lasts no longer than the renewal margin plus the
+        // early-renewal window is refused, because it would be due for renewal
+        // the moment it was minted and the 60-second background loop would
+        // mint again on every check. A token inside the margin alone would
+        // also never be live, so every Box call would mint another. Either
+        // way that is a silent storm against Box's token endpoint instead of a
+        // fault anyone can see. Box JWT tokens last an hour; anything shorter
+        // is a broken premise, and this says so rather than absorbing it.
+        if (string.IsNullOrWhiteSpace(token.Value)
+            || token.LifetimeSeconds is not > 0
+            || TimeSpan.FromSeconds(token.LifetimeSeconds.Value) <= RenewalMargin + EarlyRenewal)
+        {
+            throw new InvalidOperationException(
+                "Box JWT authentication returned no usable access token.");
+        }
+
+        var renewal = new Lease(
+            $"Bearer {token.Value}",
+            now + TimeSpan.FromSeconds(token.LifetimeSeconds.Value));
+        Volatile.Write(ref lease, renewal);
+        return renewal.Header;
+    }
+
     private string? Live(DateTimeOffset now) =>
         Volatile.Read(ref lease) is { } held && now + RenewalMargin < held.ExpiresAtUtc
             ? held.Header
             : null;
+
+    private bool RenewalDue(DateTimeOffset now) =>
+        Volatile.Read(ref lease) is not { } held || now + RenewalMargin + EarlyRenewal >= held.ExpiresAtUtc;
 
     private static Func<CancellationToken, Task<BoxAccessToken>> SdkMint(BoxCustodyOptions options)
     {
@@ -275,10 +339,12 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 /// (<see cref="OpenOwnedVersionReadAsync"/>) is the one exception: it always
 /// reads the file itself — its parent and its trash state — but it remembers,
 /// for <see cref="LiveFolderMemory"/>, that the file's folder was proved to sit
-/// under the approved root. Only a successful proof is remembered. Any 404,
-/// trashed or outside-root answer that touches a folder forgets it, and so do
-/// a folder delete and a file move. A folder moved out of the root, or
-/// trashed, outside Pegasus can therefore still be read for up to that long.
+/// under the approved root. It asks for the file's bytes at the same time as
+/// it reads the file, and discards them unless every check passes. Only a
+/// successful proof is remembered. Any 404, trashed or outside-root answer
+/// that touches a folder forgets it, and so do a folder delete and a file
+/// move. A folder moved out of the root, or trashed, outside Pegasus can
+/// therefore still be read for up to that long.
 /// A walk that succeeded at the same moment as a forget may remember the
 /// folder again, still within that ten-minute bound.
 /// </remarks>
@@ -649,7 +715,27 @@ internal sealed class BoxContentClient(
         long maximumLength,
         CancellationToken cancellationToken) =>
         OpenOwnedVersionAsync(
-            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true, cancellationToken);
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true,
+            contentHash: null, cancellationToken);
+
+    /// <summary>
+    /// The managed read, hashing the content as the download is written, so the
+    /// caller that must verify it does not copy it a second time. The caller
+    /// finishes the hash and compares it; nothing is compared here.
+    /// </summary>
+    public Task<Stream> OpenOwnedVersionReadAsync(
+        string fileId,
+        string versionId,
+        string expectedParentId,
+        long maximumLength,
+        IncrementalHash contentHash,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(contentHash);
+        return OpenOwnedVersionAsync(
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true,
+            contentHash, cancellationToken);
+    }
 
     /// <summary>
     /// The same exact-version read for a write path: the folder's ancestry is
@@ -662,17 +748,37 @@ internal sealed class BoxContentClient(
         long maximumLength,
         CancellationToken cancellationToken) =>
         OpenOwnedVersionAsync(
-            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: false, cancellationToken);
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: false,
+            contentHash: null, cancellationToken);
 
+    /// <summary>
+    /// The exact version's content, once the file has passed every check.
+    /// </summary>
+    /// <remarks>
+    /// The content is requested at the same time as the file's metadata, so a
+    /// read waits for the slower of the two rather than for both. The checks
+    /// then run as before, in order: the object is a file, it is not in the
+    /// trash, its parent is the expected folder, and that folder sits under the
+    /// approved root. The content is not handed to any caller until every check
+    /// has passed. When a check fails, or the request for it does, the download
+    /// is cancelled, its temporary file is deleted, and the check's exception
+    /// is the answer. When the checks pass and the content request failed, the
+    /// content's exception is the answer.
+    /// </remarks>
     private async Task<Stream> OpenOwnedVersionAsync(
         string fileId,
         string versionId,
         string expectedParentId,
         long maximumLength,
         bool rememberAncestry,
+        IncrementalHash? contentHash,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedParentId);
+        using var abandon = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var content = DownloadVersionWithoutAncestryAsync(
+            fileId, versionId, maximumLength, contentHash, abandon.Token);
+        Stream? opened = null;
         try
         {
             using var metadataResponse = await SendAsync(
@@ -703,13 +809,41 @@ internal sealed class BoxContentClient(
             {
                 await EnsureDescendantAsync(expectedParentId, cancellationToken);
             }
-            return await DownloadVersionWithoutAncestryAsync(
-                fileId, versionId, maximumLength, cancellationToken);
+            opened = await content;
+            return opened;
         }
         catch (Exception exception) when (IsFenceFailure(exception))
         {
             Forget(expectedParentId);
             throw;
+        }
+        finally
+        {
+            if (opened is null)
+            {
+                await DiscardDownloadAsync(content, abandon);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ends a download whose bytes will never be used: stops it, lets it finish
+    /// and disposes what it produced, which deletes its temporary file. The
+    /// download's own failure is not reported, because the caller is already
+    /// reporting the reason the bytes are not wanted.
+    /// </summary>
+    private static async Task DiscardDownloadAsync(Task<Stream> content, CancellationTokenSource abandon)
+    {
+        await abandon.CancelAsync();
+        try
+        {
+            var stream = await content;
+            await stream.DisposeAsync();
+        }
+        catch (Exception)
+        {
+            // The download was cancelled or had already failed. Either way the
+            // caller's own exception is the answer, not this one.
         }
     }
 
@@ -774,12 +908,18 @@ internal sealed class BoxContentClient(
         long maximumLength,
         CancellationToken cancellationToken) =>
         await DownloadVersionWithoutAncestryAsync(
-            fileId, versionId, maximumLength, cancellationToken);
+            fileId, versionId, maximumLength, contentHash: null, cancellationToken);
 
+    /// <summary>
+    /// Downloads one exact version to a temporary file that is deleted when the
+    /// returned stream is disposed. When <paramref name="contentHash"/> is
+    /// given, each chunk is added to it as it is written.
+    /// </summary>
     private async Task<Stream> DownloadVersionWithoutAncestryAsync(
         string fileId,
         string versionId,
         long maximumLength,
+        IncrementalHash? contentHash,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
@@ -830,6 +970,7 @@ internal sealed class BoxContentClient(
                 {
                     throw new InvalidDataException("Box version content exceeds its recorded length.");
                 }
+                contentHash?.AppendData(buffer, 0, read);
                 await retained.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             }
             retained.Position = 0;

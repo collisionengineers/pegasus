@@ -121,18 +121,35 @@ internal sealed class CachedDocumentContentStore(
 
         // A cache miss is a Box read, so it takes the same gate and
         // the same 429/5xx retry as every other managed read rather than
-        // failing the request the first time Box says "later".
+        // failing the request the first time Box says "later". The client
+        // hashes the download as it writes it, so the temporary file it
+        // returns is the verified copy and is not copied again.
         var downloaded = await BoxDocumentContentStore.ReadGatedWithRetryAsync(
             async token =>
             {
-                await using var remote = await box.OpenOwnedVersionReadAsync(
+                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                var remote = await box.OpenOwnedVersionReadAsync(
                     source.BoxFileId,
                     source.BoxVersionId,
                     source.ExpectedParentId,
                     source.Length,
+                    hash,
                     token);
-                return await ReadVerifiedToTemporaryAsync(
-                    remote, source.Length, source.Sha256, token);
+                try
+                {
+                    // The hashing ran while the download was written, inside
+                    // document.provider.read. This phase is the comparison alone.
+                    using (DocumentReadTelemetry.Start("document.content.verify"))
+                    {
+                        RequireVerified(remote.Length, hash, source.Length, source.Sha256);
+                    }
+                    return remote;
+                }
+                catch
+                {
+                    await remote.DisposeAsync();
+                    throw;
+                }
             },
             cancellationToken);
         try
@@ -903,11 +920,7 @@ internal sealed class CachedDocumentContentStore(
                 hash.AppendData(buffer, 0, read);
                 await retained.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             }
-            var actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
-            if (length != expectedLength || !FixedHashEquals(actual, expectedSha256))
-            {
-                throw new InvalidDataException("Logical document content verification failed.");
-            }
+            RequireVerified(length, hash, expectedLength, expectedSha256);
             retained.Position = 0;
             return retained;
         }
@@ -915,6 +928,23 @@ internal sealed class CachedDocumentContentStore(
         {
             await retained.DisposeAsync();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Refuses content whose length or SHA-256, taken as it was written,
+    /// differs from what custody recorded. It finishes <paramref name="hash"/>.
+    /// </summary>
+    private static void RequireVerified(
+        long length,
+        IncrementalHash hash,
+        long expectedLength,
+        string expectedSha256)
+    {
+        var actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        if (length != expectedLength || !FixedHashEquals(actual, expectedSha256))
+        {
+            throw new InvalidDataException("Logical document content verification failed.");
         }
     }
 

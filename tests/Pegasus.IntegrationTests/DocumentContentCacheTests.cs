@@ -149,7 +149,10 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             await Assert.ThrowsAsync<InvalidDataException>(
                 () => estate.Reader.OpenAsync(estate.Request, CancellationToken.None));
 
-            Assert.Equal(0, estate.Box.Downloads);
+            // The content is asked for while the file's folder is being checked,
+            // so at most that one request was made. Its bytes were refused with
+            // the file: the read threw and handed nothing over.
+            Assert.InRange(estate.Box.Downloads, 0, 1);
         }
     }
 
@@ -754,6 +757,86 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             await using var db = await estate.Database.CreateContextAsync();
             Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
         }
+    }
+
+    /// <summary>
+    /// A miss hashes the download as it is written, so the temporary file the
+    /// caller reads is the download's own file. There is no second copy of it.
+    /// </summary>
+    [Fact]
+    public async Task AColdMissServesTheDownloadsOwnVerifiedTemporaryFile()
+    {
+        var bytes = "one temporary copy"u8.ToArray();
+        var estate = await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            await using var cold = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None);
+
+            var file = Assert.IsType<FileStream>(cold.Content);
+            Assert.StartsWith("pegasus-box-version-", Path.GetFileName(file.Name), StringComparison.Ordinal);
+            Assert.Equal(bytes, await ReadAsync(cold.Content));
+            Assert.Equal(1, estate.Box.Downloads);
+            Assert.Equal(bytes, estate.Blob.Content);
+        }
+    }
+
+    /// <summary>
+    /// The check that moved into the download is the same check: a length or a
+    /// hash that is not the recorded one is refused, nothing is published, and
+    /// the temporary file the download wrote is gone.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public async Task AColdMissWhoseContentDoesNotVerifyIsRefusedAndLeavesNoTemporaryFile(int lengthDifference)
+    {
+        var recorded = "recorded content"u8.ToArray();
+        var tampered = Encoding.UTF8.GetBytes(
+            Guid.NewGuid().ToString("N")[..(recorded.Length + lengthDifference)]);
+        var estate = await Estate.CreateAsync(recorded);
+        await using (estate)
+        {
+            estate.Box.Serve(tampered);
+
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => estate.Reader.OpenAsync(estate.Request, CancellationToken.None));
+
+            Assert.Equal(1, estate.Box.Downloads);
+            Assert.Null(estate.Blob.Content);
+            await using var db = await estate.Database.CreateContextAsync();
+            Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+            Assert.Empty(TemporaryFilesHolding(tampered));
+        }
+    }
+
+    /// <summary>
+    /// The temporary files, if any, that still hold these exact bytes. Other
+    /// tests write temporary files of their own at the same time, so a file is
+    /// this test's only when it holds this test's unique content.
+    /// </summary>
+    private static string[] TemporaryFilesHolding(byte[] marker)
+    {
+        var holding = new List<string>();
+        foreach (var path in Directory.EnumerateFiles(Path.GetTempPath(), "pegasus-*.tmp"))
+        {
+            try
+            {
+                using var stream = new FileStream(
+                    path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var buffer = new MemoryStream();
+                stream.CopyTo(buffer);
+                if (buffer.ToArray().AsSpan().IndexOf(marker) >= 0)
+                {
+                    holding.Add(path);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Another test's file, gone or in use: not this test's.
+            }
+        }
+        return [.. holding];
     }
 
     [Fact]
@@ -1536,13 +1619,16 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
     private sealed class BoxHandler(byte[] bytes) : HttpMessageHandler
     {
+        private byte[] served = bytes;
+        /// <summary>Serves these bytes from now on, whatever custody recorded.</summary>
+        public void Serve(byte[] other) => served = other;
         public int Downloads { get; private set; } public string? RequestedVersion { get; private set; } public bool Unavailable { get; set; }
         /// <summary>The folder Box reports as the file's parent: the holding folder unless a test files it elsewhere.</summary>
         public string FileParent { get; set; } = "holding";
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
         {
             var path=request.RequestUri!.AbsolutePath;
-            if(path.EndsWith("/content",StringComparison.Ordinal)){ Downloads++; RequestedVersion=System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["version"]; if(Unavailable)return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)); return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new ByteArrayContent(bytes)}); }
+            if(path.EndsWith("/content",StringComparison.Ordinal)){ Downloads++; RequestedVersion=System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["version"]; if(Unavailable)return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)); return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new ByteArrayContent(served)}); }
             var body=path.Contains("/files/",StringComparison.Ordinal)
                 ? $$$"""{"id":"box-file-1","type":"file","parent":{"id":"{{{FileParent}}}"}}"""
                 : path.Contains($"/folders/{FileParent}",StringComparison.Ordinal)
@@ -1551,7 +1637,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(body,Encoding.UTF8,"application/json")});
         }
     }
-    private sealed class Header : IBoxAuthorizationHeaderProvider { public Task<string> GetAuthorizationHeaderAsync(CancellationToken token)=>Task.FromResult("Bearer x"); }
+    private sealed class Header : IBoxAuthorizationHeaderProvider { public Task<string> GetAuthorizationHeaderAsync(CancellationToken token)=>Task.FromResult("Bearer x"); public Task<bool> RenewIfDueAsync(CancellationToken token)=>Task.FromResult(false); }
     private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider { public override DateTimeOffset GetUtcNow()=>now; public void Advance(TimeSpan value)=>now=now.Add(value); }
     private sealed class StubResponse : Response
     {
