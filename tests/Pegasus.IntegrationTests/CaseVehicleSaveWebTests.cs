@@ -156,8 +156,9 @@ public sealed class CaseVehicleSaveWebTests
     /// What the Case page costs in SQL commands in an edit session, and what one
     /// accepted single-field save costs, against the real stores (Roadmap Lane
     /// D, parts D2 and D5). Every save-as-you-go commit is that save followed by
-    /// the page, so both are the price of one field. The budgets are upper
-    /// bounds, so a lower count passes and a page that grows fails.
+    /// the page, so both are the price of one field. The page's budget is an
+    /// upper bound, so a lower count passes and a page that grows fails. The
+    /// save is pinned at its exact count, so any change to it is seen.
     /// </summary>
     [Fact]
     public async Task TheCasePageInAnEditSessionAndOneAcceptedSaveStayWithinTheirStatementBudgets()
@@ -191,24 +192,27 @@ public sealed class CaseVehicleSaveWebTests
             Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
         }
         var saveCommands = counter.Count;
+        var saveDescription = counter.Describe();
 
-        // Measured on this branch: 61 commands for the page and 43 for the save. The page
+        // Measured on this branch: 61 commands for the page and 37 for the save. The page
         // sent 62 until it took the assessment's access answer from the workflow state its
-        // frame reads, rather than reading that state again. The first reading from the code
-        // said about 69 and about 38, which was wrong. The folds that reading found for the
-        // save each change the command, the lease or the conflict check, or the ports many
-        // test fakes implement, and are left.
+        // frame reads, rather than reading that state again. The save sent 43 until the lease
+        // it reclaims read only the Case's workflow row (1 command) rather than the whole edit
+        // basis (7). The first reading from the code said about 69 and about 38, which was
+        // wrong. The other folds that reading found for the save each change the command, the
+        // lease or the conflict check, and are left.
         Assert.True(
             pageCommands <= CasePageBudget,
             $"The Case page in an edit session sent {pageCommands} SQL commands; the budget is {CasePageBudget}.");
         Assert.True(
-            saveCommands <= CaseSaveBudget,
-            $"One accepted save sent {saveCommands} SQL commands; the budget is {CaseSaveBudget}.");
+            saveCommands == CaseSaveCommands,
+            $"One accepted save sent {saveCommands} SQL commands; it is pinned at {CaseSaveCommands}."
+            + Environment.NewLine + saveDescription);
     }
 
     private const int CasePageBudget = 61;
 
-    private const int CaseSaveBudget = 43;
+    private const int CaseSaveCommands = 37;
 
     /// <summary>
     /// The record form defaults the unit to miles when the Case carries neither
