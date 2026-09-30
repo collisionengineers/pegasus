@@ -255,8 +255,7 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     /// <summary>
-    /// The other 409 codes an upload can meet fail the write in a way the queue
-    /// retries, and file nothing.
+    /// The other 409 codes an upload can meet fail the write and file nothing.
     /// </summary>
     [Theory]
     [InlineData("name_temporarily_reserved")]
