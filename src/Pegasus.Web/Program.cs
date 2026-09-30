@@ -608,9 +608,9 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompress
 builder.Services.AddSingleton(provider =>
 {
     var configuration = provider.GetRequiredService<IConfiguration>();
-    return new StartupWarmupState(
+    return StartupWarmupState.FromSettings(
         configuration.GetValue("Startup:Warmup", true),
-        configuration.GetValue("Startup:WarmupInterval", StartupWarmupState.DefaultKeepWarmInterval));
+        configuration["Startup:WarmupInterval"]);
 });
 builder.Services.AddHostedService<StartupWarmup>();
 if (applicationInsightsConfigured)
