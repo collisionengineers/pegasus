@@ -774,6 +774,18 @@ When you read `AppTraces`, read both `Properties.Category` (the host) and
 `Properties.CategoryName` (the worker process). The effect of these filters
 shows only in a query after the next release.
 
+### A failing sweep step names its cause
+
+The ten-second sweep logs each step's result line at Information. The line
+becomes a Warning when the step counted a failure, so the worker process's
+default level records it. A custody item that fails to file also logs its
+exception type and message, once for each attempt, as
+`Pending artifact custody recovery failed for version ...`. The version id is
+the `CorrelationId` of its `ArtifactCustodyReconciliationAttempt` row in
+`ActionHistory`. After a failure the item waits 1, 2, 4 and 8 minutes, then 10,
+before the next try (`PendingCustodyRetryPolicy` in Core). A retained outcome,
+such as a Case with no folder yet, never waits.
+
 ## Web start
 
 Web binds its port before any remote read. The data-protection key ring, the

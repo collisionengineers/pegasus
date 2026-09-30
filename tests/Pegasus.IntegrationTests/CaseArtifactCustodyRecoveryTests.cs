@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -617,43 +618,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             caseEntity.CustodyRootRemoteId = null;
             for (var ordinal = 1; ordinal <= 2; ordinal++)
             {
-                var documentId = Guid.NewGuid();
-                var versionId = Guid.NewGuid();
-                db.Add(new CaseDocumentEntity
-                {
-                    Id = documentId,
-                    CaseId = caseId,
-                    Ordinal = ordinal,
-                    SourceOccurrenceIdentity = $"pending-{ordinal}"
-                });
-                db.Add(new DocumentVersionEntity
-                {
-                    Id = versionId,
-                    DocumentId = documentId,
-                    Version = 1,
-                    FileName = $"pending-{ordinal}.pdf",
-                    MediaType = "application/pdf",
-                    ContentLength = 0,
-                    Sha256 = Convert.ToHexString(SHA256.HashData([])).ToLowerInvariant(),
-                    PendingContentStorageKey = $"pending-{ordinal}",
-                    CustodyStatus = DocumentCustodyStatus.Pending,
-                    CreatedAtUtc = DateTimeOffset.UnixEpoch.AddMinutes(ordinal),
-                    CreatedBy = "test",
-                    IsCurrent = true
-                });
-                db.Add(new DocumentOccurrenceEntity
-                {
-                    Id = Guid.NewGuid(),
-                    CaseId = caseId,
-                    DocumentId = documentId,
-                    VersionId = versionId,
-                    Ordinal = ordinal,
-                    SemanticRole = DocumentSemanticRole.OriginalSource,
-                    Source = DocumentSource.Generated,
-                    SourceOccurrenceIdentity = $"pending-{ordinal}",
-                    RecordedAtUtc = DateTimeOffset.UnixEpoch.AddMinutes(ordinal),
-                    OperationKey = $"pending-{ordinal}"
-                });
+                AddPendingVersion(db, caseId, ordinal);
             }
             await db.SaveChangesAsync();
         }
@@ -675,6 +640,281 @@ public sealed class CaseArtifactCustodyRecoveryTests
             .ToArrayAsync();
         Assert.Equal(2, attempts.Length);
     }
+
+    /// <summary>
+    /// A version whose filing failed waits 1, 2, 4 and 8 minutes after its first
+    /// four consecutive failures, then 10 minutes, and is not offered to the sweep
+    /// until the wait has passed.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 30, false)]
+    [InlineData(1, 120, true)]
+    [InlineData(2, 90, false)]
+    [InlineData(2, 150, true)]
+    [InlineData(3, 200, false)]
+    [InlineData(3, 250, true)]
+    [InlineData(4, 420, false)]
+    [InlineData(4, 540, true)]
+    [InlineData(5, 540, false)]
+    [InlineData(5, 660, true)]
+    [InlineData(30, 540, false)]
+    [InlineData(30, 660, true)]
+    public async Task AFailedCandidateIsOfferedAgainOnlyOnceItsWaitHasPassed(
+        int consecutiveFailures, int lastFailedSecondsAgo, bool triedAgain)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var clock = new FixedClock(new DateTimeOffset(2031, 5, 1, 12, 0, 0, TimeSpan.Zero));
+        await using (var db = await database.CreateContextAsync())
+        {
+            var versionId = AddPendingVersion(db, caseId, 1);
+            for (var failure = 0; failure < consecutiveFailures; failure++)
+            {
+                AddAttempt(db, versionId, "Failed",
+                    clock.GetUtcNow().AddSeconds(-lastFailedSecondsAgo).AddMinutes(-15 * failure));
+            }
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new CountingArtifactStore();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, clock).ExecuteAsync(50, default);
+
+        Assert.Equal(triedAgain ? 1 : 0, result.Candidates);
+        Assert.Equal(triedAgain ? 1 : 0, artifacts.ReadCount);
+    }
+
+    /// <summary>
+    /// A retained outcome is not a failure. It never delays the version, whether
+    /// it is the only attempt or newer than the failures before it.
+    /// </summary>
+    [Fact]
+    public async Task ARetainedCandidateIsNeverSkipped()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var clock = new FixedClock(new DateTimeOffset(2031, 5, 1, 12, 0, 0, TimeSpan.Zero));
+        await using (var db = await database.CreateContextAsync())
+        {
+            var retainedOnly = AddPendingVersion(db, caseId, 1);
+            AddAttempt(db, retainedOnly, "Retained", clock.GetUtcNow().AddSeconds(-1));
+            var retainedAfterFailures = AddPendingVersion(db, caseId, 2);
+            AddAttempt(db, retainedAfterFailures, "Failed", clock.GetUtcNow().AddSeconds(-40));
+            AddAttempt(db, retainedAfterFailures, "Failed", clock.GetUtcNow().AddSeconds(-30));
+            AddAttempt(db, retainedAfterFailures, "Retained", clock.GetUtcNow().AddSeconds(-5));
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new CountingArtifactStore();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, clock).ExecuteAsync(50, default);
+
+        Assert.Equal(2, result.Candidates);
+        Assert.Equal(2, artifacts.ReadCount);
+    }
+
+    /// <summary>
+    /// The wait counts the failures after the last retained outcome. Two failures
+    /// in all would wait 2 minutes; the one after the retained outcome waits 1.
+    /// </summary>
+    [Fact]
+    public async Task OnlyFailuresAfterTheLastRetainedOutcomeSetTheWait()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var clock = new FixedClock(new DateTimeOffset(2031, 5, 1, 12, 0, 0, TimeSpan.Zero));
+        await using (var db = await database.CreateContextAsync())
+        {
+            var versionId = AddPendingVersion(db, caseId, 1);
+            AddAttempt(db, versionId, "Failed", clock.GetUtcNow().AddMinutes(-9));
+            AddAttempt(db, versionId, "Retained", clock.GetUtcNow().AddMinutes(-8));
+            AddAttempt(db, versionId, "Failed", clock.GetUtcNow().AddSeconds(-90));
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new CountingArtifactStore();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, clock).ExecuteAsync(50, default);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(1, artifacts.ReadCount);
+    }
+
+    /// <summary>
+    /// The version that is still waiting sorts ahead of the fresh one, so it would
+    /// take the only slot if the wait were decided after Take.
+    /// </summary>
+    [Fact]
+    public async Task AWaitingCandidateDoesNotUseUpASlot()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var clock = new FixedClock(new DateTimeOffset(2031, 5, 1, 12, 0, 0, TimeSpan.Zero));
+        Guid waitingId;
+        Guid freshId;
+        await using (var db = await database.CreateContextAsync())
+        {
+            waitingId = AddPendingVersion(db, caseId, 1);
+            for (var failure = 0; failure < 5; failure++)
+            {
+                AddAttempt(db, waitingId, "Failed",
+                    clock.GetUtcNow().AddMinutes(-9).AddMinutes(-15 * failure));
+            }
+            freshId = AddPendingVersion(db, caseId, 2);
+            AddAttempt(db, freshId, "Retained", clock.GetUtcNow().AddMinutes(-1));
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new CountingArtifactStore();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, clock).ExecuteAsync(1, default);
+
+        Assert.Equal(1, result.Candidates);
+        await using var verify = await database.CreateContextAsync();
+        var attempts = await verify.ActionHistory
+            .Where(value => value.EventKind == "ArtifactCustodyReconciliationAttempt")
+            .ToArrayAsync();
+        Assert.Equal(5, attempts.Count(value => value.AggregateId == waitingId.ToString()));
+        Assert.Equal(2, attempts.Count(value => value.AggregateId == freshId.ToString()));
+    }
+
+    /// <summary>
+    /// The sweep swallows a failed candidate, so its log line is the only place
+    /// that says why: the exception type and message, once, at Warning, and the
+    /// type is returned for the Worker's count line.
+    /// </summary>
+    [Fact]
+    public async Task AFailedAttemptLogsItsCauseOnceAtWarning()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        Guid versionId;
+        await using (var db = await database.CreateContextAsync())
+        {
+            versionId = AddPendingVersion(db, caseId, 1);
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var logger = new RecordingLogger();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), new CountingArtifactStore(), TimeProvider.System, logger)
+            .ExecuteAsync(50, default);
+
+        Assert.Equal(1, result.Failures);
+        Assert.Equal(nameof(FileNotFoundException), result.FirstFailure);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Contains(nameof(FileNotFoundException), entry.Message);
+        Assert.Contains("Pending artifact content is unavailable.", entry.Message);
+        Assert.Contains(versionId.ToString(), entry.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(entry.Exception);
+    }
+
+    /// <summary>
+    /// The attempt row is bookkeeping. When it cannot be written the item still
+    /// counts as failed, the failure is named in the log, and the next candidate
+    /// is still tried.
+    /// </summary>
+    [Fact]
+    public async Task AnAttemptThatCannotBeRecordedFailsOneItemAndTheSweepContinues()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var db = await database.CreateContextAsync())
+        {
+            AddPendingVersion(db, caseId, 1);
+            AddPendingVersion(db, caseId, 2);
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var inner = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        // Call 1 reads the candidates; call 2 is the first candidate's attempt record.
+        var factory = new ThrowingContextFactory(inner, throwOnCall: 2);
+        var artifacts = new CountingArtifactStore();
+        var logger = new RecordingLogger();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, TimeProvider.System, logger)
+            .ExecuteAsync(50, default);
+
+        Assert.Equal(2, result.Candidates);
+        Assert.Equal(2, result.Failures);
+        Assert.Equal(2, artifacts.ReadCount);
+        await using var verify = await database.CreateContextAsync();
+        Assert.Equal(1, await verify.ActionHistory.CountAsync(
+            value => value.EventKind == "ArtifactCustodyReconciliationAttempt"));
+        Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Warning
+            && entry.Message.Contains("could not be recorded", StringComparison.Ordinal));
+    }
+
+    private static Guid AddPendingVersion(PegasusDbContext db, Guid caseId, int ordinal)
+    {
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        db.Add(new CaseDocumentEntity
+        {
+            Id = documentId,
+            CaseId = caseId,
+            Ordinal = ordinal,
+            SourceOccurrenceIdentity = $"pending-{ordinal}"
+        });
+        db.Add(new DocumentVersionEntity
+        {
+            Id = versionId,
+            DocumentId = documentId,
+            Version = 1,
+            FileName = $"pending-{ordinal}.pdf",
+            MediaType = "application/pdf",
+            ContentLength = 0,
+            Sha256 = Convert.ToHexString(SHA256.HashData([])).ToLowerInvariant(),
+            PendingContentStorageKey = $"pending-{ordinal}",
+            CustodyStatus = DocumentCustodyStatus.Pending,
+            CreatedAtUtc = DateTimeOffset.UnixEpoch.AddMinutes(ordinal),
+            CreatedBy = "test",
+            IsCurrent = true
+        });
+        db.Add(new DocumentOccurrenceEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            DocumentId = documentId,
+            VersionId = versionId,
+            Ordinal = ordinal,
+            SemanticRole = DocumentSemanticRole.OriginalSource,
+            Source = DocumentSource.Generated,
+            SourceOccurrenceIdentity = $"pending-{ordinal}",
+            RecordedAtUtc = DateTimeOffset.UnixEpoch.AddMinutes(ordinal),
+            OperationKey = $"pending-{ordinal}"
+        });
+        return versionId;
+    }
+
+    private static void AddAttempt(
+        PegasusDbContext db, Guid versionId, string outcome, DateTimeOffset occurredAtUtc) =>
+        db.Add(new ActionHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = nameof(DocumentVersionEntity),
+            AggregateId = versionId.ToString(),
+            EventKind = "ArtifactCustodyReconciliationAttempt",
+            ActorKind = nameof(ActorKind.SystemWorker),
+            ActorSubjectId = "artifact-custody-reconciliation",
+            ActorRolesJson = "[]",
+            OccurredAtUtc = occurredAtUtc,
+            Outcome = outcome,
+            CorrelationId = versionId.ToString(),
+            Reason = outcome == "Failed" ? "IOException" : "CaseRootUnavailable"
+        });
 
     [Fact]
     public async Task SystemWorkerMayRetainCaseArtifactThroughExecuteSystemWorkRight()
@@ -797,6 +1037,42 @@ public sealed class CaseArtifactCustodyRecoveryTests
             throw new NotSupportedException();
         public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("A failed save must not delete remote content.");
+    }
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    /// <summary>Fails the context creation with the given call number, and only that one.</summary>
+    private sealed class ThrowingContextFactory(
+        IDbContextFactory<PegasusDbContext> inner, int throwOnCall) : IDbContextFactory<PegasusDbContext>
+    {
+        private int calls;
+
+        public PegasusDbContext CreateDbContext() =>
+            Interlocked.Increment(ref calls) == throwOnCall
+                ? throw new InvalidOperationException("Injected context creation failure.")
+                : inner.CreateDbContext();
+
+        public Task<PegasusDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
+            Interlocked.Increment(ref calls) == throwOnCall
+                ? throw new InvalidOperationException("Injected context creation failure.")
+                : inner.CreateDbContextAsync(cancellationToken);
+    }
+
+    private sealed class RecordingLogger : ILogger<ReconcilePendingArtifactCustody>
+    {
+        public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception), exception));
     }
 
     private sealed class CountingArtifactStore(ReadOnlyMemory<byte>? content = null)
