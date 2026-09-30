@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Pegasus.Web.Health;
 
@@ -73,6 +74,25 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
         while (status != HttpStatusCode.OK && DateTimeOffset.UtcNow < deadline);
 
         Assert.Equal(HttpStatusCode.OK, status);
+    }
+
+    [Fact]
+    public void TheKeepWarmIntervalIsThreeMinutesUnlessConfigured()
+    {
+        Assert.Equal(
+            TimeSpan.FromMinutes(3),
+            factory.Services.GetRequiredService<StartupWarmupState>().KeepWarmInterval);
+
+        // Zero is the once-only setting: the warm-up runs its first pass and ends.
+        using var once = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Startup:WarmupInterval"] = "00:00:00"
+                })));
+        Assert.Equal(
+            TimeSpan.Zero,
+            once.Services.GetRequiredService<StartupWarmupState>().KeepWarmInterval);
     }
 
     [Fact]
