@@ -265,10 +265,11 @@ approved root and not in the trash, and it is made for each document. An
 upload does not look for its name first. Box's answer to the upload must name
 the folder that was read as the file's parent. A name Box already holds comes
 back as Box's own refusal. Pegasus then accepts the file that holds it only
-when it is a file of the same length and type, in that folder, with the same
-bytes. A not-found, trashed or outside-root answer to any of these reads drops
-what was remembered. Folder create, rename and delete, and file move and
-delete, still check the whole path every time.
+when it is a file of the same length, in that folder, with the same bytes.
+Box does not report a file's type, so the type is not compared. A not-found,
+trashed or outside-root answer to any of these reads drops what was
+remembered. Folder create, rename and delete, and file move and delete, still
+check the whole path every time.
 
 A browser may keep a private copy of an image or PDF preview for a week. It
 keeps one only when the address names the exact bytes. For a Case document
