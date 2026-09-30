@@ -119,7 +119,8 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
         // GetAsync instead of vanishing or appearing twice. The row is the
         // columns a summary shows, never the password hash or the sign-off
         // signature bytes. It repeats ToRow because a correlated role list
-        // cannot be composed into that expression.
+        // cannot be composed into that expression, and its signature flag is
+        // DATALENGTH for the same reason ToRow's is.
         var accounts = await (
             from user in context.Users.AsNoTracking()
             where ids.Contains(user.Id)
@@ -135,7 +136,7 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
                     user.IsSignOffEngineer,
                     user.SignOffPrintedName,
                     user.SignOffQualifications,
-                    user.SignOffSignature != null && user.SignOffSignature.Length > 0,
+                    EF.Functions.DataLength(user.SignOffSignature) > 0,
                     user.IsDefaultSignOffEngineer),
                 RoleNames = (
                     from userRole in context.UserRoles
@@ -188,7 +189,7 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
     /// What a <see cref="StaffAccountSummary"/> shows of an account, without
     /// the password hash, the security stamps or the sign-off signature bytes
     /// (a signature can be up to 1 MiB). Whether there is a signature is
-    /// worked out where the row is read.
+    /// worked out in SQL from the stored length (<see cref="ToRow"/>).
     /// </summary>
     private sealed record StaffAccountRow(
         Guid Id,
@@ -204,9 +205,12 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
         bool IsDefaultSignOffEngineer);
 
     /// <summary>
-    /// The one field list, written as an expression so SQL reads only those
-    /// columns (<c>Length</c> becomes <c>DATALENGTH</c>) and the tracked
-    /// entities the administration writes return build the same row in memory.
+    /// The row as SQL reads it: only the summary columns, with "has a
+    /// signature" as <c>DATALENGTH</c> of the stored bytes so the bytes stay
+    /// in the database. EF does not translate <c>byte[].Length</c>; written
+    /// that way it selects the whole column and measures it in memory.
+    /// <c>EF.Functions</c> has no in-memory form, so <see cref="RowOf"/> builds
+    /// the same row from an entity that is already loaded.
     /// </summary>
     private static readonly Expression<Func<PegasusIdentityUser, StaffAccountRow>> ToRow =
         user => new StaffAccountRow(
@@ -219,16 +223,28 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
             user.IsSignOffEngineer,
             user.SignOffPrintedName,
             user.SignOffQualifications,
-            user.SignOffSignature != null && user.SignOffSignature.Length > 0,
+            EF.Functions.DataLength(user.SignOffSignature) > 0,
             user.IsDefaultSignOffEngineer);
 
-    private static readonly Func<PegasusIdentityUser, StaffAccountRow> ToRowInMemory = ToRow.Compile();
+    private static StaffAccountRow RowOf(PegasusIdentityUser user) =>
+        new(
+            user.Id,
+            user.UserName,
+            user.IsEnabled,
+            user.MustChangePassword,
+            user.Version,
+            user.WorkCentreLastSeenUtc,
+            user.IsSignOffEngineer,
+            user.SignOffPrintedName,
+            user.SignOffQualifications,
+            user.SignOffSignature is { Length: > 0 },
+            user.IsDefaultSignOffEngineer);
 
     /// <summary>Shared with <see cref="EfStaffAccountAdministration"/> so the mapping lives once.</summary>
     internal static StaffAccountSummary Summary(
         PegasusIdentityUser user,
         StaffRole role) =>
-        Summary(ToRowInMemory(user), role);
+        Summary(RowOf(user), role);
 
     private static StaffAccountSummary Summary(StaffAccountRow row, StaffRole role) =>
         new(

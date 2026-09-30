@@ -43,6 +43,10 @@ public sealed class StaffAccountAdministrationPersistenceTests
         Assert.DoesNotContain("[SecurityStamp]", statement, StringComparison.Ordinal);
         Assert.DoesNotContain("[ConcurrencyStamp]", statement, StringComparison.Ordinal);
         Assert.Contains("DATALENGTH(", statement, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "[SignOffSignature]",
+            statement.Replace("DATALENGTH([a].[SignOffSignature])", string.Empty, StringComparison.Ordinal),
+            StringComparison.Ordinal);
         Assert.Equal("actor-display-enabled", names[enabled.Id]);
         Assert.Equal("actor-display-disabled", names[disabled.Id]);
         Assert.False(names.ContainsKey(missingId));
@@ -97,6 +101,11 @@ public sealed class StaffAccountAdministrationPersistenceTests
         {
             Assert.DoesNotContain("[PasswordHash]", statement, StringComparison.Ordinal);
             Assert.DoesNotContain("[SecurityStamp]", statement, StringComparison.Ordinal);
+            // The signature column appears only as its length, never as bytes.
+            Assert.DoesNotContain(
+                "[SignOffSignature]",
+                statement.Replace("DATALENGTH([a].[SignOffSignature])", string.Empty, StringComparison.Ordinal),
+                StringComparison.Ordinal);
         });
         // The list is the users and then their roles.
         Assert.Equal(2, listStatements.Count);
