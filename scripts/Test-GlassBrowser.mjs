@@ -64,6 +64,11 @@ function fixture() {
             var body = options.body;
             trace[trace.length - 1].operationKey = body.get('operationKey');
             if (mode === 'refused-save') { text = page(null, '<p role="alert">Save refused</p>'); }
+            else if (mode === 'lost-response') {
+                // The Case applies the save; its answer is lost on the way back.
+                mode = ''; applied.push(body.get('operationKey')); ++state.caseVersion; state.registration = body.get('registration');
+                return Promise.reject(new Error('Save answer lost'));
+            }
             else if (applied.indexOf(body.get('operationKey')) >= 0) { text = page(null, '<p role="alert">Operation already applied</p>'); }
             else {
                 applied.push(body.get('operationKey'));
@@ -176,6 +181,22 @@ try {
     assert.deepEqual(result.trace.filter(x => x.type === 'fetch').map(x => x.operationKey), ['save-1', 'save-2']);
     assert.equal(result.version, '3'); assert.equal(result.value, 'XY99ZZZ'); assert.match(result.status, /^Saved/);
     record('A second change in the session posts the key the first commit was answered with and lands', result);
+
+    // A commit whose answer was lost: the Case applied it, so the next save is refused as
+    // already applied. The refusal is drawn with a fresh key and the Case's current version,
+    // which the save after it carries, so the session recovers without a reload.
+    await reset();
+    await evaluate("mode = 'lost-response'; edit('AB12 CDE'); leave();"); await delay(100);
+    await evaluate("edit('XY99ZZZ'); leave();"); await delay(100);
+    result = await evaluate('result()');
+    assert.equal(result.status, 'Operation already applied');
+    assert.equal(result.version, '2', 'The refusal carried the Case\'s current version forward');
+    await evaluate("edit('QQ11QQQ'); leave();"); await delay(100);
+    result = await evaluate('result()');
+    const keys = result.trace.filter(x => x.type === 'fetch').map(x => x.operationKey);
+    assert.equal(keys[keys.length - 1], 'save-2', 'The save after a refusal posts the key the refusal was answered with');
+    assert.equal(result.version, '3'); assert.equal(result.value, 'QQ11QQQ'); assert.match(result.status, /^Saved/);
+    record('A refused commit carries the fresh key and version forward, so the next change lands', result);
 
     for (const [mode, status] of [['refused-save', 'Save refused'], ['network-failure', 'Save disconnected']]) {
         await reset(); await evaluate(`mode = '${mode}'; edit('AB12 CDE'); launch();`); await delay(100);
