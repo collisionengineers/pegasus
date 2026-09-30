@@ -307,6 +307,62 @@ public sealed class ImageIntakeWebTests
         Assert.DoesNotContain("data-image-automation-withheld", agreeing, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A record made from several uploaded photographs shows each photograph's
+    /// receipt beside its origin. The page reads those receipts together (one
+    /// whole-receipt read for three receipts, where it once read one each).
+    /// </summary>
+    [Fact]
+    public async Task TheRecordPageReadsAGroupsReceiptsInOneStatement()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"),
+            commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var png = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", png),
+                ("close-up.png", "image/png", png),
+                ("rear.png", "image/png", png)
+            ]);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        Guid recordId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+            var detail = Assert.IsType<ImageIntakeDetail>(await scope.ServiceProvider
+                .GetRequiredService<IImageIntakeQueries>()
+                .GetByOriginReceiptAsync(IntakeWebDriver.ReceiptId(processed), CancellationToken.None));
+            recordId = detail.Record.Id;
+            var images = await scope.ServiceProvider
+                .GetRequiredService<IImageIntakeQueries>()
+                .ListImagesAsync(recordId, CancellationToken.None);
+            Assert.Equal(3, images.Select(image => image.ReceiptId).Distinct().Count());
+        }
+
+        counter.Reset();
+        var page = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{recordId:D}");
+
+        Assert.Contains("overview.png", page, StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            counter.CountContaining(
+                "[IntakeReceipts]",
+                "[IntakeAssets]",
+                "[InstructionDrafts]",
+                "[IntakeMailRouteDecisions]",
+                "[IntakeManualAssociations]"));
+    }
+
     private static void AssertCandidatePrincipal(string html, string expected)
     {
         var match = Regex.Match(html, "data-image-candidate-principal>(?<value>[^<]*)</td>");

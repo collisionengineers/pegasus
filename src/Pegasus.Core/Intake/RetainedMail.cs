@@ -433,6 +433,16 @@ public interface IRetainedMailQueries
         Guid originReceiptId,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The identifier of the retained message an origin receipt came from, or
+    /// null when it has none. A store that can answer without loading the
+    /// message overrides this; the default reads the whole detail.
+    /// </summary>
+    async Task<Guid?> FindIdByOriginReceiptAsync(
+        Guid originReceiptId,
+        CancellationToken cancellationToken) =>
+        (await GetByOriginReceiptAsync(originReceiptId, cancellationToken))?.Summary.Id;
+
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);
 
@@ -641,6 +651,26 @@ public sealed class GetRetainedMail(
 
         var detail = await queries.GetByOriginReceiptAsync(originReceiptId, cancellationToken);
         return await CompleteAsync(detail, detail?.Summary.Id ?? Guid.Empty, cancellationToken);
+    }
+
+    /// <summary>
+    /// Only the identifier of the message an origin receipt came from, for a
+    /// caller that links to it and needs nothing else of the detail.
+    /// </summary>
+    public Task<Guid?> FindIdByOriginReceiptAsync(
+        ActionActor actor,
+        Guid originReceiptId,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (originReceiptId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "An origin receipt identifier is required.",
+                nameof(originReceiptId));
+        }
+
+        return queries.FindIdByOriginReceiptAsync(originReceiptId, cancellationToken);
     }
 
     private async Task<RetainedMailDetail?> CompleteAsync(
