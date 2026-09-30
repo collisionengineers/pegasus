@@ -95,6 +95,22 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
             once.Services.GetRequiredService<StartupWarmupState>().KeepWarmInterval);
     }
 
+    [Theory]
+    [InlineData(null, 180, null)]
+    [InlineData(" ", 180, null)]
+    [InlineData("00:05:00", 300, null)]
+    [InlineData("00:00:00", 0, null)]
+    [InlineData("banana", 180, "banana")]
+    [InlineData("00:00:00.5", 180, "00:00:00.5")]
+    public void AnUnusableKeepWarmIntervalKeepsTheDefaultAndIsRemembered(
+        string? text, int expectedSeconds, string? unusable)
+    {
+        var state = StartupWarmupState.FromSettings(warms: true, text);
+
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), state.KeepWarmInterval);
+        Assert.Equal(unusable, state.UnusableIntervalSetting);
+    }
+
     [Fact]
     public async Task LandingPageExposesCaseIntakeWorkspace()
     {

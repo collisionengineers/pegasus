@@ -51,6 +51,31 @@ internal sealed class StartupWarmupState
         Volatile.Read(ref completed) == 1 || Stopwatch.GetElapsedTime(startedAt) >= ReadyAfter;
 
     public void Complete() => Volatile.Write(ref completed, 1);
+
+    /// <summary>
+    /// The <c>Startup:WarmupInterval</c> text when it could not be used, so the
+    /// warm-up can say so once; null when the setting was usable or absent.
+    /// </summary>
+    public string? UnusableIntervalSetting { get; private init; }
+
+    /// <summary>
+    /// The state from the two settings. The interval is the default when its
+    /// text is absent or blank, zero or less for the once-only warm-up, and a
+    /// time span of one second or more as given. Any other text keeps the
+    /// default and is remembered, so a mistyped setting never stops the host.
+    /// </summary>
+    public static StartupWarmupState FromSettings(bool warms, string? intervalText)
+    {
+        if (string.IsNullOrWhiteSpace(intervalText))
+        {
+            return new StartupWarmupState(warms);
+        }
+
+        return TimeSpan.TryParse(intervalText, CultureInfo.InvariantCulture, out var interval)
+            && (interval <= TimeSpan.Zero || interval >= TimeSpan.FromSeconds(1))
+                ? new StartupWarmupState(warms, interval)
+                : new StartupWarmupState(warms) { UnusableIntervalSetting = intervalText };
+    }
 }
 
 /// <summary>The ready-tagged check that holds readiness until the warm-up ends.</summary>
@@ -117,6 +142,11 @@ internal sealed partial class StartupWarmup(
         if (!state.Warms)
         {
             return;
+        }
+
+        if (state.UnusableIntervalSetting is { } unusable)
+        {
+            LogUnusableInterval(logger, unusable, StartupWarmupState.DefaultKeepWarmInterval.TotalMinutes);
         }
 
         await Task.Yield();
@@ -464,4 +494,9 @@ internal sealed partial class StartupWarmup(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Startup warm-up step {Step} failed")]
     private static partial void LogWarmupStepFailed(ILogger logger, string step, Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Startup:WarmupInterval '{Value}' is not a usable interval; the warm-up repeats every {DefaultMinutes} minutes")]
+    private static partial void LogUnusableInterval(ILogger logger, string value, double defaultMinutes);
 }

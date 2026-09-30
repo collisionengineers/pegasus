@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.ApplicationInsights.Channel;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -9,8 +10,9 @@ namespace Pegasus.Web;
 /// Drops the request rows and the SQL rows that carry no information, so the
 /// daily telemetry cap is spent on staff pages: the readiness probes (one a
 /// minute, four SQL calls each), the diagnostics version endpoint, static
-/// files, and the App Service Always On ping (<c>GET /</c> answered with a
-/// redirect). A failed one (unsuccessful, or a 5xx) is always kept, so a
+/// files, the App Service Always On ping (<c>GET /</c> answered with a
+/// redirect), and the SQL calls of the keep-warm passes. A failed one
+/// (unsuccessful, or a 5xx) is always kept, so a
 /// failing probe still shows. Everything else passes through. It runs before
 /// adaptive sampling, so what it drops does not count against the sampling
 /// budget either.
@@ -57,9 +59,29 @@ public sealed class QuietRequestTelemetryFilter(ITelemetryProcessor next) : ITel
         RequestTelemetry request => !IsFailure(request.Success, request.ResponseCode)
             && (IsQuietPath(RequestPath(request)) || IsAlwaysOnPing(request)),
         DependencyTelemetry dependency => !IsFailure(dependency.Success, dependency.ResultCode)
-            && IsQuietPath(PathOf(dependency.Context.Operation.Name)),
+            && (IsQuietPath(PathOf(dependency.Context.Operation.Name)) || InWarmUpPass()),
         _ => false
     };
+
+    /// <summary>
+    /// Whether the call was made inside a keep-warm pass. A pass has no request,
+    /// so its calls carry no path; it runs under one activity, and a dependency
+    /// is tracked on the flow that made the call, where that activity is an
+    /// ancestor of the current one. A pass reads what staff pages read, every
+    /// few minutes, and its successful calls say nothing a page does not.
+    /// </summary>
+    private static bool InWarmUpPass()
+    {
+        for (var activity = Activity.Current; activity is not null; activity = activity.Parent)
+        {
+            if (activity.OperationName == Health.StartupWarmup.PassActivityName)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static bool IsFailure(bool? success, string? resultCode) =>
         success == false
