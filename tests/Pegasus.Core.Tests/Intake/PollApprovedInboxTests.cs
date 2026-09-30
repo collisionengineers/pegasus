@@ -391,8 +391,8 @@ public sealed class PollApprovedInboxTests
     /// <summary>
     /// The webhook wake downloads a message and retains it without moving the cursor,
     /// so the delta meets the same message again. The sweep asks the mailbox whether
-    /// it holds the message's Internet message id; if it does, the message is not
-    /// downloaded and not passed on, and the cursor moves past it.
+    /// it holds that item, by its provider id and Internet message id; if it does, the
+    /// message is not downloaded and not passed on, and the cursor moves past it.
     /// </summary>
     [Fact]
     public async Task AMessageTheMailboxAlreadyRetainedIsNotPassedOnAndTheCursorMovesPastIt()
@@ -404,11 +404,11 @@ public sealed class PollApprovedInboxTests
             DisplayableMessage("a-1", "cursor-a1", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
         Assert.Equal(1, await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None));
 
-        // The same message meets the delta again, spelled differently and under a
-        // new provider id, beside a message the mailbox has not seen.
+        // The same item meets the delta again, its Internet message id spelled
+        // differently, beside a message the mailbox has not seen.
         harness.Source.Enqueue(
             FirstMailbox.GraphMailboxId,
-            DisplayableMessage("a-2", "cursor-a2", Metadata(internetMessageIdentity: "<WAKE@Example.Invalid>")));
+            DisplayableMessage("a-1", "cursor-a2", Metadata(internetMessageIdentity: "<WAKE@Example.Invalid>")));
         harness.Source.Enqueue(
             FirstMailbox.GraphMailboxId,
             DisplayableMessage("a-3", "cursor-a3", Metadata(internetMessageIdentity: "<other@example.invalid>")));
@@ -416,7 +416,7 @@ public sealed class PollApprovedInboxTests
         var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
 
         Assert.Equal(1, handled);
-        Assert.Equal(["a-2"], harness.Source.Skipped);
+        Assert.Equal(["a-1"], harness.Source.Skipped);
         Assert.Equal(["a-1", "a-3"], harness.Retained.Retained.Select(item => item.ImmutableMessageId));
         Assert.Equal("cursor-a3", harness.PollStore.Cursors["mailbox-a"]);
         Assert.Empty(harness.PollStore.Releases);
@@ -433,13 +433,39 @@ public sealed class PollApprovedInboxTests
         await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
         harness.Source.Enqueue(
             FirstMailbox.GraphMailboxId,
-            DisplayableMessage("a-2", "cursor-a2", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
+            DisplayableMessage("a-1", "cursor-a2", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
 
         var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
 
         Assert.Equal(0, handled);
-        Assert.Equal(["a-2"], harness.Source.Skipped);
+        Assert.Equal(["a-1"], harness.Source.Skipped);
         Assert.Single(harness.Retained.Retained);
+        Assert.Equal("cursor-a2", harness.PollStore.Cursors["mailbox-a"]);
+    }
+
+    /// <summary>
+    /// A different provider item that reuses a retained Internet message id is not the
+    /// message the mailbox holds. It is downloaded and passed on, so intake replays it
+    /// or quarantines it as a source identity conflict.
+    /// </summary>
+    [Fact]
+    public async Task AnotherItemThatReusesARetainedInternetMessageIdIsStillPassedOn()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.SkipsRetained = true;
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-1", "cursor-a1", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-2", "cursor-a2", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
+
+        var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Empty(harness.Source.Skipped);
+        Assert.Equal(["a-1", "a-2"], harness.Retained.Retained.Select(item => item.ImmutableMessageId));
         Assert.Equal("cursor-a2", harness.PollStore.Cursors["mailbox-a"]);
     }
 
@@ -702,12 +728,14 @@ public sealed class PollApprovedInboxTests
             return Task.CompletedTask;
         }
 
-        public Task<bool> HasRetainedInternetMessageAsync(
+        public Task<bool> HasRetainedMessageAsync(
             Guid mailboxId,
+            string immutableMessageId,
             string canonicalInternetMessageIdentity,
             CancellationToken cancellationToken) =>
             Task.FromResult(Retained.Any(item =>
                 item.MailboxId == mailboxId
+                && string.Equals(item.ImmutableMessageId, immutableMessageId, StringComparison.Ordinal)
                 && item.Metadata.InternetMessageIdentity is { } identity
                 && MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(identity)
                     == canonicalInternetMessageIdentity));
@@ -923,7 +951,7 @@ public sealed class PollApprovedInboxTests
             foreach (var message in page.Messages)
             {
                 if (message.RetainedMetadata?.InternetMessageIdentity is { } identity
-                    && await alreadyRetained(identity, cancellationToken))
+                    && await alreadyRetained(message.ImmutableMessageId, identity, cancellationToken))
                 {
                     Skipped.Add(message.ImmutableMessageId);
                     continue;

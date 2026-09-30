@@ -106,19 +106,25 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
     }
 
-    public async Task<bool> HasRetainedInternetMessageAsync(
+    public async Task<bool> HasRetainedMessageAsync(
         Guid mailboxId,
+        string immutableMessageId,
         string canonicalInternetMessageIdentity,
         CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(immutableMessageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalInternetMessageIdentity);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.RetainedMailboxMessages
+        // The canonical id is unique in the mailbox, so this reads at most one row.
+        // The item id is compared here, exactly, as the wake compares it: the column
+        // takes the database's collation, which can ignore case, and Graph ids do not.
+        var retainedImmutableMessageId = await context.RetainedMailboxMessages
             .AsNoTracking()
-            .AnyAsync(
-                item => item.MailboxId == mailboxId
-                    && item.CanonicalInternetMessageIdentity == canonicalInternetMessageIdentity,
-                cancellationToken);
+            .Where(item => item.MailboxId == mailboxId
+                && item.CanonicalInternetMessageIdentity == canonicalInternetMessageIdentity)
+            .Select(item => item.ImmutableMessageId)
+            .SingleOrDefaultAsync(cancellationToken);
+        return string.Equals(retainedImmutableMessageId, immutableMessageId, StringComparison.Ordinal);
     }
 
     public async Task<int> CountAsync(

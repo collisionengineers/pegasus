@@ -759,11 +759,13 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
             }
             if (alreadyRetained is not null
                 && item.InternetMessageId is { } internetMessageId
-                && await alreadyRetained(internetMessageId, cancellationToken))
+                && await alreadyRetained(item.Id, internetMessageId, cancellationToken))
             {
-                // Already retained: the webhook wake downloaded it. Not downloaded
-                // again and not passed on, like any other item left out above. The
-                // cursors below count its place, so they move past it.
+                // Already retained: the webhook wake downloaded this same item. The
+                // wake and the delta both ask for immutable ids, so the retained row
+                // carries this item's id. Not downloaded again and not passed on,
+                // like any other item left out above. The cursors below count its
+                // place, so they move past it.
                 continue;
             }
             var mime = await client.ReadMimeAsync(mailboxId, item.Id, cancellationToken);

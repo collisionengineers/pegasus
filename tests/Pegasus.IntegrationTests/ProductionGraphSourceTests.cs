@@ -1399,9 +1399,10 @@ public sealed class ProductionGraphSourceTests
 
     /// <summary>
     /// The webhook wake already downloaded and retained a message, so the delta must
-    /// not download it again. The mailbox is asked by the Graph Internet message id
-    /// from the delta; an item it holds is neither read nor returned, and the cursors
-    /// count its place, whether it is first, in the middle or last.
+    /// not download it again. The mailbox is asked by the delta item's Graph id and
+    /// Internet message id; an item it holds is neither read nor returned, and the
+    /// cursors count its place, whether it is first, in the middle or last. Another
+    /// item that reuses a retained Internet message id is still read.
     /// </summary>
     [Fact]
     public async Task InboxDoesNotDownloadADeltaItemTheMailboxAlreadyRetainedAndMovesPastIt()
@@ -1416,28 +1417,36 @@ public sealed class ProductionGraphSourceTests
             }
 
             return Response(HttpStatusCode.OK,
-                """{"value":[{"id":"retained-first","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z","internetMessageId":"<a@example.test>"},{"id":"new-one","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z","internetMessageId":"<b@example.test>"},{"id":"retained-last","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:02:00Z","internetMessageId":"<c@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+                """{"value":[{"id":"retained-first","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z","internetMessageId":"<a@example.test>"},{"id":"reuses-a","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z","internetMessageId":"<a@example.test>"},{"id":"retained-last","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:02:00Z","internetMessageId":"<c@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
-        var asked = new List<string>();
-        var retained = new HashSet<string>(["<a@example.test>", "<c@example.test>"], StringComparer.Ordinal);
+        var asked = new List<(string ImmutableMessageId, string InternetMessageIdentity)>();
+        var retained = new HashSet<(string, string)>([
+            ("retained-first", "<a@example.test>"),
+            ("retained-last", "<c@example.test>")]);
 
         var page = await source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
             10,
-            (internetMessageIdentity, _) =>
+            (immutableMessageId, internetMessageIdentity, _) =>
             {
-                asked.Add(internetMessageIdentity);
-                return Task.FromResult(retained.Contains(internetMessageIdentity));
+                asked.Add((immutableMessageId, internetMessageIdentity));
+                return Task.FromResult(retained.Contains((immutableMessageId, internetMessageIdentity)));
             },
             CancellationToken.None);
 
-        Assert.Equal(["<a@example.test>", "<b@example.test>", "<c@example.test>"], asked);
-        Assert.Equal(["new-one"], mimeReads);
+        Assert.Equal(
+            [
+                ("retained-first", "<a@example.test>"),
+                ("reuses-a", "<a@example.test>"),
+                ("retained-last", "<c@example.test>")
+            ],
+            asked);
+        Assert.Equal(["reuses-a"], mimeReads);
         var message = Assert.Single(page.Messages);
-        Assert.Equal("new-one", message.ImmutableMessageId);
+        Assert.Equal("reuses-a", message.ImmutableMessageId);
         // The last message left in carries the cursor after the whole page, which
         // is past the retained item that follows it.
         Assert.Equal(page.NextCursor, message.NextCursor);
@@ -1461,7 +1470,7 @@ public sealed class ProductionGraphSourceTests
         var page = await source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
             10,
-            (_, _) => Task.FromResult(true),
+            (_, _, _) => Task.FromResult(true),
             CancellationToken.None);
 
         Assert.Empty(page.Messages);
@@ -1497,7 +1506,7 @@ public sealed class ProductionGraphSourceTests
         var page = await source.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
             10,
-            (_, _) =>
+            (_, _, _) =>
             {
                 asked++;
                 return Task.FromResult(true);

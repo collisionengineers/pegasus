@@ -123,12 +123,15 @@ public interface IRetainedMailboxMessageStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Whether the mailbox has retained a message with this canonical Internet
-    /// message id (<see cref="MailboxMessageIdentity"/>). A point read on the
-    /// mailbox's unique identity index.
+    /// Whether the mailbox has retained this provider item: a message with this
+    /// canonical Internet message id (<see cref="MailboxMessageIdentity"/>) retained
+    /// under this immutable message id. A different item that reuses the Internet
+    /// message id is not this one. A point read on the mailbox's unique identity
+    /// index.
     /// </summary>
-    Task<bool> HasRetainedInternetMessageAsync(
+    Task<bool> HasRetainedMessageAsync(
         Guid mailboxId,
+        string immutableMessageId,
         string canonicalInternetMessageIdentity,
         CancellationToken cancellationToken);
 }
@@ -161,11 +164,14 @@ public sealed class ApprovedMailboxAccessDeniedException(
     : Exception(message, innerException);
 
 /// <summary>
-/// Whether the mailbox has already retained the message with this Internet message
-/// id, as Graph reports it. A source that reads a delta asks this for each item
-/// before it downloads the item, and leaves out an item the mailbox already holds.
+/// Whether the mailbox has already retained this item: the same immutable message
+/// id with the same Internet message id, as Graph reports them. A source that reads
+/// a delta asks this for each item before it downloads the item, and leaves out an
+/// item the mailbox already holds. Another item that reuses a retained Internet
+/// message id is not held: it is downloaded, and intake judges it.
 /// </summary>
 public delegate Task<bool> RetainedMessageCheck(
+    string immutableMessageId,
     string internetMessageIdentity,
     CancellationToken cancellationToken);
 
@@ -455,12 +461,15 @@ public sealed class PollApprovedInbox(
 
     /// <summary>
     /// A message the mailbox has retained was accepted first, because the poll
-    /// retains after the shared intake call. An Internet message id that cannot be
-    /// canonicalised cannot have been retained, so that item is read and rejected as
-    /// it always was.
+    /// retains after the shared intake call. Only the same provider item counts: an
+    /// item that reuses a retained Internet message id is read, so intake replays it
+    /// or quarantines it as a source identity conflict. An Internet message id that
+    /// cannot be canonicalised cannot have been retained, so that item is read and
+    /// rejected as it always was.
     /// </summary>
     private async Task<bool> IsRetainedAsync(
         ApprovedInboxPollLease lease,
+        string immutableMessageId,
         string internetMessageIdentity,
         CancellationToken cancellationToken)
     {
@@ -474,8 +483,9 @@ public sealed class PollApprovedInbox(
             return false;
         }
 
-        return await retainedMessageStore.HasRetainedInternetMessageAsync(
+        return await retainedMessageStore.HasRetainedMessageAsync(
             lease.ApprovedMailboxId,
+            immutableMessageId,
             canonical,
             cancellationToken);
     }
@@ -587,7 +597,8 @@ public sealed class PollApprovedInbox(
         var page = await inboxSource.ReadAsync(
             lease,
             maximumMessages,
-            (internetMessageIdentity, token) => IsRetainedAsync(lease, internetMessageIdentity, token),
+            (immutableMessageId, internetMessageIdentity, token) =>
+                IsRetainedAsync(lease, immutableMessageId, internetMessageIdentity, token),
             cancellationToken);
         ValidatePage(page, maximumMessages);
 
