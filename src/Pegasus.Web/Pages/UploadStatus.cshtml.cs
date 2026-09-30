@@ -87,17 +87,18 @@ public sealed class UploadStatusModel(
 
         if (TryGetActor(out var actor))
         {
-            if (await FindManualSiblingGroupAsync(status, actor, cancellationToken) is { } group)
+            // One receipt read serves the sibling-group check, the outcome and
+            // the page.
+            Receipt = await getIntake.ExecuteAsync(new(_receiptId, actor), cancellationToken);
+            if (await FindManualSiblingGroupAsync(Receipt, cancellationToken) is { } group)
             {
                 return RedirectToPage("/UploadGroupStatus", new { id = group.Id });
             }
 
-            Receipt = await getIntake.ExecuteAsync(new(_receiptId, actor), cancellationToken);
-            // The confirmation decision needs a full receipt read for a terminal
-            // status; Received/Processing never reach the branch that needs one.
             if (status.Status is QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed)
             {
-                Outcome = await outcomeQueries.BuildAsync(status, submissionGroupId: null, actor, cancellationToken);
+                Outcome = await outcomeQueries.BuildAsync(
+                    status, Receipt, submissionGroupId: null, actor, cancellationToken);
             }
 
             await SearchAsync(q, actor, cancellationToken);
@@ -248,16 +249,14 @@ public sealed class UploadStatusModel(
             return false;
         }
 
-        return await FindManualSiblingGroupAsync(status, actor, cancellationToken) is null;
+        var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
+        return await FindManualSiblingGroupAsync(receipt, cancellationToken) is null;
     }
 
     private async Task<IntakeSubmissionGroup?> FindManualSiblingGroupAsync(
-        QueuedIntakeStatus status,
-        ActionActor actor,
+        IntakeReceipt? receipt,
         CancellationToken cancellationToken)
     {
-        var receiptId = status.ProcessedReceiptId ?? status.StagedReceiptId;
-        var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
         if (receipt is null)
         {
             return null;

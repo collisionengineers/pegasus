@@ -377,13 +377,13 @@ public sealed class UploadGroupStatusModel(
             IntakeReceipt? receipt = null;
             if (haveActor)
             {
-                if (status is { Status: QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed })
-                {
-                    outcome = await outcomeQueries.BuildAsync(status, group.Id, actor!, cancellationToken);
-                }
-
+                // One receipt read serves both the outcome and the page.
                 receipt = await intake.ExecuteAsync(
                     new(status?.ProcessedReceiptId ?? member.StagedReceiptId, actor!), cancellationToken);
+                if (status is { Status: QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed })
+                {
+                    outcome = await outcomeQueries.BuildAsync(status, receipt, group.Id, actor!, cancellationToken);
+                }
             }
 
             return (member.StagedReceiptId, status, outcome, receipt);

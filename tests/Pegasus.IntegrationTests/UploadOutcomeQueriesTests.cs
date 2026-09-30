@@ -467,18 +467,10 @@ public sealed class UploadOutcomeQueriesTests
         IReadOnlyList<IntakeAssociationDestination>? suggestions = null)
     {
         var queries = new UploadOutcomeQueries(
-            new FakeGetIntake(receipt),
             new FakeImageIntakeQueries(imageIntakeDetail),
             new FakeUnidentifiedStore(unidentifiedByReceipt, unidentifiedByGroup),
             new FakeDestinations(suggestions));
-        return queries.BuildAsync(status, submissionGroupId, StaffActor);
-    }
-
-    private sealed class FakeGetIntake(IntakeReceipt? receipt) : IGetIntake
-    {
-        public Task<IntakeReceipt?> ExecuteAsync(
-            GetIntakeQuery query, CancellationToken cancellationToken = default) =>
-            Task.FromResult(receipt);
+        return queries.BuildAsync(status, receipt, submissionGroupId, StaffActor);
     }
 
     private sealed class FakeDestinations(IReadOnlyList<IntakeAssociationDestination>? suggestions) : IIntakeAssociationDestinationQueries
