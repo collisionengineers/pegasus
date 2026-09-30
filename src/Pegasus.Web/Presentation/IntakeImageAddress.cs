@@ -9,8 +9,8 @@ namespace Pegasus.Web.Presentation;
 /// <remarks>
 /// A browser keeps an intake image for a week only when its address names
 /// exactly what it is answered with: <c>v=</c> is the image's current content
-/// hash and, for a prepared tile, <c>prep=</c> and <c>renderer=</c> are the
-/// current preparation version and renderer. Every other address is answered
+/// hash and, for a tile, <c>prep=</c> and <c>renderer=</c> are the current
+/// preparation version and renderer. Every other address is answered
 /// <c>private, no-store</c>, so a changed image or crop is never served from a
 /// browser's old copy.
 /// </remarks>
@@ -27,10 +27,12 @@ public static class IntakeImageAddress
         $"/Received/{receiptId:D}/Asset/{assetId:D}{Query(contentHash)}";
 
     /// <summary>
-    /// A prepared pre-Case image's tile: the recorded crop and rotation, named
-    /// by the content hash, the preparation version and the renderer.
+    /// A pre-Case image's tile: the recorded crop and rotation, or the whole
+    /// frame when none is recorded, named by the content hash, the preparation
+    /// version (<see cref="Pegasus.Core.ImageIntake.PreCaseImagePreparation.TileVersion"/>)
+    /// and the renderer.
     /// </summary>
-    public static string PreparedTile(
+    public static string Tile(
         Guid receiptId,
         Guid assetId,
         string? contentHash,
@@ -64,7 +66,7 @@ public static class IntakeImageAddress
     public static string ContentETag(string contentHash) =>
         $"\"{contentHash.ToLowerInvariant()}\"";
 
-    /// <summary>The validator of a prepared tile: its source, preparation and renderer.</summary>
+    /// <summary>The validator of a tile: its source, preparation and renderer.</summary>
     public static string TileETag(string contentHash, long preparationVersion) =>
         $"\"{contentHash.ToLowerInvariant()}-p{preparationVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)}-{CaseDocumentThumbnails.RendererIdentity}\"";
 
