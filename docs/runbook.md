@@ -739,6 +739,41 @@ are recorded in [operations](operations.md) and
 [operations § Production environment](operations.md);
 dated names are not current identity proof.
 
+### Worker log lines that are not recorded
+
+The Worker host used to write about 90% of the telemetry Pegasus ingested,
+mostly its own lines. `src/Pegasus.Worker/host.json` now keeps only Warning
+and Error lines for these host categories:
+
+- `Function`, the "Executing" and "Executed" lines of every function;
+- `Host.Startup` and `Host.Triggers`;
+- `Host.Aggregator`, the per-function metric series;
+- `Microsoft.Azure.WebJobs.Hosting.OptionsLoggingService`, the option dumps;
+- `Microsoft.Azure.WebJobs.Script.Description.FunctionGroupListenerDecorator`;
+- `Microsoft.Azure.WebJobs.Host.DrainModeManager`.
+
+`Pegasus.Worker` stays at Information. In the seven days to 30 September 2026,
+the trace categories in that list were 83% of the Worker's trace bytes.
+
+Nothing reads the dropped lines. The one alert, `pegasus-prod-application-exceptions`,
+reads `AppExceptions` and `AppRequests`, not `AppTraces`. `Host.Results` is not
+filtered, because it writes the `AppRequests` rows. Every function run, its
+duration and its failure are still in `AppRequests`. A failed run is still an
+Error line. To see a dropped category again, set it back in `host.json` and
+release.
+
+`host.json` reaches only what the Functions host writes. The worker process
+writes its own lines, and `src/Pegasus.Worker/WorkerLogFilters.cs` drops one
+category from them: `Microsoft.EntityFrameworkCore.Database.Command`. Its
+failure line carried about 4 KB of SQL text, and the exception is recorded
+anyway. Neither file reaches the `health_check` metrics or the performance
+counters. The worker process's other categories, `Pegasus.Worker.*` and the
+rest of Entity Framework, are unchanged.
+
+When you read `AppTraces`, read both `Properties.Category` (the host) and
+`Properties.CategoryName` (the worker process). The effect of these filters
+shows only in a query after the next release.
+
 ## Web start
 
 Web binds its port before any remote read. The data-protection key ring, the
