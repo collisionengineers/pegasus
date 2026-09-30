@@ -1007,6 +1007,36 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal("An instruction", Assert.Single(page.Items).Subject);
     }
 
+    /// <summary>
+    /// The poll asks the mailbox whether it holds a message by its canonical Internet
+    /// message id, so a delta item the wake already retained is not downloaded again.
+    /// It is one point read on the unique identity index, scoped to the mailbox.
+    /// </summary>
+    [Fact]
+    public async Task TheMailboxAnswersWhetherItRetainedAnInternetMessageIdWithOnePointRead()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        await SeedPollStateAsync(database);
+        await RetainAsync(database, Message(
+            "message-1", internetMessageIdentity: "<Wake@Example.Invalid>"));
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>();
+        var mailbox = TestMailboxId.From(MailboxId);
+        var canonical = MailboxMessageIdentity.CanonicalizeInternetMessageIdentity("<wake@example.invalid>");
+
+        statements.Reset();
+        Assert.True(await store.HasRetainedInternetMessageAsync(mailbox, canonical, CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+        Assert.False(await store.HasRetainedInternetMessageAsync(
+            mailbox,
+            MailboxMessageIdentity.CanonicalizeInternetMessageIdentity("<other@example.invalid>"),
+            CancellationToken.None));
+        Assert.False(await store.HasRetainedInternetMessageAsync(
+            Guid.NewGuid(), canonical, CancellationToken.None));
+    }
+
     [Fact]
     public async Task ChangedProviderItemIdentityDoesNotDuplicateTheSameRfcMessage()
     {

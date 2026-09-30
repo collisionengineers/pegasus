@@ -1232,6 +1232,81 @@ public sealed class MailboxIntakeIntegrationTests
         }
     }
 
+    /// <summary>
+    /// A received e-mail is downloaded once. The webhook wake downloads and retains it
+    /// without moving the cursor; the five-minute sweep then meets the same message in
+    /// the delta, does not download it, and moves the cursor past it. Real intake,
+    /// retention and poll stores; only the Graph read is a double.
+    /// </summary>
+    [Fact]
+    public async Task AMessageTheWakeRetainedIsNotDownloadedAgainByTheSweepAndTheCursorMoves()
+    {
+        var workingRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.MailboxWakeThenDeltaIntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workingRoot);
+        var content = CreateForwardedProtocolMessage("<wake-once@example.invalid>");
+        var inboxSource = new WakeThenDeltaApprovedInboxSource(content, "<wake-once@example.invalid>");
+
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => Path.Combine(workingRoot, "artifacts"),
+                configureServices: services =>
+                {
+                    services.AddSingleton<TimeProvider>(new AdjustableTimeProvider(RecordedAtUtc));
+                    services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
+                    services.AddScoped<ReceiveIntake>();
+                    services.AddLocalApprovedInbox(_ => new(
+                        LocalApprovedInboxOptions.RequiredRuntimeProfile,
+                        "instructions",
+                        "instructions@collisionengineers.co.uk",
+                        workingRoot));
+                    services.AddSingleton<IApprovedInboxSource>(inboxSource);
+                });
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
+            var mailboxId = TestMailboxId.From("instructions");
+            var generation = await database.ScalarAsync<long>(
+                $"SELECT MailboxGeneration FROM ApprovedMailboxes WHERE Id = '{mailboxId:D}'");
+            var actor = ActionActor.SystemWorker("approved-inbox-poller");
+
+            await using (var wakeScope = database.CreateAsyncScope())
+            {
+                var poll = wakeScope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                Assert.Equal(1, await poll.ExecuteNotificationAsync(
+                    mailboxId, generation, WakeThenDeltaApprovedInboxSource.ImmutableMessageId,
+                    actor, CancellationToken.None));
+            }
+
+            Assert.Equal(1, inboxSource.MimeReads);
+            await using (var sweepScope = database.CreateAsyncScope())
+            {
+                var poll = sweepScope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                Assert.Equal(0, await poll.ExecuteAsync(10, actor, CancellationToken.None));
+            }
+
+            Assert.Equal(1, inboxSource.MimeReads);
+            Assert.Equal(["<wake-once@example.invalid>"], inboxSource.Asked);
+            Assert.Equal(
+                WakeThenDeltaApprovedInboxSource.CursorAfterTheMessage,
+                await database.ScalarAsync<string>("SELECT [Cursor] FROM ApprovedInboxPollStates"));
+            Assert.Equal(
+                1L,
+                await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+            Assert.Equal(
+                1L,
+                await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
+        }
+        finally
+        {
+            if (Directory.Exists(workingRoot))
+            {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1379,6 +1454,69 @@ public sealed class MailboxIntakeIntegrationTests
             Path.GetTempPath()));
 
         Assert.Contains("disabled", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The Graph read as the wake and the sweep see it: the wake reads the message, and
+    /// the delta lists the same message and asks the mailbox whether it holds it
+    /// before it reads the message a second time.
+    /// </summary>
+    private sealed class WakeThenDeltaApprovedInboxSource(
+        ReadOnlyMemory<byte> content,
+        string internetMessageIdentity) : IApprovedInboxSource
+    {
+        internal const string ImmutableMessageId = "wake-immutable-message";
+        internal const string CursorAfterTheMessage = "cursor-after-the-message";
+
+        internal int MimeReads { get; private set; }
+
+        internal List<string> Asked { get; } = [];
+
+        private ApprovedInboxMessage Read(string cursor)
+        {
+            MimeReads++;
+            return new(ImmutableMessageId, "wake.eml", content, RecordedAtUtc, cursor)
+            {
+                RetainedMetadata = new(
+                    DefaultInboxFolderIdentity,
+                    "conversation-1",
+                    internetMessageIdentity,
+                    "sender@example.invalid",
+                    "Sender",
+                    ["instructions@collisionengineers.co.uk"],
+                    [],
+                    ["sender@example.invalid"],
+                    "Subject",
+                    "Body",
+                    [],
+                    IsRead: false)
+            };
+        }
+
+        public Task<ApprovedInboxMessage?> ReadNotifiedAsync(
+            ApprovedInboxPollLease lease,
+            string immutableMessageId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ApprovedInboxMessage?>(Read("not-a-scan-cursor"));
+
+        public Task<ApprovedInboxPage> ReadAsync(
+            ApprovedInboxPollLease lease,
+            int maximumMessages,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "The sweep must offer the mailbox the chance to skip a retained message.");
+
+        public async Task<ApprovedInboxPage> ReadAsync(
+            ApprovedInboxPollLease lease,
+            int maximumMessages,
+            RetainedMessageCheck alreadyRetained,
+            CancellationToken cancellationToken)
+        {
+            Asked.Add(internetMessageIdentity);
+            return await alreadyRetained(internetMessageIdentity, cancellationToken)
+                ? new([], CursorAfterTheMessage)
+                : new([Read(CursorAfterTheMessage)], CursorAfterTheMessage);
+        }
     }
 
     private sealed class ConflictReplayApprovedInboxSource(
