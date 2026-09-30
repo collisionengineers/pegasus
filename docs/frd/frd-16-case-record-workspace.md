@@ -124,7 +124,7 @@ operator is typing in: after a save the notices, the ribbon, the aside and
 the dialogs are drawn afresh and every section stays as it is, so a blocker
 clears, the state chip moves and a newly permitted action appears within the
 round trip. The server answers a save with those parts alone, and the page is
-not reloaded (operator, 30 September 2026). The answer also carries the
+not reloaded (operator, 29 September 2026). The answer also carries the
 version, the lease and the key the next save sends, and the Files section
 when a crop or rotation was recorded. A save that ends editing redirects to
 the page, as every other command does. A refusal refuses the whole save, keeps
