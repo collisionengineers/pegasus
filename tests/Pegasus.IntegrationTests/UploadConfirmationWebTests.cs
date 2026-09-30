@@ -238,6 +238,12 @@ public sealed class UploadConfirmationWebTests
         Assert.Contains("data-upload-phase=\"decision\"", statusPage, StringComparison.Ordinal);
         Assert.Contains("2 photographs found in this file", statusPage, StringComparison.Ordinal);
         Assert.Contains($"/Received/{receiptId:D}/Asset/", statusPage, StringComparison.OrdinalIgnoreCase);
+        // The URL names the staged receipt, and the page's receipt, outcome and
+        // offered decision are the processed receipt's (ProcessedReceiptId
+        // ?? StagedReceiptId, the id every read on the page uses).
+        Assert.NotEqual(stagedReceiptId, receiptId);
+        Assert.Contains($"name=\"receiptId\" value=\"{receiptId:D}\"", statusPage, StringComparison.Ordinal);
+        Assert.DoesNotContain($"name=\"receiptId\" value=\"{stagedReceiptId:D}\"", statusPage, StringComparison.Ordinal);
 
         var (receiptVersion, caseVersion) = await AttachmentVersionsAsync(factory, receiptId, caseId);
         var redirect = await PostAttachAsync(
