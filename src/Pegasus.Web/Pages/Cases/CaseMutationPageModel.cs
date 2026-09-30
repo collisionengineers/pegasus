@@ -494,8 +494,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// edit session open after the store consumed the lease it carried (v25
     /// decision F). A page that offers such posts supplies them; a page that
     /// does not leaves them null and its commands end the session as before.
+    /// The reclaim needs only the workflow's version, state and archive, so
+    /// it reads the workflow row alone; the claim authorizes the actor.
     /// </summary>
-    protected virtual (IGetCaseEditBasis Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => null;
+    protected virtual (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => null;
 
     /// <summary>
     /// Claims a fresh lease on the Case's new version and stores it, so the
@@ -512,15 +514,15 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
         try
         {
-            var current = await reclaim.Cases.ExecuteAsync(new(id, actor), cancellationToken);
-            if (current is null || current.Workflow.Archive is not null
-                || Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(current.Workflow.State))
+            var current = await reclaim.Workflows.GetAsync(id, cancellationToken);
+            if (current is null || current.Archive is not null
+                || Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(current.State))
             {
                 return;
             }
             var operationKey = NewOperationKey();
             var lease = await reclaim.Leases.ExecuteAsync(
-                new(id, current.Workflow.Version, actor, operationKey),
+                new(id, current.Version, actor, operationKey),
                 cancellationToken);
             StoreLeaseAuthority(id, lease.Token);
         }

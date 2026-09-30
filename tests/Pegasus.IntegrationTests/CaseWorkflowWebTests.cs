@@ -310,6 +310,7 @@ public sealed class CaseWorkflowWebTests
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<IHoldCase>(store);
                 services.AddSingleton<IReleaseCase>(store);
                 services.AddSingleton<ITransitionCase>(store);

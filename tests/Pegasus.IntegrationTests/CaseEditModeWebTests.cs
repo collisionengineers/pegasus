@@ -183,16 +183,19 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
-    /// Save and the lease it reclaims read only the Case's frame and data,
-    /// never the full Case read with its documents, history and tasks.
+    /// Save reads only the Case's frame and data, never the full Case read
+    /// with its documents, history and tasks, and the lease it reclaims reads
+    /// only the Case's workflow row.
     /// </summary>
     [Fact]
-    public async Task CaseSaveAndItsReclaimReadOnlyTheEditBasis()
+    public async Task CaseSaveReadsTheEditBasisAndItsReclaimReadsOnlyTheWorkflow()
     {
         var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true, ThrowOnBroadCaseRead = true };
         using var workspace = await EnterEditModeAsync(store, services =>
             Substitute<ISaveCaseWorkspace>(services, store));
         var before = store.CaseVersion;
+        var editBasisReads = store.EditBasisReads;
+        var workflowReads = store.WorkflowReads;
 
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
             Form(workspace.AntiforgeryToken,
@@ -204,7 +207,9 @@ public sealed class CaseEditModeWebTests
         AssertPrg(response, store.CaseId);
         Assert.Single(store.Saves);
         Assert.Equal(2, store.Claims.Count);
-        Assert.Equal(2, store.EditBasisReads);
+        Assert.Equal(before + 1, store.Claims[1].ExpectedVersion);
+        Assert.Equal(editBasisReads + 1, store.EditBasisReads);
+        Assert.Equal(workflowReads + 1, store.WorkflowReads);
     }
 
     /// <summary>
@@ -276,6 +281,7 @@ public sealed class CaseEditModeWebTests
             Substitute<IGetCaseNotesSection>(services, store);
             Substitute<IGetCaseFilesSection>(services, store);
             Substitute<IAcquireCaseEditLease>(services, store);
+            Substitute<ICaseWorkflowQueries>(services, store);
             Substitute<IGetAssessmentAccess>(services, store);
             Substitute<IGetAssessmentWorkspace>(services, store);
             Substitute<ICaseReportSnapshotSource>(services, store);
@@ -456,6 +462,7 @@ public sealed class CaseEditModeWebTests
             Substitute<IGetCaseNotesSection>(services, store);
             Substitute<IGetCaseFilesSection>(services, store);
             Substitute<IAcquireCaseEditLease>(services, store);
+            Substitute<ICaseWorkflowQueries>(services, store);
             Substitute<IGetAssessmentAccess>(services, store);
             Substitute<IGetAssessmentWorkspace>(services, store);
             Substitute<ICaseReportSnapshotSource>(services, store);
@@ -859,6 +866,7 @@ public sealed class CaseEditModeWebTests
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -917,6 +925,7 @@ public sealed class CaseEditModeWebTests
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -980,6 +989,7 @@ public sealed class CaseEditModeWebTests
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -1103,6 +1113,7 @@ public sealed class CaseEditModeWebTests
                 Substitute<IGetCasePageFrame>(services, readers);
                 Substitute<IGetAssessmentWorkspace>(services, readers);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1924,6 +1935,7 @@ public sealed class CaseEditModeWebTests
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders("r.hughes"));
@@ -2021,6 +2033,7 @@ public sealed class CaseEditModeWebTests
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
