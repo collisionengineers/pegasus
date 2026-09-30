@@ -13,8 +13,15 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseQueryStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries
+    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseDocumentQueries
 {
+    /// <inheritdoc />
+    async Task<IReadOnlyList<CaseDocument>> ICaseDocumentQueries.ListAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ReadDocumentsAsync(context, caseId, cancellationToken);
+    }
+
     /// <inheritdoc />
     async Task<CaseType?> ICaseKindQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -341,25 +348,28 @@ public sealed class EfCaseQueryStore(
 
         var summaryRow = await SearchRows(context)
             .SingleAsync(item => item.CaseId == query.CaseId, cancellationToken);
-        var documentCount = await context.Set<CaseDocumentEntity>()
+        // The three counts are one command: a header read is a handful of round
+        // trips, and each one is paid for by every page that shows a Case.
+        var openTaskState = nameof(CaseTaskState.Open);
+        var counts = await context.Cases
             .AsNoTracking()
-            .CountAsync(item => item.CaseId == query.CaseId, cancellationToken);
-        var historyCount = await context.CaseWorkflowEvents
-            .AsNoTracking()
-            .CountAsync(item => item.CaseId == query.CaseId, cancellationToken);
-        var openTaskCount = await context.Set<CaseTaskEntity>()
-            .AsNoTracking()
-            .CountAsync(
-                item => item.CaseId == query.CaseId && item.State == nameof(CaseTaskState.Open),
-                cancellationToken);
+            .Where(item => item.Id == query.CaseId)
+            .Select(item => new
+            {
+                Documents = context.Set<CaseDocumentEntity>().Count(document => document.CaseId == query.CaseId),
+                History = context.CaseWorkflowEvents.Count(entry => entry.CaseId == query.CaseId),
+                OpenTasks = context.Set<CaseTaskEntity>()
+                    .Count(task => task.CaseId == query.CaseId && task.State == openTaskState)
+            })
+            .SingleAsync(cancellationToken);
 
         return new CaseHeader(
             MapSearchItem(summaryRow, timeProvider.GetUtcNow()),
             MapWorkflow(workflow),
             ResolveActiveLease(workflow, timeProvider.GetUtcNow()),
-            documentCount,
-            historyCount,
-            openTaskCount,
+            counts.Documents,
+            counts.History,
+            counts.OpenTasks,
             await CaseWorkScope.LoadSetAsync(context, query.CaseId, cancellationToken));
     }
 

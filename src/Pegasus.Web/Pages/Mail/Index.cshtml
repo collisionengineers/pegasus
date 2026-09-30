@@ -434,9 +434,7 @@
                         <div class="section-gap fact-grid">
                             <dl class="fact">
                                 <dt>Classification</dt>
-                                <dd data-mail-preview-classification>@(detail.Classification is { } dossier
-                                    ? Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(dossier.Current)
-                                    : Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(detail.ClassificationOutcome))</dd>
+                                <dd data-mail-preview-classification>@Pegasus.Web.Pages.Mail.IndexModel.ClassificationValue(detail)</dd>
                             </dl>
                             <dl class="fact">
                                 <dt>@OperatorLabels.Inbox.Case</dt>

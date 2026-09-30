@@ -105,6 +105,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<ListRetainedMail>();
         services.AddScoped<GetRetainedMail>();
+        services.AddScoped<GetRetainedMailPreview>();
         services.AddScoped<CorrectRetainedMailClassification>();
         services.TryAddSingleton<IRetainedMailFolderMover, UnavailableRetainedMailFolderMover>();
         services.AddScoped<EfRetainedMailFolderMoveStore>();
@@ -435,6 +436,8 @@ public static class DependencyInjection
         services.AddScoped<ICaseQueryStore>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseKindQueries>(
+            provider => provider.GetRequiredService<EfCaseQueryStore>());
+        services.AddScoped<ICaseDocumentQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
         services.AddScoped<ISearchCases, SearchCases>();

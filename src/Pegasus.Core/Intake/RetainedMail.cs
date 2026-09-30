@@ -177,6 +177,18 @@ public sealed record RetainedMailDetail(
     RetainedMailFolderMoveResult? LatestFolderMove = null,
     RetainedMailSuggestedMove? SuggestedMove = null);
 
+/// <summary>
+/// What the Inbox preview pane renders of one message: its summary, the
+/// attachments it counts by kind, the classification decision it names and the
+/// folder scope it was retained under. The thread, body, recipients, folder
+/// recommendation and latest move belong to the full message and are not read.
+/// </summary>
+public sealed record RetainedMailPreview(
+    RetainedMailSummary Summary,
+    IReadOnlyList<RetainedMailAttachment> Attachments,
+    MailClassificationResult? Classification,
+    MailFolderScope Folder);
+
 public sealed record MailClassificationHistoryEntry(
     int Version,
     MailClassificationResult Before,
@@ -428,6 +440,17 @@ public interface IRetainedMailQueries
         Guid id,
         CancellationToken cancellationToken,
         string? searchTerm = null);
+
+    /// <summary>
+    /// The preview pane's read: the attachments, the classification decision and
+    /// the folder scope of one message. <paramref name="summary"/> is the row the
+    /// caller already holds from a list read, which keeps its search matches; without
+    /// one the store reads the message's own summary.
+    /// </summary>
+    Task<RetainedMailPreview?> GetPreviewAsync(
+        Guid id,
+        RetainedMailSummary? summary,
+        CancellationToken cancellationToken);
 
     Task<RetainedMailDetail?> GetByOriginReceiptAsync(
         Guid originReceiptId,
@@ -761,6 +784,40 @@ public sealed class GetRetainedMail(
             && Guid.TryParse(subjectId, out var staffId)
                 ? staffId
                 : null;
+}
+
+/// <summary>
+/// The Inbox preview pane's read, with the same actor boundary and identifier
+/// validation as <see cref="GetRetainedMail"/> and none of what only the full
+/// message page renders.
+/// </summary>
+public sealed class GetRetainedMailPreview(IRetainedMailQueries queries)
+{
+    private readonly IRetainedMailQueries queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public Task<RetainedMailPreview?> ExecuteAsync(
+        ActionActor actor,
+        Guid messageId,
+        RetainedMailSummary? summary = null,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (messageId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A retained message identifier is required.",
+                nameof(messageId));
+        }
+        if (summary is not null && summary.Id != messageId)
+        {
+            throw new ArgumentException(
+                "The summary belongs to another retained message.",
+                nameof(summary));
+        }
+
+        return queries.GetPreviewAsync(messageId, summary, cancellationToken);
+    }
 }
 
 public sealed class GetRetainedMailFreshness(

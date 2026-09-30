@@ -708,6 +708,16 @@ public sealed class ValidateCaseRenderLease(
     }
 }
 
+/// <summary>
+/// A Case's document rows alone, with their occurrences, versions and tags: what a
+/// caller that needs only the files reads instead of the whole Case. An unknown
+/// Case has no documents.
+/// </summary>
+public interface ICaseDocumentQueries
+{
+    Task<IReadOnlyList<CaseDocument>> ListAsync(Guid caseId, CancellationToken cancellationToken);
+}
+
 public sealed record ListCaseReferencesQuery(ActionActor Actor, IReadOnlyCollection<Guid> CaseIds);
 
 public interface IListCaseReferences

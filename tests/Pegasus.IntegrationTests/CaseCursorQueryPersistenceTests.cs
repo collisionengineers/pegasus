@@ -519,8 +519,50 @@ public sealed class CaseCursorQueryPersistenceTests
         Assert.Equal(1, header.OpenTaskCount);
     }
 
+    /// <summary>
+    /// The documents-only read a mail attachment list uses returns the same
+    /// documents the full Case read carries, in the same order, and none for a
+    /// Case that does not exist.
+    /// </summary>
+    [Fact]
+    public async Task TheDocumentsOnlyReadMatchesTheFullCaseReadsDocuments()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "DOCS");
+        var caseId = await SeedCaseAsync(database, principalId, lineageId, "DOCS31001", 1, BaseUtcNow);
+        await using (var context = await database.CreateContextAsync())
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                var documentId = Guid.NewGuid();
+                context.Add(new CaseDocumentEntity
+                {
+                    Id = documentId,
+                    CaseId = caseId,
+                    Ordinal = i,
+                    SourceOccurrenceIdentity = $"documents-only:{documentId:N}"
+                });
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<ICaseQueryStore>();
+        var documents = scope.ServiceProvider.GetRequiredService<ICaseDocumentQueries>();
+
+        var only = await documents.ListAsync(caseId, CancellationToken.None);
+        var full = await store.GetAsync(new(caseId, actor), CancellationToken.None);
+
+        Assert.Equal(2, only.Count);
+        Assert.Equal(full!.Documents.Select(item => item.Id), only.Select(item => item.Id));
+        Assert.Empty(await documents.ListAsync(Guid.NewGuid(), CancellationToken.None));
+    }
+
     [Fact]
     public async Task GetHeaderReturnsNullForACaseThatDoesNotExist()
+
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);

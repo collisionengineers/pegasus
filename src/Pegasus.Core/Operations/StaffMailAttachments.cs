@@ -24,12 +24,20 @@ public interface IStaffMailAttachmentResolver
     Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
         ActionActor actor, Guid receiptId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The receipt's sendable attachments from a receipt the caller has already
+    /// read, so the page does not read it twice.
+    /// </summary>
+    Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
+        ActionActor actor, IntakeReceipt receipt, CancellationToken cancellationToken) =>
+        ListIntakeAsync(actor, receipt.Id, cancellationToken);
+
     Task<IReadOnlyList<StaffMailAttachment>> ResolveIntakeAsync(
         ActionActor actor, Guid receiptId, IReadOnlyList<string> selections,
         CancellationToken cancellationToken);
 }
 
-public sealed class StaffMailAttachmentResolver(IGetCase getCase, IGetIntake getIntake)
+public sealed class StaffMailAttachmentResolver(ICaseDocumentQueries caseDocuments, IGetIntake getIntake)
     : IStaffMailAttachmentResolver
 {
     public async Task<IReadOnlyList<StaffMailAttachmentOption>> ListCaseAsync(
@@ -48,6 +56,14 @@ public sealed class StaffMailAttachmentResolver(IGetCase getCase, IGetIntake get
         ActionActor actor, Guid receiptId, CancellationToken cancellationToken) =>
         (await ReadIntakeAsync(actor, receiptId, cancellationToken)).Select(ToOption).ToArray();
 
+    public Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
+        ActionActor actor, IntakeReceipt receipt, CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return Task.FromResult<IReadOnlyList<StaffMailAttachmentOption>>(
+            SendableIntakeAttachments(receipt).Select(ToOption).ToArray());
+    }
+
     public async Task<IReadOnlyList<StaffMailAttachment>> ResolveIntakeAsync(
         ActionActor actor, Guid receiptId, IReadOnlyList<string> selections,
         CancellationToken cancellationToken)
@@ -59,10 +75,14 @@ public sealed class StaffMailAttachmentResolver(IGetCase getCase, IGetIntake get
     private async Task<IReadOnlyList<StaffMailAttachment>> ReadCaseAsync(
         ActionActor actor, Guid caseId, CancellationToken cancellationToken)
     {
-        var details = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken)
-            ?? throw new StaffMailAttachmentSelectionException(
-                "The selected Case attachments are no longer available.");
-        return CaseFiles.Live(details.Documents)
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+
+        var documents = await caseDocuments.ListAsync(caseId, cancellationToken);
+        return CaseFiles.Live(documents)
             .Select(file => new StaffMailAttachment(
                 file.Occurrence.DocumentId, file.Version.Id, file.Version.Sha256,
                 file.Version.ContentLength, file.Version.FileName, file.Version.MediaType))
@@ -77,7 +97,11 @@ public sealed class StaffMailAttachmentResolver(IGetCase getCase, IGetIntake get
         var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken)
             ?? throw new StaffMailAttachmentSelectionException(
                 "The selected Triage attachments are no longer available.");
-        return IntakeFileIdentity.Ordered(receipt)
+        return SendableIntakeAttachments(receipt);
+    }
+
+    private static StaffMailAttachment[] SendableIntakeAttachments(IntakeReceipt receipt) =>
+        IntakeFileIdentity.Ordered(receipt)
             .Where(asset => asset.CustodyState == IncomingArtifactCustodyState.Confirmed)
             .Select(asset => new StaffMailAttachment(
                 null, null, asset.ContentHash, asset.ContentLength,
@@ -85,7 +109,6 @@ public sealed class StaffMailAttachmentResolver(IGetCase getCase, IGetIntake get
             .Where(IsSendable)
             .DistinctBy(SelectionOf, StringComparer.Ordinal)
             .ToArray();
-    }
 
     private static List<StaffMailAttachment> Resolve(
         IReadOnlyList<StaffMailAttachment> available,
