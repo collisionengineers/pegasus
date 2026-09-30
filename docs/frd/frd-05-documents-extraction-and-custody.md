@@ -247,12 +247,14 @@ a small cached rendering. Nothing the user sees changes. An image the
 background cannot render gets its thumbnail on first view, as before.
 
 Every read of a file from Box checks the file itself: which folder holds it
-and whether it is in the trash. A trashed file is refused. The check that
-the folder sits under the approved Box root is remembered for 10 minutes. So
-a folder moved out of the root, or trashed, in Box itself may be noticed up
-to 10 minutes late. Writes, moves, deletes and uploads check the whole path
-every time. A not-found, trashed or outside-root answer drops what was
-remembered.
+and whether it is in the trash. A trashed file is refused. The file's
+metadata and content are requested together, and the content is discarded
+unless every check passes. The check that the folder sits under the approved
+Box root is remembered for 10 minutes. So a folder moved out of the root, or
+trashed, in Box itself may be noticed up to 10 minutes late. Writes, moves,
+deletes and uploads check the whole path every time. A not-found, trashed or
+outside-root answer drops what was remembered. The Box access token is
+renewed in the background before a request would need to renew it.
 
 A browser may keep a private copy of an image or PDF preview for a week. It
 keeps one only when the address names the exact bytes. For a Case document
