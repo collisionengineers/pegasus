@@ -241,17 +241,24 @@ public sealed partial class DetailsModel
     private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
         ApplyValuationSection(await ReadValuationSectionAsync(caseId, actor, WorkSelector, cancellationToken));
 
+    /// <param name="openingOnly">
+    /// Only what the calculation the calculator opens on reads: the recorded
+    /// cards, the adoptions and the presets. A commit answered in place needs
+    /// no more, so it asks neither for the pending research job nor for the
+    /// name of whoever applied the value.
+    /// </param>
     private async Task<ValuationSectionReads> ReadValuationSectionAsync(
         Guid caseId,
         ActionActor actor,
         CaseWorkSelector work,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool openingOnly = false)
     {
         var valuations = await listCaseValuations.ExecuteAsync(caseId, work, cancellationToken);
         var applied = await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
-        var pending = await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
+        var pending = openingOnly ? null : await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
         string? appliedBy = null;
-        if (applied.Count > 0)
+        if (applied.Count > 0 && !openingOnly)
         {
             appliedBy = Guid.TryParse(applied[0].AcceptedBy, out var staffId)
                 ? (await staffAccountQueries.GetAsync(staffId, cancellationToken))?.UserName ?? ActorDisplayNames.UnknownStaff

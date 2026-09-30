@@ -432,10 +432,12 @@ internal static partial class CaseWebTestSupport
         public CaseAssetCrop OverviewCrop { get; } = new(0.1m, 0.1m, 0.8m, 0.8m);
 
         public RecordingCaseDetailsStore Store(
-            CaseLifecycleState state = CaseLifecycleState.NotReady)
+            CaseLifecycleState state = CaseLifecycleState.NotReady,
+            bool acceptWorkspaceSaves = false)
         {
             var store = new RecordingCaseDetailsStore
             {
+                AcceptWorkspaceSaves = acceptWorkspaceSaves,
                 State = state,
                 CaseState = state,
                 CaseDocuments =

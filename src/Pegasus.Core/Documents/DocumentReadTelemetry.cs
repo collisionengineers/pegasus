@@ -28,6 +28,7 @@ public static class DocumentReadTelemetry
         "web.case.direct-sections",
         "web.case.engineer-sections",
         "web.case.extras",
+        "web.case.commit",
         "web.case.resource",
         "web.case.result",
         "web.case.section.resource",
