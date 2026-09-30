@@ -1,7 +1,6 @@
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Worker;
@@ -45,35 +44,4 @@ public sealed partial class SentEvidencePollFunction(
         int itemCount,
         int reportEvidenceCount,
         string? firstFailure);
-}
-
-public sealed partial class DueWorkSweepFunction(
-    RunDueChasers runDueChasers,
-    ILogger<DueWorkSweepFunction> logger)
-{
-    [Function(nameof(DueWorkSweepFunction))]
-    public async Task RunAsync(
-        [TimerTrigger("%DueWorkSweepSchedule%", RunOnStartup = false)] TimerInfo timer,
-        CancellationToken cancellationToken)
-    {
-        var result = await runDueChasers.ExecuteAsync(
-            maximumItems: 50,
-            cancellationToken);
-        LogSweepOutcome(
-            logger,
-            result.ExaminedCount,
-            result.GeneratedCount,
-            result.ReplayCount,
-            result.SupersededCount);
-    }
-
-    [LoggerMessage(
-        Level = LogLevel.Information,
-        Message = "Examined {ExaminedCount} due-work occurrences and persisted {GeneratedCount} copyable chaser drafts; {ReplayCount} were replays and {SupersededCount} were superseded. No outbound communication was attempted and no sending, receipt, or delivery was claimed.")]
-    private static partial void LogSweepOutcome(
-        ILogger logger,
-        int examinedCount,
-        int generatedCount,
-        int replayCount,
-        int supersededCount);
 }

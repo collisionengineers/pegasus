@@ -33,8 +33,11 @@ case/custody outcome for supported work. Box confirmation remains a measured
 best-effort final segment: provider delay is attributed, never hidden or
 misreported as Pegasus processing delay.
 
-One-minute recovery and mailbox polling remain recovery mechanisms. They do not
-share the normal critical path and are not a warm-capacity substitute.
+One-minute recovery and mailbox polling remain recovery mechanisms. The
+five-minute mailbox fallback poll and the due-work sweep run inside the
+one-minute recovery timer, on every fifth minute, so they use its warm
+instance. None of them shares the normal critical path or is a warm-capacity
+substitute.
 
 ## Consequences
 

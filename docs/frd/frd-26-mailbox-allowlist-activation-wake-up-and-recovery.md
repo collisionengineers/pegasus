@@ -13,7 +13,9 @@
 - An authorised intake-data wipe records a receive-time cutoff. Nothing can
   lower it or bring cleared mail back.
 - Graph notifications only wake the Worker. The Worker alone reads mail, and
-  a five-minute fallback poll recovers anything a notification missed.
+  a five-minute fallback poll recovers anything a notification missed. The
+  fallback poll runs inside the Worker's one-minute recovery timer, on every
+  fifth minute.
 
 ## Purpose
 
@@ -120,6 +122,7 @@ not another processing route.
 Subscription maintenance runs every six hours and renews an enabled Inbox
 before it comes within 48 hours of expiry. A failure is visible per mailbox
 and leaves the five-minute per-mailbox fallback poll running. That fallback
+runs inside the Worker's one-minute recovery timer, on every fifth minute. It
 moves the same cursor and is recovery only: it creates no second receipt and
 does not bypass the fresh-start boundary. Disabling a mailbox stops
 notification work at claim time as well as its next fallback poll.
