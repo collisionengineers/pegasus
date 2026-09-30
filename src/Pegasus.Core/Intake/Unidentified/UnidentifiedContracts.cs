@@ -433,12 +433,15 @@ public interface IUnidentifiedStore
     Task<int> CountOpenAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The Closed filter of the Cases › Unidentified tab (Received file D5): items
-    /// resolved by Close with reason, newest closed first, listed indefinitely.
+    /// The Closed filter of the Cases › Unidentified tab (Received file D5): the
+    /// newest <paramref name="limit"/> items resolved by Close with reason,
+    /// newest closed first. The store bounds the read; a closed item never
+    /// ages out of the store, only off this page.
     /// Default: unsupported, for the in-memory doubles that never close anything.
     /// </summary>
     Task<IReadOnlyList<UnidentifiedQueueRow>> ListClosedQueueAsync(
         UnidentifiedMediaKind? mediaKind,
+        int limit,
         CancellationToken cancellationToken = default) =>
         Task.FromException<IReadOnlyList<UnidentifiedQueueRow>>(
             new NotSupportedException("This Unidentified store does not list closed items."));
