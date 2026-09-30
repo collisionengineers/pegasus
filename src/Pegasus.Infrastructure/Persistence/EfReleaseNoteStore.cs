@@ -127,18 +127,25 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
     public async Task<ReleaseNote?> GetUnacknowledgedAsync(Guid staffId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // Every full page asks this. One read names the newest note and says
+        // whether this person has acknowledged it, and the body is read only
+        // for the note that is about to be shown.
         var newest = await Published(context)
             .OrderByDescending(item => item.PublishedAtUtc)
             .ThenByDescending(item => item.Id)
+            .Select(item => new
+            {
+                item.Id,
+                Acknowledged = context.Set<ReleaseNoteAcknowledgementEntity>()
+                    .Any(ack => ack.StaffId == staffId && ack.ReleaseNoteId == item.Id)
+            })
             .FirstOrDefaultAsync(cancellationToken);
-        if (newest is null)
+        if (newest is null || newest.Acknowledged)
         {
             return null;
         }
 
-        var acknowledged = await context.Set<ReleaseNoteAcknowledgementEntity>().AsNoTracking()
-            .AnyAsync(item => item.StaffId == staffId && item.ReleaseNoteId == newest.Id, cancellationToken);
-        return acknowledged ? null : Map(newest);
+        return Map(await Published(context).SingleAsync(item => item.Id == newest.Id, cancellationToken));
     }
 
     public async Task AcknowledgeAsync(Guid staffId, Guid noteId, DateTimeOffset atUtc, CancellationToken cancellationToken)
