@@ -677,8 +677,10 @@ public sealed class UploadConfirmationWebTests
     /// receipt a second time to build the member's outcome, which is why a
     /// three-file group cost seven whole-receipt reads here (three for the
     /// members, three for their outcomes and one for the suggestions' first
-    /// receipt, which finds no candidate and stops). The bound is the
-    /// members' reads plus at most one suggestion read each.
+    /// receipt, which finds no candidate and stops). It now costs four: the
+    /// three members' reads and that one suggestion read. This fixture's
+    /// images have no readable registration, so no Case is a candidate and
+    /// the suggestions stop at the first receipt.
     /// </summary>
     [Fact]
     public async Task ATerminalGroupPollReadsEachMembersReceiptOnce()
@@ -718,7 +720,7 @@ public sealed class UploadConfirmationWebTests
             "[IntakeAssets]",
             "[InstructionDrafts]",
             "[IntakeMailRouteDecisions]");
-        Assert.InRange(wholeReceiptReads, 3, 6);
+        Assert.Equal(4, wholeReceiptReads);
     }
 
     [Fact]
