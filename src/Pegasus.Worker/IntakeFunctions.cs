@@ -8,8 +8,11 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
 using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Tasks;
+using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Transport;
 using Pegasus.Infrastructure.Custody;
+using System.Runtime.ExceptionServices;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
@@ -18,18 +21,141 @@ namespace Pegasus.Worker;
 /// <summary>
 /// Slow reconciliation for publication attempts missed after their durable
 /// commit. Ordinary intake is published directly by its committing caller.
+/// Every fifth minute the same run also does the two jobs that once had their
+/// own five-minute timers, so they use this timer's warm instance instead of
+/// starting a cold one: the due-work sweep, then the approved-inbox fallback
+/// poll (Graph subscription maintenance first).
 /// </summary>
+/// <remarks>
+/// The dispatch runs first and nothing below delays it. Each of the two jobs
+/// has its own time budget and its own failure handling, so one failing or
+/// slow job never stops the other, and a failing dispatch does not stop them
+/// either. A job that passes its budget is cancelled, logged as a warning and
+/// counted as a failed step, with a <see cref="TimeoutException"/> naming the
+/// job: a hung poll used to run until the function timed out, and that was a
+/// failed request. After every step has run, a step that failed fails the
+/// invocation, as the retired one-per-job timers did, so the failed request
+/// reaches the exception alert on the first failure. The dispatch failure is the one rethrown when
+/// there is one. Otherwise a single folded failure is rethrown as it is, and
+/// two are rethrown together in an <see cref="AggregateException"/>, sweep
+/// first. Host shutdown during a folded job propagates as cancellation, unless
+/// the dispatch had already failed: then the dispatch failure is rethrown. The
+/// minute comes from the clock, not from the timer's schedule status: the
+/// timer keeps no monitor state.
+/// </remarks>
 public sealed partial class PendingWorkRecoveryFunction(
     DispatchPendingWork dispatchPendingWork,
+    RunDueChasers runDueChasers,
+    MaintainMailboxChangeSubscriptions maintainMailboxChangeSubscriptions,
+    PollApprovedInbox pollApprovedInbox,
+    TimeProvider timeProvider,
     ILogger<PendingWorkRecoveryFunction> logger)
 {
+    /// <summary>The folded jobs run on every minute that divides by this.</summary>
+    private const int FoldedJobMinuteInterval = 5;
+
+    private static readonly TimeSpan FoldedJobBudget = TimeSpan.FromSeconds(60);
+
+    private static readonly ActionActor InboxPollActor =
+        ActionActor.SystemWorker("approved-inbox-poller");
+
     [Function(nameof(PendingWorkRecoveryFunction))]
     public async Task RunAsync(
-        [TimerTrigger("%PendingWorkRecoverySchedule%", RunOnStartup = false)] TimerInfo timer,
+        [TimerTrigger("%PendingWorkRecoverySchedule%", RunOnStartup = false, UseMonitor = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
-        var dispatched = await dispatchPendingWork.ExecuteAsync(50, cancellationToken);
-        LogDispatchedWork(logger, dispatched.IntakeWorkCount, dispatched.ExternalWorkCount);
+        // Read before the dispatch: a slow dispatch must not push this run into
+        // the next minute and skip the folded jobs.
+        var runFoldedJobs = timeProvider.GetUtcNow().Minute % FoldedJobMinuteInterval == 0;
+
+        ExceptionDispatchInfo? dispatchFailure = null;
+        try
+        {
+            var dispatched = await dispatchPendingWork.ExecuteAsync(50, cancellationToken);
+            LogDispatchedWork(logger, dispatched.IntakeWorkCount, dispatched.ExternalWorkCount);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            dispatchFailure = ExceptionDispatchInfo.Capture(exception);
+        }
+
+        var foldedFailures = new List<ExceptionDispatchInfo>();
+        if (runFoldedJobs)
+        {
+            try
+            {
+                await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, foldedFailures, cancellationToken);
+                await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);
+            }
+            catch (Exception) when (dispatchFailure is not null && cancellationToken.IsCancellationRequested)
+            {
+                dispatchFailure.Throw();
+            }
+        }
+
+        dispatchFailure?.Throw();
+        if (foldedFailures.Count == 1)
+        {
+            foldedFailures[0].Throw();
+        }
+
+        if (foldedFailures.Count > 1)
+        {
+            throw new AggregateException(
+                "More than one job folded into the recovery timer failed.",
+                foldedFailures.Select(failure => failure.SourceException));
+        }
+    }
+
+    private async Task RunDueWorkSweepAsync(CancellationToken cancellationToken)
+    {
+        var result = await runDueChasers.ExecuteAsync(
+            maximumItems: 50,
+            cancellationToken);
+        LogSweepOutcome(
+            logger,
+            result.ExaminedCount,
+            result.GeneratedCount,
+            result.ReplayCount,
+            result.SupersededCount);
+    }
+
+    private async Task RunInboxRecoveryAsync(CancellationToken cancellationToken)
+    {
+        await maintainMailboxChangeSubscriptions.ExecuteAsync(cancellationToken);
+        var handled = await pollApprovedInbox.ExecuteAsync(
+            50,
+            InboxPollActor,
+            cancellationToken);
+        LogApprovedInboxPoll(logger, handled);
+    }
+
+    private async Task RunFoldedJobAsync(
+        string job,
+        Func<CancellationToken, Task> run,
+        List<ExceptionDispatchInfo> failures,
+        CancellationToken cancellationToken)
+    {
+        using var budget = new CancellationTokenSource(FoldedJobBudget, timeProvider);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            budget.Token);
+        try
+        {
+            await run(linked.Token);
+        }
+        catch (OperationCanceledException)
+            when (budget.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            LogFoldedJobOverBudget(logger, job, (int)FoldedJobBudget.TotalSeconds);
+            failures.Add(ExceptionDispatchInfo.Capture(new TimeoutException(
+                $"The {job} job passed its {(int)FoldedJobBudget.TotalSeconds} second budget and was cancelled.")));
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            LogFoldedJobFailed(logger, exception, job);
+            failures.Add(ExceptionDispatchInfo.Capture(exception));
+        }
     }
 
     [LoggerMessage(
@@ -39,6 +165,39 @@ public sealed partial class PendingWorkRecoveryFunction(
         ILogger logger,
         int intakeWorkCount,
         int externalWorkCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Examined {ExaminedCount} due-work occurrences and persisted {GeneratedCount} copyable chaser drafts; {ReplayCount} were replays and {SupersededCount} were superseded. No outbound communication was attempted and no sending, receipt, or delivery was claimed.")]
+    private static partial void LogSweepOutcome(
+        ILogger logger,
+        int examinedCount,
+        int generatedCount,
+        int replayCount,
+        int supersededCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Handled {ApprovedInboxMessageCount} immutable approved-inbox messages through durable intake or poison recovery.")]
+    private static partial void LogApprovedInboxPoll(
+        ILogger logger,
+        int approvedInboxMessageCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "The {Job} job failed; the invocation fails after the other steps have run.")]
+    private static partial void LogFoldedJobFailed(
+        ILogger logger,
+        Exception exception,
+        string job);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "The {Job} job passed its {BudgetSeconds} second budget and was cancelled; the invocation fails after the other steps have run.")]
+    private static partial void LogFoldedJobOverBudget(
+        ILogger logger,
+        string job,
+        int budgetSeconds);
 }
 
 /// <summary>Replays only automatic EVA Review intentions that committed with a Case transition.</summary>
@@ -48,7 +207,7 @@ public sealed partial class AutomaticEvaReviewSubmissionFunction(
 {
     [Function(nameof(AutomaticEvaReviewSubmissionFunction))]
     public async Task RunAsync(
-        [TimerTrigger("%AutomaticEvaReviewSubmissionSchedule%", RunOnStartup = false)] TimerInfo timer,
+        [TimerTrigger("%AutomaticEvaReviewSubmissionSchedule%", RunOnStartup = false, UseMonitor = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
         var processed = await processAutomaticEvaReviewSubmissions.ExecuteAsync(50, cancellationToken);

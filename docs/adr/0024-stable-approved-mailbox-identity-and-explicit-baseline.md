@@ -35,7 +35,9 @@ administrator may switch an approved inbound mailbox on or off independently, an
 every switch-on begins a fresh activation cycle at its recorded UTC time (§2).
 This decision concerns Pegasus operational data only; it never authorises
 clearing, moving, or otherwise mutating Outlook mailboxes or messages. Of the
-Worker functions, only `InboxPollFunction` reads approved incoming mail and
+Worker functions, only the approved-inbox recovery (run by
+`PendingWorkRecoveryFunction` on every fifth minute) and the mailbox wake in
+`UnifiedWorkFunction` read approved incoming mail, and
 `SentEvidencePollFunction` reads approved Sent folders; the latter is a separate
 capability that must not become active merely because inbound mail is activated
 (§4).

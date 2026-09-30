@@ -4,6 +4,18 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Read-only subscription observation — 30 September 2026
+
+On 30 September 2026, Azure CLI read the subscription's properties. They carry
+one promotion, category `freetier`, which ends on 17 July 2027 at 15:18 UTC.
+The database is Standard S0 (10 DTU) with `useFreeLimit` null, so it is not the
+serverless free-limit offer. This promotion is what makes the S0 database bill
+0 GBP. That link rests on the standard 12-month free-services offer. It was not
+read from the usage meter. After the end date the S0 database bills about 14 GBP
+a month; [ADR-0002](adr/0002-dotnet-modular-monolith-on-azure.md) prices it at
+13.94 GBP. The operator confirms the date in the portal (Cost Management)
+before relying on it.
+
 ## Release 76 — 29 September 2026 (deployment live)
 
 Release 76 deployed [PR 949](https://github.com/collisionengineers/pegasus/pull/949), which merged PRs 940–948 into `dev` together with the review fixes:
