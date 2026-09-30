@@ -1,4 +1,5 @@
 using Pegasus.Core.Cases;
+using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Azure;
@@ -7,6 +8,7 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
@@ -497,7 +499,9 @@ public sealed class CaseReportGenerationPersistenceTests
     /// own bytes as the renderer prints it. The report is given the images the
     /// generation froze, with the same identities and in the same order, and
     /// each prints its own bytes. Every image was cached when it was filed, so
-    /// none is read from Box.
+    /// none is read from Box. The reader's own SQL proves the lookups were made
+    /// together: three commands for all four images, where a single read of
+    /// each would cost three apiece.
     /// </summary>
     [Fact]
     public async Task GenerateReadsThePinnedImagesThroughTheBatchLookupInTheOrderTheyWereFrozen()
@@ -513,8 +517,14 @@ public sealed class CaseReportGenerationPersistenceTests
         var box = new UnreachableBox();
         using var boxHttp = new HttpClient(box);
         var metrics = new DocumentContentCacheMetrics();
+        // Only the reader's commands are counted; the generation store has its own factory.
+        var readerCommands = new CountingCommandInterceptor();
         var reader = new CachedDocumentContentStore(
-            harness.Factory,
+            new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>()
+                    .UseSqlServer(harness.ConnectionString)
+                    .AddInterceptors(readerCommands)
+                    .Options),
             new InMemoryCacheContainer(),
             new BoxContentClient(BoxOptions(), boxHttp, box, Harness.Clock),
             Harness.Clock,
@@ -538,6 +548,7 @@ public sealed class CaseReportGenerationPersistenceTests
         await using var scope = harness.CreateScope();
         var content = new EfCaseReportContentSource(
             reader, scope.ServiceProvider.GetRequiredService<IStaffAccountQueries>());
+        readerCommands.Reset();
         var renderer = new RecordingRenderer(harness);
         var printed = new List<(Guid? VersionId, byte[] Bytes)>();
         // As the renderer does, the images are opened one at a time in the
@@ -569,6 +580,10 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(pinned.Select(image => (Guid?)image.VersionId), printed.Select(item => item.VersionId));
         Assert.Equal(pinned.Select(image => image.Content), printed.Select(item => item.Bytes));
         Assert.Equal(new DocumentContentCacheMetricSnapshot(pinned.Length, 0), metrics.Snapshot());
+        // The account, the authorised versions and their cache entries, once
+        // for every image. The entries were written just now, so no hit
+        // extends one.
+        Assert.Equal(3, readerCommands.Count);
     }
 
     /// <summary>
@@ -1771,6 +1786,9 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public PooledDbContextFactory<PegasusDbContext> Factory { get; }
 
+        /// <summary>The database this harness made, for a reader that needs its own context options.</summary>
+        public string ConnectionString => database.ConnectionString;
+
         public Guid CaseId { get; }
 
         public ActionActor StaffActor { get; }
@@ -2970,6 +2988,46 @@ public sealed class CaseReportGenerationPersistenceTests
                 command.Mail.ContextId,
                 command.Mail.ExpectedContextVersion,
                 null));
+        }
+    }
+
+    /// <summary>Every SQL command a context sends, whatever kind.</summary>
+    private sealed class CountingCommandInterceptor : DbCommandInterceptor
+    {
+        private int count;
+
+        public int Count => Volatile.Read(ref count);
+
+        public void Reset() => Interlocked.Exchange(ref count, 0);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<object> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
         }
     }
 
