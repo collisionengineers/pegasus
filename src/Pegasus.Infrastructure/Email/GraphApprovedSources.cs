@@ -688,9 +688,26 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
     private const int MaximumMailboxIdentityLength = 100;
     private const int MaximumFolderIdentityLength = 200;
 
-    public async Task<ApprovedInboxPage> ReadAsync(
+    public Task<ApprovedInboxPage> ReadAsync(
         ApprovedInboxPollLease lease,
         int maximumMessages,
+        CancellationToken cancellationToken) =>
+        ReadPageAsync(lease, maximumMessages, alreadyRetained: null, cancellationToken);
+
+    public Task<ApprovedInboxPage> ReadAsync(
+        ApprovedInboxPollLease lease,
+        int maximumMessages,
+        RetainedMessageCheck alreadyRetained,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(alreadyRetained);
+        return ReadPageAsync(lease, maximumMessages, alreadyRetained, cancellationToken);
+    }
+
+    private async Task<ApprovedInboxPage> ReadPageAsync(
+        ApprovedInboxPollLease lease,
+        int maximumMessages,
+        RetainedMessageCheck? alreadyRetained,
         CancellationToken cancellationToken)
     {
         ValidateLease(lease);
@@ -738,6 +755,15 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
             }
             if (item.ReceivedAtUtc < lease.StartBoundaryUtc)
             {
+                continue;
+            }
+            if (alreadyRetained is not null
+                && item.InternetMessageId is { } internetMessageId
+                && await alreadyRetained(internetMessageId, cancellationToken))
+            {
+                // Already retained: the webhook wake downloaded it. Not downloaded
+                // again and not passed on, like any other item left out above. The
+                // cursors below count its place, so they move past it.
                 continue;
             }
             var mime = await client.ReadMimeAsync(mailboxId, item.Id, cancellationToken);

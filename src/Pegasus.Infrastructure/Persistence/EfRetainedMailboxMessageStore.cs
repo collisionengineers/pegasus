@@ -106,6 +106,21 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
     }
 
+    public async Task<bool> HasRetainedInternetMessageAsync(
+        Guid mailboxId,
+        string canonicalInternetMessageIdentity,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(canonicalInternetMessageIdentity);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.MailboxId == mailboxId
+                    && item.CanonicalInternetMessageIdentity == canonicalInternetMessageIdentity,
+                cancellationToken);
+    }
+
     public async Task<int> CountAsync(
         MailWorkspaceScope scope,
         CancellationToken cancellationToken)
