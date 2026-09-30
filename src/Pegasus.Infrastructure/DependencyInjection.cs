@@ -75,6 +75,7 @@ public static class DependencyInjection
             provider.GetRequiredService<DocumentContentCacheMetrics>());
         services.AddSingleton(TimeProvider.System);
         services.TryAddSingleton<IDocumentContentCacheCleanup, NoDocumentContentCacheCleanup>();
+        services.TryAddSingleton<IDocumentContentCachePublisher, NoDocumentContentCachePublisher>();
         services.TryAddSingleton<IListDocumentThumbnailCandidates, NoDocumentThumbnailCandidates>();
         services.TryAddSingleton(VehicleLookupAvailability.Unavailable);
         services.AddScoped<EfIntakeReceiptStore>();
@@ -793,13 +794,18 @@ public static class DependencyInjection
             intakeContainerFactory(provider),
             provider.GetRequiredService<BoxContentClient>(),
             provider.GetRequiredService<TimeProvider>(),
-            provider.GetRequiredService<IDocumentContentCacheMetrics>()));
+            provider.GetRequiredService<IDocumentContentCacheMetrics>(),
+            provider.GetService<ILogger<CachedDocumentContentStore>>()));
         services.AddScoped<IReadLogicalDocumentVersion>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
         // The export and the report read their photographs cache first.
         services.AddScoped<IReadCachedDocumentVersions>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
         services.AddScoped<IDocumentContentCacheCleanup>(provider =>
+            provider.GetRequiredService<CachedDocumentContentStore>());
+        // Whichever host files a document to Box writes the cache copy while
+        // it holds the bytes, so the first read of it is a hit.
+        services.AddScoped<IDocumentContentCachePublisher>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
         // The derived-thumbnail variant of the same cache: the same container
         // and the same cleanup, one entry kind along from the content itself.
