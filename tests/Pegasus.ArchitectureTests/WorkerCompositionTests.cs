@@ -357,6 +357,12 @@ public sealed class WorkerCompositionTests
         if (profile.Equals("DevelopmentOffline", StringComparison.Ordinal))
         {
             values["AzureWebJobsStorage"] = "UseDevelopmentStorage=true";
+            // Building AutomaticEvaReviewSubmissionFunction reads the EVA options in
+            // both profiles, and the activation check builds every function.
+            foreach (var (key, value) in CreateProductionValues(root).Where(pair => pair.Key.StartsWith("Eva:", StringComparison.Ordinal)))
+            {
+                values[key] = value;
+            }
         }
 
         return new ConfigurationBuilder()
