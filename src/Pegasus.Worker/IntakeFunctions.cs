@@ -29,10 +29,19 @@ namespace Pegasus.Worker;
 /// <remarks>
 /// The dispatch runs first and nothing below delays it. Each of the two jobs
 /// has its own time budget and its own failure handling, so one failing or
-/// slow job never stops the other or fails the dispatch. A dispatch failure is
-/// held until both jobs have run, so a failing dispatch does not stop the
-/// fallback poll either. The minute comes from the clock, not from the timer's
-/// schedule status: the timer keeps no monitor state.
+/// slow job never stops the other, and a failing dispatch does not stop them
+/// either. A job that passes its budget is cancelled, logged as a warning and
+/// counted as a failed step, with a <see cref="TimeoutException"/> naming the
+/// job: a hung poll used to run until the function timed out, and that was a
+/// failed request. After every step has run, a step that failed fails the
+/// invocation, as the retired one-per-job timers did, so the failed request
+/// reaches the exception alert on the first failure. The dispatch failure is the one rethrown when
+/// there is one. Otherwise a single folded failure is rethrown as it is, and
+/// two are rethrown together in an <see cref="AggregateException"/>, sweep
+/// first. Host shutdown during a folded job propagates as cancellation, unless
+/// the dispatch had already failed: then the dispatch failure is rethrown. The
+/// minute comes from the clock, not from the timer's schedule status: the
+/// timer keeps no monitor state.
 /// </remarks>
 public sealed partial class PendingWorkRecoveryFunction(
     DispatchPendingWork dispatchPendingWork,
@@ -70,13 +79,32 @@ public sealed partial class PendingWorkRecoveryFunction(
             dispatchFailure = ExceptionDispatchInfo.Capture(exception);
         }
 
+        var foldedFailures = new List<ExceptionDispatchInfo>();
         if (runFoldedJobs)
         {
-            await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, cancellationToken);
-            await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, cancellationToken);
+            try
+            {
+                await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, foldedFailures, cancellationToken);
+                await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);
+            }
+            catch (Exception) when (dispatchFailure is not null && cancellationToken.IsCancellationRequested)
+            {
+                dispatchFailure.Throw();
+            }
         }
 
         dispatchFailure?.Throw();
+        if (foldedFailures.Count == 1)
+        {
+            foldedFailures[0].Throw();
+        }
+
+        if (foldedFailures.Count > 1)
+        {
+            throw new AggregateException(
+                "More than one job folded into the recovery timer failed.",
+                foldedFailures.Select(failure => failure.SourceException));
+        }
     }
 
     private async Task RunDueWorkSweepAsync(CancellationToken cancellationToken)
@@ -105,6 +133,7 @@ public sealed partial class PendingWorkRecoveryFunction(
     private async Task RunFoldedJobAsync(
         string job,
         Func<CancellationToken, Task> run,
+        List<ExceptionDispatchInfo> failures,
         CancellationToken cancellationToken)
     {
         using var budget = new CancellationTokenSource(FoldedJobBudget, timeProvider);
@@ -119,10 +148,13 @@ public sealed partial class PendingWorkRecoveryFunction(
             when (budget.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             LogFoldedJobOverBudget(logger, job, (int)FoldedJobBudget.TotalSeconds);
+            failures.Add(ExceptionDispatchInfo.Capture(new TimeoutException(
+                $"The {job} job passed its {(int)FoldedJobBudget.TotalSeconds} second budget and was cancelled.")));
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             LogFoldedJobFailed(logger, exception, job);
+            failures.Add(ExceptionDispatchInfo.Capture(exception));
         }
     }
 
@@ -153,7 +185,7 @@ public sealed partial class PendingWorkRecoveryFunction(
 
     [LoggerMessage(
         Level = LogLevel.Error,
-        Message = "The {Job} job failed; the next fifth minute tries again.")]
+        Message = "The {Job} job failed; the invocation fails after the other steps have run.")]
     private static partial void LogFoldedJobFailed(
         ILogger logger,
         Exception exception,
@@ -161,7 +193,7 @@ public sealed partial class PendingWorkRecoveryFunction(
 
     [LoggerMessage(
         Level = LogLevel.Warning,
-        Message = "The {Job} job passed its {BudgetSeconds} second budget and was cancelled; the next fifth minute tries again.")]
+        Message = "The {Job} job passed its {BudgetSeconds} second budget and was cancelled; the invocation fails after the other steps have run.")]
     private static partial void LogFoldedJobOverBudget(
         ILogger logger,
         string job,
