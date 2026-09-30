@@ -4,6 +4,8 @@ using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -37,6 +39,27 @@ public sealed class NoDocumentContentCacheCleanup : IDocumentContentCacheCleanup
     }
 }
 
+/// <summary>
+/// The publisher for a profile with no content cache: there is nothing to
+/// fill, so nothing is written.
+/// </summary>
+public sealed class NoDocumentContentCachePublisher : IDocumentContentCachePublisher
+{
+    public Task PublishAsync(
+        DocumentContentCacheKey key,
+        Stream content,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task PublishRetainedIntakeCopyAsync(
+        DocumentContentCacheKey key,
+        string storageKey,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
 public sealed class DocumentContentCacheMetrics : IDocumentContentCacheMetrics
 {
     private long hits;
@@ -50,15 +73,26 @@ public sealed class DocumentContentCacheMetrics : IDocumentContentCacheMetrics
     public void RecordMiss() => Interlocked.Increment(ref misses);
 }
 
-internal sealed class CachedDocumentContentStore(
+internal sealed partial class CachedDocumentContentStore(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
     BlobContainerClient container,
     BoxContentClient box,
     TimeProvider timeProvider,
-    IDocumentContentCacheMetrics? metrics = null)
-    : IReadLogicalDocumentVersion, IReadCachedDocumentVersions, IDocumentContentCacheCleanup
+    IDocumentContentCacheMetrics? metrics = null,
+    ILogger<CachedDocumentContentStore>? logger = null,
+    IIntakeArtifactStore? intakeArtifacts = null,
+    TimeSpan? filingPublishTimeout = null)
+    : IReadLogicalDocumentVersion,
+        IReadCachedDocumentVersions,
+        IDocumentContentCacheCleanup,
+        IDocumentContentCachePublisher
 {
-    private static readonly TimeSpan IdleLifetime = TimeSpan.FromHours(24);
+    /// <summary>
+    /// How long an original is kept after it was last read or filed. A file is
+    /// cached when it is filed, so the first view of anything filed in the last
+    /// two weeks is a hit even if nobody has opened it since.
+    /// </summary>
+    private static readonly TimeSpan IdleLifetime = TimeSpan.FromDays(14);
 
     /// <summary>
     /// How long cleanup holds the entry it has claimed. Only cleanup takes
@@ -93,24 +127,121 @@ internal sealed class CachedDocumentContentStore(
         CancellationToken cancellationToken)
     {
         ValidateRequest(request);
-        StaffAuthorization.Require(
-            request.Actor,
-            request.Actor.Kind == ActorKind.SystemWorker
-                ? StaffAccessRight.ExecuteSystemWork
-                : StaffAccessRight.PerformCasework);
+        RequireStaffRight(request.Actor);
         await RequireCurrentActorAsync(request.Actor, cancellationToken);
         var source = await ResolveAuthorizedSourceAsync(request, cancellationToken);
+        return await ServeAsync(
+            request,
+            source,
+            token => TryOpenCachedAsync(source, timeProvider.GetUtcNow(), token),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The lookups for several versions of one Case in three SQL calls whatever
+    /// their number: the account, the authorised sources and the cache entries.
+    /// Each handle then serves its own version as <see cref="OpenAsync"/> does,
+    /// one at a time, so a render still holds one source image at a time. A
+    /// version that cannot be served fails when its handle is opened, as a
+    /// single read of it would.
+    /// </summary>
+    public async Task<IReadOnlyList<PreparedLogicalDocumentRead>> PrepareAsync(
+        ActionActor actor,
+        Guid caseId,
+        IReadOnlyList<LogicalDocumentVersionRead> versions,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(versions);
+        if (versions.Count == 0)
+        {
+            return [];
+        }
+        // Every argument is checked before any I/O starts, as a single read checks its own.
+        var requests = new ReadLogicalDocumentVersionRequest[versions.Count];
+        for (var index = 0; index < versions.Count; index++)
+        {
+            var version = versions[index];
+            requests[index] = new(
+                actor,
+                version.DocumentId,
+                version.VersionId,
+                IntakeAssetId: null,
+                caseId,
+                IntakeReceiptId: null,
+                version.ExpectedSha256,
+                version.ExpectedContentLength);
+            ValidateRequest(requests[index]);
+        }
+        RequireStaffRight(actor);
+        await RequireCurrentActorAsync(actor, cancellationToken);
+
+        var versionIds = requests.Select(request => request.VersionId!.Value).Distinct().ToArray();
+        var authorized = await ResolveAuthorizedVersionsAsync(caseId, versionIds, cancellationToken);
+        var entries = await LoadOriginalEntriesAsync(versionIds, cancellationToken);
+
+        var prepared = new PreparedLogicalDocumentRead[requests.Length];
+        for (var index = 0; index < requests.Length; index++)
+        {
+            var request = requests[index];
+            authorized.TryGetValue(request.VersionId!.Value, out var row);
+            entries.TryGetValue(request.VersionId.Value, out var entry);
+            prepared[index] = new(async token =>
+            {
+                if (row is null || row.Version.DocumentId != request.DocumentId)
+                {
+                    throw new FileNotFoundException("The authorized document version is unavailable.");
+                }
+                var source = ResolvedSource.Create(
+                    row.Version.Id,
+                    intakeAssetId: null,
+                    row.Version.BoxFileId,
+                    row.Version.BoxVersionId,
+                    row.Version.Sha256,
+                    row.Version.ContentLength,
+                    row.Version.FileName,
+                    row.Version.MediaType,
+                    row.CaseRootRemoteId);
+                return await ServeAsync(
+                    request,
+                    source,
+                    entry is null
+                        ? _ => Task.FromResult<Stream?>(null)
+                        : cachedToken => TryOpenCachedAsync(
+                            entry, source, timeProvider.GetUtcNow(), cachedToken),
+                    token);
+            });
+        }
+        return prepared;
+    }
+
+    private static void RequireStaffRight(ActionActor actor) =>
+        StaffAuthorization.Require(
+            actor,
+            actor.Kind == ActorKind.SystemWorker
+                ? StaffAccessRight.ExecuteSystemWork
+                : StaffAccessRight.PerformCasework);
+
+    /// <summary>
+    /// Serves one resolved version: the cached copy when <paramref name="tryCached"/>
+    /// finds one that verifies, otherwise Box, and then a cache copy for next time.
+    /// </summary>
+    private async Task<LogicalDocumentContent> ServeAsync(
+        ReadLogicalDocumentVersionRequest request,
+        ResolvedSource source,
+        Func<CancellationToken, Task<Stream?>> tryCached,
+        CancellationToken cancellationToken)
+    {
         if (source.Length != request.ExpectedContentLength
             || !FixedHashEquals(source.Sha256, request.ExpectedSha256))
         {
             throw new InvalidDataException("The requested logical content identity does not match durable metadata.");
         }
-        var now = timeProvider.GetUtcNow();
 
         Stream? cached;
         using (DocumentReadTelemetry.Start("document.original.cache.read"))
         {
-            cached = await TryOpenCachedAsync(source, now, cancellationToken);
+            cached = await tryCached(cancellationToken);
         }
         if (cached is not null)
         {
@@ -471,9 +602,9 @@ internal sealed class CachedDocumentContentStore(
     /// A hit is the entry read and, at most once an hour, one conditional
     /// update that pushes its idle expiry out. The update happens before the
     /// object is read, and cleanup claims only expired entries, so an entry
-    /// being served always has most of a day left: cleanup cannot remove the
-    /// object under the read. An entry that expired, or that cleanup has
-    /// claimed, is a miss.
+    /// being served always has almost all of its two weeks left: cleanup
+    /// cannot remove the object under the read. An entry that expired, or that
+    /// cleanup has claimed, is a miss.
     /// </remarks>
     private async Task<Stream?> TryOpenCachedAsync(
         ResolvedSource source,
@@ -486,6 +617,51 @@ internal sealed class CachedDocumentContentStore(
         {
             return null;
         }
+        return await OpenCachedObjectAsync(entry, source, cancellationToken);
+    }
+
+    /// <summary>
+    /// The same for an entry the caller read earlier with its other lookups:
+    /// the entry is not read again, and a database context is opened only when
+    /// its expiry is due to be pushed out.
+    /// </summary>
+    private async Task<Stream?> TryOpenCachedAsync(
+        DocumentContentCacheEntryEntity entry,
+        ResolvedSource source,
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        await IsServableAsync(entry, now, cancellationToken)
+            ? await OpenCachedObjectAsync(entry, source, cancellationToken)
+            : null;
+
+    /// <summary>
+    /// Whether an entry read earlier may still be served now: it has not
+    /// expired, cleanup has not claimed it, and when its expiry is due to be
+    /// pushed out, one conditional update did so.
+    /// </summary>
+    private async Task<bool> IsServableAsync(
+        DocumentContentCacheEntryEntity entry,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (entry.ExpiresAtUtc <= now || entry.ReadLeaseExpiresAtUtc > now)
+        {
+            return false;
+        }
+        if (!NeedsTouch(entry, IdleLifetime, now))
+        {
+            return true;
+        }
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await TryTouchAsync(db, entry, IdleLifetime, now, cancellationToken);
+    }
+
+    /// <summary>The verified content of an entry's object, or <c>null</c> when it is gone or changed.</summary>
+    private async Task<Stream?> OpenCachedObjectAsync(
+        DocumentContentCacheEntryEntity entry,
+        ResolvedSource source,
+        CancellationToken cancellationToken)
+    {
         var response = await TryDownloadAsync(entry, cancellationToken);
         if (response is null)
         {
@@ -543,19 +719,9 @@ internal sealed class CachedDocumentContentStore(
                 address.CaseRootRemoteId);
         }
 
-        Dictionary<Guid, DocumentContentCacheEntryEntity> entries;
-        await using (var db = await dbContextFactory.CreateDbContextAsync(cancellationToken))
-        {
-            var versionIds = sources
-                .Select(source => source.DocumentVersionId!.Value)
-                .Distinct()
-                .ToArray();
-            entries = await db.Set<DocumentContentCacheEntryEntity>().AsNoTracking()
-                .Where(value => value.Variant == OriginalVariant
-                    && value.DocumentVersionId != null
-                    && versionIds.Contains(value.DocumentVersionId.Value))
-                .ToDictionaryAsync(value => value.DocumentVersionId!.Value, cancellationToken);
-        }
+        var entries = await LoadOriginalEntriesAsync(
+            sources.Select(source => source.DocumentVersionId!.Value).Distinct().ToArray(),
+            cancellationToken);
 
         var contents = new ReadOnlyMemory<byte>[reads.Count];
         await Parallel.ForEachAsync(
@@ -634,20 +800,11 @@ internal sealed class CachedDocumentContentStore(
         ResolvedSource source,
         CancellationToken cancellationToken)
     {
-        var now = timeProvider.GetUtcNow();
-        if (entry.ExpiresAtUtc <= now || entry.ReadLeaseExpiresAtUtc > now)
-        {
-            return null;
-        }
         try
         {
-            if (NeedsTouch(entry, IdleLifetime, now))
+            if (!await IsServableAsync(entry, timeProvider.GetUtcNow(), cancellationToken))
             {
-                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                if (!await TryTouchAsync(db, entry, IdleLifetime, now, cancellationToken))
-                {
-                    return null;
-                }
+                return null;
             }
             var response = await TryDownloadAsync(entry, cancellationToken);
             if (response is null)
@@ -664,6 +821,60 @@ internal sealed class CachedDocumentContentStore(
             return null;
         }
     }
+
+    /// <summary>
+    /// The cache entries of the durable content of several versions, in one
+    /// query, by version.
+    /// </summary>
+    private async Task<Dictionary<Guid, DocumentContentCacheEntryEntity>> LoadOriginalEntriesAsync(
+        Guid[] versionIds,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Set<DocumentContentCacheEntryEntity>().AsNoTracking()
+            .Where(value => value.Variant == OriginalVariant
+                && value.DocumentVersionId != null
+                && versionIds.Contains(value.DocumentVersionId.Value))
+            .ToDictionaryAsync(value => value.DocumentVersionId!.Value, cancellationToken);
+    }
+
+    /// <summary>
+    /// The versions of one Case that may be read (confirmed, not logically
+    /// removed), with the folder each is filed in, in one query, by version.
+    /// It is <see cref="ResolveAuthorizedSourceAsync"/>'s version rule for a set
+    /// of versions: a version that is missing here, or whose document is not
+    /// the one asked for, is not authorised.
+    /// </summary>
+    private async Task<Dictionary<Guid, AuthorizedVersion>> ResolveAuthorizedVersionsAsync(
+        Guid caseId,
+        Guid[] versionIds,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await (
+            from documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
+            join document in db.Set<CaseDocumentEntity>().AsNoTracking()
+                on documentVersion.DocumentId equals document.Id
+            join caseEntity in db.Cases.AsNoTracking()
+                on document.CaseId equals caseEntity.Id
+            where versionIds.Contains(documentVersion.Id)
+                && document.CaseId == caseId
+                && documentVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && !documentVersion.IsLogicallyRemoved
+            select new
+            {
+                Version = documentVersion,
+                // The document's own folder: the a. folder for an Audit report.
+                CaseRootRemoteId = document.CustodyFolder == CaseCustodyFolders.Audit
+                    ? caseEntity.AuditCustodyRemoteId
+                    : caseEntity.CustodyRootRemoteId
+            }).ToListAsync(cancellationToken);
+        return rows.ToDictionary(
+            row => row.Version.Id,
+            row => new AuthorizedVersion(row.Version, row.CaseRootRemoteId));
+    }
+
+    private sealed record AuthorizedVersion(DocumentVersionEntity Version, string? CaseRootRemoteId);
 
     private async Task<Response<BlobDownloadStreamingResult>?> TryDownloadAsync(
         DocumentContentCacheEntryEntity entry,
@@ -729,8 +940,157 @@ internal sealed class CachedDocumentContentStore(
         return touched == 1;
     }
 
+    /// <summary>
+    /// The longest one publish at filing runs before it is given up. Filing is
+    /// on the intake path, whose target is five seconds, and the file it follows
+    /// is already confirmed, so a slow store must never hold its caller longer
+    /// than this.
+    /// </summary>
+    internal static readonly TimeSpan FilingPublishTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Set once a publish at filing has timed out or failed. This store is
+    /// scoped, so the flag lasts for one DI scope: one request on the Web, one
+    /// queued work item on the Worker, or one whole run of the Worker's
+    /// reconciliation timer, which can file up to 50 pending versions. The rest
+    /// of that scope's publishes are skipped, because a store that has just
+    /// failed is not worth another wait for each remaining file, and each
+    /// skipped file is published by its first read instead.
+    /// </summary>
+    private int filingPublishGivenUp;
+
+    /// <summary>
+    /// Publishes content a caller has just filed and holds. The bytes are
+    /// checked against <paramref name="sha256"/> and
+    /// <paramref name="contentLength"/> before anything is written, then go
+    /// through the same write, integrity check and entry as a copy made by a
+    /// read miss. Nothing escapes: a failure is logged and the first read
+    /// publishes instead.
+    /// </summary>
+    public Task PublishAsync(
+        DocumentContentCacheKey key,
+        Stream content,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken) =>
+        PublishAtFilingAsync(
+            key,
+            sha256,
+            contentLength,
+            (filed, token) => PublishVerifiedAsync(filed, content, token),
+            cancellationToken);
+
+    /// <summary>
+    /// The same for a file whose bytes the caller did not hold: they are read
+    /// from the copy intake retained, which is Azure storage and not Box.
+    /// </summary>
+    public Task PublishRetainedIntakeCopyAsync(
+        DocumentContentCacheKey key,
+        string storageKey,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken) =>
+        PublishAtFilingAsync(
+            key,
+            sha256,
+            contentLength,
+            async (filed, token) =>
+            {
+                var reader = intakeArtifacts ?? throw new InvalidOperationException(
+                    "No reader of retained intake copies is composed.");
+                if (await reader.ReadAsync(storageKey, token) is not { } bytes)
+                {
+                    throw new FileNotFoundException("The retained intake copy is unavailable.");
+                }
+                await using var retained = DocumentContentCachePublisherExtensions.StreamOf(bytes);
+                await PublishVerifiedAsync(filed, retained, token);
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// Runs one publish at filing so that nothing it does reaches the caller.
+    /// It gives up after <see cref="FilingPublishTimeout"/>, even if the storage
+    /// call ignores its token, and a failure of any kind is logged at Warning.
+    /// After one has timed out or failed, later publishes on this store return
+    /// at once. A caller that is stopping ends it quietly.
+    /// </summary>
+    private async Task PublishAtFilingAsync(
+        DocumentContentCacheKey key,
+        string sha256,
+        long contentLength,
+        Func<FiledContent, CancellationToken, Task> publish,
+        CancellationToken cancellationToken)
+    {
+        if (Volatile.Read(ref filingPublishGivenUp) != 0)
+        {
+            return;
+        }
+        try
+        {
+            var filed = FiledContent.Create(key, sha256, contentLength);
+            using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var attempt = publish(filed, bounded.Token);
+            try
+            {
+                await attempt.WaitAsync(filingPublishTimeout ?? FilingPublishTimeout, cancellationToken);
+            }
+            catch (Exception) when (!attempt.IsCompleted)
+            {
+                // Timed out, or stopped, while the publish was still running: end it,
+                // and take its fault so that nothing else has to observe it.
+                await bounded.CancelAsync();
+                _ = attempt.ContinueWith(
+                    static task => task.Exception,
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+                throw;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller is stopping; the first read publishes instead.
+        }
+        catch (Exception exception)
+        {
+            Volatile.Write(ref filingPublishGivenUp, 1);
+            LogFilingPublishFailed(
+                logger ?? NullLogger<CachedDocumentContentStore>.Instance,
+                key?.DocumentVersionId is null ? "intake asset" : "document version",
+                key?.DocumentVersionId ?? key?.IntakeAssetId,
+                exception);
+        }
+    }
+
+    /// <summary>
+    /// Writes the copy only when the stream really holds the bytes it is said
+    /// to, so a caller's mistake never becomes a copy that a read would refuse.
+    /// </summary>
+    private async Task PublishVerifiedAsync(
+        FiledContent filed,
+        Stream content,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        content.Position = 0;
+        var actual = Convert.ToHexString(
+            await SHA256.HashDataAsync(content, cancellationToken)).ToLowerInvariant();
+        if (content.Length != filed.Length || !FixedHashEquals(actual, filed.Sha256))
+        {
+            throw new InvalidDataException(
+                "The filed content does not match the length and hash it was published under.");
+        }
+        await PublishAsync(filed, content, cancellationToken);
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "The read-cache copy of a filed {Kind} {ContentId} could not be published, so it and any later copy in the same request, work item or reconciliation run are left to their first read from Box.")]
+    private static partial void LogFilingPublishFailed(
+        ILogger logger, string kind, Guid? contentId, Exception exception);
+
     private async Task PublishAsync(
-        ResolvedSource source,
+        ICachedContentIdentity source,
         Stream content,
         CancellationToken cancellationToken)
     {
@@ -864,7 +1224,7 @@ internal sealed class CachedDocumentContentStore(
 
     private static IQueryable<DocumentContentCacheEntryEntity> CacheQuery(
         PegasusDbContext db,
-        ResolvedSource source) =>
+        ICachedContentIdentity source) =>
         db.Set<DocumentContentCacheEntryEntity>().Where(value =>
             value.Variant == OriginalVariant
             && (source.DocumentVersionId != null
@@ -1025,6 +1385,44 @@ internal sealed class CachedDocumentContentStore(
         return value.ToLowerInvariant();
     }
 
+    /// <summary>
+    /// What a cache copy is keyed by and proved against: the version or intake
+    /// asset it belongs to, and the SHA-256 and length its bytes must have. A
+    /// copy made by a read miss has it from the resolved source; a copy made at
+    /// filing has it from the caller. One write serves both.
+    /// </summary>
+    private interface ICachedContentIdentity
+    {
+        Guid? DocumentVersionId { get; }
+
+        Guid? IntakeAssetId { get; }
+
+        string Sha256 { get; }
+
+        long Length { get; }
+    }
+
+    /// <summary>The identity of content a caller has just filed.</summary>
+    private sealed record FiledContent(
+        Guid? DocumentVersionId,
+        Guid? IntakeAssetId,
+        string Sha256,
+        long Length) : ICachedContentIdentity
+    {
+        public static FiledContent Create(DocumentContentCacheKey key, string sha256, long length)
+        {
+            if ((key.DocumentVersionId is null) == (key.IntakeAssetId is null)
+                || key.DocumentVersionId == Guid.Empty
+                || key.IntakeAssetId == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Exactly one document version or intake asset identity is required.", nameof(key));
+            }
+            ArgumentOutOfRangeException.ThrowIfNegative(length);
+            return new(key.DocumentVersionId, key.IntakeAssetId, NormalizeHash(sha256), length);
+        }
+    }
+
     private sealed record ResolvedSource(
         Guid? DocumentVersionId,
         Guid? IntakeAssetId,
@@ -1034,7 +1432,7 @@ internal sealed class CachedDocumentContentStore(
         long Length,
         string FileName,
         string MediaType,
-        string ExpectedParentId)
+        string ExpectedParentId) : ICachedContentIdentity
     {
         public static ResolvedSource Create(
             Guid? documentVersionId,
@@ -1101,7 +1499,7 @@ internal sealed class DocumentThumbnailCache(
 
     /// <summary>
     /// How long an unused plain rendering is kept. The Worker makes these
-    /// ahead of the first view, so they outlive the content cache's day.
+    /// ahead of the first view, so they outlive the content cache's two weeks.
     /// </summary>
     internal static readonly TimeSpan PlainIdleLifetime = TimeSpan.FromDays(30);
 

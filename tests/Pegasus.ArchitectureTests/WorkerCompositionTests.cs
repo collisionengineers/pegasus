@@ -341,6 +341,46 @@ public sealed class WorkerCompositionTests
         }
     }
 
+    /// <summary>
+    /// The Worker files intake evidence to Box, so in production it publishes
+    /// each filed file's read-cache copy while it holds the bytes. The offline
+    /// profile has no content cache and composes the null publisher.
+    /// </summary>
+    [Theory]
+    [InlineData("Production", false)]
+    [InlineData("DevelopmentOffline", true)]
+    public void TheWorkerComposesTheCachePublisherInProductionAndTheNullOneOffline(
+        string profile,
+        bool nullPublisher)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var services = CreateWorkerServices(
+                CreateConfiguration(profile, root), new TestHostEnvironment(root));
+
+            // The last registration is the one a scope resolves.
+            var composed = services.Last(descriptor =>
+                descriptor.ServiceType == typeof(Pegasus.Core.Documents.IDocumentContentCachePublisher));
+
+            if (nullPublisher)
+            {
+                Assert.Equal(
+                    typeof(Pegasus.Infrastructure.Custody.NoDocumentContentCachePublisher),
+                    composed.ImplementationType);
+            }
+            else
+            {
+                Assert.Equal(ServiceLifetime.Scoped, composed.Lifetime);
+                Assert.NotNull(composed.ImplementationFactory);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public void UnsupportedRuntimeProfileFailsBeforeAdaptersAreRegistered()
     {

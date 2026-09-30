@@ -15,6 +15,7 @@ using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.IntegrationTests.Support;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -349,8 +350,18 @@ public sealed class ImageCaseCustodyIntegrationTests
         var workflows = services.GetRequiredService<ICaseWorkflowQueries>();
         var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
 
-        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
-        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        // The fold uploads nothing, so nobody holds the bytes: once it commits,
+        // each photograph it recorded is published to the read cache from the
+        // copy intake retained.
+        var foldPublisher = new RecordingCachePublisher();
+        var mergeProcessor = new EfQueuedCustodyProcessor(
+            contextFactory,
+            services.GetRequiredService<IExternalWorkStore>(),
+            services.GetRequiredService<ICaseCustody>(),
+            services.GetRequiredService<TimeProvider>(),
+            foldPublisher);
+        await mergeProcessor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await mergeProcessor.ExecuteAsync(mergeWorkId, CancellationToken.None);
 
         // Each photograph's filing has its own key under the fold's, so filing
         // the same photographs again records nothing twice.
@@ -451,6 +462,23 @@ public sealed class ImageCaseCustodyIntegrationTests
             Assert.Null(filed[1].Occurrence.CropLeft);
             occurrenceIds = [.. filed.Select(file => file.Occurrence.Id)];
             versionIds = [.. filed.Select(file => file.Version.Id)];
+
+            // Each version the fold recorded was published once, under its own
+            // identity, from its asset's retained copy. The replayed fold recorded
+            // nothing and published nothing.
+            var published = foldPublisher.Published;
+            Assert.Equal(2, published.Count);
+            var assets = await filedContext.IntakeAssets.AsNoTracking()
+                .Where(asset => sourceAssetIds.Contains(asset.Id)).ToListAsync();
+            for (var index = 0; index < filed.Count; index++)
+            {
+                var asset = assets.Single(item => item.Id == sourceAssetIds[index]);
+                var copy = Assert.Single(published, item =>
+                    item.Key == DocumentContentCacheKey.ForVersion(filed[index].Version.Id));
+                Assert.Equal(asset.StorageKey, copy.StorageKey);
+                Assert.Equal(filed[index].Version.Sha256, copy.Sha256);
+                Assert.Equal(filed[index].Version.ContentLength, copy.ContentLength);
+            }
             var tag = Assert.Single(await filedContext.Set<DocumentOccurrenceTagEntity>().AsNoTracking()
                 .Where(item => occurrenceIds.Contains(item.OccurrenceId))
                 .ToListAsync());
@@ -1109,6 +1137,68 @@ public sealed class ImageCaseCustodyIntegrationTests
                 $"{intake.CustodyRootRemoteId}/images/{index + 1:000}-{assetIds[index]:N}",
                 asset.BoxFileId);
         }
+    }
+
+    /// <summary>
+    /// A Vehicle images record's files are never held, so nothing else
+    /// publishes their read-cache copies: once the record's filing commits,
+    /// each file is published under its intake asset, which is what the record
+    /// reads it by before any Case has it, from the copy intake retained. A
+    /// redelivered work item publishes nothing again.
+    /// </summary>
+    [Fact]
+    public async Task EachFileTheRecordFiledIsPublishedUnderItsAssetAfterTheFilingCommits()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var workId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var foldersWhenPublished = new ConcurrentQueue<string?>();
+        var publisher = new RecordingCachePublisher(async key =>
+        {
+            await using var db = await contextFactory.CreateDbContextAsync();
+            foldersWhenPublished.Enqueue(await db.IntakeAssets.AsNoTracking()
+                .Where(asset => asset.Id == key.IntakeAssetId && asset.CustodyStatus == "confirmed")
+                .Select(asset => asset.BoxParentFolderId)
+                .SingleOrDefaultAsync());
+        });
+        var processor = new EfQueuedCustodyProcessor(
+            contextFactory,
+            services.GetRequiredService<IExternalWorkStore>(),
+            services.GetRequiredService<ICaseCustody>(),
+            services.GetRequiredService<TimeProvider>(),
+            publisher);
+
+        await processor.ExecuteAsync(workId, CancellationToken.None);
+        await processor.ExecuteAsync(workId, CancellationToken.None);
+
+        var photographIds = await PhotographIdsAsync(services, memberReceiptIds);
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var intake = await context.ImageIntakes.AsNoTracking().SingleAsync(item => item.Id == record.Id);
+        var filed = await context.IntakeAssets.AsNoTracking()
+            .Where(asset => asset.BoxParentFolderId == intake.CustodyRootRemoteId)
+            .ToListAsync();
+        Assert.Subset(filed.Select(asset => asset.Id).ToHashSet(), photographIds.ToHashSet());
+        var published = publisher.Published;
+        Assert.Equal(filed.Count, published.Count);
+        foreach (var asset in filed)
+        {
+            var copy = Assert.Single(published, item =>
+                item.Key == DocumentContentCacheKey.ForIntakeAsset(asset.Id));
+            Assert.Null(copy.Bytes);
+            Assert.Equal(asset.StorageKey, copy.StorageKey);
+            Assert.Equal(asset.ContentHash, copy.Sha256);
+            Assert.Equal(asset.ContentLength, copy.ContentLength);
+        }
+        // Each was published once its asset was confirmed in the record's
+        // folder, so a read at that moment already finds it there.
+        Assert.All(foldersWhenPublished, folder => Assert.Equal(intake.CustodyRootRemoteId, folder));
     }
 
     /// <summary>
