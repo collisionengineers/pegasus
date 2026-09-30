@@ -17,7 +17,8 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class EfDocumentCustodyStore(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
     IDocumentContentStore contentStore,
-    TimeProvider timeProvider) :
+    TimeProvider timeProvider,
+    IDocumentContentCachePublisher? cachePublisher = null) :
     IAddCaseDocument,
     IDownloadCaseDocument,
     IGetCaseDocumentMetadata,
@@ -76,7 +77,6 @@ internal sealed class EfDocumentCustodyStore(
             CaseMutationGuard.Complete(workflow);
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return pending.Result with { IsReplay = false };
         }
         catch (Exception exception)
         {
@@ -122,6 +122,11 @@ internal sealed class EfDocumentCustodyStore(
 
             throw;
         }
+
+        // The version is committed and its file is in Box. The cache copy comes
+        // last, outside the catch above, so it can never undo the add.
+        await PublishAddedAsync(cachePublisher, pending, command.Content, cancellationToken);
+        return pending.Result with { IsReplay = false };
     }
     async Task<CaseDocumentMetadata?> IGetCaseDocumentMetadata.ExecuteAsync(
         GetCaseDocumentMetadataQuery query,
@@ -1592,6 +1597,24 @@ internal sealed class EfDocumentCustodyStore(
         AddCaseDocumentResult Result,
         DocumentVersionEntity Version,
         DocumentContentWriteResult ContentWrite);
+
+    /// <summary>
+    /// Publishes the read-cache copy of a version <see cref="PrepareAddAsync"/>
+    /// filed, once the caller's transaction has committed it: the cache row
+    /// refers to the version row, so it cannot come earlier. Best effort.
+    /// </summary>
+    internal static Task PublishAddedAsync(
+        IDocumentContentCachePublisher? publisher,
+        PendingDocumentAdd pending,
+        ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken) =>
+        publisher is null
+            ? Task.CompletedTask
+            : publisher.PublishAsync(
+                DocumentContentCacheKey.ForVersion(pending.Version.Id),
+                content,
+                pending.Version.Sha256,
+                cancellationToken);
 
     private sealed class MaximumLengthWriteStream(Stream inner, long maximumLength) : Stream
     {

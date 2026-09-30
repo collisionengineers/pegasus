@@ -555,6 +555,22 @@ public interface IDocumentContentCachePublisher
         string sha256,
         long contentLength,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Publishes the copy of an artifact intake retained under
+    /// <paramref name="storageKey"/>, for a caller that filed the file without
+    /// holding its bytes: a custody adapter read them from the retained copy and
+    /// the version they belong to was only recorded afterwards. The publisher
+    /// reads the retained copy itself and checks it exactly as
+    /// <see cref="PublishAsync(DocumentContentCacheKey, Stream, string, long, CancellationToken)"/>
+    /// does. Box is not read.
+    /// </summary>
+    Task PublishRetainedIntakeCopyAsync(
+        DocumentContentCacheKey key,
+        string storageKey,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken);
 }
 
 public static class DocumentContentCachePublisherExtensions
@@ -568,12 +584,19 @@ public static class DocumentContentCachePublisherExtensions
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(publisher);
-        await using var stream = System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment)
-            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
-            : new MemoryStream(content.ToArray(), writable: false);
+        await using var stream = StreamOf(content);
         await publisher.PublishAsync(key, stream, sha256, content.Length, cancellationToken)
             .ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// A read-only stream over bytes held in memory. It shares the array when the
+    /// memory is one, so the bytes are not copied.
+    /// </summary>
+    public static MemoryStream StreamOf(ReadOnlyMemory<byte> content) =>
+        System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment)
+            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
+            : new MemoryStream(content.ToArray(), writable: false);
 }
 
 public sealed record ManagedDocumentContentAddress(

@@ -1,4 +1,7 @@
 using System.Security.Cryptography;
+using Azure;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -13,6 +16,7 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.IntegrationTests.Support;
 
 namespace Pegasus.IntegrationTests;
 
@@ -75,13 +79,15 @@ public sealed class CaseArtifactCustodyRecoveryTests
             new HttpClient(new HoldingBoxHandler(box)),
             new StaticBoxAuthorizationHeaderProvider(),
             TimeProvider.System);
+        var publisher = new RecordingCachePublisher();
         var custody = new EfCaseArtifactCustody(
             factory,
             new BoxDocumentContentStore(client),
             new MemoryArtifactStore(),
             TimeProvider.System,
             client,
-            HoldingBox.HoldingFolderId);
+            HoldingBox.HoldingFolderId,
+            publisher);
         var request = new CaseArtifactCustodyRequest(
             ActionActor.SystemWorker("intake-processing"),
             null,
@@ -104,6 +110,15 @@ public sealed class CaseArtifactCustodyRecoveryTests
             (confirmed.BoxFileId, confirmed.BoxVersionId));
         Assert.Equal(1, box.UploadCount);
         Assert.Equal(confirmed.BoxFileId, replay.BoxFileId);
+
+        // The staged bytes were still in hand when Box confirmed the file, so the
+        // asset's read-cache copy was published then, once, under the asset. The
+        // replay uploaded nothing and published nothing.
+        var published = Assert.Single(publisher.Published);
+        Assert.Equal(DocumentContentCacheKey.ForIntakeAsset(assetId), published.Key);
+        Assert.Equal(bytes, published.Bytes);
+        Assert.Equal(hash.ToLowerInvariant(), published.Sha256);
+        Assert.Equal(bytes.LongLength, published.ContentLength);
         await using var verify = await database.CreateContextAsync();
         var stored = await verify.Set<IntakeAssetEntity>().SingleAsync(item => item.Id == assetId);
         Assert.Equal("confirmed", stored.CustodyStatus);
@@ -695,6 +710,128 @@ public sealed class CaseArtifactCustodyRecoveryTests
             ArtifactRequest(ActionActor.Principal(Guid.NewGuid()), caseId, bytes), default));
     }
 
+    /// <summary>
+    /// A file custody confirms on a Case is published to the read cache while
+    /// its staged bytes are still in hand, under its version, and only once the
+    /// version is confirmed and committed: the cache row refers to the version
+    /// row, so an earlier publish could not even be recorded. A replay files
+    /// nothing and publishes nothing.
+    /// </summary>
+    [Fact]
+    public async Task AConfirmedCaseArtifactIsPublishedToTheReadCacheOnceItsVersionHasCommitted()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var statusWhenPublished = new List<DocumentCustodyStatus>();
+        var publisher = new RecordingCachePublisher(async key =>
+        {
+            await using var db = await factory.CreateDbContextAsync();
+            statusWhenPublished.Add((await db.Set<DocumentVersionEntity>().AsNoTracking()
+                .SingleAsync(version => version.Id == key.DocumentVersionId)).CustodyStatus);
+        });
+        var custody = new EfCaseArtifactCustody(
+            factory,
+            new SuccessfulContentStore(),
+            new MemoryArtifactStore(),
+            TimeProvider.System,
+            cachePublisher: publisher);
+        var bytes = "a report the caller filed and still holds"u8.ToArray();
+        var request = ArtifactRequest(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), caseId, bytes);
+
+        var result = await custody.RetainAsync(request, default);
+        var replay = await custody.RetainAsync(
+            request with { Content = new MemoryStream(bytes, writable: false) }, default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
+        Assert.Equal(result.VersionId, replay.VersionId);
+        var published = Assert.Single(publisher.Published);
+        Assert.Equal(DocumentContentCacheKey.ForVersion(result.VersionId!.Value), published.Key);
+        Assert.Equal(bytes, published.Bytes);
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), published.Sha256);
+        Assert.Equal(bytes.LongLength, published.ContentLength);
+        Assert.Equal([DocumentCustodyStatus.Confirmed], statusWhenPublished);
+    }
+
+    /// <summary>
+    /// The read cache is an optimisation, never the record: when the blob store
+    /// cannot take the copy the filing is still confirmed, and no cache entry
+    /// exists for the first read to trip over.
+    /// </summary>
+    [Fact]
+    public async Task ACachePublishThatFailsLeavesTheFilingConfirmed()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var box = new BoxContentClient(
+            new(
+                new Uri("https://api.box.com/2.0/"),
+                new Uri("https://upload.box.com/api/2.0/"),
+                HoldingBox.RootId,
+                "test", "test", "test", "test", "test", "test", HoldingBox.HoldingFolderId),
+            new HttpClient(new HoldingBoxHandler(new HoldingBox())),
+            new StaticBoxAuthorizationHeaderProvider(),
+            TimeProvider.System);
+        var cache = new CachedDocumentContentStore(
+            factory, new UnavailableCacheContainer(), box, TimeProvider.System);
+        var custody = new EfCaseArtifactCustody(
+            factory,
+            new SuccessfulContentStore(),
+            new MemoryArtifactStore(),
+            TimeProvider.System,
+            cachePublisher: cache);
+
+        var result = await custody.RetainAsync(
+            ArtifactRequest(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                caseId,
+                "filed while the cache is down"u8.ToArray()),
+            default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
+        await using var db = await database.CreateContextAsync();
+        Assert.Equal(
+            DocumentCustodyStatus.Confirmed,
+            (await db.Set<DocumentVersionEntity>().SingleAsync()).CustodyStatus);
+        Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+    }
+
+    /// <summary>
+    /// A version the Worker's reconciliation files later is published the same
+    /// way, from the bytes it read from the pending copy.
+    /// </summary>
+    [Fact]
+    public async Task AVersionFiledByReconciliationIsPublishedToTheReadCache()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var content = new FailFirstContentStore();
+        var artifacts = new MemoryArtifactStore();
+        var custody = new EfCaseArtifactCustody(factory, content, artifacts, TimeProvider.System);
+        var bytes = "filed later by reconciliation"u8.ToArray();
+        await Assert.ThrowsAsync<IOException>(() => custody.RetainAsync(
+            ArtifactRequest(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), caseId, bytes), default));
+        var publisher = new RecordingCachePublisher();
+
+        var reconciled = await new ReconcilePendingArtifactCustody(
+                factory, content, artifacts, TimeProvider.System, publisher)
+            .ExecuteAsync(10, default);
+
+        Assert.Equal(1, reconciled.Confirmed);
+        await using var db = await database.CreateContextAsync();
+        var version = await db.Set<DocumentVersionEntity>().SingleAsync();
+        var published = Assert.Single(publisher.Published);
+        Assert.Equal(DocumentContentCacheKey.ForVersion(version.Id), published.Key);
+        Assert.Equal(bytes, published.Bytes);
+        Assert.Equal(version.Sha256, published.Sha256);
+        Assert.Equal(version.ContentLength, published.ContentLength);
+    }
+
     private static CaseArtifactCustodyRequest ArtifactRequest(
         ActionActor actor, Guid caseId, byte[] content) => new(
         actor, caseId, null, $"test:{Guid.NewGuid():N}", $"test:{Guid.NewGuid():N}",
@@ -818,6 +955,22 @@ public sealed class CaseArtifactCustodyRecoveryTests
             throw new NotSupportedException();
         public Task VerifyAsync(IntakeQuarantineArtifact artifact, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    /// <summary>A cache container whose blobs refuse every upload.</summary>
+    private sealed class UnavailableCacheContainer : BlobContainerClient
+    {
+        public override BlobClient GetBlobClient(string blobName) => new UnavailableCacheBlob();
+    }
+
+    private sealed class UnavailableCacheBlob : BlobClient
+    {
+        public override Task<Response<BlobContentInfo>> UploadAsync(
+            Stream content,
+            BlobUploadOptions options,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<Response<BlobContentInfo>>(
+                new RequestFailedException(503, "The blob store is unavailable."));
     }
 
     private sealed class SuccessfulContentStore : IDocumentContentStore
