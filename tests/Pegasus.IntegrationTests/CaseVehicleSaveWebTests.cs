@@ -153,11 +153,69 @@ public sealed class CaseVehicleSaveWebTests
     }
 
     /// <summary>
+    /// What the Case page costs in SQL commands in an edit session, and what one
+    /// accepted single-field save costs, against the real stores (Roadmap Lane
+    /// D, parts D2 and D5). Every save-as-you-go commit is that save followed by
+    /// the page, so both are the price of one field. The budgets are upper
+    /// bounds, so a lower count passes and a page that grows fails.
+    /// </summary>
+    [Fact]
+    public async Task TheCasePageInAnEditSessionAndOneAcceptedSaveStayWithinTheirStatementBudgets()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-statement-count", withMileage: false);
+        using var client = CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        // The first render of each shape pays one-off work; the counts are later ones.
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+
+        counter.Reset();
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var pageCommands = counter.Count;
+        Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
+
+        counter.Reset();
+        using (var save = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(editing),
+                       CurrentCaseSaveValues(
+                           editing,
+                           caseId,
+                           vehicleMake: "Vauxhall",
+                           reason: "Statement count fixture."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
+        }
+        var saveCommands = counter.Count;
+
+        // Before Lane D (2ee268507), by reading the code: about 70 for the page and
+        // about 38 for the save. After: about 69 and about 38 (the folds the reading found
+        // for the save each change the command, the lease or the conflict check, or the
+        // ports many test fakes implement, and are left). Each budget adds headroom for
+        // the data shape; the readings are estimates. To be confirmed by CI.
+        Assert.True(
+            pageCommands <= CasePageBudget,
+            $"The Case page in an edit session sent {pageCommands} SQL commands; the budget is {CasePageBudget}.");
+        Assert.True(
+            saveCommands <= CaseSaveBudget,
+            $"One accepted save sent {saveCommands} SQL commands; the budget is {CaseSaveBudget}.");
+    }
+
+    private const int CasePageBudget = 72;
+
+    private const int CaseSaveBudget = 42;
+
+    /// <summary>
     /// The record form defaults the unit to miles when the Case carries neither
     /// part of an odometer reading.
     /// </summary>
     [Fact]
     public async Task TypingAMileageSavesItInMiles()
+
     {
         using var factory = new IntakeWebApplicationFactory(
             useIntegrationTestAuthentication: true);

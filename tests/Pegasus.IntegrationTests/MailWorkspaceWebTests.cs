@@ -357,8 +357,69 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain("cancels case", unlinked, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// What the Inbox pages cost in SQL commands against the real stores
+    /// (Roadmap Lane D, parts D1 and D3): the message page of a message linked to
+    /// a Case, the list with its first row selected, and the list's Preview
+    /// fragment. The message page reads the Case header, not the whole Case; the
+    /// list draws its pane from its own row and reads only what the row lacks.
+    /// The budgets are the counts Lane D asserts; they are upper bounds, so a
+    /// lower count passes and a page that grows fails.
+    /// </summary>
+    [Fact]
+    public async Task TheInboxPagesStayWithinTheirStatementBudgets()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        _ = await AcceptReceiptAsync(factory, receiptId);
+        using var client = CreateClient(factory);
+        // The first request of each page pays one-off work; the count is the second.
+        _ = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        _ = await GetHtmlAsync(client, "/Inbox");
+        _ = await GetHtmlAsync(client, $"/Inbox?handler=Preview&id={messageId:D}");
+
+        counter.Reset();
+        var message = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        var messageCommands = counter.Count;
+        Assert.Contains(messageId.ToString("D"), message, StringComparison.Ordinal);
+
+        counter.Reset();
+        var list = await GetHtmlAsync(client, "/Inbox");
+        var listCommands = counter.Count;
+        Assert.Contains("data-mail-preview-classification", list, StringComparison.Ordinal);
+
+        counter.Reset();
+        _ = await GetHtmlAsync(client, $"/Inbox?handler=Preview&id={messageId:D}");
+        var previewCommands = counter.Count;
+
+        // Before Lane D (2ee268507), by reading the code: 53, 39 and
+        // 19 commands. After, by the same reading: 31, 23 and 11; each budget adds
+        // one for data shape. To be confirmed by CI.
+        Assert.True(
+            messageCommands <= InboxMessageBudget,
+            $"The Inbox message page sent {messageCommands} SQL commands; the budget is {InboxMessageBudget}.");
+        Assert.True(
+            listCommands <= InboxListBudget,
+            $"The Inbox list sent {listCommands} SQL commands; the budget is {InboxListBudget}.");
+        Assert.True(
+            previewCommands <= InboxPreviewBudget,
+            $"The Inbox preview sent {previewCommands} SQL commands; the budget is {InboxPreviewBudget}.");
+    }
+
+    private const int InboxMessageBudget = 32;
+
+    private const int InboxListBudget = 25;
+
+    private const int InboxPreviewBudget = 12;
+
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
+
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var messageId = Assert.Single(await SeedAsync(
