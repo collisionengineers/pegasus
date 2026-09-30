@@ -1410,3 +1410,18 @@ internal static class CaseEditBasisTestData
                 new CaseSectionFrame(details.Summary, details.Workflow, details.ActiveEditLease),
                 details.Data ?? throw new InvalidOperationException("The test Case has no data."));
 }
+
+/// <summary>A test double's full Case read, narrowed to the Case header a page reads.</summary>
+internal static class CaseHeaderTestData
+{
+    public static CaseHeader? Of(CaseDetails? details) =>
+        details is null
+            ? null
+            : new(
+                details.Summary,
+                details.Workflow,
+                details.ActiveEditLease,
+                details.Documents.Count,
+                details.History.Count,
+                details.Tasks.Count(task => task.State == CaseTaskState.Open));
+}

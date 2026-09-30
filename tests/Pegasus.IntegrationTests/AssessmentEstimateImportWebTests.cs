@@ -1774,7 +1774,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCaseHeader>();
+                services.RemoveAll<ICaseDocumentQueries>();
                 services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetCaseVehicleSection>();
                 services.RemoveAll<IGetCaseValuationSection>();
@@ -1796,7 +1797,8 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.RemoveAll<ISetCurrentEstimate>();
                 services.RemoveAll<ILabourRateCardStore>();
                 services.RemoveAll<IGetCaseFilesSection>();
-                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseHeader>(store);
+                services.AddSingleton<ICaseDocumentQueries>(store);
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 services.AddSingleton<IGetCasePageFrame>(store);
                 services.AddSingleton<IGetCaseVehicleSection>(store);
@@ -2016,7 +2018,8 @@ public sealed partial class AssessmentEstimateImportWebTests
     /// exactly what the page handed to each one.
     /// </summary>
     internal sealed class RecordingStores(Guid caseId, decimal? engineerValue = null, decimal? contractSum = null)
-        : IGetCase, IGetCaseEditBasis, IGetCasePageFrame, IGetCaseVehicleSection, IGetCaseValuationSection,
+        : IGetCaseHeader, ICaseDocumentQueries, IGetCaseEditBasis, IGetCasePageFrame, IGetCaseVehicleSection,
+          IGetCaseValuationSection,
           IGetCaseNotesSection, IGetAssessmentWorkspace, IRepairSpecificationStore, IAddCaseDocument,
           IGetCaseDocumentMetadata, IReadLogicalDocumentVersion,
           IAcquireCaseEditLease, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
@@ -2106,6 +2109,25 @@ public sealed partial class AssessmentEstimateImportWebTests
             GetCaseQuery query, CancellationToken cancellationToken) =>
             CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
 
+        async Task<CaseHeader?> IGetCaseHeader.ExecuteAsync(
+            GetCaseHeaderQuery query, CancellationToken cancellationToken) =>
+            CaseHeaderTestData.Of(await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken));
+
+        Task<IReadOnlyList<CaseDocument>> ICaseDocumentQueries.ListAsync(
+            Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseDocument>>(id == caseId ? Documents() : []);
+
+        /// <summary>The Case's files as the Case read returns them: one document per retained version group.</summary>
+        private CaseDocument[] Documents() =>
+            RetainedDocuments
+                .GroupBy(file => file.Version.DocumentId)
+                .Select(group => new CaseDocument(
+                    group.Key,
+                    caseId,
+                    group.Select(file => file.Occurrence).ToArray(),
+                    group.Select(file => file.Version).ToArray()))
+                .ToArray();
+
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
             if (query.CaseId != caseId)
@@ -2122,17 +2144,9 @@ public sealed partial class AssessmentEstimateImportWebTests
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
-            var documents = RetainedDocuments
-                .GroupBy(file => file.Version.DocumentId)
-                .Select(group => new CaseDocument(
-                    group.Key,
-                    caseId,
-                    group.Select(file => file.Occurrence).ToArray(),
-                    group.Select(file => file.Version).ToArray()))
-                .ToArray();
             CaseDetails details = new(
                 summary, workflow, ActiveLease,
-                documents,
+                Documents(),
                 null, CaseCustodyState.Pending, [], [])
             {
                 Data = DataOverride ?? CreateData(workflow.Version)
