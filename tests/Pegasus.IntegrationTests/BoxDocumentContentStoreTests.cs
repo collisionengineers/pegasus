@@ -139,6 +139,146 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Equal(2, box.UploadCount);
     }
 
+    /// <summary>
+    /// A document costs the read that proves its folder and its upload. Before,
+    /// it cost six: the folder walked, the name looked up, the folder walked
+    /// again, the upload, then the new file and its folder read back.
+    /// </summary>
+    [Fact]
+    public async Task AFileCostsOneReadOfItsFolderAndItsUpload()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+
+        for (var ordinal = 1; ordinal <= 3; ordinal++)
+        {
+            var content = Encoding.UTF8.GetBytes($"photograph {ordinal}");
+            var before = box.RequestCount;
+
+            await store.StoreVersionAsync(
+                Address(ordinal, $"photo-{ordinal}.jpg"), content, Sha256(content), CancellationToken.None);
+
+            Assert.Equal(2, box.RequestCount - before);
+        }
+    }
+
+    /// <summary>
+    /// A document of the Audit is filed in the Audit's a. folder, inside the
+    /// Case folder. The store cannot tell that folder from the Case's, so it
+    /// proves the folder's place under the approved root: one read more.
+    /// </summary>
+    [Fact]
+    public async Task AFileInTheAuditFolderIsProvedAllTheWayUpToTheApprovedRoot()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var auditFolder = box.CreateFolderPath($"{CaseReference}/a.{CaseReference}");
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("audit report");
+        var before = box.RequestCount;
+
+        await store.StoreVersionAsync(
+            Address() with { CaseRootRemoteId = auditFolder }, content, Sha256(content), default);
+
+        Assert.Equal(3, box.RequestCount - before);
+        Assert.True(box.PathExists($"{CaseReference}/a.{CaseReference}/002 evidence.jpg"));
+    }
+
+    [Fact]
+    public async Task AFolderMovedOutOfTheRootIsNeverUploadedInto()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        box.MoveOutsideApprovedRoot(CaseRootId);
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("moved folder");
+        var uploads = box.UploadCount;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            store.StoreVersionAsync(Address(), content, Sha256(content), default));
+
+        Assert.Equal(uploads, box.UploadCount);
+    }
+
+    /// <summary>
+    /// A name Box already holds is accepted only for the same bytes, whichever
+    /// way the content arrives, and the refusal leaves the file alone.
+    /// </summary>
+    [Fact]
+    public async Task ARepeatStoreOfDifferentContentUnderTheSameNameIsRefused()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var original = Encoding.UTF8.GetBytes("AAAA original");
+        var different = Encoding.UTF8.GetBytes("BBBB original");
+        await store.StoreVersionAsync(Address(), original, Sha256(original), default);
+        var uploads = box.UploadCount;
+
+        var shorter = original[..^1];
+        using var differentStream = new MemoryStream(different);
+        using var shorterStream = new MemoryStream(shorter);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            store.StoreVersionAsync(Address(), different, Sha256(different), default));
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.StoreVersionAsync(
+            Address(), differentStream, different.Length, Sha256(different), default));
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.StoreVersionAsync(
+            Address(), shorterStream, shorter.Length, Sha256(shorter), default));
+
+        Assert.Equal(uploads, box.UploadCount);
+        Assert.Equal(0, box.DeleteCount);
+    }
+
+    /// <summary>
+    /// A file that was already there is not this write's file to remove: only
+    /// the write that created it can be rolled back.
+    /// </summary>
+    [Fact]
+    public async Task AWriteThatFoundTheFileAlreadyThereCannotRollItBack()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var content = Encoding.UTF8.GetBytes("filed once");
+        var hash = Sha256(content);
+        var first = await CreateStore(box).StoreVersionAsync(Address(), content, hash, default);
+        var later = CreateStore(box);
+
+        var replay = await later.StoreVersionAsync(Address(), content, hash, default);
+        await later.DeleteAsync(CaseId, CaseReference, VersionId, default);
+
+        Assert.Equal(DocumentContentWriteDisposition.Replay, replay.Disposition);
+        Assert.Equal(first.RemoteId, replay.RemoteId);
+        Assert.True(box.PathExists($"{CaseReference}/002 evidence.jpg"));
+        Assert.Equal(0, box.DeleteCount);
+    }
+
+    /// <summary>
+    /// The other 409 codes an upload can meet fail the write in a way the queue
+    /// retries, and file nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("name_temporarily_reserved")]
+    [InlineData("operation_blocked_temporary")]
+    [InlineData("conflict")]
+    public async Task AnUploadConflictThatIsNotANameInUseFilesNothing(string code)
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        box.NextUploadConflictCode = code;
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("refused for now");
+        var uploads = box.UploadCount;
+
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            store.StoreVersionAsync(Address(), content, Sha256(content), default));
+
+        Assert.Equal(HttpStatusCode.Conflict, failure.StatusCode);
+        Assert.Equal(uploads, box.UploadCount);
+        Assert.False(box.PathExists($"{CaseReference}/002 evidence.jpg"));
+    }
+
     [Fact]
     public async Task PersistedVersionReadAndReplayDoNotDriftToANewerIdenticalVersion()
     {
@@ -926,6 +1066,9 @@ public sealed class BoxDocumentContentStoreTests
         public int RequestCount { get; private set; }
         public string? LoseNextUploadResponseForName { get; set; }
 
+        /// <summary>When set, the next upload is refused with a 409 carrying this Box error code.</summary>
+        public string? NextUploadConflictCode { get; set; }
+
         /// <summary>
         /// How many of the next content downloads Box answers with its rate
         /// limit.
@@ -1182,6 +1325,17 @@ public sealed class BoxDocumentContentStoreTests
                 using var parsed = JsonDocument.Parse(attributes);
                 var name = parsed.RootElement.GetProperty("name").GetString()!;
                 var parentId = parsed.RootElement.GetProperty("parent").GetProperty("id").GetString()!;
+                if (NextUploadConflictCode is { } conflictCode)
+                {
+                    NextUploadConflictCode = null;
+                    return new HttpResponseMessage(HttpStatusCode.Conflict)
+                    {
+                        Content = new StringContent(
+                            JsonSerializer.Serialize(new { code = conflictCode }),
+                            Encoding.UTF8,
+                            "application/json")
+                    };
+                }
                 if (FindChild(parentId, name, "file") is not null)
                 {
                     return new HttpResponseMessage(HttpStatusCode.Conflict)
