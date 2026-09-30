@@ -240,8 +240,8 @@ public sealed class LocalDbReadinessEndpointTests
     /// <summary>
     /// The schema can only change at a release, so once a probe has found it
     /// current the check only connects: the first probe reads the migration
-    /// history, the second does not, and issues at most the one connection
-    /// command.
+    /// history, the second does not, and issues exactly one command, the
+    /// connection check.
     /// </summary>
     [Fact]
     public async Task ASecondHealthyProbeDoesNotReadTheMigrationHistory()
@@ -261,7 +261,7 @@ public sealed class LocalDbReadinessEndpointTests
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
         Assert.Contains(firstCommands, text => text.Contains("__EFMigrationsHistory", StringComparison.Ordinal));
         Assert.DoesNotContain(secondCommands, text => text.Contains("__EFMigrationsHistory", StringComparison.Ordinal));
-        Assert.True(secondCommands.Length <= 1, $"The second probe issued {secondCommands.Length} commands.");
+        Assert.Single(secondCommands);
         Assert.True(secondCommands.Length < firstCommands.Length);
     }
 
