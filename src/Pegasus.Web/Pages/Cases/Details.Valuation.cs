@@ -228,7 +228,6 @@ public sealed partial class DetailsModel
     private sealed record ValuationSectionReads(
         IReadOnlyList<CaseValuation> Valuations,
         IReadOnlyList<AppliedValuation> AppliedValuations,
-        AiJobRecord? PendingMarketResearch,
         string? AppliedByDisplayName,
         IReadOnlyList<ValuationPreset>? Presets);
 
@@ -238,8 +237,16 @@ public sealed partial class DetailsModel
     /// </summary>
     private bool appliedValuationsLoaded;
 
-    private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// The mounted section's reads. The full page takes the pending research
+    /// from the Case's AI jobs it reads for the Next action instead.
+    /// </summary>
+    private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+    {
         ApplyValuationSection(await ReadValuationSectionAsync(caseId, actor, WorkSelector, cancellationToken));
+        PendingMarketResearch = MarketResearchPolicy.PendingOf(
+            await aiJobs.ListForSubjectAsync(caseId, cancellationToken));
+    }
 
     private async Task<ValuationSectionReads> ReadValuationSectionAsync(
         Guid caseId,
@@ -249,7 +256,6 @@ public sealed partial class DetailsModel
     {
         var valuations = await listCaseValuations.ExecuteAsync(caseId, work, cancellationToken);
         var applied = await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
-        var pending = await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
         string? appliedBy = null;
         if (applied.Count > 0)
         {
@@ -260,7 +266,7 @@ public sealed partial class DetailsModel
         var presets = StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)
             ? await listValuationPresets.ExecuteAsync(actor, cancellationToken)
             : null;
-        return new(valuations, applied, pending, appliedBy, presets);
+        return new(valuations, applied, appliedBy, presets);
     }
 
     private void ApplyValuationSection(ValuationSectionReads reads)
@@ -268,7 +274,6 @@ public sealed partial class DetailsModel
         Valuations = reads.Valuations;
         AppliedValuations = reads.AppliedValuations;
         appliedValuationsLoaded = true;
-        PendingMarketResearch = reads.PendingMarketResearch;
         if (reads.AppliedByDisplayName is not null)
         {
             AppliedByDisplayName = reads.AppliedByDisplayName;

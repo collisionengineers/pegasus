@@ -545,7 +545,6 @@ public static class DependencyInjection
         // so the set is empty and Get valuation answers with a notice.
         services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
-        services.AddScoped<IAiDraftQueries, AiDraftQueries>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();
         services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();
