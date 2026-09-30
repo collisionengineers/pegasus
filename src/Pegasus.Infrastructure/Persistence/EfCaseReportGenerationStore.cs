@@ -1338,14 +1338,17 @@ public sealed class EfCaseReportContentSource(
         // the first time an image opens, in three SQL calls whatever the number
         // of images, and each image's bytes are read through its own handle
         // when the renderer prints it. So a render holds one source image at a
-        // time and a queued render holds none.
+        // time and a queued render holds none. The lookups belong to no one
+        // image: they run without any caller's token, and each open waits for
+        // them with its own, so one cancelled open never faults them for the
+        // images that open after it.
         var lookups = new Lazy<Task<IReadOnlyList<PreparedLogicalDocumentRead>>>(() =>
             documentReader.PrepareAsync(
                 actor,
                 snapshot.CaseId,
                 [.. snapshot.Images.Select(image => new LogicalDocumentVersionRead(
                     image.DocumentId, image.VersionId, image.Sha256, image.ContentLength))],
-                cancellationToken));
+                CancellationToken.None));
         var photos = snapshot.Images
             .Select((image, index) => new ReportImageEvidence(
                 image.FileName,
@@ -1385,7 +1388,7 @@ public sealed class EfCaseReportContentSource(
         int index,
         CancellationToken cancellationToken)
     {
-        var prepared = (await lookups.Value.ConfigureAwait(false))[index];
+        var prepared = (await lookups.Value.WaitAsync(cancellationToken).ConfigureAwait(false))[index];
         await using var content = await prepared.OpenAsync(cancellationToken).ConfigureAwait(false);
         var bytes = new byte[image.ContentLength];
         await content.Content.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
