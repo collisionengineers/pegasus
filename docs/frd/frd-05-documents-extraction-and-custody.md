@@ -260,12 +260,13 @@ Case folder, it reads that folder once. The folder must carry the Case's name,
 sit directly under the approved root and not be in the trash. The piece of
 work reads its Case folder once, however many files it files. A document filed
 on its own is different. Its folder may be the Case folder or the Audit's `a.`
-folder inside it. The read for that folder checks that it is under the
-approved root and not in the trash, and it is made for each document. An
-upload does not look for its name first. Box's answer to the upload must name
-the folder that was read as the file's parent. A name Box already holds comes
-back as Box's own refusal. Pegasus then accepts the file that holds it only
-when it is a file of the same length, in that folder, with the same bytes.
+folder inside it. That folder is read, and so is each folder above it up to
+the approved root, to check that it is under that root and not in the trash.
+This is done for each document. An upload does not look for its name first.
+Box's answer to the upload must name the folder that was read as the file's
+parent. A name Box already holds comes back as Box's own refusal. Pegasus then
+accepts the file that holds it only when it is a file of the same length, in
+that folder, with the same bytes.
 Box does not report a file's type, so the type is not compared. A not-found,
 trashed or outside-root answer to any of these reads drops what was
 remembered. Folder create, rename and delete, and file move and delete, still
