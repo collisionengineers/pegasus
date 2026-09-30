@@ -214,10 +214,24 @@ public sealed class ImageIntakeWebTests
             Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
             await response.Content.ReadAsByteArrayAsync());
         var statements = reads.Statements;
-        Assert.Contains(statements, sql => sql.Contains("[IntakeAssets]", StringComparison.Ordinal));
+        // The reads that authenticate the request (the account, its roles and
+        // claims) depend on the account setup, not on the download, so they are
+        // set aside. Nothing else in this pipeline reads the database, and the
+        // queued provider work is idle, so what is left is the download's own.
+        var download = statements
+            .Where(sql => !sql.Contains("[AspNet", StringComparison.Ordinal))
+            .ToArray();
+        // Two reader commands, both on IntakeAssets: the one-asset read, then
+        // the local custody reader's own read of that asset. Before this
+        // change it was four: the receipt aggregate (one command with its six
+        // includes; no split query is configured), the Case link lookup and
+        // the allocation attempt lookup that follow it, then the custody
+        // reader's read.
+        Assert.Equal(2, download.Length);
+        Assert.All(download, sql => Assert.Contains("[IntakeAssets]", sql, StringComparison.Ordinal));
         // Only the receipt aggregate reads these: its allocation attempt and
-        // the three decisions it includes. The custody reader's own lookup
-        // does not, so their absence means the aggregate was not loaded.
+        // the three decisions it includes. Their absence means the aggregate
+        // was not loaded.
         string[] aggregateOnly =
         [
             "[IntakeAllocationAttempts]",
