@@ -1397,6 +1397,127 @@ public sealed class ProductionGraphSourceTests
         Assert.NotEqual(first.NextCursor, second.NextCursor);
     }
 
+    /// <summary>
+    /// The webhook wake already downloaded and retained a message, so the delta must
+    /// not download it again. The mailbox is asked by the delta item's Graph id and
+    /// Internet message id; an item it holds is neither read nor returned, and the
+    /// cursors count its place, whether it is first, in the middle or last. Another
+    /// item that reuses a retained Internet message id is still read.
+    /// </summary>
+    [Fact]
+    public async Task InboxDoesNotDownloadADeltaItemTheMailboxAlreadyRetainedAndMovesPastIt()
+    {
+        var mimeReads = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                mimeReads.Add(request.RequestUri.Segments[^2].TrimEnd('/'));
+                return Response(HttpStatusCode.OK, "From: sender@example.test\r\n\r\nBody", "message/rfc822");
+            }
+
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"retained-first","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z","internetMessageId":"<a@example.test>"},{"id":"reuses-a","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z","internetMessageId":"<a@example.test>"},{"id":"retained-last","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:02:00Z","internetMessageId":"<c@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+        var asked = new List<(string ImmutableMessageId, string InternetMessageIdentity)>();
+        var retained = new HashSet<(string, string)>([
+            ("retained-first", "<a@example.test>"),
+            ("retained-last", "<c@example.test>")]);
+
+        var page = await source.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            10,
+            (immutableMessageId, internetMessageIdentity, _) =>
+            {
+                asked.Add((immutableMessageId, internetMessageIdentity));
+                return Task.FromResult(retained.Contains((immutableMessageId, internetMessageIdentity)));
+            },
+            CancellationToken.None);
+
+        Assert.Equal(
+            [
+                ("retained-first", "<a@example.test>"),
+                ("reuses-a", "<a@example.test>"),
+                ("retained-last", "<c@example.test>")
+            ],
+            asked);
+        Assert.Equal(["reuses-a"], mimeReads);
+        var message = Assert.Single(page.Messages);
+        Assert.Equal("reuses-a", message.ImmutableMessageId);
+        // The last message left in carries the cursor after the whole page, which
+        // is past the retained item that follows it.
+        Assert.Equal(page.NextCursor, message.NextCursor);
+        Assert.Contains("deltatoken=final", page.NextCursor, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InboxPageWhoseEveryItemIsAlreadyRetainedReturnsNoMessagesAndTheCursorAfterThem()
+    {
+        var requests = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add(request.RequestUri!.AbsolutePath);
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"retained-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z","internetMessageId":"<a@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        var page = await source.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            10,
+            (_, _, _) => Task.FromResult(true),
+            CancellationToken.None);
+
+        Assert.Empty(page.Messages);
+        Assert.DoesNotContain(requests, path => path.EndsWith("/$value", StringComparison.Ordinal));
+        Assert.Contains("deltatoken=final", page.NextCursor, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Graph is not always able to give an Internet message id, and then there is
+    /// nothing to ask: the item is downloaded as it always was, and the check is
+    /// never called for it.
+    /// </summary>
+    [Fact]
+    public async Task InboxDownloadsAnItemWithoutAnInternetMessageIdWithoutAskingTheMailbox()
+    {
+        var mimeReads = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                mimeReads.Add(request.RequestUri.Segments[^2].TrimEnd('/'));
+                return Response(HttpStatusCode.OK, "From: sender@example.test\r\n\r\nBody", "message/rfc822");
+            }
+
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"no-internet-id","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+        var asked = 0;
+
+        var page = await source.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            10,
+            (_, _, _) =>
+            {
+                asked++;
+                return Task.FromResult(true);
+            },
+            CancellationToken.None);
+
+        Assert.Equal(0, asked);
+        Assert.Equal(["no-internet-id"], mimeReads);
+        Assert.Equal("no-internet-id", Assert.Single(page.Messages).ImmutableMessageId);
+    }
+
     private const string DefaultMailboxId = "mailbox-id";
     private const string DefaultMailboxAddress = "instructions@collisionengineers.co.uk";
     private const string DefaultInboxFolderId = "inbox-folder";

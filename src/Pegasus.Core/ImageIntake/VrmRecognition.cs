@@ -100,6 +100,22 @@ public static class VrmRegistrationMatching
     }
 
     /// <summary>
+    /// The shapes a confirmed registration can have when <see cref="IsMatch"/>
+    /// accepts <paramref name="read"/>: one of these forms, or one of them with
+    /// one character added anywhere. The forms are the read and, for a read
+    /// that may carry an inserted fifth-character mark, the read without it.
+    /// A store uses them to leave out Cases that cannot match before it reads
+    /// them; <see cref="IsMatch"/> still decides each one it reads.
+    /// </summary>
+    public static IReadOnlyList<string> CandidateForms(string read)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        return read.Length == StandardRegistrationLength + 1 && read[InsertedMarkIndex] == InsertedMarkCharacter
+            ? [read, read.Remove(InsertedMarkIndex, 1)]
+            : [read];
+    }
+
+    /// <summary>
     /// A read one character longer than a standard registration whose fifth
     /// character is a `1` is retried without that character; if the result
     /// matches (exactly or with one character missing), the confirmed

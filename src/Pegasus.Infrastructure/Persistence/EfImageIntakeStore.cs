@@ -897,15 +897,6 @@ public sealed class EfImageIntakeStore(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var eligible = await EfImageIntakeCaseCandidates.EligibleQuery(context)
-            .ToArrayAsync(cancellationToken);
-        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
-        var leasedCases = await context.CaseWorkflows.AsNoTracking()
-            .Where(workflow => workflow.EditLeaseExpiresAtUtc > now)
-            .Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
-        var archivedCases = await context.CaseWorkflows.AsNoTracking()
-            .Where(workflow => workflow.ArchivedAtUtc != null)
-            .Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
         var awaiting = ToCode(ImageInitiatedCaseState.AwaitingInstruction);
         var rows = await ProjectAsync(
             context.ImageIntakes.AsNoTracking()
@@ -914,13 +905,40 @@ public sealed class EfImageIntakeStore(
                         association.IntakeReceiptId == intake.OriginReceiptId && !association.IsActive))
                 .OrderBy(intake => intake.CreatedAtUtc).ThenBy(intake => intake.Id),
             context, cancellationToken);
+        if (rows.Count == 0)
+        {
+            // The sweep runs every few seconds and usually nothing is waiting:
+            // that is one read, with no Case, lease, archive or association read.
+            return [];
+        }
+
+        // An automatic target is chosen among the Cases whose registration
+        // matches the read (SelectRegisteredTarget scopes and counts only the
+        // matches it is given), so the Case read is bounded to the Cases the
+        // waiting reads can match. The near-miss rule still decides each one.
+        var eligible = await EfImageIntakeCaseCandidates
+            .EligibleQuery(context, rows.Select(row => row.NormalizedVehicleRegistration))
+            .ToArrayAsync(cancellationToken);
+        // Only a staff link can name an archived Case (an automatic target is
+        // never archived), so only the Cases the waiting records are linked to
+        // can matter.
+        var linkedCaseIds = rows.Where(row => row.AssociatedCaseId is not null)
+            .Select(row => row.AssociatedCaseId!.Value).Distinct().ToArray();
+        var archivedCases = linkedCaseIds.Length == 0
+            ? []
+            : await context.CaseWorkflows.AsNoTracking()
+                .Where(workflow => workflow.ArchivedAtUtc != null && linkedCaseIds.Contains(workflow.CaseId))
+                .Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
 
         // The established near-miss rule is not SQL-translatable. Evaluate
         // current eligibility before the bound, never permanently mark a
         // no-match row: a later Case or correction can make it actionable.
-        var associations = await context.IntakeManualAssociations.AsNoTracking().ToDictionaryAsync(
-            association => association.IntakeReceiptId, cancellationToken);
-        var pending = new List<ImageIntakeSummary>();
+        // Manual associations are read for the waiting records' origin receipts
+        // now, and for a record's image receipts once it has a target.
+        var associations = new Dictionary<Guid, IntakeManualAssociationEntity>();
+        await LoadAssociationsAsync(
+            context, associations, rows.Select(row => row.OriginReceiptId), cancellationToken);
+        var targeted = new List<(ImageIntakeSummary Intake, Guid Target, Guid? AutomaticTarget, bool StaffDecision)>();
         foreach (var intake in rows)
         {
             var matches = eligible.Where(candidate => VrmRegistrationMatching.IsMatch(
@@ -946,15 +964,40 @@ public sealed class EfImageIntakeStore(
                     targetCaseId = null;
                 }
             }
-            if (targetCaseId is not { } target || (caseId is not null && target != caseId)
-                || leasedCases.Contains(target))
+            if (targetCaseId is { } target && (caseId is null || target == caseId))
+            {
+                targeted.Add((intake, target, automaticTarget?.CaseId, staffDecision));
+            }
+        }
+        if (targeted.Count == 0)
+        {
+            return [];
+        }
+
+        // Only a lease on a target can hold a record back, so the lease read
+        // covers the targets alone.
+        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
+        var targetIds = targeted.Select(item => item.Target).Distinct().ToArray();
+        var leasedCases = await context.CaseWorkflows.AsNoTracking()
+            .Where(workflow => targetIds.Contains(workflow.CaseId) && workflow.EditLeaseExpiresAtUtc > now)
+            .Select(workflow => workflow.CaseId)
+            .ToArrayAsync(cancellationToken);
+        var pending = new List<ImageIntakeSummary>();
+        foreach (var (intake, target, automaticTargetId, staffDecision) in targeted)
+        {
+            if (leasedCases.Contains(target))
             {
                 continue;
             }
             var images = await ListImagesAsync(intake.Id, cancellationToken);
+            await LoadAssociationsAsync(
+                context,
+                associations,
+                images.Select(image => image.ReceiptId).Where(receiptId => receiptId != intake.OriginReceiptId),
+                cancellationToken);
             if (images.Any(image => associations.TryGetValue(image.ReceiptId, out var association)
                     ? !association.IsActive || association.CaseId != target
-                    : !staffDecision && automaticTarget?.CaseId != target))
+                    : !staffDecision && automaticTargetId != target))
             {
                 continue;
             }
@@ -975,6 +1018,31 @@ public sealed class EfImageIntakeStore(
             }
         }
         return pending;
+    }
+
+    /// <summary>
+    /// Adds the manual associations of the receipts not already in
+    /// <paramref name="loaded"/>. A receipt with no association adds nothing.
+    /// </summary>
+    private static async Task LoadAssociationsAsync(
+        PegasusDbContext context,
+        Dictionary<Guid, IntakeManualAssociationEntity> loaded,
+        IEnumerable<Guid> receiptIds,
+        CancellationToken cancellationToken)
+    {
+        var missing = receiptIds.Where(receiptId => !loaded.ContainsKey(receiptId)).Distinct().ToArray();
+        if (missing.Length == 0)
+        {
+            return;
+        }
+
+        var found = await context.IntakeManualAssociations.AsNoTracking()
+            .Where(association => missing.Contains(association.IntakeReceiptId))
+            .ToArrayAsync(cancellationToken);
+        foreach (var association in found)
+        {
+            loaded[association.IntakeReceiptId] = association;
+        }
     }
 
     public async Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
@@ -1660,7 +1728,53 @@ public sealed class EfImageIntakeCaseCandidates(
         .Select(state => state.ToString())
         .ToArray();
 
+    private const string LikeEscape = "\\";
+
     internal static IQueryable<ImageIntakeCaseCandidate> EligibleQuery(PegasusDbContext context) =>
+        Project(EligibleCases(context));
+
+    /// <summary>
+    /// The eligible Cases whose registration one of <paramref name="reads"/>
+    /// can match. Each read's candidate forms are sent as LIKE patterns: the
+    /// form itself, and the form with one '_' at every position. The database
+    /// ignores case, so the patterns can keep a Case the match rule refuses,
+    /// and never leave out one it accepts. The caller still applies
+    /// <see cref="VrmRegistrationMatching.IsMatch"/> to every Case it reads.
+    /// </summary>
+    internal static IQueryable<ImageIntakeCaseCandidate> EligibleQuery(
+        PegasusDbContext context,
+        IEnumerable<string> reads)
+    {
+        var patterns = RegistrationPatterns(reads);
+        // One JSON parameter rather than one parameter a pattern: a busy
+        // estate's patterns must never reach the 2,100-parameter limit.
+        return Project(EligibleCases(context).Where(item => EF.Parameter(patterns)
+            .Any(pattern => EF.Functions.Like(item.Registration, pattern, LikeEscape))));
+    }
+
+    internal static string[] RegistrationPatterns(IEnumerable<string> reads)
+    {
+        ArgumentNullException.ThrowIfNull(reads);
+        var patterns = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var form in reads.Distinct(StringComparer.Ordinal).SelectMany(VrmRegistrationMatching.CandidateForms))
+        {
+            var characters = form.Select(EscapeLike).ToArray();
+            patterns.Add(string.Concat(characters));
+            for (var position = 0; position <= characters.Length; position++)
+            {
+                patterns.Add(string.Concat(characters[..position]) + "_" + string.Concat(characters[position..]));
+            }
+        }
+        return [.. patterns];
+    }
+
+    private static string EscapeLike(char character)
+    {
+        var text = character.ToString(CultureInfo.InvariantCulture);
+        return character is '%' or '_' or '[' or '\\' ? LikeEscape + text : text;
+    }
+
+    private static IQueryable<EligibleCase> EligibleCases(PegasusDbContext context) =>
         from workflow in context.CaseWorkflows.AsNoTracking()
         join caseEntity in context.Cases.AsNoTracking() on workflow.CaseId equals caseEntity.Id
         join principal in context.Principals.AsNoTracking() on caseEntity.PrincipalId equals principal.Id
@@ -1669,11 +1783,33 @@ public sealed class EfImageIntakeCaseCandidates(
         where EligibleStates.Contains(workflow.State)
             && workflow.ReportSentEvidenceId == null
             && workflow.ArchivedAtUtc == null
-        orderby caseEntity.Reference
-        select new ImageIntakeCaseCandidate(
-            caseEntity.Id, caseEntity.Reference, workflow.Version,
-            index == null ? string.Empty : index.NormalizedVrm ?? string.Empty, caseEntity.CreatedAtUtc,
-            caseEntity.PrincipalId, principal.Code);
+        select new EligibleCase
+        {
+            CaseId = caseEntity.Id,
+            Reference = caseEntity.Reference,
+            Version = workflow.Version,
+            Registration = index == null ? string.Empty : index.NormalizedVrm ?? string.Empty,
+            CreatedAtUtc = caseEntity.CreatedAtUtc,
+            PrincipalId = caseEntity.PrincipalId,
+            PrincipalCode = principal.Code
+        };
+
+    private static IQueryable<ImageIntakeCaseCandidate> Project(IQueryable<EligibleCase> cases) =>
+        cases.OrderBy(item => item.Reference)
+            .Select(item => new ImageIntakeCaseCandidate(
+                item.CaseId, item.Reference, item.Version, item.Registration, item.CreatedAtUtc,
+                item.PrincipalId, item.PrincipalCode));
+
+    private sealed class EligibleCase
+    {
+        public Guid CaseId { get; init; }
+        public required string Reference { get; init; }
+        public long Version { get; init; }
+        public required string Registration { get; init; }
+        public DateTimeOffset CreatedAtUtc { get; init; }
+        public Guid PrincipalId { get; init; }
+        public required string PrincipalCode { get; init; }
+    }
 
     internal static async Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(
         PegasusDbContext context,
