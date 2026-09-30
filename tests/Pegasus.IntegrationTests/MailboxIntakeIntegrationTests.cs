@@ -679,6 +679,9 @@ public sealed class MailboxIntakeIntegrationTests
             {
                 var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
                 var summary = Assert.Single((await queries.ListByCursorAsync(null, null, 100, CancellationToken.None)).Items);
+                // The retained message is named by its subject, as the Graph
+                // source names it, not by the file's name on the local disk.
+                Assert.Equal("Forwarded protocol container.eml", summary.SourceFileName);
                 var receipt = Assert.IsType<IntakeReceipt>(
                     await queries.GetAsync(summary.Id, CancellationToken.None));
                 Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel);

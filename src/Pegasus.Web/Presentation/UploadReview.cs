@@ -50,6 +50,18 @@ public sealed record UploadReviewFile(
     public IReadOnlyList<UploadReviewPhotograph> Photographs { get; init; } = [];
 
     /// <summary>
+    /// The review image of an upload's file: the image itself, or the image its
+    /// outcome names. The address names the image's content hash, so the browser
+    /// keeps the image while the page looks again every few seconds.
+    /// </summary>
+    public static string? ImageUrlOf(UploadOutcomeView? outcome, IntakeReceipt? receipt) =>
+        outcome?.ThumbnailReceiptId is { } thumbnailReceiptId
+            ? IntakeImageAddress.Image(thumbnailReceiptId, outcome.ThumbnailContentHash)
+            : receipt is { MediaType: var mediaType } && mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                ? IntakeImageAddress.Image(receipt.Id, receipt.SourceHash)
+                : null;
+
+    /// <summary>
     /// The retained photographs of a processed receipt whose bytes can be read
     /// now, addressed by their authorised staff read. A photograph custody has
     /// not confirmed yet has no readable copy, so it is not listed until it has.
@@ -62,7 +74,7 @@ public sealed record UploadReviewFile(
                 .Select(asset => new UploadReviewPhotograph(
                     asset.Id,
                     asset.FileName,
-                    $"/Received/{receipt.Id:D}/Asset/{asset.Id:D}"))
+                    IntakeImageAddress.Asset(receipt.Id, asset.Id, asset.ContentHash)))
                 .ToArray();
 
     /// <summary>Whether a photograph of this receipt is still waiting on custody, so the page should look again.</summary>

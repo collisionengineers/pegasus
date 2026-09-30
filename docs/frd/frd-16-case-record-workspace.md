@@ -561,8 +561,8 @@ once the Case reaches Completed or Query, and never on an archived Case. It
 is not tied to With Engineer, so a Review-state Case shows Crop. Images open
 in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, In
 report while editing, which is the tile's own In report, and a filmstrip).
-Crop happens on the viewer stage. A
-crop is a stored rectangle: the tile and the report show the cropped region
+Crop happens on the viewer stage. Opening a document brings the viewer into
+view. A crop is a stored rectangle: the tile and the report show the cropped region
 and Download returns the original.
 
 Images on a vehicle-images record, a Triage Case or an Unidentified item

@@ -162,6 +162,31 @@ public sealed class ApplicationTelemetryVolumeContractTests
         Assert.True(run > resolve, "The span bridge is resolved before the host runs.");
     }
 
+    /// <summary>
+    /// The app's own no-store middleware is overwritten by antiforgery on every
+    /// protected post, which logged 1,264 warnings in 14 days and carries nothing
+    /// to act on. Both the console and the Application Insights providers hide it.
+    /// </summary>
+    [Fact]
+    public void WebHidesTheAntiforgeryCacheHeaderWarningFromBothLogProviders()
+    {
+        using var configuration = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Pegasus.Web",
+            "appsettings.json")));
+
+        var logging = configuration.RootElement.GetProperty("Logging");
+
+        Assert.Equal(
+            "Error",
+            logging.GetProperty("LogLevel").GetProperty("Microsoft.AspNetCore.Antiforgery").GetString());
+        Assert.Equal(
+            "Error",
+            logging.GetProperty("ApplicationInsights").GetProperty("LogLevel")
+                .GetProperty("Microsoft.AspNetCore.Antiforgery").GetString());
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

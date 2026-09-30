@@ -852,8 +852,9 @@ public sealed record IntakeSearchDocument(
 /// </summary>
 /// <remarks>
 /// Sender and subject are what an operator recognises a message by. The row
-/// used to carry only <c>SourceFileName</c>, which for mailbox material is a
-/// stored hex <c>.eml</c> name — an identifier, not a description. Where a
+/// used to carry only <c>SourceFileName</c>, which for mailbox material was a
+/// hex <c>.eml</c> name — an identifier, not a description; it is now the
+/// subject (<see cref="EmailSourceFormat.RetainedMessageFileName"/>). Where a
 /// manual upload genuinely has no sender or subject, the file name is what
 /// there is, and the surface says "Manual upload" rather than inventing one.
 ///

@@ -575,15 +575,13 @@ public sealed class UploadGroupStatusModel(
             _ when unreadable => (Labels.StateCouldNotBeRead, "is-error"),
             _ => (Labels.StateReady, string.Empty)
         };
-        var imageReceiptId = outcome?.ThumbnailReceiptId
-            ?? (receipt is { MediaType: var mediaType } && mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ? receipt.Id : null);
         return new UploadReviewFile(
             member.Ordinal,
             member.StagedReceiptId,
             member.SourceFileName,
             receipt?.SourceLength,
             Labels.Kind(receipt?.MediaType, member.SourceFileName),
-            imageReceiptId is { } imageId ? $"/Received/{imageId:D}/Image" : null,
+            UploadReviewFile.ImageUrlOf(outcome, receipt),
             receipt is null ? null : $"/Received/{receipt.Id:D}/Source",
             label,
             tone,

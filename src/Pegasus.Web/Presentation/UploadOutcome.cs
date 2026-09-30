@@ -70,7 +70,8 @@ public sealed record UploadOutcomeView(
     UploadOutcomeAction? SecondaryAction,
     UploadOutcomeAttach? Attach = null,
     Guid? ThumbnailReceiptId = null,
-    UploadOutcomeRecord? Record = null)
+    UploadOutcomeRecord? Record = null,
+    string? ThumbnailContentHash = null)
 {
     /// <summary>Whether this state is worth polling again — mirrors the existing Received/Processing refresh rule.</summary>
     public bool IsStillWorking => Kind == UploadOutcomeKind.Working;
@@ -191,7 +192,7 @@ public sealed class UploadOutcomeQueries(
 
         var view = await BuildForReceiptAsync(receipt, receiptId, submissionGroupId, actor, cancellationToken);
         return receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
-            ? view with { ThumbnailReceiptId = receipt.Id }
+            ? view with { ThumbnailReceiptId = receipt.Id, ThumbnailContentHash = receipt.SourceHash }
             : view;
     }
 

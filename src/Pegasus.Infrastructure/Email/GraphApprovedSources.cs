@@ -772,18 +772,19 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
             var next = GraphCursor.Serialize(
                 processed >= page.Items.Count ? page.NextUri : cursor.PageUri,
                 processed >= page.Items.Count ? 0 : processed);
+            var metadata = await ReadRetainedMetadataAsync(
+                mime,
+                item,
+                inboxFolderId,
+                cancellationToken);
             messages.Add(new(
                 item.Id,
-                $"{SanitizeFileName(item.Id)}.eml",
+                EmailSourceFormat.RetainedMessageFileName(metadata?.Subject),
                 mime,
                 item.ReceivedAtUtc.Value,
                 next)
             {
-                RetainedMetadata = await ReadRetainedMetadataAsync(
-                    mime,
-                    item,
-                    inboxFolderId,
-                    cancellationToken)
+                RetainedMetadata = metadata
             });
         }
         var consumed = cursor.SkipCount + available.Length;
@@ -814,9 +815,14 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
             return null;
         }
         var mime = await client.ReadMimeAsync(lease.GraphMailboxId, immutableMessageId, cancellationToken);
+        var metadata = await ReadRetainedMetadataAsync(
+            mime,
+            item,
+            lease.InboxFolderIdentity,
+            cancellationToken);
         return new(
             immutableMessageId,
-            $"{SanitizeFileName(immutableMessageId)}.eml",
+            EmailSourceFormat.RetainedMessageFileName(metadata?.Subject),
             mime,
             item.ReceivedAtUtc.Value,
             GraphCursor.Serialize(client.InitialDeltaUri(
@@ -824,11 +830,7 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
                 lease.InboxFolderIdentity,
                 1), 0))
         {
-            RetainedMetadata = await ReadRetainedMetadataAsync(
-                mime,
-                item,
-                lease.InboxFolderIdentity,
-                cancellationToken)
+            RetainedMetadata = metadata
         };
     }
 
@@ -914,9 +916,6 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
         !string.IsNullOrWhiteSpace(value)
         && value.Length <= maximumLength
         && !value.Any(character => char.IsControl(character) || char.IsWhiteSpace(character));
-
-    private static string SanitizeFileName(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }
 
 internal sealed class GraphDeletedMailSearchSource(
