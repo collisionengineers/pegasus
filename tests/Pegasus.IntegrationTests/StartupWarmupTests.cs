@@ -360,6 +360,35 @@ public sealed class StartupWarmupTests
     }
 
     [Fact]
+    public async Task StoppingTheHostWhileAKeepWarmStepRunsEndsThePassAndTheLoopPromptly()
+    {
+        var reads = new RecordingReads();
+        await using var run = new KeepWarmRun(reads, TimeSpan.FromMinutes(3));
+        await run.StartAsync();
+
+        // The next pass's mailbox read waits until its token is cancelled, as a
+        // SQL read does.
+        var held = reads.HoldInbox();
+        run.Time.Advance(TimeSpan.FromMinutes(3));
+        await held.WaitAsync(TimeSpan.FromSeconds(30));
+
+        // Well inside the step's 15 s bound, so the stop ended the step, not the bound.
+        await run.Warmup.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(Assert.IsAssignableFrom<Task>(run.Warmup.ExecuteTask).IsCompletedSuccessfully);
+        // The held step ended quietly and the steps after it did not start.
+        Assert.Equal(0, reads.Calls("inbox-page"));
+        Assert.Equal(1, reads.Calls("case-kind"));
+        Assert.Equal(1, reads.Calls("renderer"));
+        Assert.DoesNotContain(
+            run.Logger.Entries,
+            entry => entry.Message.StartsWith("Warm-up step ", StringComparison.Ordinal));
+        // No pass follows.
+        run.Time.Advance(TimeSpan.FromMinutes(10));
+        Assert.Equal(2, reads.Calls("snapshot"));
+    }
+
+    [Fact]
     public async Task AFailedWorkCentreReadStillLeavesThePassTheNewestCasePage()
     {
         var reads = new RecordingReads();
@@ -589,8 +618,9 @@ public sealed class StartupWarmupTests
     /// <summary>
     /// One fake for every read a warm-up pass makes. It records what it was
     /// asked, in order, with the activity each read ran under; it can refuse
-    /// the attention read or the mailbox read of the Inbox, and can hold the
-    /// three reads of the Work Centre until all three have been started.
+    /// the attention read or the mailbox read of the Inbox, can hold the
+    /// mailbox read until its token is cancelled, and can hold the three reads
+    /// of the Work Centre until all three have been started.
     /// </summary>
     private sealed class RecordingReads :
         IGetOperationsSnapshot,
@@ -614,6 +644,7 @@ public sealed class StartupWarmupTests
         private readonly List<ActivityStamp> activities = [];
         private TaskCompletionSource? overlap;
         private int overlapEntered;
+        private TaskCompletionSource? inboxHeld;
 
         /// <summary>Whether the mailbox read of the Inbox throws.</summary>
         public bool InboxFails { get; set; }
@@ -647,6 +678,21 @@ public sealed class StartupWarmupTests
                 overlap = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 overlapEntered = 0;
             }
+        }
+
+        /// <summary>
+        /// From now on the Inbox's mailbox read waits until its token is
+        /// cancelled. The task ends when the read has been entered.
+        /// </summary>
+        public Task HoldInbox()
+        {
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (gate)
+            {
+                inboxHeld = entered;
+            }
+
+            return entered.Task;
         }
 
         public Task<OperationsSnapshot> ExecuteAsync(
@@ -777,12 +823,27 @@ public sealed class StartupWarmupTests
             return Task.FromResult(new RetainedMailPage([], page, pageSize, 0, false));
         }
 
-        public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(CancellationToken cancellationToken)
         {
             Note("mailboxes");
-            return InboxFails
-                ? throw new InvalidOperationException("The mailbox list is unreadable.")
-                : Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
+            if (InboxFails)
+            {
+                throw new InvalidOperationException("The mailbox list is unreadable.");
+            }
+
+            TaskCompletionSource? held;
+            lock (gate)
+            {
+                held = inboxHeld;
+            }
+
+            if (held is not null)
+            {
+                held.TrySetResult();
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+
+            return [];
         }
 
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(CancellationToken cancellationToken)
