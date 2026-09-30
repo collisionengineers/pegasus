@@ -2362,7 +2362,8 @@ public sealed class CustodyOutboxIntegrationTests
     /// order gave it, whichever upload finishes first. The probe holds the
     /// first three uploads until all three are in flight together, so only a
     /// concurrent loop gets past it. A throttled second attachment fails the
-    /// work item for the queue to retry, as it always did.
+    /// work item, as it always did; a Case's failed custody stays failed until
+    /// staff's reasoned retry re-arms it.
     /// </summary>
     [Fact]
     public async Task AnInstructionsAttachmentsAreFiledTogetherAndKeepTheirOrdinals()
@@ -2413,13 +2414,20 @@ public sealed class CustodyOutboxIntegrationTests
             publisher);
 
         // A Box 429 on the second attachment fails the item, and the first
-        // failure is what surfaces.
+        // failure is what surfaces. A Case's custody work has no automatic
+        // re-arm (only the image-case kinds do), so it stays failed until
+        // staff retry it with a reason.
         var throttled = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3)
         {
             Failure = ordinal => ordinal == 3 ? new Pegasus.Infrastructure.Custody.BoxThrottledException(TimeSpan.FromSeconds(1)) : null
         };
         await Assert.ThrowsAsync<Pegasus.Infrastructure.Custody.BoxThrottledException>(() =>
             ProcessorWith(throttled).ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None));
+        Assert.Equal("failed", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+        await RetryFailedCustodyAsync(
+            services,
+            new(outcome.Identity.CaseId, outcome.CustodyWorkId, receipt.Id, output.ToArray()),
+            "custody-three-attachments-retry");
         Assert.Equal("pending", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
 
         // The retry files all three at once, and each keeps its ordinal.

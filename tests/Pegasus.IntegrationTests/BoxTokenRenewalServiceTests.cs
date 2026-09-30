@@ -116,7 +116,12 @@ public sealed class BoxTokenRenewalServiceTests
 
         await harness.Service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.True(harness.Service.ExecuteTask!.IsCompletedSuccessfully);
+        // BackgroundService starts ExecuteAsync through Task.Run with the stopping
+        // token, so a stop that lands before the task is scheduled leaves it
+        // Canceled rather than RanToCompletion. Either is a clean stop; a fault is not.
+        var execute = harness.Service.ExecuteTask!;
+        Assert.True(execute.IsCompleted);
+        Assert.False(execute.IsFaulted);
         Assert.Equal(0, harness.Provider.Calls);
     }
 
