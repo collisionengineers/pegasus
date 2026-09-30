@@ -329,6 +329,33 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Equal(0, box.ApprovedRootListingCount);
     }
 
+    /// <summary>
+    /// A write trusts the case root id the database holds, as a read does. It
+    /// proves that folder and never lists the approved root, however many
+    /// Cases the root holds.
+    /// </summary>
+    [Fact]
+    public async Task ManagedWriteUsesPersistedCaseRootWithoutListingApprovedRoot()
+    {
+        var box = new InMemoryBox();
+        for (var i = 0; i < 1000; i++)
+        {
+            box.AddFolder(ApprovedRootId, $"aaaa-decoy-case-{i:D4}");
+        }
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+
+        for (var ordinal = 1; ordinal <= 3; ordinal++)
+        {
+            var content = Encoding.UTF8.GetBytes($"photograph {ordinal}");
+            var written = await store.StoreVersionAsync(
+                Address(ordinal, $"photo-{ordinal}.jpg"), content, Sha256(content), CancellationToken.None);
+            Assert.Equal(DocumentContentWriteDisposition.Created, written.Disposition);
+        }
+
+        Assert.Equal(0, box.ApprovedRootListingCount);
+    }
+
     [Fact]
     public async Task OneManagedReadCostsThreeBoxRoundTrips()
     {
@@ -1185,7 +1212,8 @@ public sealed class BoxDocumentContentStoreTests
                             name,
                             type = "file",
                             etag = "1",
-                            file_version = new { id = $"version-{id}" }
+                            file_version = new { id = $"version-{id}" },
+                            parent = new { id = parentId }
                         }
                     }
                 }));

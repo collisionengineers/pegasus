@@ -80,8 +80,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             address,
             content.Length,
             normalizedHash,
-            () => client.UploadAsync(
-                address.CaseRootRemoteId!,
+            folder => client.UploadAsync(
+                folder,
                 FlatFileName(address),
                 content,
                 address.MediaType,
@@ -114,8 +114,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             address,
             contentLength,
             normalizedHash,
-            () => client.UploadAsync(
-                address.CaseRootRemoteId!,
+            folder => client.UploadAsync(
+                folder,
                 FlatFileName(address),
                 staged,
                 contentLength,
@@ -129,7 +129,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         ManagedDocumentContentAddress address,
         long contentLength,
         string normalizedHash,
-        Func<Task<BoxContentClient.BoxItem>> createAsync,
+        Func<BoxContentClient.ProvedFolder, Task<BoxContentClient.BoxItem>> createAsync,
         CancellationToken cancellationToken)
     {
         var caseFolder = address.CaseRootRemoteId!;
@@ -177,7 +177,12 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                     ?? throw new InvalidDataException("Box omitted the existing file version identity."));
         }
 
-        var created = await createAsync();
+        // The folder is proved by one read before anything is filed into it,
+        // and never from the read path's memory. The store cannot tell a Case
+        // folder from the Audit's a. folder, so the proof is the folder's place
+        // under the approved root and its trash state.
+        var folder = await client.ProveFolderAsync(caseFolder, cancellationToken);
+        var created = await createAsync(folder);
         var createdVersionId = created.VersionId
             ?? throw new InvalidDataException("Box omitted the created file version identity.");
         createdFiles[address.VersionId] = new(
