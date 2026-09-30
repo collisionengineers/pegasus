@@ -6,13 +6,9 @@ using Pegasus.Core.Operations;
 namespace Pegasus.Web.Pages.Administration;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class HealthModel(
-    GetServiceHealth getServiceHealth,
-    GetAdministrationHealthMetrics getMetrics,
-    TimeProvider timeProvider) : AdministrationPageModel
+public sealed class HealthModel(GetServiceHealth getServiceHealth) : AdministrationPageModel
 {
     public ServiceHealthSnapshot? Snapshot { get; private set; }
-    public AdministrationHealthMetrics? Metrics { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -21,12 +17,8 @@ public sealed class HealthModel(
             return Forbid();
         }
 
-        // The metrics read opens its own context, so it runs beside the snapshot.
-        var snapshot = getServiceHealth.ExecuteAsync(actor, cancellationToken);
-        var metrics = getMetrics.ExecuteAsync(actor, timeProvider.GetUtcNow(), cancellationToken);
-        await Task.WhenAll(snapshot, metrics);
-        Snapshot = await snapshot;
-        Metrics = await metrics;
+        // The administration metrics are drawn on the Logs page, not here.
+        Snapshot = await getServiceHealth.ExecuteAsync(actor, cancellationToken);
         return Page();
     }
 }

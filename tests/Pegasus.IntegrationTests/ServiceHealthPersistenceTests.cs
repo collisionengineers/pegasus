@@ -198,16 +198,16 @@ public sealed class ServiceHealthPersistenceTests
 
     /// <summary>
     /// The Health page sends its shell's statements plus exactly its own:
-    /// thirteen for the snapshot and eight for the metrics, whatever the row
-    /// count. The shell is measured on the Administration hub, which renders
-    /// the same layout, the same filters and the same middleware and reads
-    /// nothing else. The Automation ingress switch is unconfigured in this
-    /// host, so it sends none. The page reads the Sent-items cursors twice:
-    /// the poll list in the snapshot and the failure count in the metrics.
-    /// Those reads now run beside each other rather than one after another.
+    /// thirteen for the snapshot, whatever the row count. It used to read the
+    /// administration metrics too (eight more) and never draw them; the Logs
+    /// page draws them. The shell is measured on the Administration hub, which
+    /// renders the same layout, the same filters and the same middleware and
+    /// reads nothing else. The Automation ingress switch is unconfigured in
+    /// this host, so it sends none. The page reads the Sent-items cursors once,
+    /// for the poll list.
     /// </summary>
     [Fact]
-    public async Task TheHealthPageSendsTheShellsStatementsAndTwentyOneOfItsOwnWhateverTheRowCount()
+    public async Task TheHealthPageSendsTheShellsStatementsAndThirteenOfItsOwnWhateverTheRowCount()
     {
         var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
@@ -229,9 +229,8 @@ public sealed class ServiceHealthPersistenceTests
         _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
         var withNoRows = counter.Count;
         const int snapshotStatements = 13;
-        const int metricsStatements = 8;
-        Assert.Equal(shell + snapshotStatements + metricsStatements, withNoRows);
-        Assert.Equal(2, counter.CountContaining("[ApprovedSentPollStates]"));
+        Assert.Equal(shell + snapshotStatements, withNoRows);
+        Assert.Equal(1, counter.CountContaining("[ApprovedSentPollStates]"));
 
         await using (var context = await factory.Database.CreateContextAsync())
         {
@@ -255,7 +254,7 @@ public sealed class ServiceHealthPersistenceTests
         var page = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
         Assert.Contains("health-page-1@collisionengineers.co.uk", page, StringComparison.Ordinal);
         Assert.Equal(withNoRows, counter.Count);
-        Assert.Equal(2, counter.CountContaining("[ApprovedSentPollStates]"));
+        Assert.Equal(1, counter.CountContaining("[ApprovedSentPollStates]"));
     }
 
     private sealed class IngressSwitch : IAutomationIngressStatusQueries
