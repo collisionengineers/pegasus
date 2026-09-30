@@ -116,6 +116,132 @@ public sealed class AutomaticVehicleLookupTests
             $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}'"));
     }
 
+    /// <summary>
+    /// The sweep runs every ten seconds. Once a Case has its lookup it costs the
+    /// sweep nothing: one read that returns no rows, whether the registration was
+    /// typed with spaces or hyphens or not.
+    /// </summary>
+    [Theory]
+    [InlineData("AB12CDE")]
+    [InlineData("ab12 cde")]
+    [InlineData("AB12-CDE")]
+    public async Task ACaseAlreadyLookedUpCostsTheSweepOneRead(string registration)
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await CreateDatabaseAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, caseId, registration, "fact");
+        Assert.Equal(1, await SweepAsync(database));
+
+        statements.Reset();
+        Assert.Equal(0, await SweepAsync(database));
+
+        Assert.Equal(1, statements.Count);
+    }
+
+    /// <summary>
+    /// The read compares a coarse form of the registration, so a value with other
+    /// punctuation is still read back each time. The exact decision that follows
+    /// finds its lookup and enqueues nothing more.
+    /// </summary>
+    [Fact]
+    public async Task ARegistrationTheReadCannotMatchIsStillDecidedExactly()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, caseId, "AB12.CDE", "fact");
+
+        Assert.Equal(1, await SweepAsync(database));
+        Assert.Equal(0, await SweepAsync(database));
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}' AND Registration = 'AB12CDE'"));
+    }
+
+    /// <summary>
+    /// A Case whose confirmed registration has its lookup is not looked up again
+    /// for a different registration left in a lower tier, and a Case beside it that
+    /// is due is still found.
+    /// </summary>
+    [Fact]
+    public async Task ALookedUpCaseWithAStaleFactStaysDoneAndADueCaseBesideItIsFound()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var doneCase = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, doneCase, "AB12CDE", "confirmed");
+        await SeedRegistrationFieldAsync(database, doneCase, "XY34ZAB", "fact");
+        Assert.Equal(1, await SweepAsync(database));
+        var dueCase = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, dueCase, "CD56EFG", "fact");
+
+        Assert.Equal(1, await SweepAsync(database));
+        Assert.Equal(0, await SweepAsync(database));
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{doneCase:D}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{dueCase:D}' AND Registration = 'CD56EFG'"));
+    }
+
+    /// <summary>
+    /// A Case whose registration never becomes due stays a candidate for good.
+    /// The sweep reads the candidates a page at a time in Case-id order, so such
+    /// Cases ahead of a due Case cannot hide it, and no page holds more Cases
+    /// than the sweep may enqueue.
+    /// </summary>
+    [Fact]
+    public async Task CasesThatNeverBecomeDueDoNotHideADueCaseBehindThem()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await CreateDatabaseAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        for (var position = 1; position <= 3; position++)
+        {
+            var neverDue = await SeedCaseAsync(database, CaseLifecycleState.Review, OrderedCaseId(position));
+            await SeedRegistrationFieldAsync(database, neverDue, "???", "fact");
+        }
+        var dueCase = await SeedCaseAsync(database, CaseLifecycleState.Review, OrderedCaseId(4));
+        await SeedRegistrationFieldAsync(database, dueCase, "CD56EFG", "fact");
+
+        statements.Reset();
+        Assert.Equal(1, await SweepAsync(database, maximumItems: 2));
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{dueCase:D}' AND Registration = 'CD56EFG'"));
+        Assert.Equal(1, await database.ScalarAsync<int>("SELECT COUNT(*) FROM VehicleLookupRequests"));
+        var pages = statements.Reads.Where(IsCandidatePage).ToArray();
+        Assert.Equal(3, pages.Length);
+        Assert.All(pages, page => Assert.True(page.Rows <= 2));
+    }
+
+    /// <summary>
+    /// Cases that are never due cost the sweep one page read and one request
+    /// read for each page of them, and the sweep stops at the first page that is
+    /// not full.
+    /// </summary>
+    [Fact]
+    public async Task CasesThatNeverBecomeDueCostTheSweepTwoReadsAPage()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await CreateDatabaseAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        for (var position = 1; position <= 3; position++)
+        {
+            var neverDue = await SeedCaseAsync(database, CaseLifecycleState.Review, OrderedCaseId(position));
+            await SeedRegistrationFieldAsync(database, neverDue, "???", "fact");
+        }
+
+        statements.Reset();
+        Assert.Equal(0, await SweepAsync(database, maximumItems: 2));
+
+        Assert.Equal(4, statements.Count);
+        Assert.Equal([2, 1], statements.Reads.Where(IsCandidatePage).Select(page => page.Rows));
+    }
+
+    private static bool IsCandidatePage(SqlRead read) =>
+        read.CommandText.Contains("[CaseDataFields]", StringComparison.Ordinal);
+
     [Fact]
     public async Task SweepDoesNothingWhereLookupsAreNotComposed()
     {
@@ -274,8 +400,10 @@ public sealed class AutomaticVehicleLookupTests
     }
 
     private static Task<LocalDbTestDatabase> CreateDatabaseAsync(
-        ICommittedExternalWorkPublisher? publisher = null) =>
+        ICommittedExternalWorkPublisher? publisher = null,
+        Action<DbContextOptionsBuilder>? configureDatabase = null) =>
         LocalDbTestDatabase.CreateAsync(
+            configureDatabase: configureDatabase,
             configureServices: services =>
             {
                 services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
@@ -285,12 +413,12 @@ public sealed class AutomaticVehicleLookupTests
                 }
             });
 
-    private static async Task<int> SweepAsync(LocalDbTestDatabase database)
+    private static async Task<int> SweepAsync(LocalDbTestDatabase database, int maximumItems = 50)
     {
         await using var scope = database.CreateAsyncScope();
         return await scope.ServiceProvider
             .GetRequiredService<ReconcileAutomaticVehicleLookups>()
-            .ExecuteAsync(50, CancellationToken.None);
+            .ExecuteAsync(maximumItems, CancellationToken.None);
     }
 
     private static async Task SeedRegistrationFieldAsync(
@@ -313,15 +441,25 @@ public sealed class AutomaticVehicleLookupTests
             $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {valueKind}, {"text"}, {registration}, {"intake_evidence"}, {sourceIdentity}, {"Automatic lookup fixture"}, {"auto-lookup-test"}, {1}, {(valueKind == "confirmed" ? "staff" : null)}, {(valueKind == "confirmed" ? FixedUtcNow : (DateTimeOffset?)null)})");
     }
 
+    /// <summary>
+    /// A Case id the database sorts by <paramref name="position"/>: SQL Server
+    /// orders a uniqueidentifier by its last group first. The first group keeps
+    /// the seeded reference, which is taken from the id's leading characters,
+    /// unique.
+    /// </summary>
+    private static Guid OrderedCaseId(int position) =>
+        Guid.Parse($"{position:D1}0000000-0000-0000-0000-{position:D12}");
+
     private static async Task<Guid> SeedCaseAsync(
         LocalDbTestDatabase database,
-        CaseLifecycleState state)
+        CaseLifecycleState state,
+        Guid? seededCaseId = null)
     {
         var organizationId = Guid.NewGuid();
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
         var receiptId = Guid.NewGuid();
-        var caseId = Guid.NewGuid();
+        var caseId = seededCaseId ?? Guid.NewGuid();
         var sequence = Math.Abs(caseId.GetHashCode() % 999) + 1;
         // Each seeded Case gets its own Principal, and IX_Principals_Code is unique across the
         // database, so the code comes from a counter rather than the Case id's hash: a test that

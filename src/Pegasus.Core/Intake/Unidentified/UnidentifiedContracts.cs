@@ -350,6 +350,21 @@ public interface IUnidentifiedStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The first <paramref name="limit"/> items in this state, oldest first, in
+    /// the order <see cref="ListAsync"/> uses. The sweep that only examines a
+    /// bounded head of the queue asks for that head and no more.
+    ///
+    /// Default: the full list, cut to the limit, so an in-memory double needs
+    /// no change. <c>Pegasus.Infrastructure.Persistence.EfUnidentifiedStore</c>
+    /// overrides this to take only the head in SQL.
+    /// </summary>
+    async Task<IReadOnlyList<UnidentifiedItem>> ListOldestAsync(
+        UnidentifiedState state,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        [.. (await ListAsync(state, cancellationToken)).Take(limit)];
+
+    /// <summary>
     /// Items this reconciliation itself resolved whose origin receipt's manual
     /// case association has moved on from the version the recorded destination
     /// was last reconciled against: the only rows whose destination can have

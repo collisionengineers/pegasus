@@ -843,6 +843,49 @@ When you read `AppTraces`, read both `Properties.Category` (the host) and
 `Properties.CategoryName` (the worker process). The effect of these filters
 shows only in a query after the next release.
 
+### The Worker's own spans and slow SQL
+
+Core opens spans on the intake, image intake, custody and Triage paths. The Worker
+sends each stopped span as one `AppEvents` row named `Pegasus.Worker.Span`. The
+`span` property is the span name, `durationMs` is its length, and the row carries the
+trace's operation id and parent id, so it joins the invocation's `AppRequests` row.
+The rows join adaptive sampling like other events. They carry no tag values: the
+intake receipt and custody work item ids the spans are tagged with are never sent.
+`triage_case_pairing` opens a span only when a Triage Case is waiting to be
+linked, so an idle ten-second tick sends no row.
+
+`SqlDependencyTelemetryFilter` still drops a successful SQL call, but keeps one that
+took 250 ms or more, and every failed one. It runs before sampling, so a dropped
+call does not count towards the sampling rate. `AppDependencies` therefore shows a
+lock wait or a slow statement on an intake run, unless sampling dropped it.
+
+Dependencies are sampled. The worker process samples everything it sends itself.
+`AddApplicationInsightsTelemetryWorkerService` in `src/Pegasus.Worker/Program.cs`
+keeps the SDK's default adaptive sampling: events at about five a second, and all
+other types together at about five a second. The other types are the worker
+process's dependencies, exceptions and log lines. The `excludedTypes` list in
+`host.json` reaches only what the Functions host writes, such as the `AppRequests`
+row of each run. A quiet Worker stays under those rates and loses nothing. A kept
+row that stands for dropped rows has `ItemCount` above 1, so count with
+`sum(ItemCount)`.
+
+Use the two together. A run that took 26 s with no dependency shows its spans by
+stage, and a slow statement in the same trace shows as a dependency. Sampling keeps
+or drops a whole operation, but events and the other types are sampled apart. Under
+load a run can keep its spans and lose its slow statement, or the reverse.
+
+### A failing sweep step names its cause
+
+The ten-second sweep logs each step's result line at Information. The line
+becomes a Warning when the step counted a failure, so the worker process's
+default level records it. A custody item that fails to file also logs its
+exception type and message, once for each attempt, as
+`Pending artifact custody recovery failed for version ...`. The version id is
+the `CorrelationId` of its `ArtifactCustodyReconciliationAttempt` row in
+`ActionHistory`. After a failure the item waits 1, 2, 4 and 8 minutes, then 10,
+before the next try (`PendingCustodyRetryPolicy` in Core). A retained outcome,
+such as a Case with no folder yet, never waits.
+
 ## Web start
 
 Web binds its port before any remote read. The data-protection key ring, the

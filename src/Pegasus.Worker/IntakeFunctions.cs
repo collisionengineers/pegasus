@@ -402,14 +402,24 @@ public sealed partial class StagedArtifactReconciliationFunction(
     /// </summary>
     private static readonly TimeSpan ThumbnailBudget = TimeSpan.FromSeconds(20);
 
+    /// <summary>
+    /// A step's result line stays Information while nothing failed, and becomes a
+    /// Warning the moment a failure is counted, so a step that fails on every tick
+    /// shows up in the default log level instead of hiding among the routine lines.
+    /// </summary>
+    private static LogLevel FailureLevel(int failures) =>
+        failures > 0 ? LogLevel.Warning : LogLevel.Information;
+
     [Function(nameof(StagedArtifactReconciliationFunction))]
     public async Task RunAsync(
         [TimerTrigger("%IntakeStagedArtifactReconciliationSchedule%", RunOnStartup = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
         var result = await reconcileStagedArtifacts.ExecuteAsync(50, cancellationToken);
+        var stagedLevel = FailureLevel(result.Failures);
         LogStagedArtifactReconciliation(
             logger,
+            stagedLevel,
             result.RecoveredWorkItems,
             result.Completed,
             result.Retained,
@@ -433,7 +443,8 @@ public sealed partial class StagedArtifactReconciliationFunction(
             LogPendingArtifactCustodyFailure(
                 logger,
                 pendingArtifacts.Failures,
-                pendingArtifacts.Candidates);
+                pendingArtifacts.Candidates,
+                pendingArtifacts.FirstFailure);
         }
 
         // A generated report whose file was filed after its request ended
@@ -458,17 +469,21 @@ public sealed partial class StagedArtifactReconciliationFunction(
         // enough (the poison-path escape). No manual SQL. Runs on the same
         // existing timer trigger deliberately; this is not a new schedule.
         var groupedImageResult = await reconcileGroupedImageIntake.ExecuteAsync(50, cancellationToken);
+        var groupedLevel = FailureLevel(groupedImageResult.Failures);
         LogGroupedImageIntakeReconciliation(
             logger,
+            groupedLevel,
             groupedImageResult.Candidates,
             groupedImageResult.Retried,
             groupedImageResult.Escaped,
             groupedImageResult.Failures);
 
         var pairing = await imageIntakeCasePairing.ReconcileAsync(50, cancellationToken);
-        LogImageIntakePairing(logger, pairing.Candidates, pairing.Merged, pairing.Failures, pairing.FirstFailure);
+        var pairingLevel = FailureLevel(pairing.Failures);
+        LogImageIntakePairing(logger, pairingLevel, pairing.Candidates, pairing.Merged, pairing.Failures, pairing.FirstFailure);
         var triagePairing = await triageCasePairing.ReconcileAsync(50, cancellationToken);
-        LogTriageCasePairing(logger, triagePairing.Candidates, triagePairing.Linked,
+        var triageLevel = FailureLevel(triagePairing.Failures);
+        LogTriageCasePairing(logger, triageLevel, triagePairing.Candidates, triagePairing.Linked,
             triagePairing.Failures, triagePairing.FirstFailure);
 
         // Resolves an open Unidentified item whose origin receipt
@@ -477,8 +492,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
         // the product's own reconciliation, never manual SQL. Same existing
         // timer trigger deliberately; this is not a new schedule.
         var unidentifiedResult = await reconcileUnidentifiedDestinations.ExecuteAsync(50, cancellationToken);
+        var unidentifiedLevel = FailureLevel(unidentifiedResult.Failures);
         LogUnidentifiedDestinationReconciliation(
             logger,
+            unidentifiedLevel,
             unidentifiedResult.Candidates,
             unidentifiedResult.Resolved,
             unidentifiedResult.Failures);
@@ -497,8 +514,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
         var principalSubmissions = await reconcilePrincipalSubmissions.ExecuteAsync(
             50,
             cancellationToken);
+        var principalLevel = FailureLevel(principalSubmissions.Failures);
         LogPrincipalSubmissionReconciliation(
             logger,
+            principalLevel,
             principalSubmissions.Candidates,
             principalSubmissions.Repaired,
             principalSubmissions.Failures,
@@ -522,8 +541,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
             var thumbnails = await prepareDocumentThumbnails.ExecuteAsync(ThumbnailsPerRun, thumbnailBudget.Token);
             if (thumbnails.Candidates > 0)
             {
+                var thumbnailLevel = FailureLevel(thumbnails.Failures);
                 LogDocumentThumbnailPreparation(
                     logger,
+                    thumbnailLevel,
                     thumbnails.Candidates,
                     thumbnails.Prepared,
                     thumbnails.Unrenderable,
@@ -538,10 +559,9 @@ public sealed partial class StagedArtifactReconciliationFunction(
     }
 
     [LoggerMessage(
-        Level = LogLevel.Information,
         Message = "Prepared document thumbnails: {Candidates} candidates, {Prepared} prepared, {Unrenderable} not renderable, {Failures} failures. First failure: {FirstFailure}")]
     private static partial void LogDocumentThumbnailPreparation(
-        ILogger logger, int candidates, int prepared, int unrenderable, int failures, string? firstFailure);
+        ILogger logger, LogLevel level, int candidates, int prepared, int unrenderable, int failures, string? firstFailure);
 
     [LoggerMessage(
         Level = LogLevel.Warning,
@@ -553,21 +573,21 @@ public sealed partial class StagedArtifactReconciliationFunction(
         Message = "Enqueued {Enqueued} automatic vehicle lookups.")]
     private static partial void LogAutomaticVehicleLookups(ILogger logger, int enqueued);
 
-    [LoggerMessage(Level = LogLevel.Information,
+    [LoggerMessage(
         Message = "Reconciled registered image pairing: {Candidates} candidates, {Merged} merged, {Failures} failures. First failure: {FirstFailure}")]
     private static partial void LogImageIntakePairing(
-        ILogger logger, int candidates, int merged, int failures, string? firstFailure);
-
-    [LoggerMessage(Level = LogLevel.Information,
-        Message = "Reconciled Triage pairing: {Candidates} candidates, {Linked} linked, {Failures} failures. First failure: {FirstFailure}")]
-    private static partial void LogTriageCasePairing(
-        ILogger logger, int candidates, int linked, int failures, string? firstFailure);
+        ILogger logger, LogLevel level, int candidates, int merged, int failures, string? firstFailure);
 
     [LoggerMessage(
-        Level = LogLevel.Information,
+        Message = "Reconciled Triage pairing: {Candidates} candidates, {Linked} linked, {Failures} failures. First failure: {FirstFailure}")]
+    private static partial void LogTriageCasePairing(
+        ILogger logger, LogLevel level, int candidates, int linked, int failures, string? firstFailure);
+
+    [LoggerMessage(
         Message = "Reconciled staged intake artifacts: {RecoveredWorkItems} work items recovered, {Completed} completed and deleted, {Retained} retained, {Orphans} orphaned, {Unmatched} unmatched, and {Failures} failures.")]
     private static partial void LogStagedArtifactReconciliation(
         ILogger logger,
+        LogLevel level,
         int recoveredWorkItems,
         int completed,
         int retained,
@@ -585,11 +605,12 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
     [LoggerMessage(
         Level = LogLevel.Error,
-        Message = "Pending artifact custody recovery failed for {FailureCount} of {CandidateCount} candidates.")]
+        Message = "Pending artifact custody recovery failed for {FailureCount} of {CandidateCount} candidates. First failure: {FirstFailure}")]
     private static partial void LogPendingArtifactCustodyFailure(
         ILogger logger,
         int failureCount,
-        int candidateCount);
+        int candidateCount,
+        string? firstFailure);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -602,20 +623,20 @@ public sealed partial class StagedArtifactReconciliationFunction(
     private static partial void LogFiledReportSettlementFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(
-        Level = LogLevel.Information,
         Message = "Reconciled grouped image intake stragglers: {Candidates} candidates, {Retried} retried, {Escaped} escaped to Unidentified, {Failures} failures.")]
     private static partial void LogGroupedImageIntakeReconciliation(
         ILogger logger,
+        LogLevel level,
         int candidates,
         int retried,
         int escaped,
         int failures);
 
     [LoggerMessage(
-        Level = LogLevel.Information,
         Message = "Reconciled Unidentified destinations: {Candidates} candidates, {Resolved} resolved, {Failures} failures.")]
     private static partial void LogUnidentifiedDestinationReconciliation(
         ILogger logger,
+        LogLevel level,
         int candidates,
         int resolved,
         int failures);
@@ -625,10 +646,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
     // dropped connection -- a distinction no local run can make for us,
     // because tests run full-privilege and the deployed roles do not.
     [LoggerMessage(
-        Level = LogLevel.Information,
         Message = "Reconciled principal submission accepts: {Candidates} candidates, {Repaired} repaired, {Failures} failures. First failure: {FirstFailure}")]
     private static partial void LogPrincipalSubmissionReconciliation(
         ILogger logger,
+        LogLevel level,
         int candidates,
         int repaired,
         int failures,

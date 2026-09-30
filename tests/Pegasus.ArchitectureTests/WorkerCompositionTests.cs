@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -389,6 +391,22 @@ public sealed class WorkerCompositionTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public void TheSpanBridgeIsComposedOverTheApplicationInsightsClientAsOneSingleton()
+    {
+        using var telemetry = TelemetryConfiguration.CreateDefault();
+        telemetry.DisableTelemetry = true;
+        var services = new ServiceCollection();
+        services.AddSingleton(new TelemetryClient(telemetry));
+        services.AddWorkerSpanTelemetry();
+
+        using var provider = services.BuildServiceProvider(validateScopes: true);
+
+        Assert.Same(
+            provider.GetRequiredService<WorkerSpanTelemetryBridge>(),
+            provider.GetRequiredService<WorkerSpanTelemetryBridge>());
     }
 
     private static ServiceCollection CreateWorkerServices(

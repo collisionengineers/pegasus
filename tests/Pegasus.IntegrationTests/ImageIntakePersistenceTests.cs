@@ -520,6 +520,209 @@ public sealed class ImageIntakePersistenceTests
     }
 
     /// <summary>
+    /// The pairing sweep runs every ten seconds and usually finds nothing awaiting
+    /// an instruction. That costs one read: no Case, lease, archive or association
+    /// read follows it.
+    /// </summary>
+    [Fact]
+    public async Task APairingSweepWithNothingAwaitingReadsOnce()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IImageIntakeStore>();
+
+        statements.Reset();
+        var pending = await store.ListPendingPairingAsync(50, null, CancellationToken.None);
+
+        Assert.Empty(pending);
+        Assert.Equal(1, statements.Count);
+    }
+
+    /// <summary>
+    /// With records waiting, the Case read covers only the Cases their reads can
+    /// match: a Case none of them can match is not read, and while no waiting
+    /// record has a target no lease is read. Once a Case matches, the lease read
+    /// covers that Case alone, not the other Case a member of staff is editing.
+    /// </summary>
+    [Fact]
+    public async Task APairingSweepReadsOnlyTheCasesAndLeasesItsWaitingRecordsCanUse()
+    {
+        var statements = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: statements);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        var otherOrigin = await UploadCaseOriginAsync(factory, client, "AUTO-LINK-01");
+        var matchingOrigin = await UploadCaseOriginAsync(factory, client, "AUTO-LINK-02");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "bounded-case-read-image");
+        var otherCase = await SeedCaseAsync(services, otherOrigin, "IMG26041",
+            nameof(CaseLifecycleState.Review), "XY34ZZZ");
+        await ClaimLeaseAsync(services, otherCase, StaffActor(), "bounded-case-read-lease");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+
+        statements.Reset();
+        Assert.Empty(await store.ListPendingPairingAsync(50, null, CancellationToken.None));
+
+        Assert.Equal(0, CaseReadRows(statements));
+        Assert.DoesNotContain(statements.Reads, IsLeaseRead);
+
+        await SeedCaseAsync(services, matchingOrigin, "IMG26042",
+            nameof(CaseLifecycleState.Review), "AB12CDE", CreatedAfterRegistration);
+        statements.Reset();
+        Assert.Equal(imageReceipt,
+            Assert.Single(await store.ListPendingPairingAsync(50, null, CancellationToken.None)).OriginReceiptId);
+
+        Assert.Equal(1, CaseReadRows(statements));
+        Assert.Equal(0, Assert.Single(statements.Reads, IsLeaseRead).Rows);
+    }
+
+    /// <summary>
+    /// The bound on the Case read keeps every Case the near-miss rule accepts
+    /// for a waiting read (the exact registration, a registration the read is
+    /// one character short of, and the retry without a fifth-position '1') and
+    /// reads no other. A read's own LIKE characters are literal.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseReadKeepsEveryCaseTheWaitingReadsCanMatchAndNoOther()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var context = await database.CreateContextAsync();
+        string?[] registrations =
+            ["AB12CDE", "XAB12CDE", "AB12CD", "AB1CDE", "ABZ2CDE", "PK20YHR", "PK20YHRZ", "PK21YHR", "XY34ZZZ", null];
+        for (var index = 0; index < registrations.Length; index++)
+        {
+            await SeedEligibleCaseAsync(context, $"BND{index:D5}", registrations[index]);
+        }
+        string[] reads = ["AB12CDE", "PK201YHR", "AB_2CDE"];
+
+        var bounded = await EfImageIntakeCaseCandidates.EligibleQuery(context, reads).ToArrayAsync();
+        var everyEligible = await EfImageIntakeCaseCandidates.EligibleQuery(context).ToArrayAsync();
+
+        Assert.Equal(registrations.Length, everyEligible.Length);
+        Assert.Equal(
+            everyEligible.Where(candidate => reads.Any(read =>
+                VrmRegistrationMatching.IsMatch(read, candidate.ConfirmedRegistration))),
+            bounded.Where(candidate => reads.Any(read =>
+                VrmRegistrationMatching.IsMatch(read, candidate.ConfirmedRegistration))));
+        Assert.Equal(
+            ["AB12CDE", "PK20YHR", "PK20YHRZ", "XAB12CDE"],
+            bounded.Select(candidate => candidate.ConfirmedRegistration).Order(StringComparer.Ordinal));
+    }
+
+    private static int CaseReadRows(SqlStatementCounter statements) =>
+        Assert.Single(statements.Reads, read =>
+            read.CommandText.Contains("[CaseMatchIndex]", StringComparison.Ordinal)
+            && read.CommandText.Contains(" LIKE ", StringComparison.Ordinal)).Rows;
+
+    private static bool IsLeaseRead(SqlRead read) =>
+        read.CommandText.Contains("[EditLeaseExpiresAtUtc]", StringComparison.Ordinal);
+
+    /// <summary>
+    /// An eligible Case with no origin receipt, and a match-index row only when
+    /// <paramref name="registration"/> is given.
+    /// </summary>
+    private static async Task SeedEligibleCaseAsync(
+        PegasusDbContext context,
+        string reference,
+        string? registration)
+    {
+        var organizationId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        var principalId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Bound provider {reference}"}, {0L})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {"not_ready"}, {"pending"}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(context);
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.Review)}, {0L}, {Guid.NewGuid()})");
+        if (registration is not null)
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseMatchIndex (CaseId, PrincipalCode, NormalizedVrm, MatchPolicyKey, MatchPolicyVersion, UpdatedAtUtc) VALUES ({caseId}, {reference}, {registration}, {"image-intake-fixture"}, {1}, {now})");
+        }
+    }
+
+    /// <summary>
+    /// The Case bound and the lease check are in the reads: a record that would
+    /// pair with a Case is offered for that Case only, and not while it is being
+    /// edited.
+    /// </summary>
+    [Fact]
+    public async Task PendingPairingIsBoundedToTheCaseAndWaitsForItsEditor()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        var origin = await UploadCaseOriginAsync(factory, client, "AUTO-LINK-01");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "bounded-pairing-image");
+        var caseId = await SeedCaseAsync(services, origin, "IMG26031",
+            nameof(CaseLifecycleState.Review), "AB12CDE", CreatedAfterRegistration);
+        var store = services.GetRequiredService<IImageIntakeStore>();
+
+        Assert.Equal(imageReceipt,
+            Assert.Single(await store.ListPendingPairingAsync(50, null, CancellationToken.None)).OriginReceiptId);
+        Assert.Equal(imageReceipt,
+            Assert.Single(await store.ListPendingPairingAsync(50, caseId, CancellationToken.None)).OriginReceiptId);
+        Assert.Empty(await store.ListPendingPairingAsync(50, Guid.NewGuid(), CancellationToken.None));
+
+        await ClaimLeaseAsync(services, caseId, StaffActor(), "bounded-pairing-lease");
+        Assert.Empty(await store.ListPendingPairingAsync(50, null, CancellationToken.None));
+        Assert.Empty(await store.ListPendingPairingAsync(50, caseId, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A staff link reaches a Case in any state except an archived one. The
+    /// archive check reads only the Cases the waiting records are linked to.
+    /// </summary>
+    [Fact]
+    public async Task PendingPairingSkipsARecordStaffLinkedToAnArchivedCase()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        var origin = await UploadCaseOriginAsync(factory, client, "AUTO-LINK-01");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "archived-link-image");
+        var caseId = await SeedCaseAsync(services, origin, "IMG26032",
+            nameof(CaseLifecycleState.Review), "XY34ZZZ");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var lease = await ClaimLeaseAsync(services, caseId, StaffActor(), "archived-link-lease");
+        var receipt = await receipts.GetAsync(imageReceipt, CancellationToken.None);
+        await services.GetRequiredService<IIntakeMutationStore>().LinkAsync(new(
+            imageReceipt, caseId, receipt!.Version, 0, lease.Token, StaffActor(), "archived-link",
+            "Staff confirmed this source belongs with this instruction."),
+            DateTimeOffset.UtcNow, CancellationToken.None);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET EditLeaseExpiresAtUtc = {DateTimeOffset.UtcNow.AddMinutes(-1)} WHERE CaseId = {caseId}");
+        Assert.Equal(imageReceipt,
+            Assert.Single(await store.ListPendingPairingAsync(50, null, CancellationToken.None)).OriginReceiptId);
+
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET ArchivedAtUtc = {DateTimeOffset.UtcNow}, ArchivedByKind = {nameof(ActorKind.Staff)}, ArchivedBySubjectId = {Guid.NewGuid().ToString()}, ArchivedByRolesJson = {"[\"Administrator\"]"}, ArchiveReason = {"Archived for the test."} WHERE CaseId = {caseId}");
+
+        Assert.Empty(await store.ListPendingPairingAsync(50, null, CancellationToken.None));
+    }
+
+    /// <summary>
     /// Issue 905 (operator, 28 September 2026): manually uploaded images wait
     /// for staff over any Case that existed when they registered, and pair by
     /// themselves with a Case created afterwards. The pairing is on the Case

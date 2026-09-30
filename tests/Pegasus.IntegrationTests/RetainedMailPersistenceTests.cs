@@ -1061,6 +1061,43 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal("An instruction", Assert.Single(page.Items).Subject);
     }
 
+    /// <summary>
+    /// The poll asks the mailbox whether it holds a delta item by the item's immutable
+    /// id and canonical Internet message id, so an item the wake already retained is
+    /// not downloaded again. It is one point read on the unique identity index, scoped
+    /// to the mailbox. Another item that reuses the Internet message id, or an id that
+    /// differs only in case, is not the retained item.
+    /// </summary>
+    [Fact]
+    public async Task TheMailboxAnswersWhetherItRetainedTheSameItemWithOnePointRead()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        await SeedPollStateAsync(database);
+        await RetainAsync(database, Message(
+            "message-1", internetMessageIdentity: "<Wake@Example.Invalid>"));
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>();
+        var mailbox = TestMailboxId.From(MailboxId);
+        var canonical = MailboxMessageIdentity.CanonicalizeInternetMessageIdentity("<wake@example.invalid>");
+
+        statements.Reset();
+        Assert.True(await store.HasRetainedMessageAsync(mailbox, "message-1", canonical, CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+        Assert.False(await store.HasRetainedMessageAsync(
+            mailbox, "message-2", canonical, CancellationToken.None));
+        Assert.False(await store.HasRetainedMessageAsync(
+            mailbox, "MESSAGE-1", canonical, CancellationToken.None));
+        Assert.False(await store.HasRetainedMessageAsync(
+            mailbox,
+            "message-1",
+            MailboxMessageIdentity.CanonicalizeInternetMessageIdentity("<other@example.invalid>"),
+            CancellationToken.None));
+        Assert.False(await store.HasRetainedMessageAsync(
+            Guid.NewGuid(), "message-1", canonical, CancellationToken.None));
+    }
+
     [Fact]
     public async Task ChangedProviderItemIdentityDoesNotDuplicateTheSameRfcMessage()
     {
