@@ -784,6 +784,11 @@
                 if (files && nextFiles) { files.replaceWith(nextFiles); bindMounted(nextFiles); }
             }
         }
+        // A refused commit drew the Case again with a fresh operation key and
+        // its current version. The typed value stays for another go, and that
+        // go carries the new authority: not a key the Case has already
+        // applied, nor a version it has moved past.
+        if (commitRefused) { carryForward(parsed); }
         var openDialog = document.querySelector('[data-case-dialogs] [data-dialog]:not([hidden])');
         swapRoots.forEach(function (selector) {
             if (keepSections && (selector === '#case-main' || selector === '[data-case-viewer-host]')) { return; }
