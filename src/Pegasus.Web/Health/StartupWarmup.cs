@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Pegasus.Core.AiWork;
@@ -51,14 +52,17 @@ internal sealed class StartupWarmupHealthCheck(StartupWarmupState state) : IHeal
 }
 
 /// <summary>
-/// Runs once when Web starts, after the port is listening: loads the
-/// data-protection key ring, waits for the Automation OAuth certificates, builds
-/// the EF model and runs the Work Centre's, the Case page's and the Graph mail
-/// webhook's hot read shapes, so the first request after a deploy does not pay
-/// for them. The key
-/// ring and the certificates are remote reads behind a managed-identity token,
-/// which is why they are here and not before the port binds. Its database
-/// steps only read. Every step is best effort: a failure is logged and the next step still runs,
+/// Runs once when Web starts: loads the data-protection key ring, waits for the
+/// Automation OAuth certificates, builds the EF model and runs the Work
+/// Centre's, the Case page's and the Graph mail webhook's hot read shapes, so
+/// the first request after a deploy does not pay for them. It is a hosted
+/// service, so it begins with the host's start, a few seconds before
+/// <c>ApplicationStarted</c> prints the "listening" mark (4 to 8 s on the starts
+/// of 29 September 2026), and its first steps overlap the port binding. It
+/// yields at once, so it never holds the port. The key ring and the
+/// certificates are remote reads behind a managed-identity token, which is why
+/// they are here and not before the port binds. Its database steps only read.
+/// Every step is best effort: a failure is logged and the next step still runs,
 /// and nothing it meets stops the host. Setting <c>Startup:Warmup</c> to false
 /// skips it.
 /// </summary>
@@ -135,13 +139,27 @@ internal sealed partial class StartupWarmup(
         CancellationToken cancellationToken,
         CancellationToken stoppingToken)
     {
+        // The step's line carries two timings: the model build, which is local
+        // CPU (it includes Entity Framework's own service provider, built on the
+        // first use of the context), and the first connection, which holds the
+        // managed-identity token and the SQL login. The next start says which
+        // of the two the step's 17 to 34 s was.
+        var modelBuild = TimeSpan.Zero;
+        var firstConnection = TimeSpan.Zero;
         await StepAsync("model", async () =>
         {
             var factory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await factory.CreateDbContextAsync(cancellationToken);
+            var buildStarted = Stopwatch.GetTimestamp();
             _ = context.Model;
+            modelBuild = Stopwatch.GetElapsedTime(buildStarted);
+            var connectStarted = Stopwatch.GetTimestamp();
             await context.Database.CanConnectAsync(cancellationToken);
-        }, stoppingToken, cancellationToken);
+            firstConnection = Stopwatch.GetElapsedTime(connectStarted);
+        }, stoppingToken, cancellationToken,
+        detail: () => string.Create(
+            CultureInfo.InvariantCulture,
+            $"model build {modelBuild.TotalMilliseconds:F0} ms, first connection {firstConnection.TotalMilliseconds:F0} ms"));
         // Graph hangs up on a webhook that answers slowly and resends only
         // minutes later, so the first mail must not pay for this query.
         await StepAsync("mail-webhook", () =>
@@ -193,7 +211,8 @@ internal sealed partial class StartupWarmup(
         string step,
         Func<Task> read,
         CancellationToken stoppingToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<string>? detail = null)
     {
         if (cancellationToken.IsCancellationRequested)
         {
@@ -205,7 +224,7 @@ internal sealed partial class StartupWarmup(
         {
             await read();
             var elapsedMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-            LogWarmupStepFinished(logger, step, elapsedMilliseconds);
+            LogWarmupStepFinished(logger, step, elapsedMilliseconds, detail is null ? string.Empty : $" ({detail()})");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -223,8 +242,8 @@ internal sealed partial class StartupWarmup(
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Startup warm-up step {Step} finished in {ElapsedMs} ms")]
-    private static partial void LogWarmupStepFinished(ILogger logger, string step, double elapsedMs);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Startup warm-up step {Step} finished in {ElapsedMs} ms{Detail}")]
+    private static partial void LogWarmupStepFinished(ILogger logger, string step, double elapsedMs, string detail);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Startup warm-up step {Step} was still running after {ElapsedMs} ms and was left")]
     private static partial void LogWarmupStepBounded(ILogger logger, string step, double elapsedMs);
