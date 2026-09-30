@@ -257,10 +257,49 @@ public sealed class RuntimeHeartbeatTests
         Assert.DoesNotContain(LogLevel.Warning, logger.Levels);
     }
 
+    /// <summary>
+    /// The catch-all is what keeps a failure the interval rules do not cover
+    /// (here, configuration that throws) from leaving the service and stopping
+    /// the host: the heartbeat ends with one warning and its task completes.
+    /// </summary>
+    [Fact]
+    public async Task AFailureOutsideTheBeatEndsOnlyTheHeartbeatWithOneWarning()
+    {
+        var logger = new RecordingLogger();
+        using var lifetime = new FakeLifetime();
+        using var heartbeat = new RuntimeHeartbeat(lifetime, new ThrowingConfiguration(), logger);
+
+        await heartbeat.StartAsync(CancellationToken.None);
+        var warning = await logger.FirstWarning.WaitAsync(TimeSpan.FromSeconds(30));
+        var run = Assert.IsAssignableFrom<Task>(heartbeat.ExecuteTask);
+        await run.WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal("The runtime heartbeat stopped; the host is unaffected", warning);
+        Assert.True(run.IsCompletedSuccessfully);
+        Assert.Single(logger.Levels, level => level == LogLevel.Warning);
+        await heartbeat.StopAsync(CancellationToken.None);
+    }
+
     private static IConfiguration Configuration(string interval) =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Diagnostics:HeartbeatInterval"] = interval })
             .Build();
+
+    private sealed class ThrowingConfiguration : IConfiguration
+    {
+        public string? this[string key]
+        {
+            get => throw new InvalidOperationException("Configuration is unavailable.");
+            set => throw new NotSupportedException();
+        }
+
+        public IEnumerable<IConfigurationSection> GetChildren() => [];
+
+        public Microsoft.Extensions.Primitives.IChangeToken GetReloadToken() =>
+            throw new NotSupportedException();
+
+        public IConfigurationSection GetSection(string key) => throw new NotSupportedException();
+    }
 
     private sealed class FakeLifetime : IHostApplicationLifetime, IDisposable
     {
