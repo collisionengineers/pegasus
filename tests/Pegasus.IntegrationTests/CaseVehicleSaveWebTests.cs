@@ -234,7 +234,6 @@ public sealed class CaseVehicleSaveWebTests
     /// </summary>
     [Fact]
     public async Task TypingAMileageSavesItInMiles()
-
     {
         using var factory = new IntakeWebApplicationFactory(
             useIntegrationTestAuthentication: true);

@@ -426,7 +426,6 @@ public sealed class RetainedMailTests
 
     [Fact]
     public async Task GetByOriginReceiptUsesTheAuthorizedReceiptLookup()
-
     {
         var originReceiptId = Guid.NewGuid();
         var queries = new Queries
