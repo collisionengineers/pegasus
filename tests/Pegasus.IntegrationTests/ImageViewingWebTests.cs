@@ -210,10 +210,10 @@ public sealed class ImageViewingWebTests
             casePage,
             StringComparison.OrdinalIgnoreCase);
 
-        // A photograph with a crop recorded on its record is addressed with the
-        // preparation version the tile route draws it with. Named that way the
-        // browser may keep it; addressed as "no preparation" it would be drawn
-        // cropped and never kept.
+        // A photograph with a crop recorded on its record keeps the address it
+        // had before tiles were renderings: the original, so this page still
+        // shows it whole and the browser keeps it as before. (Showing the crop
+        // here is not decided.) An unprepared one, above, is the tile address.
         await scope.ServiceProvider.GetRequiredService<ISavePreCaseImageCrop>().ExecuteAsync(
             new SavePreCaseImageCropRequest(
                 imageAssetId,
@@ -222,21 +222,20 @@ public sealed class ImageViewingWebTests
                 new CaseAssetCrop(0.1m, 0.2m, 0.5m, 0.6m),
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
                 Guid.NewGuid().ToString("N")));
-        var preparedTile = $"{expectedSource}?size=thumb&amp;v={contentHash}&amp;prep=1&amp;renderer={CaseDocumentThumbnails.RendererIdentity}";
         var croppedCasePage = await IntakeWebDriver.GetHtmlAsync(
             client,
             $"/Cases/{caseId:D}?section=files");
-        Assert.Contains($"data-thumb=\"{preparedTile}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"<img src=\"{preparedTile}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(expectedTile, croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"data-thumb=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<img src=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"data-download-href=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
-        using (var kept = await client.GetAsync(preparedTile.Replace("&amp;", "&", StringComparison.Ordinal)))
+        Assert.DoesNotContain(expectedTile, croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"{expectedSource}?size=thumb", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        // The original's address is kept for a week, as it was before.
+        using (var kept = await client.GetAsync(expectedHref))
         {
             Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
             Assert.Equal(TimeSpan.FromDays(7), kept.Headers.CacheControl!.MaxAge);
-            Assert.Equal(
-                $"\"{contentHash.ToLowerInvariant()}-p1-{CaseDocumentThumbnails.RendererIdentity}\"",
-                kept.Headers.ETag!.Tag);
+            Assert.Equal($"\"{contentHash.ToLowerInvariant()}\"", kept.Headers.ETag!.Tag);
         }
 
         // The overview tab does not pay the gallery query cost.
