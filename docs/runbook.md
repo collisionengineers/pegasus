@@ -799,10 +799,11 @@ bounds.
 Some requests are no longer recorded. Readiness probes (`/health`), the
 version endpoint (`/diagnostics`), static files (`/css`, `/js`, `/fonts`,
 `/images`) and the Always On ping (`GET /` answered with a redirect) leave no
-request row, and their SQL calls leave no dependency row. A failed one
-(unsuccessful, or a 5xx) is always kept, so the failed-request alert and a
-failing probe still show. Count probes from the platform's own health view,
-not from `AppRequests`. The readiness probe reads the database with one call.
+request row, and their SQL calls leave no dependency row. The SQL and other
+calls of a keep-warm pass (see [Web start](#web-start)) leave no dependency
+row either. A failed one (unsuccessful, or a 5xx) is always kept, so the
+failed-request alert, a failing probe and a failing keep-warm call still show.
+Count probes from the platform's own health view, not from `AppRequests`. The readiness probe reads the database with one call.
 After the first probe that finds the schema current it only connects, and a
 probe that fails remembers nothing, so the next one checks again.
 
@@ -844,8 +845,10 @@ reads and writes nothing. It covers the Work Centre, the Inbox list, the newest
 Case's page and the report renderer. Readiness waits only for the first pass.
 The renderer is warmed right after it, in a step of its own
 (`Startup warm-up step report-renderer finished in <ms> ms`). Each pass runs
-under one `Pegasus.Warmup` activity, so its SQL rows share one operation id and
-it makes no request row. Each pass logs `Warm-up pass finished in <ms> ms` at
+under one `Pegasus.Warmup` activity and makes no request row. Its successful
+SQL and other calls leave no dependency row, so `AppDependencies` holds only a
+pass's failed calls; the failed calls of one pass share one operation id. Each
+pass logs `Warm-up pass finished in <ms> ms` at
 Debug. That line reaches the log only where the
 `Pegasus.Web.Health.StartupWarmup` category is lowered to Debug. The first
 failure of a step is a warning, `Warm-up step <name> failed after <ms> ms`.

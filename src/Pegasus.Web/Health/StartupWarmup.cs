@@ -123,8 +123,10 @@ internal sealed class StartupWarmupHealthCheck(StartupWarmupState state) : IHeal
 /// touch a cold path after a quiet spell: the Work Centre's three sections
 /// together, as the page reads them, the Inbox list, the newest Case's page
 /// and the report renderer. It never writes: the recent-Cases read does not
-/// mark the feed seen. Each pass runs under one <c>Pegasus.Warmup</c> activity,
-/// so its dependency rows share an operation id and it makes no request row.
+/// mark the feed seen. Each pass runs under one <c>Pegasus.Warmup</c> activity
+/// and makes no request row. <see cref="QuietRequestTelemetryFilter"/> drops
+/// the pass's successful dependency rows by that activity, so only its failed
+/// calls are recorded, and those share the pass's operation id.
 /// </para>
 /// </summary>
 internal sealed partial class StartupWarmup(
@@ -244,8 +246,9 @@ internal sealed partial class StartupWarmup(
         var started = Stopwatch.GetTimestamp();
         try
         {
-            // One operation id for the pass's SQL and other dependency rows, and
-            // no request row: an activity nobody listens to for a request.
+            // The activity marks the pass's calls: the telemetry filter drops the
+            // successful ones, and the failed ones share its operation id. It
+            // makes no request row: nobody listens to it for a request.
             using var activity = new Activity(PassActivityName).Start();
             await using var scope = scopes.CreateAsyncScope();
             var services = scope.ServiceProvider;
