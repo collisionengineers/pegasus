@@ -347,8 +347,10 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 /// folder again, still within that ten-minute bound.
 ///
 /// A write never uses that memory. An upload goes only into a
-/// <see cref="ProvedFolder"/>, which one read of the folder produces
-/// (<see cref="ProveCaseFolderAsync"/> or <see cref="ProveFolderAsync"/>).
+/// <see cref="ProvedFolder"/>, which fresh reads of the folder produce:
+/// one for a Case folder (<see cref="ProveCaseFolderAsync"/>), or one for any
+/// other folder and one for each folder above it up to the root
+/// (<see cref="ProveFolderAsync"/>).
 /// The upload does not look for its name first and does not walk the path
 /// afterwards. Box's own answer must name the proved folder as the file's
 /// parent, and a name Box already holds is Box's 409, resolved by comparing
@@ -385,7 +387,7 @@ internal sealed class BoxContentClient(
         string? ParentId);
 
     /// <summary>
-    /// A folder that one read has proved fit to be written into. Only the
+    /// A folder that fresh reads have proved fit to be written into. Only the
     /// client's own prove methods make one, and an upload takes nothing else,
     /// so no file reaches Box without its folder having been proved first.
     /// </summary>

@@ -156,10 +156,11 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 address.BoxFileId!,
                 address.BoxVersionId);
         }
-        // The folder is proved by one read before anything is filed into it,
-        // and never from the read path's memory. The store cannot tell a Case
-        // folder from the Audit's a. folder, so the proof is the folder's place
-        // under the approved root and its trash state. The name is not looked
+        // The folder is proved before anything is filed into it, and never
+        // from the read path's memory. The store cannot tell a Case folder
+        // from the Audit's a. folder, so the proof is the folder's place under
+        // the approved root and its trash state: one read for a Case folder,
+        // one more for the a. folder inside it. The name is not looked
         // for first: a file that already holds it is Box's 409, and the client
         // says so, having compared its content with this content.
         var folder = await client.ProveFolderAsync(caseFolder, cancellationToken);
