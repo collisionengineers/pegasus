@@ -760,8 +760,11 @@ internal sealed class BoxContentClient(
     /// <summary>
     /// A 409 on an upload that is not a name already in use. Box says "later"
     /// for the two codes that a folder's other work can raise; anything else is
-    /// a refusal of the name. Both are the same failure to the caller, which
-    /// retries its work item.
+    /// a refusal of the name. Both are the same failure to the caller, and
+    /// what follows is the caller's. An image-case custody item re-arms itself
+    /// with backoff. A Case's custody item stays failed until staff retry it.
+    /// A Case document whose upload failed stays pending, and reconciliation
+    /// files it later.
     /// </summary>
     private static HttpRequestException ConflictFailure(string? errorCode) => new(
         errorCode switch

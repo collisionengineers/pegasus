@@ -1154,7 +1154,9 @@ internal sealed class EfQueuedCustodyProcessor(
     /// The first failure stops the batch: uploads not yet started never start,
     /// running ones are cancelled, and that first failure, not a sibling's
     /// cancellation, is what surfaces. A throttled Box (429) is therefore the
-    /// work item's failure as it was, and the queue retries the item.
+    /// work item's failure, as it was. An image-case custody item then re-arms
+    /// itself with backoff. A Case's custody item stays failed until staff
+    /// retry it.
     ///
     /// The lease is checked once after the batch, and the caller checked it
     /// before. The adapter checks it once more before each upload, as it always
