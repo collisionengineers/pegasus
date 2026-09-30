@@ -1082,23 +1082,32 @@ public sealed partial class ReconcilePendingArtifactCustody
             from version in db.Set<DocumentVersionEntity>().AsNoTracking()
             where version.CustodyStatus == DocumentCustodyStatus.Pending
                 && version.PendingContentStorageKey != null
-            let attempts = db.Set<ActionHistoryEntity>()
+            // Each let is a scalar over its own correlated subquery. A let that held
+            // the attempts as a query would sit in the projection and EF cannot
+            // translate a collection there.
+            let lastFailed = db.Set<ActionHistoryEntity>()
                 .Where(history => history.AggregateType == nameof(DocumentVersionEntity)
                     && history.AggregateId == version.Id.ToString()
-                    && history.EventKind == AttemptEvent)
-            let lastFailed = attempts
-                .Where(history => history.Outcome == FailedOutcome)
+                    && history.EventKind == AttemptEvent
+                    && history.Outcome == FailedOutcome)
                 .Max(history => (DateTimeOffset?)history.OccurredAtUtc)
-            let lastRetained = attempts
-                .Where(history => history.Outcome == RetainedOutcome)
+            let lastRetained = db.Set<ActionHistoryEntity>()
+                .Where(history => history.AggregateType == nameof(DocumentVersionEntity)
+                    && history.AggregateId == version.Id.ToString()
+                    && history.EventKind == AttemptEvent
+                    && history.Outcome == RetainedOutcome)
                 .Max(history => (DateTimeOffset?)history.OccurredAtUtc)
             where lastFailed > since && (lastRetained == null || lastRetained < lastFailed)
             select new
             {
                 version.Id,
                 LastFailedAtUtc = lastFailed,
-                ConsecutiveFailures = attempts.Count(history => history.Outcome == FailedOutcome
-                    && (lastRetained == null || history.OccurredAtUtc > lastRetained))
+                ConsecutiveFailures = db.Set<ActionHistoryEntity>()
+                    .Count(history => history.AggregateType == nameof(DocumentVersionEntity)
+                        && history.AggregateId == version.Id.ToString()
+                        && history.EventKind == AttemptEvent
+                        && history.Outcome == FailedOutcome
+                        && (lastRetained == null || history.OccurredAtUtc > lastRetained))
             })
             .ToArrayAsync(cancellationToken);
         return failedLately
