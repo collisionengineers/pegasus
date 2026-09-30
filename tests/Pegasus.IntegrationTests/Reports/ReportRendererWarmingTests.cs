@@ -13,6 +13,11 @@ namespace Pegasus.IntegrationTests.Reports;
 /// </summary>
 public sealed class ReportRendererWarmingTests
 {
+    /// <summary>
+    /// The warm-up leaves the renderer started: the report's fonts are
+    /// registered. They are registered once per process, so this is decisive
+    /// when the class runs alone, before any other render.
+    /// </summary>
     [Fact]
     public async Task WarmingRendersAPageWithoutACaseAndLeavesTheGateFree()
     {
@@ -22,6 +27,7 @@ public sealed class ReportRendererWarmingTests
 
         await warmer.WarmAsync().WaitAsync(TimeSpan.FromSeconds(60));
 
+        Assert.True(ReportResources.FontsRegistered);
         await SettledAsync(gate);
         Assert.Equal(0, gate.InFlight);
     }
