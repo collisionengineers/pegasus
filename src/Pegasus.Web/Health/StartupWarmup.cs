@@ -253,8 +253,21 @@ internal sealed partial class StartupWarmup(
                 var newCases = services.GetRequiredService<IListRecentCases>().ExecuteAsync(
                     actor, 1, markSeen: false, cancellationToken, now);
                 var aiJobs = services.GetRequiredService<IAiJobQueries>().ListOpenAsync(cancellationToken);
-                await Task.WhenAll(attention, newCases, aiJobs);
-                caseId = (await newCases).Page.Items.Select(item => (Guid?)item.CaseId).FirstOrDefault();
+                try
+                {
+                    await Task.WhenAll(attention, newCases, aiJobs);
+                }
+                finally
+                {
+                    // The newest Case is the recent-Cases read's alone, so a
+                    // failed attention or jobs read still leaves the pass its
+                    // Case page step.
+                    if (newCases.IsCompletedSuccessfully)
+                    {
+                        caseId = (await newCases).Page.Items.Select(item => (Guid?)item.CaseId).FirstOrDefault();
+                    }
+                }
+
                 await services.GetRequiredService<IAiDraftQueries>().ListOpenAsync(cancellationToken);
             }, stoppingToken);
             await KeepWarmStepAsync(

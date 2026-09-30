@@ -360,6 +360,26 @@ public sealed class StartupWarmupTests
     }
 
     [Fact]
+    public async Task AFailedWorkCentreReadStillLeavesThePassTheNewestCasePage()
+    {
+        var reads = new RecordingReads();
+        await using var run = new KeepWarmRun(reads, TimeSpan.FromMinutes(3));
+        await run.StartAsync();
+
+        reads.SnapshotFails = true;
+        await run.PassAsync(TimeSpan.FromMinutes(3));
+
+        // The attention read failed the Work Centre step, but the recent-Cases
+        // read beside it named the newest Case, so its page was still read.
+        Assert.Single(
+            run.Logger.Entries,
+            entry => entry.Message.StartsWith("Warm-up step work-centre failed after ", StringComparison.Ordinal));
+        Assert.Equal(2, reads.Calls("case-kind"));
+        Assert.Equal(2, reads.Calls("case-workspace"));
+        Assert.All(reads.CaseIdsRead, id => Assert.Equal(RecordingReads.NewestCaseId, id));
+    }
+
+    [Fact]
     public async Task EachPassRunsUnderItsOwnWarmupActivityAndItsReadsShareIt()
     {
         var reads = new RecordingReads();
@@ -569,8 +589,8 @@ public sealed class StartupWarmupTests
     /// <summary>
     /// One fake for every read a warm-up pass makes. It records what it was
     /// asked, in order, with the activity each read ran under; it can refuse
-    /// the mailbox read of the Inbox, and can hold the three reads of the Work
-    /// Centre until all three have been started.
+    /// the attention read or the mailbox read of the Inbox, and can hold the
+    /// three reads of the Work Centre until all three have been started.
     /// </summary>
     private sealed class RecordingReads :
         IGetOperationsSnapshot,
@@ -597,6 +617,9 @@ public sealed class StartupWarmupTests
 
         /// <summary>Whether the mailbox read of the Inbox throws.</summary>
         public bool InboxFails { get; set; }
+
+        /// <summary>Whether the Work Centre's attention read throws once it has been entered.</summary>
+        public bool SnapshotFails { get; set; }
 
         public bool[] MarkSeenValues => Snapshot(markSeenValues);
 
@@ -635,6 +658,11 @@ public sealed class StartupWarmupTests
         {
             Note("snapshot");
             await EnterWorkCentreReadAsync();
+            if (SnapshotFails)
+            {
+                throw new InvalidOperationException("The attention read is unreadable.");
+            }
+
             return null!;
         }
 
