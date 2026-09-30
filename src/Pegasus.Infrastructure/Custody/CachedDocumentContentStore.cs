@@ -86,7 +86,12 @@ internal sealed partial class CachedDocumentContentStore(
         IDocumentContentCacheCleanup,
         IDocumentContentCachePublisher
 {
-    private static readonly TimeSpan IdleLifetime = TimeSpan.FromHours(24);
+    /// <summary>
+    /// How long an original is kept after it was last read or filed. A file is
+    /// cached when it is filed, so the first view of anything filed in the last
+    /// two weeks is a hit even if nobody has opened it since.
+    /// </summary>
+    private static readonly TimeSpan IdleLifetime = TimeSpan.FromDays(14);
 
     /// <summary>
     /// How long cleanup holds the entry it has claimed. Only cleanup takes
@@ -499,9 +504,9 @@ internal sealed partial class CachedDocumentContentStore(
     /// A hit is the entry read and, at most once an hour, one conditional
     /// update that pushes its idle expiry out. The update happens before the
     /// object is read, and cleanup claims only expired entries, so an entry
-    /// being served always has most of a day left: cleanup cannot remove the
-    /// object under the read. An entry that expired, or that cleanup has
-    /// claimed, is a miss.
+    /// being served always has almost all of its two weeks left: cleanup
+    /// cannot remove the object under the read. An entry that expired, or that
+    /// cleanup has claimed, is a miss.
     /// </remarks>
     private async Task<Stream?> TryOpenCachedAsync(
         ResolvedSource source,
@@ -1281,7 +1286,7 @@ internal sealed class DocumentThumbnailCache(
 
     /// <summary>
     /// How long an unused plain rendering is kept. The Worker makes these
-    /// ahead of the first view, so they outlive the content cache's day.
+    /// ahead of the first view, so they outlive the content cache's two weeks.
     /// </summary>
     internal static readonly TimeSpan PlainIdleLifetime = TimeSpan.FromDays(30);
 
