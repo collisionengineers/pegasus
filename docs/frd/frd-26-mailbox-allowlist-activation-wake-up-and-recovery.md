@@ -116,10 +116,13 @@ That empty read is not a failure: the cursor stays where it was, the message
 is still ahead of the next delta sweep, and the mailbox-scoped source
 identity that both routes derive keeps exactly one occurrence however many
 notifications arrive. A message is downloaded once. When the delta lists a
-message the wake has already retained, the sweep finds its Internet message id
-in the mailbox's retained mail, does not download it and moves the cursor past
-it. A message with no Internet message id in the delta is downloaded as usual,
-and a downloaded message keeps every duplicate and contradiction check.
+message the wake has already retained, the sweep finds the same item, by its
+immutable message ID and Internet message ID, in the mailbox's retained mail.
+It does not download it and moves the cursor past it. Another item that
+reuses a retained Internet message ID is downloaded, so different bytes stay a
+visible identity conflict. A message with no Internet message ID in the delta
+is downloaded as usual, and a downloaded message keeps every duplicate and
+contradiction check.
 Lifecycle `missed`, `subscriptionRemoved` and reauthorization events
 schedule the same delta resynchronisation; they are not another processing
 route.
@@ -165,6 +168,8 @@ The states of a retained message are owned by
   the next sweep picks it up.
 - A delta item the mailbox already retained (its wake ran first): not
   downloaded again; the cursor moves past it.
+- A different delta item that reuses a retained Internet message ID:
+  downloaded; different bytes are quarantined as an identity conflict.
 - A tenant that has not admitted the application: that mailbox alone fails
   and says so.
 - An unknown, expired, malformed or wrongly scoped notification: refused
