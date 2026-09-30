@@ -200,13 +200,61 @@ public sealed class RuntimeHeartbeatTests
         Assert.False(Assert.IsAssignableFrom<Task>(heartbeat.ExecuteTask).IsCompleted);
 
         lifetime.Start();
-        var message = await logger.FirstMessage.WaitAsync(TimeSpan.FromSeconds(30));
+        var message = await logger.FirstInformation.WaitAsync(TimeSpan.FromSeconds(30));
         await heartbeat.StopAsync(CancellationToken.None);
 
         Assert.StartsWith("Runtime heartbeat: ", message, StringComparison.Ordinal);
         Assert.Contains("threads=", message, StringComparison.Ordinal);
         Assert.Single(logger.Messages);
         Assert.Equal(LogLevel.Information, logger.Levels[0]);
+    }
+
+    /// <summary>
+    /// A background service that throws stops the host, so a bad setting must
+    /// not: it logs one warning, the default applies, and the heartbeat still
+    /// runs. A value over the timer's longest period and one under its
+    /// shortest are as unusable as text that is not a time span.
+    /// </summary>
+    [Theory]
+    [InlineData("banana")]
+    [InlineData("5 minutes")]
+    [InlineData("00:00:00.0001")]
+    [InlineData("9999.00:00:00")]
+    public async Task AnUnusableIntervalLogsOneWarningAndTheHeartbeatRunsWithTheDefault(string interval)
+    {
+        var logger = new RecordingLogger();
+        using var lifetime = new FakeLifetime();
+        using var heartbeat = new RuntimeHeartbeat(lifetime, Configuration(interval), logger);
+
+        await heartbeat.StartAsync(CancellationToken.None);
+        var warning = await logger.FirstWarning.WaitAsync(TimeSpan.FromSeconds(30));
+        lifetime.Start();
+        var message = await logger.FirstInformation.WaitAsync(TimeSpan.FromSeconds(30));
+        var run = Assert.IsAssignableFrom<Task>(heartbeat.ExecuteTask);
+        Assert.False(run.IsCompleted);
+        await heartbeat.StopAsync(CancellationToken.None);
+
+        Assert.Contains("Diagnostics:HeartbeatInterval", warning, StringComparison.Ordinal);
+        Assert.Contains(interval, warning, StringComparison.Ordinal);
+        Assert.Contains("default of 5 minutes", warning, StringComparison.Ordinal);
+        Assert.StartsWith("Runtime heartbeat: ", message, StringComparison.Ordinal);
+        Assert.True(run.IsCompletedSuccessfully);
+        Assert.Single(logger.Levels, level => level == LogLevel.Warning);
+    }
+
+    [Fact]
+    public async Task ABlankIntervalUsesTheDefaultWithoutAWarning()
+    {
+        var logger = new RecordingLogger();
+        using var lifetime = new FakeLifetime();
+        using var heartbeat = new RuntimeHeartbeat(lifetime, Configuration(" "), logger);
+
+        await heartbeat.StartAsync(CancellationToken.None);
+        lifetime.Start();
+        await logger.FirstInformation.WaitAsync(TimeSpan.FromSeconds(30));
+        await heartbeat.StopAsync(CancellationToken.None);
+
+        Assert.DoesNotContain(LogLevel.Warning, logger.Levels);
     }
 
     private static IConfiguration Configuration(string interval) =>
@@ -236,11 +284,14 @@ public sealed class RuntimeHeartbeatTests
     private sealed class RecordingLogger : ILogger<RuntimeHeartbeat>
     {
         private readonly object gate = new();
-        private readonly TaskCompletionSource<string> first = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<string> firstInformation = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<string> firstWarning = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly List<string> messages = [];
         private readonly List<LogLevel> levels = [];
 
-        public Task<string> FirstMessage => first.Task;
+        public Task<string> FirstInformation => firstInformation.Task;
+
+        public Task<string> FirstWarning => firstWarning.Task;
 
         public string[] Messages
         {
@@ -283,7 +334,14 @@ public sealed class RuntimeHeartbeatTests
                 levels.Add(logLevel);
             }
 
-            first.TrySetResult(message);
+            if (logLevel == LogLevel.Information)
+            {
+                firstInformation.TrySetResult(message);
+            }
+            else if (logLevel == LogLevel.Warning)
+            {
+                firstWarning.TrySetResult(message);
+            }
         }
     }
 }

@@ -12,7 +12,9 @@ namespace Pegasus.Web.Health;
 /// Plan memory sits near its limit, and the platform's own figures do not say
 /// what holds it. Every figure is best effort and left out when its source is
 /// absent. The service starts after the host has started, so it never delays
-/// the port, and it never throws out of its loop.
+/// the port. Nothing in it can stop the host: a setting that is not a usable
+/// interval logs one warning and the default applies, and any other failure
+/// ends only the heartbeat, with one warning.
 /// </summary>
 internal sealed partial class RuntimeHeartbeat(
     IHostApplicationLifetime lifetime,
@@ -23,17 +25,26 @@ internal sealed partial class RuntimeHeartbeat(
 
     private const string IntervalKey = "Diagnostics:HeartbeatInterval";
 
+    // A PeriodicTimer takes 1 ms up to 0xFFFFFFFE ms (about 49.7 days).
+    private static readonly TimeSpan ShortestInterval = TimeSpan.FromMilliseconds(1);
+    private static readonly TimeSpan LongestInterval = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
+
+    /// <summary>
+    /// Nothing here escapes but the host's own cancellation, which is caught:
+    /// a background service that throws stops the host, and a diagnostic must
+    /// not.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.Yield();
-        var interval = configuration.GetValue(IntervalKey, DefaultInterval);
-        if (interval <= TimeSpan.Zero)
-        {
-            return;
-        }
-
         try
         {
+            await Task.Yield();
+            var interval = ReadInterval();
+            if (interval <= TimeSpan.Zero)
+            {
+                return;
+            }
+
             var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             await using var registration = lifetime.ApplicationStarted.Register(() => started.TrySetResult());
             await started.Task.WaitAsync(stoppingToken);
@@ -48,6 +59,45 @@ internal sealed partial class RuntimeHeartbeat(
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // The host is stopping.
+        }
+        catch (Exception exception)
+        {
+            EndHeartbeat(exception);
+        }
+    }
+
+    /// <summary>
+    /// The configured interval: the default when the key is absent or blank,
+    /// zero or less to turn the heartbeat off, and otherwise a time span a
+    /// timer can use. Anything else logs one warning and gives the default.
+    /// </summary>
+    private TimeSpan ReadInterval()
+    {
+        var text = configuration[IntervalKey];
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return DefaultInterval;
+        }
+
+        if (TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var interval)
+            && (interval <= TimeSpan.Zero || (interval >= ShortestInterval && interval <= LongestInterval)))
+        {
+            return interval;
+        }
+
+        LogUnusableInterval(logger, text, DefaultInterval.TotalMinutes);
+        return DefaultInterval;
+    }
+
+    private void EndHeartbeat(Exception exception)
+    {
+        try
+        {
+            LogHeartbeatEnded(logger, exception);
+        }
+        catch (Exception)
+        {
+            // Logging is best effort too.
         }
     }
 
@@ -152,4 +202,12 @@ internal sealed partial class RuntimeHeartbeat(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Runtime heartbeat: {Values}")]
     private static partial void LogHeartbeat(ILogger logger, string values);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Diagnostics:HeartbeatInterval '{Value}' is not a usable interval; using the default of {DefaultMinutes} minutes")]
+    private static partial void LogUnusableInterval(ILogger logger, string value, double defaultMinutes);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The runtime heartbeat stopped; the host is unaffected")]
+    private static partial void LogHeartbeatEnded(ILogger logger, Exception exception);
 }
