@@ -8,8 +8,8 @@ namespace Pegasus.IntegrationTests;
 /// watches the files of one work item being filed: how many are in flight at
 /// once and which ordinals started. It can hold the first retains until a
 /// given number of them are in flight together, which only a caller that files
-/// concurrently gets past; fail one chosen ordinal; and run a hook once the
-/// held retains are all in flight.
+/// concurrently gets past; fail one chosen ordinal; run a hook once the held
+/// retains are all in flight; and run a hook after each file is filed.
 /// </summary>
 internal sealed class CustodyBatchProbe(ICaseCustody inner, int holdUntilConcurrent = 0) : ICaseCustody
 {
@@ -32,6 +32,13 @@ internal sealed class CustodyBatchProbe(ICaseCustody inner, int holdUntilConcurr
 
     /// <summary>Runs once, when the held retains are all in flight and before any is released.</summary>
     public Func<Task>? WhenAllInFlight { get; init; }
+
+    /// <summary>
+    /// Runs after the real adapter has filed an ordinal and before the caller
+    /// has its result. That file's own lease check, made before the probe is
+    /// called, has passed by then.
+    /// </summary>
+    public Func<int, Task>? WhenFiled { get; init; }
 
     public Task<CaseCustodyRoot> CreateCaseRootAsync(
         Guid caseId,
@@ -123,7 +130,12 @@ internal sealed class CustodyBatchProbe(ICaseCustody inner, int holdUntilConcurr
                 }
                 await allInFlight.Task.WaitAsync(HoldLimit, cancellationToken);
             }
-            return await file();
+            var version = await file();
+            if (WhenFiled is not null)
+            {
+                await WhenFiled(ordinal);
+            }
+            return version;
         }
         finally
         {
