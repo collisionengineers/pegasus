@@ -150,8 +150,8 @@ public sealed class SqlServerReadinessEndpointTests
 
     /// <summary>
     /// A probe that finds pending migrations remembers nothing: the next probe
-    /// reads the migration history again and sees the database once it is
-    /// current.
+    /// reads the migration history again, so it still reports them while they
+    /// are pending and sees the database once it is current.
     /// </summary>
     [Fact]
     public async Task APendingMigrationIsNotRememberedAndTheNextProbeChecksAgain()
@@ -160,11 +160,13 @@ public sealed class SqlServerReadinessEndpointTests
         using var factory = SqlServerFactory(database.ConnectionString);
         using var client = CreateClient(factory);
 
-        using var pending = await client.GetAsync("/health/ready");
+        using var firstPending = await client.GetAsync("/health/ready");
+        using var secondPending = await client.GetAsync("/health/ready");
         await database.MigrateAsync();
         using var current = await client.GetAsync("/health/ready");
 
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, pending.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, firstPending.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, secondPending.StatusCode);
         Assert.Equal(HttpStatusCode.OK, current.StatusCode);
     }
 
