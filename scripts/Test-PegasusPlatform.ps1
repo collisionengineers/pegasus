@@ -10,18 +10,17 @@ $ErrorActionPreference = 'Stop'
 $nativeBundle = Get-PegasusMigrationBundle
 $expectedWorkerDisabledSettings = @(
     'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
+    'AzureWebJobs.AutomaticEvaReviewSubmissionFunction.Disabled',
     'AzureWebJobs.UnifiedWorkFunction.Disabled',
     'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
     'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
-    'AzureWebJobs.InboxRecoveryFunction.Disabled',
-    'AzureWebJobs.SentEvidencePollFunction.Disabled',
-    'AzureWebJobs.DueWorkSweepFunction.Disabled'
+    'AzureWebJobs.SentEvidencePollFunction.Disabled'
 )
 $actualWorkerDisabledSettings = @(Get-PegasusWorkerDisabledSettingNames)
 if ($actualWorkerDisabledSettings.Count -ne $expectedWorkerDisabledSettings.Count -or
     @($actualWorkerDisabledSettings | Where-Object { $_ -notin $expectedWorkerDisabledSettings }).Count -ne 0 -or
     @($actualWorkerDisabledSettings | Select-Object -Unique).Count -ne $actualWorkerDisabledSettings.Count) {
-    throw 'Worker Disabled setting producer must return the exact distinct seven-name census.'
+    throw 'Worker Disabled setting producer must return the exact distinct six-name census.'
 }
 $platformResolver = ${function:Get-PegasusPlatform}
 try {

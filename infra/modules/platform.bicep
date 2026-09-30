@@ -540,7 +540,10 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
       }
       runtime: { name: 'dotnet-isolated', version: '10.0' }
       scaleAndConcurrency: {
-        maximumInstanceCount: 20
+        // A safety bound only. Flex Consumption applies it to the on-demand instances of each
+        // function group, not to the whole app, and never counts the always-ready instance.
+        // The Worker has never run more than two instances at once.
+        maximumInstanceCount: 5
         instanceMemoryMB: 2048
         alwaysReady: [
           {
@@ -563,19 +566,18 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'IntakeStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
         { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
         // Recovery only: every committing caller attempts exact-ID publication.
+        // The one-minute recovery timer also runs the due-work sweep and the approved-inbox
+        // fallback poll on every fifth minute; they have no schedule or Disabled setting of their own.
         { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
         { name: 'AutomaticEvaReviewSubmissionSchedule', value: '0 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
-        { name: 'ApprovedInboxPollSchedule', value: '0 */5 * * * *' }
-        { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }
-        { name: 'DueWorkSweepSchedule', value: '0 */5 * * * *' }
+        { name: 'SentEvidencePollSchedule', value: '0 * * * * *' }
         { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.AutomaticEvaReviewSubmissionFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.UnifiedWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.InboxRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.SentEvidencePollFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.DueWorkSweepFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
         { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD;ClientId=${workerIdentity.properties.clientId}' }
         { name: 'APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING', value: 'true' }

@@ -78,13 +78,7 @@ public sealed class WorkerCompositionTests
                 "Pegasus.Infrastructure.Custody.EfDocumentThumbnailCandidates",
                 provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>().GetType().FullName);
 
-            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
+            WorkerFunctionSet.AssertEveryFunctionActivates(scopedServices);
         }
         finally
         {
@@ -299,13 +293,7 @@ public sealed class WorkerCompositionTests
             Assert.IsType<Pegasus.Infrastructure.Custody.NoDocumentThumbnailCandidates>(
                 provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>());
 
-            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
+            WorkerFunctionSet.AssertEveryFunctionActivates(scopedServices);
         }
         finally
         {
@@ -437,6 +425,12 @@ public sealed class WorkerCompositionTests
         if (profile.Equals("DevelopmentOffline", StringComparison.Ordinal))
         {
             values["AzureWebJobsStorage"] = "UseDevelopmentStorage=true";
+            // Building AutomaticEvaReviewSubmissionFunction reads the EVA options in
+            // both profiles, and the activation check builds every function.
+            foreach (var (key, value) in CreateProductionValues(root).Where(pair => pair.Key.StartsWith("Eva:", StringComparison.Ordinal)))
+            {
+                values[key] = value;
+            }
         }
 
         return new ConfigurationBuilder()
