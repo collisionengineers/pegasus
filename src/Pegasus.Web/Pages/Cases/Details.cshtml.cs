@@ -889,10 +889,35 @@ public sealed partial class DetailsModel(
         using var activity = DocumentReadTelemetry.Start("web.case.main");
         try
         {
-            using (DocumentReadTelemetry.Start("web.case.frame"))
+            // The frame, the access answer and the workspace each need only the
+            // Case id and read on their own database context, so they start
+            // together. Each keeps its own phase, timed around its own read. The
+            // lease is restored after all three, because it uses TempData.
+            var work = WorkSelector;
+            using var firstReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+            var frameRead = firstReads.Start(async token =>
             {
-                Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
-            }
+                using (DocumentReadTelemetry.Start("web.case.frame"))
+                {
+                    return await getCasePageFrame.ExecuteAsync(new(id, actor, Work: work), token);
+                }
+            });
+            var accessRead = firstReads.Start(async token =>
+            {
+                using (DocumentReadTelemetry.Start("web.case.access"))
+                {
+                    return await getAssessmentAccess.ExecuteAsync(new(id, actor), token);
+                }
+            });
+            var workspaceRead = firstReads.Start(async token =>
+            {
+                using (DocumentReadTelemetry.Start("web.case.workspace"))
+                {
+                    return await getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), token);
+                }
+            });
+            await firstReads.WhenAllAsync();
+            Case = await frameRead;
             if (Case is null)
             {
                 return NotFound();
@@ -900,13 +925,7 @@ public sealed partial class DetailsModel(
             // No access answer is not an editable record: an unresolved
             // result fails closed to read-only, the same direction the
             // pre-case gates fail.
-            AssessmentAccessState? assessmentAccess;
-            using (DocumentReadTelemetry.Start("web.case.access"))
-            {
-                assessmentAccess = await getAssessmentAccess.ExecuteAsync(
-                    new(id, actor),
-                    cancellationToken);
-            }
+            var assessmentAccess = await accessRead;
             AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
             AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
             // The lease decides how much of the record is rendered now, so it is
@@ -917,16 +936,11 @@ public sealed partial class DetailsModel(
                 // Only this page renders a manual renew control, so only it needs that key.
                 RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
             }
-            AssessmentWorkspace? workspace;
-            using (DocumentReadTelemetry.Start("web.case.workspace"))
-            {
-                workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor, WorkSelector), cancellationToken);
-            }
+            var workspace = await workspaceRead;
             // Each phase below starts its independent reads together, at most
             // four at a time and each on its own database context, and sets the
             // page's state only once all of them have finished. The phases stay
             // in order because each uses what the one before it read.
-            var work = WorkSelector;
             using (DocumentReadTelemetry.Start("web.case.direct-sections"))
             {
                 await LoadDirectSectionsAsync(id, actor, workspace, work, cancellationToken);
