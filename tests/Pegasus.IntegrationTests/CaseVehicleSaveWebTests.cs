@@ -211,6 +211,7 @@ public sealed class CaseVehicleSaveWebTests
         // - the Case's AI jobs are read once for the drafts and the pending research (1).
         // The save sent 43 until the lease it reclaims read only the Case's workflow row,
         // then 37, and 35 once its edit basis read the data in two fewer commands.
+        // Measured again at the lane's base (2ee268507) in this scenario: 62 and 43.
         Assert.True(
             pageCommands == CasePageCommands,
             $"The Case page in an edit session sent {pageCommands} SQL commands; it is pinned at {CasePageCommands}."
