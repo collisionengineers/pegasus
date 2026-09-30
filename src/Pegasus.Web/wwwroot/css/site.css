@@ -15,9 +15,13 @@
 /* ---------------------------------------------------------------------------
    Fonts (D13). Inter Variable is vendored under wwwroot/fonts/inter with its
    OFL 1.1 licence; the system stack is the fallback while it loads.
+   The url names the file's static-assets fingerprint, so the font is served
+   immutable. A new font file has a new fingerprint (the build's
+   staticwebassets.build.endpoints.json lists it); StaticAssetCacheWebTests
+   fails until the url names it.
    --------------------------------------------------------------------------- */
 
-@font-face{font-family:Inter;font-style:normal;font-weight:100 900;font-display:swap;src:url(../fonts/inter/InterVariable.woff2) format("woff2")}
+@font-face{font-family:Inter;font-style:normal;font-weight:100 900;font-display:swap;src:url(../fonts/inter/InterVariable.jdjq86kn40.woff2) format("woff2")}
 
 /* ---------------------------------------------------------------------------
    Tokens
