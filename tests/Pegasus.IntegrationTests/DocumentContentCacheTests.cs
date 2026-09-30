@@ -1350,6 +1350,185 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         return (await db.Set<DocumentContentCacheEntryEntity>().AsNoTracking().SingleAsync()).ExpiresAtUtc;
     }
 
+    /// <summary>
+    /// A report's pinned images are looked up together: the account, the
+    /// authorised sources and the cache entries are three SQL calls whatever the
+    /// number of images, and each cached image then opens with no more, until
+    /// its expiry is due to be pushed out and it costs one update. Read one at a
+    /// time, each image cost three calls of its own.
+    /// </summary>
+    [Fact]
+    public async Task ThreePinnedImagesAreLookedUpInThreeSqlCallsAndOpenFromTheCacheWithNoMore()
+    {
+        var estate = await Estate.CreateDocumentAsync("first pinned image"u8.ToArray());
+        await using (estate)
+        {
+            var images = await AddVersionsAsync(estate, "second pinned image", "third pinned image");
+            var container = new NamedCacheContainer();
+            await using var scope = estate.Database.CreateAsyncScope();
+            var box = new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock);
+            var filing = new CachedDocumentContentStore(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                container,
+                box,
+                estate.Clock);
+            foreach (var image in images)
+            {
+                await filing.PublishAsync(
+                    KeyOf(image.Request), image.Bytes, image.Request.ExpectedSha256, CancellationToken.None);
+            }
+            var commands = new CountingCommandInterceptor();
+            var counted = new CachedDocumentContentStore(
+                new PooledDbContextFactory<PegasusDbContext>(
+                    new DbContextOptionsBuilder<PegasusDbContext>()
+                        .UseSqlServer(estate.Database.ConnectionString)
+                        .AddInterceptors(commands)
+                        .Options),
+                container,
+                box,
+                estate.Clock);
+            estate.Box.Unavailable = true;
+            var first = images[0].Request;
+            LogicalDocumentVersionRead[] versions =
+            [
+                .. images.Select(image => new LogicalDocumentVersionRead(
+                    image.Request.DocumentId!.Value,
+                    image.Request.VersionId!.Value,
+                    image.Request.ExpectedSha256,
+                    image.Request.ExpectedContentLength))
+            ];
+
+            // Before: each image is a read of its own, at three calls each.
+            foreach (var image in images)
+            {
+                await using var single = await counted.OpenAsync(image.Request, CancellationToken.None);
+                Assert.Equal(image.Bytes, await ReadAsync(single.Content));
+            }
+            Assert.Equal(9, commands.Count);
+
+            // After: three calls for all of them, and none as each one opens.
+            commands.Reset();
+            var prepared = await counted.PrepareAsync(
+                first.Actor, first.CaseId!.Value, versions, CancellationToken.None);
+            Assert.Equal(3, commands.Count);
+            for (var index = 0; index < images.Count; index++)
+            {
+                await using var content = await prepared[index].OpenAsync(CancellationToken.None);
+                Assert.Equal(images[index].Bytes, await ReadAsync(content.Content));
+                Assert.Equal(images[index].Request.VersionId, content.VersionId);
+            }
+            Assert.Equal(3, commands.Count);
+            Assert.Equal(0, estate.Box.Downloads);
+
+            // Once an hour an entry's expiry is pushed out, and that is one update
+            // as its image opens.
+            estate.Clock.Advance(TimeSpan.FromHours(2));
+            commands.Reset();
+            prepared = await counted.PrepareAsync(
+                first.Actor, first.CaseId!.Value, versions, CancellationToken.None);
+            foreach (var handle in prepared)
+            {
+                await using var content = await handle.OpenAsync(CancellationToken.None);
+                _ = await ReadAsync(content.Content);
+            }
+            Assert.Equal(3 + images.Count, commands.Count);
+            Assert.Equal(0, estate.Box.Downloads);
+        }
+    }
+
+    /// <summary>
+    /// Preparing many versions never fails one because of another: a version
+    /// that cannot be served fails when its own handle is opened, as a single
+    /// read of it would, and the others open. A staff account that is no longer
+    /// current fails the whole preparation, as it fails every single read.
+    /// </summary>
+    [Fact]
+    public async Task APreparedVersionThatCannotBeServedFailsWhenItIsOpenedAndNotItsNeighbours()
+    {
+        var bytes = "an image that can be served"u8.ToArray();
+        var estate = await Estate.CreateDocumentAsync(bytes);
+        await using (estate)
+        {
+            var request = estate.Request;
+            estate.Box.Unavailable = true;
+            await estate.Reader.PublishAsync(
+                KeyOf(request), bytes, request.ExpectedSha256, CancellationToken.None);
+            LogicalDocumentVersionRead[] versions =
+            [
+                new(request.DocumentId!.Value, request.VersionId!.Value, request.ExpectedSha256, bytes.Length),
+                new(request.DocumentId!.Value, Guid.NewGuid(), request.ExpectedSha256, bytes.Length),
+                new(Guid.NewGuid(), request.VersionId!.Value, request.ExpectedSha256, bytes.Length)
+            ];
+
+            var prepared = await estate.Reader.PrepareAsync(
+                request.Actor, request.CaseId!.Value, versions, CancellationToken.None);
+
+            Assert.Equal(3, prepared.Count);
+            await using (var served = await prepared[0].OpenAsync(CancellationToken.None))
+            {
+                Assert.Equal(bytes, await ReadAsync(served.Content));
+            }
+            await Assert.ThrowsAsync<FileNotFoundException>(
+                () => prepared[1].OpenAsync(CancellationToken.None));
+            await Assert.ThrowsAsync<FileNotFoundException>(
+                () => prepared[2].OpenAsync(CancellationToken.None));
+
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Users.SingleAsync(value => value.Id == estate.StaffId)).IsEnabled = false;
+                await db.SaveChangesAsync();
+            }
+            await Assert.ThrowsAsync<StaffAuthorizationException>(() => estate.Reader.PrepareAsync(
+                request.Actor, request.CaseId!.Value, versions, CancellationToken.None));
+        }
+    }
+
+    /// <summary>
+    /// Adds more document versions to the estate's Case, each in a document of
+    /// its own, and returns every version the Case now holds, the estate's own
+    /// first, with the bytes each holds.
+    /// </summary>
+    private static async Task<List<(ReadLogicalDocumentVersionRequest Request, byte[] Bytes)>> AddVersionsAsync(
+        Estate estate, params string[] texts)
+    {
+        var images = new List<(ReadLogicalDocumentVersionRequest Request, byte[] Bytes)>();
+        var first = estate.Request;
+        await using (var db = await estate.Database.CreateContextAsync())
+        {
+            images.Add((first, Encoding.UTF8.GetBytes("first pinned image")));
+            var ordinal = 1;
+            foreach (var text in texts)
+            {
+                var bytes = Encoding.UTF8.GetBytes(text);
+                var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+                var document = new CaseDocumentEntity
+                {
+                    Id = Guid.NewGuid(), CaseId = first.CaseId!.Value, Ordinal = ++ordinal,
+                    SourceOccurrenceIdentity = $"document-cache-{ordinal}"
+                };
+                var version = new DocumentVersionEntity
+                {
+                    Id = Guid.NewGuid(), DocumentId = document.Id, Version = 1,
+                    FileName = $"image-{ordinal}.bin", MediaType = "application/octet-stream",
+                    ContentLength = bytes.Length, Sha256 = hash,
+                    BoxFileId = $"box-file-{ordinal}", BoxVersionId = $"box-version-{ordinal}",
+                    CustodyStatus = DocumentCustodyStatus.Confirmed, CreatedAtUtc = DateTimeOffset.UtcNow,
+                    CreatedBy = "test", IsCurrent = true
+                };
+                db.AddRange(document, version);
+                images.Add((
+                    first with
+                    {
+                        DocumentId = document.Id, VersionId = version.Id,
+                        ExpectedSha256 = hash, ExpectedContentLength = bytes.Length
+                    },
+                    bytes));
+            }
+            await db.SaveChangesAsync();
+        }
+        return images;
+    }
+
     private static DocumentContentCacheKey KeyOf(ReadLogicalDocumentVersionRequest request) =>
         request.VersionId is { } versionId
             ? DocumentContentCacheKey.ForVersion(versionId)

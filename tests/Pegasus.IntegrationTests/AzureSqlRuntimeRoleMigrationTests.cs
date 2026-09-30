@@ -1135,7 +1135,10 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
     // The Worker's thumbnail sweep lists confirmed versions and reads and
     // writes the content cache as the least-privilege Worker role. No grant
-    // was added for it; this asserts the ones it relies on.
+    // was added for it; this asserts the ones it relies on. The cache publisher
+    // the Worker runs at filing (IDocumentContentCachePublisher) inserts and
+    // updates the same table, so it relies on the same grants and needs no
+    // migration of its own.
     [Fact]
     public async Task LatestMigrationGrantsWorkerTheThumbnailSweepTables()
     {
