@@ -930,7 +930,6 @@ public sealed class CaseValuationV26WebTests
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
-                Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 valuation.Register(services);
             }));

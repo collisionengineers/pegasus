@@ -200,7 +200,10 @@ public sealed partial class SendToAiIntegrationTests
         bool canOpen = true)
     {
         var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        var source = new FakeGetCase(caseId);
+        // The page takes its access answer from the Case's state, so a Case the
+        // assessment cannot open is one in a closed state.
+        var source = new FakeGetCase(
+            caseId, canOpen ? CaseLifecycleState.ReportPreparation : CaseLifecycleState.Held);
         var jobs = new RecordingCreateAiJob(refusal);
         return baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -360,7 +363,7 @@ public sealed partial class SendToAiIntegrationTests
             CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class FakeGetCase(Guid caseId) :
+    private sealed class FakeGetCase(Guid caseId, CaseLifecycleState state) :
         IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetCaseVehicleSection,
@@ -395,7 +398,7 @@ public sealed partial class SendToAiIntegrationTests
 
             var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
             var workflow = new CaseWorkflowRecord(
-                caseId, identity, CaseLifecycleState.ReportPreparation, null, null,
+                caseId, identity, state, null, null,
                 null, null, null, null, null, 7);
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
@@ -475,7 +478,7 @@ public sealed partial class SendToAiIntegrationTests
             caseId,
             "QDOS-2026-00042",
             7,
-            CaseLifecycleState.ReportPreparation,
+            state,
             null,
             [
                 new(

@@ -321,7 +321,6 @@ public sealed class CaseDamageAndViewerWebTests
     private sealed class DamageSource(string impacts, string? vehicleType = null) :
         IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
-        IGetAssessmentAccess,
         IGetAssessmentWorkspace,
         ICaseReportSnapshotSource,
         IListCaseEstimates
@@ -332,14 +331,12 @@ public sealed class CaseDamageAndViewerWebTests
         {
             services.RemoveAll<IGetCase>();
             services.RemoveAll<IGetCasePageFrame>();
-            services.RemoveAll<IGetAssessmentAccess>();
             services.RemoveAll<IGetAssessmentWorkspace>();
             services.RemoveAll<ICaseReportSnapshotSource>();
             services.RemoveAll<IListCaseEstimates>();
             services.AddSingleton<IGetCase>(this);
             services.AddSingleton<IGetCaseEditBasis>(this);
             services.AddSingleton<IGetCasePageFrame>(this);
-            services.AddSingleton<IGetAssessmentAccess>(this);
             services.AddSingleton<IGetAssessmentWorkspace>(this);
             services.AddSingleton<ICaseReportSnapshotSource>(this);
             services.AddSingleton<IListCaseEstimates>(this);
@@ -417,12 +414,6 @@ public sealed class CaseDamageAndViewerWebTests
                 details.RecordNotes,
                 details.Data!));
         }
-
-        public Task<AssessmentAccessState?> ExecuteAsync(
-            GetAssessmentAccessQuery query,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<AssessmentAccessState?>(
-                query.CaseId == CaseId ? new(CaseLifecycleState.ReportPreparation) : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,

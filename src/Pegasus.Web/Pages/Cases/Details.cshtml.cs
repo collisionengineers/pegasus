@@ -889,10 +889,11 @@ public sealed partial class DetailsModel(
         using var activity = DocumentReadTelemetry.Start("web.case.main");
         try
         {
-            // The frame, the access answer and the workspace each need only the
-            // Case id and read on their own database context, so they start
-            // together. Each keeps its own phase, timed around its own read. The
-            // lease is restored after all three, because it uses TempData.
+            // The frame and the workspace each need only the Case id and read on
+            // their own database context, so they start together. Each keeps its
+            // own phase, timed around its own read. The access answer is the
+            // frame's workflow state. The lease is restored after both reads,
+            // because it uses TempData.
             var work = WorkSelector;
             using var firstReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
             var frameRead = firstReads.Start(async token =>
@@ -900,13 +901,6 @@ public sealed partial class DetailsModel(
                 using (DocumentReadTelemetry.Start("web.case.frame"))
                 {
                     return await getCasePageFrame.ExecuteAsync(new(id, actor, Work: work), token);
-                }
-            });
-            var accessRead = firstReads.Start(async token =>
-            {
-                using (DocumentReadTelemetry.Start("web.case.access"))
-                {
-                    return await getAssessmentAccess.ExecuteAsync(new(id, actor), token);
                 }
             });
             var workspaceRead = firstReads.Start(async token =>
@@ -922,12 +916,7 @@ public sealed partial class DetailsModel(
             {
                 return NotFound();
             }
-            // No access answer is not an editable record: an unresolved
-            // result fails closed to read-only, the same direction the
-            // pre-case gates fail.
-            var assessmentAccess = await accessRead;
-            AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
-            AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
+            ApplyAssessmentAccess(actor, Case.Workflow);
             // The lease decides how much of the record is rendered now, so it is
             // restored before deciding which section bodies render directly.
             await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
@@ -1312,6 +1301,7 @@ public sealed partial class DetailsModel(
                         return NotFound();
                     }
                     Assessment = VehicleSection.Assessment;
+                    ApplyAssessmentAccess(actor, VehicleSection.Frame.Workflow);
                     break;
                 case "valuation":
                     ValuationSection = await getCaseValuationSection.ExecuteAsync(
@@ -1321,6 +1311,7 @@ public sealed partial class DetailsModel(
                         return NotFound();
                     }
                     Assessment = ValuationSection.Assessment;
+                    ApplyAssessmentAccess(actor, ValuationSection.Frame.Workflow);
                     break;
                 case "notes":
                     NotesSection = await getCaseNotesSection.ExecuteAsync(new(id, actor), cancellationToken);
@@ -1335,19 +1326,10 @@ public sealed partial class DetailsModel(
                     {
                         return NotFound();
                     }
+                    ApplyAssessmentAccess(actor, FilesSection.Frame.Workflow);
                     break;
             }
 
-            // The access decision is used solely to render the section's
-            // current controls. An absent answer fails closed. It neither
-            // restores cookies nor grants a lease; every POST repeats Core
-            // authorization against the live record.
-            if (key is "vehicle" or "valuation" or "files")
-            {
-                var assessmentAccess = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-                AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
-                AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
-            }
             // A mounted body is an asynchronous GET. It must not read or write
             // cookie-backed TempData: its response can otherwise race a Claim,
             // Save or release redirect and replace the browser's lease state.
@@ -3486,10 +3468,8 @@ public sealed partial class DetailsModel(
         if (!TryGetActor(out var actor)) { return Forbid(); }
         Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
         if (Case is null) { return NotFound(); }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true) { return NotFound(); }
-        AssessmentCanOpen = true;
-        AssessmentIsReadOnly = access.IsReadOnly;
+        ApplyAssessmentAccess(actor, Case.Workflow);
+        if (!AssessmentCanOpen) { return NotFound(); }
         // Like lazy section reads, this GET never restores or writes TempData.
         if (!string.IsNullOrWhiteSpace(renderLeaseToken) && validateCaseRenderLease is not null
             && await validateCaseRenderLease.ExecuteAsync(new(id, actor, renderLeaseToken), cancellationToken))
@@ -4521,6 +4501,19 @@ public sealed partial class DetailsModel(
         (await getAssessmentAccess.ExecuteAsync(
             new(caseId, actor),
             cancellationToken))?.CanOpen == true;
+
+    /// <summary>
+    /// A GET's access answer, from the workflow its own read already carries.
+    /// It decides only which controls render: it neither restores cookies nor
+    /// grants a lease, and every POST repeats Core authorization against the
+    /// live record.
+    /// </summary>
+    private void ApplyAssessmentAccess(ActionActor actor, CaseWorkflowRecord workflow)
+    {
+        var access = AssessmentAccessPolicy.For(actor, workflow);
+        AssessmentIsReadOnly = access.IsReadOnly;
+        AssessmentCanOpen = access.CanOpen;
+    }
 
     private static bool IsOperationKeyValid(string value) =>
         Guid.TryParseExact(value, "N", out var operationId) && operationId != Guid.Empty;

@@ -146,9 +146,11 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var caseId = Guid.NewGuid();
+        // The page takes its access answer from the Case's state; Held is a
+        // state the assessment cannot open.
         using var factory = Compose(
             baseFactory,
-            new FakeGetCase(caseId),
+            new FakeGetCase(caseId, CaseLifecycleState.Held),
             FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId)),
             new FakeRenderer([1]),
@@ -838,7 +840,8 @@ public sealed partial class AssessmentReportDraftWebTests
     [GeneratedRegex("<a[^>]*data-section-jump=\"(?<key>[^\"]+)\"[^>]*>(?<label>[^<]*)</a>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex SectionJumpRegex();
 
-    private sealed class FakeGetCase(Guid caseId) :
+    private sealed class FakeGetCase(
+        Guid caseId, CaseLifecycleState state = CaseLifecycleState.ReportPreparation) :
         IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetCaseVehicleSection,
@@ -943,7 +946,7 @@ public sealed partial class AssessmentReportDraftWebTests
 
             var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
             var workflow = new CaseWorkflowRecord(
-                caseId, identity, CaseLifecycleState.ReportPreparation, null, null,
+                caseId, identity, state, null, null,
                 null, null, null, null, null, 0);
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",

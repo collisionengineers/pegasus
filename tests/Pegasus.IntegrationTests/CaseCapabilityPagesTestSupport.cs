@@ -117,8 +117,16 @@ internal static partial class CaseWebTestSupport
         AssertPrg(refused, workspace.Store.CaseId);
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
+        AssertCarriesNoLease(html);
     }
+
+    /// <summary>
+    /// The page carries no edit lease: no form posts a lease token. A control
+    /// that claims its own lease from read mode, such as Import estimate on a
+    /// Case the assessment can open, posts the field empty.
+    /// </summary>
+    internal static void AssertCarriesNoLease(string html) =>
+        Assert.DoesNotMatch("name=\"editLeaseToken\"[^>]*\\svalue=\"[^\"]+\"", html);
 
     /// <summary>
     /// The port received the leased workspace's envelope: the claimant, the case and its version,
