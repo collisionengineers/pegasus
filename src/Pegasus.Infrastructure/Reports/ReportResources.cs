@@ -1,5 +1,6 @@
 using Pegasus.Core.Documents;
 using QuestPDF.Drawing;
+using QuestPDF.Infrastructure;
 
 namespace Pegasus.Infrastructure.Reports;
 
@@ -7,6 +8,18 @@ internal static class ReportResources
 {
     private static readonly Lock FontLock = new();
     private static bool fontsRegistered;
+
+    /// <summary>Whether this process has registered the report's fonts.</summary>
+    internal static bool FontsRegistered
+    {
+        get
+        {
+            lock (FontLock)
+            {
+                return fontsRegistered;
+            }
+        }
+    }
 
     internal static void RegisterFonts()
     {
@@ -28,13 +41,22 @@ internal static class ReportResources
         }
     }
 
-    internal static byte[] Logo()
+    /// <summary>
+    /// The logo as the governed master (<c>docs/design/brand/logos/logo_no_margin.png</c>,
+    /// embedded as it is), loaded once for the process and shared by every document. A
+    /// shared image is not disposed when a document ends, and it keeps the scaled version
+    /// each document asks for, so the 3150 by 1756 master is decoded and scaled once
+    /// rather than once per rendered document. It lives as long as the process.
+    /// </summary>
+    internal static Image Logo() => SharedLogo.Value;
+
+    private static readonly Lazy<Image> SharedLogo = new(() =>
     {
         using var stream = Open("brand.logo.png");
         using var memory = new MemoryStream();
         stream.CopyTo(memory);
-        return memory.ToArray();
-    }
+        return Image.FromBinaryData(memory.ToArray());
+    });
 
     private static Stream Open(string suffix)
     {

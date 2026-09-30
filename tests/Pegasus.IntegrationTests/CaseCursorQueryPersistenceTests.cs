@@ -441,8 +441,8 @@ public sealed class CaseCursorQueryPersistenceTests
 
     /// <summary>
     /// Stream A review: <see cref="ICaseQueryStore.GetHeaderAsync"/>
-    /// returns the same summary/workflow facts <see cref="GetCase"/> would,
-    /// with the document, history and open-task lists reduced to counts.
+    /// returns the Case's summary and workflow facts, with the document,
+    /// history and open-task lists reduced to counts.
     /// </summary>
     [Fact]
     public async Task GetHeaderReturnsCountsWithoutMaterializingTheFullDetails()
@@ -517,6 +517,86 @@ public sealed class CaseCursorQueryPersistenceTests
         Assert.Equal(2, header.DocumentCount);
         Assert.Equal(3, header.HistoryCount);
         Assert.Equal(1, header.OpenTaskCount);
+    }
+
+    /// <summary>
+    /// The documents-only read a mail attachment list uses returns the same
+    /// documents the Files section carries, in the same order, and none for a
+    /// Case that does not exist.
+    /// </summary>
+    [Fact]
+    public async Task TheDocumentsOnlyReadMatchesTheFilesSectionsDocuments()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "DOCS");
+        var caseId = await SeedCaseAsync(database, principalId, lineageId, "DOCS31001", 1, BaseUtcNow);
+        await using (var context = await database.CreateContextAsync())
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                var documentId = Guid.NewGuid();
+                context.Add(new CaseDocumentEntity
+                {
+                    Id = documentId,
+                    CaseId = caseId,
+                    Ordinal = i,
+                    SourceOccurrenceIdentity = $"documents-only:{documentId:N}"
+                });
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<ICaseQueryStore>();
+        var documents = scope.ServiceProvider.GetRequiredService<ICaseDocumentQueries>();
+
+        var only = await documents.ListAsync(caseId, CancellationToken.None);
+        var files = await store.GetFilesSectionAsync(
+            caseId, includeDocuments: true, frame: null, CancellationToken.None);
+
+        Assert.Equal(2, only.Count);
+        Assert.Equal(files!.Documents.Select(item => item.Id), only.Select(item => item.Id));
+        Assert.Empty(await documents.ListAsync(Guid.NewGuid(), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A Case header is four commands: the workflow with its owners, the
+    /// summary row, the three counts as one command, and the Case's works. Before
+    /// the counts were folded it was six. A caller that needs only a Case's
+    /// documents pays less than the Files section, which reads them with the
+    /// Case's frame and correspondence.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseHeaderIsFourCommandsAndTheDocumentsOnlyReadIsFewerThanTheFilesSection()
+    {
+        var counter = new CommandCountingInterceptor();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "HCNT");
+        var caseId = await SeedCaseAsync(database, principalId, lineageId, "HCNT31001", 1, BaseUtcNow);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        await using var scope = database.CreateAsyncScope();
+        var getHeader = new GetCaseHeader(scope.ServiceProvider.GetRequiredService<ICaseQueryStore>());
+        var store = scope.ServiceProvider.GetRequiredService<ICaseQueryStore>();
+        var documents = scope.ServiceProvider.GetRequiredService<ICaseDocumentQueries>();
+
+        counter.Reset();
+        Assert.NotNull(await getHeader.ExecuteAsync(new(caseId, actor), CancellationToken.None));
+        var headerCommands = counter.Count;
+
+        counter.Reset();
+        _ = await store.GetFilesSectionAsync(caseId, includeDocuments: true, frame: null, CancellationToken.None);
+        var filesCommands = counter.Count;
+
+        counter.Reset();
+        _ = await documents.ListAsync(caseId, CancellationToken.None);
+        var documentCommands = counter.Count;
+
+        Assert.Equal(4, headerCommands);
+        Assert.True(
+            documentCommands < filesCommands,
+            $"The documents-only read ({documentCommands}) must cost less than the Files section ({filesCommands}).");
     }
 
     [Fact]
@@ -622,7 +702,7 @@ public sealed class CaseCursorQueryPersistenceTests
                 Reference = reference,
                 Type = "audit",
                 InitialState = "NotReady",
-                CustodyState = "Pending",
+                CustodyState = "pending",
                 OriginIntakeReceiptId = receiptId,
                 CreatedAtUtc = receivedAtUtc,
                 Version = 1,

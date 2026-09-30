@@ -17,12 +17,17 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// How many Box downloads this store has in flight at once, whether they
     /// come from a batch or from separate callers.
     ///
-    /// Every other Box primitive here serialises, and reads are the one place
-    /// that fans out, so the number is deliberately small: a case may hold far
-    /// more photographs than the handful a typical one does, and Box rate
-    /// limits per application. Four overlaps essentially all of a normal
-    /// export's download time while keeping the burst close to what the
-    /// sequential version already asked of Box.
+    /// Reads are the fan-out this gate bounds, so the number is deliberately
+    /// small: a case may hold far more photographs than the handful a typical
+    /// one does, and Box rate limits per application. Four overlaps essentially
+    /// all of a normal export's download time while keeping the burst close to
+    /// what the sequential version already asked of Box.
+    ///
+    /// A write here is one upload for each call, and this gate does not bound
+    /// it. The Worker's custody processor files up to three files of one work
+    /// item at the same time (<c>EfQueuedCustodyProcessor</c>), but those
+    /// uploads do not come through this store: <c>BoxCaseCustody</c> sends
+    /// them to <see cref="BoxContentClient"/> directly.
     ///
     /// This was the batch's degree of parallelism only, so sixty
     /// gallery tiles opened sixty single reads at once and nothing bounded
@@ -80,8 +85,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             address,
             content.Length,
             normalizedHash,
-            () => client.UploadAsync(
-                address.CaseRootRemoteId!,
+            folder => client.UploadAsync(
+                folder,
                 FlatFileName(address),
                 content,
                 address.MediaType,
@@ -114,8 +119,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             address,
             contentLength,
             normalizedHash,
-            () => client.UploadAsync(
-                address.CaseRootRemoteId!,
+            folder => client.UploadAsync(
+                folder,
                 FlatFileName(address),
                 staged,
                 contentLength,
@@ -129,17 +134,16 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         ManagedDocumentContentAddress address,
         long contentLength,
         string normalizedHash,
-        Func<Task<BoxContentClient.BoxItem>> createAsync,
+        Func<BoxContentClient.ProvedFolder, Task<BoxContentClient.BoxUpload>> createAsync,
         CancellationToken cancellationToken)
     {
         var caseFolder = address.CaseRootRemoteId!;
-        var fileName = FlatFileName(address);
         if (address.BoxFileId is { Length: > 0 }
             || address.BoxVersionId is { Length: > 0 })
         {
             RequirePersistedBoxIdentity(address);
-            // A write proves the folder's ancestry itself, never from the
-            // read path's memory.
+            // A replay proves the folder's ancestry with a read of its own,
+            // never from the read path's memory.
             await using var persisted = await OpenOwnedExactVersionAsync(
                 address.BoxFileId!,
                 address.BoxVersionId!,
@@ -153,45 +157,33 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 address.BoxFileId!,
                 address.BoxVersionId);
         }
-        var existing = await client.FindChildAsync(caseFolder, fileName, "file", cancellationToken);
-        if (existing is not null)
+        // The folder is proved before anything is filed into it, and never
+        // from the read path's memory. The store cannot tell a Case folder
+        // from the Audit's a. folder, so the proof is the folder's place under
+        // the approved root and its trash state: one read for a Case folder,
+        // one more for the a. folder inside it. The name is not looked
+        // for first: a file that already holds it is Box's 409, and the client
+        // says so, having compared its content with this content.
+        var folder = await client.ProveFolderAsync(caseFolder, cancellationToken);
+        var upload = await createAsync(folder);
+        var file = upload.File;
+        var versionId = file.VersionId
+            ?? throw new InvalidDataException(upload.Created
+                ? "Box omitted the created file version identity."
+                : "Box omitted the existing file version identity.");
+        if (!upload.Created)
         {
-            // The write path keeps the metadata GET. It decides replay against
-            // conflict before any content is committed, it costs one Box call
-            // per document at intake rather than one per image on the export
-            // the batched read exists to avoid, and the fields it compares are
-            // the ones production proved must come from the file object itself.
-            await VerifyFileMetadataAsync(
-                existing, caseFolder, address.MediaType, contentLength, cancellationToken);
-            await using var retained = await client.OpenVersionReadAsync(
-                existing.Id,
-                existing.VersionId ?? throw new InvalidDataException(
-                    "Box omitted the existing file version identity."),
-                contentLength,
-                cancellationToken);
-            await VerifyStreamAsync(retained, normalizedHash, contentLength, cancellationToken);
-            return new(
-                DocumentContentWriteDisposition.Replay,
-                existing.Id,
-                existing.VersionId
-                    ?? throw new InvalidDataException("Box omitted the existing file version identity."));
+            return new(DocumentContentWriteDisposition.Replay, file.Id, versionId);
         }
-
-        var created = await createAsync();
-        var createdVersionId = created.VersionId
-            ?? throw new InvalidDataException("Box omitted the created file version identity.");
         createdFiles[address.VersionId] = new(
-            created.Id,
+            file.Id,
             address.CaseId,
             address.CaseReference,
             normalizedHash,
             contentLength,
-            createdVersionId,
+            versionId,
             caseFolder);
-        return new(
-            DocumentContentWriteDisposition.Created,
-            created.Id,
-            createdVersionId);
+        return new(DocumentContentWriteDisposition.Created, file.Id, versionId);
     }
 
     /// <summary>
@@ -424,54 +416,6 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 "The managed Box file advanced after creation and cannot be rolled back safely.");
         }
         await client.DeleteFileAsync(created.FileId, cancellationToken);
-    }
-
-    /// <summary>
-    /// Whether a Box file is the revision it is supposed to be.
-    ///
-    /// Box does not return <c>content_type</c> for a file — it is not
-    /// a field of the v2 file object, and asking for it simply yields nothing —
-    /// so <see cref="BoxContentClient.BoxItem.MediaType"/> is null on every
-    /// read. Comparing it unconditionally made this check impossible to pass,
-    /// and no managed Box read had ever succeeded in production: the Evidence
-    /// gallery, the case-document download and the case export all failed the
-    /// same way, each turning the exception into a 404 or a flat refusal.
-    ///
-    /// Ancestry and length are always checked. The type is checked only when
-    /// Box actually supplied one, so a field Box does not send cannot refuse a
-    /// file that is otherwise exactly right. The content hash is verified by
-    /// the caller immediately afterwards and is the real integrity guarantee —
-    /// this check exists to catch the wrong file, not to re-derive its type.
-    /// </summary>
-    internal static bool IsExpectedRevision(
-        BoxContentClient.BoxItem file,
-        string expectedParentId,
-        string expectedMediaType,
-        long expectedLength) =>
-        string.Equals(file.ParentId, expectedParentId, StringComparison.Ordinal)
-        && file.Size == expectedLength
-        && (file.MediaType is not { Length: > 0 } mediaType
-            || string.Equals(mediaType, expectedMediaType, StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>
-    /// The write path's check of an existing file, with its ancestry proved
-    /// in full. A read does not make it: the read checks the file's parent and
-    /// trash state from its own metadata call and then verifies the SHA-256 of
-    /// the bytes, which refuses every wrong file this check would.
-    /// </summary>
-    private async Task VerifyFileMetadataAsync(
-        BoxContentClient.BoxItem file,
-        string expectedParentId,
-        string expectedMediaType,
-        long expectedLength,
-        CancellationToken cancellationToken)
-    {
-        var metadata = await client.GetFileAsync(file.Id, cancellationToken);
-        if (!IsExpectedRevision(metadata, expectedParentId, expectedMediaType, expectedLength))
-        {
-            throw new InvalidDataException(
-                "Managed Box custody ancestry or length metadata is inconsistent.");
-        }
     }
 
     private static void Validate(ManagedDocumentContentAddress address)

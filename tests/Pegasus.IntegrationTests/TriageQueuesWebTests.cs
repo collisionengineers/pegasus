@@ -325,7 +325,7 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(1, await unidentified.CountOpenAsync(CancellationToken.None));
         Assert.Equal(
             "No further action is required.",
-            Assert.Single(await unidentified.ListClosedQueueAsync(null, CancellationToken.None)).ResolutionReason);
+            Assert.Single(await unidentified.ListClosedQueueAsync(null, 100, CancellationToken.None)).ResolutionReason);
 
         using var openResponse = await client.GetAsync("/Cases?tab=unidentified");
         var openHtml = await openResponse.Content.ReadAsStringAsync();

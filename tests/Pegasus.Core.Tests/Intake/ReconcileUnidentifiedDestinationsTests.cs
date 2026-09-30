@@ -626,6 +626,33 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal(expected, result.CanOpenTriage);
     }
 
+    /// <summary>
+    /// The sweep examines the oldest open items up to its bound and no more. The
+    /// fake store keeps the interface's default for the bounded read, so this also
+    /// covers that default.
+    /// </summary>
+    [Fact]
+    public async Task TheSweepExaminesOnlyTheOldestOpenItemsUpToItsBound()
+    {
+        var harness = new Harness();
+        var items = new List<UnidentifiedItem>();
+        foreach (var sequence in new long[] { 1, 2, 3 })
+        {
+            var receipt = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
+            harness.Receipts.Receipts[receipt.Id] = receipt;
+            items.Add(harness.AddOpenItem(sequence, UnidentifiedOrigin.Receipt(receipt.Id)));
+            harness.ImageIntakes.DetailsByOriginReceipt[receipt.Id] =
+                Detail(Guid.NewGuid(), receipt, $"AB12CD{sequence}-01");
+        }
+
+        var result = await harness.Reconciler.ExecuteAsync(2);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(2, 2, 0, 0), result);
+        Assert.Equal(
+            items.Take(2).Select(item => item.Id),
+            harness.Resolve.Requests.Select(request => request.UnidentifiedItemId));
+    }
+
     private sealed class FixedPrincipalGate(Guid? principalId) : ITriagePrincipalGate
     {
         public Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken) =>
@@ -1077,9 +1104,6 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     private sealed class FakeReceiptQueries : IIntakeReceiptQueries
     {
         public Dictionary<Guid, IntakeReceipt> Receipts { get; } = [];
-
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
 
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Receipts.TryGetValue(id, out var receipt) ? receipt : null);

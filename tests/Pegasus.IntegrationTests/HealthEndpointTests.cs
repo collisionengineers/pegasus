@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Pegasus.Web.Health;
 
@@ -73,6 +74,51 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
         while (status != HttpStatusCode.OK && DateTimeOffset.UtcNow < deadline);
 
         Assert.Equal(HttpStatusCode.OK, status);
+    }
+
+    [Fact]
+    public void TheKeepWarmIntervalIsThreeMinutesUnlessConfigured()
+    {
+        Assert.Equal(
+            TimeSpan.FromMinutes(3),
+            factory.Services.GetRequiredService<StartupWarmupState>().KeepWarmInterval);
+
+        // Zero is the once-only setting: the warm-up runs its first pass and ends.
+        using var once = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Startup:WarmupInterval"] = "00:00:00"
+                })));
+        Assert.Equal(
+            TimeSpan.Zero,
+            once.Services.GetRequiredService<StartupWarmupState>().KeepWarmInterval);
+    }
+
+    [Theory]
+    [InlineData(null, 180, null)]
+    [InlineData(" ", 180, null)]
+    [InlineData("00:05:00", 300, null)]
+    [InlineData("00:00:00", 0, null)]
+    [InlineData("banana", 180, "banana")]
+    [InlineData("00:00:00.5", 180, "00:00:00.5")]
+    // Only 00:00:00 means once only; a negative span is a mistake, not a switch.
+    [InlineData("-00:03:00", 180, "-00:03:00")]
+    [InlineData("-00:00:00.0000001", 180, "-00:00:00.0000001")]
+    // A bare number parses as days, so "180" meant as seconds is not taken.
+    [InlineData("180", 180, "180")]
+    [InlineData("5", 180, "5")]
+    // Task.Delay throws past 0xFFFFFFFE ms, about 49.7 days.
+    [InlineData("49.00:00:00", 4_233_600, null)]
+    [InlineData("49.17:02:47.295", 180, "49.17:02:47.295")]
+    [InlineData("50.00:00:00", 180, "50.00:00:00")]
+    public void AnUnusableKeepWarmIntervalKeepsTheDefaultAndIsRemembered(
+        string? text, int expectedSeconds, string? unusable)
+    {
+        var state = StartupWarmupState.FromSettings(warms: true, text);
+
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), state.KeepWarmInterval);
+        Assert.Equal(unusable, state.UnusableIntervalSetting);
     }
 
     [Fact]

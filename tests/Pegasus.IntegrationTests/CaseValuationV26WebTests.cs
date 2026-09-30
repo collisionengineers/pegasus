@@ -923,14 +923,12 @@ public sealed class CaseValuationV26WebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
-                Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 valuation.Register(services);
             }));
@@ -1039,11 +1037,15 @@ public sealed class CaseValuationV26WebTests
                     request.Selection.ConditionDeduction))));
     }
 
+    /// <remarks>
+    /// The page takes the pending research from the Case's AI jobs, so the
+    /// section's jobs are this Case's pending job, if one is set.
+    /// </remarks>
     private sealed class RecordingValuationSection(Guid caseId) :
         IListCaseValuations,
         IListAppliedValuations,
         IListValuationPresets,
-        IMarketResearchQueries,
+        IAiJobQueries,
         IStartMarketResearch
     {
         private static readonly DateTimeOffset RecordedAt = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
@@ -1063,7 +1065,7 @@ public sealed class CaseValuationV26WebTests
             Substitute<IListCaseValuations>(services, this);
             Substitute<IListAppliedValuations>(services, this);
             Substitute<IListValuationPresets>(services, this);
-            Substitute<IMarketResearchQueries>(services, this);
+            Substitute<IAiJobQueries>(services, this);
             Substitute<IStartMarketResearch>(services, this);
         }
 
@@ -1152,8 +1154,25 @@ public sealed class CaseValuationV26WebTests
         public Task<IReadOnlyList<ValuationPreset>> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ValuationPreset>>([.. presets]);
 
-        public Task<AiJobRecord?> GetPendingAsync(Guid forCase, CancellationToken cancellationToken) =>
-            Task.FromResult(forCase == caseId ? pending : null);
+        public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AiJobRecord>>(subjectId == caseId && pending is not null ? [pending] : []);
+
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AiJobQueryPage> ListOpenPageAsync(
+            AiJobKind? kind,
+            string grantId,
+            DateTimeOffset? afterCreatedAtUtc,
+            Guid? afterJobId,
+            int limit,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<AiJobRecord> ExecuteAsync(StartMarketResearchRequest request, CancellationToken cancellationToken)
         {

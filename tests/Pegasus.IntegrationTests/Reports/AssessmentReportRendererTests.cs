@@ -723,6 +723,58 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
+    /// A render is timed in three phases besides the one-off font start, each
+    /// wrapping only its own call: the photo preparation, QuestPDF's
+    /// GeneratePdf and the PdfPig page count. They are allowlisted names with
+    /// no tags, so nothing about the Case or the images leaves the process.
+    /// </summary>
+    [Fact]
+    public async Task ARenderEmitsItsThreeAllowlistedPhasesInOrder()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var stopped = new List<System.Diagnostics.Activity>();
+        using var scope = new System.Diagnostics.Activity(nameof(ARenderEmitsItsThreeAllowlistedPhasesInOrder))
+            .SetIdFormat(System.Diagnostics.ActivityIdFormat.W3C)
+            .Start();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == DocumentReadTelemetry.ActivitySourceName,
+            Sample = static (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
+                System.Diagnostics.ActivitySamplingResult.AllData,
+            ActivityStopped = activity =>
+            {
+                lock (stopped)
+                {
+                    if (activity.TraceId == scope.TraceId)
+                    {
+                        stopped.Add(activity);
+                    }
+                }
+            }
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+
+        await renderer.RenderAsync(ReadySnapshot(), CaseReportArtifactKind.AssessmentReport);
+
+        string[] phases;
+        lock (stopped)
+        {
+            // The one-off font start belongs to the first render in the process.
+            phases = stopped.Select(activity => activity.DisplayName)
+                .Where(name => name != "report.renderer.initialize")
+                .ToArray();
+        }
+
+        Assert.Equal(["report.photos.prepare", "report.pdf.generate", "report.pdf.pagecount"], phases);
+        Assert.All(phases, phase => Assert.True(DocumentReadTelemetry.IsAllowedPhase(phase)));
+        lock (stopped)
+        {
+            Assert.All(stopped, activity => Assert.Empty(activity.TagObjects));
+        }
+    }
+
+    /// <summary>
     /// The ready web fixture with images the page can actually print: the
     /// projection's snapshot, its photo and signature replaced by decodable
     /// bytes under their own custody hashes, and two coded impacts so the

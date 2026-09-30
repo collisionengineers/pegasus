@@ -29,10 +29,11 @@ namespace Pegasus.Web.Pages;
 public partial class IndexModel(
     IGetOperationsSnapshot getOperationsSnapshot,
     IListRecentCases listRecentCases,
-    IAiDraftQueries aiDrafts,
     IAiJobQueries aiJobQueries,
+    ICaseWorkflowConfiguration workflowConfiguration,
     IStaffAccountQueries staffAccounts,
-    IGetCase getCase,
+    IGetCaseHeader getCaseHeader,
+    IGetCaseEditBasis getCaseEditBasis,
     IGetTriage getTriage,
     IAcquireCaseEditLease acquireLease,
     IReleaseCaseEditLease releaseLease,
@@ -236,14 +237,14 @@ public partial class IndexModel(
             caseId,
             returnUrl,
             "assign_engineer",
-            async (actor, details, lease) =>
+            async (actor, basis, lease) =>
             {
                 if (engineerId == Guid.Empty)
                 {
                     throw new ArgumentException("An Engineer is required.", nameof(engineerId));
                 }
 
-                var completeness = details.Data?.Completeness.Values;
+                var completeness = basis.Data.Completeness.Values;
                 await assignEngineer.ExecuteAsync(
                     new AssignCaseEngineerRequest(
                         caseId,
@@ -506,9 +507,12 @@ public partial class IndexModel(
         // Each read starts inside its own async method, so a reader that
         // throws before its first await still fails only its own section.
         var clientId = HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId;
-        var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, cancellationToken);
+        // The open AI jobs and the workflow configuration feed both the
+        // attention list and the AI jobs section, so they are read once.
+        var sharedRead = ReadSharedAiInputsAsync(cancellationToken);
+        var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, sharedRead, cancellationToken);
         var newCasesRead = ReadNewCasesAsync(actor, markSeen: NewCasesPage == 1 && !refresh, cancellationToken);
-        var aiJobsRead = ReadAiJobsAsync(clientId, cancellationToken);
+        var aiJobsRead = ReadAiJobsAsync(clientId, sharedRead, cancellationToken);
         try
         {
             await Task.WhenAll(attentionRead, newCasesRead, aiJobsRead);
@@ -578,6 +582,19 @@ public partial class IndexModel(
         WorkCentreAssignment? Assignment,
         bool OpenAssignment);
 
+    /// <summary>What the attention list and the AI jobs section both need: the open jobs and the workflow configuration.</summary>
+    private sealed record SharedAiInputs(
+        IReadOnlyList<AiJobRecord> OpenJobs,
+        CaseWorkflowConfiguration Configuration);
+
+    private async Task<SharedAiInputs> ReadSharedAiInputsAsync(CancellationToken cancellationToken)
+    {
+        var openRead = aiJobQueries.ListOpenAsync(cancellationToken);
+        var configurationRead = workflowConfiguration.GetCurrentAsync(cancellationToken);
+        await Task.WhenAll(openRead, configurationRead);
+        return new(await openRead, await configurationRead);
+    }
+
     private async Task<AttentionRead> ReadAttentionAsync(
         ActionActor actor,
         NeedsAttentionScope scope,
@@ -586,20 +603,27 @@ public partial class IndexModel(
         string? search,
         Guid? selected,
         bool assign,
+        Task<SharedAiInputs> sharedRead,
         CancellationToken cancellationToken)
     {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.attention");
         var filter = kinds.Count > 0 ? kinds : null;
-        var snapshot = await getOperationsSnapshot.ExecuteAsync(
-            new NeedsAttentionQuery(actor, scope, page, filter, NowUtc, search),
-            cancellationToken);
-        if (snapshot.Attention.Items.Count == 0 && page > snapshot.Attention.TotalPages)
+        SharedAiInputs? shared = null;
+        try
         {
-            // A page past the end (the list shrank) lands on the last page, not an empty one.
-            page = snapshot.Attention.TotalPages;
-            snapshot = await getOperationsSnapshot.ExecuteAsync(
-                new NeedsAttentionQuery(actor, scope, page, filter, NowUtc, search),
-                cancellationToken);
+            shared = await sharedRead;
         }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The AI jobs section reports this failure. The list still reads
+            // for itself, so a section that cannot read never hides the other.
+        }
+
+        var snapshot = await getOperationsSnapshot.ExecuteAsync(
+            new NeedsAttentionQuery(actor, scope, page, filter, NowUtc, search, shared?.OpenJobs, shared?.Configuration),
+            cancellationToken);
+        // Core lands a page past the end on the last page; the page it read is the one shown.
+        page = snapshot.Attention.Page;
 
         // Only the row the address names expands (v30 B); nothing opens by itself.
         var items = snapshot.Attention.Items;
@@ -626,6 +650,11 @@ public partial class IndexModel(
         LoadedAtUtc = read.Snapshot.AsOfUtc;
         Attention = read.Snapshot.Attention;
         Metrics = read.Snapshot.Metrics;
+        // The rail's Case count sums the stage counts and the open Unidentified
+        // queue the snapshot has just read. The rail's Triage count spans every
+        // state, unlike the Triages metric, so the shell still reads that one.
+        RailCountsPageFilter.SetCaseCounts(
+            HttpContext, read.Snapshot.CaseStages, triageCount: null, read.Snapshot.UnidentifiedCount);
         // Core counts the chips over the scope before the kind filter: one read.
         KindCounts = read.Snapshot.Attention.KindCounts;
         Selected = read.Selected;
@@ -642,8 +671,8 @@ public partial class IndexModel(
     {
         try
         {
-            var details = await getCase.ExecuteAsync(new GetCaseQuery(caseId, actor), cancellationToken);
-            if (details is null)
+            var header = await getCaseHeader.ExecuteAsync(new GetCaseHeaderQuery(caseId, actor), cancellationToken);
+            if (header is null)
             {
                 return null;
             }
@@ -653,18 +682,18 @@ public partial class IndexModel(
                 .Where(account => account.IsEnabled)
                 .Select(account => new WorkCentreEngineer(account.Id, account.UserName))
                 .ToArray();
-            var current = details.Workflow.AssignedEngineerId is { } engineerId
+            var current = header.Workflow.AssignedEngineerId is { } engineerId
                 ? accounts.Accounts.FirstOrDefault(account => account.Id == engineerId)?.UserName
                 : null;
             return new WorkCentreAssignment(
                 caseId,
-                details.Summary.Reference,
-                details.Summary.Registration,
-                details.Summary.Claimant,
-                details.Summary.Principal,
+                header.Summary.Reference,
+                header.Summary.Registration,
+                header.Summary.Claimant,
+                header.Summary.Principal,
                 current,
                 engineers,
-                CaseLifecycleRules.CanAssignToSelf(details.Workflow));
+                CaseLifecycleRules.CanAssignToSelf(header.Workflow));
         }
         catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
         {
@@ -677,8 +706,11 @@ public partial class IndexModel(
     private async Task<RecentCasesFeed> ReadNewCasesAsync(
         ActionActor actor,
         bool markSeen,
-        CancellationToken cancellationToken) =>
-        await listRecentCases.ExecuteAsync(actor, NewCasesPage, markSeen, cancellationToken, NowUtc);
+        CancellationToken cancellationToken)
+    {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.newcases");
+        return await listRecentCases.ExecuteAsync(actor, NewCasesPage, markSeen, cancellationToken, NowUtc);
+    }
 
     /// <summary>
     /// The office's unfinished AI work (D9): Queued, Taken and Draft ready from
@@ -687,10 +719,13 @@ public partial class IndexModel(
     /// </summary>
     private async Task<IReadOnlyList<WorkCentreAiJobRow>> ReadAiJobsAsync(
         string? clientId,
+        Task<SharedAiInputs> sharedRead,
         CancellationToken cancellationToken)
     {
-        var open = await aiJobQueries.ListOpenAsync(cancellationToken);
-        var drafts = (await aiDrafts.ListOpenAsync(cancellationToken))
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.aijobs");
+        var shared = await sharedRead;
+        var open = shared.OpenJobs;
+        var drafts = AiDraftPolicy.Drafts(open, shared.Configuration.AiDraftTargetDays)
             .ToDictionary(draft => draft.Job.JobId);
         var windowStart = RecentCasesPolicy.WindowStart(NowUtc);
         var failed = (await aiJobQueries.ListRecentAsync(RecentJobWindow, cancellationToken))
@@ -725,7 +760,7 @@ public partial class IndexModel(
         Guid caseId,
         string? returnUrl,
         string commandName,
-        Func<ActionActor, CaseDetails, CaseEditLease, Task> execute,
+        Func<ActionActor, CaseEditBasis, CaseEditLease, Task> execute,
         string successMessage,
         CancellationToken cancellationToken)
     {
@@ -737,12 +772,12 @@ public partial class IndexModel(
         CaseEditLease? lease = null;
         try
         {
-            var details = await getCase.ExecuteAsync(new GetCaseQuery(caseId, actor), cancellationToken)
+            var basis = await getCaseEditBasis.ExecuteAsync(new GetCaseQuery(caseId, actor), cancellationToken)
                 ?? throw new KeyNotFoundException("The case was not found.");
             lease = await acquireLease.ExecuteAsync(
-                new ClaimCaseEditLeaseRequest(caseId, details.Workflow.Version, actor, NewOperationKey()),
+                new ClaimCaseEditLeaseRequest(caseId, basis.Workflow.Version, actor, NewOperationKey()),
                 cancellationToken);
-            await execute(actor, details, lease);
+            await execute(actor, basis, lease);
             // The committed mutation consumed the lease.
             lease = null;
             StatusMessage = successMessage;

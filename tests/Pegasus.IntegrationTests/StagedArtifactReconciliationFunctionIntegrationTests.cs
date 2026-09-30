@@ -89,8 +89,18 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         // The thumbnail sweep asks for a small number each run; with none to
         // make it logs nothing.
         Assert.Equal(2, thumbnailCandidates.MaximumItems);
-        // Eight reconciliation results and the staff-notification purge.
+        // Eight reconciliation results and the staff-notification purge. Still nine:
+        // the failure lines were always logged, and only their level depends on the
+        // count now. The per-attempt cause of a failed custody item is logged by the
+        // sweep's own logger, not by this function's.
         Assert.Equal(9, logger.States.Count);
+        // A result line that counts failures is a Warning; the same line with none stays
+        // Information. Only the image pairing (2 failures) and Triage pairing (1) counted any.
+        Assert.Equal(LogLevel.Warning, logger.Entries[3].Level);
+        Assert.Equal(LogLevel.Warning, logger.Entries[4].Level);
+        Assert.All(
+            logger.Entries.Where((_, index) => index is not (3 or 4)),
+            entry => Assert.Equal(LogLevel.Information, entry.Level));
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredWorkItems"]);
         Assert.Equal(0, state["Completed"]);
@@ -483,10 +493,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
     private sealed class EmptyIntakeReceiptQueries : IIntakeReceiptQueries
     {
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            throw new InvalidOperationException(
-                "The timer's grouped-image reconciliation must not query queue counts.");
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw new InvalidOperationException(
                 "An empty grouped-image reconciliation page must not fetch a receipt.");

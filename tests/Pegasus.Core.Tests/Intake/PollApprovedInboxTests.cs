@@ -388,6 +388,107 @@ public sealed class PollApprovedInboxTests
         Assert.Equal(first.Metadata.BodyPlainText, second.Metadata.BodyPlainText);
     }
 
+    /// <summary>
+    /// The webhook wake downloads a message and retains it without moving the cursor,
+    /// so the delta meets the same message again. The sweep asks the mailbox whether
+    /// it holds that item, by its provider id and Internet message id; if it does, the
+    /// message is not downloaded and not passed on, and the cursor moves past it.
+    /// </summary>
+    [Fact]
+    public async Task AMessageTheMailboxAlreadyRetainedIsNotPassedOnAndTheCursorMovesPastIt()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.SkipsRetained = true;
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-1", "cursor-a1", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
+        Assert.Equal(1, await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None));
+
+        // The same item meets the delta again, its Internet message id spelled
+        // differently, beside a message the mailbox has not seen.
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-1", "cursor-a2", Metadata(internetMessageIdentity: "<WAKE@Example.Invalid>")));
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-3", "cursor-a3", Metadata(internetMessageIdentity: "<other@example.invalid>")));
+
+        var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Equal(["a-1"], harness.Source.Skipped);
+        Assert.Equal(["a-1", "a-3"], harness.Retained.Retained.Select(item => item.ImmutableMessageId));
+        Assert.Equal("cursor-a3", harness.PollStore.Cursors["mailbox-a"]);
+        Assert.Empty(harness.PollStore.Releases);
+    }
+
+    [Fact]
+    public async Task ADeltaPageWhoseEveryMessageIsAlreadyRetainedStillCompletesAtItsCursor()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.SkipsRetained = true;
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-1", "cursor-a1", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-1", "cursor-a2", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
+
+        var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(0, handled);
+        Assert.Equal(["a-1"], harness.Source.Skipped);
+        Assert.Single(harness.Retained.Retained);
+        Assert.Equal("cursor-a2", harness.PollStore.Cursors["mailbox-a"]);
+    }
+
+    /// <summary>
+    /// A different provider item that reuses a retained Internet message id is not the
+    /// message the mailbox holds. It is downloaded and passed on, so intake replays it
+    /// or quarantines it as a source identity conflict.
+    /// </summary>
+    [Fact]
+    public async Task AnotherItemThatReusesARetainedInternetMessageIdIsStillPassedOn()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.SkipsRetained = true;
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-1", "cursor-a1", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-2", "cursor-a2", Metadata(internetMessageIdentity: "<wake@example.invalid>")));
+
+        var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Empty(harness.Source.Skipped);
+        Assert.Equal(["a-1", "a-2"], harness.Retained.Retained.Select(item => item.ImmutableMessageId));
+        Assert.Equal("cursor-a2", harness.PollStore.Cursors["mailbox-a"]);
+    }
+
+    /// <summary>
+    /// An Internet message id that cannot be canonicalised cannot have been retained,
+    /// so the message is read and rejected as it always was.
+    /// </summary>
+    [Fact]
+    public async Task AnInternetMessageIdThatCannotBeCanonicalisedIsStillReadAndRejected()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.SkipsRetained = true;
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-1", "cursor-a1", Metadata(internetMessageIdentity: "   ")));
+
+        var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Empty(harness.Source.Skipped);
+        Assert.Equal("invalid_message_metadata", Assert.Single(harness.PollStore.Quarantines).FailureCode);
+    }
+
     [Fact]
     public async Task EquivalentInternetMessageIdentitiesUseOneCanonicalReceiptToken()
     {
@@ -626,6 +727,18 @@ public sealed class PollApprovedInboxTests
             Retained.Add(message);
             return Task.CompletedTask;
         }
+
+        public Task<bool> HasRetainedMessageAsync(
+            Guid mailboxId,
+            string immutableMessageId,
+            string canonicalInternetMessageIdentity,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Retained.Any(item =>
+                item.MailboxId == mailboxId
+                && string.Equals(item.ImmutableMessageId, immutableMessageId, StringComparison.Ordinal)
+                && item.Metadata.InternetMessageIdentity is { } identity
+                && MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(identity)
+                    == canonicalInternetMessageIdentity));
     }
 
     private sealed class MailboxEstate(List<ApprovedIntakeMailbox> mailboxes) : IApprovedIntakeMailboxes
@@ -775,6 +888,16 @@ public sealed class PollApprovedInboxTests
 
         internal ApprovedInboxMessage? Notified { get; set; }
 
+        /// <summary>
+        /// Behave as a source that asks whether the mailbox already retained each
+        /// message before it reads it. Off, the source reads every message as the
+        /// three-argument read always did.
+        /// </summary>
+        internal bool SkipsRetained { get; set; }
+
+        /// <summary>The provider ids the mailbox already retained, so never passed on.</summary>
+        internal List<string> Skipped { get; } = [];
+
         internal void Enqueue(string mailboxId, ApprovedInboxMessage message)
         {
             if (!queued.TryGetValue(mailboxId, out var messages))
@@ -808,6 +931,41 @@ public sealed class PollApprovedInboxTests
             var page = messages.Take(maximumMessages).ToArray();
             messages.RemoveRange(0, page.Length);
             return Task.FromResult(new ApprovedInboxPage(page, page[^1].NextCursor));
+        }
+
+        public async Task<ApprovedInboxPage> ReadAsync(
+            ApprovedInboxPollLease lease,
+            int maximumMessages,
+            RetainedMessageCheck alreadyRetained,
+            CancellationToken cancellationToken)
+        {
+            var page = await ReadAsync(lease, maximumMessages, cancellationToken);
+            if (!SkipsRetained || page.Messages.Count == 0)
+            {
+                return page;
+            }
+
+            // As the Graph source does: an item the mailbox holds is left out, and the
+            // last message left in carries the cursor after the whole page.
+            var kept = new List<ApprovedInboxMessage>();
+            foreach (var message in page.Messages)
+            {
+                if (message.RetainedMetadata?.InternetMessageIdentity is { } identity
+                    && await alreadyRetained(message.ImmutableMessageId, identity, cancellationToken))
+                {
+                    Skipped.Add(message.ImmutableMessageId);
+                    continue;
+                }
+
+                kept.Add(message);
+            }
+
+            if (kept.Count > 0)
+            {
+                kept[^1] = kept[^1] with { NextCursor = page.NextCursor };
+            }
+
+            return new(kept, page.NextCursor);
         }
 
         public Task<ApprovedInboxMessage?> ReadNotifiedAsync(

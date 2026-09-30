@@ -33,7 +33,8 @@ namespace Pegasus.Web.Presentation;
 /// The bell is the person's own notifications (Work Centre D10), newest first,
 /// read once here; the unread count is derived from the same list rather than
 /// read a second time. A failed read sets <c>NotificationsUnavailable</c> so the
-/// dialog states it, and the page still renders (FRD-12).
+/// dialog states it, and the page still renders (FRD-12). The counts, the
+/// notifications and the release note start together.
 ///
 /// A global <c>IAsyncPageFilter</c> is the direct ASP.NET Core mechanism for
 /// shared page <c>ViewData</c>. It waits for the selected handler's result:
@@ -83,88 +84,122 @@ public sealed partial class RailCountsPageFilter(
                 out var actor))
         {
             var cancellationToken = context.HttpContext.RequestAborted;
-            var caseCounts = TryGetCaseCounts(context.HttpContext, out var loadedCounts)
-                ? loadedCounts
-                : await LoadCaseCountsAsync(actor, cancellationToken);
-            var railCounts = new Dictionary<string, int>
+            // The counts, the bell and the release note share nothing and each
+            // reads on its own context, so they start together. A counts failure
+            // still propagates; the other two answer for themselves.
+            var countsTask = LoadCaseCountsAsync(context.HttpContext, actor, cancellationToken);
+            var notificationsTask = ReadNotificationsAsync(actor, cancellationToken);
+            var releaseNoteTask = ReadReleaseNoteAsync(actor, cancellationToken);
+            await Task.WhenAll(countsTask, notificationsTask, releaseNoteTask);
+
+            pageModel.ViewData["RailCounts"] = new Dictionary<string, int>
             {
-                ["Cases"] = caseCounts.Total
+                ["Cases"] = countsTask.Result.Total
             };
-
-            pageModel.ViewData["RailCounts"] = railCounts;
             pageModel.ViewData["ShellRenderedAtUtc"] = timeProvider.GetUtcNow();
-
-            try
+            if (notificationsTask.Result is { } notifications)
             {
-                using var timing = DocumentReadTelemetry.Start("web.shell.notifications");
-                pageModel.ViewData["Notifications"] = await myNotifications.ListAsync(actor, cancellationToken);
+                pageModel.ViewData["Notifications"] = notifications;
             }
-            catch (Exception exception) when (exception is not
-                (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+            else
             {
-                LogNotificationsUnavailable(logger, exception);
                 pageModel.ViewData["NotificationsUnavailable"] = true;
             }
 
-            // What's new (FRD-12): the newest published release note this person
-            // has not acknowledged opens once as a dialog. A failed read shows
-            // nothing rather than blocking the page.
-            try
+            if (releaseNoteTask.Result is { } releaseNote)
             {
-                if (await myReleaseNotes.GetUnacknowledgedAsync(actor, cancellationToken) is { } releaseNote)
-                {
-                    pageModel.ViewData["ReleaseNote"] = releaseNote;
-                }
+                pageModel.ViewData["ReleaseNote"] = releaseNote;
             }
-            catch (Exception exception) when (exception is not
-                (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
-            {
-                LogReleaseNoteUnavailable(logger, exception);
-            }
+        }
+    }
+
+    /// <summary>The bell's notifications, or null when the read failed and the dialog must say so.</summary>
+    private async Task<IReadOnlyList<StaffNotification>?> ReadNotificationsAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timing = DocumentReadTelemetry.Start("web.shell.notifications");
+            return await myNotifications.ListAsync(actor, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not
+            (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+        {
+            LogNotificationsUnavailable(logger, exception);
+            return null;
         }
     }
 
     /// <summary>
-    /// Carries the Cases page's already-read totals through this one request to
-    /// the post-handler shell filter. It is never a cross-request cache.
+    /// What's new (FRD-12): the newest published release note this person has
+    /// not acknowledged opens once as a dialog. A failed read shows nothing
+    /// rather than blocking the page.
+    /// </summary>
+    private async Task<ReleaseNote?> ReadReleaseNoteAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await myReleaseNotes.GetUnacknowledgedAsync(actor, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not
+            (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+        {
+            LogReleaseNoteUnavailable(logger, exception);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Carries a page's already-read totals through this one request to the
+    /// post-handler shell filter. It is never a cross-request cache. A page that
+    /// did not read the every-state Triage count passes null for it, and the
+    /// shell reads that one alone.
     /// </summary>
     public static void SetCaseCounts(
         HttpContext context,
         CaseStageCounts stages,
-        int triageCount,
+        int? triageCount,
         int unidentifiedCount)
     {
         ArgumentNullException.ThrowIfNull(context);
-        context.Items[CaseCountsKey] = new CaseRailCounts(stages, triageCount, unidentifiedCount);
-    }
-
-    private static bool TryGetCaseCounts(HttpContext context, out CaseRailCounts counts)
-    {
-        if (context.Items.TryGetValue(CaseCountsKey, out var value)
-            && value is CaseRailCounts result)
-        {
-            counts = result;
-            return true;
-        }
-
-        counts = default!;
-        return false;
+        context.Items[CaseCountsKey] = new KnownCaseCounts(stages, triageCount, unidentifiedCount);
     }
 
     private async Task<CaseRailCounts> LoadCaseCountsAsync(
+        HttpContext httpContext,
         ActionActor actor,
         CancellationToken cancellationToken)
     {
+        var known = httpContext.Items.TryGetValue(CaseCountsKey, out var value)
+            ? value as KnownCaseCounts
+            : null;
+        if (known is { TriageCount: { } knownTriageCount })
+        {
+            return new(known.Stages, knownTriageCount, known.UnidentifiedCount);
+        }
+
         using var timing = DocumentReadTelemetry.Start("web.shell.counts");
-        var stagesTask = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+        var stagesTask = known is null
+            ? dashboardQueries.GetCaseStageCountsAsync(cancellationToken)
+            : Task.FromResult(known.Stages);
         var triageTask = listTriage.CountAsync(
             actor,
             state: null,
             cancellationToken: cancellationToken);
-        var unidentifiedTask = unidentifiedStore.CountOpenAsync(cancellationToken);
+        var unidentifiedTask = known is null
+            ? unidentifiedStore.CountOpenAsync(cancellationToken)
+            : Task.FromResult(known.UnidentifiedCount);
         await Task.WhenAll(stagesTask, triageTask, unidentifiedTask);
         return new(stagesTask.Result, triageTask.Result, unidentifiedTask.Result);
     }
+
+    private sealed record KnownCaseCounts(
+        CaseStageCounts Stages,
+        int? TriageCount,
+        int UnidentifiedCount);
 
     private sealed record CaseRailCounts(
         CaseStageCounts Stages,

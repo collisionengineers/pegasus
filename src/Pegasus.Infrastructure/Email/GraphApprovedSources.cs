@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -318,26 +319,33 @@ internal sealed class GraphMailClient(
         return new(values, next ?? delta!, next is not null);
     }
 
-    public async Task<byte[]> ReadMimeAsync(
+    /// <summary>
+    /// Reads one message's MIME through <paramref name="read"/>, which is handed the
+    /// response content before any of the body has been read. The caller decides from
+    /// the declared length whether to hold the message in memory.
+    /// </summary>
+    public async Task<T> ReadMimeAsync<T>(
         string mailboxId,
         string immutableMessageId,
+        Func<HttpContent, CancellationToken, Task<T>> read,
         CancellationToken cancellationToken)
     {
         var uri = new Uri(
             baseUri,
             $"users/{Uri.EscapeDataString(mailboxId)}/messages/{Uri.EscapeDataString(immutableMessageId)}/$value");
-        return await ReadMimeAsync(uri, cancellationToken);
+        return await ReadMimeAsync(uri, read, cancellationToken);
     }
 
-    private async Task<byte[]> ReadMimeAsync(
+    private async Task<T> ReadMimeAsync<T>(
         Uri uri,
+        Func<HttpContent, CancellationToken, Task<T>> read,
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
         using var response = await SendAsync(request, cancellationToken);
         await ThrowForFailureAsync(response, cancellationToken);
-        return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        return await read(response.Content, cancellationToken);
     }
 
     public async Task<byte[]> ReadFolderMimeAsync(
@@ -350,7 +358,10 @@ internal sealed class GraphMailClient(
             baseUri,
             $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/{Uri.EscapeDataString(folderId)}" +
             $"/messages/{Uri.EscapeDataString(immutableMessageId)}/$value");
-        return await ReadMimeAsync(uri, cancellationToken);
+        return await ReadMimeAsync(
+            uri,
+            static (content, token) => content.ReadAsByteArrayAsync(token),
+            cancellationToken);
     }
 
     public async Task MoveMessageAsync(
@@ -683,14 +694,40 @@ internal sealed class GraphMailClient(
 /// guarantee is unchanged — it is still enforced on every cursor and every item — but
 /// the folder it is enforced against is now per lease.
 /// </summary>
-internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprovedInboxSource
+/// <param name="maximumContentLength">
+/// The mailbox envelope bound Core enforces. A message Graph declares longer than
+/// this is streamed into quarantine rather than read into memory, and Core accepts
+/// that as a valid oversize rejection only because the two bounds are the same. It
+/// is a parameter only so that a test can exercise both sides of the boundary.
+/// </param>
+internal sealed class GraphApprovedInboxSource(
+    GraphMailClient client,
+    IIntakeQuarantineArtifactStore quarantineArtifactStore,
+    long maximumContentLength = IntakeEnvelopeLimits.MaximumMailboxContentLength) : IApprovedInboxSource
 {
     private const int MaximumMailboxIdentityLength = 100;
     private const int MaximumFolderIdentityLength = 200;
 
-    public async Task<ApprovedInboxPage> ReadAsync(
+    public Task<ApprovedInboxPage> ReadAsync(
         ApprovedInboxPollLease lease,
         int maximumMessages,
+        CancellationToken cancellationToken) =>
+        ReadPageAsync(lease, maximumMessages, alreadyRetained: null, cancellationToken);
+
+    public Task<ApprovedInboxPage> ReadAsync(
+        ApprovedInboxPollLease lease,
+        int maximumMessages,
+        RetainedMessageCheck alreadyRetained,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(alreadyRetained);
+        return ReadPageAsync(lease, maximumMessages, alreadyRetained, cancellationToken);
+    }
+
+    private async Task<ApprovedInboxPage> ReadPageAsync(
+        ApprovedInboxPollLease lease,
+        int maximumMessages,
+        RetainedMessageCheck? alreadyRetained,
         CancellationToken cancellationToken)
     {
         ValidateLease(lease);
@@ -740,22 +777,38 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
             {
                 continue;
             }
-            var mime = await client.ReadMimeAsync(mailboxId, item.Id, cancellationToken);
+            if (alreadyRetained is not null
+                && item.InternetMessageId is { } internetMessageId
+                && await alreadyRetained(item.Id, internetMessageId, cancellationToken))
+            {
+                // Already retained: the webhook wake downloaded this same item. The
+                // wake and the delta both ask for immutable ids, so the retained row
+                // carries this item's id. Not downloaded again and not passed on,
+                // like any other item left out above. The cursors below count its
+                // place, so they move past it.
+                continue;
+            }
+            var mime = await ReadMimeAsync(mailboxId, item.Id, cancellationToken);
             var next = GraphCursor.Serialize(
                 processed >= page.Items.Count ? page.NextUri : cursor.PageUri,
                 processed >= page.Items.Count ? 0 : processed);
+            // A message refused before it was read has no subject to name it by.
+            var metadata = mime.Rejection is not null
+                ? null
+                : await ReadRetainedMetadataAsync(
+                    mime.Content,
+                    item,
+                    inboxFolderId,
+                    cancellationToken);
             messages.Add(new(
                 item.Id,
-                $"{SanitizeFileName(item.Id)}.eml",
-                mime,
+                EmailSourceFormat.RetainedMessageFileName(metadata?.Subject),
+                mime.Content,
                 item.ReceivedAtUtc.Value,
                 next)
             {
-                RetainedMetadata = await ReadRetainedMetadataAsync(
-                    mime,
-                    item,
-                    inboxFolderId,
-                    cancellationToken)
+                SourceRejection = mime.Rejection,
+                RetainedMetadata = metadata
             });
         }
         var consumed = cursor.SkipCount + available.Length;
@@ -785,23 +838,160 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
         {
             return null;
         }
-        var mime = await client.ReadMimeAsync(lease.GraphMailboxId, immutableMessageId, cancellationToken);
+        var mime = await ReadMimeAsync(lease.GraphMailboxId, immutableMessageId, cancellationToken);
+        var metadata = mime.Rejection is not null
+            ? null
+            : await ReadRetainedMetadataAsync(
+                mime.Content,
+                item,
+                lease.InboxFolderIdentity,
+                cancellationToken);
         return new(
             immutableMessageId,
-            $"{SanitizeFileName(immutableMessageId)}.eml",
-            mime,
+            EmailSourceFormat.RetainedMessageFileName(metadata?.Subject),
+            mime.Content,
             item.ReceivedAtUtc.Value,
             GraphCursor.Serialize(client.InitialDeltaUri(
                 lease.GraphMailboxId,
                 lease.InboxFolderIdentity,
                 1), 0))
         {
-            RetainedMetadata = await ReadRetainedMetadataAsync(
-                mime,
-                item,
-                lease.InboxFolderIdentity,
-                cancellationToken)
+            SourceRejection = mime.Rejection,
+            RetainedMetadata = metadata
         };
+    }
+
+    /// <summary>
+    /// The message's MIME, unless Graph declares it longer than the mailbox bound.
+    /// </summary>
+    /// <remarks>
+    /// Core quarantines a message over the bound as <c>message_too_large</c> once it
+    /// has been read. A body Graph declares over the bound is instead streamed
+    /// straight into the quarantine store and handed to Core as the source rejection
+    /// it already accepts, so the quarantine record is the same and the message is
+    /// never held in memory. Core verifies the retained artifact before it records
+    /// the quarantine, so it is not verified here as well. A body with no declared
+    /// length, or one within the bound, is read whole as before, and Core still
+    /// applies the bound to what arrives.
+    /// </remarks>
+    private Task<GraphInboxMime> ReadMimeAsync(
+        string mailboxId,
+        string immutableMessageId,
+        CancellationToken cancellationToken) =>
+        client.ReadMimeAsync(
+            mailboxId,
+            immutableMessageId,
+            async (content, token) =>
+            {
+                if (content.Headers.ContentLength is not { } declaredLength
+                    || declaredLength <= maximumContentLength)
+                {
+                    return new GraphInboxMime(await content.ReadAsByteArrayAsync(token), null);
+                }
+
+                await using var body = new GraphBodyStream(await content.ReadAsStreamAsync(token));
+                IntakeQuarantineArtifact retained;
+                try
+                {
+                    retained = await quarantineArtifactStore.StoreStreamAsync(
+                        body,
+                        declaredLength,
+                        token);
+                }
+                catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+                {
+                    // A fault reading Graph's body is a Graph read failure, as it is for
+                    // a message read whole. Only a fault in the store is a retention failure.
+                    if (body.ReadFault is { } readFault)
+                    {
+                        ExceptionDispatchInfo.Throw(readFault);
+                    }
+                    throw new IntakeArtifactRetentionException(exception);
+                }
+
+                return new GraphInboxMime(
+                    [],
+                    new(
+                        "message_too_large",
+                        retained.ContentLength,
+                        retained.ContentHash,
+                        retained.StorageKey));
+            },
+            cancellationToken);
+
+    private sealed record GraphInboxMime(
+        byte[] Content,
+        ApprovedInboxSourceRejection? Rejection);
+
+    /// <summary>
+    /// Graph's response body as the quarantine store reads it. It keeps any fault the
+    /// body raises, so a Graph read fault is told apart from a fault in the store.
+    /// </summary>
+    private sealed class GraphBodyStream(Stream source) : Stream
+    {
+        public Exception? ReadFault { get; private set; }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            try
+            {
+                return source.Read(buffer);
+            }
+            catch (Exception exception)
+            {
+                ReadFault = exception;
+                throw;
+            }
+        }
+
+        public override Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return await source.ReadAsync(buffer, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                ReadFault = exception;
+                throw;
+            }
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                source.Dispose();
+            }
+            base.Dispose(disposing);
+        }
     }
 
     /// <summary>
@@ -886,9 +1076,6 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
         !string.IsNullOrWhiteSpace(value)
         && value.Length <= maximumLength
         && !value.Any(character => char.IsControl(character) || char.IsWhiteSpace(character));
-
-    private static string SanitizeFileName(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }
 
 internal sealed class GraphDeletedMailSearchSource(
@@ -1204,7 +1391,8 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
                 }
                 using var bytes = new MemoryStream();
                 part.Content.DecodeTo(bytes, cancellationToken);
-                attachmentHashes.Add(Convert.ToHexString(SHA256.HashData(bytes.ToArray())));
+                attachmentHashes.Add(Convert.ToHexString(
+                    SHA256.HashData(bytes.GetBuffer().AsSpan(0, (int)bytes.Length))));
             }
             return new(
                 Occurrence(lease.MailboxId, item.Id),

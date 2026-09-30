@@ -49,6 +49,20 @@ public static class MarketResearchPolicy
             && job.State is AiJobState.Queued or AiJobState.Taken;
     }
 
+    /// <summary>
+    /// The newest pending Market research job among a Case's jobs. A caller
+    /// that has read the Case's jobs for another purpose takes it from them
+    /// rather than reading them again.
+    /// </summary>
+    public static AiJobRecord? PendingOf(IEnumerable<AiJobRecord> caseJobs)
+    {
+        ArgumentNullException.ThrowIfNull(caseJobs);
+        return caseJobs
+            .Where(IsPending)
+            .OrderByDescending(job => job.CreatedAtUtc)
+            .FirstOrDefault();
+    }
+
     /// <summary>The instruction the job carries, naming the month the research is for.</summary>
     public static string Instruction(DateOnly guideMonth) =>
         $"Market research valuation for guide month {guideMonth:yyyy-MM}.";
@@ -77,11 +91,7 @@ public sealed class MarketResearchQueries(IAiJobQueries jobs) : IMarketResearchQ
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
 
-        var jobs = await _jobs.ListForSubjectAsync(caseId, cancellationToken);
-        return jobs
-            .Where(MarketResearchPolicy.IsPending)
-            .OrderByDescending(job => job.CreatedAtUtc)
-            .FirstOrDefault();
+        return MarketResearchPolicy.PendingOf(await _jobs.ListForSubjectAsync(caseId, cancellationToken));
     }
 }
 

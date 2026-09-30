@@ -174,7 +174,6 @@ public sealed class CaseCustodyWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
@@ -249,7 +248,6 @@ public sealed class CaseCustodyWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
@@ -297,7 +295,6 @@ public sealed class CaseCustodyWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
@@ -404,7 +401,6 @@ public sealed class CaseCustodyWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -470,7 +466,6 @@ public sealed class CaseCustodyWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -615,7 +610,6 @@ public sealed class CaseCustodyWebTests
         // delivery. No external action is required to assign the Engineer.
         var store = new RecordingCaseDetailsStore
         {
-            ExposeCustody = true,
             State = CaseLifecycleState.Review
         };
         var evaStores = new StubEvaSubmissionStores(
@@ -623,12 +617,11 @@ public sealed class CaseCustodyWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
-                services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IStaffAccountQueries>(services,
                     new StubStaffAccounts(Guid.NewGuid(), "Engineer", StaffRole.Engineer));
                 Substitute<IEvaSubmissionQueries>(services, evaStores);

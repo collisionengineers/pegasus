@@ -58,7 +58,8 @@ export async function loadAssets() {
     read('src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-256.png'),
   ]);
   const site = (await text('src/Pegasus.Web/wwwroot/css/site.css'))
-    .replace('url(../fonts/inter/InterVariable.woff2)', `url(data:font/woff2;base64,${regular.toString('base64')})`)
+    // site.css names the font by its static-assets fingerprint.
+    .replace(/url\(\.\.\/fonts\/inter\/InterVariable\.[0-9a-z]+\.woff2\)/, `url(data:font/woff2;base64,${regular.toString('base64')})`)
     .replace('url(../fonts/inter/InterVariable-Italic.woff2)', `url(data:font/woff2;base64,${italic.toString('base64')})`);
   const pageCss = [
     'src/Pegasus.Web/wwwroot/css/inbox.css',

@@ -1088,9 +1088,6 @@ public sealed class AutomaticImageIntakeTests
 
         public List<IntakeReceipt> Receipts { get; } = [];
 
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(
                 Receipts.FirstOrDefault(receipt => receipt.Id == id)

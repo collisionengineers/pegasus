@@ -19,15 +19,18 @@ public static class DocumentReadTelemetry
         "web.workcentre.resource",
         "web.workcentre.result",
         "web.workcentre.main",
+        "web.workcentre.attention",
+        "web.workcentre.newcases",
+        "web.workcentre.aijobs",
         "web.workcentre.refresh.resource",
         "web.workcentre.refresh.result",
         "web.workcentre.refresh.main",
         "web.case.frame",
-        "web.case.access",
         "web.case.workspace",
         "web.case.direct-sections",
         "web.case.engineer-sections",
         "web.case.extras",
+        "web.case.commit",
         "web.case.resource",
         "web.case.result",
         "web.case.section.resource",
@@ -36,6 +39,10 @@ public static class DocumentReadTelemetry
         "web.shell.counts",
         "web.shell.notifications",
         "report.renderer.initialize",
+        "report.photos.prepare",
+        "report.pdf.generate",
+        "report.pdf.pagecount",
+        "db.connection.open",
         "web.case.fragment.vehicle",
         "web.case.fragment.valuation",
         "web.case.fragment.files",
@@ -64,6 +71,34 @@ public static class DocumentReadTelemetry
         }
 
         return Source.StartActivity(phase, ActivityKind.Internal);
+    }
+
+    /// <summary>
+    /// Records a phase that has already finished. The activity starts
+    /// <paramref name="duration"/> before now and stops at once, so the bridge
+    /// reports the measured time under the current parent. Used where the
+    /// duration is handed over by a framework callback that fires after the
+    /// work, such as a database connection opening.
+    /// </summary>
+    public static void Record(string phase, TimeSpan duration)
+    {
+        if (!IsAllowedPhase(phase))
+        {
+            throw new ArgumentOutOfRangeException(nameof(phase), phase, "The telemetry phase is not allowlisted.");
+        }
+
+        // CreateActivity, Start and Stop keep the ordinary parent handling, so
+        // the ambient activity is current again once the phase has stopped.
+        if (Source.CreateActivity(phase, ActivityKind.Internal) is not { } activity)
+        {
+            return;
+        }
+
+        var end = DateTime.UtcNow;
+        activity.SetStartTime(end - (duration < TimeSpan.Zero ? TimeSpan.Zero : duration));
+        activity.Start();
+        activity.SetEndTime(end);
+        activity.Stop();
     }
 
     /// <summary>

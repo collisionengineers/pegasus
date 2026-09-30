@@ -216,9 +216,8 @@ public sealed class DownloadIntakeAsset(
         // system-worker actor fails closed here rather than at a surface that
         // might forget to ask.
         StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
-        var receipt = await receiptQueries.GetAsync(query.ReceiptId, cancellationToken);
-        var asset = receipt?.AssetRecords
-            .SingleOrDefault(record => record.Id == query.AssetId);
+        // One asset of the receipt, not the receipt's whole aggregate.
+        var asset = await receiptQueries.GetAssetAsync(query.ReceiptId, query.AssetId, cancellationToken);
         if (asset is null)
         {
             return null;
@@ -237,10 +236,15 @@ public sealed class DownloadIntakeAsset(
                     asset.ContentHash,
                     asset.ContentLength),
                 cancellationToken);
-            using var buffer = new MemoryStream();
+            // Sized from the recorded length, so the copy fills one array that
+            // is then the answer, not a second copy of it. A read that yields
+            // more or fewer bytes than recorded fails the length check below.
+            using var buffer = new MemoryStream(
+                (int)Math.Clamp(asset.ContentLength, 0, Array.MaxLength));
             await logical.Content.CopyToAsync(buffer, cancellationToken);
-            var bytes = buffer.ToArray();
-            return Verified(bytes, asset);
+            return Verified(
+                new ReadOnlyMemory<byte>(buffer.GetBuffer(), 0, (int)buffer.Length),
+                asset);
         }
 
         var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)

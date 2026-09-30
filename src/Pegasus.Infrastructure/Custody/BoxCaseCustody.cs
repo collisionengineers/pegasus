@@ -120,6 +120,12 @@ public sealed record BoxCustodyOptions(
 internal interface IBoxAuthorizationHeaderProvider
 {
     Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Mints a new token now if the held one is close enough to expiry that a
+    /// request would soon have to. Answers whether it minted.
+    /// </summary>
+    Task<bool> RenewIfDueAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>The access token Box granted, and how long it said it lasts.</summary>
@@ -139,6 +145,11 @@ internal readonly record struct BoxAccessToken(string? Value, long? LifetimeSeco
 /// The lifetime is read from Box's own response rather than assumed, and the
 /// mint is single-flight so a burst of concurrent Box work takes one token,
 /// not one each.
+///
+/// <see cref="BoxTokenRenewalService"/> calls <see cref="RenewIfDueAsync"/>
+/// so the token is normally replaced in the background, before any request
+/// would have to. The request path still mints on demand, so a renewal that
+/// fails costs a request the mint it always paid, never a failed read.
 /// </summary>
 internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeaderProvider, IDisposable
 {
@@ -158,6 +169,13 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
     /// intermittent-looking 401 this class exists to remove.
     /// </summary>
     private static readonly TimeSpan RenewalMargin = RequestTimeout + TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// How much sooner than a request would need it the background renewal
+    /// replaces the token, so the request path finds a live token and never
+    /// waits on a mint.
+    /// </summary>
+    private static readonly TimeSpan EarlyRenewal = TimeSpan.FromMinutes(5);
 
     private readonly Func<CancellationToken, Task<BoxAccessToken>> mint;
     private readonly TimeProvider timeProvider;
@@ -192,6 +210,9 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 
     public async Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken)
     {
+        // A token that is still live for a request is returned without the
+        // gate, even inside the early-renewal window while a background
+        // renewal is minting. The request does not wait and mints nothing.
         if (Live(timeProvider.GetUtcNow()) is { } current)
         {
             return current;
@@ -206,25 +227,38 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
                 return renewed;
             }
 
-            var token = await mint(cancellationToken);
-            // A token that expires inside the renewal margin would never be
-            // live, so every Box call would mint another — a silent storm
-            // against Box's token endpoint instead of a fault anyone can see.
-            // Box JWT tokens last an hour; anything shorter is a broken
-            // premise, and this says so rather than absorbing it.
-            if (string.IsNullOrWhiteSpace(token.Value)
-                || token.LifetimeSeconds is not > 0
-                || TimeSpan.FromSeconds(token.LifetimeSeconds.Value) <= RenewalMargin)
+            return await MintAsync(now, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Replaces the token when there is none, or when it is within the
+    /// renewal margin and the early-renewal window of expiry. It takes the
+    /// same gate as a request's mint, so a request that arrives while this
+    /// mints waits for this mint and does not start another.
+    /// </summary>
+    public async Task<bool> RenewIfDueAsync(CancellationToken cancellationToken)
+    {
+        if (!RenewalDue(timeProvider.GetUtcNow()))
+        {
+            return false;
+        }
+
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            var now = timeProvider.GetUtcNow();
+            if (!RenewalDue(now))
             {
-                throw new InvalidOperationException(
-                    "Box JWT authentication returned no usable access token.");
+                return false;
             }
 
-            var renewal = new Lease(
-                $"Bearer {token.Value}",
-                now + TimeSpan.FromSeconds(token.LifetimeSeconds.Value));
-            Volatile.Write(ref lease, renewal);
-            return renewal.Header;
+            await MintAsync(now, cancellationToken);
+            return true;
         }
         finally
         {
@@ -234,10 +268,40 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 
     public void Dispose() => gate.Dispose();
 
+    /// <summary>Mints and holds a new token. The caller holds <see cref="gate"/>.</summary>
+    private async Task<string> MintAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var token = await mint(cancellationToken);
+        // A token that lasts no longer than the renewal margin plus the
+        // early-renewal window is refused, because it would be due for renewal
+        // the moment it was minted and the 60-second background loop would
+        // mint again on every check. A token inside the margin alone would
+        // also never be live, so every Box call would mint another. Either
+        // way that is a silent storm against Box's token endpoint instead of a
+        // fault anyone can see. Box JWT tokens last an hour; anything shorter
+        // is a broken premise, and this says so rather than absorbing it.
+        if (string.IsNullOrWhiteSpace(token.Value)
+            || token.LifetimeSeconds is not > 0
+            || TimeSpan.FromSeconds(token.LifetimeSeconds.Value) <= RenewalMargin + EarlyRenewal)
+        {
+            throw new InvalidOperationException(
+                "Box JWT authentication returned no usable access token.");
+        }
+
+        var renewal = new Lease(
+            $"Bearer {token.Value}",
+            now + TimeSpan.FromSeconds(token.LifetimeSeconds.Value));
+        Volatile.Write(ref lease, renewal);
+        return renewal.Header;
+    }
+
     private string? Live(DateTimeOffset now) =>
         Volatile.Read(ref lease) is { } held && now + RenewalMargin < held.ExpiresAtUtc
             ? held.Header
             : null;
+
+    private bool RenewalDue(DateTimeOffset now) =>
+        Volatile.Read(ref lease) is not { } held || now + RenewalMargin + EarlyRenewal >= held.ExpiresAtUtc;
 
     private static Func<CancellationToken, Task<BoxAccessToken>> SdkMint(BoxCustodyOptions options)
     {
@@ -270,17 +334,28 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 /// trashed-object failures are proved in exactly one place.
 /// </summary>
 /// <remarks>
-/// Every write, move, delete and upload walks the ancestry to the approved
-/// root on every call. The managed read
-/// (<see cref="OpenOwnedVersionReadAsync"/>) is the one exception: it always
-/// reads the file itself — its parent and its trash state — but it remembers,
-/// for <see cref="LiveFolderMemory"/>, that the file's folder was proved to sit
-/// under the approved root. Only a successful proof is remembered. Any 404,
-/// trashed or outside-root answer that touches a folder forgets it, and so do
-/// a folder delete and a file move. A folder moved out of the root, or
-/// trashed, outside Pegasus can therefore still be read for up to that long.
+/// The managed read (<see cref="OpenOwnedVersionReadAsync"/>) always reads the
+/// file itself — its parent and its trash state — but it remembers, for
+/// <see cref="LiveFolderMemory"/>, that the file's folder was proved to sit
+/// under the approved root. It asks for the file's bytes at the same time as
+/// it reads the file, and discards them unless every check passes. Only a
+/// successful proof is remembered. Any 404, trashed or outside-root answer
+/// that touches a folder forgets it, and so do a folder delete and a file
+/// move. A folder moved out of the root, or trashed, outside Pegasus can
+/// therefore still be read for up to that long.
 /// A walk that succeeded at the same moment as a forget may remember the
 /// folder again, still within that ten-minute bound.
+///
+/// A write never uses that memory. An upload goes only into a
+/// <see cref="ProvedFolder"/>, which fresh reads of the folder produce:
+/// one for a Case folder (<see cref="ProveCaseFolderAsync"/>), or one for any
+/// other folder and one for each folder above it up to the root
+/// (<see cref="ProveFolderAsync"/>).
+/// The upload does not look for its name first and does not walk the path
+/// afterwards. Box's own answer must name the proved folder as the file's
+/// parent, and a name Box already holds is Box's 409, resolved by comparing
+/// the existing file's content. Folder create, rename, move and delete still
+/// walk the whole path on every call.
 /// </remarks>
 internal sealed class BoxContentClient(
     BoxCustodyOptions options,
@@ -310,6 +385,20 @@ internal sealed class BoxContentClient(
         long? Size,
         string? MediaType,
         string? ParentId);
+
+    /// <summary>
+    /// A folder that fresh reads have proved fit to be written into. Only the
+    /// client's own prove methods make one, and an upload takes nothing else,
+    /// so no file reaches Box without its folder having been proved first.
+    /// </summary>
+    internal sealed record ProvedFolder(string Id);
+
+    /// <summary>
+    /// What an upload came to. The file is the one Box created
+    /// (<paramref name="Created"/> true), or the file already holding the name
+    /// when its content is the content offered (false).
+    /// </summary>
+    internal sealed record BoxUpload(BoxItem File, bool Created);
 
     public string RootFolderId => options.RootFolderId;
 
@@ -379,6 +468,72 @@ internal sealed class BoxContentClient(
             throw new InvalidDataException("A Box custody child has the expected name but the wrong type.");
         }
         return match;
+    }
+
+    /// <summary>
+    /// Proves with one read that <paramref name="folderId"/> is the Case's own
+    /// folder: a folder that carries the Case's name, sits directly under the
+    /// approved root and is not in the trash. Box refuses two items of one name
+    /// in a folder, and a listing omits trashed items, so this read gives the
+    /// guarantee that listing the root and finding the name gave. Any other
+    /// answer is a fence failure and drops the folder from the read memory.
+    /// </summary>
+    public async Task<ProvedFolder> ProveCaseFolderAsync(
+        string folderId,
+        string caseFolderName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(caseFolderName);
+        try
+        {
+            using var response = await SendAsync(
+                HttpMethod.Get,
+                new Uri(options.BaseUri,
+                    $"folders/{Uri.EscapeDataString(folderId)}?fields=id,name,type,parent,trashed_at"),
+                null,
+                cancellationToken);
+            using var document = await ReadSuccessJsonAsync(response, cancellationToken);
+            var folder = ParseItem(document.RootElement);
+            if (!string.Equals(folder.Id, folderId, StringComparison.Ordinal)
+                || !string.Equals(folder.Type, "folder", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Box returned the wrong object for a custody folder.");
+            }
+            if (IsTrashed(document.RootElement))
+            {
+                throw new UnauthorizedAccessException("A Box custody object is in trash.");
+            }
+            if (!string.Equals(folder.Name, caseFolderName, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("The Box custody folder is not the Case's own folder.");
+            }
+            if (!string.Equals(folder.ParentId, options.RootFolderId, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("The Box custody folder parent is inconsistent.");
+            }
+            return new ProvedFolder(folder.Id);
+        }
+        catch (Exception exception) when (IsFenceFailure(exception))
+        {
+            Forget(folderId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Proves that a folder is not in the trash and sits under the approved
+    /// root, at any depth. This is the proof for a folder whose name the caller
+    /// does not know: a document is filed in its Case's folder or in the Audit's
+    /// <c>a.</c> folder inside it, and the holding folder sits below the root
+    /// too. One read for a folder directly under the root; one more for each
+    /// folder between it and the root.
+    /// </summary>
+    public async Task<ProvedFolder> ProveFolderAsync(string folderId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderId);
+        await EnsureDescendantAsync(folderId, cancellationToken);
+        return new ProvedFolder(folderId);
     }
 
     public async Task<BoxItem> CreateFolderAsync(
@@ -461,80 +616,67 @@ internal sealed class BoxContentClient(
         return folder;
     }
 
-    public async Task<BoxItem> UploadAsync(
-        string parentId,
+    /// <summary>
+    /// Uploads a file into a folder that has been proved, without looking for
+    /// its name first. The caller owns <paramref name="content"/> and keeps it
+    /// unchanged until this returns. Box's answer must name the proved folder
+    /// as the file's parent. A name Box already holds is Box's 409
+    /// <c>item_name_in_use</c>: the file is then the same file only when it is
+    /// a file of this length, in this folder, holding these bytes, and the
+    /// result says it was not created. Its type is compared only if Box sends
+    /// one, and Box does not (<see cref="IsExpectedRevision"/>).
+    /// </summary>
+    public async Task<BoxUpload> UploadAsync(
+        ProvedFolder folder,
         string name,
         ReadOnlyMemory<byte> content,
         string mediaType,
         CancellationToken cancellationToken)
     {
-        await EnsureDescendantAsync(parentId, cancellationToken);
         using var multipart = new MultipartFormDataContent();
-        multipart.Add(JsonContent.Create(new { name, parent = new { id = parentId } }), "attributes");
-        var fileContent = new ByteArrayContent(content.ToArray());
+        multipart.Add(JsonContent.Create(new { name, parent = new { id = folder.Id } }), "attributes");
+        var fileContent = new ReadOnlyMemoryContent(content);
         fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
         multipart.Add(fileContent, "file", name);
-        using var response = await SendAsync(HttpMethod.Post, new Uri(options.UploadUri, "files/content"), multipart, cancellationToken);
+        using var response = await SendAsync(HttpMethod.Post, UploadUri, multipart, cancellationToken);
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
             var errorCode = await ReadBoxErrorCodeAsync(response, cancellationToken);
-            if (string.Equals(errorCode, "item_name_in_use", StringComparison.Ordinal))
+            if (!string.Equals(errorCode, "item_name_in_use", StringComparison.Ordinal))
             {
-                var existing = await FindChildAsync(parentId, name, "file", cancellationToken)
-                    ?? throw new HttpRequestException(
-                        "Box reported an occupied file name but the exact existing file could not be resolved.",
-                        null,
-                        HttpStatusCode.Conflict);
-                if (string.IsNullOrWhiteSpace(existing.VersionId))
-                {
-                    throw new InvalidDataException("Box omitted the existing file version identity.");
-                }
-                if (existing.Size is { } size && size != content.Length)
-                {
-                    throw new InvalidDataException(
-                        "The occupied Box file name contains different content.");
-                }
-                await using var retained = await OpenVersionReadAsync(
-                    existing.Id,
-                    existing.VersionId,
-                    content.Length,
-                    cancellationToken);
-                var verified = new byte[content.Length];
-                await retained.ReadExactlyAsync(verified, cancellationToken);
-                if (await retained.ReadAsync(new byte[1], cancellationToken) != 0
-                    || !verified.AsSpan().SequenceEqual(content.Span))
-                {
-                    throw new InvalidDataException(
-                        "The occupied Box file name contains different content.");
-                }
-                return existing;
+                throw ConflictFailure(errorCode);
             }
-            throw new HttpRequestException(
-                string.Equals(errorCode, "name_temporarily_reserved", StringComparison.Ordinal)
-                    ? "Box temporarily reserved the deterministic custody file name; retry reconciliation later."
-                    : "Box rejected the deterministic custody file name.",
-                null,
-                HttpStatusCode.Conflict);
+            var existing = await FindOccupyingFileAsync(
+                folder, name, mediaType, content.Length, cancellationToken);
+            await using var retained = await OpenVersionReadAsync(
+                existing.Id,
+                existing.VersionId!,
+                content.Length,
+                cancellationToken);
+            var verified = new byte[content.Length];
+            await retained.ReadExactlyAsync(verified, cancellationToken);
+            if (await retained.ReadAsync(new byte[1], cancellationToken) != 0
+                || !verified.AsSpan().SequenceEqual(content.Span))
+            {
+                throw new InvalidDataException(
+                    "The occupied Box file name contains different content.");
+            }
+            return new(existing, Created: false);
         }
-        using var document = await ReadSuccessJsonAsync(response, cancellationToken);
-        var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToArray();
-        if (entries.Length != 1)
-        {
-            throw new InvalidDataException("Box upload returned an unexpected file count.");
-        }
-        var result = ParseItem(entries[0]);
-        await EnsureDescendantAsync(result.Id, cancellationToken, isFile: true);
-        return result;
+        return new(await ReadUploadedFileAsync(response, folder, cancellationToken), Created: true);
     }
 
     /// <summary>
-    /// Streams a complete, predeclared file body without taking ownership of
-    /// <paramref name="content"/>. The seekable input is verified before Box
-    /// receives a byte, then reset and wrapped so the multipart request cannot
-    /// read beyond its declared length.
+    /// Streams a complete, predeclared file body into a folder that has been
+    /// proved, without taking ownership of <paramref name="content"/>. The
+    /// seekable input is verified before Box receives a byte, then reset and
+    /// wrapped so the multipart request cannot read beyond its declared length.
+    /// The name is not looked for first, Box's answer must name the proved
+    /// folder as the file's parent, and a name Box already holds is resolved by
+    /// comparing hashes, exactly as for the overload above.
     /// </summary>
-    public async Task<BoxItem> UploadAsync(
-        string parentId,
+    public async Task<BoxUpload> UploadAsync(
+        ProvedFolder folder,
         string name,
         Stream content,
         long contentLength,
@@ -556,61 +698,31 @@ internal sealed class BoxContentClient(
         await VerifyAndResetAsync(content, startPosition, contentLength, normalizedHash, cancellationToken);
         try
         {
-            await EnsureDescendantAsync(parentId, cancellationToken);
             using var multipart = new MultipartFormDataContent();
-            multipart.Add(JsonContent.Create(new { name, parent = new { id = parentId } }), "attributes");
+            multipart.Add(JsonContent.Create(new { name, parent = new { id = folder.Id } }), "attributes");
             var fileContent = new StreamContent(new BoundedReadStream(content, contentLength));
             fileContent.Headers.ContentLength = contentLength;
             fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
             multipart.Add(fileContent, "file", name);
-            using var response = await SendAsync(
-                HttpMethod.Post,
-                new Uri(options.UploadUri, "files/content"),
-                multipart,
-                cancellationToken);
+            using var response = await SendAsync(HttpMethod.Post, UploadUri, multipart, cancellationToken);
             if (response.StatusCode == HttpStatusCode.Conflict)
             {
                 var errorCode = await ReadBoxErrorCodeAsync(response, cancellationToken);
-                if (string.Equals(errorCode, "item_name_in_use", StringComparison.Ordinal))
+                if (!string.Equals(errorCode, "item_name_in_use", StringComparison.Ordinal))
                 {
-                    var existing = await FindChildAsync(parentId, name, "file", cancellationToken)
-                        ?? throw new HttpRequestException(
-                            "Box reported an occupied file name but the exact existing file could not be resolved.",
-                            null,
-                            HttpStatusCode.Conflict);
-                    if (string.IsNullOrWhiteSpace(existing.VersionId))
-                    {
-                        throw new InvalidDataException("Box omitted the existing file version identity.");
-                    }
-                    if (existing.Size is { } size && size != contentLength)
-                    {
-                        throw new InvalidDataException(
-                            "The occupied Box file name contains different content.");
-                    }
-                    await using var retained = await OpenVersionReadAsync(
-                        existing.Id,
-                        existing.VersionId,
-                        contentLength,
-                        cancellationToken);
-                    await VerifyExactContentAsync(retained, contentLength, normalizedHash, cancellationToken);
-                    return existing;
+                    throw ConflictFailure(errorCode);
                 }
-                throw new HttpRequestException(
-                    string.Equals(errorCode, "name_temporarily_reserved", StringComparison.Ordinal)
-                        ? "Box temporarily reserved the deterministic custody file name; retry reconciliation later."
-                        : "Box rejected the deterministic custody file name.",
-                    null,
-                    HttpStatusCode.Conflict);
+                var existing = await FindOccupyingFileAsync(
+                    folder, name, mediaType, contentLength, cancellationToken);
+                await using var retained = await OpenVersionReadAsync(
+                    existing.Id,
+                    existing.VersionId!,
+                    contentLength,
+                    cancellationToken);
+                await VerifyExactContentAsync(retained, contentLength, normalizedHash, cancellationToken);
+                return new(existing, Created: false);
             }
-            using var document = await ReadSuccessJsonAsync(response, cancellationToken);
-            var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToArray();
-            if (entries.Length != 1)
-            {
-                throw new InvalidDataException("Box upload returned an unexpected file count.");
-            }
-            var result = ParseItem(entries[0]);
-            await EnsureDescendantAsync(result.Id, cancellationToken, isFile: true);
-            return result;
+            return new(await ReadUploadedFileAsync(response, folder, cancellationToken), Created: true);
         }
         finally
         {
@@ -618,10 +730,121 @@ internal sealed class BoxContentClient(
         }
     }
 
-    public async Task<byte[]> DownloadAsync(string fileId, CancellationToken cancellationToken)
+    /// <summary>
+    /// The file Box says already holds an upload's name: a file, not a folder,
+    /// with a version identity, and this content's parent and length. Its type
+    /// is compared only if Box sends one, and Box does not
+    /// (<see cref="IsExpectedRevision"/>). A file that is not is a refusal;
+    /// whether its bytes are these bytes is the caller's next check.
+    /// </summary>
+    private async Task<BoxItem> FindOccupyingFileAsync(
+        ProvedFolder folder,
+        string name,
+        string mediaType,
+        long contentLength,
+        CancellationToken cancellationToken)
     {
-        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
-        return await DownloadContentAsync(fileId, cancellationToken);
+        var existing = await FindChildAsync(folder.Id, name, "file", cancellationToken)
+            ?? throw new HttpRequestException(
+                "Box reported an occupied file name but the exact existing file could not be resolved.",
+                null,
+                HttpStatusCode.Conflict);
+        if (string.IsNullOrWhiteSpace(existing.VersionId))
+        {
+            throw new InvalidDataException("Box omitted the existing file version identity.");
+        }
+        if (!IsExpectedRevision(existing, folder.Id, mediaType, contentLength))
+        {
+            throw new InvalidDataException(
+                "The occupied Box file name holds a file of a different parent, length or type.");
+        }
+        return existing;
+    }
+
+    /// <summary>
+    /// A 409 on an upload that is not a name already in use. Box says "later"
+    /// for the two codes that a folder's other work can raise; anything else is
+    /// a refusal of the name. Both are the same failure to the caller, and
+    /// what follows is the caller's. An image-case custody item re-arms itself
+    /// with backoff. A Case's custody item stays failed until staff retry it.
+    /// A Case document whose upload failed stays pending, and reconciliation
+    /// files it later.
+    /// </summary>
+    private static HttpRequestException ConflictFailure(string? errorCode) => new(
+        errorCode switch
+        {
+            "name_temporarily_reserved" =>
+                "Box temporarily reserved the deterministic custody file name; retry reconciliation later.",
+            "operation_blocked_temporary" =>
+                "Box blocked the upload behind another operation on the folder; retry reconciliation later.",
+            _ => "Box rejected the deterministic custody file name."
+        },
+        null,
+        HttpStatusCode.Conflict);
+
+    /// <summary>
+    /// Whether a Box file is the revision it is supposed to be.
+    ///
+    /// Box does not return <c>content_type</c> for a file — it is not
+    /// a field of the v2 file object, and asking for it simply yields nothing —
+    /// so <see cref="BoxItem.MediaType"/> is null on every
+    /// read. Comparing it unconditionally made this check impossible to pass,
+    /// and no managed Box read had ever succeeded in production: the Evidence
+    /// gallery, the case-document download and the case export all failed the
+    /// same way, each turning the exception into a 404 or a flat refusal.
+    ///
+    /// Ancestry and length are always checked. The type is checked only when
+    /// Box actually supplied one, so a field Box does not send cannot refuse a
+    /// file that is otherwise exactly right. The content hash is verified by
+    /// the caller immediately afterwards and is the real integrity guarantee —
+    /// this check exists to catch the wrong file, not to re-derive its type.
+    /// </summary>
+    internal static bool IsExpectedRevision(
+        BoxItem file,
+        string expectedParentId,
+        string expectedMediaType,
+        long expectedLength) =>
+        string.Equals(file.ParentId, expectedParentId, StringComparison.Ordinal)
+        && file.Size == expectedLength
+        && (file.MediaType is not { Length: > 0 } mediaType
+            || string.Equals(mediaType, expectedMediaType, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Where Box takes an upload. The fields are asked for by name, so the
+    /// answer always carries the file's parent, which is what proves where the
+    /// file landed.
+    /// </summary>
+    private Uri UploadUri =>
+        new(options.UploadUri, "files/content?fields=id,name,type,etag,file_version,parent");
+
+    /// <summary>
+    /// The file a successful upload made. Its parent must be the folder that
+    /// was proved before the upload; any other parent is a fence failure, and
+    /// the read memory forgets the folder.
+    /// </summary>
+    private async Task<BoxItem> ReadUploadedFileAsync(
+        HttpResponseMessage response,
+        ProvedFolder folder,
+        CancellationToken cancellationToken)
+    {
+        using var document = await ReadSuccessJsonAsync(response, cancellationToken);
+        var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToArray();
+        if (entries.Length != 1)
+        {
+            throw new InvalidDataException("Box upload returned an unexpected file count.");
+        }
+        var result = ParseItem(entries[0]);
+        if (!string.Equals(result.Type, "file", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Box returned the wrong type for an uploaded custody file.");
+        }
+        if (!string.Equals(result.ParentId, folder.Id, StringComparison.Ordinal))
+        {
+            Forget(folder.Id);
+            throw new UnauthorizedAccessException(
+                "The uploaded Box file is outside the folder it was proved for.");
+        }
+        return result;
     }
 
     public async Task<Stream> OpenVersionReadAsync(
@@ -649,7 +872,27 @@ internal sealed class BoxContentClient(
         long maximumLength,
         CancellationToken cancellationToken) =>
         OpenOwnedVersionAsync(
-            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true, cancellationToken);
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true,
+            contentHash: null, cancellationToken);
+
+    /// <summary>
+    /// The managed read, hashing the content as the download is written, so the
+    /// caller that must verify it does not copy it a second time. The caller
+    /// finishes the hash and compares it; nothing is compared here.
+    /// </summary>
+    public Task<Stream> OpenOwnedVersionReadAsync(
+        string fileId,
+        string versionId,
+        string expectedParentId,
+        long maximumLength,
+        IncrementalHash contentHash,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(contentHash);
+        return OpenOwnedVersionAsync(
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true,
+            contentHash, cancellationToken);
+    }
 
     /// <summary>
     /// The same exact-version read for a write path: the folder's ancestry is
@@ -662,17 +905,37 @@ internal sealed class BoxContentClient(
         long maximumLength,
         CancellationToken cancellationToken) =>
         OpenOwnedVersionAsync(
-            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: false, cancellationToken);
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: false,
+            contentHash: null, cancellationToken);
 
+    /// <summary>
+    /// The exact version's content, once the file has passed every check.
+    /// </summary>
+    /// <remarks>
+    /// The content is requested at the same time as the file's metadata, so a
+    /// read waits for the slower of the two rather than for both. The checks
+    /// then run as before, in order: the object is a file, it is not in the
+    /// trash, its parent is the expected folder, and that folder sits under the
+    /// approved root. The content is not handed to any caller until every check
+    /// has passed. When a check fails, or the request for it does, the download
+    /// is cancelled, its temporary file is deleted, and the check's exception
+    /// is the answer. When the checks pass and the content request failed, the
+    /// content's exception is the answer.
+    /// </remarks>
     private async Task<Stream> OpenOwnedVersionAsync(
         string fileId,
         string versionId,
         string expectedParentId,
         long maximumLength,
         bool rememberAncestry,
+        IncrementalHash? contentHash,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedParentId);
+        using var abandon = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var content = DownloadVersionWithoutAncestryAsync(
+            fileId, versionId, maximumLength, contentHash, abandon.Token);
+        Stream? opened = null;
         try
         {
             using var metadataResponse = await SendAsync(
@@ -703,13 +966,41 @@ internal sealed class BoxContentClient(
             {
                 await EnsureDescendantAsync(expectedParentId, cancellationToken);
             }
-            return await DownloadVersionWithoutAncestryAsync(
-                fileId, versionId, maximumLength, cancellationToken);
+            opened = await content;
+            return opened;
         }
         catch (Exception exception) when (IsFenceFailure(exception))
         {
             Forget(expectedParentId);
             throw;
+        }
+        finally
+        {
+            if (opened is null)
+            {
+                await DiscardDownloadAsync(content, abandon);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ends a download whose bytes will never be used: stops it, lets it finish
+    /// and disposes what it produced, which deletes its temporary file. The
+    /// download's own failure is not reported, because the caller is already
+    /// reporting the reason the bytes are not wanted.
+    /// </summary>
+    private static async Task DiscardDownloadAsync(Task<Stream> content, CancellationTokenSource abandon)
+    {
+        await abandon.CancelAsync();
+        try
+        {
+            var stream = await content;
+            await stream.DisposeAsync();
+        }
+        catch (Exception)
+        {
+            // The download was cancelled or had already failed. Either way the
+            // caller's own exception is the answer, not this one.
         }
     }
 
@@ -774,12 +1065,18 @@ internal sealed class BoxContentClient(
         long maximumLength,
         CancellationToken cancellationToken) =>
         await DownloadVersionWithoutAncestryAsync(
-            fileId, versionId, maximumLength, cancellationToken);
+            fileId, versionId, maximumLength, contentHash: null, cancellationToken);
 
+    /// <summary>
+    /// Downloads one exact version to a temporary file that is deleted when the
+    /// returned stream is disposed. When <paramref name="contentHash"/> is
+    /// given, each chunk is added to it as it is written.
+    /// </summary>
     private async Task<Stream> DownloadVersionWithoutAncestryAsync(
         string fileId,
         string versionId,
         long maximumLength,
+        IncrementalHash? contentHash,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
@@ -830,6 +1127,7 @@ internal sealed class BoxContentClient(
                 {
                     throw new InvalidDataException("Box version content exceeds its recorded length.");
                 }
+                contentHash?.AppendData(buffer, 0, read);
                 await retained.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             }
             retained.Position = 0;
@@ -840,20 +1138,6 @@ internal sealed class BoxContentClient(
             await retained.DisposeAsync();
             throw;
         }
-    }
-
-    private async Task<byte[]> DownloadContentAsync(string fileId, CancellationToken cancellationToken)
-    {
-        using var response = await SendAsync(
-            HttpMethod.Get,
-            new Uri(options.BaseUri, $"files/{Uri.EscapeDataString(fileId)}/content"),
-            null,
-            cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException($"Box download returned {(int)response.StatusCode}.");
-        }
-        return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
     public async Task<BoxItem> MoveFileAsync(
@@ -1123,6 +1407,12 @@ internal sealed class BoxContentClient(
         public override Task FlushAsync(CancellationToken cancellationToken) =>
             Task.FromException(new NotSupportedException());
 
+        // Only the synchronous Stream contract needs this override, and it blocks on the
+        // asynchronous read. No production caller reaches it. This stream is built once,
+        // for the upload's StreamContent, and HttpClient.SendAsync copies it with
+        // CopyToAsync, which calls ReadAsync(Memory). Read(Span), ReadByte, CopyTo,
+        // BeginRead and the synchronous HttpContent APIs (CopyTo, HttpClient.Send) are
+        // not used on it. Keep it that way: do not read this stream synchronously.
         public override int Read(byte[] buffer, int offset, int count) =>
             ReadAsync(buffer.AsMemory(offset, count), CancellationToken.None).AsTask().GetAwaiter().GetResult();
 
@@ -1181,6 +1471,17 @@ internal sealed class BoxCaseCustody(
     private const string CaseBindingFileName = "pegasus-case-binding.json";
     private const string CreationAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
+    /// <summary>
+    /// The proof of each root this adapter has been handed, held for as long as
+    /// the caller holds that <see cref="CaseCustodyRoot"/> object. A piece of
+    /// work carries one root through all of its files, so it proves the Case
+    /// folder once, however many files it files. A root the adapter has not
+    /// proved is proved on first use, and a proof that fails is not kept. This
+    /// is no time-limited memory: a new root object is a new proof.
+    /// </summary>
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<
+        CaseCustodyRoot, Lazy<Task<BoxContentClient.ProvedFolder>>> provedRoots = new();
+
     public async Task<CaseCustodyRoot> CreateCaseRootAsync(
         Guid caseId,
         string caseReference,
@@ -1225,15 +1526,30 @@ internal sealed class BoxCaseCustody(
         CancellationToken cancellationToken)
     {
         ValidateCase(caseId, caseReference);
-        var parentId = client.RootFolderId;
         var folder = await client.FindChildAsync(
-            parentId,
+            client.RootFolderId,
             CaseFolderName(caseReference),
             "folder",
             cancellationToken)
             ?? throw new InvalidOperationException("The case custody root has not been created.");
-        await VerifyFolderIdentityAsync(folder, parentId, folder.Name, cancellationToken);
-        return new(caseId, folder.Id, caseReference);
+        var root = new CaseCustodyRoot(caseId, folder.Id, caseReference);
+        await ProveRootAsync(root, cancellationToken);
+        return root;
+    }
+
+    /// <summary>
+    /// The Case's root when its folder is already recorded: one read proves
+    /// that folder, and the approved root is not listed.
+    /// </summary>
+    public async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        string remoteId,
+        CancellationToken cancellationToken)
+    {
+        var root = new CaseCustodyRoot(caseId, remoteId, caseReference);
+        await ProveRootAsync(root, cancellationToken);
+        return root;
     }
 
     public async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
@@ -1263,21 +1579,11 @@ internal sealed class BoxCaseCustody(
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(source);
         ValidateOperation(operationKey);
-        await ValidateRootAsync(root, cancellationToken);
-        var (content, actualHash) = await ReadVerifiedSourceAsync(source, cancellationToken);
 
         // Operator direction (2026-08-21): the case folder holds the files.
         // The Evidence / Original instruction nesting was never asked for.
-        var fileName = $"001 {SafeName(source.SourceFileName)}";
-        var file = await UploadOrVerifyFileAsync(
-            root.RemoteId, fileName, content, source.MediaType, leaseGuard, cancellationToken);
-        return new(
-            root.CaseId,
-            file.Id,
-            actualHash,
-            file.ETag ?? actualHash,
-            file.VersionId
-                ?? throw new InvalidDataException("Box omitted the retained file version identity."));
+        return await RetainFileAsync(
+            root, source, $"001 {SafeName(source.SourceFileName)}", leaseGuard, cancellationToken);
     }
 
     public async Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentAsync(
@@ -1311,19 +1617,12 @@ internal sealed class BoxCaseCustody(
         ArgumentNullException.ThrowIfNull(attachment);
         ArgumentOutOfRangeException.ThrowIfLessThan(ordinal, 2);
         ValidateOperation(operationKey);
-        await ValidateRootAsync(root, cancellationToken);
-        var (content, actualHash) = await ReadVerifiedSourceAsync(attachment, cancellationToken);
-
-        var fileName = $"{ordinal:D3} {SafeName(attachment.SourceFileName)}";
-        var file = await UploadOrVerifyFileAsync(
-            root.RemoteId, fileName, content, attachment.MediaType, leaseGuard, cancellationToken);
-        return new(
-            root.CaseId,
-            file.Id,
-            actualHash,
-            file.ETag ?? actualHash,
-            file.VersionId
-                ?? throw new InvalidDataException("Box omitted the retained file version identity."));
+        return await RetainFileAsync(
+            root,
+            attachment,
+            $"{ordinal:D3} {SafeName(attachment.SourceFileName)}",
+            leaseGuard,
+            cancellationToken);
     }
 
     public async Task<CustodyDocumentVersion> RetainImageCaseAssetAsync(
@@ -1361,19 +1660,12 @@ internal sealed class BoxCaseCustody(
             throw new ArgumentException("Image intake custody requires a retained asset identity.", nameof(source));
         }
         ValidateOperation(operationKey);
-        await ValidateRootAsync(root, cancellationToken);
-        var (content, actualHash) = await ReadVerifiedSourceAsync(source, cancellationToken);
-
-        var fileName = $"{ordinal:000} {SafeName(source.SourceFileName)}";
-        var file = await UploadOrVerifyFileAsync(
-            root.RemoteId, fileName, content, source.MediaType, leaseGuard, cancellationToken);
-        return new(
-            root.CaseId,
-            file.Id,
-            actualHash,
-            file.ETag ?? actualHash,
-            file.VersionId
-                ?? throw new InvalidDataException("Box omitted the retained file version identity."));
+        return await RetainFileAsync(
+            root,
+            source,
+            $"{ordinal:000} {SafeName(source.SourceFileName)}",
+            leaseGuard,
+            cancellationToken);
     }
 
     public async Task MergeImageCaseContentsAsync(
@@ -1420,7 +1712,7 @@ internal sealed class BoxCaseCustody(
         {
             throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
         }
-        await ValidateRootAsync(caseRoot, cancellationToken);
+        await ProveRootAsync(caseRoot, cancellationToken);
 
         // Flat, like everything else in the case folder (operator direction,
         // 2026-08-21). The folded images join the instruction's files rather
@@ -1502,7 +1794,7 @@ internal sealed class BoxCaseCustody(
         ArgumentNullException.ThrowIfNull(root);
         ArgumentException.ThrowIfNullOrWhiteSpace(auditReference);
         ValidateOperation(operationKey);
-        await ValidateRootAsync(root, cancellationToken);
+        await ProveRootAsync(root, cancellationToken);
         var folder = await GetOrCreateOwnedFolderAsync(
             root.RemoteId,
             CustodyNames.SafeName(auditReference),
@@ -1512,16 +1804,61 @@ internal sealed class BoxCaseCustody(
         return folder.Id;
     }
 
-    private async Task ValidateRootAsync(CaseCustodyRoot root, CancellationToken cancellationToken)
+    /// <summary>
+    /// Proves, with one read, that the root's folder is the Case's own folder
+    /// (<see cref="BoxContentClient.ProveCaseFolderAsync"/>). The proof is kept
+    /// for the life of this <see cref="CaseCustodyRoot"/> object, so the files
+    /// of one piece of work share it, and the first files to arrive together
+    /// make one read between them. A proof that fails is dropped.
+    /// </summary>
+    private async Task<BoxContentClient.ProvedFolder> ProveRootAsync(
+        CaseCustodyRoot root,
+        CancellationToken cancellationToken)
     {
-        var expected = await GetExistingCaseRootAsync(
-            root.CaseId,
-            root.Reference,
-            cancellationToken);
-        if (!expected.RemoteId.Equals(root.RemoteId, StringComparison.Ordinal))
+        ArgumentNullException.ThrowIfNull(root);
+        ValidateCase(root.CaseId, root.Reference);
+        var proof = provedRoots.GetValue(
+            root,
+            held => new(() => client.ProveCaseFolderAsync(
+                held.RemoteId, CaseFolderName(held.Reference), cancellationToken)));
+        try
         {
-            throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
+            return await proof.Value;
         }
+        catch
+        {
+            provedRoots.Remove(root);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Files one retained source into the Case folder: the folder is proved
+    /// (once for the root), the source is read and checked against its hash
+    /// and length, the lease is checked, and the upload goes to Box. The name is
+    /// not looked for first. A file that already holds it is Box's 409, and the
+    /// client accepts it only when its content is this content, so a replay
+    /// verifies rather than uploads again.
+    /// </summary>
+    private async Task<CustodyDocumentVersion> RetainFileAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        string fileName,
+        CustodyEffectLeaseGuard? leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        var folder = await ProveRootAsync(root, cancellationToken);
+        var (content, actualHash) = await ReadVerifiedSourceAsync(source, cancellationToken);
+        await RequireLeaseAsync(leaseGuard, cancellationToken);
+        var file = (await client.UploadAsync(
+            folder, fileName, content, source.MediaType, cancellationToken)).File;
+        return new(
+            root.CaseId,
+            file.Id,
+            actualHash,
+            file.ETag ?? actualHash,
+            file.VersionId
+                ?? throw new InvalidDataException("Box omitted the retained file version identity."));
     }
 
     private async Task<(ReadOnlyMemory<byte> Content, string Hash)> ReadVerifiedSourceAsync(
@@ -1542,24 +1879,6 @@ internal sealed class BoxCaseCustody(
         return (content, actualHash);
     }
 
-    private async Task<BoxContentClient.BoxItem> UploadOrVerifyFileAsync(
-        string parentId,
-        string fileName,
-        ReadOnlyMemory<byte> content,
-        string mediaType,
-        CustodyEffectLeaseGuard? leaseGuard,
-        CancellationToken cancellationToken)
-    {
-        var existing = await client.FindChildAsync(parentId, fileName, "file", cancellationToken);
-        if (existing is not null)
-        {
-            await VerifyFileAsync(existing, parentId, mediaType, content, cancellationToken);
-            return existing;
-        }
-        await RequireLeaseAsync(leaseGuard, cancellationToken);
-        return await client.UploadAsync(parentId, fileName, content, mediaType, cancellationToken);
-    }
-
     /// <summary>
     /// The staged two-phase folder create: a crash between create and rename
     /// leaves an owner-token staging folder the same replay resumes, and a
@@ -1578,7 +1897,7 @@ internal sealed class BoxCaseCustody(
         var existing = await client.FindChildAsync(parentId, finalName, "folder", cancellationToken);
         if (existing is not null)
         {
-            await VerifyFolderIdentityAsync(existing, parentId, finalName, cancellationToken);
+            await VerifyFolderIdentityAsync(existing, finalName, cancellationToken);
             return existing;
         }
 
@@ -1589,7 +1908,7 @@ internal sealed class BoxCaseCustody(
             await RequireLeaseAsync(leaseGuard, cancellationToken);
             staging = await client.CreateFolderAsync(parentId, stagingName, cancellationToken);
         }
-        await VerifyFolderIdentityAsync(staging, parentId, stagingName, cancellationToken);
+        await VerifyFolderIdentityAsync(staging, stagingName, cancellationToken);
 
         var finalConflict = await client.FindChildAsync(parentId, finalName, "folder", cancellationToken);
         if (finalConflict is not null)
@@ -1622,9 +1941,13 @@ internal sealed class BoxCaseCustody(
         leaseGuard?.RequireCurrentAsync(cancellationToken) ?? Task.CompletedTask;
 
 
+    /// <summary>
+    /// A folder found by name in its parent's listing is a folder of that name
+    /// and sits under the approved root, not in the trash. The listing already
+    /// said it is that parent's child, so the parent is not listed again.
+    /// </summary>
     private async Task VerifyFolderIdentityAsync(
         BoxContentClient.BoxItem folder,
-        string parentId,
         string expectedName,
         CancellationToken cancellationToken)
     {
@@ -1634,35 +1957,8 @@ internal sealed class BoxCaseCustody(
             throw new InvalidDataException("The Box custody folder identity is inconsistent.");
         }
         await client.EnsureDescendantAsync(folder.Id, cancellationToken);
-        var parent = await client.FindChildAsync(parentId, expectedName, "folder", cancellationToken);
-        if (parent is null || !string.Equals(parent.Id, folder.Id, StringComparison.Ordinal))
-        {
-            throw new UnauthorizedAccessException("The Box custody folder parent is inconsistent.");
-        }
     }
 
-
-    private async Task VerifyFileAsync(
-        BoxContentClient.BoxItem file,
-        string expectedParentId,
-        string expectedMediaType,
-        ReadOnlyMemory<byte> expected,
-        CancellationToken cancellationToken)
-    {
-        var metadata = await client.GetFileAsync(file.Id, cancellationToken);
-        if (!string.Equals(metadata.ParentId, expectedParentId, StringComparison.Ordinal)
-            || metadata.Size != expected.Length
-            || !string.Equals(metadata.MediaType, expectedMediaType, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException(
-                "A Box custody file has inconsistent immutable type, parent, or length metadata.");
-        }
-        var actual = await client.DownloadAsync(file.Id, cancellationToken);
-        if (!actual.AsSpan().SequenceEqual(expected.Span))
-        {
-            throw new InvalidDataException("A Box custody file has different immutable content.");
-        }
-    }
 
     private static void ValidateCase(Guid caseId, string reference)
     {

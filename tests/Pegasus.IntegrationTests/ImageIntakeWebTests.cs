@@ -1,9 +1,13 @@
+using System.Collections.Concurrent;
+using System.Data.Common;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -127,6 +131,12 @@ public sealed class ImageIntakeWebTests
         var unidentifiedId = await OpenUnidentifiedIdAsync(factory, receiptId);
         var record = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
         Assert.Contains($"href=\"{named}\"", record, StringComparison.OrdinalIgnoreCase);
+        // The tile itself is a rendering at tile size, even though nothing is
+        // recorded on the image; only the link is the original.
+        Assert.Contains(
+            $"src=\"{assetRoute}?size=thumb&amp;v={asset.ContentHash}&amp;prep=0&amp;renderer={CaseDocumentThumbnails.RendererIdentity}\"",
+            record,
+            StringComparison.OrdinalIgnoreCase);
 
         using (var kept = await client.GetAsync(named))
         {
@@ -136,6 +146,10 @@ public sealed class ImageIntakeWebTests
             Assert.Equal(TimeSpan.FromDays(7), caching.MaxAge);
             Assert.Contains(caching.Extensions, directive => directive.Name == "immutable");
             Assert.Equal($"\"{asset.ContentHash.ToLowerInvariant()}\"", kept.Headers.ETag!.Tag);
+            // The whole file, byte for byte.
+            Assert.Equal(
+                Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+                await kept.Content.ReadAsByteArrayAsync());
         }
         foreach (var uncached in new[] { assetRoute, $"{assetRoute}?v={new string('0', 64)}" })
         {
@@ -153,11 +167,91 @@ public sealed class ImageIntakeWebTests
             Assert.Equal(TimeSpan.FromDays(7), image.Headers.CacheControl!.MaxAge);
             Assert.Equal($"\"{receipt.SourceHash.ToLowerInvariant()}\"", image.Headers.ETag!.Tag);
         }
+        // The upload review addresses the image the same way, so the page's
+        // refreshes while a photograph is processed reuse the browser's copy.
+        var reviewImage = Pegasus.Web.Presentation.UploadReviewFile.ImageUrlOf(null, receipt);
+        Assert.Equal($"/Received/{receiptId:D}/Image?v={receipt.SourceHash}", reviewImage);
+        using (var image = await client.GetAsync(reviewImage))
+        {
+            Assert.Equal(HttpStatusCode.OK, image.StatusCode);
+            Assert.Equal(TimeSpan.FromDays(7), image.Headers.CacheControl!.MaxAge);
+            Assert.Equal($"\"{receipt.SourceHash.ToLowerInvariant()}\"", image.Headers.ETag!.Tag);
+        }
         using (var image = await client.GetAsync($"/Received/{receiptId:D}/Image"))
         {
             Assert.True(image.Headers.CacheControl!.NoStore);
             Assert.Null(image.Headers.ETag);
         }
+    }
+
+    /// <summary>
+    /// One asset download reads that one asset. It does not load the receipt's
+    /// whole aggregate, whose tail is the Case link and the allocation attempts.
+    /// </summary>
+    [Fact]
+    public async Task AnAssetDownloadReadsTheOneAssetNotTheReceiptAggregate()
+    {
+        var reads = new RecordingReadInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine(),
+            commandInterceptor: reads);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        IntakeAssetRecord asset;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            asset = Assert.IsType<IntakeAssetRecord>(IntakeFileIdentity.SourceAsset(
+                Assert.IsType<IntakeReceipt>(await scope.ServiceProvider
+                    .GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receiptId, CancellationToken.None))));
+        }
+
+        reads.Reset();
+        using var response = await client.GetAsync(
+            $"/Received/{receiptId:D}/Asset/{asset.Id:D}?v={asset.ContentHash}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            await response.Content.ReadAsByteArrayAsync());
+        var statements = reads.Statements;
+        // The reads that authenticate the request (the account, its roles and
+        // claims) depend on the account setup, not on the download, so they are
+        // set aside. Nothing else in this pipeline reads the database, and the
+        // queued provider work is idle, so what is left is the download's own.
+        var download = statements
+            .Where(sql => !sql.Contains("[AspNet", StringComparison.Ordinal))
+            .ToArray();
+        // Two reader commands, both on IntakeAssets: the one-asset read, then
+        // the local custody reader's own read of that asset. Before this
+        // change it was four: the receipt aggregate (one command with its six
+        // includes; no split query is configured), the Case link lookup and
+        // the allocation attempt lookup that follow it, then the custody
+        // reader's read.
+        Assert.Equal(2, download.Length);
+        Assert.All(download, sql => Assert.Contains("[IntakeAssets]", sql, StringComparison.Ordinal));
+        // Only the receipt aggregate reads these: its allocation attempt and
+        // the three decisions it includes. Their absence means the aggregate
+        // was not loaded.
+        string[] aggregateOnly =
+        [
+            "[IntakeAllocationAttempts]",
+            "[IntakeMailRouteDecisions]",
+            "[IntakeMailClassificationDecisions]",
+            "[IntakeCaseMatchDecisions]"
+        ];
+        Assert.DoesNotContain(
+            statements,
+            sql => aggregateOnly.Any(table => sql.Contains(table, StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -307,6 +401,62 @@ public sealed class ImageIntakeWebTests
         Assert.DoesNotContain("data-image-automation-withheld", agreeing, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A record made from several uploaded photographs shows each photograph's
+    /// receipt beside its origin. The page reads those receipts together (one
+    /// whole-receipt read for three receipts, where it once read one each).
+    /// </summary>
+    [Fact]
+    public async Task TheRecordPageReadsAGroupsReceiptsInOneStatement()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"),
+            commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var png = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", png),
+                ("close-up.png", "image/png", png),
+                ("rear.png", "image/png", png)
+            ]);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        Guid recordId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+            var detail = Assert.IsType<ImageIntakeDetail>(await scope.ServiceProvider
+                .GetRequiredService<IImageIntakeQueries>()
+                .GetByOriginReceiptAsync(IntakeWebDriver.ReceiptId(processed), CancellationToken.None));
+            recordId = detail.Record.Id;
+            var images = await scope.ServiceProvider
+                .GetRequiredService<IImageIntakeQueries>()
+                .ListImagesAsync(recordId, CancellationToken.None);
+            Assert.Equal(3, images.Select(image => image.ReceiptId).Distinct().Count());
+        }
+
+        counter.Reset();
+        var page = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{recordId:D}");
+
+        Assert.Contains("overview.png", page, StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            counter.CountContaining(
+                "[IntakeReceipts]",
+                "[IntakeAssets]",
+                "[InstructionDrafts]",
+                "[IntakeMailRouteDecisions]",
+                "[IntakeManualAssociations]"));
+    }
+
     private static void AssertCandidatePrincipal(string html, string expected)
     {
         var match = Regex.Match(html, "data-image-candidate-principal>(?<value>[^<]*)</td>");
@@ -452,6 +602,38 @@ public sealed class ImageIntakeWebTests
 
         Assert.Fail("The Back to Cases link must be rendered.");
         return string.Empty;
+    }
+
+    /// <summary>
+    /// The text of every reader command a context sends. Contexts run inside
+    /// <c>Task.WhenAll</c>, so the record is thread-safe.
+    /// </summary>
+    private sealed class RecordingReadInterceptor : DbCommandInterceptor
+    {
+        private readonly ConcurrentQueue<string> statements = new();
+
+        public IReadOnlyCollection<string> Statements => [.. statements];
+
+        public void Reset() => statements.Clear();
+
+        public override InterceptionResult<DbDataReader> ReaderExecuting(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result)
+        {
+            statements.Enqueue(command.CommandText);
+            return result;
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            statements.Enqueue(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
     }
 }
 

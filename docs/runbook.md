@@ -739,6 +739,153 @@ are recorded in [operations](operations.md) and
 [operations § Production environment](operations.md);
 dated names are not current identity proof.
 
+### Runtime diagnostics
+
+Web records what the runtime was doing, so a slow request can say why. Each
+item below has one query for Log Analytics. Web telemetry is sampled, and it
+stops mid-afternoon on days the daily cap is reached, so read counts as lower
+bounds.
+
+- **Counters.** Twelve runtime and SqlClient counters go to `AppMetrics`, one
+  row each a minute, and are not sampled. `System.Runtime` gives
+  `working-set`, `gc-heap-size`, `gen-2-gc-count`, `time-in-gc`,
+  `threadpool-thread-count`, `threadpool-queue-length` and
+  `monitor-lock-contention-count`. `Microsoft.Data.SqlClient.EventSource` gives
+  `hard-connects`, `soft-connects`, `number-of-active-connections`,
+  `number-of-free-connections` and `number-of-stasis-connections`. The metric
+  name is the source, a bar, then the counter's display name. Query:
+  `AppMetrics | where AppRoleName startswith "pegasus-prod-web" and (Name startswith "System.Runtime|" or Name startswith "Microsoft.Data.SqlClient.EventSource|") | summarize avg(Sum / ItemCount) by Name, bin(TimeGenerated, 5m)`.
+- **Request properties.** Each page request row carries `tp.threads` and
+  `tp.pending` (thread-pool threads and queued work when the request began),
+  `gc.gen2.delta` and `gc.pause.ms.delta` (second-generation collections and
+  milliseconds paused during it) and `majflt.delta` (major page faults during
+  it; absent where `/proc` is). The deltas are the process's, not the
+  request's alone. Query:
+  `AppRequests | where TimeGenerated > ago(1d) and isnotempty(tostring(Properties["tp.threads"])) | project TimeGenerated, Name, DurationMs, threads=toint(Properties["tp.threads"]), pending=toint(Properties["tp.pending"]), gen2=toint(Properties["gc.gen2.delta"]), pauseMs=todouble(Properties["gc.pause.ms.delta"]), majflt=toint(Properties["majflt.delta"]) | order by DurationMs desc`.
+- **Memory heartbeat.** Every five minutes (`Diagnostics:HeartbeatInterval`;
+  `00:00:00` turns it off) Web logs one trace, "Runtime heartbeat", of
+  `name=value` pairs: resident memory (`vmrss_mb`, `rssanon_mb`, `rssfile_mb`,
+  `rssshmem_mb`), `majflt`, the host's `mem_total_mb` and `mem_available_mb`,
+  the container's cgroup (`cg_current_mb`, `cg_max_mb`, `cg_anon_mb`,
+  `cg_file_mb`, `cg_pgmajfault`), `load1`, the runtime's `gc_heap_mb` and
+  `gc_total_mb`, and `threads`. A figure whose source does not exist is left
+  out. Query:
+  `AppTraces | where Message startswith "Runtime heartbeat" | extend rssMb=toint(extract(@"vmrss_mb=(\d+)", 1, Message)), availableMb=toint(extract(@"mem_available_mb=(\d+)", 1, Message)) | project TimeGenerated, rssMb, availableMb, Message`.
+- **Slow connection opens.** A database connection open of 100 ms or more is
+  the `db.connection.open` phase, an event of the same kind as the document
+  phases. Faster opens record nothing; the counters give their totals. Query:
+  `AppEvents | where Name == "Pegasus.Document.Read" and tostring(Properties.phase) == "db.connection.open" | summarize n=count(), p50=percentile(todouble(Measurements.durationMs),50), maxMs=max(todouble(Measurements.durationMs)) by bin(TimeGenerated, 1h)`.
+- **Work Centre sections.** `web.workcentre.attention`, `web.workcentre.newcases`
+  and `web.workcentre.aijobs` time the page's three reads. The page waits for
+  the slowest. Query: the same as the line above with those phase names.
+- **Start-up marks.** Four marks join the existing ones: `telemetry bridge
+  resolved`, `OAuth certificate store resolved`, `static assets mapped` and
+  `Razor Pages and MCP mapped`. They show which step holds the 17 s between
+  "host built" and "pipeline built". Query:
+  `AppTraces | where Message has "Web is listening" | project TimeGenerated, Message`.
+- **Warm-up timings.** The `model` step's line has two timings: `model build`
+  (local CPU, including Entity Framework's own service provider) and `first
+  connection` (the managed-identity token and the SQL login). Query:
+  `AppTraces | where Message startswith "Startup warm-up step model" | project TimeGenerated, Message`.
+- **Report phases.** A Generate or Preview also records `report.photos.prepare`,
+  `report.pdf.generate` and `report.pdf.pagecount`, three events that join
+  `report.renderer.initialize`, which is kept and fires once per process.
+  Query: the phase query above with those names.
+- **Deadlocks.** A command that loses a deadlock (SQL error 1205) logs a
+  warning with its statement and how long it ran, once. Nothing is retried.
+  Query:
+  `AppTraces | where Message startswith "SQL deadlock victim" | project TimeGenerated, AppRoleName, Message`.
+
+Some requests are no longer recorded. Readiness probes (`/health`), the
+version endpoint (`/diagnostics`), static files (`/css`, `/js`, `/fonts`,
+`/images`) and the Always On ping (`GET /` answered with a redirect) leave no
+request row, and their SQL calls leave no dependency row. The SQL and other
+calls of a keep-warm pass (see [Web start](#web-start)) leave no dependency
+row either. A failed one (unsuccessful, or a 5xx) is always kept, so the
+failed-request alert, a failing probe and a failing keep-warm call still show.
+Count probes from the platform's own health view, not from `AppRequests`. The
+readiness probe reads the database with one call. After the first probe that
+finds the schema current it only connects, and a probe that fails remembers
+nothing, so the next one checks again.
+
+### Worker log lines that are not recorded
+
+The Worker host used to write about 90% of the telemetry Pegasus ingested,
+mostly its own lines. `src/Pegasus.Worker/host.json` now keeps only Warning
+and Error lines for these host categories:
+
+- `Function`, the "Executing" and "Executed" lines of every function;
+- `Host.Startup` and `Host.Triggers`;
+- `Host.Aggregator`, the per-function metric series;
+- `Microsoft.Azure.WebJobs.Hosting.OptionsLoggingService`, the option dumps;
+- `Microsoft.Azure.WebJobs.Script.Description.FunctionGroupListenerDecorator`;
+- `Microsoft.Azure.WebJobs.Host.DrainModeManager`.
+
+`Pegasus.Worker` stays at Information. In the seven days to 30 September 2026,
+the trace categories in that list were 83% of the Worker's trace bytes.
+
+Nothing reads the dropped lines. The one alert, `pegasus-prod-application-exceptions`,
+reads `AppExceptions` and `AppRequests`, not `AppTraces`. `Host.Results` is not
+filtered, because it writes the `AppRequests` rows. Every function run, its
+duration and its failure are still in `AppRequests`. A failed run is still an
+Error line. To see a dropped category again, set it back in `host.json` and
+release.
+
+`host.json` reaches only what the Functions host writes. The worker process
+writes its own lines, and `src/Pegasus.Worker/WorkerLogFilters.cs` drops one
+category from them: `Microsoft.EntityFrameworkCore.Database.Command`. Its
+failure line carried about 4 KB of SQL text, and the exception is recorded
+anyway. Neither file reaches the `health_check` metrics or the performance
+counters. The worker process's other categories, `Pegasus.Worker.*` and the
+rest of Entity Framework, are unchanged.
+
+When you read `AppTraces`, read both `Properties.Category` (the host) and
+`Properties.CategoryName` (the worker process). The effect of these filters
+shows only in a query after the next release.
+
+### The Worker's own spans and slow SQL
+
+Core opens spans on the intake, image intake, custody and Triage paths. The Worker
+sends each stopped span as one `AppEvents` row named `Pegasus.Worker.Span`. The
+`span` property is the span name, `durationMs` is its length, and the row carries the
+trace's operation id and parent id, so it joins the invocation's `AppRequests` row.
+The rows join adaptive sampling like other events. They carry no tag values: the
+intake receipt and custody work item ids the spans are tagged with are never sent.
+`triage_case_pairing` opens a span only when a Triage Case is waiting to be
+linked, so an idle ten-second tick sends no row.
+
+`SqlDependencyTelemetryFilter` still drops a successful SQL call, but keeps one that
+took 250 ms or more, and every failed one. It runs before sampling, so a dropped
+call does not count towards the sampling rate. `AppDependencies` therefore shows a
+lock wait or a slow statement on an intake run, unless sampling dropped it.
+
+Dependencies are sampled. The worker process samples everything it sends itself.
+`AddApplicationInsightsTelemetryWorkerService` in `src/Pegasus.Worker/Program.cs`
+keeps the SDK's default adaptive sampling: events at about five a second, and all
+other types together at about five a second. The other types are the worker
+process's dependencies, exceptions and log lines. The `excludedTypes` list in
+`host.json` reaches only what the Functions host writes, such as the `AppRequests`
+row of each run. A quiet Worker stays under those rates and loses nothing. A kept
+row that stands for dropped rows has `ItemCount` above 1, so count with
+`sum(ItemCount)`.
+
+Use the two together. A run that took 26 s with no dependency shows its spans by
+stage, and a slow statement in the same trace shows as a dependency. Sampling keeps
+or drops a whole operation, but events and the other types are sampled apart. Under
+load a run can keep its spans and lose its slow statement, or the reverse.
+
+### A failing sweep step names its cause
+
+The ten-second sweep logs each step's result line at Information. The line
+becomes a Warning when the step counted a failure, so the worker process's
+default level records it. A custody item that fails to file also logs its
+exception type and message, once for each attempt, as
+`Pending artifact custody recovery failed for version ...`. The version id is
+the `CorrelationId` of its `ArtifactCustodyReconciliationAttempt` row in
+`ActionHistory`. After a failure the item waits 1, 2, 4 and 8 minutes, then 10,
+before the next try (`PendingCustodyRetryPolicy` in Core). A retained outcome,
+such as a Case with no folder yet, never waits.
+
 ## Web start
 
 Web binds its port before any remote read. The data-protection key ring, the
@@ -751,13 +898,40 @@ and run the hot reads, or after 45 s.
 
 Every start prints `[startup] +<ms since process start> ms (+<ms since previous
 mark>) <phase>` lines to stdout (`Main entered`, `configuration loaded`,
-`services composed`, `host built`, `pipeline built`, `listening`, then
-`verification account reconciled`). When `APPLICATIONINSIGHTS_CONNECTION_STRING`
+`services composed`, `host built`, `telemetry bridge resolved`, `OAuth
+certificate store resolved`, `static assets mapped`, `Razor Pages and MCP
+mapped`, `pipeline built`, `listening`, then `verification account
+reconciled`). The four marks between `host built` and `pipeline built` split the
+one phase that took 17 s on two starts of 29 September 2026. When `APPLICATIONINSIGHTS_CONNECTION_STRING`
 is set, the same phases are one trace, "Web is listening. Startup phases: ...",
 and each warm-up step logs `Startup warm-up step <name> finished in <ms> ms`
-(traces for `Pegasus.Web.Startup` and `Pegasus.Web.Health.StartupWarmup`).
+(traces for `Pegasus.Web.Startup` and `Pegasus.Web.Health.StartupWarmup`); the
+`model` step's line adds `(model build <ms> ms, first connection <ms> ms)`.
+The warm-up begins a few seconds before the `listening` mark, because it starts
+with the host.
 A slow start shows there which phase took the time. The start limit
 `WEBSITES_CONTAINER_START_TIME_LIMIT` is not part of this design.
+
+After its first pass the warm-up repeats its reads every three minutes for the
+life of the process. `Startup:WarmupInterval` sets the wait (default
+`00:03:00`). Write it with colons, such as `00:05:00`. `00:00:00` restores the
+once-only behaviour, and `Startup:Warmup` `false` still turns the whole warm-up
+off. Some values keep the default instead, and the warm-up logs one warning
+naming the value: a negative value, one under a second, one over about 49.7
+days, a bare number such as `180` (.NET reads it as 180 days) and text that is
+not a time span. A pass reads what a signed-in page
+reads and writes nothing. It covers the Work Centre, the Inbox list, the newest
+Case's page and the report renderer. Readiness waits only for the first pass.
+The renderer is warmed right after it, in a step of its own
+(`Startup warm-up step report-renderer finished in <ms> ms`). Each pass runs
+under one `Pegasus.Warmup` activity and makes no request row. Its successful
+SQL and other calls leave no dependency row, so `AppDependencies` holds only a
+pass's failed calls; the failed calls of one pass share one operation id. Each
+pass logs `Warm-up pass finished in <ms> ms` at Debug. That line reaches the
+log only where the `Pegasus.Web.Health.StartupWarmup` category is lowered to
+Debug. The first failure of a step is a warning,
+`Warm-up step <name> failed after <ms> ms`. Later failures of the same step
+are Debug lines.
 
 ## Recovery
 

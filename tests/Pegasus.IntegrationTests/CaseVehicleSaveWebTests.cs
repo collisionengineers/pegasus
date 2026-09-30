@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Net;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -11,6 +14,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
 using Pegasus.Web.Authentication;
 using Pegasus.Infrastructure.Persistence;
+using Xunit.Abstractions;
 
 namespace Pegasus.IntegrationTests;
 
@@ -20,7 +24,7 @@ namespace Pegasus.IntegrationTests;
 /// Details, the Cases queue and Search must all remain readable afterwards.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseVehicleSaveWebTests
+public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task SavingThenClearingMakeKeepsAcceptedRegistrationAndCaseSurfacesReadable()
@@ -150,6 +154,238 @@ public sealed class CaseVehicleSaveWebTests
         Assert.Null(data.Vehicle.Make.Confirmed);
         Assert.NotNull(evidence);
         Assert.Null(evidence!.Confirmed);
+    }
+
+    /// <summary>
+    /// What the Case page costs in SQL commands in an edit session, and what one
+    /// accepted single-field save costs, against the real stores (Roadmap Lane
+    /// D, parts D2 and D5). Every save-as-you-go commit is that save followed by
+    /// the page, so both are the price of one field. Both are pinned at their
+    /// exact counts, so any change to either is seen, and a mismatch lists
+    /// every command sent.
+    /// </summary>
+    [Fact]
+    public async Task TheCasePageInAnEditSessionAndOneAcceptedSaveSendTheirPinnedStatements()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-statement-count", withMileage: false);
+        using var client = CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        // The first render of each shape pays one-off work; the counts are later ones.
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+
+        counter.Reset();
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var pageCommands = counter.Count;
+        var pageDescription = counter.Describe();
+        var aiJobReads = counter.CountMentioning("[AiJobs]");
+        var vehicleObservationReads = counter.CountMentioning("[VehicleLookupObservations]");
+        Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
+
+        counter.Reset();
+        using (var save = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(editing),
+                       CurrentCaseSaveValues(
+                           editing,
+                           caseId,
+                           vehicleMake: "Vauxhall",
+                           reason: "Statement count fixture."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
+        }
+        var saveCommands = counter.Count;
+        var saveDescription = counter.Describe();
+
+        // Measured on this branch with LocalDB. The page sent 62 until it took the
+        // assessment's access answer from the workflow state its frame reads, then 61, and
+        // 47 after these folds:
+        // - the vehicle section takes the workspace's latest observation, even when there is
+        //   none, rather than reading the Case's vehicle evidence (4 commands) to find none;
+        // - the per-work reads (data, valuations, applied valuations, estimates, the current
+        //   report) resolve the Case's current work inside their own command (5);
+        // - the frame reads the Principal's notes and the claim source in one command (2);
+        // - the data read takes the workflow's version and state and the workflow
+        //   configuration in one command (1);
+        // - the report snapshot takes the Case's works from the frame at the same version (1);
+        // - the Case's AI jobs are read once for the drafts and the pending research (1).
+        // The save sent 43 until the lease it reclaims read only the Case's workflow row,
+        // then 37, and 35 once its edit basis read the data in two fewer commands.
+        // Measured again at the lane's base (2ee268507) in this scenario: 62 and 43.
+        Assert.True(
+            pageCommands == CasePageCommands,
+            $"The Case page in an edit session sent {pageCommands} SQL commands; it is pinned at {CasePageCommands}."
+            + Environment.NewLine + pageDescription);
+        Assert.Equal(1, aiJobReads);
+        Assert.Equal(1, vehicleObservationReads);
+        Assert.True(
+            saveCommands == CaseSaveCommands,
+            $"One accepted save sent {saveCommands} SQL commands; it is pinned at {CaseSaveCommands}."
+            + Environment.NewLine + saveDescription);
+    }
+
+    private const int CasePageCommands = 47;
+
+    private const int CaseSaveCommands = 35;
+
+    /// <summary>
+    /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
+    /// the parts it swaps, not with a redirect to the whole page. Three commits
+    /// walk the real stores the way the script does: each carries the version,
+    /// lease and operation key the answer before it returned, so an answer that
+    /// carried the wrong authority fails the next save. The first two are
+    /// answered in place; the third has no script header and keeps its redirect,
+    /// which prices what the script used to follow. The answered commit is
+    /// pinned at its exact count, so any change to it is seen, and a mismatch
+    /// lists every command sent. The byte figures are printed.
+    /// </summary>
+    [Fact]
+    public async Task ACommitAnsweredInPlaceCarriesTheNextAuthorityAndCostsLessThanTheRedirectAndPage()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-commit-answer", withMileage: false);
+        using var client = CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        // The first render of each shape pays one-off work; the counts are later ones.
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var startVersion = long.Parse(InputValue(editing, "expectedVersion"), CultureInfo.InvariantCulture);
+
+        // The script keeps every section as it is and takes only the authority from an answer.
+        counter.Reset();
+        var first = await CommitAsync(
+            client, editing, caseId, CurrentCaseSaveValues(editing, caseId, vehicleMake: "Vauxhall"), script: true);
+        var firstCommands = counter.Count;
+        var firstDescription = counter.Describe();
+        Assert.Equal(HttpStatusCode.OK, first.Status);
+        var firstCommit = EditorCommit(first.Body);
+        Assert.Equal(startVersion, firstCommit.ExpectedVersion);
+        Assert.Equal(startVersion + 1, firstCommit.Version);
+        Assert.Contains("data-case-editing=\"true\"", first.Body, StringComparison.Ordinal);
+        Assert.Contains($"data-case-version=\"{startVersion + 1}\"", first.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-main\"", first.Body, StringComparison.Ordinal);
+
+        counter.Reset();
+        var second = await CommitAsync(
+            client,
+            editing,
+            caseId,
+            WithAuthority(CurrentCaseSaveValues(editing, caseId, vehicleMake: "Renault"), first.Body),
+            script: true);
+        Assert.Equal(HttpStatusCode.OK, second.Status);
+        var secondCommit = EditorCommit(second.Body);
+        Assert.Equal(startVersion + 1, secondCommit.ExpectedVersion);
+        Assert.Equal(startVersion + 2, secondCommit.Version);
+
+        counter.Reset();
+        var third = await CommitAsync(
+            client,
+            editing,
+            caseId,
+            WithAuthority(CurrentCaseSaveValues(editing, caseId, vehicleMake: "Skoda"), second.Body),
+            script: false);
+        var plainPostCommands = counter.Count;
+        Assert.Equal(HttpStatusCode.Redirect, third.Status);
+        counter.Reset();
+        var page = await GetHtmlAsync(client, third.Location!);
+        var pageCommands = counter.Count;
+        Assert.Contains("Case saved.", page, StringComparison.Ordinal);
+        Assert.Equal((startVersion + 3).ToString(CultureInfo.InvariantCulture), SaveFormValue(page, "expectedVersion"));
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal("Skoda", data!.Vehicle.Make.Confirmed?.Value);
+
+        var answerBytes = Encoding.UTF8.GetByteCount(first.Body);
+        var pageBytes = Encoding.UTF8.GetByteCount(page);
+        var redirectedCommands = plainPostCommands + pageCommands;
+        output.WriteLine(
+            $"Lane H: an answered commit sent {firstCommands} SQL commands and {answerBytes} bytes; "
+            + $"the same commit with its redirect sent {redirectedCommands} ({plainPostCommands} + {pageCommands}) "
+            + $"and {pageBytes} bytes.");
+        // Measured with LocalDB after Lane D's folds: the save is 35 commands and the
+        // redirected page 47, 82 in all, with 200,668 bytes in the response. The answered
+        // commit is 66 (the save and 31 for the answer) with 33,453 bytes. Before those
+        // folds CI measured 105 (43 and 62) against 84 (43 and 41).
+        Assert.True(
+            firstCommands < redirectedCommands,
+            $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
+        Assert.True(
+            firstCommands == CaseSaveCommands + CommitAnswerCommands,
+            $"An answered commit sent {firstCommands} SQL commands; it is pinned at {CaseSaveCommands + CommitAnswerCommands}"
+            + $" (the save {CaseSaveCommands} and the answer {CommitAnswerCommands})."
+            + Environment.NewLine + firstDescription);
+        Assert.True(
+            answerBytes < pageBytes * 6 / 10,
+            $"The answer is {answerBytes} bytes; the page it replaces is {pageBytes}.");
+    }
+
+    /// <summary>
+    /// The answer's own reads for this Case, after the save's <see cref="CaseSaveCommands"/>:
+    /// the frame and the workspace, the report's readiness and current generation, the Case's
+    /// AI jobs and the workflow configuration, the valuation opening, and the workspace extras.
+    /// The report snapshot takes the Case's works from the frame, as the page's does.
+    /// </summary>
+    private const int CommitAnswerCommands = 31;
+
+    private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
+        HttpClient client,
+        string antiforgeryHtml,
+        Guid caseId,
+        (string Name, string Value)[] fields,
+        bool script)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/Cases/{caseId:D}?handler=Save")
+        {
+            Content = Form(AntiforgeryValue(antiforgeryHtml), fields)
+        };
+        if (script)
+        {
+            request.Headers.Add("X-Requested-With", "fetch");
+        }
+        using var response = await client.SendAsync(request);
+        return (
+            response.StatusCode,
+            await response.Content.ReadAsStringAsync(),
+            response.Headers.Location?.OriginalString);
+    }
+
+    /// <summary>The Save form's own inputs, taken from an answer as the script's carry-forward takes them.</summary>
+    private static (string Name, string Value)[] WithAuthority(
+        (string Name, string Value)[] fields,
+        string answer) =>
+    [
+        .. fields.Select(field => field.Name is "expectedVersion" or "operationKey" or "editLeaseToken"
+            ? (field.Name, SaveFormValue(answer, field.Name))
+            : field)
+    ];
+
+    private static string SaveFormValue(string html, string name)
+    {
+        var start = html.IndexOf("id=\"case-edit-form\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The answer must draw the Save form.");
+        var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
+        return InputValue(html[start..end], name);
+    }
+
+    private static (string OperationKey, long ExpectedVersion, long Version) EditorCommit(string html)
+    {
+        var attribute = Regex.Match(html, "data-editor-commit=\"(?<value>[^\"]+)\"");
+        Assert.True(attribute.Success, "The answer must confirm the commit.");
+        using var json = JsonDocument.Parse(WebUtility.HtmlDecode(attribute.Groups["value"].Value));
+        var commit = json.RootElement;
+        return (
+            commit.GetProperty("operationKey").GetString()!,
+            commit.GetProperty("expectedVersion").GetInt64(),
+            commit.GetProperty("version").GetInt64());
     }
 
     /// <summary>

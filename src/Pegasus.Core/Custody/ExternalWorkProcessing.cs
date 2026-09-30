@@ -44,6 +44,36 @@ public static class ImageCustodyRetryPolicy
             : RetryDelays[attemptCount - 1];
 }
 
+/// <summary>
+/// The one owner of how long the ten-second pending-custody sweep leaves an
+/// item alone after its filing failed. The wait grows with the number of
+/// consecutive failed attempts, so a fault that no retry can cure costs a few
+/// attempts an hour instead of one every tick. An attempt that only retained the
+/// item (its Case had no folder yet, or the Case changed) is not a failure and
+/// never delays anything.
+/// </summary>
+public static class PendingCustodyRetryPolicy
+{
+    private static readonly TimeSpan[] Waits =
+    [
+        TimeSpan.FromMinutes(1),
+        TimeSpan.FromMinutes(2),
+        TimeSpan.FromMinutes(4),
+        TimeSpan.FromMinutes(8),
+        TimeSpan.FromMinutes(10)
+    ];
+
+    /// <summary>The longest wait; an item whose last failure is older is always due.</summary>
+    public static TimeSpan LongestWait => Waits[^1];
+
+    public static bool IsWaiting(
+        int consecutiveFailures,
+        DateTimeOffset lastFailedAtUtc,
+        DateTimeOffset nowUtc) =>
+        consecutiveFailures >= 1
+        && nowUtc < lastFailedAtUtc + Waits[Math.Min(consecutiveFailures, Waits.Length) - 1];
+}
+
 public interface IQueuedExternalWorkReader
 {
     Task<QueuedExternalWork?> GetAsync(Guid workItemId, CancellationToken cancellationToken);

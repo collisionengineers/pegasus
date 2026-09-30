@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Text.Json;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -100,6 +101,56 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "imagesComplete",
         "instructionsComplete"
     }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The request is a commit made by the page script, and the page answers it in place (FRD-16)
+    /// rather than by redirect. What the command says is then held on the page model instead of
+    /// queued in TempData for a page load that never follows, so a notice cannot appear twice.
+    /// The lease the browser holds stays in TempData: the next page load reads it from there.
+    /// </summary>
+    protected bool AnswersInPlace { get; private set; }
+
+    /// <summary>The request is one the page script posted with its own fetch (case-workspace.js).</summary>
+    protected bool IsScriptRequest =>
+        string.Equals(Request.Headers["X-Requested-With"].ToString(), "fetch", StringComparison.Ordinal);
+
+    private readonly Dictionary<string, string?> heldNotices = [];
+
+    protected void AnswerInPlace() => AnswersInPlace = true;
+
+    /// <summary>What the command said under <paramref name="key"/>, when the page answers in place.</summary>
+    protected string? HeldNotice(string key) => heldNotices.GetValueOrDefault(key);
+
+    /// <summary>Says <paramref name="message"/> (or nothing) under <paramref name="key"/>, wherever this request keeps its notices.</summary>
+    protected void Say(string key, string? message)
+    {
+        if (AnswersInPlace)
+        {
+            heldNotices[key] = message;
+        }
+        else if (message is null)
+        {
+            TempData.Remove(key);
+        }
+        else
+        {
+            TempData[key] = message;
+        }
+    }
+
+    /// <summary>
+    /// The page cannot answer in place after all, so what the command said goes to the redirect
+    /// that follows, as it does for every other request.
+    /// </summary>
+    protected void QueueHeldNotices()
+    {
+        AnswersInPlace = false;
+        foreach (var (key, message) in heldNotices)
+        {
+            Say(key, message);
+        }
+        heldNotices.Clear();
+    }
 
     /// <summary>The lease this browser holds on the case being rendered, if it holds one.</summary>
     public string? LeaseToken { get; private set; }
@@ -494,8 +545,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// edit session open after the store consumed the lease it carried (v25
     /// decision F). A page that offers such posts supplies them; a page that
     /// does not leaves them null and its commands end the session as before.
+    /// The reclaim needs only the workflow's version, state and archive, so
+    /// it reads the workflow row alone; the claim authorizes the actor.
     /// </summary>
-    protected virtual (IGetCaseEditBasis Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => null;
+    protected virtual (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => null;
 
     /// <summary>
     /// Claims a fresh lease on the Case's new version and stores it, so the
@@ -512,15 +565,15 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
         try
         {
-            var current = await reclaim.Cases.ExecuteAsync(new(id, actor), cancellationToken);
-            if (current is null || current.Workflow.Archive is not null
-                || Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(current.Workflow.State))
+            var current = await reclaim.Workflows.GetAsync(id, cancellationToken);
+            if (current is null || current.Archive is not null
+                || Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(current.State))
             {
                 return;
             }
             var operationKey = NewOperationKey();
             var lease = await reclaim.Leases.ExecuteAsync(
-                new(id, current.Workflow.Version, actor, operationKey),
+                new(id, current.Version, actor, operationKey),
                 cancellationToken);
             StoreLeaseAuthority(id, lease.Token);
         }
@@ -578,7 +631,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             }
             if (message is not null)
             {
-                TempData[StatusTempDataKey] = message;
+                Say(StatusTempDataKey, message);
             }
         }
         catch (StaffAuthorizationException)
@@ -592,7 +645,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             LogCaseCommandFailed(logger, id, commandName, exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
             RetainProposedValues(id);
-            TempData[ErrorTempDataKey] = failureMessage(exception);
+            Say(ErrorTempDataKey, failureMessage(exception));
         }
 
         return redirect(id);
@@ -612,6 +665,22 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             pageHandler: null,
             routeValues: new { id, section = "files" },
             fragment: "case-files-images");
+
+    /// <summary>
+    /// A fragment's 404. Script asks for a fragment and reads only its status,
+    /// so the status pages middleware is switched off for this response and the
+    /// refusal has an empty body instead of the full status page and its reads.
+    /// A full-page 404 keeps the designed page.
+    /// </summary>
+    protected NotFoundResult FragmentNotFound()
+    {
+        var statusPages = HttpContext.Features.Get<IStatusCodePagesFeature>();
+        if (statusPages is not null)
+        {
+            statusPages.Enabled = false;
+        }
+        return NotFound();
+    }
 
     /// <summary>
     /// Tells the server the editor is still here, so an open page is never timed out mid-edit.
@@ -647,6 +716,12 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         {
             return new StatusCodeResult(StatusCodes.Status409Conflict);
         }
+        catch (KeyNotFoundException)
+        {
+            // The Case no longer exists (a stale tab after a wipe). The browser stops
+            // beating on a 404, as it does for an expired lease.
+            return FragmentNotFound();
+        }
 
         return new StatusCodeResult(StatusCodes.Status204NoContent);
     }
@@ -669,7 +744,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// </summary>
     protected void RetainProposedValues(Guid caseId)
     {
-        if (!Request.HasFormContentType)
+        // An answer drawn in place leaves the operator's typed values in the page itself.
+        if (AnswersInPlace || !Request.HasFormContentType)
         {
             return;
         }

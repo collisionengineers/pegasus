@@ -1169,9 +1169,6 @@ public sealed class AnalyzeRetainedInstructionTests
     private sealed class FakeReceiptQueries(Dictionary<Guid, IntakeReceipt> receipts)
         : IIntakeReceiptQueries
     {
-        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0));
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(receipts.TryGetValue(id, out var receipt) ? receipt : null);
     }

@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -18,7 +20,8 @@ internal sealed class EfCaseArtifactCustody(
     IIntakeQuarantineArtifactStore quarantineArtifactStore,
     TimeProvider timeProvider,
     BoxContentClient? box = null,
-    string? holdingFolderId = null) : ICaseArtifactCustody, ICaseArtifactCustodyStatus
+    string? holdingFolderId = null,
+    IDocumentContentCachePublisher? cachePublisher = null) : ICaseArtifactCustody, ICaseArtifactCustodyStatus
 {
     internal const long MaximumArtifactContentLength = 128L * 1024 * 1024;
     public async Task<CaseArtifactCustodyResult> RetainAsync(
@@ -341,8 +344,31 @@ internal sealed class EfCaseArtifactCustody(
                 request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
         }
         await confirmation.CommitAsync(cancellationToken);
+        // The version is confirmed and committed, and the staged bytes are still
+        // in hand: the cache copy is written now so its first read is a hit. It
+        // is best effort and never changes what this call answers.
+        await PublishFiledAsync(
+            DocumentContentCacheKey.ForVersion(version.Id),
+            content,
+            version.Sha256,
+            request.ContentLength,
+            cancellationToken);
         return Confirmed(version, occurrence.Id);
     }
+
+    /// <summary>
+    /// Publishes the read-cache copy of a file this call has just filed, from
+    /// the staged and verified bytes. It never throws.
+    /// </summary>
+    private Task PublishFiledAsync(
+        DocumentContentCacheKey key,
+        Stream staged,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken) =>
+        cachePublisher is null
+            ? Task.CompletedTask
+            : cachePublisher.PublishAsync(key, staged, sha256, contentLength, cancellationToken);
 
     private async Task RequireAutomaticPromotionTargetAsync(
         PegasusDbContext db,
@@ -653,7 +679,7 @@ internal sealed class EfCaseArtifactCustody(
         {
             throw new InvalidOperationException("Box holding custody is not configured.");
         }
-        await box.EnsureDescendantAsync(holdingFolderId, cancellationToken);
+        var holdingFolder = await box.ProveFolderAsync(holdingFolderId, cancellationToken);
         if (!string.IsNullOrWhiteSpace(asset.BoxFileId)
             && !string.IsNullOrWhiteSpace(asset.BoxVersionId))
         {
@@ -672,14 +698,14 @@ internal sealed class EfCaseArtifactCustody(
         var existing = await box.FindChildAsync(
             holdingFolderId, fileName, "file", cancellationToken);
         content.Position = 0;
-        var file = existing ?? await box.UploadAsync(
-            holdingFolderId,
+        var file = existing ?? (await box.UploadAsync(
+            holdingFolder,
             fileName,
             content,
             request.ContentLength,
             request.MediaType,
             NormalizeHash(request.Sha256),
-            cancellationToken);
+            cancellationToken)).File;
         await using (var retained = await box.OpenVersionReadAsync(
                          file.Id,
                          file.VersionId ?? throw new InvalidDataException(
@@ -695,6 +721,14 @@ internal sealed class EfCaseArtifactCustody(
         }
         asset.ConfirmCustody(file.Id, file.VersionId, holdingFolderId);
         await db.SaveChangesAsync(cancellationToken);
+        // The asset is confirmed and its staged bytes are still in hand, so its
+        // first read is a cache hit. Best effort; it never changes the answer.
+        await PublishFiledAsync(
+            DocumentContentCacheKey.ForIntakeAsset(asset.Id),
+            content,
+            NormalizeHash(request.Sha256),
+            request.ContentLength,
+            cancellationToken);
         return new(
             CaseArtifactCustodyDisposition.Confirmed,
             null, null, null,
@@ -883,30 +917,42 @@ internal sealed class EfCaseArtifactCustody(
     }
 }
 
+/// <param name="FirstFailure">
+/// The exception type of the first failed candidate in the run, or null when none failed.
+/// </param>
 public sealed record PendingArtifactCustodyReconciliationResult(
     int Candidates,
     int Confirmed,
     int Retained,
-    int Failures);
+    int Failures,
+    string? FirstFailure);
 
-public sealed class ReconcilePendingArtifactCustody
+public sealed partial class ReconcilePendingArtifactCustody
 {
     private readonly IDbContextFactory<PegasusDbContext> dbContextFactory;
     private readonly IDocumentContentStore contentStore;
     private readonly IIntakeArtifactStore artifactStore;
     private readonly TimeProvider timeProvider;
+    private readonly IDocumentContentCachePublisher? cachePublisher;
+    private readonly ILogger logger;
     private const string AttemptEvent = "ArtifactCustodyReconciliationAttempt";
+    private const string RetainedOutcome = "Retained";
+    private const string FailedOutcome = "Failed";
 
     public ReconcilePendingArtifactCustody(
         IDbContextFactory<PegasusDbContext> dbContextFactory,
         IDocumentContentStore contentStore,
         IIntakeArtifactStore artifactStore,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDocumentContentCachePublisher? cachePublisher = null,
+        ILogger<ReconcilePendingArtifactCustody>? logger = null)
     {
         this.dbContextFactory = dbContextFactory;
         this.contentStore = contentStore;
         this.artifactStore = artifactStore;
         this.timeProvider = timeProvider ?? TimeProvider.System;
+        this.cachePublisher = cachePublisher;
+        this.logger = logger ?? NullLogger<ReconcilePendingArtifactCustody>.Instance;
     }
     public async Task<PendingArtifactCustodyReconciliationResult> ExecuteAsync(
         int maximumItems,
@@ -914,6 +960,9 @@ public sealed class ReconcilePendingArtifactCustody
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        // Left out before Take, so a version that is waiting does not use up one
+        // of the slots that fresh work could have had.
+        var waiting = await WaitingVersionIdsAsync(db, cancellationToken);
         var candidates = await (
             from version in db.Set<DocumentVersionEntity>().AsNoTracking()
             join document in db.Set<CaseDocumentEntity>().AsNoTracking()
@@ -924,6 +973,7 @@ public sealed class ReconcilePendingArtifactCustody
                 on document.CaseId equals caseEntity.Id
             where version.CustodyStatus == DocumentCustodyStatus.Pending
                 && version.PendingContentStorageKey != null
+                && !waiting.Contains(version.Id)
             let lastAttempt = db.Set<ActionHistoryEntity>()
                 .Where(history => history.AggregateType == nameof(DocumentVersionEntity)
                     && history.AggregateId == version.Id.ToString()
@@ -934,6 +984,7 @@ public sealed class ReconcilePendingArtifactCustody
             .Take(maximumItems)
             .ToArrayAsync(cancellationToken);
         var confirmed = 0; var retained = 0; var failures = 0;
+        string? firstFailure = null;
         foreach (var candidate in candidates)
         {
             var auditFolder = string.Equals(
@@ -941,7 +992,7 @@ public sealed class ReconcilePendingArtifactCustody
             var folderRoot = CaseCustodyFolders.RootOf(candidate.Case, candidate.Document.CustodyFolder);
             if (string.IsNullOrWhiteSpace(folderRoot))
             {
-                await RecordAttemptAsync(candidate.Version.Id, "Retained", "CaseRootUnavailable");
+                await RecordAttemptAsync(candidate.Version.Id, RetainedOutcome, "CaseRootUnavailable");
                 retained++;
                 continue;
             }
@@ -949,7 +1000,7 @@ public sealed class ReconcilePendingArtifactCustody
                 db, candidate.Case.Id, candidate.Occurrence.OperationKey, cancellationToken);
             if (automaticPromotion is { IsCurrent: false })
             {
-                await RecordAttemptAsync(candidate.Version.Id, "Retained", "AutomaticPromotionTargetChanged");
+                await RecordAttemptAsync(candidate.Version.Id, RetainedOutcome, "AutomaticPromotionTargetChanged");
                 retained++;
                 continue;
             }
@@ -990,7 +1041,7 @@ public sealed class ReconcilePendingArtifactCustody
                         update, candidate.Case.Id, promotion.ReceiptId, promotion.ExpectedCaseVersion,
                         timeProvider.GetUtcNow(), cancellationToken))
                 {
-                    await RecordAttemptAsync(candidate.Version.Id, "Retained", "AutomaticPromotionTargetChanged");
+                    await RecordAttemptAsync(candidate.Version.Id, RetainedOutcome, "AutomaticPromotionTargetChanged");
                     retained++;
                     continue;
                 }
@@ -1026,24 +1077,89 @@ public sealed class ReconcilePendingArtifactCustody
                     }
                     await confirmation.CommitAsync(cancellationToken);
                     confirmed++;
+                    // The file is filed and confirmed, and its verified bytes are
+                    // still in hand, so the cache copy is written now. It never throws.
+                    if (cachePublisher is not null)
+                    {
+                        await cachePublisher.PublishAsync(
+                            DocumentContentCacheKey.ForVersion(candidate.Version.Id),
+                            bytes,
+                            candidate.Version.Sha256,
+                            cancellationToken);
+                    }
                 }
                 else
                 {
-                    await RecordAttemptAsync(candidate.Version.Id, "Retained", "CustodyStateChanged");
+                    await RecordAttemptAsync(candidate.Version.Id, RetainedOutcome, "CustodyStateChanged");
                     retained++;
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception exception)
             {
+                // The sweep swallows the failure, so this line is the only place that says why.
+                LogAttemptFailed(
+                    logger, candidate.Version.Id, exception.GetType().Name, exception.Message);
                 await RecordAttemptAsync(
                     candidate.Version.Id,
-                    "Failed",
+                    FailedOutcome,
                     exception.GetType().Name);
+                firstFailure ??= exception.GetType().Name;
                 failures++;
             }
         }
-        return new(candidates.Length, confirmed, retained, failures);
+        return new(candidates.Length, confirmed, retained, failures, firstFailure);
+    }
+
+    /// <summary>
+    /// The pending versions still inside the wait that follows a failed filing
+    /// (<see cref="PendingCustodyRetryPolicy"/>). Only a version whose newest
+    /// attempt failed can wait, and only if that failure is newer than the
+    /// longest wait, so the query reads a handful of rows at most.
+    /// </summary>
+    private async Task<Guid[]> WaitingVersionIdsAsync(
+        PegasusDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow();
+        var since = now - PendingCustodyRetryPolicy.LongestWait;
+        var failedLately = await (
+            from version in db.Set<DocumentVersionEntity>().AsNoTracking()
+            where version.CustodyStatus == DocumentCustodyStatus.Pending
+                && version.PendingContentStorageKey != null
+            // Each let is a scalar over its own correlated subquery. A let that held
+            // the attempts as a query would sit in the projection and EF cannot
+            // translate a collection there.
+            let lastFailed = db.Set<ActionHistoryEntity>()
+                .Where(history => history.AggregateType == nameof(DocumentVersionEntity)
+                    && history.AggregateId == version.Id.ToString()
+                    && history.EventKind == AttemptEvent
+                    && history.Outcome == FailedOutcome)
+                .Max(history => (DateTimeOffset?)history.OccurredAtUtc)
+            let lastRetained = db.Set<ActionHistoryEntity>()
+                .Where(history => history.AggregateType == nameof(DocumentVersionEntity)
+                    && history.AggregateId == version.Id.ToString()
+                    && history.EventKind == AttemptEvent
+                    && history.Outcome == RetainedOutcome)
+                .Max(history => (DateTimeOffset?)history.OccurredAtUtc)
+            where lastFailed > since && (lastRetained == null || lastRetained < lastFailed)
+            select new
+            {
+                version.Id,
+                LastFailedAtUtc = lastFailed,
+                ConsecutiveFailures = db.Set<ActionHistoryEntity>()
+                    .Count(history => history.AggregateType == nameof(DocumentVersionEntity)
+                        && history.AggregateId == version.Id.ToString()
+                        && history.EventKind == AttemptEvent
+                        && history.Outcome == FailedOutcome
+                        && (lastRetained == null || history.OccurredAtUtc > lastRetained))
+            })
+            .ToArrayAsync(cancellationToken);
+        return failedLately
+            .Where(item => PendingCustodyRetryPolicy.IsWaiting(
+                item.ConsecutiveFailures, item.LastFailedAtUtc!.Value, now))
+            .Select(item => item.Id)
+            .ToArray();
     }
 
     private async Task<AutomaticPromotionTarget?> AutomaticPromotionTargetAsync(
@@ -1076,25 +1192,51 @@ public sealed class ReconcilePendingArtifactCustody
         long ExpectedCaseVersion,
         bool IsCurrent);
 
+    /// <summary>
+    /// Records one attempt. A record that cannot be written costs that item its
+    /// attempt row (so it is tried again next sweep) and is named in the log; it
+    /// never stops the other candidates.
+    /// </summary>
     private async Task RecordAttemptAsync(Guid versionId, string outcome, string reason)
     {
-        await using var db = await dbContextFactory.CreateDbContextAsync(CancellationToken.None);
-        db.Add(new ActionHistoryEntity
+        try
         {
-            Id = Guid.NewGuid(),
-            AggregateType = nameof(DocumentVersionEntity),
-            AggregateId = versionId.ToString(),
-            EventKind = AttemptEvent,
-            ActorKind = nameof(ActorKind.SystemWorker),
-            ActorSubjectId = "artifact-custody-reconciliation",
-            ActorRolesJson = "[]",
-            OccurredAtUtc = timeProvider.GetUtcNow(),
-            Outcome = outcome,
-            CorrelationId = versionId.ToString(),
-            Reason = reason
-        });
-        await db.SaveChangesAsync(CancellationToken.None);
+            await using var db = await dbContextFactory.CreateDbContextAsync(CancellationToken.None);
+            db.Add(new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = nameof(DocumentVersionEntity),
+                AggregateId = versionId.ToString(),
+                EventKind = AttemptEvent,
+                ActorKind = nameof(ActorKind.SystemWorker),
+                ActorSubjectId = "artifact-custody-reconciliation",
+                ActorRolesJson = "[]",
+                OccurredAtUtc = timeProvider.GetUtcNow(),
+                Outcome = outcome,
+                CorrelationId = versionId.ToString(),
+                Reason = reason
+            });
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            LogAttemptNotRecorded(logger, versionId, exception.GetType().Name, exception.Message);
+        }
     }
+
+    // The version id is the attempt row's correlation id; no Case, document name,
+    // actor or content value is logged.
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Pending artifact custody recovery failed for version {VersionId}: {ExceptionType}: {ExceptionMessage}")]
+    private static partial void LogAttemptFailed(
+        ILogger logger, Guid versionId, string exceptionType, string exceptionMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "The custody attempt for version {VersionId} could not be recorded: {ExceptionType}: {ExceptionMessage}")]
+    private static partial void LogAttemptNotRecorded(
+        ILogger logger, Guid versionId, string exceptionType, string exceptionMessage);
 
     private static void Verify(ReadOnlySpan<byte> bytes, string expectedHash, long expectedLength)
     {

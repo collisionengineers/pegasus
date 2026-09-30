@@ -70,7 +70,8 @@ public sealed record UploadOutcomeView(
     UploadOutcomeAction? SecondaryAction,
     UploadOutcomeAttach? Attach = null,
     Guid? ThumbnailReceiptId = null,
-    UploadOutcomeRecord? Record = null)
+    UploadOutcomeRecord? Record = null,
+    string? ThumbnailContentHash = null)
 {
     /// <summary>Whether this state is worth polling again — mirrors the existing Received/Processing refresh rule.</summary>
     public bool IsStillWorking => Kind == UploadOutcomeKind.Working;
@@ -110,6 +111,12 @@ public sealed record UploadOutcomeView(
 public interface IUploadOutcomeQueries
 {
     /// <param name="status">The queued status already read for this file.</param>
+    /// <param name="receipt">
+    /// The file's receipt (its processed receipt, else its staged one), read
+    /// once by the caller, which also needs it. Null when the record has not
+    /// caught up with the queue status; it is not used for a file still
+    /// Received or Processing, or one that Failed.
+    /// </param>
     /// <param name="submissionGroupId">
     /// The submission group this file belongs to, when known, so a grouped
     /// image upload that was kept intact under one Unidentified reference
@@ -119,6 +126,7 @@ public interface IUploadOutcomeQueries
     /// </param>
     Task<UploadOutcomeView> BuildAsync(
         QueuedIntakeStatus status,
+        IntakeReceipt? receipt,
         Guid? submissionGroupId,
         ActionActor actor,
         CancellationToken cancellationToken = default);
@@ -141,13 +149,13 @@ public interface IUploadOutcomeQueries
 /// builder makes no group-wide assumption — it is evaluated once per member.
 /// </remarks>
 public sealed class UploadOutcomeQueries(
-    IGetIntake getIntake,
     IImageIntakeQueries imageIntakeQueries,
     IUnidentifiedStore unidentifiedStore,
     IIntakeAssociationDestinationQueries destinations) : IUploadOutcomeQueries
 {
     public async Task<UploadOutcomeView> BuildAsync(
         QueuedIntakeStatus status,
+        IntakeReceipt? receipt,
         Guid? submissionGroupId,
         ActionActor actor,
         CancellationToken cancellationToken = default)
@@ -179,8 +187,6 @@ public sealed class UploadOutcomeQueries(
                     null);
         }
 
-        var receiptId = status.ProcessedReceiptId ?? status.StagedReceiptId;
-        var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
         if (receipt is null)
         {
             // The record has not caught up with the queue status yet; the
@@ -189,15 +195,14 @@ public sealed class UploadOutcomeQueries(
             return new(UploadOutcomeKind.Working, "Processing", "The file is being processed.", null, null);
         }
 
-        var view = await BuildForReceiptAsync(receipt, receiptId, submissionGroupId, actor, cancellationToken);
+        var view = await BuildForReceiptAsync(receipt, submissionGroupId, actor, cancellationToken);
         return receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
-            ? view with { ThumbnailReceiptId = receipt.Id }
+            ? view with { ThumbnailReceiptId = receipt.Id, ThumbnailContentHash = receipt.SourceHash }
             : view;
     }
 
     private async Task<UploadOutcomeView> BuildForReceiptAsync(
         IntakeReceipt receipt,
-        Guid receiptId,
         Guid? submissionGroupId,
         ActionActor actor,
         CancellationToken cancellationToken)

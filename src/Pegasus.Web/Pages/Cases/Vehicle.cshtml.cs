@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
@@ -19,11 +18,11 @@ namespace Pegasus.Web.Pages.Cases;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class VehicleModel(
     IRequestVehicleLookup requestVehicleLookup,
-    IGetCaseEditBasis getCaseEditBasis,
+    ICaseWorkflowQueries workflows,
     IAcquireCaseEditLease acquireLease,
     ILogger<VehicleModel> logger) : CaseMutationPageModel(logger)
 {
-    protected override (IGetCaseEditBasis Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCaseEditBasis, acquireLease);
+    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
 
     public IActionResult OnGet() => NotFound();
 

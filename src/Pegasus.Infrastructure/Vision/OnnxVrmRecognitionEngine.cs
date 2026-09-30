@@ -173,7 +173,7 @@ public sealed class OnnxVrmRecognitionEngine : IVrmRecognitionEngine, IDisposabl
         failureCode,
         failureReason);
 
-    private static SKBitmap? Crop(SKBitmap source, DetectedPlate plate)
+    internal static SKBitmap? Crop(SKBitmap source, DetectedPlate plate)
     {
         var left = (int)Math.Floor(plate.Left);
         var top = (int)Math.Floor(plate.Top);
@@ -187,9 +187,16 @@ public sealed class OnnxVrmRecognitionEngine : IVrmRecognitionEngine, IDisposabl
             return null;
         }
 
-        var crop = new SKBitmap(
-            new SKImageInfo(bounds.Width, bounds.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
-        return source.ExtractSubset(crop, bounds) ? crop : null;
+        // ExtractSubset makes the crop a view of the source's pixels and takes the source's
+        // format, so the crop starts empty: allocating pixels here would be replaced at once.
+        var crop = new SKBitmap();
+        if (source.ExtractSubset(crop, bounds))
+        {
+            return crop;
+        }
+
+        crop.Dispose();
+        return null;
     }
 
     private static string? Normalize(string plateText)

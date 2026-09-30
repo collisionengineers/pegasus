@@ -357,6 +357,78 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain("cancels case", unlinked, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// What the Inbox pages cost in SQL commands against the real stores
+    /// (Roadmap Lane D, parts D1 and D3): the message page of a message linked to
+    /// a Case, the list with its first row selected, and the list's Preview
+    /// fragment. The message page reads the Case header, not the whole Case; the
+    /// list draws its pane from its own row and reads only what the row lacks.
+    /// All three are pinned at their exact counts, so any change to one is seen,
+    /// and a mismatch lists every command sent.
+    /// </summary>
+    [Fact]
+    public async Task TheInboxPagesSendTheirPinnedStatements()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        _ = await AcceptReceiptAsync(factory, receiptId);
+        using var client = CreateClient(factory);
+        // The first request of each page pays one-off work; the count is the second.
+        _ = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        _ = await GetHtmlAsync(client, "/Inbox");
+        _ = await GetHtmlAsync(client, $"/Inbox?handler=Preview&id={messageId:D}");
+
+        counter.Reset();
+        var message = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        var messageCommands = counter.Count;
+        var messageDescription = counter.Describe();
+        var classificationDecisionReads = counter.CountMentioning("[IntakeMailClassificationDecisions]");
+        Assert.Contains(messageId.ToString("D"), message, StringComparison.Ordinal);
+
+        counter.Reset();
+        var list = await GetHtmlAsync(client, "/Inbox");
+        var listCommands = counter.Count;
+        var listDescription = counter.Describe();
+        Assert.Contains("data-mail-preview-classification", list, StringComparison.Ordinal);
+
+        counter.Reset();
+        _ = await GetHtmlAsync(client, $"/Inbox?handler=Preview&id={messageId:D}");
+        var previewCommands = counter.Count;
+        var previewDescription = counter.Describe();
+
+        // Measured with LocalDB in this scenario. Before Lane D (2ee268507) the message
+        // page sent 52, the list 39 and the preview 18. After the Lane D reads they sent
+        // 30, 24 and 11. The message page then sent 29 once its read of the message took
+        // the receipt's classification decision for the classification dossier too,
+        // rather than reading that decision a second time. The other two commands that
+        // join it are the summary mapping (the row's own label) and the intake read (the
+        // receipt aggregate).
+        Assert.True(
+            messageCommands == InboxMessageCommands,
+            $"The Inbox message page sent {messageCommands} SQL commands; it is pinned at {InboxMessageCommands}."
+            + Environment.NewLine + messageDescription);
+        Assert.Equal(3, classificationDecisionReads);
+        Assert.True(
+            listCommands == InboxListCommands,
+            $"The Inbox list sent {listCommands} SQL commands; it is pinned at {InboxListCommands}."
+            + Environment.NewLine + listDescription);
+        Assert.True(
+            previewCommands == InboxPreviewCommands,
+            $"The Inbox preview sent {previewCommands} SQL commands; it is pinned at {InboxPreviewCommands}."
+            + Environment.NewLine + previewDescription);
+    }
+
+    private const int InboxMessageCommands = 29;
+
+    private const int InboxListCommands = 24;
+
+    private const int InboxPreviewCommands = 11;
+
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
     {

@@ -1,5 +1,4 @@
 using Pegasus.Core.Notifications;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.AiWork;
 
@@ -27,15 +26,6 @@ public sealed record AiDraft(
     string? Route,
     DateTimeOffset DraftWrittenAtUtc,
     DateTimeOffset DueAtUtc);
-
-public interface IAiDraftQueries
-{
-    /// <summary>The Case's Draft ready jobs, oldest draft first.</summary>
-    Task<IReadOnlyList<AiDraft>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken);
-
-    /// <summary>Every Draft ready job in the office, oldest draft first, for the Work Centre.</summary>
-    Task<IReadOnlyList<AiDraft>> ListOpenAsync(CancellationToken cancellationToken);
-}
 
 public static class AiDraftPolicy
 {
@@ -76,6 +66,19 @@ public static class AiDraftPolicy
         var written = job.DraftReadyAtUtc ?? job.TakenAtUtc ?? job.CreatedAtUtc;
         return new AiDraft(job, ActionFor(job.Kind), route, written, DueAt(written, targetDays));
     }
+
+    /// <summary>
+    /// The Draft ready jobs among <paramref name="jobs"/>, oldest draft first:
+    /// the Work Centre's from the open jobs, a Case record's from that Case's
+    /// jobs. A caller that holds the jobs and the workflow configuration
+    /// already derives the drafts here instead of reading either again.
+    /// </summary>
+    public static AiDraft[] Drafts(IEnumerable<AiJobRecord> jobs, int targetDays) =>
+        jobs.Select(job => ToDraft(job, targetDays))
+            .OfType<AiDraft>()
+            .OrderBy(draft => draft.DraftWrittenAtUtc)
+            .ThenBy(draft => draft.Job.JobId)
+            .ToArray();
 }
 
 /// <summary>
@@ -95,37 +98,4 @@ public static class WorkTargets
     /// <summary>A hold's review date is due at the end of that Europe/London day.</summary>
     public static DateTimeOffset EndOfDay(DateOnly date) =>
         LondonCalendar.StartOfDay(date.AddDays(1));
-}
-
-public sealed class AiDraftQueries(
-    IAiJobQueries jobs,
-    ICaseWorkflowConfiguration configuration) : IAiDraftQueries
-{
-    private readonly IAiJobQueries _jobs = jobs ?? throw new ArgumentNullException(nameof(jobs));
-    private readonly ICaseWorkflowConfiguration _configuration =
-        configuration ?? throw new ArgumentNullException(nameof(configuration));
-
-    public async Task<IReadOnlyList<AiDraft>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken)
-    {
-        if (caseId == Guid.Empty)
-        {
-            throw new ArgumentException("A case identifier is required.", nameof(caseId));
-        }
-
-        return Drafts(
-            await _jobs.ListForSubjectAsync(caseId, cancellationToken),
-            (await _configuration.GetCurrentAsync(cancellationToken)).AiDraftTargetDays);
-    }
-
-    public async Task<IReadOnlyList<AiDraft>> ListOpenAsync(CancellationToken cancellationToken) =>
-        Drafts(
-            await _jobs.ListOpenAsync(cancellationToken),
-            (await _configuration.GetCurrentAsync(cancellationToken)).AiDraftTargetDays);
-
-    private static AiDraft[] Drafts(IEnumerable<AiJobRecord> jobs, int targetDays) =>
-        jobs.Select(job => AiDraftPolicy.ToDraft(job, targetDays))
-            .OfType<AiDraft>()
-            .OrderBy(draft => draft.DraftWrittenAtUtc)
-            .ThenBy(draft => draft.Job.JobId)
-            .ToArray();
 }

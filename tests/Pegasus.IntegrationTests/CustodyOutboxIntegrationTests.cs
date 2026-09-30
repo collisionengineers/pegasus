@@ -528,6 +528,71 @@ public sealed class CustodyOutboxIntegrationTests
             CancellationToken.None));
     }
 
+    /// <summary>
+    /// A staff upload is published to the read cache once its version has
+    /// committed, from the bytes the upload holds. A replay of the same upload
+    /// files nothing, so it publishes nothing.
+    /// </summary>
+    [Fact]
+    public async Task AStaffUploadIsPublishedToTheReadCacheOnceItsVersionHasCommitted()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var accepted = await AcceptDirectSourceAsync(services);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        long caseVersion;
+        await using (var workflowContext = await contextFactory.CreateDbContextAsync())
+        {
+            caseVersion = await workflowContext.CaseWorkflows
+                .AsNoTracking()
+                .Where(workflow => workflow.CaseId == accepted.CaseId)
+                .Select(workflow => workflow.Version)
+                .SingleAsync();
+        }
+        var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(accepted.CaseId, caseVersion, actor, $"document-add-lease:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+        var statusWhenPublished = new List<DocumentCustodyStatus>();
+        var publisher = new RecordingCachePublisher(async key =>
+        {
+            await using var db = await contextFactory.CreateDbContextAsync();
+            statusWhenPublished.Add((await db.Set<DocumentVersionEntity>().AsNoTracking()
+                .SingleAsync(version => version.Id == key.DocumentVersionId)).CustodyStatus);
+        });
+        var store = new EfDocumentCustodyStore(
+            contextFactory,
+            services.GetRequiredService<IDocumentContentStore>(),
+            services.GetRequiredService<TimeProvider>(),
+            publisher);
+        var content = "evidence a member of staff uploaded"u8.ToArray();
+        var command = new AddCaseDocumentCommand(
+            accepted.CaseId,
+            "evidence.txt",
+            "text/plain",
+            content,
+            DocumentSemanticRole.Other,
+            DocumentSource.StaffUpload,
+            $"staff:{Guid.NewGuid():N}",
+            actor,
+            $"document-add:{Guid.NewGuid():N}",
+            lease.Version,
+            lease.Token);
+
+        var added = await store.ExecuteAsync(command, CancellationToken.None);
+        var replay = await store.ExecuteAsync(command, CancellationToken.None);
+
+        Assert.False(added.IsReplay);
+        Assert.True(replay.IsReplay);
+        var published = Assert.Single(publisher.Published);
+        Assert.Equal(DocumentContentCacheKey.ForVersion(added.Version.Id), published.Key);
+        Assert.Equal(content, published.Bytes);
+        Assert.Equal(added.Version.Sha256, published.Sha256);
+        Assert.Equal(content.LongLength, published.ContentLength);
+        Assert.Equal([DocumentCustodyStatus.Confirmed], statusWhenPublished);
+    }
+
     [Fact]
     public async Task LogicallyRemovedVersionCannotBeDownloadedOrExported()
     {
@@ -2289,6 +2354,122 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(
             Convert.ToHexStringLower(SHA256.HashData(letter)),
             filed["53364_1_LtrtoEngineerIn.pdf"].Sha256);
+    }
+
+    /// <summary>
+    /// The attachments of one accepted instruction are filed three at a time,
+    /// after the source, and each keeps the ordinal its place in the file-name
+    /// order gave it, whichever upload finishes first. The probe holds the
+    /// first three uploads until all three are in flight together, so only a
+    /// concurrent loop gets past it. A throttled second attachment fails the
+    /// work item, as it always did; a Case's failed custody stays failed until
+    /// staff's reasoned retry re-arms it.
+    /// </summary>
+    [Fact]
+    public async Task AnInstructionsAttachmentsAreFiledTogetherAndKeepTheirOrdinals()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var letter = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Three Attachments {fixtureId}", claimNumber: $"ATT3-{fixtureId}");
+        var report = "%PDF-1.4 synthetic bodyshop report"u8.ToArray();
+        var photograph = SyntheticJpeg();
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder { TextBody = "Please see the attached instruction." };
+        builder.Attachments.Add(
+            "43127_1_LtrtoAuditEngin.pdf", letter, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "Bodyshopreport236502-V1.pdf", report, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "1_CLVoffside-V1.jpg", photograph, MimeKit.ContentType.Parse("image/jpeg"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"custody-three-attachments-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-three:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        EfQueuedCustodyProcessor ProcessorWith(
+            ICaseCustody custody, IDocumentContentCachePublisher? publisher = null) => new(
+            contextFactory,
+            services.GetRequiredService<IExternalWorkStore>(),
+            custody,
+            services.GetRequiredService<TimeProvider>(),
+            publisher);
+
+        // A Box 429 on the second attachment fails the item, and the first
+        // failure is what surfaces. A Case's custody work has no automatic
+        // re-arm (only the image-case kinds do), so it stays failed until
+        // staff retry it with a reason.
+        var throttled = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3)
+        {
+            Failure = ordinal => ordinal == 3 ? new Pegasus.Infrastructure.Custody.BoxThrottledException(TimeSpan.FromSeconds(1)) : null
+        };
+        await Assert.ThrowsAsync<Pegasus.Infrastructure.Custody.BoxThrottledException>(() =>
+            ProcessorWith(throttled).ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None));
+        Assert.Equal("failed", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+        await RetryFailedCustodyAsync(
+            services,
+            new(outcome.Identity.CaseId, outcome.CustodyWorkId, receipt.Id, output.ToArray()),
+            "custody-three-attachments-retry");
+        Assert.Equal("pending", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+
+        // The retry files all three at once, and each keeps its ordinal.
+        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3);
+        var publisher = new RecordingCachePublisher();
+        await ProcessorWith(probe, publisher).ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal("completed", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+        Assert.Equal(3, probe.MaxInFlight);
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var ordinals = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == outcome.Identity.CaseId
+                select new { version.FileName, occurrence.Ordinal })
+            .ToDictionaryAsync(item => item.FileName, item => item.Ordinal);
+        Assert.Equal(2, ordinals["1_CLVoffside-V1.jpg"]);
+        Assert.Equal(3, ordinals["43127_1_LtrtoAuditEngin.pdf"]);
+        Assert.Equal(4, ordinals["Bodyshopreport236502-V1.pdf"]);
+
+        // Nobody held the bytes when the completion recorded these versions, so
+        // once it committed each one was published to the read cache, once,
+        // under its own identity, from the copy intake retained. The throttled
+        // first attempt recorded and published nothing.
+        var versions = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == outcome.Identity.CaseId
+                select version)
+            .ToListAsync();
+        Assert.Equal(
+            versions.Select(version => version.Id).Order(),
+            publisher.Published.Select(copy => copy.Key.DocumentVersionId!.Value).Order());
+        Assert.All(publisher.Published, copy =>
+        {
+            var version = versions.Single(item => item.Id == copy.Key.DocumentVersionId);
+            Assert.Equal(version.Sha256, copy.Sha256);
+            Assert.Equal(version.ContentLength, copy.ContentLength);
+            Assert.False(string.IsNullOrWhiteSpace(copy.StorageKey));
+        });
     }
 
     /// <summary>

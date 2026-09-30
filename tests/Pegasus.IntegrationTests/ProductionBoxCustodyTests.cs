@@ -93,7 +93,7 @@ public sealed class ProductionBoxCustodyTests
         var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
         {
             "/2.0/folders/405543781910/items" => Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedName}}","type":"folder","etag":"1"}]}"""),
-            "/2.0/folders/case-folder" => Json("""{"id":"case-folder","parent":{"id":"405543781910"},"trashed_at":null}"""),
+            "/2.0/folders/case-folder" => Json($$"""{"id":"case-folder","name":"{{expectedName}}","type":"folder","parent":{"id":"405543781910"},"trashed_at":null}"""),
             _ => throw new InvalidOperationException(request.RequestUri.AbsoluteUri)
         });
         var custody = Create(handler);
@@ -113,8 +113,7 @@ public sealed class ProductionBoxCustodyTests
         var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
         {
             "/2.0/folders/405543781910/items" => Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedName}}","type":"folder","etag":"1"}]}"""),
-            "/2.0/folders/case-folder" => Json("""{"id":"case-folder","parent":{"id":"outside"},"trashed_at":null}"""),
-            "/2.0/folders/outside" => Json("""{"id":"outside","parent":null,"trashed_at":null}"""),
+            "/2.0/folders/case-folder" => Json($$"""{"id":"case-folder","name":"{{expectedName}}","type":"folder","parent":{"id":"outside"},"trashed_at":null}"""),
             _ => throw new InvalidOperationException(request.RequestUri.AbsoluteUri)
         });
         var custody = Create(handler);
@@ -135,25 +134,14 @@ public sealed class ProductionBoxCustodyTests
         var handler = new DelegateHandler(request =>
         {
             var path = request.RequestUri!.AbsolutePath;
-            if (path == "/2.0/folders/405543781910/items")
-            {
-                return Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedCaseName}}","type":"folder","etag":"1"}]}""");
-            }
-            if (path == "/2.0/folders/case-folder/items")
-            {
-                return Json("""{"entries":[]}""");
-            }
             if (path == "/api/2.0/files/content")
             {
                 Assert.Equal(HttpMethod.Post, request.Method);
-                return Json("""{"entries":[{"id":"file-version","name":"retained","type":"file","etag":"version-1","file_version":{"id":"box-version-1"}}]}""");
+                return Json("""{"entries":[{"id":"file-version","name":"retained","type":"file","etag":"version-1","file_version":{"id":"box-version-1"},"parent":{"id":"case-folder"}}]}""");
             }
             return path switch
             {
-                "/2.0/folders/case-folder" => Parent("405543781910"),
-                "/2.0/folders/evidence" => Parent("case-folder"),
-                "/2.0/folders/instruction" => Parent("evidence"),
-                "/2.0/files/file-version" => Parent("instruction"),
+                "/2.0/folders/case-folder" => Json($$"""{"id":"case-folder","name":"{{expectedCaseName}}","type":"folder","parent":{"id":"405543781910"},"trashed_at":null}"""),
                 _ => throw new InvalidOperationException(request.RequestUri.AbsoluteUri)
             };
         });
@@ -172,6 +160,11 @@ public sealed class ProductionBoxCustodyTests
         Assert.Equal("file-version", retained.RemoteId);
         Assert.Equal("version-1", retained.ETag);
         Assert.Contains(handler.Uris, uri => uri.AbsolutePath == "/api/2.0/files/content");
+        // One read proves the Case folder and one upload files the source:
+        // no root listing, no name lookup, no walk after the upload.
+        Assert.Equal(2, handler.Uris.Count);
+        Assert.Equal("/2.0/folders/case-folder", handler.Uris[0].AbsolutePath);
+        Assert.Equal("/api/2.0/files/content", handler.Uris[1].AbsolutePath);
         Assert.All(handler.Methods, method => Assert.Contains(method, new[] { HttpMethod.Get, HttpMethod.Post }));
         Assert.DoesNotContain(handler.Uris, uri =>
             uri.AbsolutePath.Contains("delete", StringComparison.OrdinalIgnoreCase)
@@ -181,6 +174,273 @@ public sealed class ProductionBoxCustodyTests
         Assert.Contains(
             handler.RequestBodies,
             body => body.Contains(expectedFileName, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A piece of work carries one root through all its files, so it proves the
+    /// Case folder with one read however many files it files, and it never
+    /// lists the approved root to do it.
+    /// </summary>
+    [Fact]
+    public async Task AWorkItemProvesTheCaseFolderOnceWhateverItsFileCount()
+    {
+        var box = new StatefulBox();
+        var bytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        var created = box.Requests.Count;
+
+        for (var ordinal = 1; ordinal <= 3; ordinal++)
+        {
+            await custody.RetainImageCaseAssetAsync(
+                root, ImagePhoto(bytes, $"photo {ordinal}.jpg"), ordinal, $"retain-{ordinal}", default);
+        }
+
+        var requests = box.Requests.Skip(created).ToArray();
+        Assert.Equal(1, requests.Count(request => IsCaseFolderProof(request, root.RemoteId)));
+        Assert.DoesNotContain(requests, request => request.StartsWith(
+            "GET /2.0/folders/405543781910/items", StringComparison.Ordinal));
+        Assert.Equal(3, requests.Count(IsUpload));
+        // Before this change every file cost eight requests besides its upload
+        // (two listings of the approved root, a folder read, an ancestry read,
+        // a listing of the Case folder, the upload's fence read, and two reads
+        // after it). Now the only request besides the uploads is the one proof.
+        Assert.Equal(1, requests.Count(request => !IsUpload(request)));
+    }
+
+    /// <summary>
+    /// Files filed at the same time share the one proof of their root: however
+    /// many arrive together, the Case folder is read once.
+    /// </summary>
+    [Fact]
+    public async Task FilesFiledTogetherShareOneProofOfTheirRoot()
+    {
+        var box = new StatefulBox();
+        var bytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        var created = box.Requests.Count;
+
+        await Task.WhenAll(Enumerable.Range(1, 3).Select(ordinal => custody.RetainImageCaseAssetAsync(
+            root, ImagePhoto(bytes, $"photo {ordinal}.jpg"), ordinal, $"retain-{ordinal}", default)));
+
+        var requests = box.Requests.Skip(created).ToArray();
+        Assert.Equal(1, requests.Count(request => IsCaseFolderProof(request, root.RemoteId)));
+        Assert.Equal(3, requests.Count(IsUpload));
+        Assert.Equal(4, requests.Length);
+        Assert.True(box.PathExists("AB12CDE-01/001 photo 1.jpg"));
+        Assert.True(box.PathExists("AB12CDE-01/003 photo 3.jpg"));
+    }
+
+    /// <summary>
+    /// A proof that fails is not kept: the next file to use the same root proves
+    /// it again, so a folder put right in Box is not refused for good.
+    /// </summary>
+    [Fact]
+    public async Task AProofThatFailedIsMadeAgainByTheNextFile()
+    {
+        var current = "trashed";
+        var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/2.0/folders/case-folder" => current == "trashed"
+                ? CaseFolder("QDOS31001", "405543781910", trashedAt: "2031-01-01T00:00:00Z")
+                : CaseFolder("QDOS31001", "405543781910"),
+            "/api/2.0/files/content" => Json(
+                """{"entries":[{"id":"file-1","name":"001 instruction.eml","type":"file","etag":"1","file_version":{"id":"v1"},"parent":{"id":"case-folder"}}]}"""),
+            _ => throw new InvalidOperationException(request.RequestUri.AbsoluteUri)
+        });
+        var bytes = Encoding.UTF8.GetBytes("accepted source");
+        var custody = Create(handler, new MemoryArtifactStore(bytes));
+        var root = new CaseCustodyRoot(Guid.NewGuid(), "case-folder", "QDOS31001");
+        var source = new IntakeSourceCustodyReference(
+            Guid.NewGuid(), "instruction.eml", "message/rfc822", Sha256(bytes), "source-key", bytes.Length);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            custody.RetainAcceptedIntakeSourceAsync(root, source, "retain-operation", default));
+        current = "restored";
+        var retained = await custody.RetainAcceptedIntakeSourceAsync(root, source, "retain-operation", default);
+
+        Assert.Equal("file-1", retained.RemoteId);
+    }
+
+    /// <summary>
+    /// The upload is the first thing asked for a file. A name Box already
+    /// holds comes back as its 409, and only then is the existing file found,
+    /// and accepted when its content is the content offered.
+    /// </summary>
+    [Fact]
+    public async Task ANameBoxAlreadyHoldsIsResolvedFromItsConflictAnswer()
+    {
+        var box = new StatefulBox();
+        var bytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        var photo = ImagePhoto(bytes, "photo one.jpg");
+        var first = await custody.RetainImageCaseAssetAsync(root, photo, 1, "retain-1", default);
+        var mutations = box.MutationCount;
+        var before = box.Requests.Count;
+
+        var replay = await custody.RetainImageCaseAssetAsync(root, photo, 1, "retain-1", default);
+
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.True(IsUpload(requests[0]), requests[0]);
+        Assert.Equal(first.RemoteId, replay.RemoteId);
+        Assert.Equal(first.BoxVersionId, replay.BoxVersionId);
+        Assert.Equal(mutations, box.MutationCount);
+
+        box.CorruptFile("AB12CDE-01/001 photo one.jpg");
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            custody.RetainImageCaseAssetAsync(root, photo, 1, "retain-1", default));
+    }
+
+    /// <summary>
+    /// The occupant of the name is checked before its bytes are: it must be a
+    /// file, of the content's length and, when Box says, its type.
+    /// </summary>
+    [Theory]
+    [InlineData("folder")]
+    [InlineData("other-length")]
+    [InlineData("other-type")]
+    public async Task ANameHeldByAnythingButThisFileIsRefused(string occupant)
+    {
+        var box = new StatefulBox();
+        var bytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        switch (occupant)
+        {
+            case "folder":
+                await CreateClient(box).CreateFolderAsync(root.RemoteId, "001 photo one.jpg", default);
+                break;
+            default:
+                await custody.RetainImageCaseAssetAsync(
+                    root, ImagePhoto(bytes, "photo one.jpg"), 1, "retain-1", default);
+                if (occupant == "other-length")
+                {
+                    box.CorruptFile("AB12CDE-01/001 photo one.jpg");
+                }
+                else
+                {
+                    box.SetMediaType("AB12CDE-01/001 photo one.jpg", "application/pdf");
+                }
+                break;
+        }
+        var mutations = box.MutationCount;
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => custody.RetainImageCaseAssetAsync(
+            root, ImagePhoto(bytes, "photo one.jpg"), 1, "retain-1", default));
+
+        Assert.Equal(mutations, box.MutationCount);
+    }
+
+    /// <summary>
+    /// The 409 codes an upload can meet that are not "name in use". Box says
+    /// "later" for a name it has reserved and for a folder busy with another
+    /// operation, and the failure is the one the queue retries.
+    /// </summary>
+    [Theory]
+    [InlineData("name_temporarily_reserved", "temporarily reserved")]
+    [InlineData("operation_blocked_temporary", "blocked the upload")]
+    [InlineData("conflict", "rejected")]
+    public async Task AnUploadConflictThatIsNotANameInUseIsAFailureTheQueueRetries(string code, string message)
+    {
+        var box = new StatefulBox { NextUploadConflictCode = code };
+        var bytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        var mutations = box.MutationCount;
+        var before = box.Requests.Count;
+
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            custody.RetainImageCaseAssetAsync(root, ImagePhoto(bytes, "photo one.jpg"), 1, "retain-1", default));
+
+        Assert.Equal(HttpStatusCode.Conflict, failure.StatusCode);
+        Assert.Contains(message, failure.Message, StringComparison.Ordinal);
+        Assert.Equal(mutations, box.MutationCount);
+        Assert.DoesNotContain(box.Requests.Skip(before), request => request.Contains("/items", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A folder the database records is proved to be the Case's own by one
+    /// read: named for the Case, directly under the approved root, not in the
+    /// trash. Anything else is refused, and the read memory forgets the folder.
+    /// </summary>
+    [Theory]
+    [InlineData("trashed", typeof(UnauthorizedAccessException))]
+    [InlineData("renamed", typeof(UnauthorizedAccessException))]
+    [InlineData("moved", typeof(UnauthorizedAccessException))]
+    [InlineData("missing", typeof(HttpRequestException))]
+    public async Task ARecordedFolderThatIsNotTheCasesOwnIsRefusedAndForgotten(string state, Type refusal)
+    {
+        var requests = 0;
+        var current = "good";
+        var handler = new DelegateHandler(request =>
+        {
+            requests++;
+            Assert.Equal("/2.0/folders/case-folder", request.RequestUri!.AbsolutePath);
+            return current switch
+            {
+                "trashed" => CaseFolder("QDOS31001", "405543781910", trashedAt: "2031-01-01T00:00:00Z"),
+                "renamed" => CaseFolder("QDOS99999", "405543781910"),
+                "moved" => CaseFolder("QDOS31001", "another-folder"),
+                "missing" => new HttpResponseMessage(HttpStatusCode.NotFound)
+                {
+                    Content = new StringContent("missing")
+                },
+                _ => CaseFolder("QDOS31001", "405543781910")
+            };
+        });
+        var client = CreateClient(handler);
+        var custody = new BoxCaseCustody(new EmptyArtifactStore(), client);
+        await client.EnsureLiveFolderForReadAsync("case-folder", default);
+        await client.EnsureLiveFolderForReadAsync("case-folder", default);
+        Assert.Equal(1, requests);
+
+        current = state;
+        await Assert.ThrowsAsync(refusal, () => custody.GetExistingCaseRootAsync(
+            Guid.NewGuid(), "QDOS31001", "case-folder", default));
+
+        current = "good";
+        var before = requests;
+        await client.EnsureLiveFolderForReadAsync("case-folder", default);
+        Assert.Equal(before + 1, requests);
+    }
+
+    /// <summary>
+    /// No walk follows an upload. Box's own answer must name the proved folder
+    /// as the file's parent, and an answer that names another one, or none, is
+    /// refused.
+    /// </summary>
+    [Theory]
+    [InlineData(",\"parent\":{\"id\":\"another-folder\"}")]
+    [InlineData("")]
+    public async Task AnUploadWhoseAnswerDoesNotNameTheProvedFolderIsRefused(string parent)
+    {
+        var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/2.0/folders/case-folder" => CaseFolder("QDOS31001", "405543781910"),
+            "/api/2.0/files/content" => Json(
+                """{"entries":[{"id":"file-1","name":"001 instruction.eml","type":"file","etag":"1","file_version":{"id":"v1"}"""
+                + parent + "}]}"),
+            _ => throw new InvalidOperationException(request.RequestUri.AbsoluteUri)
+        });
+        var bytes = Encoding.UTF8.GetBytes("accepted source");
+        var custody = Create(handler, new MemoryArtifactStore(bytes));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAcceptedIntakeSourceAsync(
+            new CaseCustodyRoot(Guid.NewGuid(), "case-folder", "QDOS31001"),
+            new IntakeSourceCustodyReference(
+                Guid.NewGuid(), "instruction.eml", "message/rfc822", Sha256(bytes), "source-key", bytes.Length),
+            "retain-operation",
+            default));
+
+        Assert.DoesNotContain(handler.Uris, uri =>
+            uri.AbsolutePath.StartsWith("/2.0/files/", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -631,8 +891,33 @@ public sealed class ProductionBoxCustodyTests
     private static HttpResponseMessage Bytes(ReadOnlyMemory<byte> body) =>
         new(HttpStatusCode.OK) { Content = new ByteArrayContent(body.ToArray()) };
 
-    private static HttpResponseMessage Parent(string parentId) =>
-        Json($$"""{"id":"item","parent":{"id":"{{parentId}}"},"trashed_at":null}""");
+    /// <summary>What Box answers when the Case folder's proof read asks for it.</summary>
+    private static HttpResponseMessage CaseFolder(string name, string parentId, string? trashedAt = null) =>
+        Json(JsonSerializer.Serialize(new
+        {
+            id = "case-folder",
+            name,
+            type = "folder",
+            parent = new { id = parentId },
+            trashed_at = trashedAt
+        }));
+
+    private static IntakeSourceCustodyReference ImagePhoto(byte[] bytes, string fileName) => new(
+        Guid.NewGuid(),
+        fileName,
+        "image/jpeg",
+        Sha256(bytes),
+        "source",
+        bytes.Length,
+        IntakeAssetId: Guid.NewGuid());
+
+    /// <summary>The one read that proves a Case folder: its name, type, parent and trash state.</summary>
+    private static bool IsCaseFolderProof(string request, string folderId) =>
+        request.StartsWith($"GET /2.0/folders/{folderId}?", StringComparison.Ordinal)
+        && request.EndsWith("fields=id,name,type,parent,trashed_at", StringComparison.Ordinal);
+
+    private static bool IsUpload(string request) =>
+        request.StartsWith("POST /api/2.0/files/content", StringComparison.Ordinal);
 
     private sealed class EmptyArtifactStore : IIntakeArtifactStore
     {
@@ -678,6 +963,9 @@ public sealed class ProductionBoxCustodyTests
 
         public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
             Task.FromResult($"Bearer test-token-{Interlocked.Increment(ref calls)}");
+
+        public Task<bool> RenewIfDueAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     private sealed class StatefulBox
@@ -707,6 +995,9 @@ public sealed class ProductionBoxCustodyTests
 
         public bool LoseNextFolderCreateResponse { get; set; }
         public string? LoseNextFileUploadResponseForName { get; set; }
+
+        /// <summary>When set, the next upload is refused with a 409 carrying this Box error code.</summary>
+        public string? NextUploadConflictCode { get; set; }
         public bool AllowDeletes { get; set; }
         public int RenameCount { get; private set; }
         public int MoveCount { get; private set; }
@@ -744,7 +1035,22 @@ public sealed class ProductionBoxCustodyTests
 
         public void SetMediaType(string path, string mediaType) => RequirePath(path).MediaType = mediaType;
 
+        /// <summary>Every request Box has received, as "METHOD /path?query", in order.</summary>
+        public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
+
+        private readonly object gate = new();
+
+        /// <summary>One request at a time, as Box's answers to files filed together would be ordered.</summary>
         public HttpResponseMessage Handle(HttpRequestMessage request)
+        {
+            Requests.Enqueue($"{request.Method} {request.RequestUri!.PathAndQuery}");
+            lock (gate)
+            {
+                return HandleCore(request);
+            }
+        }
+
+        private HttpResponseMessage HandleCore(HttpRequestMessage request)
         {
             var path = request.RequestUri!.AbsolutePath;
             if (request.Method == HttpMethod.Get && path.StartsWith("/2.0/folders/", StringComparison.Ordinal)
@@ -824,6 +1130,16 @@ public sealed class ProductionBoxCustodyTests
                     .ReadAsByteArrayAsync().GetAwaiter().GetResult();
                 var mediaType = multipart.First(part => part.Headers.ContentDisposition?.Name?.Trim('"') == "file")
                     .Headers.ContentType?.MediaType;
+                if (NextUploadConflictCode is { } conflictCode)
+                {
+                    NextUploadConflictCode = null;
+                    return Conflict(conflictCode);
+                }
+                if (Find(parent, name) is not null)
+                {
+                    // Box refuses a second item of one name in a folder.
+                    return Conflict("item_name_in_use");
+                }
                 var created = Add("file", parent, name, bytes, mediaType: mediaType);
                 if (string.Equals(LoseNextFileUploadResponseForName, name, StringComparison.Ordinal))
                 {
@@ -925,9 +1241,15 @@ public sealed class ProductionBoxCustodyTests
             etag = "1",
             file_version = node.Type == "file"
                 ? new { id = $"{node.Id}-version-1" }
-                : null
+                : null,
+            parent = node.ParentId is null ? null : new { id = node.ParentId }
         };
         private static HttpResponseMessage Item(Node node) => Json(JsonSerializer.Serialize(ItemValue(node)));
+        private static HttpResponseMessage Conflict(string code) => new(HttpStatusCode.Conflict)
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(new { code }), Encoding.UTF8, "application/json")
+        };
     }
 
     private sealed class StatefulBoxHandler(StatefulBox box) : HttpMessageHandler

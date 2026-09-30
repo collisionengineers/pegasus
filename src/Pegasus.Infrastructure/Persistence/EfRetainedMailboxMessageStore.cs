@@ -106,6 +106,27 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
     }
 
+    public async Task<bool> HasRetainedMessageAsync(
+        Guid mailboxId,
+        string immutableMessageId,
+        string canonicalInternetMessageIdentity,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(immutableMessageId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(canonicalInternetMessageIdentity);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // The canonical id is unique in the mailbox, so this reads at most one row.
+        // The item id is compared here, exactly, as the wake compares it: the column
+        // takes the database's collation, which can ignore case, and Graph ids do not.
+        var retainedImmutableMessageId = await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .Where(item => item.MailboxId == mailboxId
+                && item.CanonicalInternetMessageIdentity == canonicalInternetMessageIdentity)
+            .Select(item => item.ImmutableMessageId)
+            .SingleOrDefaultAsync(cancellationToken);
+        return string.Equals(retainedImmutableMessageId, immutableMessageId, StringComparison.Ordinal);
+    }
+
     public async Task<int> CountAsync(
         MailWorkspaceScope scope,
         CancellationToken cancellationToken)
@@ -303,6 +324,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                     item.ReceivedAtUtc))
                 .ToListAsync(cancellationToken);
 
+        // The receipt's classification decision is read here once, for the
+        // message's classification and for its classification dossier.
         var receipt = await context.IntakeReceipts
             .AsNoTracking()
             .Where(item => item.SourceChannel == "mailbox"
@@ -310,7 +333,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             .Select(item => new
             {
                 item.Id,
-                Classification = item.MailClassificationDecision!.Outcome,
+                Decision = item.MailClassificationDecision,
                 Route = item.MailRouteDecision!.Disposition,
                 EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress,
                 BodySearchText = item.SearchDocuments
@@ -319,12 +342,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                     .SingleOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
-        var currentFolderType = await context.RetainedMailFolderMoves.AsNoTracking()
-            .Where(move => move.RetainedMailboxMessageId == entity.Id && move.Outcome == "succeeded")
-            .OrderByDescending(move => move.RecordedAtUtc)
-            .ThenByDescending(move => move.Id)
-            .Select(move => move.FolderType)
-            .FirstOrDefaultAsync(cancellationToken);
+        var currentFolderType = await ReadCurrentFolderTypeAsync(context, entity.Id, cancellationToken);
 
         var summaryRows = new List<SummaryRow>
         {
@@ -420,17 +438,100 @@ internal sealed class EfRetainedMailboxMessageStore(
                 .ToArray(),
             thread,
             ParseFolderScope(entity.FolderScope),
-            receipt?.Classification is { } classification
+            receipt?.Decision?.Outcome is { } classification
                 ? ParseClassificationOutcome(classification)
                 : null,
             receipt?.Route is { } route ? ParseRouteDisposition(route) : null,
             entity.ImmutableMessageId,
             entity.InternetMessageIdentity,
             entity.ConversationIdentity,
-            await LoadClassificationAsync(context, id, cancellationToken));
+            await ClassificationDossierAsync(context, receipt?.Decision, cancellationToken));
     }
 
+    /// <summary>
+    /// The Inbox preview pane's read. A summary the caller already holds from the
+    /// list is kept as it is, search matches included; without one the message's
+    /// own summary is read. Neither reads the thread, the staff names, the folder
+    /// recommendation or the latest move.
+    /// </summary>
+    public async Task<RetainedMailPreview?> GetPreviewAsync(
+        Guid id,
+        RetainedMailSummary? summary,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .Include(item => item.Attachments)
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (entity is null)
+        {
+            return null;
+        }
+
+        if (summary is null)
+        {
+            var currentFolderType = await ReadCurrentFolderTypeAsync(context, entity.Id, cancellationToken);
+            summary = (await MapSummariesAsync(
+                context,
+                [
+                    new SummaryRow(
+                        entity.Id,
+                        entity.MailboxId ?? UploadedCorrespondence.MailboxId,
+                        entity.MailboxAddress,
+                        entity.SenderAddress,
+                        entity.SenderDisplayName,
+                        entity.Subject,
+                        entity.BodyExcerpt,
+                        entity.ReceivedAtUtc,
+                        entity.IsRead,
+                        entity.Attachments.Count,
+                        entity.ExternalReceiptToken,
+                        false,
+                        currentFolderType,
+                        entity.BodyPlainText,
+                        null,
+                        entity.DismissedAtUtc)
+                ],
+                cancellationToken))[0];
+        }
+
+        var decision = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => item.SourceChannel == "mailbox"
+                && item.ExternalReceiptToken == entity.ExternalReceiptToken)
+            .Select(item => item.MailClassificationDecision)
+            .SingleOrDefaultAsync(cancellationToken);
+        return new(
+            summary,
+            entity.Attachments
+                .OrderBy(item => item.Ordinal)
+                .Select(item => new RetainedMailAttachment(
+                    item.FileName, item.MediaType, item.ContentLength, false, null))
+                .ToArray(),
+            decision is null ? null : EfIntakeReceiptStore.MapMailClassificationDecision(decision),
+            ParseFolderScope(entity.FolderScope));
+    }
+
+    private static Task<string?> ReadCurrentFolderTypeAsync(
+        PegasusDbContext context,
+        Guid retainedMessageId,
+        CancellationToken cancellationToken) =>
+        context.RetainedMailFolderMoves.AsNoTracking()
+            .Where(move => move.RetainedMailboxMessageId == retainedMessageId && move.Outcome == "succeeded")
+            .OrderByDescending(move => move.RecordedAtUtc)
+            .ThenByDescending(move => move.Id)
+            .Select(move => move.FolderType)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<RetainedMailDetail?> GetByOriginReceiptAsync(
+        Guid originReceiptId,
+        CancellationToken cancellationToken) =>
+        await FindIdByOriginReceiptAsync(originReceiptId, cancellationToken) is { } retainedId
+            ? await GetAsync(retainedId, cancellationToken)
+            : null;
+
+    public async Task<Guid?> FindIdByOriginReceiptAsync(
         Guid originReceiptId,
         CancellationToken cancellationToken)
     {
@@ -451,9 +552,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 "The origin receipt matches more than one retained mailbox message.");
         }
 
-        return retainedIds.Count == 0
-            ? null
-            : await GetAsync(retainedIds[0], cancellationToken);
+        return retainedIds.Count == 0 ? null : retainedIds[0];
     }
 
     public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
@@ -571,19 +670,40 @@ internal sealed class EfRetainedMailboxMessageStore(
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        var retained = await context.RetainedMailboxMessages
+        var externalReceiptToken = await context.RetainedMailboxMessages
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == messageId, cancellationToken);
-        if (retained is null)
-        {
-            return null;
-        }
+            .Where(item => item.Id == messageId)
+            .Select(item => item.ExternalReceiptToken)
+            .SingleOrDefaultAsync(cancellationToken);
+        return externalReceiptToken is null
+            ? null
+            : await LoadClassificationByTokenAsync(context, externalReceiptToken, cancellationToken);
+    }
+
+    /// <summary>The classification dossier of the message whose receipt token is known.</summary>
+    private static async Task<MailClassificationDossier?> LoadClassificationByTokenAsync(
+        PegasusDbContext context,
+        string externalReceiptToken,
+        CancellationToken cancellationToken)
+    {
         var decision = await context.IntakeReceipts
             .AsNoTracking()
             .Where(item => item.SourceChannel == "mailbox"
-                && item.ExternalReceiptToken == retained.ExternalReceiptToken)
+                && item.ExternalReceiptToken == externalReceiptToken)
             .Select(item => item.MailClassificationDecision)
             .SingleOrDefaultAsync(cancellationToken);
+        return await ClassificationDossierAsync(context, decision, cancellationToken);
+    }
+
+    /// <summary>
+    /// The classification dossier of a decision already read: only its
+    /// correction history is read here. No decision, no dossier.
+    /// </summary>
+    private static async Task<MailClassificationDossier?> ClassificationDossierAsync(
+        PegasusDbContext context,
+        IntakeMailClassificationDecisionEntity? decision,
+        CancellationToken cancellationToken)
+    {
         if (decision is null)
         {
             return null;

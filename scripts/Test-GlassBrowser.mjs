@@ -54,6 +54,19 @@ function fixture() {
             + '<input type="hidden" name="selection.Opening" value="opening-' + state.caseVersion + '" form="case-edit-form" data-carry-forward>'
             + '</section></main><div data-case-aside></div><div data-case-dialogs></div><div data-case-viewer-host></div></div>';
     }
+    // What the server answers a commit with (FRD-16): the wrapper that confirms it, the swap roots, and the Save
+    // form and the valuation calculation the next commit carries forward, with no section and no viewer host.
+    function answer(commit, notice) {
+        return '<div data-case-notices>' + (notice || '') + '</div>'
+            + '<div data-case-record data-case-version="' + state.caseVersion + '" data-case-editing="true" data-section-current="estimate"'
+            + (commit ? " data-editor-commit='" + JSON.stringify(commit) + "'" : '') + '>'
+            + '<div data-case-ribbon-facts></div>'
+            + '<div data-case-ribbon-actions><span data-lease-line hidden data-lease-saving-text="Saving" data-lease-saved-text="Saved"></span></div>'
+            + '<form id="case-edit-form" method="post" action="/case?handler=Save"><input name="expectedVersion" type="hidden" value="' + state.caseVersion + '" data-carry-forward>'
+            + '<input name="editLeaseToken" type="hidden" value="lease" data-carry-forward><input name="operationKey" type="hidden" value="save-' + state.caseVersion + '" data-carry-forward></form>'
+            + '<input type="hidden" name="selection.Opening" value="opening-' + state.caseVersion + '" form="case-edit-form" data-carry-forward>'
+            + '<div data-case-aside></div></div><div data-case-dialogs></div>';
+    }
     document.write(page());
     window.fetch = function(url, options) {
         options = options || {}; trace.push({ type: 'fetch', url: String(url) });
@@ -63,22 +76,23 @@ function fixture() {
             if (mode === 'network-failure') { return Promise.reject(new Error('Save disconnected')); }
             var body = options.body;
             trace[trace.length - 1].operationKey = body.get('operationKey');
-            if (mode === 'refused-save') { text = page(null, '<p role="alert">Save refused</p>'); }
+            if (mode === 'refused-save') { text = answer(null, '<p role="alert">Save refused</p>'); }
             else if (mode === 'lost-response') {
                 // The Case applies the save; its answer is lost on the way back.
                 mode = ''; applied.push(body.get('operationKey')); ++state.caseVersion; state.registration = body.get('registration');
                 return Promise.reject(new Error('Save answer lost'));
             }
-            else if (applied.indexOf(body.get('operationKey')) >= 0) { text = page(null, '<p role="alert">Operation already applied</p>'); }
+            else if (applied.indexOf(body.get('operationKey')) >= 0) { text = answer(null, '<p role="alert">Operation already applied</p>'); }
             else {
                 applied.push(body.get('operationKey'));
                 var commit = { editor: 'case-edit-form', operationKey: body.get('operationKey'), expectedVersion: Number(body.get('expectedVersion')), version: ++state.caseVersion };
-                state.registration = body.get('registration'); text = page(commit);
+                state.registration = body.get('registration'); text = answer(commit);
             }
         } else if (String(url).includes('CloseGlass')) {
             state.sessionVersion++; text = page(null, '<p role="alert">Confirm external closure again</p>');
         } else { text = page(); }
-        var response = { ok: true, status: 200, url: location.origin + '/case', text: function() { return Promise.resolve(text); } };
+        // A commit is answered where it was posted: there is no redirect to follow.
+        var response = { ok: true, status: 200, url: location.origin + (String(url).includes('handler=Save') ? '/case?handler=Save' : '/case'), text: function() { return Promise.resolve(text); } };
         if (mode === 'defer') { return new Promise(function(resolve) { deferred.push(function() { resolve(response); }); }); }
         return Promise.resolve(response);
     };
