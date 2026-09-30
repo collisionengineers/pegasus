@@ -1135,6 +1135,95 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Filing is on the intake path, so a publish gives up after five seconds.
+    /// </summary>
+    [Fact]
+    public void AFilingPublishGivesUpAfterFiveSeconds() =>
+        Assert.Equal(TimeSpan.FromSeconds(5), CachedDocumentContentStore.FilingPublishTimeout);
+
+    /// <summary>
+    /// A store that hangs, or fails, on the first publish of a work item costs
+    /// that work item that one wait: the rest of its publishes are skipped, even
+    /// once the store answers again, and left to their first read. The next work
+    /// item has a publisher of its own and publishes.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AfterOnePublishFailsOrTimesOutTheRestOfTheWorkItemsPublishesAreSkipped(bool hang)
+    {
+        var bytes = "one of a work item's files"u8.ToArray();
+        var logger = new RecordingLogger();
+        var estate = await Estate.CreateDocumentAsync(bytes, logger: logger);
+        await using (estate)
+        {
+            var workItem = await estate.PublisherAsync(logger, TimeSpan.FromMilliseconds(300));
+            var key = KeyOf(estate.Request);
+            var hash = estate.Request.ExpectedSha256;
+            estate.Blob.FailUploads = !hang;
+            estate.Blob.HangUploads = hang;
+
+            // A hung upload that never answers must not hold the filing: without the
+            // bound this would never return, and the guard fails it instead of the run.
+            await workItem.PublishAsync(key, bytes, hash, CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.Equal([LogLevel.Warning], logger.Levels);
+            Assert.Equal(1, estate.Blob.UploadAttempts);
+
+            estate.Blob.FailUploads = false;
+            estate.Blob.HangUploads = false;
+            await workItem.PublishAsync(key, bytes, hash, CancellationToken.None);
+
+            Assert.Equal(1, estate.Blob.UploadAttempts);
+            Assert.Equal([LogLevel.Warning], logger.Levels);
+            Assert.Null(estate.Blob.Content);
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+            }
+
+            // A healthy publish writes to SQL as well, so it keeps the production bound.
+            var nextWorkItem = await estate.PublisherAsync(logger);
+            await nextWorkItem.PublishAsync(key, bytes, hash, CancellationToken.None);
+
+            Assert.Equal(2, estate.Blob.UploadAttempts);
+            Assert.Equal(1, estate.Blob.UploadCount);
+            await using var verify = await estate.Database.CreateContextAsync();
+            Assert.Single(await verify.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+        }
+    }
+
+    /// <summary>
+    /// A work item files three files at a time. When the store hangs, its first
+    /// wave gives up together after one bound and the rest never reach the
+    /// store, so the work item waits once and not once for each wave.
+    /// </summary>
+    [Fact]
+    public async Task AHungStoreHoldsAWorkItemForOneWaveOfThreeAndNotForEachWave()
+    {
+        var bytes = "seven files of one work item"u8.ToArray();
+        var logger = new RecordingLogger();
+        var estate = await Estate.CreateDocumentAsync(bytes, logger: logger);
+        await using (estate)
+        {
+            var workItem = await estate.PublisherAsync(logger, TimeSpan.FromMilliseconds(300));
+            var key = KeyOf(estate.Request);
+            var hash = estate.Request.ExpectedSha256;
+            estate.Blob.HangUploads = true;
+
+            await Parallel.ForEachAsync(
+                    Enumerable.Range(0, 7),
+                    new ParallelOptions { MaxDegreeOfParallelism = 3 },
+                    async (_, token) => await workItem.PublishAsync(key, bytes, hash, token))
+                .WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.Equal(3, estate.Blob.UploadAttempts);
+            Assert.Equal([LogLevel.Warning, LogLevel.Warning, LogLevel.Warning], logger.Levels);
+        }
+    }
+
+    /// <summary>
     /// The publisher checks the bytes it is given against the hash and length
     /// it was given, so a caller's mistake never becomes a cache copy that a
     /// later read would refuse.
@@ -1888,6 +1977,24 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 { StaffId = staffId };
         }
         /// <summary>
+        /// A store over this estate's database, cache blob and Box, as a new work
+        /// item would have: its own publisher, with the given bound on a publish
+        /// (the production bound when none is given).
+        /// </summary>
+        public async Task<CachedDocumentContentStore> PublisherAsync(
+            ILogger<CachedDocumentContentStore>? logger, TimeSpan? filingPublishTimeout = null)
+        {
+            await using var scope = Database.CreateAsyncScope();
+            return new CachedDocumentContentStore(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                new CacheContainer(Blob),
+                new BoxContentClient(BoxOptions(), new HttpClient(Box), new Header(), Clock),
+                Clock,
+                logger: logger,
+                filingPublishTimeout: filingPublishTimeout);
+        }
+
+        /// <summary>
         /// A store over this estate's database, cache blob and Box that can read
         /// the copies intake retained.
         /// </summary>
@@ -2142,10 +2249,23 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         public bool DeletePreconditionFails { get; set; }
         /// <summary>Answers every upload with the store being unavailable.</summary>
         public bool FailUploads { get; set; }
+        /// <summary>
+        /// Never answers an upload, and ignores the token it is given: a storage
+        /// call that hangs and cannot be told to stop.
+        /// </summary>
+        public bool HangUploads { get; set; }
+        private int uploadAttempts;
+        /// <summary>Uploads asked for, whether they hung, failed or wrote.</summary>
+        public int UploadAttempts => Volatile.Read(ref uploadAttempts);
         public void ReplaceContent(byte[] content) { Content = content; etag = new ETag("\"2\""); }
         public override string Name=>BlobName;
         public override Task<Response<BlobContentInfo>> UploadAsync(Stream content,BlobUploadOptions options,CancellationToken token=default)
         {
+            Interlocked.Increment(ref uploadAttempts);
+            if (HangUploads)
+            {
+                return new TaskCompletionSource<Response<BlobContentInfo>>().Task;
+            }
             if (FailUploads)
             {
                 return Task.FromException<Response<BlobContentInfo>>(

@@ -80,7 +80,8 @@ internal sealed partial class CachedDocumentContentStore(
     TimeProvider timeProvider,
     IDocumentContentCacheMetrics? metrics = null,
     ILogger<CachedDocumentContentStore>? logger = null,
-    IIntakeArtifactStore? intakeArtifacts = null)
+    IIntakeArtifactStore? intakeArtifacts = null,
+    TimeSpan? filingPublishTimeout = null)
     : IReadLogicalDocumentVersion,
         IReadCachedDocumentVersions,
         IDocumentContentCacheCleanup,
@@ -940,10 +941,21 @@ internal sealed partial class CachedDocumentContentStore(
     }
 
     /// <summary>
-    /// The longest a publish at filing takes before it is given up. The filing
-    /// it follows is already confirmed, so a slow store must not hold its caller.
+    /// The longest one publish at filing runs before it is given up. Filing is
+    /// on the intake path, whose target is five seconds, and the file it follows
+    /// is already confirmed, so a slow store must never hold its caller longer
+    /// than this.
     /// </summary>
-    private static readonly TimeSpan FilingPublishTimeout = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan FilingPublishTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Set once a publish at filing has timed out or failed. This store is
+    /// scoped, so that is one work item on the Worker and one request on the
+    /// Web: the rest of its publishes are skipped, because a store that has
+    /// just failed is not worth another wait for each remaining file, and each
+    /// skipped file is published by its first read instead.
+    /// </summary>
+    private int filingPublishGivenUp;
 
     /// <summary>
     /// Publishes content a caller has just filed and holds. The bytes are
@@ -994,9 +1006,11 @@ internal sealed partial class CachedDocumentContentStore(
             cancellationToken);
 
     /// <summary>
-    /// Runs one publish at filing so that nothing it does reaches the caller:
-    /// it is bounded in time, and a failure of any kind is logged at Warning.
-    /// A caller that is stopping ends it quietly.
+    /// Runs one publish at filing so that nothing it does reaches the caller.
+    /// It gives up after <see cref="FilingPublishTimeout"/>, even if the storage
+    /// call ignores its token, and a failure of any kind is logged at Warning.
+    /// After one has timed out or failed, later publishes on this store return
+    /// at once. A caller that is stopping ends it quietly.
     /// </summary>
     private async Task PublishAtFilingAsync(
         DocumentContentCacheKey key,
@@ -1005,12 +1019,31 @@ internal sealed partial class CachedDocumentContentStore(
         Func<FiledContent, CancellationToken, Task> publish,
         CancellationToken cancellationToken)
     {
+        if (Volatile.Read(ref filingPublishGivenUp) != 0)
+        {
+            return;
+        }
         try
         {
             var filed = FiledContent.Create(key, sha256, contentLength);
             using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            bounded.CancelAfter(FilingPublishTimeout);
-            await publish(filed, bounded.Token);
+            var attempt = publish(filed, bounded.Token);
+            try
+            {
+                await attempt.WaitAsync(filingPublishTimeout ?? FilingPublishTimeout, cancellationToken);
+            }
+            catch (Exception) when (!attempt.IsCompleted)
+            {
+                // Timed out, or stopped, while the publish was still running: end it,
+                // and take its fault so that nothing else has to observe it.
+                await bounded.CancelAsync();
+                _ = attempt.ContinueWith(
+                    static task => task.Exception,
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+                throw;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -1018,6 +1051,7 @@ internal sealed partial class CachedDocumentContentStore(
         }
         catch (Exception exception)
         {
+            Volatile.Write(ref filingPublishGivenUp, 1);
             LogFilingPublishFailed(
                 logger ?? NullLogger<CachedDocumentContentStore>.Instance,
                 key?.DocumentVersionId is null ? "intake asset" : "document version",
@@ -1049,7 +1083,7 @@ internal sealed partial class CachedDocumentContentStore(
 
     [LoggerMessage(
         Level = LogLevel.Warning,
-        Message = "The read-cache copy of a filed {Kind} {ContentId} could not be published, so its first read fetches it from Box.")]
+        Message = "The read-cache copy of a filed {Kind} {ContentId} could not be published, so it and any later copy of this work item are left to their first read from Box.")]
     private static partial void LogFilingPublishFailed(
         ILogger logger, string kind, Guid? contentId, Exception exception);
 

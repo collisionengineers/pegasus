@@ -591,14 +591,18 @@ public sealed record DocumentContentCacheKey(Guid? DocumentVersionId, Guid? Inta
 /// </summary>
 /// <remarks>
 /// The copy is an optimisation and never the record. A publish that fails, or
-/// takes longer than half a minute, is logged and forgotten: it never throws
-/// to the caller, so it can never fail the filing it follows. The next read
-/// then misses and publishes as it always did.
+/// takes longer than five seconds, is logged and forgotten: it never throws
+/// to the caller, so it can never fail the filing it follows, and it never
+/// holds it for longer than that. Once one publish has failed or timed out, the
+/// publisher's remaining publishes are skipped: it is scoped to a work item
+/// or a request, so a store that is down costs that work item one wait and
+/// not one for each file. The next read of a file that was not published then
+/// misses and publishes as it always did.
 ///
 /// A caller publishes only after custody has confirmed the file and its own
 /// transaction has committed, because the cache row refers to the version or
-/// asset row. Each call uses its own database context and holds no state, so
-/// several may run at the same time.
+/// asset row. Each call uses its own database context, so several may run at
+/// the same time.
 /// </remarks>
 public interface IDocumentContentCachePublisher
 {

@@ -521,8 +521,11 @@ internal sealed class EfQueuedCustodyProcessor(
     /// Writes the read-cache copy of each Case document a committed completion
     /// recorded, up to <see cref="MaximumConcurrentUploads"/> at a time, each
     /// with its own database context. It is best effort: the publisher never
-    /// throws, so a failure here can never fail the work item. The first view
-    /// of a file then misses and publishes as it always did.
+    /// throws, so a failure here can never fail the work item. Each publish
+    /// gives up after five seconds, and once one has failed the publisher skips
+    /// the rest of this work item's, so a store that is down holds the work
+    /// item for one wait and not one for each wave. The first view of a file
+    /// that was not published then misses and publishes as it always did.
     /// </summary>
     private async Task PublishFiledAsync(
         List<FiledCaseContent> filed,
