@@ -54,6 +54,7 @@ public sealed class ProductionCompositionTests
         "web.case.direct-sections",
         "web.case.engineer-sections",
         "web.case.extras",
+        "web.case.commit",
         "web.case.section.resource",
         "web.case.section.result",
         "web.auth.validation",

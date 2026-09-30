@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Net;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -11,6 +14,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
 using Pegasus.Web.Authentication;
 using Pegasus.Infrastructure.Persistence;
+using Xunit.Abstractions;
 
 namespace Pegasus.IntegrationTests;
 
@@ -20,7 +24,7 @@ namespace Pegasus.IntegrationTests;
 /// Details, the Cases queue and Search must all remain readable afterwards.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseVehicleSaveWebTests
+public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task SavingThenClearingMakeKeepsAcceptedRegistrationAndCaseSurfacesReadable()
@@ -227,6 +231,162 @@ public sealed class CaseVehicleSaveWebTests
     private const int CasePageCommands = 47;
 
     private const int CaseSaveCommands = 35;
+
+    /// <summary>
+    /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
+    /// the parts it swaps, not with a redirect to the whole page. Three commits
+    /// walk the real stores the way the script does: each carries the version,
+    /// lease and operation key the answer before it returned, so an answer that
+    /// carried the wrong authority fails the next save. The first two are
+    /// answered in place; the third has no script header and keeps its redirect,
+    /// which prices what the script used to follow. The answered commit is
+    /// pinned at its exact count, so any change to it is seen, and a mismatch
+    /// lists every command sent. The byte figures are printed.
+    /// </summary>
+    [Fact]
+    public async Task ACommitAnsweredInPlaceCarriesTheNextAuthorityAndCostsLessThanTheRedirectAndPage()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-commit-answer", withMileage: false);
+        using var client = CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        // The first render of each shape pays one-off work; the counts are later ones.
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var startVersion = long.Parse(InputValue(editing, "expectedVersion"), CultureInfo.InvariantCulture);
+
+        // The script keeps every section as it is and takes only the authority from an answer.
+        counter.Reset();
+        var first = await CommitAsync(
+            client, editing, caseId, CurrentCaseSaveValues(editing, caseId, vehicleMake: "Vauxhall"), script: true);
+        var firstCommands = counter.Count;
+        var firstDescription = counter.Describe();
+        Assert.Equal(HttpStatusCode.OK, first.Status);
+        var firstCommit = EditorCommit(first.Body);
+        Assert.Equal(startVersion, firstCommit.ExpectedVersion);
+        Assert.Equal(startVersion + 1, firstCommit.Version);
+        Assert.Contains("data-case-editing=\"true\"", first.Body, StringComparison.Ordinal);
+        Assert.Contains($"data-case-version=\"{startVersion + 1}\"", first.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-main\"", first.Body, StringComparison.Ordinal);
+
+        counter.Reset();
+        var second = await CommitAsync(
+            client,
+            editing,
+            caseId,
+            WithAuthority(CurrentCaseSaveValues(editing, caseId, vehicleMake: "Renault"), first.Body),
+            script: true);
+        Assert.Equal(HttpStatusCode.OK, second.Status);
+        var secondCommit = EditorCommit(second.Body);
+        Assert.Equal(startVersion + 1, secondCommit.ExpectedVersion);
+        Assert.Equal(startVersion + 2, secondCommit.Version);
+
+        counter.Reset();
+        var third = await CommitAsync(
+            client,
+            editing,
+            caseId,
+            WithAuthority(CurrentCaseSaveValues(editing, caseId, vehicleMake: "Skoda"), second.Body),
+            script: false);
+        var plainPostCommands = counter.Count;
+        Assert.Equal(HttpStatusCode.Redirect, third.Status);
+        counter.Reset();
+        var page = await GetHtmlAsync(client, third.Location!);
+        var pageCommands = counter.Count;
+        Assert.Contains("Case saved.", page, StringComparison.Ordinal);
+        Assert.Equal((startVersion + 3).ToString(CultureInfo.InvariantCulture), SaveFormValue(page, "expectedVersion"));
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal("Skoda", data!.Vehicle.Make.Confirmed?.Value);
+
+        var answerBytes = Encoding.UTF8.GetByteCount(first.Body);
+        var pageBytes = Encoding.UTF8.GetByteCount(page);
+        var redirectedCommands = plainPostCommands + pageCommands;
+        output.WriteLine(
+            $"Lane H: an answered commit sent {firstCommands} SQL commands and {answerBytes} bytes; "
+            + $"the same commit with its redirect sent {redirectedCommands} ({plainPostCommands} + {pageCommands}) "
+            + $"and {pageBytes} bytes.");
+        // Measured with LocalDB after Lane D's folds: the save is 35 commands and the
+        // redirected page 47, 82 in all, with 200,668 bytes in the response. The answered
+        // commit is 66 (the save and 31 for the answer) with 33,453 bytes. Before those
+        // folds CI measured 105 (43 and 62) against 84 (43 and 41).
+        Assert.True(
+            firstCommands < redirectedCommands,
+            $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
+        Assert.True(
+            firstCommands == CaseSaveCommands + CommitAnswerCommands,
+            $"An answered commit sent {firstCommands} SQL commands; it is pinned at {CaseSaveCommands + CommitAnswerCommands}"
+            + $" (the save {CaseSaveCommands} and the answer {CommitAnswerCommands})."
+            + Environment.NewLine + firstDescription);
+        Assert.True(
+            answerBytes < pageBytes * 6 / 10,
+            $"The answer is {answerBytes} bytes; the page it replaces is {pageBytes}.");
+    }
+
+    /// <summary>
+    /// The answer's own reads for this Case, after the save's <see cref="CaseSaveCommands"/>:
+    /// the frame and the workspace, the report's readiness and current generation, the Case's
+    /// AI jobs and the workflow configuration, the valuation opening, and the workspace extras.
+    /// The report snapshot takes the Case's works from the frame, as the page's does.
+    /// </summary>
+    private const int CommitAnswerCommands = 31;
+
+    private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
+        HttpClient client,
+        string antiforgeryHtml,
+        Guid caseId,
+        (string Name, string Value)[] fields,
+        bool script)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/Cases/{caseId:D}?handler=Save")
+        {
+            Content = Form(AntiforgeryValue(antiforgeryHtml), fields)
+        };
+        if (script)
+        {
+            request.Headers.Add("X-Requested-With", "fetch");
+        }
+        using var response = await client.SendAsync(request);
+        return (
+            response.StatusCode,
+            await response.Content.ReadAsStringAsync(),
+            response.Headers.Location?.OriginalString);
+    }
+
+    /// <summary>The Save form's own inputs, taken from an answer as the script's carry-forward takes them.</summary>
+    private static (string Name, string Value)[] WithAuthority(
+        (string Name, string Value)[] fields,
+        string answer) =>
+    [
+        .. fields.Select(field => field.Name is "expectedVersion" or "operationKey" or "editLeaseToken"
+            ? (field.Name, SaveFormValue(answer, field.Name))
+            : field)
+    ];
+
+    private static string SaveFormValue(string html, string name)
+    {
+        var start = html.IndexOf("id=\"case-edit-form\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The answer must draw the Save form.");
+        var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
+        return InputValue(html[start..end], name);
+    }
+
+    private static (string OperationKey, long ExpectedVersion, long Version) EditorCommit(string html)
+    {
+        var attribute = Regex.Match(html, "data-editor-commit=\"(?<value>[^\"]+)\"");
+        Assert.True(attribute.Success, "The answer must confirm the commit.");
+        using var json = JsonDocument.Parse(WebUtility.HtmlDecode(attribute.Groups["value"].Value));
+        var commit = json.RootElement;
+        return (
+            commit.GetProperty("operationKey").GetString()!,
+            commit.GetProperty("expectedVersion").GetInt64(),
+            commit.GetProperty("version").GetInt64());
+    }
 
     /// <summary>
     /// The record form defaults the unit to miles when the Case carries neither
