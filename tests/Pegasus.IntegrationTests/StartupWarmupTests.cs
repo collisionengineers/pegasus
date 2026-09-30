@@ -1,7 +1,10 @@
 using System.Data.Common;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Web.Health;
@@ -114,9 +117,71 @@ public sealed class StartupWarmupTests
     }
 
     [Fact]
+    public async Task TheModelStepLineCarriesTheModelBuildAndTheFirstConnectionTimings()
+    {
+        // A connection that is refused at once: the model is real, the login
+        // never happens, and CanConnectAsync answers false in about a second.
+        var services = new ServiceCollection();
+        services.AddDbContextFactory<PegasusDbContext>(options => options.UseSqlServer(
+            "Server=tcp:127.0.0.1,1;Database=WarmupTimings;Connect Timeout=2;ConnectRetryCount=0;Encrypt=False"));
+        await using var provider = services.BuildServiceProvider();
+        var logger = new RecordingLogger();
+        var state = new StartupWarmupState(warms: true);
+        using var warmup = new StartupWarmup(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            state,
+            TimeProvider.System,
+            logger);
+
+        await warmup.StartAsync(CancellationToken.None);
+        await Assert.IsAssignableFrom<Task>(warmup.ExecuteTask).WaitAsync(TimeSpan.FromMinutes(1));
+        await warmup.StopAsync(CancellationToken.None);
+
+        var line = Assert.Single(
+            logger.Messages,
+            message => message.StartsWith("Startup warm-up step model finished in ", StringComparison.Ordinal));
+        Assert.Matches(@" ms \(model build \d+ ms, first connection \d+ ms\)$", line);
+    }
+
+    [Fact]
     public void AHostThatDoesNotWarmIsReadyAtOnce()
     {
         Assert.True(new StartupWarmupState(warms: false).IsReady);
+    }
+
+    private sealed class RecordingLogger : ILogger<StartupWarmup>
+    {
+        private readonly object gate = new();
+        private readonly List<string> messages = [];
+
+        public string[] Messages
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return messages.ToArray();
+                }
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (gate)
+            {
+                messages.Add(formatter(state, exception));
+            }
+        }
     }
 
     private sealed class CountingKeyRing : IDataProtectionProvider
