@@ -42,7 +42,6 @@ internal static partial class CaseWebTestSupport
         var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -227,7 +226,6 @@ internal static partial class CaseWebTestSupport
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -791,7 +789,7 @@ internal static partial class CaseWebTestSupport
     /// </summary>
 
     internal sealed partial class RecordingCaseDetailsStore :
-        IGetCase, IGetCaseHeader, IGetCaseEditBasis,
+        IGetCaseHeader, IGetCaseEditBasis,
         IGetCasePageFrame,
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
@@ -840,8 +838,6 @@ internal static partial class CaseWebTestSupport
         /// <summary>The workflow state the projection reports; Not ready unless a test says otherwise.</summary>
         public CaseLifecycleState State { get; set; } = CaseLifecycleState.NotReady;
 
-        public bool ExposeCustody { get; init; }
-
         /// <summary>
         /// The lifecycle state the store's case data reports. The default keeps the
         /// workflow surface's NotReady answer; a page that acts on a particular
@@ -863,9 +859,6 @@ internal static partial class CaseWebTestSupport
         public string LeaseToken { get; } = new('a', CaseEditAuthority.LeaseTokenLength);
 
         public bool RenderLeaseIsCurrent { get; set; } = true;
-
-        /// <summary>Fails a test if a focused page path falls back to the legacy full Case read.</summary>
-        public bool ThrowOnBroadCaseRead { get; init; }
 
         public CaseAssessmentProjection? FocusedAssessment { get; set; }
         public List<GetCaseSectionQuery> VehicleSectionQueries { get; } = [];
@@ -932,36 +925,6 @@ internal static partial class CaseWebTestSupport
             return Task.FromResult<CaseEditBasis?>(new(
                 new CaseSectionFrame(CreateSummary(workflow), workflow, ActiveLease()),
                 DataOverride ?? CreateData()));
-        }
-
-        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
-        {
-            if (ThrowOnBroadCaseRead)
-            {
-                throw new InvalidOperationException("A focused Case page read used IGetCase.");
-            }
-
-            var workflow = CreateWorkflow();
-            var summary = CreateSummary(workflow);
-            CaseDetails details = new(
-                summary,
-                workflow,
-                ActiveLease(),
-                CaseDocuments,
-                null,
-                CaseCustodyState.Pending,
-                AvailableReportSentEvidence,
-                HistoryEntries)
-            {
-                Data = DataOverride ?? CreateData(),
-                VehicleEvidence = VehicleLookupEvidence,
-                CorrespondenceEmails = CorrespondenceEmails,
-                RecordNotes = RecordNotes,
-                Custody = ExposeCustody
-                    ? [new(CaseId, CaseVersion, CustodyTargetKind.CaseSource, "Failed", "Provider storage was unavailable.", 1, true)]
-                    : []
-            };
-            return Task.FromResult<CaseDetails?>(details);
         }
 
         Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
@@ -1384,7 +1347,6 @@ internal static partial class CaseWebTestSupport
         var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                Substitute<IGetCase>(services, store);
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
@@ -1406,30 +1368,4 @@ internal static partial class CaseWebTestSupport
         client.DefaultRequestHeaders.Add("X-Test-Roles", role.ToString());
         return (baseFactory, factory, client);
     }
-}
-
-/// <summary>A test double's full Case read, narrowed to what a Case edit reads.</summary>
-internal static class CaseEditBasisTestData
-{
-    public static CaseEditBasis? Of(CaseDetails? details) =>
-        details is null
-            ? null
-            : new(
-                new CaseSectionFrame(details.Summary, details.Workflow, details.ActiveEditLease),
-                details.Data ?? throw new InvalidOperationException("The test Case has no data."));
-}
-
-/// <summary>A test double's full Case read, narrowed to the Case header a page reads.</summary>
-internal static class CaseHeaderTestData
-{
-    public static CaseHeader? Of(CaseDetails? details) =>
-        details is null
-            ? null
-            : new(
-                details.Summary,
-                details.Workflow,
-                details.ActiveEditLease,
-                details.Documents.Count,
-                details.History.Count,
-                details.Tasks.Count(task => task.State == CaseTaskState.Open));
 }

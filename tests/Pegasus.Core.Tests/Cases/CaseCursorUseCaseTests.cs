@@ -148,9 +148,6 @@ public sealed class CaseCursorUseCaseTests
         public Task<SearchCasesResult> SearchAsync(SearchCasesQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<CaseDetails?> GetAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<CaseHeader?> GetHeaderAsync(GetCaseHeaderQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

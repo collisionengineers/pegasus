@@ -445,7 +445,6 @@ public static class DependencyInjection
         services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCaseHeader, GetCaseHeader>();
-        services.AddScoped<IGetCase, GetCase>();
         services.AddScoped<IGetCaseEditBasis, GetCaseEditBasis>();
         services.AddScoped<IGetCasePageFrame, GetCasePageFrame>();
         services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
