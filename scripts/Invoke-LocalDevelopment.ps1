@@ -649,7 +649,7 @@ function Get-WorkerEnvironment {
         AutomaticEvaReviewSubmissionSchedule = '0 * * * * *'
         IntakeStagedArtifactReconciliationSchedule = '*/10 * * * * *'
         ApprovedInboxPollSchedule = '0 */5 * * * *'
-        SentEvidencePollSchedule = '15 * * * * *'
+        SentEvidencePollSchedule = '0 * * * * *'
         DueWorkSweepSchedule = '0 */5 * * * *'
         ApprovedInbox__MailboxId = 'instructions'
         ApprovedInbox__MailboxAddress = 'instructions@collisionengineers.co.uk'

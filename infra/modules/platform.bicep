@@ -566,7 +566,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'AutomaticEvaReviewSubmissionSchedule', value: '0 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
         { name: 'ApprovedInboxPollSchedule', value: '0 */5 * * * *' }
-        { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }
+        { name: 'SentEvidencePollSchedule', value: '0 * * * * *' }
         { name: 'DueWorkSweepSchedule', value: '0 */5 * * * *' }
         { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.UnifiedWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
