@@ -36,6 +36,7 @@ internal sealed class StartupWarmupState
     {
         Warms = warms;
         KeepWarmInterval = keepWarmInterval ?? DefaultKeepWarmInterval;
+        ArgumentOutOfRangeException.ThrowIfLessThan(KeepWarmInterval, TimeSpan.Zero, nameof(keepWarmInterval));
         completed = warms ? 0 : 1;
     }
 
@@ -43,7 +44,7 @@ internal sealed class StartupWarmupState
 
     /// <summary>
     /// The wait between keep-warm passes, from the end of one to the start of
-    /// the next. Zero or less means the warm-up runs its first pass and ends.
+    /// the next. Zero means the warm-up runs its first pass and ends.
     /// </summary>
     public TimeSpan KeepWarmInterval { get; }
 
@@ -60,9 +61,10 @@ internal sealed class StartupWarmupState
 
     /// <summary>
     /// The state from the two settings. The interval is the default when its
-    /// text is absent or blank, zero or less for the once-only warm-up, and a
-    /// time span of one second or more as given. Any other text keeps the
-    /// default and is remembered, so a mistyped setting never stops the host.
+    /// text is absent or blank, zero (<c>00:00:00</c>) for the once-only
+    /// warm-up, and a time span of one second or more as given. Any other text,
+    /// a negative or sub-second span included, keeps the default and is
+    /// remembered, so a mistyped setting never stops the host.
     /// </summary>
     public static StartupWarmupState FromSettings(bool warms, string? intervalText)
     {
@@ -72,7 +74,7 @@ internal sealed class StartupWarmupState
         }
 
         return TimeSpan.TryParse(intervalText, CultureInfo.InvariantCulture, out var interval)
-            && (interval <= TimeSpan.Zero || interval >= TimeSpan.FromSeconds(1))
+            && (interval == TimeSpan.Zero || interval >= TimeSpan.FromSeconds(1))
                 ? new StartupWarmupState(warms, interval)
                 : new StartupWarmupState(warms) { UnusableIntervalSetting = intervalText };
     }
@@ -205,7 +207,7 @@ internal sealed partial class StartupWarmup(
     private async Task KeepWarmAsync(CancellationToken stoppingToken)
     {
         var interval = state.KeepWarmInterval;
-        if (interval <= TimeSpan.Zero)
+        if (interval == TimeSpan.Zero)
         {
             return;
         }
