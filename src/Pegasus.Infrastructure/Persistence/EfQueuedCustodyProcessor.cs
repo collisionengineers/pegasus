@@ -144,9 +144,10 @@ internal sealed class EfQueuedCustodyProcessor(
                 StringComparison.Ordinal);
             // The Audit's a. folder is created inside the Case's existing folder.
             var root = isAuditCustody
-                ? await caseCustody.GetExistingCaseRootAsync(
+                ? await ExistingCaseRootAsync(
                     casePayload.CaseId,
                     casePayload.CaseReference,
+                    casePayload.CaseRootRemoteId,
                     cancellationToken)
                 : await caseCustody.CreateCaseRootAsync(
                     casePayload.CaseId,
@@ -265,6 +266,19 @@ internal sealed class EfQueuedCustodyProcessor(
             throw;
         }
     }
+
+    /// <summary>
+    /// The Case's custody root. The Case's recorded folder is proved directly
+    /// when there is one; a Case that has none yet is looked up by name.
+    /// </summary>
+    private Task<CaseCustodyRoot> ExistingCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        string? recordedRemoteId,
+        CancellationToken cancellationToken) =>
+        string.IsNullOrWhiteSpace(recordedRemoteId)
+            ? caseCustody.GetExistingCaseRootAsync(caseId, caseReference, cancellationToken)
+            : caseCustody.GetExistingCaseRootAsync(caseId, caseReference, recordedRemoteId, cancellationToken);
 
     /// <summary>
     /// Each attachment of the accepted instruction lands beside the
@@ -524,7 +538,8 @@ internal sealed class EfQueuedCustodyProcessor(
                 null,
                 operationKey,
                 caseRootCreationToken,
-                auditFolderCreationToken);
+                auditFolderCreationToken,
+                caseEntity.CustodyRootRemoteId);
         }
         var receipt = await context.IntakeReceipts
             .AsNoTracking()
@@ -577,7 +592,8 @@ internal sealed class EfQueuedCustodyProcessor(
             source.IntakeAssetId,
             operationKey,
             caseRootCreationToken,
-            auditFolderCreationToken);
+            auditFolderCreationToken,
+            caseEntity.CustodyRootRemoteId);
     }
 
     private static void EnsureSourceMatchesReceipt(
@@ -1099,9 +1115,10 @@ internal sealed class EfQueuedCustodyProcessor(
             payload.ImageIntakeId,
             payload.ImageCustodyRootRemoteId,
             payload.ImageReference);
-        var caseRoot = await caseCustody.GetExistingCaseRootAsync(
+        var caseRoot = await ExistingCaseRootAsync(
             payload.CaseId,
             payload.CaseRootReference,
+            payload.CaseCustodyRootRemoteId,
             cancellationToken);
         await caseCustody.MergeImageCaseContentsAsync(
             imageRoot,
@@ -1487,7 +1504,8 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid? SourceAssetId,
         string OperationKey,
         string? CaseRootCreationToken,
-        string? AuditFolderCreationToken) : CustodyWorkPayload;
+        string? AuditFolderCreationToken,
+        string? CaseRootRemoteId) : CustodyWorkPayload;
 
     private sealed record SourcePayload(
         Guid IntakeAssetId,

@@ -653,7 +653,7 @@ internal sealed class EfCaseArtifactCustody(
         {
             throw new InvalidOperationException("Box holding custody is not configured.");
         }
-        await box.EnsureDescendantAsync(holdingFolderId, cancellationToken);
+        var holdingFolder = await box.ProveFolderAsync(holdingFolderId, cancellationToken);
         if (!string.IsNullOrWhiteSpace(asset.BoxFileId)
             && !string.IsNullOrWhiteSpace(asset.BoxVersionId))
         {
@@ -673,7 +673,7 @@ internal sealed class EfCaseArtifactCustody(
             holdingFolderId, fileName, "file", cancellationToken);
         content.Position = 0;
         var file = existing ?? await box.UploadAsync(
-            holdingFolderId,
+            holdingFolder,
             fileName,
             content,
             request.ContentLength,

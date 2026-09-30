@@ -51,7 +51,9 @@ public sealed class CustodyProcessingLeaseLostException()
 
 /// <summary>
 /// A case-scoped port. Implementations must guard the configured custody root and never accept an
-/// arbitrary remote identifier from a caller.
+/// arbitrary remote identifier from a caller. A folder a caller hands back is proved before
+/// anything is written into it. The proof is made once for each root object a piece of work
+/// carries, not once for each file, and it is never taken from what a read remembered.
 /// </summary>
 public interface ICaseCustody
 {
@@ -94,6 +96,18 @@ public interface ICaseCustody
         Guid caseId,
         string caseReference,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The same, for a Case whose folder is already recorded: an adapter that can prove that
+    /// one folder does so directly instead of finding the folder by name. An adapter with no
+    /// folder to prove looks the Case up by name, as the overload above does.
+    /// </summary>
+    Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        string remoteId,
+        CancellationToken cancellationToken) =>
+        GetExistingCaseRootAsync(caseId, caseReference, cancellationToken);
 
     Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
         CaseCustodyRoot root,
