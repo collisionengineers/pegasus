@@ -43,10 +43,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
         Assert.DoesNotContain("[SecurityStamp]", statement, StringComparison.Ordinal);
         Assert.DoesNotContain("[ConcurrencyStamp]", statement, StringComparison.Ordinal);
         Assert.Contains("DATALENGTH(", statement, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "[SignOffSignature]",
-            statement.Replace("DATALENGTH([a].[SignOffSignature])", string.Empty, StringComparison.Ordinal),
-            StringComparison.Ordinal);
+        AssertSignatureReadOnlyAsItsLength(statement);
         Assert.Equal("actor-display-enabled", names[enabled.Id]);
         Assert.Equal("actor-display-disabled", names[disabled.Id]);
         Assert.False(names.ContainsKey(missingId));
@@ -56,12 +53,13 @@ public sealed class StaffAccountAdministrationPersistenceTests
     }
 
     /// <summary>
-    /// The slimmer reads still build the whole summary: enabled state, role,
-    /// version and the sign-off facts, with "has a signature" worked out in
-    /// SQL from the stored length (an empty signature is none).
+    /// The list, the single-account read and the batch read build the same
+    /// summary: enabled state, role, version and the sign-off facts, with "has
+    /// a signature" worked out in SQL from the stored length (an empty
+    /// signature is none).
     /// </summary>
     [Fact]
-    public async Task TheAccountListAndTheBatchReadCarryTheSameSummaryWithoutTheSignatureBytes()
+    public async Task EveryAccountReadCarriesTheSameSummaryWithoutTheSignatureBytes()
     {
         var counter = new SqlStatementCounter();
         await using var database = await LocalDbTestDatabase.CreateAsync(
@@ -85,7 +83,18 @@ public sealed class StaffAccountAdministrationPersistenceTests
         Assert.Equal(3, slice.Accounts.Count);
         foreach (var listed in slice.Accounts)
         {
+            counter.Reset();
             var single = Assert.IsType<StaffAccountSummary>(await queries.GetAsync(listed.Id, default));
+            // The single-account read carries neither the password hash nor
+            // the signature bytes, and reads the role in the same statement.
+            var singleStatements = counter.Statements;
+            Assert.All(singleStatements, statement =>
+            {
+                Assert.DoesNotContain("[PasswordHash]", statement, StringComparison.Ordinal);
+                Assert.DoesNotContain("[SecurityStamp]", statement, StringComparison.Ordinal);
+                AssertSignatureReadOnlyAsItsLength(statement);
+            });
+            Assert.Contains("DATALENGTH(", Assert.Single(singleStatements), StringComparison.Ordinal);
             Assert.Equal(single, listed);
             Assert.Equal(single, Assert.Single(many, item => item.Id == listed.Id));
         }
@@ -101,11 +110,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
         {
             Assert.DoesNotContain("[PasswordHash]", statement, StringComparison.Ordinal);
             Assert.DoesNotContain("[SecurityStamp]", statement, StringComparison.Ordinal);
-            // The signature column appears only as its length, never as bytes.
-            Assert.DoesNotContain(
-                "[SignOffSignature]",
-                statement.Replace("DATALENGTH([a].[SignOffSignature])", string.Empty, StringComparison.Ordinal),
-                StringComparison.Ordinal);
+            AssertSignatureReadOnlyAsItsLength(statement);
         });
         // The list is the users and then their roles.
         Assert.Equal(2, listStatements.Count);
@@ -253,6 +258,16 @@ public sealed class StaffAccountAdministrationPersistenceTests
             new(actor, engineer.Id, null, "delete-closed", version), default);
         Assert.True(replay.WasReplay);
     }
+
+    /// <summary>
+    /// The signature column appears only as its length, never as bytes.
+    /// Asserting <c>DATALENGTH</c> alone would pass a query that read both.
+    /// </summary>
+    private static void AssertSignatureReadOnlyAsItsLength(string statement) =>
+        Assert.DoesNotContain(
+            "[SignOffSignature]",
+            statement.Replace("DATALENGTH([a].[SignOffSignature])", string.Empty, StringComparison.Ordinal),
+            StringComparison.Ordinal);
 
     private static async Task<Guid> SeedCaseAsync(PegasusDbContext context, string reference, Guid engineerId)
     {
