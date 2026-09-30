@@ -338,8 +338,10 @@ The viewer offers Crop (Apply, Clear, Cancel) and the Tag select; the tile
 shows the cropped region with a Cropped badge and its tag chips; the viewer
 draws the recorded region over the original. A pre-Case image tile is a
 rendering of the image at tile size, whether or not a crop or rotation has
-been recorded; the viewer and Open file still read the original. When the
-image becomes a Case document, the crop, rotation, and tags travel with it.
+been recorded; the viewer and Open file still read the original. On the Case
+Files page, an unmerged photo with a recorded crop or rotation still shows the
+original. When the image becomes a Case document, the crop, rotation, and tags
+travel with it.
 That is when a Case is created from its message, when a record merges into a
 Case, and when a linked message's photographs are filed on its Case.
 
