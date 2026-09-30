@@ -28,6 +28,8 @@ function fixture() {
     <script>
     window.trace = []; window.state = { caseVersion: 1, sessionVersion: 1, slot: 'launch', status: 'Active', registration: 'AB12CDE' };
     window.mode = ''; window.deferred = []; window.nativeOpen = window.open;
+    // The operation keys a save has applied: Core refuses a key it has already applied.
+    window.applied = [];
     function controls() {
         return '<div data-glass-controls="launch" data-glass-controls-url="/case?handler=GlassSession" data-glass-id="session" data-glass-version="' + state.sessionVersion + '">'
             + '<form data-glass-window target="_blank" method="post" action="/case?handler=' + (state.slot === 'launch' ? 'LaunchGlass' : 'ResumeGlass') + '">'
@@ -45,7 +47,8 @@ function fixture() {
             + '<div data-case-notices>' + (notice || '') + '</div><div data-case-ribbon-facts></div>'
             + '<div data-case-ribbon-actions><span data-lease-line hidden data-lease-saving-text="Saving" data-lease-saved-text="Saved"></span></div>'
             + '<main id="case-main"><section class="record-section" id="section-estimate" data-section="estimate">'
-            + '<form id="case-edit-form" method="post" action="/case?handler=Save"><input name="expectedVersion" type="hidden" value="' + state.caseVersion + '" data-carry-forward>'
+            + '<form id="case-edit-form" method="post" action="/case?handler=Save"><input name="id" type="hidden" value="case">'
+            + '<input name="expectedVersion" type="hidden" value="' + state.caseVersion + '" data-carry-forward>'
             + '<input name="editLeaseToken" type="hidden" value="lease" data-carry-forward><input name="operationKey" type="hidden" value="save-' + state.caseVersion + '" data-carry-forward>'
             + '<input id="registration" name="registration" value="' + state.registration + '" required><button>Save</button></form>' + controls()
             + '<input type="hidden" name="selection.Opening" value="opening-' + state.caseVersion + '" form="case-edit-form" data-carry-forward>'
@@ -59,8 +62,16 @@ function fixture() {
         else if (String(url).includes('handler=Save')) {
             if (mode === 'network-failure') { return Promise.reject(new Error('Save disconnected')); }
             var body = options.body;
+            trace[trace.length - 1].operationKey = body.get('operationKey');
             if (mode === 'refused-save') { text = page(null, '<p role="alert">Save refused</p>'); }
+            else if (mode === 'lost-response') {
+                // The Case applies the save; its answer is lost on the way back.
+                mode = ''; applied.push(body.get('operationKey')); ++state.caseVersion; state.registration = body.get('registration');
+                return Promise.reject(new Error('Save answer lost'));
+            }
+            else if (applied.indexOf(body.get('operationKey')) >= 0) { text = page(null, '<p role="alert">Operation already applied</p>'); }
             else {
+                applied.push(body.get('operationKey'));
                 var commit = { editor: 'case-edit-form', operationKey: body.get('operationKey'), expectedVersion: Number(body.get('expectedVersion')), version: ++state.caseVersion };
                 state.registration = body.get('registration'); text = page(commit);
             }
@@ -160,6 +171,32 @@ try {
     assert.deepEqual(result.trace.slice(0, 3).map(x => x.type), ['open', 'fetch', 'provider']);
     assert.equal(result.opening, 'opening-2', 'A carried input joined to the form from its section moves on with the commit');
     record('A change not yet sent lands once before the provider post, which carries the new authority', result);
+
+    // Two changes in one session: each commit carries the operation key the one before it
+    // was answered with, so Core never sees a key it has already applied.
+    await reset();
+    await evaluate("edit('AB12 CDE'); leave();"); await delay(100);
+    await evaluate("edit('XY99ZZZ'); leave();"); await delay(100);
+    result = await evaluate('result()');
+    assert.deepEqual(result.trace.filter(x => x.type === 'fetch').map(x => x.operationKey), ['save-1', 'save-2']);
+    assert.equal(result.version, '3'); assert.equal(result.value, 'XY99ZZZ'); assert.match(result.status, /^Saved/);
+    record('A second change in the session posts the key the first commit was answered with and lands', result);
+
+    // A commit whose answer was lost: the Case applied it, so the next save is refused as
+    // already applied. The refusal is drawn with a fresh key and the Case's current version,
+    // which the save after it carries, so the session recovers without a reload.
+    await reset();
+    await evaluate("mode = 'lost-response'; edit('AB12 CDE'); leave();"); await delay(100);
+    await evaluate("edit('XY99ZZZ'); leave();"); await delay(100);
+    result = await evaluate('result()');
+    assert.equal(result.status, 'Operation already applied');
+    assert.equal(result.version, '2', 'The refusal carried the Case\'s current version forward');
+    await evaluate("edit('QQ11QQQ'); leave();"); await delay(100);
+    result = await evaluate('result()');
+    const keys = result.trace.filter(x => x.type === 'fetch').map(x => x.operationKey);
+    assert.equal(keys[keys.length - 1], 'save-2', 'The save after a refusal posts the key the refusal was answered with');
+    assert.equal(result.version, '3'); assert.equal(result.value, 'QQ11QQQ'); assert.match(result.status, /^Saved/);
+    record('A refused commit carries the fresh key and version forward, so the next change lands', result);
 
     for (const [mode, status] of [['refused-save', 'Save refused'], ['network-failure', 'Save disconnected']]) {
         await reset(); await evaluate(`mode = '${mode}'; edit('AB12 CDE'); launch();`); await delay(100);
