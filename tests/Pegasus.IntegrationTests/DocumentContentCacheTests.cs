@@ -1637,7 +1637,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(body,Encoding.UTF8,"application/json")});
         }
     }
-    private sealed class Header : IBoxAuthorizationHeaderProvider { public Task<string> GetAuthorizationHeaderAsync(CancellationToken token)=>Task.FromResult("Bearer x"); }
+    private sealed class Header : IBoxAuthorizationHeaderProvider { public Task<string> GetAuthorizationHeaderAsync(CancellationToken token)=>Task.FromResult("Bearer x"); public Task<bool> RenewIfDueAsync(CancellationToken token)=>Task.FromResult(false); }
     private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider { public override DateTimeOffset GetUtcNow()=>now; public void Advance(TimeSpan value)=>now=now.Add(value); }
     private sealed class StubResponse : Response
     {

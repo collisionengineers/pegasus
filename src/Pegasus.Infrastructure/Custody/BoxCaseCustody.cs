@@ -123,10 +123,9 @@ internal interface IBoxAuthorizationHeaderProvider
 
     /// <summary>
     /// Mints a new token now if the held one is close enough to expiry that a
-    /// request would soon have to. Answers whether it minted. A provider with
-    /// no token of its own to renew answers false.
+    /// request would soon have to. Answers whether it minted.
     /// </summary>
-    Task<bool> RenewIfDueAsync(CancellationToken cancellationToken) => Task.FromResult(false);
+    Task<bool> RenewIfDueAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>The access token Box granted, and how long it said it lasts.</summary>
@@ -211,6 +210,9 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 
     public async Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken)
     {
+        // A token that is still live for a request is returned without the
+        // gate, even inside the early-renewal window while a background
+        // renewal is minting. The request does not wait and mints nothing.
         if (Live(timeProvider.GetUtcNow()) is { } current)
         {
             return current;
@@ -270,12 +272,13 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
     private async Task<string> MintAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
         var token = await mint(cancellationToken);
-        // A token that expires inside the renewal margin would never be
-        // live, so every Box call would mint another — a silent storm
-        // against Box's token endpoint instead of a fault anyone can see.
-        // The same holds for the background renewal if the token expired
-        // inside the early-renewal window as well: it would be due again the
-        // moment it was minted. Box JWT tokens last an hour; anything shorter
+        // A token that lasts no longer than the renewal margin plus the
+        // early-renewal window is refused, because it would be due for renewal
+        // the moment it was minted and the 60-second background loop would
+        // mint again on every check. A token inside the margin alone would
+        // also never be live, so every Box call would mint another. Either
+        // way that is a silent storm against Box's token endpoint instead of a
+        // fault anyone can see. Box JWT tokens last an hour; anything shorter
         // is a broken premise, and this says so rather than absorbing it.
         if (string.IsNullOrWhiteSpace(token.Value)
             || token.LifetimeSeconds is not > 0

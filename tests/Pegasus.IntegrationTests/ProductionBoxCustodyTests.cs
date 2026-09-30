@@ -802,6 +802,9 @@ public sealed class ProductionBoxCustodyTests
 
         public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
             Task.FromResult($"Bearer test-token-{Interlocked.Increment(ref calls)}");
+
+        public Task<bool> RenewIfDueAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     private sealed class StatefulBox
