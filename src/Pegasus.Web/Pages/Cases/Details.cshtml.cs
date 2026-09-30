@@ -111,6 +111,16 @@ public sealed partial class DetailsModel(
 {
     public string? CommittedEditorCommand => TempData["CaseEditorCommit"] as string;
 
+    /// <summary>
+    /// The notices the record draws above its card: what the last command
+    /// did, work not yet finished, and a refusal.
+    /// </summary>
+    public string? StatusNotice => TempData[StatusTempDataKey] as string;
+
+    public string? WarningNotice => TempData["CaseWarning"] as string;
+
+    public string? ErrorNotice => TempData[ErrorTempDataKey] as string;
+
     private void RecordEditorCommit(
         string editor, string operationKey, long expectedVersion, long? resultingVersion = null)
     {
