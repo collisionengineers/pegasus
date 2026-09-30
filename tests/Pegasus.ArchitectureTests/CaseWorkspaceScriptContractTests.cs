@@ -60,7 +60,7 @@ public sealed class CaseWorkspaceScriptContractTests
             "selector === '#case-main' || selector === '[data-case-viewer-host]'",
             script,
             StringComparison.Ordinal);
-        var roots = Regex.Match(script, @"var swapRoots = \[(?<list>[^\]]+)\];").Groups["list"].Value;
+        var roots = Regex.Match(script, @"var swapRoots = \[(?<list>.*?)\];").Groups["list"].Value;
         var redrawn = Regex.Matches(roots, @"'\[(?<attribute>[a-z-]+)\]'")
             .Select(match => match.Groups["attribute"].Value)
             .Where(attribute => attribute != "data-case-viewer-host")
