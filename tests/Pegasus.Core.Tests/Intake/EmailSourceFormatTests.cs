@@ -110,7 +110,7 @@ public sealed class EmailSourceFormatTests
     [InlineData("Claim. ", "Claim.eml")]
     [InlineData("Claim...", "Claim.eml")]
     [InlineData("Claim . .", "Claim.eml")]
-    [InlineData("Claim. ", "Claim.eml")]
+    [InlineData("Claim.\u00A0", "Claim.eml")]
     [InlineData("Re: Claim.", "Re Claim.eml")]
     [InlineData(". . .", "Message.eml")]
     public void TheStemNeverEndsInADotOrASpaceBeforeTheExtension(string subject, string expected)
