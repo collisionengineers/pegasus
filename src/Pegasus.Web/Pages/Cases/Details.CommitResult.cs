@@ -191,7 +191,7 @@ public sealed partial class DetailsModel
                 LeaseToken);
             var extras = reads.Start(token => ReadWorkspaceExtrasAsync(extrasInputs, token));
             var delivery = CurrentReportGeneration is not null
-                ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, token))
+                ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, token))
                 : null;
             await reads.WhenAllAsync();
 

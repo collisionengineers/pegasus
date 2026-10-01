@@ -60,6 +60,41 @@ public sealed partial class DetailsModel
     /// </summary>
     public CaseReportGenerationRecord? InspectionReportGeneration { get; private set; }
 
+    /// <summary>
+    /// The Inspection report is still to be sent although the Case has its
+    /// Audit: the Inspection view generates, prepares, sends and marks it sent
+    /// on its own work, without touching the Case's state (operator,
+    /// 1 October 2026).
+    /// </summary>
+    public bool InspectionReportAwaitsSend =>
+        IsInspectionView && Works is { Primary.ReportSentEvidence: null };
+
+    /// <summary>The work the Report section's delivery reads address: the Inspection's while its report awaits sending.</summary>
+    public CaseWorkSelector ReportWorkSelector =>
+        InspectionReportAwaitsSend ? CaseWorkSelector.Primary : CaseWorkSelector.Current;
+
+    /// <summary>
+    /// The Inspection report's readiness once the Case has its Audit and that
+    /// report awaits sending; null otherwise. The Audit's readiness stays in
+    /// <see cref="ReportDraftPreparation"/>, which the Next action reads.
+    /// </summary>
+    public AssessmentReportDraftPreparation? InspectionReportDraftPreparation { get; private set; }
+
+    /// <summary>Why the Inspection report cannot be generated now, or null when it can; null too where it is not offered.</summary>
+    public string? InspectionReportDraftCondition { get; private set; }
+
+    /// <summary>Whether a posted <c>view</c> value names the Inspection view.</summary>
+    public static bool IsInspectionViewRoute(string? view) =>
+        string.Equals(view?.Trim(), InspectionViewKey, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The work a Report command posted from <paramref name="view"/> addresses.</summary>
+    public static CaseWorkSelector ReportWorkOf(string? view) =>
+        IsInspectionViewRoute(view) ? CaseWorkSelector.Primary : CaseWorkSelector.Current;
+
+    /// <summary>The view a Report command posted from <paramref name="view"/> returns to.</summary>
+    public static string? ViewRouteOf(string? view) =>
+        IsInspectionViewRoute(view) ? InspectionViewKey : null;
+
     /// <summary>The Audit report's reference, <c>a.{Case/PO}</c>.</summary>
     public string? AuditReportReference => Case is { } details
         ? CaseReferenceFormat.ReportReference(details.Workflow.Identity, CaseWorkKind.Audit)

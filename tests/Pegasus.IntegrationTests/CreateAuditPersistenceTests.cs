@@ -266,6 +266,42 @@ public sealed class CreateAuditPersistenceTests
     }
 
     /// <summary>
+    /// The Inspection report sent after Create audit (operator, 1 October
+    /// 2026): its evidence links to the Inspection's own work, the Case's
+    /// state stays the Audit's, and the Inspection takes one evidence only.
+    /// </summary>
+    [Fact]
+    public async Task InspectionSentEvidenceAfterTheAuditLinksToTheInspectionAndLeavesTheCaseState()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.ExecuteSqlAsync(
+            $"UPDATE CaseWorkflows SET ReportSentEvidenceId = NULL WHERE CaseId = '{harness.CaseId:D}'");
+        await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-unsent-inspection"), default);
+        var retain = harness.Services.GetRequiredService<IRetainApprovedMailboxReportSentEvidence>();
+        var now = DateTimeOffset.UtcNow;
+        var evidence = await retain.ExecuteAsync(Evidence("inspection", now.AddHours(-2), now.AddHours(-1)), default);
+
+        var link = await harness.LinkRequestAsync("link-inspection", evidence.EvidenceId);
+        var linked = await harness.Workflows.LinkReportEvidenceAsync(
+            link with { Work = CaseWorkSelector.Primary },
+            default);
+
+        Assert.Equal(CaseLifecycleState.ReportPreparation, linked.State);
+        Assert.Null(linked.ReportSentEvidence);
+        await using (var context = await harness.ContextAsync())
+        {
+            var primary = await context.CaseWorks.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId);
+            Assert.Equal(evidence.EvidenceId, primary.ReportSentEvidenceId);
+        }
+
+        var second = await retain.ExecuteAsync(Evidence("inspection-again", now, now), default);
+        var again = await harness.LinkRequestAsync("link-inspection-again", second.EvidenceId);
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => harness.Workflows.LinkReportEvidenceAsync(again with { Work = CaseWorkSelector.Primary }, default));
+        Assert.Equal("The case already has current report-Sent evidence.", refused.Message);
+    }
+
+    /// <summary>
     /// Correct principal after Create audit starts the replacement from the
     /// Inspection's own values, never the Audit's, and the replacement carries
     /// no Audit report reference.

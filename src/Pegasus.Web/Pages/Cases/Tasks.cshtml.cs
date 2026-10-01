@@ -113,6 +113,7 @@ public sealed class TasksModel(
         string operationKey,
         string reason,
         string? editLeaseToken,
+        string? view,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandUnderLeaseAsync(
             id,
@@ -127,7 +128,12 @@ public sealed class TasksModel(
                     operationKey,
                     reason,
                     lease,
-                    evidenceId),
+                    evidenceId,
+                    // The Inspection view marks the Inspection report sent on
+                    // its own work once the Audit exists (operator, 1 October 2026).
+                    string.Equals(view, DetailsModel.InspectionViewKey, StringComparison.OrdinalIgnoreCase)
+                        ? CaseWorkSelector.Primary
+                        : CaseWorkSelector.Current),
                 cancellationToken),
             "The exact retained report-Sent evidence was linked.");
 

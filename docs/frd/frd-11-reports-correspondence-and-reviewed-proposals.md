@@ -188,10 +188,14 @@ The Audit report's reference is its Our Ref, its file name (for example
 `A_QDOS26001_assessment.pdf`) and its email subject, and its re-sends are
 counted among Audit sends only. It has its own fee note and fee, counted
 separately. Report image choices are shared, because they belong to the
-Case's files. Once the Audit exists, the Inspection report can be opened and
-downloaded but never generated again or sent again; a delivery prepared for
-it before Create audit is refused at send. The Audit report never overwrites
-or reissues the Inspection report.
+Case's files. Once the Audit exists, an Inspection report already sent can be
+opened and downloaded but never generated again or sent again. An Inspection
+report not yet sent at Create audit is still generated, prepared, sent and
+marked sent from the Inspection view, on the Inspection's own work and
+without changing the Case's state, which is the Audit's (operator,
+1 October 2026); a delivery prepared for it before Create audit is refused at
+send, because Create audit changed the Case. The Audit report never
+overwrites or reissues the Inspection report.
 
 Audit outcome or reference evidence that is missing, conflicting, ambiguous,
 stale or from another Case fails before rendering. Audit adds no second

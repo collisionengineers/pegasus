@@ -2937,7 +2937,7 @@ public sealed class CaseReportGenerationPersistenceTests
         : IReportRecipientSuggestionQueries
     {
         public Task<ReportRecipientSuggestions?> GetAsync(
-            Guid caseId, CancellationToken cancellationToken) =>
+            Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<ReportRecipientSuggestions?>(suggestions);
     }
 

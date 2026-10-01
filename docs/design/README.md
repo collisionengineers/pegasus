@@ -175,7 +175,10 @@ the one availability label **Read-only · Audit created** instead. In Files,
 an Audit folder chip follows the Case folder chip in the same tones: **Box
 audit · confirmed**, **Box audit folder: preparing** or **Box audit folder:
 unavailable**. Report shows the Inspection's sent report as one `.pv` line
-above the Audit report card, with an **Inspection view** link. A Triage Case
+above the Audit report card, with an **Inspection view** link. While the
+Inspection report is still to be sent, the Inspection view's Report keeps
+the generation and delivery controls for that report alone (operator,
+1 October 2026). A Triage Case
 at `/Cases/{id}` keeps the Triage page's own layout, with the Case's Files
 panel before Notes.
 

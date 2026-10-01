@@ -111,7 +111,7 @@ public sealed class EfCaseReportGenerationStore(
         if (request.Kind == CaseReportArtifactKind.AssessmentReport)
         {
             inputs = await snapshotSource
-                .GetAsync(request.CaseId, request.Actor, CaseWorkSelector.Current, reuse: null, cancellationToken)
+                .GetAsync(request.CaseId, request.Actor, request.Work, reuse: null, cancellationToken)
                 .ConfigureAwait(false);
             if (inputs is null)
             {
@@ -148,9 +148,11 @@ public sealed class EfCaseReportGenerationStore(
         var reportInputs = inputs
             ?? throw new ArgumentOutOfRangeException(nameof(request), request.Kind, "Unsupported report artifact kind.");
         CaseMutationGuard.RequireVersion(workflow, reportInputs.CaseVersion);
-        // A report is made from the current work. Create audit bumps the
-        // version, so inputs read for another work are refused as stale.
-        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken)
+        // A report is made from the work the request names: the current work,
+        // or the Inspection work of a Case that has its Audit (operator,
+        // 1 October 2026). Create audit bumps the version, so inputs read for
+        // a work that is no longer the one addressed are refused as stale.
+        var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken)
             .ConfigureAwait(false);
         if (workId != reportInputs.WorkId)
         {
@@ -316,13 +318,13 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken)
-            .ConfigureAwait(false);
+        // A companion document belongs to the generation it targets, whichever
+        // work that generation was made for, while that generation is still
+        // its work's current one.
         var generation = await context.Set<CaseReportGenerationEntity>()
             .SingleOrDefaultAsync(
                 item => item.Id == request.TargetGenerationId
                     && item.CaseId == request.CaseId
-                    && item.WorkId == workId
                     && item.SupersededById == null,
                 cancellationToken)
             .ConfigureAwait(false)
