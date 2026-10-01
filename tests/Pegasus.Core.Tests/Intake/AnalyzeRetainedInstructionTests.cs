@@ -454,7 +454,7 @@ public sealed class AnalyzeRetainedInstructionTests
         var result = await harness.ExecuteAsync(operationKey: "automation-ocr");
 
         Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
-        Assert.Equal("OCR is available only for incoming mailbox or manual-upload instructions.", result.Reason);
+        Assert.Equal("OCR is not run for automation sources.", result.Reason);
         Assert.Empty(harness.OcrOperations.Begins);
     }
 
@@ -476,7 +476,7 @@ public sealed class AnalyzeRetainedInstructionTests
             OcrEvidence(SourceHash)));
 
         Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
-        Assert.Equal("OCR is available only for incoming mailbox or manual-upload instructions.", result.Reason);
+        Assert.Equal("OCR is not run for automation sources.", result.Reason);
         Assert.Empty(harness.Store.Records);
         Assert.Equal(0, harness.Documents.Opens);
     }

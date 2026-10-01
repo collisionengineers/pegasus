@@ -1,16 +1,23 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Intake;
 
 public static class IntakeOcrOperations
 {
-    public static bool IsEligibleIncomingInstruction(IntakeReceipt receipt)
+    /// <summary>
+    /// Every source that arrives with files is OCR'd: a mailbox message, a
+    /// manual upload, a Principal API submission. Automation reads retained
+    /// bytes that were already read once; it never originates a scan.
+    /// </summary>
+    public static bool IsEligibleSource(IntakeReceipt receipt)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        return receipt.SourceIdentity.Channel is IntakeSourceChannel.Mailbox or IntakeSourceChannel.ManualUpload;
+        return receipt.SourceIdentity.Channel != IntakeSourceChannel.Automation;
     }
 
     public static Task<IntakeOcrOperation> BeginAsync(
@@ -542,6 +549,7 @@ public sealed class ProcessIntakeOcr(
     IIntakeOcrProvider provider,
     IReadLogicalDocumentVersion documentReader,
     IAnalyzeRetainedInstruction analyzeRetainedInstruction,
+    RecordThirdPartyReportReading reportReading,
     IIntakeReceiptQueries receiptQueries,
     TimeProvider timeProvider) : IProcessIntakeOcr
 {
@@ -581,7 +589,7 @@ public sealed class ProcessIntakeOcr(
         }
 
         var receipt = await receiptQueries.GetAsync(operation.IntakeReceiptId, cancellationToken);
-        if (receipt is not null && !IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
+        if (receipt is not null && !IntakeOcrOperations.IsEligibleSource(receipt))
         {
             await store.RecordOutcomeAsync(
                 operation.Id,
@@ -589,7 +597,7 @@ public sealed class ProcessIntakeOcr(
                 IntakeOcrState.Failed,
                 new(
                     "ocr_source_ineligible",
-                    "OCR is available only for incoming mailbox or manual-upload instructions.",
+                    "OCR is not run for automation sources.",
                     Retryable: false),
                 retryAtUtc: null,
                 cancellationToken);
@@ -626,7 +634,7 @@ public sealed class ProcessIntakeOcr(
 
         if (operation.Result is { } retainedResult)
         {
-            await ReanalyzeAsync(operation, receipt, request, retainedResult, cancellationToken);
+            await ApplyCompletedOutputAsync(operation, receipt, request, retainedResult, cancellationToken);
             return;
         }
 
@@ -870,7 +878,7 @@ public sealed class ProcessIntakeOcr(
             }
 
             current = await store.CompleteAsync(current.Id, current.Version, result, CancellationToken.None);
-            await ReanalyzeAsync(current, receipt, request, result, cancellationToken);
+            await ApplyCompletedOutputAsync(current, receipt, request, result, cancellationToken);
             return;
         }
 
@@ -927,9 +935,16 @@ public sealed class ProcessIntakeOcr(
 
     /// <summary>
     /// Applies retained output idempotently to the current receipt version.
-    /// Incomplete analysis keeps its external work retryable without resubmission.
+    ///
+    /// The report reader always reads the text: the OCR'd document may be a
+    /// third-party engineer report whatever the receipt decided from the
+    /// message around it. The instruction reader reads it only when the
+    /// receipt still needs a Principal, which is what OcrRequired says; a
+    /// receipt whose Case was created or filed from the message has nothing
+    /// left to identify. Incomplete work keeps its external work retryable
+    /// without resubmission.
     /// </summary>
-    private async Task ReanalyzeAsync(
+    private async Task ApplyCompletedOutputAsync(
         IntakeOcrOperation operation,
         IntakeReceipt? receipt,
         IntakeOcrRequest ocrRequest,
@@ -937,23 +952,41 @@ public sealed class ProcessIntakeOcr(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        var key = $"ocr:{operation.Id:N}:{receipt.Version}";
         IntakeOcrFailure? failure = null;
         try
         {
-            var analysis = await analyzeRetainedInstruction.ExecuteAsync(
-                new(
-                    OcrActor,
-                    receipt.Id,
-                    receipt.Version,
-                    key,
-                    operation.IntakeAssetId,
-                    new(operation.SourceSha256, ocrRequest.QualifiedPages, ocrResult)),
+            var asset = receipt.AssetRecords.Single(record => record.Id == operation.IntakeAssetId);
+            var reading = await reportReading.ExecuteAsync(
+                receipt,
+                asset,
+                IntakeOcrText.ReadResult(
+                    IntakeOcrOperations.DocumentLabel(receipt, asset),
+                    operation.SourceSha256,
+                    ocrResult),
+                RecordThirdPartyReportReading.OcrOperationKey(asset, operation.Id),
+                Activity.Current,
                 cancellationToken);
-            if (analysis.Outcome is RetainedInstructionAnalysisOutcome.Conflict
-                or RetainedInstructionAnalysisOutcome.SourceUnavailable)
+            if (reading == RecordThirdPartyReportReading.NotRecorded)
             {
-                failure = new("ocr_analysis_incomplete", "The retained OCR result could not be applied to the current receipt.", Retryable: true);
+                failure = new("ocr_report_reading_incomplete", "The OCR text could not be recorded as a report reading.", Retryable: true);
+            }
+            else if (receipt.Decision == IntakeDecision.OcrRequired)
+            {
+                var key = $"ocr:{operation.Id:N}:{receipt.Version}";
+                var analysis = await analyzeRetainedInstruction.ExecuteAsync(
+                    new(
+                        OcrActor,
+                        receipt.Id,
+                        receipt.Version,
+                        key,
+                        operation.IntakeAssetId,
+                        new(operation.SourceSha256, ocrRequest.QualifiedPages, ocrResult)),
+                    cancellationToken);
+                if (analysis.Outcome is RetainedInstructionAnalysisOutcome.Conflict
+                    or RetainedInstructionAnalysisOutcome.SourceUnavailable)
+                {
+                    failure = new("ocr_analysis_incomplete", "The retained OCR result could not be applied to the current receipt.", Retryable: true);
+                }
             }
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
