@@ -173,6 +173,34 @@ public sealed class ReadOriginalReportTests
     }
 
     [Fact]
+    public async Task TheAssessorIsLinkedToTheThirdPartyEngineerContactOfThatName()
+    {
+        var harness = new Harness();
+        harness.Contacts.ContactName = "Connexus Vehicle Assessors";
+
+        var reading = await harness.Sut.ForIntakeAsync(harness.ReceiptId, harness.EvidenceId, default);
+        var recognition = await harness.Sut.RecogniseFiledAssetAsync(harness.ReceiptId, harness.Asset, default);
+
+        Assert.Equal(harness.Contacts.ContactId, reading!.ThirdPartyEngineerContactId);
+        Assert.Equal("Connexus Vehicle Assessors", reading.ThirdPartyEngineerContactName);
+        Assert.Equal(harness.Contacts.ContactId, recognition.Reading!.ThirdPartyEngineerContactId);
+        Assert.All(harness.Contacts.LookedUp, looked => Assert.Equal((ContactRole.ThirdPartyEngineer, "Connexus Vehicle Assessors"), looked));
+    }
+
+    [Fact]
+    public async Task NoContactOfTheAssessorsNameLinksNothingAndTheCellsStillFill()
+    {
+        var harness = new Harness();
+
+        var reading = await harness.Sut.ForIntakeAsync(harness.ReceiptId, harness.EvidenceId, default);
+
+        Assert.Equal("Connexus Vehicle Assessors", reading!.Assessor);
+        Assert.Null(reading.ThirdPartyEngineerContactId);
+        Assert.Null(reading.ThirdPartyEngineerContactName);
+        Assert.Single(harness.Contacts.LookedUp);
+    }
+
+    [Fact]
     public async Task AFiledFileTheReaderCannotOpenIsNotRecognised()
     {
         var harness = new Harness(readerFailure: new IOException("The PDF could not be opened."));
@@ -206,6 +234,7 @@ public sealed class ReadOriginalReportTests
                 new Metadata(CaseId, OccurrenceId, VersionId),
                 Documents,
                 Ocr,
+                Contacts,
                 TimeProvider.System);
         }
 
@@ -218,6 +247,7 @@ public sealed class ReadOriginalReportTests
         public SourceReader Reader { get; }
         public DocumentReader Documents { get; }
         public OcrStore Ocr { get; } = new();
+        public ContactsDirectory Contacts { get; } = new();
         public ReadOriginalReport Sut { get; }
     }
 
@@ -252,6 +282,30 @@ public sealed class ReadOriginalReportTests
                 [],
                 RequiresOcr: false));
         }
+    }
+
+    /// <summary>A directory holding one Third Party Engineer contact, found by its exact name.</summary>
+    private sealed class ContactsDirectory : IContactDirectoryQueries
+    {
+        public Guid ContactId { get; } = Guid.NewGuid();
+        public string? ContactName { get; set; }
+        public List<(ContactRole Role, string Name)> LookedUp { get; } = [];
+
+        public Task<ContactDirectoryRecord?> FindActiveByRoleAndNameAsync(ContactRole role, string name, CancellationToken cancellationToken)
+        {
+            LookedUp.Add((role, name));
+            return Task.FromResult(
+                role == ContactRole.ThirdPartyEngineer && ContactName is { } contactName
+                    && string.Equals(contactName, name, StringComparison.OrdinalIgnoreCase)
+                    ? new ContactDirectoryRecord(ContactId, contactName, null, null, null, null, null, true, [ContactRole.ThirdPartyEngineer], 3, null, null)
+                    : null);
+        }
+
+        public Task<ContactDirectoryRecord?> GetAsync(ActionActor actor, Guid organizationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ContactDirectoryRecord>> ListAsync(ContactDirectoryQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ContactDirectoryRecord>> ListByRoleAsync(ActionActor actor, ContactRole role, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(ActionActor actor, string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(ActionActor actor, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     /// <summary>Holds at most one completed OCR reading, found by the source hash.</summary>

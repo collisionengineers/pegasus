@@ -70,6 +70,33 @@ public sealed class ContactDirectoryPersistenceTests
     }
 
     [Fact]
+    public async Task AThirdPartyEngineerIsFoundByItsNameAloneWhenActiveAndInThatRole()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var engineerId = Guid.NewGuid();
+        await SaveAsync(database, new(
+            Administrator, engineerId, 0, "John R Bell", null, null, null, "72 Example Road", "BN24 5DJ", true,
+            [ContactRole.ThirdPartyEngineer], null, CaseInspectionMode.PhysicalAddress, [], Guid.NewGuid().ToString("N")));
+        // The directory keeps names unique (one organisation carries several
+        // roles instead), so a name is at most one contact; an inactive
+        // engineer is not offered.
+        await SaveAsync(database, new(
+            Administrator, Guid.NewGuid(), 0, "Retired Assessors", null, null, null, null, null, false,
+            [ContactRole.ThirdPartyEngineer], null, CaseInspectionMode.PhysicalAddress, [], Guid.NewGuid().ToString("N")));
+
+        await using var scope = database.CreateAsyncScope();
+        var contacts = scope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
+
+        // The directory's own normalisation: case and surrounding space do not matter.
+        var found = await contacts.FindActiveByRoleAndNameAsync(ContactRole.ThirdPartyEngineer, "  john r bell ", CancellationToken.None);
+        Assert.Equal(engineerId, found!.OrganizationId);
+        Assert.Equal("John R Bell", found.Name);
+        Assert.Null(await contacts.FindActiveByRoleAndNameAsync(ContactRole.ThirdPartyEngineer, "Retired Assessors", CancellationToken.None));
+        Assert.Null(await contacts.FindActiveByRoleAndNameAsync(ContactRole.Storage, "John R Bell", CancellationToken.None));
+        Assert.Null(await contacts.FindActiveByRoleAndNameAsync(ContactRole.ThirdPartyEngineer, "Nobody", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ExistingVersionZeroContactCanSaveDirectlyAndRejectsStaleVersion()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
