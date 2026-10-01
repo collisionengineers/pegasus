@@ -440,7 +440,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260929120000_PrincipalVocabulary",
                 "20260929150000_GrantCaseDataSnapshotUpdate",
                 "20260930090000_PrincipalSalvageMatrix",
-                "20261001090000_DocumentVersionEstimateRecognition"
+                "20261001090000_DocumentVersionEstimateRecognition",
+                "20261001100000_MergeChasingSubtypes"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

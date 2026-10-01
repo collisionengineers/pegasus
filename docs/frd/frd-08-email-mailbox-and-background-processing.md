@@ -90,7 +90,7 @@ keeps the research context and is not a competing owner.
 | `billing` | payment notifications; remittances; invoice requests; `billing-query`; `general-billing` |
 | `new-instruction-received` | initial work instructions: `audit`, `diminution`, `inspection`, `new-client`, `website-enquiry` |
 | `non-client-related` | internal or company email from tools, services, software packages and similar sources |
-| `in-progress-cases` | `cancellation`; `case-update`; `client-chasing-for-update`; `principal-chasing-for-update`; other ongoing correspondence |
+| `in-progress-cases` | `cancellation`; `case-update`; `chasing-for-update`; other ongoing correspondence |
 | `post-report-emails` | queries; disputes; amendment requests; similar post-report correspondence |
 | `pre-instruction-emails` | Triage requests; pre-formal-instruction handling requests; images received before formal instructions |
 | `internal-cc` | internal copied correspondence |
@@ -154,8 +154,7 @@ the evidence, actor, time, policy version and later corrections.
 | `non-client-related` | Internal, company, tool, service or software mail unrelated to client work | sender or route evidence or staff | Detailed: `non-client-related` | Other |
 | `in-progress-cases/cancellation` | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | Detailed: `in-progress-cases/cancellation` | Cancellations |
 | `in-progress-cases/case-update` | Update on ongoing work, excluding a new instruction or a post-report challenge | staff | Detailed: `in-progress-cases/case-update` | Case updates |
-| `in-progress-cases/client-chasing-for-update` | Client asks for progress on ongoing work | staff | Detailed: `in-progress-cases/client-chasing-for-update` | Case updates |
-| `in-progress-cases/principal-chasing-for-update` | Principal asks for progress on ongoing work | staff | Detailed: `in-progress-cases/principal-chasing-for-update` | Case updates |
+| `in-progress-cases/chasing-for-update` | Client or Principal asks for progress on ongoing work | staff | Detailed: `in-progress-cases/chasing-for-update` | Case updates |
 | `in-progress-cases/ongoing-correspondence` | Other ongoing correspondence once more specific subtypes are excluded | reasoned staff decision | Detailed: `in-progress-cases/ongoing-correspondence` | Case updates |
 | `post-report-emails/query` | Question about a delivered report | route or thread evidence or staff | Queries | Case queries |
 | `post-report-emails/dispute` | Challenge to a delivered report or finding | route or thread evidence or staff | Queries | Case queries |
