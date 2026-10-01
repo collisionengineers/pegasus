@@ -14,8 +14,10 @@
   undone. A Case is never permanently closed.
 - **Close case** records a cancellation or a rejection with a reason.
   **Archive** hides a closed Case from queues. Nothing is ever deleted.
-- **Create audit** adds the Audit to an Inspection + Audit Case once its
-  report is sent, and returns the Case to With Engineer for the Audit.
+- **Create audit** adds the Audit to an Inspection + Audit Case in work,
+  whether or not its report is sent, and returns the Case to With Engineer
+  for the Audit. It is always listed on such a Case; when refused it is
+  greyed out and states why on hover.
 
 ## Purpose
 
@@ -194,13 +196,19 @@ Return to Engineer.
 
 ### Create audit
 
-**When it is offered.** Create audit is offered only on an Inspection +
-Audit Case, in the Actions menu inside an edit session, once its Inspection
-report is sent: in With Engineer after the report, Completed or Query. It is
-never offered on a Held Case, a Case with a closed disposition (Created in
-error included), an archived Case, or a Case that already has its Audit. A
-Case held after its report was sent is offered it again after Release Hold.
-It uses the same staff authorisation as the other Actions-menu progressions.
+**When it is offered.** Create audit is listed in the Actions menu of every
+Inspection + Audit Case, in every state, in and out of an edit session
+(operator, 1 October 2026); no other Case type lists it. It is live while
+the Case is in work: Not ready, Review, With Engineer before or after the
+report, Completed or Query. Whether the Inspection report has been sent does
+not matter. It is refused, and the item is greyed out with the refusal as
+its hover text, on a Held Case ("A held case cannot have an audit created
+from it."), a Case with a closed disposition ("A closed case cannot have an
+audit created from it."; Created in error keeps its own refusal), an
+archived Case, a Case that already has its Audit, and while a colleague
+holds the edit lease (the sections' own editing wording). A held Case is
+live again after Release Hold. It uses the same staff authorisation as the
+other Actions-menu progressions.
 With no assigned Engineer it is refused with Return to Engineer's refusal,
 "Report preparation requires an assigned Engineer.", and the assigned
 Engineer must still be eligible, as for Return to Engineer. It asks for no
@@ -214,8 +222,10 @@ or one claimed for the action) and the current version, Create audit:
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity));
 - moves the Case to With Engineer before the report, keeping the assigned
   Engineer and the Sign-off Engineer;
-- keeps the Inspection's report approval and Sent evidence with the
-  Inspection;
+- keeps the Inspection's report approval and Sent evidence, where they
+  exist, with the Inspection; an Inspection report not yet sent is never
+  sent afterwards
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md));
 - starts the creation of the `a.` Box subfolder
   ([FRD-05](frd-05-documents-extraction-and-custody.md#custody-and-derived-reads));
 - records one history line, "Audit {Audit reference} created by {name}".
@@ -226,7 +236,7 @@ second Audit, and an edit prepared before Create audit is refused as stale.
 **After it.** The Audit drives the Case: its state, queues, Actions menu and
 Next action follow the Audit's report, and report generation, approval, Mark
 report sent and Mark completed act on the Audit report. The Inspection's
-values and its sent report stay read-only. While the Audit report is being
+values and its report stay read-only. While the Audit report is being
 prepared, image intake association and evidence promotion are open again, as
 for any Case before its report is sent.
 
@@ -306,7 +316,7 @@ stays in history.
 | Completed | Query | Query received or attached |
 | Query | Completed | Reply sent |
 | Completed, Query | With Engineer | Return to Engineer (reason) |
-| With Engineer after the report, Completed, Query | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
+| Not ready, Review, With Engineer, Completed, Query | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
 | pre-report states | Principal cancelled, Collision Engineers rejected | Close case (reason) |
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |
@@ -322,8 +332,9 @@ stays in history.
 - A second archive on an archived Case is refused.
 - A chase already calculated keeps its date when the interval changes.
 - A cancellation message never changes state without a staff action.
-- Create audit before the Inspection report is sent, on a Held, closed or
-  archived Case, without an assigned Engineer, or a second time, is refused.
+- Create audit on a Held, closed or archived Case, without an assigned
+  Engineer, or a second time, is refused; the listed item is greyed out and
+  states the refusal on hover.
 - Sent evidence for the Audit report that predates the Audit, or that proves
   the Inspection report, is refused.
 

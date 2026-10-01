@@ -120,6 +120,30 @@ public sealed class CaseViewsWebTests
         Assert.Contains(RibbonStateChip(html), audit, StringComparison.Ordinal);
 
         Assert.Equal(CaseWorkSelector.Current, Assert.Single(store.PageFrameQueries).Work);
+    }
+
+    /// <summary>
+    /// Create audit no longer waits for the Inspection report to be sent
+    /// (operator, 1 October 2026): an Audit created before that leaves the
+    /// Inspection row without a Sent chip, never with one it did not earn.
+    /// </summary>
+    [Fact]
+    public async Task TheInspectionRowHasNoSentChipWhenItsReportWasNeverSent()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            SummaryCaseType = CaseType.InspectionAndAudit
+        };
+        store.GiveAudit(InspectionSentAtUtc, inspectionSent: false);
+        using var host = new ReadingHost(store);
+
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+
+        var inspection = ViewRow(ViewsCard(html), "inspection");
+        Assert.Contains($"{Frame.InspectionView} · {Reference}</a>", inspection, StringComparison.Ordinal);
+        Assert.DoesNotContain(Frame.Sent, inspection, StringComparison.Ordinal);
+        Assert.DoesNotContain("status--green", inspection, StringComparison.Ordinal);
         // Razor keeps a data- attribute whose value is null, empty: no view is named.
         Assert.DoesNotMatch("data-case-view=\"[^\"]", html);
         Assert.DoesNotContain(Frame.ReadOnlyAuditCreated, html, StringComparison.Ordinal);
@@ -356,7 +380,7 @@ public sealed class CaseViewsWebTests
         Assert.Equal(operationKey, request.OperationKey);
         Assert.DoesNotContain("data-confirmation", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
 
-        createAudit.Refusal = AuditRefusal.ReportNotSent;
+        createAudit.Refusal = AuditRefusal.Held;
         using var refused = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=CreateAudit",
             Form(
@@ -368,7 +392,7 @@ public sealed class CaseViewsWebTests
 
         AssertPrg(refused, store.CaseId, expectedQuery: string.Empty);
         var after = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
-        Assert.Contains("Create audit is available once the report is sent.", after, StringComparison.Ordinal);
+        Assert.Contains("A held case cannot have an audit created from it.", after, StringComparison.Ordinal);
         Assert.Single(createAudit.Requests);
     }
 

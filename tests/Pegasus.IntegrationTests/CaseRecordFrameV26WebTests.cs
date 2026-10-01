@@ -359,29 +359,31 @@ public sealed class CaseRecordFrameV26WebTests
     }
 
     /// <summary>
-    /// Create audit (v29 P5) is offered, inside the edit session and after
-    /// Correct principal, exactly where Core's Audit policy finds no refusal:
-    /// an Inspection + Audit Case whose report is sent (Post-report, Complete
-    /// or Query, never Held), with its Engineer and no Audit yet. The dialog
-    /// and the post are covered by <see cref="CaseViewsWebTests"/>.
+    /// Create audit is listed, after Correct principal, on every Inspection +
+    /// Audit Case and never on another type (operator, 1 October 2026). It is
+    /// live exactly where Core's Audit policy finds no refusal, whether or not
+    /// the Inspection report is sent; otherwise it is greyed out and its hover
+    /// title states the refusal, and no dialog is rendered. The dialog and the
+    /// post are covered by <see cref="CaseViewsWebTests"/>.
     /// </summary>
     [Theory]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReport, false, true)]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReportComplete, false, true)]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Query, false, true)]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.ReportPreparation, false, false)]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Held, false, false)]
-    [InlineData(CaseType.Inspection, CaseLifecycleState.PostReport, false, false)]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReport, true, false)]
-    public async Task CreateAuditIsOfferedOnlyWhereTheAuditPolicyAccepts(
-        CaseType caseType, CaseLifecycleState state, bool auditExists, bool offered)
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReport, true, false, null)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReportComplete, true, false, null)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Query, true, false, null)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.ReportPreparation, false, false, null)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Review, false, false, null)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Held, true, false, "A held case cannot have an audit created from it.")]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReport, true, true, "This case already has its audit.")]
+    [InlineData(CaseType.Inspection, CaseLifecycleState.PostReport, true, false, null)]
+    public async Task CreateAuditIsListedOnEveryInspectionAndAuditCaseAndLiveWhereTheAuditPolicyAccepts(
+        CaseType caseType, CaseLifecycleState state, bool sent, bool auditExists, string? condition)
     {
         var store = new RecordingCaseDetailsStore
         {
             State = state,
             SummaryCaseType = caseType,
             AssignedEngineerId = Guid.NewGuid(),
-            ReportSentEvidence = SentEvidence(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero))
+            ReportSentEvidence = sent ? SentEvidence(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero)) : null
         };
         if (auditExists)
         {
@@ -390,11 +392,24 @@ public sealed class CaseRecordFrameV26WebTests
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await workspace.GetWorkspaceAsync();
-        var bar = RecordBar(html);
+        var bar = WebUtility.HtmlDecode(RecordBar(html));
+        var listed = caseType == CaseType.InspectionAndAudit;
+        var live = listed && condition is null;
 
-        Assert.Equal(offered, bar.Contains("data-create-audit", StringComparison.Ordinal));
-        Assert.Equal(offered, html.Contains("data-dialog=\"case-create-audit-dialog\"", StringComparison.Ordinal));
-        if (offered && bar.Contains("data-dialog-open=\"case-correct-principal-dialog\"", StringComparison.Ordinal))
+        Assert.Equal(listed, bar.Contains("data-create-audit", StringComparison.Ordinal));
+        Assert.Equal(live, bar.Contains("data-dialog-open=\"case-create-audit-dialog\"", StringComparison.Ordinal));
+        Assert.Equal(live, html.Contains("data-dialog=\"case-create-audit-dialog\"", StringComparison.Ordinal));
+        if (condition is not null)
+        {
+            Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-create-audit-condition=\"{condition}\">", bar, StringComparison.Ordinal);
+            Assert.Contains("class=\"btn\" disabled aria-disabled=\"true\" data-create-audit>", bar, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("data-create-audit-condition", bar, StringComparison.Ordinal);
+            Assert.DoesNotContain("menu-gated", bar, StringComparison.Ordinal);
+        }
+        if (listed && bar.Contains("data-dialog-open=\"case-correct-principal-dialog\"", StringComparison.Ordinal))
         {
             Assert.True(
                 bar.IndexOf("data-dialog-open=\"case-correct-principal-dialog\"", StringComparison.Ordinal)
@@ -404,6 +419,32 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Equal(
             caseType == CaseType.InspectionAndAudit,
             WebUtility.HtmlDecode(html).Contains("data-case-type-chip>Inspection + Audit<", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// While a colleague holds the lease, Create audit stays listed but greyed
+    /// out, its hover title naming them with the sections' own editing
+    /// wording, and no dialog is rendered.
+    /// </summary>
+    [Fact]
+    public async Task CreateAuditIsGreyedOutWithTheEditingWordingWhileAColleagueHoldsTheLease()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            SummaryCaseType = CaseType.InspectionAndAudit,
+            AssignedEngineerId = Guid.NewGuid(),
+            LeaseHolder = Guid.NewGuid().ToString("D")
+        };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, _ => { });
+
+        var html = await workspace.GetWorkspaceAsync();
+        var bar = WebUtility.HtmlDecode(RecordBar(html));
+
+        Assert.Matches("<span class=\"menu-gated\" title=\"[^\"]+ is editing\" data-create-audit-condition=\"[^\"]+ is editing\">", bar);
+        Assert.Contains("class=\"btn\" disabled aria-disabled=\"true\" data-create-audit>", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"case-create-audit-dialog\"", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"case-create-audit-dialog\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>

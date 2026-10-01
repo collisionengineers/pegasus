@@ -81,12 +81,16 @@ public sealed class EfCreateAuditStore(
             throw new AuditCreationException(request.CaseId, AuditRefusal.AuditAlreadyExists);
         }
 
-        if (workflow.State is not (nameof(CaseLifecycleState.PostReport)
-                or nameof(CaseLifecycleState.PostReportComplete)
-                or nameof(CaseLifecycleState.Query))
-            || workflow.ReportSentEvidenceId is null)
+        // The store guards its own transaction: never from Held or a closed
+        // disposition. Whether the Inspection report was sent does not matter.
+        if (workflow.State == nameof(CaseLifecycleState.Held))
         {
-            throw new AuditCreationException(request.CaseId, AuditRefusal.ReportNotSent);
+            throw new AuditCreationException(request.CaseId, AuditRefusal.Held);
+        }
+
+        if (CaseLifecycleRules.TerminalStateNames().Contains(workflow.State))
+        {
+            throw new AuditCreationException(request.CaseId, AuditRefusal.Closed);
         }
 
         var primary = works.SingleOrDefault(item => item.Kind == CaseWorkKinds.Primary)
