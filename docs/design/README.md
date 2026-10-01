@@ -618,8 +618,8 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `sort` (undefined) | `arrow-up-down` | `9F9C9571C4A30B5642E7D6BBA19E58C836CC57F8ECDC5D044EB0819065C534BC` | Sort toggle |
 
 The v26 shell and Case record glyphs below are inlined only by
-`_LucideSprite.cshtml`, which now carries ninety-seven symbols: the sixty above
-plus these thirty-seven. Each checksum is the SHA-256 of the glyph's UTF-8
+`_LucideSprite.cshtml`, which now carries ninety-nine symbols: the sixty above
+plus these thirty-nine. Each checksum is the SHA-256 of the glyph's UTF-8
 `<symbol id="icon-…">…</symbol>` element in that partial. "No caller" marks a
 glyph the v26 mockups reference that no current page draws.
 
@@ -638,9 +638,9 @@ glyph the v26 mockups reference that no current page draws.
 | — | `eye-off` | `56982F58FC81CBE4EB066E455259234DE2F2FE4B120631693BA0FA5544EB516F` | No caller |
 | — | `key-round` | `5E7E3CD234E740B048195FBEF0B1C66E7CA85500AE1C7ACA7F35117496576E83` | No caller |
 | — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | Rotate view left (paired with `rotate-cw`) |
-| — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records) |
+| — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records); image tile Crop |
 | — | `zap` | `998D4DC807CBE0CE4AF837D6282BCB925F8B169A1CE6DF4B1A2B06D6210474A0` | No caller |
-| — | `grip-vertical` | `93D0BBD15AB6203E42D45A911F90B3BAB3D287E56AD4140804311B15FA062074` | No caller |
+| — | `grip-vertical` | `93D0BBD15AB6203E42D45A911F90B3BAB3D287E56AD4140804311B15FA062074` | Image tile: drag to reorder |
 | — | `shield-check` | `1A0678C6E00913D6FFAB22299D518EC906BA4FB8AE3F17E8C5801C212FE21DBA` | No caller |
 | — | `building` | `F8C777CE38931ABE01FAE9E46B1DC5527989F3152D9730EA941C7DA9D4DC9EFE` | No caller |
 | — | `sliders` | `BC19EF5E6751EAE7634C7CA956BB16A0C0A6AB9ECCB8935811B63849FF7D9BFF` | No caller |
@@ -658,9 +658,11 @@ glyph the v26 mockups reference that no current page draws.
 | — | `phone` | `D3B43D179F6118EDF825342F9ED68F0AAF9840EA2DC63A13E72BE1B12567909F` | No caller |
 | — | `pound-sterling` | `72454D0BBC72046B76787C89101DC263E6060D4F4AF8B2DDD47EF2BB9976171A` | Administration nav: Valuation presets |
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
-| — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item |
-| — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | No caller |
+| — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item; image tile: In report, off |
+| — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | Image tile: In report, on |
 | — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
+| — | `tag` | `DD7CD667273A81E81C0901A77A43153FC8A1C8FC51FDFB98F5CFDF2AB7AC4596` | Image tile: Tag |
+| — | `file-image` | `DAE10E1CDF7EE095323DC27D60CF5A113ADB9830B2A02A2A90BF11FAEEED3808` | Image tile: Print on its own page (Full page) |
 | — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
 
 The v26 rail no longer draws the prototype's rail glyphs for two routes:

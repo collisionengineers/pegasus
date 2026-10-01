@@ -130,7 +130,15 @@
             host.classList.toggle('is-active', ownerKey(key) === activeKey);
         });
     }
-    function selectTab(key) {
+    // A report blocker names the tab inside its section that clears it
+    // (operator, 1 October 2026): Files opens on Images, Report on Fee. The
+    // tab's own button is pressed, so the tab binders stay the one owner.
+    function openSubTab(host, tab) {
+        if (!host || !tab) { return; }
+        var button = host.querySelector('[data-file-tab="' + tab + '"], [data-report-tab="' + tab + '"]');
+        if (button && button.getAttribute('aria-selected') !== 'true') { button.click(); }
+    }
+    function selectTab(key, tab) {
         navigationVersion += 1;
         pendingAnchor = null;
         key = ownerKey(key);
@@ -142,9 +150,10 @@
         applyTabState();
         main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
             if (ownerKey(placeholder.getAttribute('data-lazy')) === activeKey) {
-                mount(placeholder, function () { applyTabState(); });
+                mount(placeholder, function (host) { applyTabState(); openSubTab(host, tab); });
             }
         });
+        openSubTab(sectionFor(key), tab);
         window.scrollTo({ top: 0, behavior: 'auto' });
     }
     function setLayout(value, persist) {
@@ -336,10 +345,10 @@
         }
         land(target);
     }
-    function jumpTo(key, focus) {
+    function jumpTo(key, focus, tab) {
         var navigation = ++navigationVersion;
         if (layout === 'tabs') {
-            selectTab(key);
+            selectTab(key, tab);
             return;
         }
         var target = sectionFor(key);
@@ -351,12 +360,14 @@
         if (target.hasAttribute('data-lazy')) {
             mount(target, function (host) {
                 if (navigation !== navigationVersion || layout !== 'scroll') { return; }
+                openSubTab(host, tab);
                 scrollSectionIntoView(host);
                 mountApproaching();
                 if (focus) { focusSection(host); }
             });
             return;
         }
+        openSubTab(target, tab);
         scrollSectionIntoView(target);
         mountApproaching();
         if (focus) { focusSection(target); }
@@ -428,7 +439,7 @@
             return;
         }
         event.preventDefault();
-        jumpTo(jump.getAttribute('data-section-jump'), true);
+        jumpTo(jump.getAttribute('data-section-jump'), true, jump.getAttribute('data-section-tab'));
     });
     layoutButtons.forEach(function (button) {
         button.addEventListener('click', function () { setLayout(button.getAttribute('data-case-layout'), true); });
@@ -4361,8 +4372,7 @@
             card.dataset.preparationBound = 'true';
             var value = seed(card);
             if (!value) { return; }
-            var enhanced = card.querySelector('[data-image-report]');
-            if (enhanced) { enhanced.hidden = false; }
+            all(card, '[data-image-report]').forEach(function (enhanced) { enhanced.hidden = false; });
             sync(value.id);
             var order = card.querySelector('[data-preparation-order]');
             if (order) { order.addEventListener('change', function () { set(value.id, { order: order.value === '' ? null : order.value }); }); }
