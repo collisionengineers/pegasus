@@ -22,6 +22,9 @@ public sealed class RecordThirdPartyReportReading(
     /// <summary>The exception type behind a reading that was not recorded.</summary>
     public const string FailureTag = "intake.third_party_report.failure_type";
 
+    /// <summary>The outcome when the store could not take the reading; a caller may retry.</summary>
+    public const string NotRecorded = "not_recorded";
+
     /// <summary>The intake-time key for a document: one reading per retained asset.</summary>
     public static string OperationKey(IntakeAssetRecord asset)
     {
@@ -40,9 +43,11 @@ public sealed class RecordThirdPartyReportReading(
     /// Reads <paramref name="document"/> — one document's fragments, scanned
     /// pages and images, nothing from the rest of its source — and records the
     /// reading under <paramref name="operationKey"/>. A document that carries
-    /// no report signature and raises no finding is left alone entirely.
+    /// no report signature and raises no finding is left alone entirely. The
+    /// outcome is returned as well as tagged, so a caller for whom the reading
+    /// is the point (the OCR path) can retry a store failure.
     /// </summary>
-    public async Task ExecuteAsync(
+    public async Task<string> ExecuteAsync(
         IntakeReceipt receipt,
         IntakeAssetRecord asset,
         IntakeSourceReadResult document,
@@ -75,7 +80,7 @@ public sealed class RecordThirdPartyReportReading(
             // nothing about itself that a person has to act on. Saying so is
             // what makes the silence on the other paths meaningful.
             activity?.SetTag(OutcomeTag, "no_report_signature");
-            return;
+            return "no_report_signature";
         }
 
         try
@@ -103,7 +108,9 @@ public sealed class RecordThirdPartyReportReading(
                         document.ReaderKey,
                         document.ReaderVersion)),
                 cancellationToken);
-            activity?.SetTag(OutcomeTag, isReplay ? "replayed" : "recorded");
+            var outcome = isReplay ? "replayed" : "recorded";
+            activity?.SetTag(OutcomeTag, outcome);
+            return outcome;
         }
         catch (RetainedInstructionAnalysisConflictException)
         {
@@ -117,9 +124,9 @@ public sealed class RecordThirdPartyReportReading(
             // false in the second case, so the stored row decides which is said.
             // Named on the span either way, so a conflict is distinguishable
             // from a reading that was never attempted.
-            activity?.SetTag(
-                OutcomeTag,
-                await ConflictOutcomeAsync(operationKey, receipt.Id, asset.Id, cancellationToken));
+            var outcome = await ConflictOutcomeAsync(operationKey, receipt.Id, asset.Id, cancellationToken);
+            activity?.SetTag(OutcomeTag, outcome);
+            return outcome;
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -131,8 +138,9 @@ public sealed class RecordThirdPartyReportReading(
             // intake itself succeeded, so the span's own status stays as the
             // receipt left it: this is a named failure inside work that
             // otherwise did what it was asked.
-            activity?.SetTag(OutcomeTag, "not_recorded");
+            activity?.SetTag(OutcomeTag, NotRecorded);
             activity?.SetTag(FailureTag, exception.GetType().Name);
+            return NotRecorded;
         }
     }
 

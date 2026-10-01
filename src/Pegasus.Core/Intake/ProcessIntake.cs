@@ -274,9 +274,10 @@ public sealed class ProcessIntake(
             assessment.ExtractionPolicyKey,
             assessment.ExtractionPolicyVersion,
             assets,
-            // A declared destination needs no OCR: scanned pages are for
-            // identification, which does not run for it.
-            safeSource.DeclaredCaseId is null ? readResult.ScannedPdfPages : [],
+            // Every scanned document page is OCR'd, declared destination or
+            // not: the text is for the report reader as much as for
+            // identification, and a report added to a Case is still a report.
+            readResult.ScannedPdfPages,
             assessment.MailRouteDecision,
             assessment.MailClassificationDecision,
             assessment.CaseMatchDecision,

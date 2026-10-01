@@ -148,7 +148,7 @@ exclusion.
 | INT-07 | Automatic ingestion from `info@collisionengineers.co.uk` | [Mailbox allowlist, activation and wipe](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe) |
 | INT-14 | Automated legacy DOC extraction | [Supported source boundary](frd/frd-05-documents-extraction-and-custody.md#supported-source-boundary) |
 | INT-15 | Automated MSG extraction | [Supported source boundary](frd/frd-05-documents-extraction-and-custody.md#supported-source-boundary) |
-| INT-16 | Qualified OCR for incoming scanned instructions | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
+| INT-16 | OCR of every incoming scanned document page, read as a report and, when needed, as an instruction | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
 | INT-28 | Automatic matching of image-led and instruction-led records | [Pairing and merge](frd/frd-19-image-led-intake-and-pairing.md#pairing-and-merge); [Grouped image-intake routing](frd/frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing) |
 | MAIL-01 | Identify every inbound mailbox item and its mailbox/thread/message identity | [Inbound mailbox identity](frd/frd-08-email-mailbox-and-background-processing.md#inbound-mailbox-identity) |
 | MAIL-02 | Map classifications to queues, Other, Unidentified or Triage | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
