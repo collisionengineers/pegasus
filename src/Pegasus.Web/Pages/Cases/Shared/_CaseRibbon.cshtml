@@ -54,7 +54,7 @@
     var closureOutcomes = Model.AvailableClosureOutcomes;
     var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
     var offersHoldGroup = mayActOnCaseData && !isClosed;
-    var offersCreateAudit = Model.CanCreateAudit;
+    var offersCreateAudit = Model.OffersCreateAudit;
     // The menu shows whenever it has an item to offer.
     var offersActionsMenu = canUnlinkEvidence || canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
         || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
