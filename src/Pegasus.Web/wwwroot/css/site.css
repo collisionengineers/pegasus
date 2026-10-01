@@ -931,7 +931,10 @@ tbody tr:hover{background:#f3f6f7}
    (links, buttons or one-control forms), .menu-sep between groups, a
    .btn--danger item last. site.js keeps one menu open at a time and closes
    it on Escape or an outside click; without script the native disclosure
-   still opens and closes. .menu-body--start opens under the left edge. */
+   still opens and closes. .menu-body--start opens under the left edge. A
+   listed item the record does not yet permit sits disabled inside a
+   .menu-gated span whose title states the condition on hover (the disabled
+   button itself takes no pointer events). */
 .menu{position:relative;display:inline-block}
 .menu>summary{list-style:none;cursor:pointer}
 .menu>summary::-webkit-details-marker{display:none}
@@ -942,6 +945,7 @@ tbody tr:hover{background:#f3f6f7}
 .menu-body form{display:contents}
 .menu-body .btn{width:100%;justify-content:flex-start;border-color:transparent;box-shadow:none;font-weight:500;text-align:left;background:transparent;color:var(--ink)}
 .menu-body .btn:hover{background:var(--surface-3)}
+.menu-body .menu-gated{display:block;cursor:not-allowed}
 .menu-body .btn--danger{color:var(--danger)}
 .menu-body .btn--danger:hover{background:var(--danger-bg)}
 .menu-sep{height:1px;background:var(--line);margin:3px 0}

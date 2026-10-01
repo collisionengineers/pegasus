@@ -36,17 +36,41 @@ public sealed partial class DetailsModel
         !ViewerHoldsEditAuthority && CurrentEditLease is not null && EditAuthorityHolder is not null;
 
     /// <summary>
-    /// Create audit (v29 P5): offered where Core's shared Audit policy finds
-    /// no refusal (an Inspection + Audit Case whose report is sent, with no
-    /// Audit yet and an assigned Engineer). The command runs under the
-    /// session's lease or one claimed for it (operator, 29 September 2026),
-    /// so it is offered in and out of an edit session, but not while a
-    /// colleague holds the lease.
+    /// Create audit is listed in the Actions menu of every Inspection + Audit
+    /// Case, in every state (operator, 1 October 2026); the type is fixed
+    /// identity, so no other Case lists it.
     /// </summary>
-    public bool CanCreateAudit =>
-        Case is { } details
-        && AuditPolicy.Refusal(details.Summary.CaseType, details.Workflow, Works) is null
-        && !ColleagueIsEditing;
+    public bool OffersCreateAudit =>
+        Case is { } details && details.Summary.CaseType == CaseType.InspectionAndAudit;
+
+    /// <summary>
+    /// Why the listed Create audit is greyed out, stated on hover, or null
+    /// when it is live: a colleague holds the lease, or Core's shared Audit
+    /// policy refuses it (Held, closed, archived, an Audit already, no
+    /// Engineer). The command runs under the session's lease or one claimed
+    /// for it (operator, 29 September 2026), so it is live in and out of an
+    /// edit session.
+    /// </summary>
+    public string? CreateAuditCondition
+    {
+        get
+        {
+            if (Case is not { } details)
+            {
+                return null;
+            }
+            if (ColleagueIsEditing && EditAuthorityHolder is { } holder)
+            {
+                return $"{EditModeDisplay.HolderName(holder)} is editing";
+            }
+            return AuditPolicy.Refusal(details.Summary.CaseType, details.Workflow, Works) is { } refusal
+                ? AuditPolicy.Message(refusal)
+                : null;
+        }
+    }
+
+    /// <summary>The listed Create audit is live: its dialog renders and its button opens it.</summary>
+    public bool CanCreateAudit => OffersCreateAudit && CreateAuditCondition is null;
 
     /// <summary>The Audit reference the dialog announces: <c>a.{Case/PO}</c>.</summary>
     public string? ProposedAuditReference =>
