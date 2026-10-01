@@ -97,6 +97,85 @@ public interface IEstimateDocumentParser
 }
 
 /// <summary>
+/// What an estimate document is: exactly one registered format names the
+/// file by its name and type, and that format reads its bytes as a completed
+/// document estimate. A PDF's provider is known only from its content, so
+/// the name alone never makes a file an estimate. The import and the Worker's
+/// recognition of filed files both ask this one rule.
+/// </summary>
+public static class EstimateFormats
+{
+    /// <summary>
+    /// The one format that names the file, or null when none or more than
+    /// one does; without one the bytes are never worth reading.
+    /// </summary>
+    public static IEstimateDocumentParser? NamedBy(
+        IEnumerable<IEstimateDocumentParser> parsers, string fileName, string mediaType)
+    {
+        var matches = parsers.Where(candidate => candidate.CanParse(fileName, mediaType)).Take(2).ToArray();
+        return matches.Length == 1 ? matches[0] : null;
+    }
+
+    /// <summary>
+    /// Parses the file as an estimate, or throws
+    /// <see cref="EstimateParseRejectedException"/> naming why it is not one.
+    /// </summary>
+    public static ParsedEstimate Parse(
+        IEnumerable<IEstimateDocumentParser> parsers,
+        string fileName,
+        string mediaType,
+        ReadOnlyMemory<byte> content)
+    {
+        var matches = parsers.Where(candidate => candidate.CanParse(fileName, mediaType)).ToArray();
+        if (matches.Length != 1)
+        {
+            throw new EstimateParseRejectedException(matches.Length == 0
+                ? "No estimate format recognizes the document."
+                : "More than one estimate format recognizes the document.");
+        }
+        var parsed = matches[0].Parse(content);
+        if (!RepairSpecificationPolicy.IsDocumentRoute(parsed.Route))
+        {
+            throw new EstimateParseRejectedException("The estimate format has not completed unambiguously.");
+        }
+        return parsed;
+    }
+
+    /// <summary>
+    /// Reads a retained version's bytes within
+    /// <see cref="ImportRawEstimate.MaximumDocumentBytes"/> and proves they
+    /// are the length and hash its record states.
+    /// </summary>
+    public static async Task<ReadOnlyMemory<byte>> ReadVerifiedAsync(
+        LogicalDocumentContent document,
+        long expectedLength,
+        string sha256,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await document.Content.ReadAsync(chunk, cancellationToken)) > 0)
+        {
+            if (buffer.Length + read > ImportRawEstimate.MaximumDocumentBytes)
+            {
+                throw new EstimateParseRejectedException(
+                    $"The document is larger than {ImportRawEstimate.MaximumDocumentBytes} bytes, so nothing was imported.");
+            }
+            buffer.Write(chunk, 0, read);
+        }
+        ReadOnlyMemory<byte> content = buffer.ToArray();
+        if (content.Length != expectedLength
+            || !string.Equals(Convert.ToHexStringLower(SHA256.HashData(content.Span)), sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new EstimateParseRejectedException("The retained document does not match its recorded length and hash.");
+        }
+        return content;
+    }
+}
+
+/// <summary>
 /// The one canonical estimate import (plan B04). Every route — a dropped
 /// PDF, the JSON document, a completed Glass's session — retains its
 /// document first and then calls this with the retained version's identity,
@@ -169,25 +248,9 @@ public sealed class ImportRawEstimate(
         await using var document = await documents.OpenAsync(
             new(request.Actor, retained.DocumentId, retained.VersionId, IntakeAssetId: null,
                 request.CaseId, IntakeReceiptId: null, sha256, retained.ContentLength), cancellationToken);
-        var content = await ReadAsync(document, cancellationToken);
-        if (content.Length != retained.ContentLength
-            || !string.Equals(Convert.ToHexStringLower(SHA256.HashData(content.Span)), sha256, StringComparison.Ordinal))
-        {
-            throw new EstimateParseRejectedException("The retained document does not match its recorded length and hash.");
-        }
-        var matches = parsers.Where(candidate => candidate.CanParse(retained.FileName, retained.MediaType)).ToArray();
-        if (matches.Length != 1)
-        {
-            throw new EstimateParseRejectedException(matches.Length == 0
-                ? "No estimate format recognizes the document."
-                : "More than one estimate format recognizes the document.");
-        }
-        var parser = matches[0];
-        var parsed = parser.Parse(content);
-        if (!RepairSpecificationPolicy.IsDocumentRoute(parsed.Route))
-        {
-            throw new EstimateParseRejectedException("The estimate format has not completed unambiguously.");
-        }
+        var content = await EstimateFormats.ReadVerifiedAsync(
+            document, retained.ContentLength, sha256, cancellationToken);
+        var parsed = EstimateFormats.Parse(parsers, retained.FileName, retained.MediaType, content);
         var artifactIdentity = $"estimate-import:{retained.OccurrenceId:D}";
         var card = LabourRateCardAdministration.ForNewSpecification(
             await rateCards.ListAsync(cancellationToken));
@@ -220,24 +283,6 @@ public sealed class ImportRawEstimate(
             }),
             cancellationToken);
         return new(saved.SpecificationId);
-    }
-
-    private static async Task<ReadOnlyMemory<byte>> ReadAsync(
-        LogicalDocumentContent document, CancellationToken cancellationToken)
-    {
-        using var buffer = new MemoryStream();
-        var chunk = new byte[81920];
-        int read;
-        while ((read = await document.Content.ReadAsync(chunk, cancellationToken)) > 0)
-        {
-            if (buffer.Length + read > MaximumDocumentBytes)
-            {
-                throw new EstimateParseRejectedException(
-                    $"The document is larger than {MaximumDocumentBytes} bytes, so nothing was imported.");
-            }
-            buffer.Write(chunk, 0, read);
-        }
-        return buffer.ToArray();
     }
 
     /// <summary>

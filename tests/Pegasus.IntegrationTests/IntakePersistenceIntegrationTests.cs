@@ -207,7 +207,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260929093000_MarketResearchAttachedEvent",
                 "20260929120000_PrincipalVocabulary",
                 "20260929150000_GrantCaseDataSnapshotUpdate",
-                "20260930090000_PrincipalSalvageMatrix"
+                "20260930090000_PrincipalSalvageMatrix",
+                "20261001090000_DocumentVersionEstimateRecognition"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
