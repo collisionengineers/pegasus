@@ -19,7 +19,7 @@ public sealed class IntakeOcrTextTests
         var read = IntakeOcrText.ReadResult(
             "uploaded mail.eml, attachment 2: report.pdf",
             SourceHash,
-            Result(new(3, "Page three", [], []), new(1, "Page one", [], [])));
+            Result(new IntakeOcrPage(3, "Page three", [], []), new IntakeOcrPage(1, "Page one", [], [])));
 
         Assert.Equal(IntakeSourceReadStatus.Readable, read.Status);
         Assert.Equal("azure-document-intelligence/prebuilt-layout", read.ReaderKey);
@@ -51,7 +51,7 @@ public sealed class IntakeOcrTextTests
         var read = IntakeOcrText.ReadResult(
             "uploaded scan.pdf",
             SourceHash,
-            Result(new(1, "   ", [], []), new(2, "Second page", [], [])));
+            Result(new IntakeOcrPage(1, "   ", [], []), new IntakeOcrPage(2, "Second page", [], [])));
 
         var fragment = Assert.Single(read.Content);
         Assert.Equal("uploaded scan.pdf, page 2", fragment.SourceLabel);
@@ -85,7 +85,7 @@ public sealed class IntakeOcrTextTests
             "uploaded mail.eml, attachment 2: report.pdf",
             SourceHash,
             [2, 3],
-            Result(new(2, "OCR page two", [], []), new(3, "OCR page three", [], [])));
+            Result(new IntakeOcrPage(2, "OCR page two", [], []), new IntakeOcrPage(3, "OCR page three", [], [])));
 
         // Everything that is not the OCR'd document's qualified pages survives.
         Assert.Contains(merged.Content, fragment => fragment.Text == "Please see the attached report.");
@@ -117,7 +117,7 @@ public sealed class IntakeOcrTextTests
             true,
             OcrCandidates: [new("uploaded scan.pdf", 1)]);
 
-        var merged = IntakeOcrText.Merge(ordinary, "uploaded scan.pdf", SourceHash, [1], Result(new(1, "Text", [], [])));
+        var merged = IntakeOcrText.Merge(ordinary, "uploaded scan.pdf", SourceHash, [1], Result(new IntakeOcrPage(1, "Text", [], [])));
 
         Assert.False(merged.RequiresOcr);
         Assert.Empty(merged.ScannedPdfPages);
