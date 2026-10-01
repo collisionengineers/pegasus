@@ -148,10 +148,26 @@ public sealed partial class DetailsModel
     /// </summary>
     public string ReportDeliveryFileName => CaseReportDeliveryNaming.ReportName(
         // The generation's own reference: a. + the Case/PO for an Audit report.
-        CurrentReportGeneration?.Snapshot.CaseReference ?? Case?.Summary.Reference ?? "—",
+        DeliveredReportGeneration?.Snapshot.CaseReference ?? Case?.Summary.Reference ?? "—",
         Case?.Summary.Registration,
         RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
         ReportSendHistory.SentCount) + ".pdf";
+
+    /// <summary>
+    /// The generation the Report section delivers: the Inspection's while its
+    /// report awaits sending after Create audit (operator, 1 October 2026),
+    /// else the current work's.
+    /// </summary>
+    public CaseReportGenerationRecord? DeliveredReportGeneration =>
+        InspectionReportAwaitsSend ? InspectionReportGeneration : CurrentReportGeneration;
+
+    /// <summary>
+    /// Whether this viewer may prepare the delivered report now: the section's
+    /// own edit for the current work; the session's lease for the Inspection
+    /// report after Create audit, whose values never edit.
+    /// </summary>
+    public bool MayPrepareDeliveredReport =>
+        InspectionReportAwaitsSend ? IsEditing : SectionIsEditable("report");
 
     /// <summary>
     /// The Case report delivery template rendered for this Case, for staff to
@@ -164,17 +180,17 @@ public sealed partial class DetailsModel
     private async Task<string> RenderReportDeliveryMessageAsync(
         ActionActor actor, CancellationToken cancellationToken)
     {
-        if (IsInspectionView
-            || CurrentReportGeneration is not { State: CaseReportGenerationState.Confirmed }
+        if ((IsInspectionView && !InspectionReportAwaitsSend)
+            || DeliveredReportGeneration is not { State: CaseReportGenerationState.Confirmed } generation
             || CurrentDeliveryPreparation is not null
-            || !SectionIsEditable("report")
+            || !MayPrepareDeliveredReport
             || !StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
         {
             return string.Empty;
         }
 
         var facts = new CaseReportDeliveryFacts(
-            CurrentReportGeneration.Snapshot.CaseReference,
+            generation.Snapshot.CaseReference,
             Case?.Summary.Registration,
             RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
             DeliveryRecipientSuggestions?.PrincipalName,

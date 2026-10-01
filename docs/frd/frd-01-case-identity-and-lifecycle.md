@@ -179,7 +179,8 @@ under the current process, with its provenance recorded.
   on the Case and, after Create audit, audits that work on the same Case.
   The Audit has its own values, report, reference and fee; the Case's
   identity, state, files and notes stay shared. An Inspection report not
-  sent before Create audit is never sent afterwards
+  sent before Create audit is sent afterwards from the Inspection view, on
+  the Inspection's own work
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)).
 - **Triage.** A Principal asks Collision Engineers to assess a vehicle
   without a definitive instruction. The Triage Case records the finding and

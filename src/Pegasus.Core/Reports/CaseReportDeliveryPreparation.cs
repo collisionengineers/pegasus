@@ -27,7 +27,8 @@ public sealed record PrepareCaseReportDeliveryRequest(
     Guid GenerationId, long ExpectedGenerationVersion, string OperationKey,
     string CoveringMessage,
     ReportRecipientReview? ReviewedRecipients = null,
-    IReadOnlyList<CaseReportArtifactKind>? Attach = null);
+    IReadOnlyList<CaseReportArtifactKind>? Attach = null,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 public interface IPrepareCaseReportDelivery
 {
     Task<CaseReportDeliveryPreparation> ExecuteAsync(
@@ -59,7 +60,8 @@ public sealed record ReportRecipientSuggestions(
 
 public interface IReportRecipientSuggestionQueries
 {
-    Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CancellationToken cancellationToken);
+    /// <summary>The suggestions for the report of <paramref name="work"/>, whose reference names the email.</summary>
+    Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 }
 
 /// <summary>One address the delivery form offers, and where it came from (v28 P21).</summary>
@@ -77,7 +79,8 @@ public sealed record CaseReportSendHistory(int SentCount, DateOnly? LastSentRepo
 
 public interface ICaseReportSendHistoryQueries
 {
-    Task<CaseReportSendHistory> GetAsync(Guid caseId, CancellationToken cancellationToken);
+    /// <summary>The sends of <paramref name="work"/>'s reports; a work's re-send suffix counts its own sends only.</summary>
+    Task<CaseReportSendHistory> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -173,7 +176,8 @@ public sealed record CaseReportDeliveryPreparationRecord(
     CaseReportGenerationState GenerationState,
     bool GenerationIsCurrent,
     long CurrentGenerationVersion,
-    IReadOnlyList<StaffMailAttachment> ConfirmedArtifacts);
+    IReadOnlyList<StaffMailAttachment> ConfirmedArtifacts,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 
 /// <summary>
 /// The store-side input of one preparation: the guarded request plus the
@@ -199,9 +203,9 @@ public interface ICaseReportDeliveryPreparationStore
     Task<CaseReportDeliveryPreparationRecord?> GetAsync(
         ActionActor actor, Guid caseId, Guid preparationId, CancellationToken cancellationToken);
 
-    /// <summary>The latest preparation of the Case's current generation, if any.</summary>
+    /// <summary>The latest preparation of <paramref name="work"/>'s current generation, if any.</summary>
     Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
-        ActionActor actor, Guid caseId, CancellationToken cancellationToken);
+        ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 }
 
 public sealed record SendPreparedCaseReportRequest(
@@ -383,8 +387,10 @@ public static class CaseReportDeliveryPolicy
     }
 
     /// <summary>
-    /// A generation is deliverable only while it is the Case's current one,
-    /// fully confirmed, and at the version the caller last saw.
+    /// A generation is deliverable only while it is its work's current one,
+    /// fully confirmed, and at the version the caller last saw. The Inspection
+    /// report of a Case that has its Audit stays deliverable on its own work
+    /// (operator, 1 October 2026).
     /// </summary>
     public static void RequireDeliverable(
         Guid generationId,
@@ -601,15 +607,15 @@ public sealed class PrepareCaseReportDelivery(
 
         // The structured contacts are read outside the store's transaction:
         // they are a Case-data read, never something the operator posts.
-        var suggestions = await recipientSuggestions.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false)
+        var suggestions = await recipientSuggestions.GetAsync(request.CaseId, request.Work, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         var review = request.ReviewedRecipients
             ?? CaseReportDeliveryPolicy.SuggestedReview(suggestions);
         var addressing = CaseReportDeliveryPolicy.ReviewedAddress(suggestions, review);
 
-        // v28 P23: what the Case has already sent decides the report's name,
+        // v28 P23: what the work has already sent decides the report's name,
         // and the preparation freezes it with the reviewed covering message.
-        var history = await sendHistory.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false);
+        var history = await sendHistory.GetAsync(request.CaseId, request.Work, cancellationToken).ConfigureAwait(false);
 
         var record = await store
             .PrepareAsync(
@@ -666,7 +672,7 @@ public sealed class SendPreparedCaseReport(
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException(
                 $"Report delivery preparation '{request.PreparationId}' is unavailable on case '{request.CaseId}'.");
-        var suggestions = await recipientSuggestions.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false)
+        var suggestions = await recipientSuggestions.GetAsync(request.CaseId, record.Work, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         CaseReportDeliveryPolicy.RequireSuggestionCurrent(
             record.Preparation.RecipientSuggestionFingerprint,

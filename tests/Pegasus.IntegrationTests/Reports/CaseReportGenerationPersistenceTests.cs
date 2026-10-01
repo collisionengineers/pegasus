@@ -1390,6 +1390,101 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Single((await harness.GenerationRowsAsync()).Single().Artifacts);
     }
 
+    /// <summary>
+    /// Once the Audit exists, the Inspection report already sent is opened,
+    /// never generated again (operator, 1 October 2026): neither the report
+    /// nor a companion document freezes on the primary work, and a companion
+    /// addressed to the Audit's work never attaches to the Inspection's
+    /// generation.
+    /// </summary>
+    [Fact]
+    public async Task TheInspectionReportSentAfterTheAuditIsNeverGeneratedAgain()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var inspectionGenerationId = report.Generation!.Id;
+        await GiveAuditAsync(harness.Factory, harness.CaseId, Harness.StartUtc);
+        await LinkInspectionSentEvidenceAsync(harness.Factory, harness.CaseId, Harness.StartUtc);
+
+        foreach (var request in new[]
+        {
+            harness.Request(operationKey: "case-report-inspection-again") with { Work = CaseWorkSelector.Primary },
+            harness.Request(
+                CaseReportArtifactKind.FeeNote,
+                "case-report-inspection-fee",
+                targetGenerationId: inspectionGenerationId) with { Work = CaseWorkSelector.Primary },
+            // The current work is the Audit's, so the Inspection's generation is not its own.
+            harness.Request(
+                CaseReportArtifactKind.FeeNote,
+                "case-report-audit-fee",
+                targetGenerationId: inspectionGenerationId),
+        })
+        {
+            var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                    .ExecuteAsync(request, CancellationToken.None));
+            Assert.Equal("The case report generation is unavailable.", refusal.Message);
+        }
+
+        Assert.Single(await harness.ArtifactRowsAsync());
+    }
+
+    /// <summary>
+    /// The Case as Create audit leaves it: an Audit work beside the primary
+    /// one, which keeps the Inspection report's own facts.
+    /// </summary>
+    internal static async Task GiveAuditAsync(
+        IDbContextFactory<PegasusDbContext> factory, Guid caseId, DateTimeOffset createdAtUtc)
+    {
+        await using var context = await factory.CreateDbContextAsync();
+        context.CaseWorks.Add(new CaseWorkEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Kind = CaseWorkKinds.Audit,
+            CreatedAtUtc = createdAtUtc,
+        });
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>The Inspection report's Sent evidence, linked to the primary work once the Audit exists.</summary>
+    internal static async Task LinkInspectionSentEvidenceAsync(
+        IDbContextFactory<PegasusDbContext> factory, Guid caseId, DateTimeOffset sentAtUtc)
+    {
+        await using var context = await factory.CreateDbContextAsync();
+        var evidenceId = Guid.NewGuid();
+        var evidence = new CaseReportSentEvidenceEntity
+        {
+            Id = evidenceId,
+            CaseId = caseId,
+            MailboxIdentity = "reports@collision.example",
+            SentFolderIdentity = "sent-items",
+            ImmutableItemIdentity = $"inspection-item-{evidenceId:N}",
+            InternetMessageIdentity = $"inspection-message-{evidenceId:N}",
+            ConversationIdentity = $"inspection-conversation-{evidenceId:N}",
+            ReplyChainIdentity = $"inspection-reply-chain-{evidenceId:N}",
+            SourceOccurrenceIdentity = $"inspection-occurrence-{evidenceId:N}",
+            SourceSha256 = new string('d', 64),
+            MimeSha256 = new string('e', 64),
+            SentAtUtc = sentAtUtc,
+            DiscoveredAtUtc = sentAtUtc,
+            DiscoveredByKind = nameof(ActorKind.SystemWorker),
+            DiscoveredBySubjectId = "approved-mailbox-evidence-ingestion",
+            RetentionOperationKey = $"retain-inspection-{evidenceId:N}",
+            RetentionRequestHash = new string('f', 64),
+            LinkedAtUtc = sentAtUtc,
+            LinkedByKind = nameof(ActorKind.SystemWorker),
+            LinkedBySubjectId = "approved-mailbox-sent-poll",
+            LinkedByRolesJson = "[]",
+        };
+        context.CaseReportSentEvidence.Add(evidence);
+        var primary = await context.CaseWorks.SingleAsync(work => work.Id == caseId);
+        primary.ReportSentEvidenceId = evidenceId;
+        primary.ReportSentEvidence = evidence;
+        await context.SaveChangesAsync();
+    }
+
     [Fact]
     public async Task CustodyConfirmationAloneIsNeverTheReadyTransition()
     {
@@ -2937,7 +3032,7 @@ public sealed class CaseReportGenerationPersistenceTests
         : IReportRecipientSuggestionQueries
     {
         public Task<ReportRecipientSuggestions?> GetAsync(
-            Guid caseId, CancellationToken cancellationToken) =>
+            Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<ReportRecipientSuggestions?>(suggestions);
     }
 
