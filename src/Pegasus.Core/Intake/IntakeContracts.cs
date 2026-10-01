@@ -754,8 +754,16 @@ public sealed record IntakeReceipt(
     string? ManualLinkedCaseReference = null,
     ActorKind? ManualAssociationActorKind = null,
     string? ManualAssociationOperationKey = null,
-    Guid? DeclaredCaseId = null)
+    Guid? DeclaredCaseId = null,
+    int? MailClassificationVersion = null)
 {
+    /// <summary>
+    /// Whether staff, or automation acting as staff, corrected the mail
+    /// classification: the stored decision is then the accepted one, and a
+    /// re-evaluation reads it instead of classifying the message again.
+    /// </summary>
+    public bool IsMailClassificationCorrected => MailClassificationVersion > 1;
+
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];

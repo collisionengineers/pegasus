@@ -79,7 +79,7 @@ public sealed class AssociateRetainedMailWithCase(
         if (outcome == AutomaticCaseAssociationOutcome.Associated && caseNotifier is not null)
         {
             // Work Centre D10 cause 3: the Case's engineer learns an e-mail arrived.
-            await caseNotifier.NotifyMailArrivalAsync(caseId, null, cancellationToken);
+            await caseNotifier.NotifyMailArrivalAsync(caseId, intakeReceiptId, null, cancellationToken);
         }
 
         return outcome;

@@ -447,6 +447,34 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task ReevaluationReadsACorrectedClassificationInsteadOfClassifyingAgain()
+    {
+        var store = new RecordingStore();
+        var sut = CreateSut(new StubReader(Readable()), store);
+        var source = CreateSource();
+        var first = await sut.ExecuteAsync(source);
+        var correction = MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            [],
+            "Corrected by staff.",
+            "shared-mail-policy",
+            2,
+            CaseType.Inspection);
+
+        // A corrected decision (version above one) is read in place of the
+        // classifier, so the replaced evaluation carries it.
+        store.ExistingRecord = first with { MailClassificationDecision = correction, MailClassificationVersion = 2 };
+        var reevaluated = await sut.ExecuteRetainedAsync(source, "retained-storage-key", replaceExisting: true);
+        Assert.Same(correction, store.Drafts[^1].MailClassificationDecision);
+        Assert.Same(correction, reevaluated.MailClassificationDecision);
+
+        // An automatic decision (version one) is classified again.
+        store.ExistingRecord = first with { MailClassificationDecision = correction, MailClassificationVersion = 1 };
+        await sut.ExecuteRetainedAsync(source, "retained-storage-key", replaceExisting: true);
+        Assert.NotSame(correction, store.Drafts[^1].MailClassificationDecision);
+    }
+
+    [Fact]
     public async Task MatchingReceiptReplayDoesNotReadOrRetainSourceAgain()
     {
         var reader = new StubReader(Readable());

@@ -1,3 +1,5 @@
+using System.Data;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -5,6 +7,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Lifecycle;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -612,25 +615,29 @@ internal sealed class EfRetainedMailboxMessageStore(
         return await LoadClassificationAsync(context, messageId, cancellationToken);
     }
 
-    public async Task<MailClassificationDossier> AppendCorrectionAsync(
+    public async Task<MailClassificationCorrectionResult> AppendCorrectionAsync(
         Guid messageId,
         int expectedVersion,
         MailClassificationResult before,
         MailClassificationResult after,
-        string actor,
+        ActionActor actor,
         string reason,
         DateTimeOffset correctedAtUtc,
         CancellationToken cancellationToken)
     {
+        var packedActor = MailClassificationActor.Format(actor);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
         var retained = await context.RetainedMailboxMessages
             .SingleOrDefaultAsync(item => item.Id == messageId, cancellationToken)
             ?? throw new InvalidOperationException("The retained message no longer exists.");
-        var decision = await context.IntakeReceipts
+        var receipt = await context.IntakeReceipts
+            .Include(item => item.MailClassificationDecision)
             .Where(item => item.SourceChannel == "mailbox"
                 && item.ExternalReceiptToken == retained.ExternalReceiptToken)
-            .Select(item => item.MailClassificationDecision)
-            .SingleOrDefaultAsync(cancellationToken)
+            .SingleOrDefaultAsync(cancellationToken);
+        var decision = receipt?.MailClassificationDecision
             ?? throw new InvalidOperationException("The retained message has no classification decision.");
         if (decision.Version != expectedVersion
             || !string.Equals(
@@ -641,10 +648,35 @@ internal sealed class EfRetainedMailboxMessageStore(
             throw new MailClassificationConcurrencyException();
         }
 
+        // The Case this message is currently linked to, by staff or by its
+        // accepted origin. A Triage Case has no Completed or Query state.
+        var associations = await CurrentIntakeAssociations.ReadAsync(context, [receipt.Id], cancellationToken);
+        var linkedCase = associations.Current.TryGetValue(receipt.Id, out var association) && !association.IsTriage
+            ? association
+            : null;
+        CaseWorkflowEntity? workflow = null;
+        if (linkedCase is not null)
+        {
+            await EfIntakeMutationStore.AcquireCaseQueryLockAsync(
+                context, transaction, linkedCase.CaseId, receipt.Id, cancellationToken);
+            workflow = await context.CaseWorkflows
+                .SingleOrDefaultAsync(item => item.CaseId == linkedCase.CaseId, cancellationToken);
+        }
+        var wasPostReport = PostReportQueryTransitions.IsPostReport(receipt);
+
         Apply(after, decision);
         decision.Version++;
-        decision.DecidedByActor = actor;
+        decision.DecidedByActor = packedActor;
         decision.DecidedAtUtc = correctedAtUtc;
+        // FRD-03: the accepted Triage match is the classification's evidence,
+        // so a correction to or from Triage request writes or removes it and
+        // the receipt moves on a version, as any change to it does.
+        if (MailTriageMatch.Reconcile(EfIntakeReceiptStore.DeserializeEvidence(receipt.EvidenceJson), after) is { } evidence)
+        {
+            receipt.EvidenceJson = EfIntakeReceiptStore.SerializeEvidence(evidence);
+            receipt.Version++;
+        }
+        var afterJson = SerializeSnapshot(after);
         context.IntakeMailClassificationHistory.Add(new()
         {
             Id = Guid.NewGuid(),
@@ -652,21 +684,72 @@ internal sealed class EfRetainedMailboxMessageStore(
             ClassificationDecision = decision,
             Version = decision.Version,
             BeforeJson = SerializeSnapshot(before),
-            AfterJson = SerializeSnapshot(after),
-            Actor = actor,
+            AfterJson = afterJson,
+            Actor = packedActor,
             Reason = reason,
             CorrectedAtUtc = correctedAtUtc
         });
+
+        // FRD-13 "Completed and Query": a message corrected to Post-report joins
+        // the Case as a query would; one corrected away leaves it as an unlink
+        // would. The same rule and the same lock as the link paths.
+        var queryEntry = PostReportQueryEntry.None;
+        var queryWithdrawn = false;
+        if (workflow is not null)
+        {
+            var isPostReport = PostReportQueryTransitions.IsPostReport(receipt);
+            var beforeCaseVersion = workflow.Version;
+            var operationKey = $"mail-correction:{receipt.Id:N}:v{decision.Version}";
+            var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(afterJson)));
+            if (isPostReport && !wasPostReport)
+            {
+                var beforeStateJson = PostReportQueryTransitions.SnapshotState(workflow);
+                var entry = await PostReportQueryTransitions.EnterAsync(
+                    context, receipt, workflow, correctedAtUtc, cancellationToken);
+                queryEntry = entry.Kind;
+                if (entry.Kind != PostReportQueryEntry.None)
+                {
+                    CaseMutationGuard.Complete(workflow);
+                    if (entry.Kind == PostReportQueryEntry.EnterQuery)
+                    {
+                        PostReportQueryTransitions.AddQueryHistory(
+                            context, workflow, beforeCaseVersion, PostReportQueryTransitions.QueryReceivedEvent,
+                            actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
+                    }
+                    else
+                    {
+                        PostReportQueryTransitions.AddObservedReplyHistory(
+                            context, workflow, beforeCaseVersion, entry.ObservedReply!, entry.BeforeReplyJson!);
+                    }
+                }
+            }
+            else if (wasPostReport && !isPostReport)
+            {
+                var beforeStateJson = await PostReportQueryTransitions.WithdrawAsync(
+                    context, receipt, workflow, correctedAtUtc, cancellationToken);
+                if (beforeStateJson is not null)
+                {
+                    queryWithdrawn = true;
+                    CaseMutationGuard.Complete(workflow);
+                    PostReportQueryTransitions.AddQueryHistory(
+                        context, workflow, beforeCaseVersion, PostReportQueryTransitions.QueryWithdrawnEvent,
+                        actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
+                }
+            }
+        }
+
         try
         {
             await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new MailClassificationConcurrencyException();
         }
 
-        return (await LoadClassificationAsync(context, messageId, cancellationToken))!;
+        var dossier = (await LoadClassificationAsync(context, messageId, cancellationToken))!;
+        return new(dossier, linkedCase?.CaseId, queryEntry, queryWithdrawn);
     }
 
     private static async Task<MailClassificationDossier?> LoadClassificationAsync(

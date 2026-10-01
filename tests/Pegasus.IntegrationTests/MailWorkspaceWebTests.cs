@@ -2138,7 +2138,7 @@ public sealed class MailWorkspaceWebTests
         using var factory = new IntakeWebApplicationFactory();
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
         await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
-        using var client = IntakeWebDriver.CreateClient(factory);
+        using var client = CreateClient(factory);
         var route = $"/Inbox/{ids[0]:D}?handler=CorrectClassification";
 
         var page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
@@ -2182,6 +2182,13 @@ public sealed class MailWorkspaceWebTests
         var decision = await context.IntakeMailClassificationDecisions.SingleAsync();
         Assert.Equal(2, decision.Version);
         Assert.Equal(CaseTypeCodes.ToCode(CaseType.InspectionAndAudit), decision.CaseType);
+
+        // The corrected classification offers its one next action, Create case,
+        // against the message's receipt; nothing ran on its own.
+        var offered = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+        Assert.Contains("data-offered-action=\"CreateCase\"", offered, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/Create?receiptId={decision.IntakeReceiptId:D}\"", offered, StringComparison.Ordinal);
+        Assert.Contains("New instruction · Inspection", offered, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -3095,12 +3102,12 @@ public sealed class MailWorkspaceWebTests
             Guid messageId, CancellationToken cancellationToken) =>
             Task.FromResult<MailClassificationDossier?>(null);
 
-        public Task<MailClassificationDossier> AppendCorrectionAsync(
+        public Task<MailClassificationCorrectionResult> AppendCorrectionAsync(
             Guid messageId,
             int expectedVersion,
             MailClassificationResult before,
             MailClassificationResult after,
-            string actor,
+            ActionActor actor,
             string reason,
             DateTimeOffset correctedAtUtc,
             CancellationToken cancellationToken)

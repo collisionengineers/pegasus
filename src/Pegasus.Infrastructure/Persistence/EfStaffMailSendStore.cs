@@ -465,12 +465,8 @@ internal sealed class EfStaffMailSendStore(
         }
 
         var queryReceiptIds = await db.IntakeReceipts.AsNoTracking()
-            .Where(item => item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
-                && item.ExternalReceiptToken == retained.ExternalReceiptToken
-                && item.MailClassificationDecision != null
-                && item.MailClassificationDecision.Outcome == "classified"
-                && item.MailClassificationDecision.Direction == "received"
-                && item.MailClassificationDecision.Family == "post-report-emails")
+            .Where(PostReportQueryTransitions.IsPostReportReceipt)
+            .Where(item => item.ExternalReceiptToken == retained.ExternalReceiptToken)
             .Select(item => item.Id)
             .ToArrayAsync(cancellationToken);
         if (queryReceiptIds.Length != 1)

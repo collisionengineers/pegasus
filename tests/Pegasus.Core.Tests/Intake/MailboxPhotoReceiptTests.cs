@@ -37,6 +37,35 @@ public sealed class MailboxPhotoReceiptTests
     }
 
     [Fact]
+    public void AMessageStaffClassifiedAsImagesReceivedIsRegisteredByStaffNotByAutomation()
+    {
+        var photos = Receipt([Asset("vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment)]);
+        var imagesReceived = photos with
+        {
+            MailClassificationDecision = MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, MailCategory.ImagesReceivedSubtype),
+                [], "Corrected by staff.", "shared-mail-policy", 1)
+        };
+        var caseUpdate = photos with
+        {
+            MailClassificationDecision = MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.InProgressCases, "case-update"),
+                [], "Corrected by staff.", "shared-mail-policy", 1)
+        };
+
+        // Unclassified image material: both routes, as before.
+        Assert.True(ImageIntakeLifecycleRules.IsImageAutomationEligible(photos));
+        Assert.True(ImageIntakeLifecycleRules.IsImageRegistrationEligible(photos));
+        // Images received: staff may register; automation stays out (decision 1).
+        Assert.False(ImageIntakeLifecycleRules.IsImageAutomationEligible(imagesReceived));
+        Assert.True(ImageIntakeLifecycleRules.IsImageRegistrationEligible(imagesReceived));
+        // Any other detailed classification: neither.
+        Assert.False(ImageIntakeLifecycleRules.IsImageRegistrationEligible(caseUpdate));
+        // A Case already holding the material ends the offer.
+        Assert.False(ImageIntakeLifecycleRules.IsImageRegistrationEligible(imagesReceived with { AcceptedCaseId = Guid.NewGuid() }));
+    }
+
+    [Fact]
     public void InstructionBearingMailboxReceiptDoesNotBecomeImageIntake()
     {
         var receipt = Receipt([Asset("vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment)]) with

@@ -1,4 +1,7 @@
 using Pegasus.Core.Actors;
+using Pegasus.Core.AiWork;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -798,6 +801,56 @@ public sealed class RetainedMailTests
         Assert.Equal(0, store.AppendCount);
     }
 
+    [Theory]
+    [InlineData(PostReportQueryEntry.EnterQuery, 1)]
+    [InlineData(PostReportQueryEntry.None, 0)]
+    [InlineData(PostReportQueryEntry.CompleteWithObservedReply, 0)]
+    public async Task ACorrectionThatEntersQueryTellsTheCaseEngineer(PostReportQueryEntry entry, int arrivals)
+    {
+        var caseId = Guid.NewGuid();
+        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
+        var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []))
+        {
+            LinkedCaseId = caseId,
+            QueryEntry = entry
+        };
+        var notifier = new RecordingCaseNotifier();
+
+        await new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc), notifier).ExecuteAsync(
+            Caseworker(),
+            new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"), "A query."));
+
+        Assert.Equal(arrivals, notifier.Raised.Count);
+        Assert.All(notifier.Raised, raised => Assert.Equal((StaffNotificationCause.QueryReceived, caseId), raised));
+    }
+
+    [Fact]
+    public async Task ACorrectionToACancellationOnALinkedCaseTellsTheCaseEngineerOnce()
+    {
+        var caseId = Guid.NewGuid();
+        var original = MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.InProgressCases, "case-update"), [], "Read.", "policy", 1);
+        var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []))
+        {
+            LinkedCaseId = caseId
+        };
+        var notifier = new RecordingCaseNotifier();
+        var sut = new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc), notifier);
+
+        await sut.ExecuteAsync(
+            Caseworker(),
+            new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype), "The Principal cancelled."));
+        // Correcting a cancellation to a cancellation subtype again raises nothing new.
+        var cancelled = MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype), [], "Read.", "policy", 1);
+        var secondStore = new ClassificationStore(new(2, cancelled, "staff:x", NowUtc, [])) { LinkedCaseId = caseId };
+        await new CorrectRetainedMailClassification(secondStore, new FixedTimeProvider(NowUtc), notifier).ExecuteAsync(
+            Caseworker(),
+            new(Guid.NewGuid(), 2, MailCategory.Received(ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype, isReplyContext: true), "Same thing."));
+
+        Assert.Equal([(StaffNotificationCause.CancellationReceived, caseId)], notifier.Raised);
+    }
+
     [Fact]
     public void ClassificationFactoriesRejectUndefinedFamiliesAndOversizedOtherValues()
     {
@@ -1097,28 +1150,73 @@ public sealed class RetainedMailTests
     {
         internal int AppendCount { get; private set; }
 
+        internal Guid? LinkedCaseId { get; init; }
+
+        internal PostReportQueryEntry QueryEntry { get; init; }
+
         public Task<MailClassificationDossier?> GetClassificationAsync(
             Guid messageId,
             CancellationToken cancellationToken) => Task.FromResult<MailClassificationDossier?>(dossier);
 
-        public Task<MailClassificationDossier> AppendCorrectionAsync(
+        public Task<MailClassificationCorrectionResult> AppendCorrectionAsync(
             Guid messageId,
             int expectedVersion,
             MailClassificationResult before,
             MailClassificationResult after,
-            string actor,
+            ActionActor actor,
             string reason,
             DateTimeOffset correctedAtUtc,
             CancellationToken cancellationToken)
         {
             AppendCount++;
-            return Task.FromResult(new MailClassificationDossier(
-                expectedVersion + 1,
-                after,
-                actor,
-                correctedAtUtc,
-                [.. dossier.History, new(expectedVersion + 1, before, after, actor, reason, correctedAtUtc)]));
+            var packed = MailClassificationActor.Format(actor);
+            return Task.FromResult(new MailClassificationCorrectionResult(
+                new MailClassificationDossier(
+                    expectedVersion + 1,
+                    after,
+                    packed,
+                    correctedAtUtc,
+                    [.. dossier.History, new(expectedVersion + 1, before, after, packed, reason, correctedAtUtc)]),
+                LinkedCaseId,
+                QueryEntry,
+                false));
         }
+    }
+
+    private sealed class RecordingCaseNotifier : ICaseStaffNotifier
+    {
+        internal List<(StaffNotificationCause Cause, Guid CaseId)> Raised { get; } = [];
+
+        public Task<StaffNotification?> NotifyAsync(
+            StaffNotificationCause cause,
+            Guid caseId,
+            ActionActor? actor,
+            string? section,
+            string? registration,
+            CancellationToken cancellationToken)
+        {
+            Raised.Add((cause, caseId));
+            return Task.FromResult<StaffNotification?>(null);
+        }
+
+        public Task<StaffNotification?> NotifyMailArrivalAsync(
+            Guid caseId,
+            Guid intakeReceiptId,
+            ActionActor? actor,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A correction raises its cause itself.");
+
+        public Task<StaffNotification?> NotifyCancellationReceivedAsync(
+            Guid caseId,
+            ActionActor? actor,
+            CancellationToken cancellationToken)
+        {
+            Raised.Add((StaffNotificationCause.CancellationReceived, caseId));
+            return Task.FromResult<StaffNotification?>(null);
+        }
+
+        public Task<StaffNotification?> NotifyAiDraftReadyAsync(AiJobRecord job, CancellationToken cancellationToken) =>
+            Task.FromResult<StaffNotification?>(null);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

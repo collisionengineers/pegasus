@@ -612,10 +612,13 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         var context = new GetUnidentifiedItemContext(
             harness.Store,
             harness.Receipts,
-            new UnusedVrmSuggestions(),
             harness.ImageIntakes,
             harness.Triages,
-            new FixedPrincipalGate(established ? Guid.NewGuid() : null));
+            new GetIntakeOfferedActions(
+                harness.ImageIntakes,
+                harness.Triages,
+                new FixedPrincipalGate(established ? Guid.NewGuid() : null),
+                new UnusedVrmSuggestions()));
 
         var result = await context.ExecuteAsync(
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),

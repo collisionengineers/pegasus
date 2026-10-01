@@ -1,6 +1,8 @@
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Notifications;
 
 namespace Pegasus.Core.Intake;
 
@@ -243,18 +245,33 @@ public static class RetainedMailDirection
         folder == MailFolderScope.Sent ? MailDirection.Sent : MailDirection.Received;
 }
 
+/// <summary>
+/// What one correction did: the dossier it produced, the Case the message is
+/// currently linked to (null when none, or a Triage Case), and whether the
+/// correction moved that Case into Query or withdrew its query.
+/// </summary>
+public sealed record MailClassificationCorrectionResult(
+    MailClassificationDossier Dossier,
+    Guid? LinkedCaseId,
+    PostReportQueryEntry QueryEntry,
+    bool QueryWithdrawn);
+
 public interface IRetainedMailClassificationStore
 {
     Task<MailClassificationDossier?> GetClassificationAsync(
         Guid messageId,
         CancellationToken cancellationToken);
 
-    Task<MailClassificationDossier> AppendCorrectionAsync(
+    /// <summary>
+    /// Appends the correction and, in the same transaction, applies the Query
+    /// rule to the linked Case when the correction enters or leaves Post-report.
+    /// </summary>
+    Task<MailClassificationCorrectionResult> AppendCorrectionAsync(
         Guid messageId,
         int expectedVersion,
         MailClassificationResult before,
         MailClassificationResult after,
-        string actor,
+        ActionActor actor,
         string reason,
         DateTimeOffset correctedAtUtc,
         CancellationToken cancellationToken);
@@ -334,7 +351,8 @@ public static class MailClassificationActor
 /// </summary>
 public sealed class CorrectRetainedMailClassification(
     IRetainedMailClassificationStore store,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ICaseStaffNotifier? notifier = null)
 {
     private readonly IRetainedMailClassificationStore store =
         store ?? throw new ArgumentNullException(nameof(store));
@@ -391,15 +409,42 @@ public sealed class CorrectRetainedMailClassification(
             current.Current.PolicyVersion,
             caseType,
             sameCategory ? current.Current.StandaloneAuditReport : null);
-        return await store.AppendCorrectionAsync(
+        var result = await store.AppendCorrectionAsync(
             request.MessageId,
             request.ExpectedVersion,
             current.Current,
             after,
-            MailClassificationActor.Format(actor),
+            actor,
             reason,
             timeProvider.GetUtcNow(),
             cancellationToken);
+        await NotifyAsync(result, current.Current, after, actor, cancellationToken);
+        return result.Dossier;
+    }
+
+    // Raised after the correction committed (FRD-12): the Case's engineer
+    // learns a query entered their Case, or that a message on it is now a
+    // cancellation, as they would had it been linked that way.
+    private async Task NotifyAsync(
+        MailClassificationCorrectionResult result,
+        MailClassificationResult before,
+        MailClassificationResult after,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        if (notifier is null || result.LinkedCaseId is not { } caseId)
+        {
+            return;
+        }
+        if (result.QueryEntry == PostReportQueryEntry.EnterQuery)
+        {
+            await notifier.NotifyAsync(
+                StaffNotificationCause.QueryReceived, caseId, actor, "correspondence", null, cancellationToken);
+        }
+        if (after.Category is { IsCancellation: true } && before.Category is not { IsCancellation: true })
+        {
+            await notifier.NotifyCancellationReceivedAsync(caseId, actor, cancellationToken);
+        }
     }
 
     // A New instruction names the work it instructs; nothing else carries one.

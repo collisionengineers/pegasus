@@ -92,6 +92,9 @@ When a newer fact has made the current generation stale, the Next action
 carries the dismissable warning "A newer fact changed after this generation.
 Generate again before delivery." There is no page-wide stale bar and no
 second stale notice in Report (operator, 28 September 2026).
+While a linked message is currently classified a cancellation and the Case
+is open, the Next action also carries **Cancellation received** with **Open
+message** ([FRD-13](frd-13-case-lifecycle-and-workflow.md#cancellation-messages)).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Delivery is the Next action only once the report is

@@ -683,6 +683,7 @@ builder.Services.AddSingleton<Pegasus.Web.Background.ProviderWorkQueue>();
 builder.Services.AddHostedService<Pegasus.Web.Background.ProviderWorkService>();
 builder.Services.AddScoped<Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork>();
 builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
+builder.Services.AddScoped<Pegasus.Web.Intake.StaffIntakeActions>();
 if (developmentOfflineProfile)
 {
     builder.Services.AddScoped<Pegasus.Core.Operations.IStaffMailSend, UnavailableStaffMailSend>();
