@@ -3,6 +3,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.PrincipalApi;
 
