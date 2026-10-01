@@ -32,6 +32,9 @@ internal sealed class DocumentVersionEntity
     public bool IsLogicallyRemoved { get; set; }
     public string? RemovalReason { get; set; }
     public string? RemovalOperationKey { get; set; }
+
+    /// <summary>Whether the Worker read this version as an estimate; null until it has.</summary>
+    public bool? IsRecognisedEstimate { get; set; }
 }
 
 internal sealed class DocumentOccurrenceEntity

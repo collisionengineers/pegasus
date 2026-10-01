@@ -79,6 +79,11 @@ public sealed class WorkerCompositionTests
             Assert.Equal(
                 "Pegasus.Infrastructure.Custody.EfDocumentThumbnailCandidates",
                 provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>().GetType().FullName);
+            // The sweep reads each filed version once for whether it is an estimate.
+            Assert.NotNull(scopedServices.GetRequiredService<Pegasus.Core.Assessment.RecogniseFiledEstimates>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Custody.EfEstimateRecognitionCandidates",
+                provider.GetRequiredService<Pegasus.Core.Assessment.IEstimateRecognitionCandidates>().GetType().FullName);
 
             WorkerFunctionSet.AssertEveryFunctionActivates(scopedServices);
         }

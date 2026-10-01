@@ -900,7 +900,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         var store = new RecordingStores(caseId);
         var card = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 3);
         store.RateCards.Add(card);
-        var emailed = store.SeedCaseFile("Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build());
+        var emailed = store.SeedCaseFile(
+            "Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build(), recognisedEstimate: true);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory, StaffRole.User);
@@ -942,10 +943,11 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// Only a confirmed file Pegasus did not generate, that one estimate
-    /// format recognises, imports from Case Files. A generated report, an
-    /// unrecognised file and an occurrence the Case does not hold are each
-    /// refused before any authority is taken or anything is stored.
+    /// Only a confirmed file Pegasus did not generate, that the Worker read
+    /// as an estimate, imports from Case Files. A generated report, an
+    /// unrecognised file, a PDF read as no estimate — an instruction letter —
+    /// and an occurrence the Case does not hold are each refused before any
+    /// authority is taken or anything is stored.
     /// </summary>
     [Fact]
     public async Task AFileThatIsNotAnImportableEstimateIsRefusedAndStoresNothing()
@@ -958,6 +960,9 @@ public sealed partial class AssessmentEstimateImportWebTests
             DocumentSource.Generated, DocumentSemanticRole.EngineerReport);
         var text = store.SeedCaseFile(
             "repair notes.txt", "text/plain", "Front bumper and wing."u8.ToArray(), DocumentSource.StaffUpload);
+        var letter = store.SeedCaseFile(
+            "37765_1_LtrtoEngineerIn.pdf", "application/pdf", "%PDF-1.4 instruction letter"u8.ToArray(),
+            role: DocumentSemanticRole.Instruction, recognisedEstimate: false);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
@@ -965,11 +970,13 @@ public sealed partial class AssessmentEstimateImportWebTests
         var html = await EnterEditModeAsync(client, caseId, "?section=files");
         Assert.Null(CaseFileImportForm(html, generated.Occurrence.Id));
         Assert.Null(CaseFileImportForm(html, text.Occurrence.Id));
+        Assert.Null(CaseFileImportForm(html, letter.Occurrence.Id));
 
         foreach (var (occurrenceId, versionId) in new[]
         {
             (generated.Occurrence.Id, generated.Version.Id),
             (text.Occurrence.Id, text.Version.Id),
+            (letter.Occurrence.Id, letter.Version.Id),
             (Guid.NewGuid(), Guid.NewGuid()),
         })
         {
@@ -1003,16 +1010,24 @@ public sealed partial class AssessmentEstimateImportWebTests
 
     /// <summary>
     /// The Files Documents row offers Import as repair spec only for a
-    /// confirmed file one estimate format recognises, and only while the
-    /// staff member is editing: never for a generated report, an unrecognised
-    /// file, a file still being stored or an image, and never in read mode.
+    /// confirmed file the Worker read as an estimate, and only while the
+    /// staff member is editing: never for a PDF read as no estimate (an
+    /// instruction letter), a PDF not yet read, a generated report, an
+    /// unrecognised file, a file still being stored or an image, and never in
+    /// read mode. A PDF's name says nothing about whether it is an estimate.
     /// </summary>
     [Fact]
     public async Task OnlyARecognisedConfirmedFileOffersImportAndOnlyWhileEditing()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        var importable = store.SeedCaseFile("Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build());
+        var importable = store.SeedCaseFile(
+            "Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build(), recognisedEstimate: true);
+        var letter = store.SeedCaseFile(
+            "37765_1_LtrtoEngineerIn.pdf", "application/pdf", "%PDF-1.4 instruction letter"u8.ToArray(),
+            role: DocumentSemanticRole.Instruction, recognisedEstimate: false);
+        var unread = store.SeedCaseFile(
+            "Second Audatex report.pdf", "application/pdf", "%PDF-1.4 not yet read"u8.ToArray());
         var generated = store.SeedCaseFile(
             "QDOS-2026-00042 report.pdf", "application/pdf", "%PDF-1.4 generated report"u8.ToArray(),
             DocumentSource.Generated, DocumentSemanticRole.EngineerReport);
@@ -1033,7 +1048,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.DoesNotContain(CaseWorkspaceLabels.Files.ImportEstimate, readHtml, StringComparison.Ordinal);
 
         var html = await EnterEditModeAsync(client, caseId, "?section=files");
-        foreach (var listed in new[] { importable, generated, text, storing })
+        foreach (var listed in new[] { importable, letter, unread, generated, text, storing })
         {
             Assert.Contains($"data-document-row=\"{listed.Occurrence.Id:D}\"", html, StringComparison.Ordinal);
         }
@@ -1041,7 +1056,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Contains($"value=\"{importable.Occurrence.Id:D}\"", form, StringComparison.Ordinal);
         Assert.Contains($"value=\"{importable.Version.Id:D}\"", form, StringComparison.Ordinal);
         Assert.Contains($"value=\"{RecordingStores.HeldLeaseToken}\"", form, StringComparison.Ordinal);
-        foreach (var refused in new[] { generated, text, storing, image })
+        foreach (var refused in new[] { letter, unread, generated, text, storing, image })
         {
             Assert.Null(CaseFileImportForm(html, refused.Occurrence.Id));
         }
@@ -1058,7 +1073,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var fixture = AudatexEstimateFixture.Build();
         var store = new RecordingStores(caseId);
-        var emailed = store.SeedCaseFile("Audatex report.pdf", "application/pdf", fixture);
+        var emailed = store.SeedCaseFile("Audatex report.pdf", "application/pdf", fixture, recognisedEstimate: true);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
@@ -2218,6 +2233,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         /// A file the Case already held before the test began — an email
         /// attachment, a generated report — as the Case read returns it, with
         /// its bytes readable through the import. It moves no Case version.
+        /// <paramref name="recognisedEstimate"/> is the Worker's recorded
+        /// answer for it, null while the Worker has not read it.
         /// </summary>
         public CaseFile SeedCaseFile(
             string fileName,
@@ -2225,12 +2242,13 @@ public sealed partial class AssessmentEstimateImportWebTests
             byte[] content,
             DocumentSource source = DocumentSource.Intake,
             DocumentSemanticRole role = DocumentSemanticRole.Other,
-            DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed)
+            DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed,
+            bool? recognisedEstimate = null)
         {
             var version = new DocumentVersion(
                 Guid.NewGuid(), Guid.NewGuid(), 1, fileName, mediaType, content.Length,
                 Convert.ToHexStringLower(SHA256.HashData(content)), custody,
-                DateTimeOffset.UtcNow, "seeded", true, false, null);
+                DateTimeOffset.UtcNow, "seeded", true, false, null, recognisedEstimate);
             var occurrence = new DocumentOccurrence(
                 Guid.NewGuid(), caseId, version.DocumentId, version.Id, role, source,
                 $"seeded:{version.Id:N}", DateTimeOffset.UtcNow, [], RetainedDocuments.Count + 1);

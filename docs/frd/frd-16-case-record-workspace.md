@@ -527,11 +527,16 @@ non-image row also offers **Mark as original report** while editing: the
 route for a report Pegasus did not recognise when it was filed. That action
 assigns the Audit report role, clears the requirement and fills the
 [Original report](#original-report) cells from that document. While the
-Engineer sections are editable, a confirmed row that exactly one estimate
-format recognises — an Audatex that arrived by email, say — also offers
+Engineer sections are editable, a confirmed row Pegasus has read as an
+estimate — an Audatex that arrived by email, say — also offers
 **Import as repair spec** (operator, 25 September 2026). It imports that
 file through the same import as the Repair Spec section, with no second copy
-([Assessment](#assessment)).
+([Assessment](#assessment)). The Worker reads each filed version once, soon
+after filing, with that import's own parse, and records the answer on the
+version; a file's name never decides it, because every PDF names the PDF
+format. An instruction letter is therefore never offered the import, and a
+file not yet read is not offered it until it has been (operator, 1 October
+2026).
 
 **Images** is one grid of the Case's image documents. A vehicle-images
 record that is associated with the Case and not yet merged into it lists its
