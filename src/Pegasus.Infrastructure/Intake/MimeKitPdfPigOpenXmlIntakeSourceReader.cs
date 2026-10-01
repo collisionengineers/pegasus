@@ -21,7 +21,8 @@ namespace Pegasus.Infrastructure.Intake;
 public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider timeProvider) : IIntakeSourceReader
 {
     private const string ReaderKey = "mimekit_pdfpig_openxml";
-    private const string ReaderVersion = "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1;collisiondocnet-doc-msg-0.1";
+    private const string ReaderVersion =
+        "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1;collisiondocnet-doc-msg-0.1;" + ScanPageClassifier.Version;
     private const int MinimumReadablePdfCharacters = 80;
     private const double ScannedPageImageCoverage = 0.8;
     private const int MaximumPdfTextCharacters = 5 * 1024 * 1024;
@@ -207,7 +208,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                     $"{sourceLabel}, page {page.Number} has little embedded text and a dominant raster image, so that page requires text review.",
                     IntakeEvidenceSource.PdfContent));
             }
-            else if (page.HasInsufficientText)
+            else if (page.HasInsufficientText && !page.IsPhotographPage)
             {
                 result.Issues.Add(new(
                     "insufficient-embedded-text",
@@ -341,8 +342,19 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 image.BoundingBox, page.CropBox.GetVisibleBounds(page.Rotation)) >= ScannedPageImageCoverage);
             var hasInsufficientText = readableCharacters < MinimumReadablePdfCharacters;
 
+            // A full-page raster on a page with almost no text is either a
+            // scanned document page or a photograph that fills the page. The
+            // geometry cannot tell them apart; the raster's colour can. A
+            // document page keeps no image — its raster IS the page, and OCR
+            // reads it — while a photograph page is an ordinary image page.
+            ScanPageClassification? fullPageRaster = hasInsufficientText && hasDominantRaster
+                ? ClassifyFullPageRaster(page, images, sourceLabel, result)
+                : null;
+            var isDocumentPage = fullPageRaster?.Kind == ScanPageKind.Document;
+            IPdfImage[] pageImages = isDocumentPage ? [] : images;
+
             var imageNumber = 0;
-            foreach (var image in images)
+            foreach (var image in pageImages)
             {
                 limits.ThrowIfProcessingDeadlineExceeded();
                 cancellationToken.ThrowIfCancellationRequested();
@@ -393,11 +405,54 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 page.Number,
                 readableCharacters == 0 ? null : text,
                 hasInsufficientText,
-                hasInsufficientText && hasDominantRaster));
+                RequiresOcr: isDocumentPage,
+                IsPhotographPage: fullPageRaster?.Kind == ScanPageKind.Photograph));
             limits.ThrowIfProcessingDeadlineExceeded();
         }
 
         return new(pages, ExtractPdfFormFields(document, sourceLabel, result));
+    }
+
+    /// <summary>
+    /// Reads the dominant raster of a full-page-raster page and says what the
+    /// page is. A raster that cannot be read is a document page: it goes to
+    /// OCR and never to a gallery. The verdict and its measurement are issues
+    /// on the receipt, so a wrong call is visible rather than silent.
+    /// </summary>
+    private static ScanPageClassification ClassifyFullPageRaster(
+        Page page,
+        IReadOnlyList<IPdfImage> images,
+        string sourceLabel,
+        ReadAccumulator result)
+    {
+        var visible = page.CropBox.GetVisibleBounds(page.Rotation);
+        var dominant = images.MaxBy(image => Coverage(image.BoundingBox, visible))!;
+        var classification = new ScanPageClassification(ScanPageKind.Document, null);
+        try
+        {
+            if (TryReadPdfImage(dominant, out var bytes, out _, out _))
+            {
+                classification = ScanPageClassifier.Classify(bytes.Span);
+            }
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            // An unreadable raster is a document page; the issue below says so.
+        }
+
+        var measured = classification.NearWhiteFraction is { } fraction
+            ? string.Create(CultureInfo.InvariantCulture, $"near-white {fraction:P0}")
+            : "raster not decodable, read as a document page";
+        result.Issues.Add(classification.Kind == ScanPageKind.Document
+            ? new(
+                "scan-page-document",
+                $"{sourceLabel}, page {page.Number} is a full-page raster read as a scanned document page ({measured}); it keeps no image and goes to OCR.",
+                IntakeEvidenceSource.PdfContent)
+            : new(
+                "scan-page-photograph",
+                $"{sourceLabel}, page {page.Number} is a full-page raster read as a photograph ({measured}); it is kept as an image and not sent to OCR.",
+                IntakeEvidenceSource.PdfContent));
+        return classification;
     }
 
     internal static double Coverage(PdfRectangle imageBounds, PdfRectangle visiblePage)
@@ -1399,11 +1454,14 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         int? Page,
         string? Region);
 
+    /// <param name="RequiresOcr">The page is a scanned document page: its text comes from OCR.</param>
+    /// <param name="IsPhotographPage">The page is a photograph that fills the page: an image page, not a text page.</param>
     private sealed record PdfPageResult(
         int Number,
         string? Text,
         bool HasInsufficientText,
-        bool RequiresOcr);
+        bool RequiresOcr,
+        bool IsPhotographPage);
 
     private sealed class PdfLimitState(TimeProvider timeProvider)
     {
