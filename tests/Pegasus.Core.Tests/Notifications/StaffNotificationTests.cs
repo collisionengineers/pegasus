@@ -80,7 +80,7 @@ public sealed class StaffNotificationTests
     {
         var store = new FakeStore();
         var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.Query, EngineerId));
-        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows);
+        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, new NoReceipts());
 
         var query = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), null, default);
         workflows.Current = Workflow(CaseLifecycleState.PostReport, EngineerId);
@@ -124,11 +124,30 @@ public sealed class StaffNotificationTests
     }
 
     [Fact]
+    public async Task ACancellationOnACaseAlreadyInQueryIsNamedAsACancellation()
+    {
+        var store = new FakeStore();
+        var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.Query, EngineerId));
+        var receiptId = Guid.NewGuid();
+        var receipts = new FakeReceipts(
+            receiptId,
+            MailCategory.Received(ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype));
+        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, receipts);
+
+        var cancellation = await notifier.NotifyMailArrivalAsync(
+            CaseId, receiptId, ActionActor.Staff(OtherId, [StaffRole.User]), default);
+
+        Assert.Equal(StaffNotificationCause.CancellationReceived, cancellation!.Cause);
+        Assert.Equal(EngineerId, cancellation.StaffId);
+        Assert.Equal($"/Cases/{CaseId:D}?section=correspondence", cancellation.Route);
+    }
+
+    [Fact]
     public async Task AnAiDraftOnACaseTellsTheEngineerAndAnUnidentifiedDraftTellsTheStarter()
     {
         var store = new FakeStore();
         var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.ReportPreparation, EngineerId));
-        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows);
+        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, new NoReceipts());
         var item = Guid.NewGuid();
 
         var estimate = await notifier.NotifyAiDraftReadyAsync(Job(AiJobKind.Estimate, CaseId) with { State = AiJobState.DraftReady }, default);
@@ -207,6 +226,12 @@ public sealed class StaffNotificationTests
                 new(IntakeSourceChannel.Mailbox, "token"), Now, Now, IntakeDecision.NeedsSorting, "Fixture.",
                 [], [], null, [], null, null, false, "reader", "1", null, null,
                 MailClassificationDecision: MailClassificationResult.Classified(category, [], "Fixture.", "policy", 1)));
+    }
+
+    private sealed class NoReceipts : IIntakeReceiptQueries
+    {
+        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<IntakeReceipt?>(null);
     }
 
     private sealed class FakeStore : IStaffNotificationStore
