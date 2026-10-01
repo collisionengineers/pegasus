@@ -41,6 +41,31 @@ public sealed class EfIntakeOcrOperationStore(
         return entity is null ? null : Map(entity);
     }
 
+    public async Task<IntakeOcrOperation?> FindCompletedBySourceAsync(
+        string sourceSha256,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(sourceSha256))
+        {
+            return null;
+        }
+
+        // Mail intake records the hash in capitals, custody in lower case, so
+        // both spellings are asked for; SQL Server's char comparison ignores the
+        // fixed-width column's padding.
+        var upper = sourceSha256.Trim().ToUpperInvariant();
+        var lower = sourceSha256.Trim().ToLowerInvariant();
+        var completed = nameof(IntakeOcrState.Completed);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<IntakeOcrOperationEntity>().AsNoTracking()
+            .Where(item => item.State == completed
+                && item.ResultJson != null
+                && (item.SourceSha256 == upper || item.SourceSha256 == lower))
+            .OrderBy(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
     /// <summary>
     /// Records the operation's identity before anything is sent anywhere.
     /// Idempotent on the operation key, under serializable isolation and behind

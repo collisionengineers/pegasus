@@ -442,50 +442,54 @@ internal sealed class EfDocumentCustodyStore(
         return result;
     }
 
-    async Task<IReadOnlyList<FiledOriginalReportCandidate>> IRecogniseOriginalReportStore.FindAwaitingCandidatesAsync(
+    async Task<FiledOriginalReportCandidates> IRecogniseOriginalReportStore.FindAwaitingCandidatesAsync(
         Guid caseId,
         Guid receiptId,
-        IReadOnlyCollection<Guid> intakeAssetIds,
+        IReadOnlyCollection<FiledOriginalReportLookup> assets,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(intakeAssetIds);
-        if (intakeAssetIds.Count == 0)
-        {
-            return [];
-        }
-
+        ArgumentNullException.ThrowIfNull(assets);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var workflow = await context.CaseWorkflows.AsNoTracking()
             .Include(value => value.Case)
             .SingleOrDefaultAsync(value => value.CaseId == caseId, cancellationToken);
         if (workflow is null || !await AwaitsRecognitionAsync(context, workflow, cancellationToken))
         {
-            return [];
+            return new(false, []);
         }
 
-        // The receipt's files are found by the operation key the filer gave
-        // each on this Case, so a file filed any other way is never read.
-        var assetsByKey = intakeAssetIds.Distinct().ToDictionary(
-            assetId => AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId),
-            StringComparer.Ordinal);
-        var operationKeys = assetsByKey.Keys.ToArray();
+        if (assets.Count == 0)
+        {
+            return new(true, []);
+        }
+
+        // The receipt's files are found on the Case by the hash of their bytes,
+        // so a file filed at acceptance, by a matched follow-up or by the fold
+        // is found the same way. Mail intake records a hash in capitals and
+        // custody in lower case, so the comparison ignores case.
+        var assetsByHash = assets
+            .GroupBy(asset => asset.Sha256.Trim().ToLowerInvariant(), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First().IntakeAssetId, StringComparer.Ordinal);
         var filed = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 join version in context.Set<DocumentVersionEntity>().AsNoTracking()
                     on occurrence.VersionId equals version.Id
                 where occurrence.CaseId == caseId
-                    && operationKeys.Contains(occurrence.OperationKey)
                     && occurrence.SemanticRole != DocumentSemanticRole.Image
                     && version.IsCurrent
                     && !version.IsLogicallyRemoved
                     && version.CustodyStatus != DocumentCustodyStatus.Failed
                 orderby occurrence.Ordinal
-                select new { OccurrenceId = occurrence.Id, occurrence.OperationKey, VersionId = version.Id })
+                select new { OccurrenceId = occurrence.Id, version.Sha256, VersionId = version.Id })
             .ToListAsync(cancellationToken);
-        return filed
-            .Select(item => new FiledOriginalReportCandidate(
-                assetsByKey[item.OperationKey], item.OccurrenceId, item.VersionId))
-            .ToArray();
+        return new(
+            true,
+            [
+                .. filed
+                    .Where(item => assetsByHash.ContainsKey(item.Sha256.Trim().ToLowerInvariant()))
+                    .Select(item => new FiledOriginalReportCandidate(
+                        assetsByHash[item.Sha256.Trim().ToLowerInvariant()], item.OccurrenceId, item.VersionId))
+            ]);
     }
 
     async Task<OriginalReportRecorded?> IRecogniseOriginalReportStore.RecordRecognisedAsync(
