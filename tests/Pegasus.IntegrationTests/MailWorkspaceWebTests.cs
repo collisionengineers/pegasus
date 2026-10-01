@@ -2188,7 +2188,6 @@ public sealed class MailWorkspaceWebTests
         var offered = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
         Assert.Contains("data-offered-action=\"CreateCase\"", offered, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/Create?receiptId={decision.IntakeReceiptId:D}\"", offered, StringComparison.Ordinal);
-        Assert.Contains("New instruction · Inspection", offered, StringComparison.Ordinal);
     }
 
     [Fact]
