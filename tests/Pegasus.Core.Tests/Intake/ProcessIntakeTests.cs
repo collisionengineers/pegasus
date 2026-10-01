@@ -3,6 +3,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.PrincipalApi;
 
@@ -1801,6 +1802,104 @@ public sealed class ProcessIntakeTests
         }
     }
 
+    [Fact]
+    public async Task AReportAttachmentIsRecordedUnderItsOwnAssetKeyAndTheMailIsNotReadAsAReport()
+    {
+        // One mail: a body, and a Connexus report as its attachment.
+        var report = new byte[] { 0x25, 0x50, 0x44, 0x46 };
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.EmailBody, "uploaded mail.eml, message body", "Please find the report attached."),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "uploaded mail.eml, attachment 1: connexus.pdf, page 1",
+                    """
+                    Mr D Roberton                                        Date:  09/03/2026
+                    29 Waterton Avenue
+                    Gravesend                                            Our Ref:  00077570/PK
+                    DA12 2PY                                             Your Ref: EHR97818
+
+                                   Engineer Repairable Report - Amended Report
+
+                    Dear Sirs,
+
+                       Reg No: LD71JHJ      Registered: Sep 2021    Type: 5 Door Hatchback
+
+                         Vehicle Value: £9,267.00      Repair Cost: £6,143.90 inc VAT     Roadworthy: No
+
+                    Phil Kendrick AQP CAE AMIMI
+                    Connexus Vehicle Assessors
+                    """,
+                    IntakeSourceLocator.ForPage(1))
+            ],
+            [],
+            [],
+            RequiresOcr: false,
+            Assets:
+            [
+                new(
+                    "uploaded mail.eml, attachment 1: connexus.pdf",
+                    "connexus.pdf",
+                    "application/pdf",
+                    report,
+                    IntakeAssetKind.Attachment,
+                    IntakeAssetDisposition.Attachment)
+            ],
+            ReaderKey: "mimekit_pdfpig_openxml",
+            ReaderVersion: "r");
+        var store = new RecordingStore();
+        var analyses = new RecordingAnalysisStore();
+        var sut = CreateSut(
+            new StubReader(read),
+            store,
+            recordThirdPartyReportReading: new RecordThirdPartyReportReading(analyses, new FixedTimeProvider(ProcessedAtUtc)));
+        var source = CreateSource() with { FileName = "mail.eml", MediaType = "message/rfc822" };
+
+        var receipt = await sut.ExecuteRetainedAsync(source, "retained/mail.eml");
+
+        var attachment = Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.Attachment);
+        var mail = Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.Source);
+        // The report is read as its own document and recorded against its own asset.
+        var recorded = Assert.Single(analyses.Records);
+        Assert.Equal(RecordThirdPartyReportReading.OperationKey(attachment), recorded.OperationKey);
+        Assert.Equal($"third-party-report:{attachment.Id}", recorded.OperationKey);
+        Assert.Equal(attachment.Id, recorded.IntakeAssetId);
+        Assert.Equal(receipt.Id, recorded.ReceiptId);
+        Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, recorded.Outcome);
+        Assert.Contains(
+            recorded.Candidates,
+            candidate => candidate.Field == ThirdPartyReportFields.Registration && candidate.NormalizedValue == "LD71JHJ");
+        // The mail itself is never a report, so nothing is recorded against it.
+        Assert.DoesNotContain(analyses.Records, analysis => analysis.IntakeAssetId == mail.Id);
+    }
+
+    private sealed class RecordingAnalysisStore : IRetainedInstructionAnalysisStore
+    {
+        public List<RetainedInstructionAnalysis> Records { get; } = [];
+
+        public Task<RetainedInstructionAnalysis?> FindByOperationKeyAsync(
+            string operationKey,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Records.FirstOrDefault(item =>
+                string.Equals(item.OperationKey, operationKey, StringComparison.Ordinal)));
+
+        public Task<(RetainedInstructionAnalysis Analysis, bool IsReplay)> RecordAsync(
+            RetainedInstructionAnalysis analysis,
+            CancellationToken cancellationToken = default)
+        {
+            var existing = Records.FirstOrDefault(item =>
+                string.Equals(item.OperationKey, analysis.OperationKey, StringComparison.Ordinal));
+            if (existing is not null)
+            {
+                return Task.FromResult((existing, true));
+            }
+
+            Records.Add(analysis);
+            return Task.FromResult((analysis, false));
+        }
+    }
+
     private static ProcessIntake CreateSut(
         IIntakeSourceReader reader,
         IIntakeReceiptStore store,
@@ -1813,7 +1912,8 @@ public sealed class ProcessIntakeTests
         IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
         IRegisterUnidentified? registerUnidentified = null,
         RetainIncomingArtifact? retainIncomingArtifact = null,
-        IPrincipalSubmissionBindings? principalSubmissionBindings = null) =>
+        IPrincipalSubmissionBindings? principalSubmissionBindings = null,
+        RecordThirdPartyReportReading? recordThirdPartyReportReading = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             new InstructionExtractionPolicySelector(
                 extractionPolicies ?? [extractionPolicy ?? new QdosInstructionExtractionPolicy()]),
@@ -1824,6 +1924,7 @@ public sealed class ProcessIntakeTests
             automaticStandaloneAuditEvidence,
             registerUnidentified,
             principalSubmissionBindings,
+            recordThirdPartyReportReading,
             retainIncomingArtifact: retainIncomingArtifact);
 
     private sealed class NoCaseMatchCandidates : ICaseMatchCandidateQueries
