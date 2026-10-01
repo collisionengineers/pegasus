@@ -1058,6 +1058,15 @@ public sealed class AnalyzeRetainedInstructionTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IntakeOcrOperation?>(Operations.Values.SingleOrDefault(item => item.Id == operationId));
 
+        public Task<IntakeOcrOperation?> FindCompletedBySourceAsync(
+            string sourceSha256,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Operations.Values
+                .Where(item => item.State == IntakeOcrState.Completed && item.Result is not null
+                    && string.Equals(item.SourceSha256, sourceSha256, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(item => item.Id)
+                .FirstOrDefault());
+
         public Task<IntakeOcrOperation?> ResumeRequestedRetryAsync(
             Guid operationId,
             long expectedVersion,

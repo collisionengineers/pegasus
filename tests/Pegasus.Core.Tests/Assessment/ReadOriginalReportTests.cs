@@ -141,6 +141,38 @@ public sealed class ReadOriginalReportTests
     }
 
     [Fact]
+    public async Task AScannedReportIsReadFromItsCompletedOcrByTheBytesHash()
+    {
+        var harness = new Harness(scannedPages: [1]);
+        harness.Ocr.Completed(Hash, [1], Report);
+
+        var atAcceptance = await harness.Sut.ForIntakeAsync(harness.ReceiptId, harness.EvidenceId, default);
+        var recognition = await harness.Sut.RecogniseFiledAssetAsync(harness.ReceiptId, harness.Asset, default);
+        var marked = await harness.Sut.ForDocumentAsync(Staff, harness.CaseId, harness.OccurrenceId, harness.VersionId, default);
+
+        Assert.Equal("Connexus Vehicle Assessors", atAcceptance!.Assessor);
+        Assert.Equal("2026-03-09", atAcceptance.ReportDate);
+        Assert.Equal(OriginalReportRecognitionOutcome.Recognised, recognition.Outcome);
+        Assert.Equal("Connexus Vehicle Assessors", marked!.Assessor);
+        // Every path asked for the OCR by the file's own hash, never by an intake asset.
+        Assert.All(harness.Ocr.LookedUp, looked => Assert.Equal(Hash, looked));
+        Assert.Equal(3, harness.Ocr.LookedUp.Count);
+    }
+
+    [Fact]
+    public async Task AScannedReportWithNoCompletedOcrYieldsNoReadingAndStaysUnavailableToRecognition()
+    {
+        var harness = new Harness(scannedPages: [1, 2]);
+
+        Assert.Null(await harness.Sut.ForIntakeAsync(harness.ReceiptId, harness.EvidenceId, default));
+        Assert.Null(await harness.Sut.ForDocumentAsync(Staff, harness.CaseId, harness.OccurrenceId, harness.VersionId, default));
+        // Not "not a report": a scan whose text has not arrived may still be one.
+        Assert.Equal(
+            OriginalReportRecognitionOutcome.Unavailable,
+            (await harness.Sut.RecogniseFiledAssetAsync(harness.ReceiptId, harness.Asset, default)).Outcome);
+    }
+
+    [Fact]
     public async Task AFiledFileTheReaderCannotOpenIsNotRecognised()
     {
         var harness = new Harness(readerFailure: new IOException("The PDF could not be opened."));
@@ -156,10 +188,11 @@ public sealed class ReadOriginalReportTests
             byte[]? storedBytes = null,
             Exception? readerFailure = null,
             string? text = null,
-            string storageKey = "report-key")
+            string storageKey = "report-key",
+            int[]? scannedPages = null)
         {
             var assetId = Guid.NewGuid();
-            Reader = new(readerFailure, text ?? Report);
+            Reader = new(readerFailure, text ?? Report, scannedPages);
             Documents = new(Bytes);
             Asset = new(
                 assetId, "attachment 2: report.pdf", "report.pdf", "application/pdf",
@@ -172,6 +205,7 @@ public sealed class ReadOriginalReportTests
                 new ArtifactStore(storageKey, storedBytes ?? Bytes),
                 new Metadata(CaseId, OccurrenceId, VersionId),
                 Documents,
+                Ocr,
                 TimeProvider.System);
         }
 
@@ -183,10 +217,11 @@ public sealed class ReadOriginalReportTests
         public Guid VersionId { get; } = Guid.NewGuid();
         public SourceReader Reader { get; }
         public DocumentReader Documents { get; }
+        public OcrStore Ocr { get; } = new();
         public ReadOriginalReport Sut { get; }
     }
 
-    private sealed class SourceReader(Exception? failure, string text) : IIntakeSourceReader
+    private sealed class SourceReader(Exception? failure, string text, int[]? scannedPages) : IIntakeSourceReader
     {
         public List<IntakeSource> Sources { get; } = [];
 
@@ -198,6 +233,18 @@ public sealed class ReadOriginalReportTests
                 throw failure;
             }
 
+            if (scannedPages is { Length: > 0 })
+            {
+                // A scan: no text of its own, only the pages that need OCR.
+                return Task.FromResult(new IntakeSourceReadResult(
+                    IntakeSourceReadStatus.Readable,
+                    [],
+                    [],
+                    [],
+                    RequiresOcr: true,
+                    OcrCandidates: [.. scannedPages.Select(page => new ScannedPdfOcrCandidate($"uploaded {source.FileName}", page))]));
+            }
+
             return Task.FromResult(new IntakeSourceReadResult(
                 IntakeSourceReadStatus.Readable,
                 [new(IntakeEvidenceSource.PdfContent, $"{source.FileName}, page 1", text)],
@@ -205,6 +252,41 @@ public sealed class ReadOriginalReportTests
                 [],
                 RequiresOcr: false));
         }
+    }
+
+    /// <summary>Holds at most one completed OCR reading, found by the source hash.</summary>
+    private sealed class OcrStore : IIntakeOcrOperationStore
+    {
+        private IntakeOcrOperation? completed;
+
+        public List<string> LookedUp { get; } = [];
+
+        public void Completed(string sourceSha256, int[] pages, string text) =>
+            completed = new(
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), sourceSha256.ToUpperInvariant(), Bytes.Length, pages, "ocr-k",
+                IntakeOcrState.Completed, 1, "op-1", new string('e', 64),
+                Result: new IntakeOcrResult(
+                    IntakeOcrState.Completed, "azure-document-intelligence", "prebuilt-layout", "2024-11-30", "op-1", new string('e', 64),
+                    [.. pages.Select(page => new IntakeOcrPage(page, text, [], []))]),
+                AnalysisCompleted: true);
+
+        public Task<IntakeOcrOperation?> FindCompletedBySourceAsync(string sourceSha256, CancellationToken cancellationToken)
+        {
+            LookedUp.Add(sourceSha256);
+            return Task.FromResult(
+                completed is not null && string.Equals(completed.SourceSha256, sourceSha256, StringComparison.OrdinalIgnoreCase)
+                    ? completed
+                    : null);
+        }
+
+        public Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation?> ResumeRequestedRetryAsync(Guid operationId, long expectedVersion, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> BeginAsync(Guid operationId, IntakeOcrRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> RecordSubmitAttemptAsync(Guid operationId, long expectedVersion, DateTimeOffset attemptedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> RecordSubmittedAsync(Guid operationId, long expectedVersion, string providerOperationId, DateTimeOffset submittedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> CompleteAsync(Guid operationId, long expectedVersion, IntakeOcrResult result, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> CompleteAnalysisAsync(Guid operationId, long expectedVersion, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> RecordOutcomeAsync(Guid operationId, long expectedVersion, IntakeOcrState state, IntakeOcrFailure failure, DateTimeOffset? retryAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class EvidenceQueries(Guid receiptId, Guid evidenceId, Guid assetId)

@@ -333,6 +333,17 @@ public interface IIntakeOcrOperationStore
     Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The latest completed operation whose source has this SHA-256, with its
+    /// page output; null when no completed reading of those bytes exists. This
+    /// is how a reader of a filed document finds the OCR text intake already
+    /// paid for, by the bytes alone: the Case document carries the hash even
+    /// when it no longer names the intake asset.
+    /// </summary>
+    Task<IntakeOcrOperation?> FindCompletedBySourceAsync(
+        string sourceSha256,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// A person's Retry OCR, carried out by the Worker. Web only re-queues the
     /// paired work item (<see cref="RetryIntakeOcr"/>); Web never changes the
     /// operation. When the Worker then runs a Failed operation whose work item is
@@ -551,7 +562,8 @@ public sealed class ProcessIntakeOcr(
     IAnalyzeRetainedInstruction analyzeRetainedInstruction,
     RecordThirdPartyReportReading reportReading,
     IIntakeReceiptQueries receiptQueries,
-    TimeProvider timeProvider) : IProcessIntakeOcr
+    TimeProvider timeProvider,
+    RecogniseFiledOriginalReport? recogniseOriginalReport = null) : IProcessIntakeOcr
 {
     /// <summary>
     /// The automation identity this work runs as. The same one intake
@@ -986,6 +998,21 @@ public sealed class ProcessIntakeOcr(
                     or RetainedInstructionAnalysisOutcome.SourceUnavailable)
                 {
                     failure = new("ocr_analysis_incomplete", "The retained OCR result could not be applied to the current receipt.", Retryable: true);
+                }
+            }
+
+            // The Case already exists when OCR completes: it was created from the
+            // message. If it is an Audit still awaiting its original report, the
+            // OCR'd document is read for it through the same recognition that
+            // fills an Audit from a readable report. A document not yet filed on
+            // the Case is asked about again on the retry schedule, without any
+            // resubmission.
+            if (failure is null && recogniseOriginalReport is not null && receipt.CurrentCaseId is { } caseId)
+            {
+                var recognition = await recogniseOriginalReport.ExecuteAsync(caseId, receipt, cancellationToken);
+                if (recognition == OriginalReportRecognitionResult.AwaitingFiling)
+                {
+                    failure = new("ocr_recognition_deferred", "The OCR'd document is not yet filed on its Case; recognition runs again.", Retryable: true);
                 }
             }
         }
