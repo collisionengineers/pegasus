@@ -65,6 +65,42 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.DoesNotContain("document.hidden", beat, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Choosing a repair spec keeps the page where it is (operator, 1 October 2026).
+    /// A spec tab, New repair spec and Compare's From and To redraw only the Repair
+    /// Spec section and the dialogs drawn after it, never navigating to the page top
+    /// and jumping back, and the address keeps the chosen spec for a reload.
+    /// </summary>
+    [Fact]
+    public void ChoosingARepairSpecRedrawsOnlyTheRepairSpecPart()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        Assert.Contains(
+            "if (link.matches('[data-estimate-tab], [data-estimate-new]')) {",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "showEstimate(link.href)",
+            script,
+            StringComparison.Ordinal);
+        var compare = script.IndexOf("if (form.hasAttribute('data-estimate-compare-form')) {", StringComparison.Ordinal);
+        Assert.True(compare >= 0, "Compare's form does not redraw the Repair Spec part.");
+        Assert.Contains(
+            "return showEstimate(action)",
+            script.Substring(compare, 200),
+            StringComparison.Ordinal);
+
+        var start = script.IndexOf("function showEstimate(href) {", StringComparison.Ordinal);
+        Assert.True(start >= 0, "function showEstimate(href) is missing from case-workspace.js.");
+        var show = script[start..script.IndexOf("\n    }", start, StringComparison.Ordinal)];
+        Assert.Contains("var section = sectionFor('estimate');", show, StringComparison.Ordinal);
+        Assert.Contains("section.replaceWith.apply(section, incoming);", show, StringComparison.Ordinal);
+        Assert.Contains("window.history.replaceState(null, '', href);", show, StringComparison.Ordinal);
+        Assert.DoesNotContain("swap(", show, StringComparison.Ordinal);
+    }
+
     private static string FunctionBody(string script, string signature)
     {
         var start = script.IndexOf(signature, StringComparison.Ordinal);

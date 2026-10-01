@@ -863,6 +863,44 @@
             return false;
         }
     }
+    // Choosing a repair spec (a spec tab, New repair spec, Compare's From and
+    // To) changes only what the Repair Spec section draws: the section and
+    // the dialogs drawn after it. Only those are redrawn from the page the
+    // choice addresses, so nothing above them moves and the page stays where
+    // it is. A choice that cannot be redrawn takes the navigation it replaced.
+    function estimatePart(section) {
+        var part = [section];
+        for (var next = section.nextElementSibling; next && next.hasAttribute('data-dialog'); next = next.nextElementSibling) {
+            part.push(next);
+        }
+        return part;
+    }
+    function showEstimate(href) {
+        glassRefreshGeneration += 1;
+        return fetch(href, {
+            credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
+        }).then(function (response) {
+            if (!response.ok || !samePage(response.url || href)) { throw new Error('section estimate: ' + response.status); }
+            return response.text();
+        }).then(function (html) {
+            var section = sectionFor('estimate');
+            var next = new DOMParser().parseFromString(html, 'text/html').getElementById('section-estimate');
+            if (!section || !next) { throw new Error('section estimate: not returned'); }
+            var incoming = estimatePart(next);
+            estimatePart(section).slice(1).forEach(function (dialog) {
+                if (!dialog.hidden && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
+                dialog.remove();
+            });
+            section.replaceWith.apply(section, incoming);
+            bindMounted(main);
+            measure();
+            if (layout === 'tabs') { applyTabState(); } else { spy(); }
+            window.history.replaceState(null, '', href);
+        }).catch(function () {
+            window.location.assign(href);
+        });
+    }
+
     // The shared Refresh control (site.js) marks itself busy on submit and
     // expects the navigation to end that. An intercepted refresh never
     // navigates, so every way out of one ends it here.
@@ -893,6 +931,15 @@
             var url = new URL(action, window.location.href);
             new URLSearchParams(body).forEach(function (value, key) { url.searchParams.set(key, value); });
             action = url.toString();
+            if (form.hasAttribute('data-estimate-compare-form')) {
+                form.setAttribute('aria-busy', 'true');
+                return showEstimate(action).finally(function () {
+                    form.removeAttribute('aria-busy');
+                    form.removeAttribute('data-inplace-submitting');
+                    submitting = false;
+                    settleQueue();
+                });
+            }
         } else {
             request.body = body;
         }
@@ -1341,6 +1388,18 @@
             || link.hasAttribute('target') || link.hasAttribute('download') || link.hasAttribute('data-section-link')
             || link.getAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
             || link.getAttribute('href').startsWith('#')) { return; }
+        if (link.matches('[data-estimate-tab], [data-estimate-new]')) {
+            // A change not yet sent lands first, then the spec is redrawn.
+            event.preventDefault();
+            afterCommit(function () {
+                submitting = true;
+                showEstimate(link.href).finally(function () {
+                    submitting = false;
+                    settleQueue();
+                });
+            });
+            return;
+        }
         if (!queueBusy()) {
             releaseOnLeaving(link);
             return;
