@@ -2641,7 +2641,7 @@ public sealed partial class DetailsModel(
                         Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RepairSpecGenerated,
                     _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ImagesGenerated,
                 };
-                return RedirectToReport(id);
+                return RedirectToReport(id, returnView);
         }
     }
 
@@ -2800,6 +2800,14 @@ public sealed partial class DetailsModel(
         }
         var returnView = ViewRouteOf(view);
         var operationKey = preparationId.ToString("N");
+        // Sent from the Inspection view, the Inspection report is sent only
+        // while it awaits sending after Create audit (operator, 1 October 2026).
+        var inspectionReport = IsInspectionViewRoute(view);
+        if (inspectionReport && !await InspectionReportAwaitsSendAsync(id, actor, cancellationToken))
+        {
+            TempData["CaseError"] = ReportGenerationUnavailable;
+            return RedirectToReport(id, returnView);
+        }
 
         StaffMailOperation operation;
         try
@@ -2807,6 +2815,15 @@ public sealed partial class DetailsModel(
             var preparation = await deliveryPreparations.GetAsync(
                 actor, id, preparationId, cancellationToken)
                 ?? throw new InvalidOperationException("The report delivery preparation is unavailable.");
+            // A preparation of the primary work posted from elsewhere: the
+            // Inspection report already sent once the Audit exists is never
+            // sent again. The Inspection view's own post was read above.
+            if (preparation.Work == CaseWorkSelector.Primary
+                && !inspectionReport
+                && await InspectionReportSentAfterAuditAsync(id, actor, cancellationToken))
+            {
+                throw new InvalidOperationException(ReportGenerationUnavailable);
+            }
             operation = await sendPreparedReport.ExecuteAsync(
                 new(actor, id, preparationId, expectedPreparationVersion, operationKey),
                 cancellationToken);
@@ -2865,7 +2882,7 @@ public sealed partial class DetailsModel(
     /// section's redirect target. The command store compares the posted Case
     /// version with current persisted state. A command posted from the
     /// Inspection view acts on the Inspection report of a Case that has its
-    /// Audit, which stays open whatever the Case's state.
+    /// Audit only while that report awaits sending, whatever the Case's state.
     /// </summary>
     private Task<IActionResult?> GuardReportCommandAsync(
         Guid id,
@@ -2908,11 +2925,20 @@ public sealed partial class DetailsModel(
         {
             return NotFound();
         }
-        // The Case's read-only states are the Audit's once it exists; the
-        // Inspection report that still awaits sending is prepared and sent
-        // on its own work in any of them (operator, 1 October 2026).
-        if (access.IsReadOnly
-            && !(inspectionReport && await InspectionReportAwaitsSendAsync(id, actor, cancellationToken)))
+        // A command posted from the Inspection view acts on the Inspection
+        // report only while the Case has its Audit and that report awaits
+        // sending, whatever the Case's state: the Case's read-only states are
+        // the Audit's. Once sent, it is opened, never generated, prepared or
+        // sent again (operator, 1 October 2026).
+        if (inspectionReport)
+        {
+            if (!await InspectionReportAwaitsSendAsync(id, actor, cancellationToken))
+            {
+                TempData["CaseError"] = ReportGenerationUnavailable;
+                return redirect();
+            }
+        }
+        else if (access.IsReadOnly)
         {
             TempData["CaseError"] = "The case is read-only once Complete.";
             return redirect();
@@ -2935,11 +2961,19 @@ public sealed partial class DetailsModel(
     /// Whether the Case has its Audit and its Inspection report is still to be
     /// sent, read from the Case header for a posted Report command.
     /// </summary>
-    private async Task<bool> InspectionReportAwaitsSendAsync(Guid id, ActionActor actor, CancellationToken cancellationToken)
-    {
-        var header = await getCaseHeader.ExecuteAsync(new GetCaseHeaderQuery(id, actor), cancellationToken);
-        return header?.Works is { HasAudit: true, Primary.ReportSentEvidence: null };
-    }
+    private async Task<bool> InspectionReportAwaitsSendAsync(Guid id, ActionActor actor, CancellationToken cancellationToken) =>
+        await ReadWorksAsync(id, actor, cancellationToken) is { HasAudit: true, Primary.ReportSentEvidence: null };
+
+    /// <summary>
+    /// Whether the Case has its Audit and its Inspection report was already
+    /// sent: that report is opened, never sent again (operator, 1 October 2026).
+    /// </summary>
+    private async Task<bool> InspectionReportSentAfterAuditAsync(Guid id, ActionActor actor, CancellationToken cancellationToken) =>
+        await ReadWorksAsync(id, actor, cancellationToken) is { HasAudit: true, Primary.ReportSentEvidence: not null };
+
+    /// <summary>The Case's works, read from the Case header for a posted Report command.</summary>
+    private async Task<CaseWorkSet?> ReadWorksAsync(Guid id, ActionActor actor, CancellationToken cancellationToken) =>
+        (await getCaseHeader.ExecuteAsync(new GetCaseHeaderQuery(id, actor), cancellationToken))?.Works;
 
     /// <summary>
     /// Back to the Report section: a GET handler passes <paramref name="view"/>

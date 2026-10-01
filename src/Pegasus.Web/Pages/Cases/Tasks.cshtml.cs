@@ -131,11 +131,15 @@ public sealed class TasksModel(
                     evidenceId,
                     // The Inspection view marks the Inspection report sent on
                     // its own work once the Audit exists (operator, 1 October 2026).
-                    string.Equals(view, DetailsModel.InspectionViewKey, StringComparison.OrdinalIgnoreCase)
-                        ? CaseWorkSelector.Primary
-                        : CaseWorkSelector.Current),
+                    DetailsModel.ReportWorkOf(view)),
                 cancellationToken),
-            "The exact retained report-Sent evidence was linked.");
+            "The exact retained report-Sent evidence was linked.",
+            // ...and reads the outcome back where it was marked.
+            DetailsModel.IsInspectionViewRoute(view) ? RedirectToInspectionReport : null);
+
+    /// <summary>The Inspection view's Report section, where Mark report sent posted from it is read back.</summary>
+    private RedirectToPageResult RedirectToInspectionReport(Guid id) =>
+        RedirectToPage("/Cases/Details", new { id, section = "report", view = DetailsModel.InspectionViewKey });
 
     public Task<IActionResult> OnPostUnlinkReportEvidenceAsync(
         Guid id,

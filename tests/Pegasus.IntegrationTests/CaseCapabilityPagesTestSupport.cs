@@ -910,13 +910,16 @@ internal static partial class CaseWebTestSupport
         {
             HeaderReads++;
             var workflow = CreateWorkflow();
+            // The works the page frame reports, so a posted Report command
+            // reads the same Audit and Inspection Sent facts the page showed.
             return Task.FromResult<CaseHeader?>(new(
                 CreateSummary(workflow),
                 workflow,
                 ActiveLease(),
                 CaseDocuments.Count,
                 HistoryEntries.Count,
-                OpenTaskCount: 0));
+                OpenTaskCount: 0,
+                Works: Works));
         }
 
         Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(

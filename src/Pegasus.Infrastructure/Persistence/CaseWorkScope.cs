@@ -36,6 +36,22 @@ internal static class CaseWorkScope
             : CurrentIdAsync(context, caseId, cancellationToken);
 
     /// <summary>
+    /// Whether the Case has its Audit and its primary work already holds the
+    /// Inspection report's sent evidence, in one command. That report is then
+    /// opened, never generated, prepared or sent again (operator, 1 October
+    /// 2026).
+    /// </summary>
+    public static Task<bool> PrimaryReportSentAfterAuditAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken) =>
+        context.CaseWorks.AnyAsync(
+            work => work.Id == caseId
+                && work.ReportSentEvidenceId != null
+                && context.CaseWorks.Any(audit => audit.CaseId == caseId && audit.Kind == CaseWorkKinds.Audit),
+            cancellationToken);
+
+    /// <summary>
     /// The selected work of one Case as a query, so a read can filter on it
     /// inside its own command rather than resolve the id with another.
     /// </summary>
