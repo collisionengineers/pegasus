@@ -9,6 +9,8 @@
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
+  Glass's is connected: Get valuation fetches its figures and files its PDF
+  report on the Case.
   Retail value, Trade value and Engineer's Value are boxes on Valuation.
   Staff type them or fill them from a guide card, and the Save records them.
   **Use this value** on a card is the Engineer's decision to use that figure.
@@ -144,10 +146,20 @@ The basis is chosen by clicking a card (or Enter or Space on it) or by
 **Use this value**, and only a card with a retail value can be the basis,
 since the calculation starts from retail; there is no Basis control beside
 the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
-market research is automation-only. No guide provider is
-connected today, so every card says so; connecting one needs its own accepted
-decision
-([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
+market research is automation-only.
+
+Glass's is the one connected guide source
+([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md)).
+Its Get valuation signs in with the Glass's valuation account, values the
+Case's accepted registration and mileage for the card's month, and fills the
+card with Retail Transacted as its retail and Glass's Trade as its trade.
+Each valuation also saves the vehicle to the account's Glass's stock list, as
+the portal does, and once the figures have answered, files that stocked
+vehicle's "Vehicle Valuation Report – Glass's Values Only" PDF on the Case's
+Documents as `Glass's valuation {registration} {yyyy-MM}.pdf` (operator, 1
+October 2026). Whatever stops a Glass's valuation, the card shows its notice.
+Brego, Super CAP, CAP and Cazana have no connected provider; connecting one
+needs its own accepted decision.
 
 Every entry keeps its date and time, and the retail and trade values and
 guide month it was given; a guide card may hold any of them blank. An
@@ -327,7 +339,10 @@ circular readiness gate is acceptable.
   findings: only staff record them, never automation.
 - A valuation source with no connected provider shows the card's notice from
   the start, offers no Get valuation, and still lets the figures be typed by
-  hand; the Case Save records them.
+  hand; the Case Save records them. A connected source that cannot answer
+  shows the same notice and fills nothing.
+- A Glass's valuation whose report cannot be fetched or filed keeps the
+  figures it answered; the Case simply has no report for it.
 - A calculation that cannot be worked out never shows as an empty state: it
   shows why, and the Engineer's draft is kept.
 - Research evidence and an AI valuation proposal never become the Engineer's
@@ -346,7 +361,10 @@ filed while a staff member holds the edit lease. Core tests cover the
 salvage matrix's rules, band lookup, rounding and when a value follows the
 matrix. Web tests cover Airbags deployed and
 the temporary repair rows in read and edit and through the Case Save, and
-the salvage matrix handed to the Case only while it edits. Live
+the salvage matrix handed to the Case only while it edits. Integration tests
+cover Glass's Get valuation against the scripted provider — its figures, month,
+mileage and stock save, every failure answering the notice — and its report
+filed on the Case without touching the open edit session. Live
 Glass's evidence is a separate tier
 ([engineering](../engineering.md#required-evidence-tiers)).
 
