@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using ModelContextProtocol;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 
@@ -58,6 +60,8 @@ internal sealed class UnidentifiedMcpTools(
     IGetIntake getIntake,
     IGetIntakeSourceMetadata getSourceMetadata,
     IDownloadIntakeSource downloadSource,
+    IRenderImageForDelivery images,
+    IExtractPdfPageText pdfText,
     IIntakeSubmissionGroupStore groupStore,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
@@ -147,13 +151,12 @@ internal sealed class UnidentifiedMcpTools(
         ReadOnly = true,
         Destructive = false,
         Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Downloads retained source bytes for an exact U-reference. A grouped origin requires the exact member receipt identifier returned by pegasus_unidentified_get.")]
-    public async Task<IntakeSourceToolResult> DownloadSourceAsync(
-        string reference,
-        Guid? memberReceiptId = null,
-        int maxInlineBytes = 0,
+        OpenWorld = false)]
+    [Description("Returns the retained source of an exact U-reference as native content: an image as a JPEG image block re-encoded to fit maxInlineBytes, a PDF as its page text, a small text file as text; anything else as metadata only. Every result carries the file name, media type, size, SHA-256 and an authenticated contentUrl for the original bytes (same bearer token, Intake scope). A grouped origin requires the exact member receipt identifier returned by pegasus_unidentified_get.")]
+    public async Task<CallToolResult> DownloadSourceAsync(
+        [Description("Exact canonical U-reference, for example U17.")] string reference,
+        [Description("For a grouped origin, the exact member receipt identifier from pegasus_unidentified_get.")] Guid? memberReceiptId = null,
+        [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
@@ -192,6 +195,8 @@ internal sealed class UnidentifiedMcpTools(
                 return await IntakeSourceMcpContent.DownloadAsync(
                     getSourceMetadata,
                     downloadSource,
+                    images,
+                    pdfText,
                     receiptId,
                     context.Actor,
                     maxInlineBytes,
@@ -246,13 +251,13 @@ internal sealed class UnidentifiedMcpTools(
         UseStructuredContent = true)]
     [Description("Resolves one Unidentified item using the same versioned Core command as Web. Requires a mcp:-prefixed operation key, reason, target and expected version.")]
     public async Task<UnidentifiedToolItem> ResolveAsync(
-        string reference,
-        long expectedVersion,
-        string reason,
-        UnidentifiedResolutionTargetKind targetKind,
-        string targetId,
-        string? targetReference,
-        string operationKey,
+        [Description("Exact canonical U-reference, for example U17.")] string reference,
+        [Description("The item version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description("Why, for the item's history.")] string reason,
+        [Description("Where the item goes: InstructionCase, ImageIntake or Triage (targetId is that record's id), ExternalReference (free-form targetId), or Closed (close with reason; targetId names what was decided).")] UnidentifiedResolutionTargetKind targetKind,
+        [Description("The destination identifier for that kind.")] string targetId,
+        [Description("Optional display reference for the destination.")] string? targetReference,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
