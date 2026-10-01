@@ -138,6 +138,15 @@ public sealed class EfCaseReportGenerationStore(
         var now = timeProvider.GetUtcNow();
         CaseMutationGuard.Require(
             workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, now);
+        // The Inspection report already sent once the Audit exists is opened,
+        // never generated again: neither the report nor a companion document
+        // (operator, 1 October 2026). A replay above returned its own result.
+        if (request.Work == CaseWorkSelector.Primary
+            && await CaseWorkScope.PrimaryReportSentAfterAuditAsync(context, request.CaseId, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
         if (request.Kind != CaseReportArtifactKind.AssessmentReport)
         {
             return await FreezeCompanionAsync(
@@ -318,13 +327,16 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        // A companion document belongs to the generation it targets, whichever
-        // work that generation was made for, while that generation is still
-        // its work's current one.
+        // A companion document belongs to the generation it targets, which
+        // must be of the work the request names (the current work, or the
+        // Inspection's once the Audit exists) and still that work's current one.
+        var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken)
+            .ConfigureAwait(false);
         var generation = await context.Set<CaseReportGenerationEntity>()
             .SingleOrDefaultAsync(
                 item => item.Id == request.TargetGenerationId
                     && item.CaseId == request.CaseId
+                    && item.WorkId == workId
                     && item.SupersededById == null,
                 cancellationToken)
             .ConfigureAwait(false)

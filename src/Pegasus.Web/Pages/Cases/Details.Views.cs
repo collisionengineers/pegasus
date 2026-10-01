@@ -95,6 +95,13 @@ public sealed partial class DetailsModel
     public static string? ViewRouteOf(string? view) =>
         IsInspectionViewRoute(view) ? InspectionViewKey : null;
 
+    /// <summary>
+    /// The refusal of a Report command on an Inspection report that does not
+    /// await sending: the report stores' own wording for a generation the
+    /// request may not make or deliver.
+    /// </summary>
+    private const string ReportGenerationUnavailable = "The case report generation is unavailable.";
+
     /// <summary>The Audit report's reference, <c>a.{Case/PO}</c>.</summary>
     public string? AuditReportReference => Case is { } details
         ? CaseReferenceFormat.ReportReference(details.Workflow.Identity, CaseWorkKind.Audit)
