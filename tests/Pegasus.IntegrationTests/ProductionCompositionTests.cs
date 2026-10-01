@@ -475,7 +475,7 @@ public sealed class ProductionCompositionTests
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
             initializer => initializer is GlassCallbackTelemetryInitializer);
-        // The same host connects Glass's as a guide valuation source (ADR-0059).
+        // The same host connects Glass's as a guide valuation source (ADR-0060).
         Assert.IsType<GlassGuideValuationProvider>(
             Assert.Single(factory.Services.GetServices<IGuideValuationProvider>()));
     }

@@ -177,7 +177,7 @@ if (productionProfile)
         "Glass:EstimatorBaseUri",
         "Glass:CallbackBaseUri",
         "Glass:RepairProfileId",
-        // Glass's valuation account (ADR-0059), read on each Get valuation.
+        // Glass's valuation account (ADR-0060), read on each Get valuation.
         "Glass:ValuationAccount:Username",
         "Glass:ValuationAccount:Password",
         "GitHub:ProblemReports:Token",
@@ -676,7 +676,7 @@ if (productionProfile)
 {
     builder.Services.AddEvaApiSubmission(
         _ => EvaApiOptions.Create(key => builder.Configuration[key]));
-    // Glass's valuation (ADR-0059): Production only, like EVA, and its
+    // Glass's valuation (ADR-0060): Production only, like EVA, and its
     // Key Vault-held account is read on each valuation for the same reason.
     builder.Services.AddGlassGuideValuation(
         _ => Pegasus.Infrastructure.Glass.GlassValuationAccount.Create(key => builder.Configuration[key]));

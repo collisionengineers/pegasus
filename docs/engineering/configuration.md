@@ -76,7 +76,7 @@ version and a configuration read-back, not a release. The selected repository
 
 `Glass:ValuationAccount:Username` and `Glass:ValuationAccount:Password` are
 the Glass's valuation account Get valuation signs in with
-([ADR-0059](../adr/0059-glass-valuation-account-and-valuation-report.md)).
+([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md)).
 Both are Production required settings, held in Key Vault as
 `glass-valuation-username` and `glass-valuation-password` and delivered to Web
 as `Glass__ValuationAccount__Username` and `Glass__ValuationAccount__Password`

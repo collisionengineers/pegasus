@@ -696,7 +696,7 @@ The approved release operator supplies these deployment inputs:
 | `GLASS_MARKET_VALUE_ASSESSOR_BASE_URI` | Glass's Market Value Assessor origin. Defaults to `https://www.marketvalueassessor.jdpower.com/`. |
 | `GLASS_ESTIMATOR_BASE_URI` | Glass's repair estimator origin a launch may send the staff member to. Defaults to `https://repairestimate.autovistagroup.com/`. |
 | `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |
-| `GLASS_VALUATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-username`, the Glass's valuation account name ([ADR-0059](adr/0059-glass-valuation-account-and-valuation-report.md)). No default. |
+| `GLASS_VALUATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-username`, the Glass's valuation account name ([ADR-0060](adr/0060-glass-valuation-account-and-valuation-report.md)). No default. |
 | `GLASS_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-password`, that account's password. No default. |
 
 Bicep supplies the configured vault origin and indexed certificate URI settings

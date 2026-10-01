@@ -5,7 +5,7 @@ using Pegasus.Core.Cases;
 namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
-/// Glass's as a connected guide source (ADR-0059): Get valuation signs in with
+/// Glass's as a connected guide source (ADR-0060): Get valuation signs in with
 /// the Glass's valuation account, values the Case's registration and mileage
 /// in the chosen month, and answers Retail Transacted as the card's retail and
 /// Glass's Trade as its trade.
