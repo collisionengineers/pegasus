@@ -4361,8 +4361,7 @@
             card.dataset.preparationBound = 'true';
             var value = seed(card);
             if (!value) { return; }
-            var enhanced = card.querySelector('[data-image-report]');
-            if (enhanced) { enhanced.hidden = false; }
+            all(card, '[data-image-report]').forEach(function (enhanced) { enhanced.hidden = false; });
             sync(value.id);
             var order = card.querySelector('[data-preparation-order]');
             if (order) { order.addEventListener('change', function () { set(value.id, { order: order.value === '' ? null : order.value }); }); }
