@@ -110,6 +110,11 @@ public enum DocumentCustodyStatus
     Failed
 }
 
+/// <param name="IsRecognisedEstimate">
+/// Whether the Worker, reading this version once after it was filed, found it
+/// to be an estimate (<see cref="Pegasus.Core.Assessment.EstimateFormats"/>);
+/// null until it has been read.
+/// </param>
 public sealed record DocumentVersion(
     Guid Id,
     Guid DocumentId,
@@ -123,7 +128,8 @@ public sealed record DocumentVersion(
     string CreatedBy,
     bool IsCurrent,
     bool IsLogicallyRemoved,
-    string? RemovalReason);
+    string? RemovalReason,
+    bool? IsRecognisedEstimate = null);
 
 public sealed record DocumentOccurrence(
     Guid Id,

@@ -3353,6 +3353,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsLogicallyRemoved")
                         .HasColumnType("bit");
 
+                    b.Property<bool?>("IsRecognisedEstimate")
+                        .HasColumnType("bit");
+
                     b.Property<string>("MediaType")
                         .IsRequired()
                         .HasMaxLength(128)

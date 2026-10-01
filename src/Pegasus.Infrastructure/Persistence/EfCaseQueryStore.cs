@@ -1000,7 +1000,8 @@ public sealed class EfCaseQueryStore(
         item.CreatedBy,
         item.IsCurrent,
         item.IsLogicallyRemoved,
-        item.RemovalReason);
+        item.RemovalReason,
+        item.IsRecognisedEstimate);
 
     /// <summary>
     /// The keyset-paged sibling of <see cref="ListHistoryAsync"/>:

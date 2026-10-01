@@ -1,4 +1,5 @@
 ﻿using Pegasus.Core.Vehicle;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Triage;
@@ -388,6 +389,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcilePrincipalSubmissions reconcilePrincipalSubmissions,
     PurgeStaffNotifications purgeStaffNotifications,
     PrepareDocumentThumbnails prepareDocumentThumbnails,
+    RecogniseFiledEstimates recogniseFiledEstimates,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
     /// <summary>
@@ -401,6 +403,15 @@ public sealed partial class StagedArtifactReconciliationFunction(
     /// above has already run; this keeps the timer from being held by Box.
     /// </summary>
     private static readonly TimeSpan ThumbnailBudget = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// How many filed versions one run reads for whether each is an estimate.
+    /// Most are answered from their name and type without a read.
+    /// </summary>
+    private const int EstimateRecognitionsPerRun = 10;
+
+    /// <summary>The longest estimate recognition may take in one run.</summary>
+    private static readonly TimeSpan EstimateRecognitionBudget = TimeSpan.FromSeconds(20);
 
     /// <summary>
     /// A step's result line stays Information while nothing failed, and becomes a
@@ -556,7 +567,45 @@ public sealed partial class StagedArtifactReconciliationFunction(
         {
             LogDocumentThumbnailPreparationFailed(logger, exception);
         }
+
+        // Each newly filed Case file is read once for whether it is an
+        // estimate, so its Files row offers Import as repair spec only when
+        // the import would read it. Same existing timer trigger, in its own
+        // time budget; a failure is logged and the next run carries on.
+        using var recognitionBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        recognitionBudget.CancelAfter(EstimateRecognitionBudget);
+        try
+        {
+            var recognised = await recogniseFiledEstimates.ExecuteAsync(
+                EstimateRecognitionsPerRun, recognitionBudget.Token);
+            if (recognised.Candidates > 0)
+            {
+                var recognitionLevel = FailureLevel(recognised.Failures);
+                LogEstimateRecognition(
+                    logger,
+                    recognitionLevel,
+                    recognised.Candidates,
+                    recognised.Estimates,
+                    recognised.NotEstimates,
+                    recognised.Failures,
+                    recognised.FirstFailure);
+            }
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            LogEstimateRecognitionFailed(logger, exception);
+        }
     }
+
+    [LoggerMessage(
+        Message = "Recognised filed estimates: {Candidates} candidates, {Estimates} estimates, {NotEstimates} not estimates, {Failures} failures. First failure: {FirstFailure}")]
+    private static partial void LogEstimateRecognition(
+        ILogger logger, LogLevel level, int candidates, int estimates, int notEstimates, int failures, string? firstFailure);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Recognising filed estimates failed; the next sweep tries again.")]
+    private static partial void LogEstimateRecognitionFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(
         Message = "Prepared document thumbnails: {Candidates} candidates, {Prepared} prepared, {Unrenderable} not renderable, {Failures} failures. First failure: {FirstFailure}")]

@@ -680,6 +680,14 @@ public static class DependencyInjection
             // The Worker's sweep makes plain thumbnails through that same
             // reader before the first view.
             services.AddScoped<PrepareDocumentThumbnails>();
+            // The Worker reads each filed version once for whether it is an
+            // estimate; the Files row offers the import only where it is.
+            // One candidate list per process, because it remembers deferrals.
+            services.AddSingleton<IEstimateRecognitionCandidates>(provider =>
+                new EfEstimateRecognitionCandidates(
+                    provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                    provider.GetRequiredService<TimeProvider>()));
+            services.AddScoped<RecogniseFiledEstimates>();
             services.AddScoped<IExportCaseDocuments>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ILogicallyRemoveDocument>(provider =>
