@@ -1,9 +1,9 @@
 ---
 id: ADR-0047
-status: accepted
+status: superseded
 date: 2026-09-09
 supersedes: [ADR-0040]
-superseded_by: []
+superseded_by: [ADR-0061]
 related_capabilities: [INT-16]
 related_frd: [frd-05]
 tags: [extraction, pdf, ocr]
