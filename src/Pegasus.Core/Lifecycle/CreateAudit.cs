@@ -6,10 +6,11 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Lifecycle;
 
 /// <summary>
-/// Create audit: an Inspection + Audit Case whose Inspection report is sent
-/// gains its Audit work under the same Case. The Inspection's data is copied
-/// into the Audit work, the Case moves straight to Report preparation with the
-/// same Engineers, and the Audit report is referenced <c>a.{Case/PO}</c>. No
+/// Create audit: an Inspection + Audit Case in work gains its Audit work
+/// under the same Case, whether or not its Inspection report has been sent
+/// (operator, 1 October 2026). The Inspection's data is copied into the Audit
+/// work, the Case moves straight to Report preparation with the same
+/// Engineers, and the Audit report is referenced <c>a.{Case/PO}</c>. No
 /// reason is asked: the action is its own record.
 /// </summary>
 /// <remarks>
@@ -48,7 +49,8 @@ public enum AuditRefusal
     CreatedInError,
     Archived,
     AuditAlreadyExists,
-    ReportNotSent,
+    Held,
+    Closed,
     NoAssignedEngineer
 }
 
@@ -66,8 +68,9 @@ public static class AuditPolicy
     /// <summary>
     /// Why the Case cannot have its Audit created, or null when it can: an
     /// Inspection + Audit Case, not Created in error or archived, with no Audit
-    /// work yet, whose Inspection report is sent (Post report, Completed or
-    /// Query — never Held) and which has an assigned Engineer.
+    /// work yet, in work (never Held, never under a closed disposition) and
+    /// with an assigned Engineer. Whether the Inspection report has been sent
+    /// does not matter (operator, 1 October 2026).
     /// </summary>
     public static AuditRefusal? Refusal(CaseType caseType, CaseWorkflowRecord workflow, CaseWorkSet? works)
     {
@@ -92,12 +95,14 @@ public static class AuditPolicy
             return AuditRefusal.AuditAlreadyExists;
         }
 
-        if (workflow.State is not (CaseLifecycleState.PostReport
-                or CaseLifecycleState.PostReportComplete
-                or CaseLifecycleState.Query)
-            || workflow.ReportSentEvidence is null)
+        if (workflow.State == CaseLifecycleState.Held)
         {
-            return AuditRefusal.ReportNotSent;
+            return AuditRefusal.Held;
+        }
+
+        if (CaseLifecycleRules.IsTerminal(workflow.State))
+        {
+            return AuditRefusal.Closed;
         }
 
         if (workflow.AssignedEngineerId is null)
@@ -114,7 +119,8 @@ public static class AuditPolicy
         AuditRefusal.CreatedInError => "A case recorded as created in error cannot have an audit created from it.",
         AuditRefusal.Archived => "An archived case cannot have an audit created from it.",
         AuditRefusal.AuditAlreadyExists => "This case already has its audit.",
-        AuditRefusal.ReportNotSent => "Create audit is available once the report is sent.",
+        AuditRefusal.Held => "A held case cannot have an audit created from it.",
+        AuditRefusal.Closed => "A closed case cannot have an audit created from it.",
         AuditRefusal.NoAssignedEngineer => "Report preparation requires an assigned Engineer.",
         _ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
     };

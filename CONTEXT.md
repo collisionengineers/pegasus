@@ -59,7 +59,7 @@ Case (below).
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
-One Case holding an Inspection and, once its Inspection report is sent, its Audit. Collision Engineers completes its standard Inspection on the Case (for example `QDOS26001`). Create audit then adds the Audit to the same Case: a separate copy of the Case's values that only the Audit edits, with its own report under the Audit reference `a.` plus the same Case/PO (`a.QDOS26001`), its own fee note and an `a.` Box subfolder. The Case keeps one state, one Files and one Notes; no second Case and no second number is created ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
+One Case holding an Inspection and its Audit. Collision Engineers completes its standard Inspection on the Case (for example `QDOS26001`). Create audit, available while the Case is in work whether or not the Inspection report has been sent, adds the Audit to the same Case: a separate copy of the Case's values that only the Audit edits, with its own report under the Audit reference `a.` plus the same Case/PO (`a.QDOS26001`), its own fee note and an `a.` Box subfolder. The Case keeps one state, one Files and one Notes; no second Case and no second number is created ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
 _Avoid_: Combined report, two-spec Inspection, linked Audit Case
 
 **Triage**:

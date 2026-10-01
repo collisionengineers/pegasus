@@ -11,8 +11,10 @@
   cell as it is left, a composite editor when it is left or after a short
   pause. Each save records the Case fields, the Repair Spec and the
   valuation calculation together, and the page keeps editing.
-- One Actions menu offers only what Core allows for the current state.
-  Hand to Engineer is the only way out of Review.
+- One Actions menu offers only what Core allows for the current state;
+  Create audit alone is always listed on an Inspection + Audit Case, greyed
+  out with its reason when refused. Hand to Engineer is the only way out of
+  Review.
 - The Engineer sections (Damage, Valuation, Estimate, Settlement, Report)
   are editable by every enabled staff role in Not ready, Review and With
   Engineer, and read-only in Held,
@@ -180,7 +182,8 @@ its address is ignored.
 
 **The Views card** heads the aside, above Figures, and exists only once the
 Audit exists. It holds two rows: "Inspection · {Case/PO}" with a "Sent"
-chip, and "Audit · a.{Case/PO}" with the Case's state chip. The current view
+chip when the Inspection report was sent (none when the Audit was created
+first), and "Audit · a.{Case/PO}" with the Case's state chip. The current view
 reads plain and the other is a link. `?view=audit` and `?view=inspection`
 address the two views; the Audit view
 is the default, and a write returns to it. The ribbon is unchanged: its
@@ -204,7 +207,10 @@ links to the Audit view.
 ### Actions menu
 
 The one **Actions** menu offers only what the Core use cases permit for the
-current state, in and out of an edit session (operator, 29 September 2026).
+current state, in and out of an edit session (operator, 29 September 2026),
+with one exception: Create audit is always listed on an Inspection + Audit
+Case and, when refused, is greyed out with the refusal as its hover text
+(operator, 1 October 2026).
 An item taken outside a session runs under a lease claimed for that one
 action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
@@ -237,8 +243,10 @@ to Engineer needs no session. The rules behind each action are in
 - **Correct principal**, which records Created in error and creates the
   replacement Case
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
-- **Create audit**, after Correct principal, on an Inspection + Audit Case
-  once its Inspection report is sent
+- **Create audit**, after Correct principal, listed on every Inspection +
+  Audit Case and live while the Case is in work, whether or not its
+  Inspection report is sent; when refused it is greyed out and its hover
+  text states the refusal
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)). Its
   compact dialog states the Case, the Audit reference and the Engineer, asks
   for no reason and has no outcome. It posts in place and lands on the Audit
