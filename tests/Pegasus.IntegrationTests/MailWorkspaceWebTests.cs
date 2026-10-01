@@ -2133,6 +2133,64 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task AReceivedMessageOffersOnlyReceivedClassificationsAndANewInstructionStoresItsCaseType()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        using var client = CreateClient(factory);
+        var route = $"/Inbox/{ids[0]:D}?handler=CorrectClassification";
+
+        var page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+        // An Inbox message is received mail: the picker offers no Sent family
+        // and asks for the case type a New instruction names.
+        Assert.Contains("value=\"received:NewInstructionReceived:inspection\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"other-received\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"sent:", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"other-sent\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-work-type-field", page, StringComparison.Ordinal);
+
+        // A New instruction without a case type is refused before the command.
+        using (var missing = await client.PostAsync(route, new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AntiforgeryToken(page),
+            ["ExpectedClassificationVersion"] = "1",
+            ["ClassificationKey"] = "received:NewInstructionReceived:inspection",
+            ["CorrectionReason"] = "Instruction read from the retained message."
+        })))
+        {
+            Assert.Equal(HttpStatusCode.OK, missing.StatusCode);
+            Assert.Contains("Choose a valid case type.", await missing.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+        using (var corrected = await client.PostAsync(route, new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AntiforgeryToken(page),
+            ["ExpectedClassificationVersion"] = "1",
+            ["ClassificationKey"] = "received:NewInstructionReceived:inspection",
+            ["WorkType"] = nameof(CaseType.InspectionAndAudit),
+            ["CorrectionReason"] = "Instruction read from the retained message."
+        })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, corrected.StatusCode);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var decision = await context.IntakeMailClassificationDecisions.SingleAsync();
+        Assert.Equal(2, decision.Version);
+        Assert.Equal(CaseTypeCodes.ToCode(CaseType.InspectionAndAudit), decision.CaseType);
+
+        // The corrected classification offers its one next action, Create case,
+        // against the message's receipt; nothing ran on its own.
+        var offered = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+        Assert.Contains("data-offered-action=\"CreateCase\"", offered, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/Create?receiptId={decision.IntakeReceiptId:D}\"", offered, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InvalidSearchContextOnACorrectionReloadReturnsASupportedResponseWithoutWrites()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -3043,12 +3101,12 @@ public sealed class MailWorkspaceWebTests
             Guid messageId, CancellationToken cancellationToken) =>
             Task.FromResult<MailClassificationDossier?>(null);
 
-        public Task<MailClassificationDossier> AppendCorrectionAsync(
+        public Task<MailClassificationCorrectionResult> AppendCorrectionAsync(
             Guid messageId,
             int expectedVersion,
             MailClassificationResult before,
             MailClassificationResult after,
-            string actor,
+            ActionActor actor,
             string reason,
             DateTimeOffset correctedAtUtc,
             CancellationToken cancellationToken)

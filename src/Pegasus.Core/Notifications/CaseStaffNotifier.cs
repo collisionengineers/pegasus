@@ -1,5 +1,7 @@
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Notifications;
@@ -22,10 +24,19 @@ public interface ICaseStaffNotifier
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// An e-mail linked to a Case: a query when the link put the Case into Query,
-    /// otherwise an ordinary arrival. Nothing is raised for a Case with no engineer.
+    /// An e-mail linked to a Case: a cancellation when the message is one and the
+    /// Case is still open, Query included; otherwise a query when the Case is in
+    /// Query; otherwise an ordinary arrival. Nothing is raised for a Case with no
+    /// engineer.
     /// </summary>
     Task<StaffNotification?> NotifyMailArrivalAsync(
+        Guid caseId,
+        Guid intakeReceiptId,
+        ActionActor? actor,
+        CancellationToken cancellationToken);
+
+    /// <summary>A message on an open Case was corrected to a cancellation; a closed Case raises nothing.</summary>
+    Task<StaffNotification?> NotifyCancellationReceivedAsync(
         Guid caseId,
         ActionActor? actor,
         CancellationToken cancellationToken);
@@ -36,10 +47,12 @@ public interface ICaseStaffNotifier
 
 public sealed class CaseStaffNotifier(
     IRaiseStaffNotification raise,
-    ICaseWorkflowQueries workflows) : ICaseStaffNotifier
+    ICaseWorkflowQueries workflows,
+    IIntakeReceiptQueries receipts) : ICaseStaffNotifier
 {
     private readonly IRaiseStaffNotification _raise = raise ?? throw new ArgumentNullException(nameof(raise));
     private readonly ICaseWorkflowQueries _workflows = workflows ?? throw new ArgumentNullException(nameof(workflows));
+    private readonly IIntakeReceiptQueries _receipts = receipts ?? throw new ArgumentNullException(nameof(receipts));
 
     public async Task<StaffNotification?> NotifyAsync(
         StaffNotificationCause cause,
@@ -69,6 +82,7 @@ public sealed class CaseStaffNotifier(
 
     public async Task<StaffNotification?> NotifyMailArrivalAsync(
         Guid caseId,
+        Guid intakeReceiptId,
         ActionActor? actor,
         CancellationToken cancellationToken)
     {
@@ -78,18 +92,52 @@ public sealed class CaseStaffNotifier(
             return null;
         }
 
-        var isQuery = workflow.State == CaseLifecycleState.Query;
+        // A cancellation outranks the Query the Case may already be in.
+        var cause = !CaseLifecycleRules.IsClosed(workflow.State) && await IsCancellationAsync(intakeReceiptId, cancellationToken)
+            ? StaffNotificationCause.CancellationReceived
+            : workflow.State == CaseLifecycleState.Query
+                ? StaffNotificationCause.QueryReceived
+                : StaffNotificationCause.EmailReceived;
         return await _raise.ExecuteAsync(
             new StaffNotificationEvent(
-                isQuery ? StaffNotificationCause.QueryReceived : StaffNotificationCause.EmailReceived,
+                cause,
                 caseId,
                 workflow.Identity.Reference,
                 null,
-                StaffNotificationPolicy.CaseRoute(caseId, isQuery ? "correspondence" : "files"),
+                StaffNotificationPolicy.CaseRoute(caseId, cause == StaffNotificationCause.EmailReceived ? "files" : "correspondence"),
                 workflow.AssignedEngineerId,
                 actor),
             cancellationToken);
     }
+
+    public async Task<StaffNotification?> NotifyCancellationReceivedAsync(
+        Guid caseId,
+        ActionActor? actor,
+        CancellationToken cancellationToken)
+    {
+        var workflow = await _workflows.GetAsync(caseId, cancellationToken);
+        if (workflow?.AssignedEngineerId is null || CaseLifecycleRules.IsClosed(workflow.State))
+        {
+            return null;
+        }
+
+        return await _raise.ExecuteAsync(
+            new StaffNotificationEvent(
+                StaffNotificationCause.CancellationReceived,
+                caseId,
+                workflow.Identity.Reference,
+                null,
+                StaffNotificationPolicy.CaseRoute(caseId, "correspondence"),
+                workflow.AssignedEngineerId,
+                actor),
+            cancellationToken);
+    }
+
+    // The message's current classification, read live: a correction after the
+    // link changes what a later arrival on the same Case is called.
+    private async Task<bool> IsCancellationAsync(Guid intakeReceiptId, CancellationToken cancellationToken) =>
+        (await _receipts.GetAsync(intakeReceiptId, cancellationToken))?.MailClassificationDecision?.Category
+            is { IsCancellation: true };
 
     public async Task<StaffNotification?> NotifyAiDraftReadyAsync(AiJobRecord job, CancellationToken cancellationToken)
     {

@@ -530,6 +530,38 @@ public sealed class ReturnCaseToEngineer(
     }
 }
 
+/// <summary>
+/// What a post-report message joining a Case does to it (FRD-13 "Completed and
+/// Query"): nothing, Query, or Completed again because its reply was already
+/// observed. The stores apply the outcome inside the transaction that links or
+/// corrects the message.
+/// </summary>
+public enum PostReportQueryEntry
+{
+    None,
+    EnterQuery,
+    CompleteWithObservedReply
+}
+
+/// <summary>
+/// The one owner of when a post-report message moves a Case between Completed
+/// and Query. Linking or correcting a message to Post-report on a Completed Case
+/// enters Query; unlinking or correcting away the last such message before any
+/// reply was observed returns the Case to Completed.
+/// </summary>
+public static class PostReportQueryRules
+{
+    public static PostReportQueryEntry OnPostReportLinked(CaseLifecycleState state, bool replyObserved) =>
+        state != CaseLifecycleState.PostReportComplete
+            ? PostReportQueryEntry.None
+            : replyObserved
+                ? PostReportQueryEntry.CompleteWithObservedReply
+                : PostReportQueryEntry.EnterQuery;
+
+    public static bool ShouldWithdraw(CaseLifecycleState state, bool replyObserved, bool otherPostReportLinked) =>
+        state == CaseLifecycleState.Query && !replyObserved && !otherPostReportLinked;
+}
+
 public static class CaseLifecycleRules
 {
     public static async Task<CaseWorkflowRecord> GetRequiredAsync(

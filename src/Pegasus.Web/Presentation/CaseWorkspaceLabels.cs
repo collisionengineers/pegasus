@@ -89,6 +89,8 @@ public static class CaseWorkspaceLabels
         public const string UnlinkReportEvidence = "Unlink report evidence";
         public const string ReviewEstimate = "Review estimate";
         public const string OpenQuery = "Open query";
+        /// <summary>The Next action row an open Case shows while a linked message is a cancellation (FRD-13).</summary>
+        public const string CancellationReceived = "Cancellation received";
         public const string Review = "Review";
         public const string CaseType = "Case type";
         public const string OurRef = "Our ref";

@@ -189,6 +189,10 @@ association never links new material to an archived Case.
 The Engineer answers queries and disputes from the Principal, a third-party
 insurer or the claimant. When a query is received for, or attached to, a
 Completed Case, the Case moves to Query. Replying moves it back to Completed.
+Correcting a linked message's classification to a post-report family attaches
+a query in the same way. Correcting it away, or unlinking it, before any reply
+was sent, while no other post-report message is linked, returns the Case to
+Completed. Both transitions are recorded as Case history.
 A draft or an acknowledgement is not a reply. Pegasus keeps the received
 query and the actual reply as Case correspondence. Neither transition erases
 earlier completion or query history. Further engineering edits go through
@@ -304,6 +308,12 @@ Release needs the message recategorised, unlinked or reassociated first. Every
 original and corrected classification, with actor, time, reason and evidence,
 stays in history.
 
+While a linked message's current classification is a cancellation and the
+Case is open, the Case page's Next action names it, **Cancellation received**,
+with **Open message**, and the Case's Engineer is told through the bell
+([FRD-12](frd-12-operator-experience.md#the-shell)). Correcting the message
+away clears the row. The Case's state still changes only by a staff action.
+
 ## States and transitions
 
 | From | To | Trigger |
@@ -313,8 +323,8 @@ stays in history.
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
 | With Engineer | Completed | Mark completed |
-| Completed | Query | Query received or attached |
-| Query | Completed | Reply sent |
+| Completed | Query | Query received, attached, or corrected onto a linked message |
+| Query | Completed | Reply sent, or the last post-report message unlinked or corrected away before any reply |
 | Completed, Query | With Engineer | Return to Engineer (reason) |
 | Not ready, Review, With Engineer, Completed, Query | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
 | pre-report states | Principal cancelled, Collision Engineers rejected | Close case (reason) |

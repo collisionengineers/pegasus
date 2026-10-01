@@ -373,7 +373,13 @@ public sealed class EfCaseQueryStore(
             frame,
             documents,
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
-            recordNotes);
+            recordNotes,
+            // The Next action's cancellation row reads the linked mail's current
+            // classification on every render (FRD-13 "Cancellation messages"),
+            // and only while the Case can show one.
+            CaseCancellationNotice.Applies(frame.Workflow)
+                ? await ReadLinkedCancellationMessageIdAsync(context, caseId, cancellationToken)
+                : null);
     }
 
     /// <summary>
@@ -659,6 +665,49 @@ public sealed class EfCaseQueryStore(
             .OrderByDescending(item => item.ReceivedAtUtc)
             .ThenBy(item => item.RetainedMessageId)
             .ToArray();
+    }
+
+    /// <summary>
+    /// The newest retained email currently linked to the Case whose current
+    /// classification is a received in-progress cancellation, in one command.
+    /// It keeps the rules the correspondence read applies in memory: an email
+    /// channel; an active manual association to this Case, or no manual
+    /// association and an accepted link to it (<see
+    /// cref="CurrentIntakeAssociations"/>); and the category the persisted
+    /// decision maps to, which ignores the decision's outcome and is Other
+    /// whenever an Other name is recorded.
+    /// </summary>
+    private static Task<Guid?> ReadLinkedCancellationMessageIdAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
+        var manualUpload = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
+        var received = EfIntakeReceiptStore.ToCode(MailDirection.Received);
+        var inProgressCases = MailTaxonomy.CategoryName(ReceivedMailFamily.InProgressCases);
+        return context.IntakeReceipts.AsNoTracking()
+            .Where(item => (item.SourceChannel == mailbox || item.SourceChannel == manualUpload)
+                && ((item.ManualAssociation != null
+                        && item.ManualAssociation.IsActive
+                        && item.ManualAssociation.CaseId == caseId)
+                    || (item.ManualAssociation == null
+                        && context.CaseIntakeLinks.Any(link =>
+                            link.IntakeReceiptId == item.Id && link.CaseId == caseId)))
+                && item.MailClassificationDecision != null
+                && item.MailClassificationDecision.OtherName == null
+                && item.MailClassificationDecision.Direction == received
+                && item.MailClassificationDecision.Family == inProgressCases
+                && item.MailClassificationDecision.Subtype == MailCategory.CancellationSubtype)
+            .Join(
+                context.RetainedMailboxMessages.AsNoTracking(),
+                receipt => receipt.ExternalReceiptToken,
+                message => message.ExternalReceiptToken,
+                (receipt, message) => message)
+            .OrderByDescending(message => message.ReceivedAtUtc)
+            .ThenBy(message => message.Id)
+            .Select(message => (Guid?)message.Id)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>

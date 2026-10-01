@@ -45,18 +45,15 @@ public interface IGetUnidentifiedItemContext
 public sealed class GetUnidentifiedItemContext(
     IUnidentifiedStore store,
     IIntakeReceiptQueries receipts,
-    IVrmSuggestionStore vrmSuggestions,
     IImageIntakeQueries imageIntakes,
     ITriageQueries triages,
-    ITriagePrincipalGate triagePrincipalGate) : IGetUnidentifiedItemContext
+    IGetIntakeOfferedActions offers) : IGetUnidentifiedItemContext
 {
     private readonly IUnidentifiedStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly IIntakeReceiptQueries _receipts = receipts ?? throw new ArgumentNullException(nameof(receipts));
-    private readonly IVrmSuggestionStore _vrmSuggestions = vrmSuggestions ?? throw new ArgumentNullException(nameof(vrmSuggestions));
     private readonly IImageIntakeQueries _imageIntakes = imageIntakes ?? throw new ArgumentNullException(nameof(imageIntakes));
     private readonly ITriageQueries _triages = triages ?? throw new ArgumentNullException(nameof(triages));
-    private readonly ITriagePrincipalGate _triagePrincipalGate =
-        triagePrincipalGate ?? throw new ArgumentNullException(nameof(triagePrincipalGate));
+    private readonly IGetIntakeOfferedActions _offers = offers ?? throw new ArgumentNullException(nameof(offers));
 
     public async Task<UnidentifiedItemContext?> ExecuteAsync(
         ActionActor actor,
@@ -89,24 +86,17 @@ public sealed class GetUnidentifiedItemContext(
 
         var imageIntake = await _imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
         var triage = await _triages.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
-        var isImageEligible = ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt);
-        var readings = isImageEligible
-            ? await _vrmSuggestions.ListForReceiptAsync(receipt.Id, cancellationToken)
-            : [];
+        // The receipt's offers are one owner's answer; an open item adds only
+        // that it is still open.
+        var offered = await _offers.ExecuteAsync(actor, receipt, cancellationToken);
         var open = item.State == UnidentifiedState.Open;
-        // Open the Triage opens a Triage Case, which takes the receipt's
-        // Principal: without an established one it is not offered.
-        var canOpenTriage = open && triage is null
-            && receipt.Decision == IntakeDecision.NeedsSorting
-            && receipt.Evidence.Count(evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch) == 1
-            && await _triagePrincipalGate.GetEstablishedPrincipalIdAsync(receipt.Id, cancellationToken) is not null;
         return new(
             item,
             receipt,
-            readings,
+            offered.RegistrationReadings,
             imageIntake,
             triage,
-            CanRegisterImages: open && isImageEligible && imageIntake is null && receipt.Decision == IntakeDecision.NeedsSorting,
-            CanOpenTriage: canOpenTriage);
+            CanRegisterImages: open && offered.CanRegisterImages,
+            CanOpenTriage: open && offered.CanOpenTriage);
     }
 }

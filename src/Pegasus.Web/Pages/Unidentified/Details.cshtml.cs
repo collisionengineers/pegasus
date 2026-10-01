@@ -31,11 +31,8 @@ public sealed partial class DetailsModel(
     IReleaseCaseEditLease releaseLease,
     ICreateAiJob createAiJob,
     ILinkIntake linkIntake,
-    IImageIntakeOriginResolver originResolver,
-    IRegisterImageIntake registerImageIntake,
     IVrmSuggestionStore vrmSuggestions,
-    ICreateTriageFromIntake createTriage,
-    ReconcileUnidentifiedDestinations reconcile,
+    Pegasus.Web.Intake.StaffIntakeActions intakeActions,
     IIntakeSubmissionGroupStore submissionGroups,
     IGetPreCaseImagePreparations getPreparations,
     Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
@@ -289,14 +286,8 @@ public sealed partial class DetailsModel(
                     throw new InvalidOperationException("Images cannot be registered from this item.");
                 }
 
-                var normalized = ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration);
-                var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken)
-                    ?? throw new InvalidOperationException("The material has no completed evaluation to register from.");
-                var record = await registerImageIntake.ExecuteAsync(
-                    new(origin, normalized, actor, operationKey, reason),
-                    cancellationToken);
-                await ConfirmMatchingReadingsAsync(context, record, actor, cancellationToken);
-                await SynchronizeAsync(receipt.Id, actor, cancellationToken);
+                var record = await intakeActions.RegisterImagesAsync(
+                    actor, receipt, vehicleRegistration, reason, operationKey, cancellationToken);
                 return $"Registered as vehicle images {record.ImageIntakeReference}.";
             },
             cancellationToken);
@@ -317,25 +308,12 @@ public sealed partial class DetailsModel(
             TriageDialog,
             async (actor, context) =>
             {
-                StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
                 if (!context.CanOpenTriage || context.Receipt is not { } receipt)
                 {
                     throw new InvalidOperationException("A Triage cannot be opened from this item.");
                 }
 
-                var acceptedMatch = receipt.Evidence.Single(
-                    evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
-                var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken)
-                    ?? throw new InvalidOperationException("The material has no completed evaluation to open a Triage from.");
-                await createTriage.ExecuteAsync(
-                    new(
-                        new TriageOrigin(origin.ReceiptId, origin.SourceIdentity, origin.SourceHash, origin.EvaluationRevisionId),
-                        ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration),
-                        acceptedMatch,
-                        actor,
-                        $"triage-from-staff:{operationKey}"),
-                    cancellationToken);
-                await SynchronizeAsync(receipt.Id, actor, cancellationToken);
+                await intakeActions.OpenTriageAsync(actor, receipt, vehicleRegistration, operationKey, cancellationToken);
                 return "The Triage was opened.";
             },
             cancellationToken);
@@ -583,53 +561,6 @@ public sealed partial class DetailsModel(
                 _ => "The action was not applied because the item changed or the action is not permitted. Reload and try again."
             };
             return dialog is null ? RedirectToPage(new { id }) : RedirectToPage(new { id, dialog });
-        }
-    }
-
-    /// <summary>
-    /// Settles the item against the destination the material now has, through
-    /// the one owner of that rule, reading the receipt afresh so the new link,
-    /// registration or Triage is in hand. Advisory: the periodic sweep is the
-    /// backstop, except for a permanently taken operation key, which surfaces.
-    /// </summary>
-    private async Task SynchronizeAsync(Guid receiptId, Pegasus.Core.Identity.ActionActor actor, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (await getIntake.ExecuteAsync(new GetIntakeQuery(receiptId, actor), cancellationToken) is { } receipt)
-            {
-                await reconcile.SynchronizeForReceiptAsync(receipt, cancellationToken);
-            }
-        }
-        catch (Exception exception) when (exception is not UnidentifiedOperationConflictException && IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            LogCommandFailed(logger, "synchronize", receiptId, exception);
-        }
-    }
-
-    /// <summary>A reading the staff registration used is confirmed; bookkeeping over a committed registration.</summary>
-    private async Task ConfirmMatchingReadingsAsync(
-        UnidentifiedItemContext context,
-        ImageIntakeRecord record,
-        Pegasus.Core.Identity.ActionActor actor,
-        CancellationToken cancellationToken)
-    {
-        foreach (var reading in context.RegistrationReadings.Where(reading =>
-                     reading.Disposition == ImageVrmSuggestionDisposition.Pending
-                     && reading.Outcome == VrmRecognitionOutcomeKind.Suggested
-                     && string.Equals(reading.SuggestedRegistration, record.NormalizedVehicleRegistration, StringComparison.Ordinal)))
-        {
-            try
-            {
-                await vrmSuggestions.SetDispositionAsync(
-                    new(reading.Id, ImageVrmSuggestionDisposition.Confirmed, actor,
-                        "The staff registration used this suggested registration.", $"vrm-confirm:{reading.Id:N}"),
-                    cancellationToken);
-            }
-            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-            {
-                LogCommandFailed(logger, "confirm_reading", reading.Id, exception);
-            }
         }
     }
 

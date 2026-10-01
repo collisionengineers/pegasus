@@ -60,7 +60,8 @@ is not offered on a Triage Case.
   request;
 - an authenticated Principal declares one over the Principal API;
 - an authorised staff member classifies safely retained, attributable
-  material on an Unidentified item as Triage with **Open the Triage**;
+  material as Triage with **Open the Triage**, on its Unidentified item or on
+  the message once its classification is corrected to Triage request;
 - an authorised staff member chooses Triage in **Create case**, giving only
   the Principal and the registration.
 

@@ -170,6 +170,7 @@ public static class DependencyInjection
         services.AddSingleton<IExtractPdfPageText, PdfPigPageTextExtractor>();
         services.AddScoped<IReadPreCaseImageThumbnail, ReadPreCaseImageThumbnail>();
         services.AddScoped<IGetUnidentifiedItemContext, GetUnidentifiedItemContext>();
+        services.AddScoped<IGetIntakeOfferedActions, GetIntakeOfferedActions>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
