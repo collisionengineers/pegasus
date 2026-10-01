@@ -61,7 +61,10 @@ while the lease is live, so it never ends the holder's edit session. Such a
 change claims the lease for its one command and consumes it; a refused
 command frees the lease it claimed.
 Automatic processing never resumes a lease; each of its sessions claims and
-is refused while any lease is live.
+is refused while any lease is live. An Automation write presented without a
+lease token claims the lease for that one command and releases it afterwards;
+the explicit Automation lease tools remain for multi-step work
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)).
 
 **Leaving.** Leaving the Case by a link in Pegasus ends edit mode. A change
 not yet sent lands first ([FRD-16](frd-16-case-record-workspace.md#case-workspace)),

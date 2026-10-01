@@ -303,7 +303,6 @@ public sealed class ProductionCompositionTests
 
         Assert.NotNull(services.GetRequiredService<IAddCaseDocument>());
         Assert.NotNull(services.GetRequiredService<IDownloadCaseDocument>());
-        Assert.NotNull(services.GetRequiredService<IExportCaseDocuments>());
         Assert.NotNull(services.GetRequiredService<ILogicallyRemoveDocument>());
         Assert.NotNull(services.GetRequiredService<ITagCaseImage>());
         Assert.NotNull(services.GetRequiredService<IUntagCaseImage>());

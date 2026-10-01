@@ -1,17 +1,16 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
-using Pegasus.Core.Cases;
-using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
+using SkiaSharp;
 
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// MCP-04 caller evidence: document add, download, and export through the
-/// gated /mcp host. Ingress gate/token/inventory stays in
-/// <see cref="AutomationMcpIngressTests"/>.
+/// MCP-04 caller evidence: document add and download through the gated /mcp
+/// host, with the download handed back as native MCP content (a text block,
+/// an image block, PDF page text) rather than base64. Ingress gate, token and
+/// inventory stay in <see cref="AutomationMcpIngressTests"/>.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class AutomationDocumentIngressTests
@@ -71,6 +70,8 @@ public sealed class AutomationDocumentIngressTests
             Assert.Equal(versionId, structured.GetProperty("versionId").GetGuid());
         }
 
+        // A small text file comes back as its text, in a block the client shows
+        // its model; the structured half carries identity, size, hash and URL.
         using (var download = await AutomationMcpTestSupport.PostMcpAsync(
             client,
             token,
@@ -79,11 +80,17 @@ public sealed class AutomationDocumentIngressTests
                 "pegasus_document_download",
                 new { caseId, occurrenceId, versionId })))
         {
-            var structured = await AutomationMcpTestSupport.ReadStructuredContentAsync(download);
+            var (blocks, structured) = await AutomationMcpTestSupport.ReadToolResultAsync(download);
             Assert.True(structured.GetProperty("contentIncluded").GetBoolean());
-            Assert.Equal(
-                content,
-                Convert.FromBase64String(structured.GetProperty("contentBase64").GetString()!));
+            Assert.Equal("text/plain", structured.GetProperty("mediaType").GetString());
+            Assert.Equal(content.Length, structured.GetProperty("contentLength").GetInt64());
+            Assert.True(
+                !structured.TryGetProperty("contentBase64", out _),
+                "Content never travels as base64 in the structured result.");
+            Assert.Contains(
+                blocks.EnumerateArray(),
+                block => block.GetProperty("type").GetString() == "text"
+                    && block.GetProperty("text").GetString() == "mcp-04 document fixture");
         }
 
         using (var oversize = await AutomationMcpTestSupport.PostMcpAsync(
@@ -94,12 +101,11 @@ public sealed class AutomationDocumentIngressTests
                 "pegasus_document_download",
                 new { caseId, occurrenceId, versionId, maxInlineBytes = 1 })))
         {
-            var structured = await AutomationMcpTestSupport.ReadStructuredContentAsync(oversize);
+            var (blocks, structured) = await AutomationMcpTestSupport.ReadToolResultAsync(oversize);
             Assert.False(structured.GetProperty("contentIncluded").GetBoolean());
-            Assert.True(
-                !structured.TryGetProperty("contentBase64", out var omitted)
-                || omitted.ValueKind is JsonValueKind.Null,
-                "Oversized download must not return inline content.");
+            Assert.DoesNotContain(
+                blocks.EnumerateArray(),
+                block => block.GetProperty("type").GetString() != "text");
             Assert.Contains(
                 "exceeds the inline limit",
                 structured.GetProperty("notice").GetString(),
@@ -133,57 +139,15 @@ public sealed class AutomationDocumentIngressTests
             """));
     }
 
+    /// <summary>
+    /// What Claude Desktop asked for: a photograph arrives as an image block
+    /// it can show, re-encoded to the byte budget, and a PDF arrives as its
+    /// page text; the originals stay in custody at the content URL. The adds
+    /// present no lease token, so each holds the lease for its one command and
+    /// leaves the Case free afterwards.
+    /// </summary>
     [Fact]
-    public async Task ExportRefusesWhenTheCaseIsNotInReview()
-    {
-        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
-        using var mcpFactory = AutomationMcpTestSupport.WithAutomationMcp(factory);
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(
-            mcpFactory,
-            new CaseCompleteness(false, false));
-        using var client = mcpFactory.CreateClient();
-        var token = await AutomationMcpTestSupport.RequestTokenAsync(
-            client,
-            AutomationMcpTestSupport.AllScopes);
-
-        await using (var scope = mcpFactory.Services.CreateAsyncScope())
-        {
-            var workflow = await scope.ServiceProvider
-                .GetRequiredService<ICaseWorkflowQueries>()
-                .GetAsync(caseId, CancellationToken.None);
-            Assert.Equal(CaseLifecycleState.NotReady, workflow?.State);
-        }
-
-        var (caseVersion, leaseToken) = await AutomationMcpTestSupport.BeginEditAsync(
-            client,
-            token,
-            caseId,
-            expectedVersion: 0,
-            rpcId: 50);
-        using var export = await AutomationMcpTestSupport.PostMcpAsync(
-            client,
-            token,
-            AutomationMcpTestSupport.ToolCallPayload(
-                51,
-                "pegasus_document_export",
-                new
-                {
-                    caseId,
-                    selections = new[]
-                    {
-                        new { occurrenceId = Guid.NewGuid(), versionId = Guid.NewGuid() }
-                    },
-                    expectedCaseVersion = caseVersion,
-                    editLeaseToken = leaseToken,
-                    operationKey = "mcp:document-export-not-review"
-                }));
-        using var document = await AutomationMcpTestSupport.ReadJsonRpcAsync(export);
-        var body = document.RootElement.ToString();
-        Assert.Contains("can only be exported while it is in Review", body, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ExportSucceedsAfterReturnToReview()
+    public async Task ImageDownloadsAsAnImageBlockAndPdfDownloadsAsPageText()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = AutomationMcpTestSupport.WithAutomationMcp(factory);
@@ -192,64 +156,64 @@ public sealed class AutomationDocumentIngressTests
         var token = await AutomationMcpTestSupport.RequestTokenAsync(
             client,
             AutomationMcpTestSupport.AllScopes);
-        var (caseVersion, leaseToken) = await AutomationMcpTestSupport.BeginEditAsync(
-            client,
-            token,
-            caseId,
-            expectedVersion: 0,
-            rpcId: 60);
-        var content = "export fixture"u8.ToArray();
+        var photograph = NoisyJpeg(1600, 1200);
+        Assert.True(photograph.Length > AutomationFileContent.DefaultInlineBytes, "The fixture must exceed the budget.");
+        var pdf = IntakeTestEvidence.CreatePdf("Estimate total 1234.56 pounds for the nearside door.");
 
-        Guid occurrenceId;
-        Guid versionId;
-        using (var add = await AutomationMcpTestSupport.PostMcpAsync(
-            client,
-            token,
-            AddPayload(61, caseId, content, "Other", caseVersion, leaseToken, "mcp:document-export-add")))
-        {
-            var structured = await AutomationMcpTestSupport.ReadStructuredContentAsync(add);
-            occurrenceId = structured.GetProperty("occurrenceId").GetGuid();
-            versionId = structured.GetProperty("versionId").GetGuid();
-        }
+        var (imageOccurrence, imageVersion) = await AddWithoutLeaseAsync(
+            client, token, caseId, 0, "photo.jpg", "image/jpeg", photograph, "Image", "mcp:add-photo");
+        var (pdfOccurrence, pdfVersion) = await AddWithoutLeaseAsync(
+            client, token, caseId, 1, "estimate.pdf", "application/pdf", pdf, "Other", "mcp:add-pdf");
 
-        await AutomationMcpTestSupport.EnsureInReviewAsync(mcpFactory, client, token, caseId);
-        var exportLease = await AutomationMcpTestSupport.BeginEditAsync(
-            client,
-            token,
-            caseId,
-            await AutomationMcpTestSupport.GetWorkflowVersionAsync(mcpFactory, caseId),
-            rpcId: 62);
-        using (var export = await AutomationMcpTestSupport.PostMcpAsync(
+        // The implicit lease is held for the command only: nothing is left on the Case.
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
+        Assert.Equal(2, await AutomationMcpTestSupport.GetWorkflowVersionAsync(mcpFactory, caseId));
+
+        using (var download = await AutomationMcpTestSupport.PostMcpAsync(
             client,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
-                63,
-                "pegasus_document_export",
-                new
-                {
-                    caseId,
-                    selections = new[] { new { occurrenceId, versionId } },
-                    expectedCaseVersion = exportLease.CaseVersion,
-                    editLeaseToken = exportLease.LeaseToken,
-                    operationKey = "mcp:document-export-success",
-                    maxInlineBytes = 10 * 1024 * 1024
-                })))
+                3,
+                "pegasus_document_download",
+                new { caseId, occurrenceId = imageOccurrence, versionId = imageVersion })))
         {
-            var structured = await AutomationMcpTestSupport.ReadStructuredContentAsync(export);
+            var (blocks, structured) = await AutomationMcpTestSupport.ReadToolResultAsync(download);
             Assert.True(structured.GetProperty("contentIncluded").GetBoolean());
-            Assert.Equal(1, structured.GetProperty("manifest").GetArrayLength());
-            Assert.Equal(
-                occurrenceId,
-                structured.GetProperty("manifest")[0].GetProperty("occurrenceId").GetGuid());
+            Assert.Equal(photograph.Length, structured.GetProperty("contentLength").GetInt64());
+            var image = Assert.Single(
+                blocks.EnumerateArray(),
+                block => block.GetProperty("type").GetString() == "image");
+            Assert.Equal("image/jpeg", image.GetProperty("mimeType").GetString());
+            var bytes = Convert.FromBase64String(image.GetProperty("data").GetString()!);
+            Assert.True(bytes.Length <= AutomationFileContent.DefaultInlineBytes, $"{bytes.Length} bytes exceed the budget.");
+            Assert.Equal(0xFF, bytes[0]);
+            Assert.Equal(0xD8, bytes[1]);
+            using var decoded = SKBitmap.Decode(bytes);
+            Assert.NotNull(decoded);
+            Assert.True(decoded.Width <= AutomationFileContent.LongestEdge);
+            Assert.Contains(
+                blocks.EnumerateArray(),
+                block => block.GetProperty("type").GetString() == "text"
+                    && block.GetProperty("text").GetString()!.Contains("Shown at", StringComparison.Ordinal));
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM ActionHistory
-            WHERE ActorKind = N'Automation'
-              AND EventKind = N'pegasus_document_export'
-              AND Outcome = N'Succeeded'
-            """));
+        using (var download = await AutomationMcpTestSupport.PostMcpAsync(
+            client,
+            token,
+            AutomationMcpTestSupport.ToolCallPayload(
+                4,
+                "pegasus_document_download",
+                new { caseId, occurrenceId = pdfOccurrence, versionId = pdfVersion })))
+        {
+            var (blocks, structured) = await AutomationMcpTestSupport.ReadToolResultAsync(download);
+            Assert.True(structured.GetProperty("contentIncluded").GetBoolean());
+            Assert.All(blocks.EnumerateArray(), block => Assert.Equal("text", block.GetProperty("type").GetString()));
+            Assert.Contains(
+                blocks.EnumerateArray(),
+                block => block.GetProperty("text").GetString()!.StartsWith("Page 1 of 1", StringComparison.Ordinal)
+                    && block.GetProperty("text").GetString()!.Contains("Estimate total 1234.56", StringComparison.Ordinal));
+        }
     }
 
     [Fact]
@@ -271,13 +235,15 @@ public sealed class AutomationDocumentIngressTests
             Assert.DoesNotContain(leaked, body, StringComparison.Ordinal);
         }
 
-        using (var missingLease = await AutomationMcpTestSupport.PostMcpAsync(
+        // No lease token means the tool claims the lease itself; on a case that
+        // does not exist the claim is refused and nothing is written.
+        using (var unknownCase = await AutomationMcpTestSupport.PostMcpAsync(
             client,
             token,
-            AddPayload(71, Guid.NewGuid(), "x"u8.ToArray(), "Other", 0, "", "mcp:document-missing-lease")))
+            AddPayload(71, Guid.NewGuid(), "x"u8.ToArray(), "Other", 0, "", "mcp:document-unknown-case")))
         {
-            var body = (await AutomationMcpTestSupport.ReadJsonRpcAsync(missingLease)).RootElement.ToString();
-            Assert.Contains("edit lease token is required", body, StringComparison.OrdinalIgnoreCase);
+            var body = await AutomationMcpTestSupport.ReadErrorTextAsync(unknownCase);
+            Assert.DoesNotContain("edit lease token is required", body, StringComparison.OrdinalIgnoreCase);
         }
 
         using (var emptyVersion = await AutomationMcpTestSupport.PostMcpAsync(
@@ -292,31 +258,11 @@ public sealed class AutomationDocumentIngressTests
             Assert.Contains("version identifier", body, StringComparison.OrdinalIgnoreCase);
         }
 
-        using (var emptyExport = await AutomationMcpTestSupport.PostMcpAsync(
-            client,
-            token,
-            AutomationMcpTestSupport.ToolCallPayload(
-                72,
-                "pegasus_document_export",
-                new
-                {
-                    caseId = Guid.NewGuid(),
-                    selections = Array.Empty<object>(),
-                    expectedCaseVersion = 0,
-                    editLeaseToken = leaked,
-                    operationKey = "mcp:document-empty-export"
-                })))
-        {
-            var body = (await AutomationMcpTestSupport.ReadJsonRpcAsync(emptyExport)).RootElement.ToString();
-            Assert.Contains("selection is required", body, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain(leaked, body, StringComparison.Ordinal);
-        }
-
-        Assert.Equal(4, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
-              AND EventKind IN (N'pegasus_document_add', N'pegasus_document_download', N'pegasus_document_export')
+              AND EventKind IN (N'pegasus_document_add', N'pegasus_document_download')
               AND Outcome = N'Failed'
             """));
     }
@@ -342,18 +288,7 @@ public sealed class AutomationDocumentIngressTests
             AutomationMcpTestSupport.ToolCallPayload(
                 81,
                 "pegasus_document_download",
-                new { caseId = Guid.NewGuid(), occurrenceId = Guid.NewGuid(), versionId = Guid.NewGuid() }),
-            AutomationMcpTestSupport.ToolCallPayload(
-                82,
-                "pegasus_document_export",
-                new
-                {
-                    caseId = Guid.NewGuid(),
-                    selections = new[] { new { occurrenceId = Guid.NewGuid(), versionId = Guid.NewGuid() } },
-                    expectedCaseVersion = 0,
-                    editLeaseToken = new string('e', 64),
-                    operationKey = "mcp:document-export-scope-denied"
-                })
+                new { caseId = Guid.NewGuid(), occurrenceId = Guid.NewGuid(), versionId = Guid.NewGuid() })
         };
 
         foreach (var payload in payloads)
@@ -374,6 +309,49 @@ public sealed class AutomationDocumentIngressTests
               AND Outcome = N'Denied'
               AND SubjectId = N'pegasus-automation'
             """));
+    }
+
+    private static async Task<(Guid OccurrenceId, Guid VersionId)> AddWithoutLeaseAsync(
+        HttpClient client,
+        string token,
+        Guid caseId,
+        long expectedCaseVersion,
+        string fileName,
+        string mediaType,
+        byte[] content,
+        string semanticRole,
+        string operationKey)
+    {
+        using var response = await AutomationMcpTestSupport.PostMcpAsync(
+            client,
+            token,
+            AutomationMcpTestSupport.ToolCallPayload(
+                1,
+                "pegasus_document_add",
+                new
+                {
+                    caseId,
+                    fileName,
+                    mediaType,
+                    contentBase64 = Convert.ToBase64String(content),
+                    semanticRole,
+                    expectedCaseVersion,
+                    operationKey
+                }));
+        var structured = await AutomationMcpTestSupport.ReadStructuredContentAsync(response);
+        return (structured.GetProperty("occurrenceId").GetGuid(), structured.GetProperty("versionId").GetGuid());
+    }
+
+    /// <summary>A photograph-sized JPEG that does not compress: random pixels.</summary>
+    private static byte[] NoisyJpeg(int width, int height)
+    {
+        var random = new Random(20261001);
+        using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        var pixels = bitmap.GetPixelSpan();
+        random.NextBytes(pixels);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 92);
+        return encoded.ToArray();
     }
 
     private static string AddPayload(

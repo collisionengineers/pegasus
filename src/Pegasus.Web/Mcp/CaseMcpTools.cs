@@ -63,28 +63,11 @@ internal sealed record CaseGetToolResult(
     string? NextHistoryCursor,
     string CorrelationId);
 
-internal sealed record CaseEditLeaseToolResult(
-    Guid CaseId,
-    string LeaseToken,
-    string Holder,
-    long CaseVersion,
-    DateTimeOffset ExpiresAtUtc,
-    string OperationKey,
-    string CorrelationId);
-
-internal sealed record CaseEditReleaseToolResult(
-    Guid CaseId,
-    bool Released,
-    string OperationKey,
-    string CorrelationId);
-
 /// <summary>
-/// Automation Actor Case tools (MCP-02): thin adapters over the same Core
-/// case use cases the staff Web UI calls, guarded by the automation.cases
-/// scope. Case mutations elsewhere present the same edit lease and expected
-/// version as a staff save, which is why lease acquire/renew/release are
-/// tools: the Automation Actor gets the continuity staff already have, and
-/// nothing here takes over, forces, or merges another holder's edit.
+/// Automation Actor Case reads (MCP-02): thin adapters over the same Core
+/// case queries the staff Web UI calls, guarded by the automation.cases
+/// scope. Case writes live with the record they change; the explicit edit
+/// lease for multi-step work is <see cref="EditLeaseMcpTools"/>.
 /// </summary>
 [McpServerToolType]
 internal sealed class CaseMcpTools(
@@ -92,9 +75,6 @@ internal sealed class CaseMcpTools(
     IGetCaseHeader getCaseHeader,
     IListCaseDocumentsByCursor listDocuments,
     IListCaseHistoryByCursor listHistory,
-    IAcquireCaseEditLease acquireLease,
-    IRenewCaseEditLease renewLease,
-    IReleaseCaseEditLease releaseLease,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -238,136 +218,6 @@ internal sealed class CaseMcpTools(
                     history,
                     historyPage.NextCursor,
                     context.TraceIdentifier);
-            }),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_case_edit_begin",
-        Title = "Begin case edit lease",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Claims the server-owned short-lived case edit lease that every case mutation must present, using the same guard as staff editing. Fails closed when another editor holds the lease or the expected version is stale.")]
-    public async Task<CaseEditLeaseToolResult> EditBeginAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same lease claim.")] string operationKey,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_case_edit_begin",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
-                var lease = await acquireLease.ExecuteAsync(
-                    new(caseId, expectedVersion, context.Actor, normalizedKey),
-                    cancellationToken);
-                return new CaseEditLeaseToolResult(
-                    lease.CaseId,
-                    lease.Token,
-                    lease.Holder,
-                    lease.Version,
-                    lease.ExpiresAtUtc,
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
-            }),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_case_edit_renew",
-        Title = "Renew case edit lease",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Extends the case edit lease claimed with pegasus_case_edit_begin, using the same Core use case as the staff renew control, so automation whose work outlasts the lease continues without re-claiming. Fails closed for a non-holder, an expired lease, or a stale expected version.")]
-    public async Task<CaseEditLeaseToolResult> EditRenewAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("The lease token returned by pegasus_case_edit_begin.")] string leaseToken,
-        [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same renewal.")] string operationKey,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-
-        // Routine renewal is telemetry, not permanent history; only the refusal is material.
-        return await auditor.RecordDenialAsync(
-            context,
-            "pegasus_case_edit_renew",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
-                if (string.IsNullOrWhiteSpace(leaseToken))
-                {
-                    throw new McpException("An active edit lease token is required.");
-                }
-
-                var lease = await renewLease.ExecuteAsync(
-                    new(caseId, expectedVersion, context.Actor, normalizedKey, leaseToken),
-                    cancellationToken);
-                return new CaseEditLeaseToolResult(
-                    lease.CaseId,
-                    lease.Token,
-                    lease.Holder,
-                    lease.Version,
-                    lease.ExpiresAtUtc,
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
-            }),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_case_edit_end",
-        Title = "End case edit lease",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Releases a case edit lease previously claimed with pegasus_case_edit_begin.")]
-    public async Task<CaseEditReleaseToolResult> EditEndAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The lease token returned by pegasus_case_edit_begin.")] string leaseToken,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_case_edit_end",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
-                if (string.IsNullOrWhiteSpace(leaseToken))
-                {
-                    throw new McpException("An active edit lease token is required.");
-                }
-
-                await releaseLease.ExecuteAsync(
-                    new(caseId, context.Actor, normalizedKey, leaseToken),
-                    cancellationToken);
-                return new CaseEditReleaseToolResult(
-                    caseId,
-                    Released: true,
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
             }),
             cancellationToken);
     }

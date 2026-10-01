@@ -106,6 +106,31 @@ internal static class AutomationMcpTestSupport
         return result.GetProperty("structuredContent").Clone();
     }
 
+    /// <summary>
+    /// A successful tool result whole: its content blocks (what an MCP client
+    /// shows its model) and its structured half.
+    /// </summary>
+    public static async Task<(JsonElement Content, JsonElement Structured)> ReadToolResultAsync(
+        HttpResponseMessage response)
+    {
+        using var document = await ReadJsonRpcAsync(response);
+        var result = document.RootElement.GetProperty("result");
+        Assert.False(
+            result.TryGetProperty("isError", out var isError) && isError.GetBoolean(),
+            result.ToString());
+        return (result.GetProperty("content").Clone(), result.GetProperty("structuredContent").Clone());
+    }
+
+    public static async Task<string> ReadErrorTextAsync(HttpResponseMessage response)
+    {
+        using var document = await ReadJsonRpcAsync(response);
+        var result = document.RootElement.GetProperty("result");
+        Assert.True(
+            result.TryGetProperty("isError", out var isError) && isError.GetBoolean(),
+            "Expected a refused tool call: " + result.ToString());
+        return result.ToString();
+    }
+
     public static string ToolsListPayload(int id) =>
         JsonSerializer.Serialize(new
         {
@@ -163,16 +188,17 @@ internal static class AutomationMcpTestSupport
             token,
             ToolCallPayload(
                 rpcId,
-                "pegasus_case_edit_begin",
+                "pegasus_edit_begin",
                 new
                 {
-                    caseId,
+                    recordKind = "Case",
+                    recordId = caseId,
                     expectedVersion,
                     operationKey = $"mcp:lease-{rpcId}-{Guid.NewGuid():N}"
                 }));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var lease = await ReadStructuredContentAsync(response);
-        return (lease.GetProperty("caseVersion").GetInt64(), lease.GetProperty("leaseToken").GetString()!);
+        return (lease.GetProperty("version").GetInt64(), lease.GetProperty("editLeaseToken").GetString()!);
     }
 
     public static async Task<long> GetWorkflowVersionAsync(

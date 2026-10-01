@@ -34,6 +34,7 @@ public static class AutomationMcpExtensions
         services.AddScoped<AutomationClientRegistry>();
         services.AddScoped<AutomationActorResolver>();
         services.AddScoped<AutomationMcpAuditor>();
+        services.AddScoped<AutomationEditLease>();
 
         if (!options.UseDevelopmentKeys)
         {
@@ -142,6 +143,16 @@ public static class AutomationMcpExtensions
                         AutomationMcp.Audience,
                         StringComparer.Ordinal)
                     && context.User.HasScope(AutomationMcp.DocumentsScope));
+            })
+            .AddPolicy(AutomationMcp.IntakeEndpointPolicy, policy =>
+            {
+                policy.AddAuthenticationSchemes(AutomationMcp.AuthenticationScheme);
+                policy.RequireAuthenticatedUser();
+                policy.RequireAssertion(context =>
+                    context.User.GetAudiences().Contains(
+                        AutomationMcp.Audience,
+                        StringComparer.Ordinal)
+                    && context.User.HasScope(AutomationMcp.IntakeScope));
             });
 
         services.AddMcpServer(server => server.ServerInfo = new()
@@ -151,6 +162,7 @@ public static class AutomationMcpExtensions
             })
             .WithHttpTransport(transport => transport.Stateless = true)
             .WithTools<CaseMcpTools>()
+            .WithTools<EditLeaseMcpTools>()
             .WithTools<IntakeMcpTools>()
             .WithTools<DocumentMcpTools>()
             .WithTools<AssessmentMcpTools>()
@@ -178,8 +190,9 @@ public static class AutomationMcpExtensions
 
     /// <summary>
     /// Maps the bearer-only automation surface: the token endpoint (client
-    /// credentials, authorization code, refresh) and the streamable-HTTP MCP
-    /// endpoint. The Administrator consent page at <c>/authorize</c> is a
+    /// credentials, authorization code, refresh), the streamable-HTTP MCP
+    /// endpoint and the two original-bytes routes the download tools name as
+    /// <c>contentUrl</c>. The Administrator consent page at <c>/authorize</c> is a
     /// Razor Page (staff cookie), not mapped here. A staff browser cookie is
     /// never accepted on <c>/mcp</c>: the endpoint policy authenticates
     /// exclusively with the automation bearer scheme, and an unauthenticated
@@ -200,9 +213,9 @@ public static class AutomationMcpExtensions
             .RequireAuthorization(AutomationMcp.DocumentsEndpointPolicy)
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
         app.MapGet(
-                "/automation/document-exports",
-                AutomationDocumentStreaming.GetExportAsync)
-            .RequireAuthorization(AutomationMcp.DocumentsEndpointPolicy)
+                "/automation/intake-sources/{receiptId:guid}",
+                AutomationDocumentStreaming.GetIntakeSourceAsync)
+            .RequireAuthorization(AutomationMcp.IntakeEndpointPolicy)
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
     }
 }

@@ -1,6 +1,6 @@
 # FRD-10: MCP automation and actor boundary
 
-> Owner capabilities: MCP-01 to MCP-05 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MCP-01 to MCP-04 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -10,6 +10,12 @@
   its own identity and history and no management powers.
 - Lists page by cursor, 50 by default and 100 at most. Documents are checked
   for permission before any content is read.
+- A download hands a file back as content the client can show: a photograph
+  as an image, a PDF as its page text, a small text file as text. Anything else
+  comes back as metadata plus an authenticated URL for the original bytes.
+  There are no public links.
+- A write presented without a lease token holds the record's edit lease for
+  that one command. The explicit lease tools remain for multi-step work.
 - The Actor can work Unidentified items, Triage Cases, AI jobs and estimates. It
   cannot send mail on its own or touch Glass's credentials.
 - A tool counts as delivered only after a real caller has proved success,
@@ -54,20 +60,40 @@ custody retention. The Case page and MCP both call it; there are no separate
 import paths.
 
 **Documents.** Permission and immutable metadata are checked before content
-is read. Small files come back inline, bounded. Larger files return their
-logical identity, size, media type, hash and an authenticated
-`/automation/documents/{id}/versions/{version}` URL. That endpoint needs the
-same bearer audience and Documents scope, rechecks Case and source
-authorisation, and supports exact-version ETag and ranges. A metadata-only
-request fetches zero content bytes. There are no public signed links and no
-fetches of arbitrary URLs.
+is read. A download (`pegasus_document_download`,
+`pegasus_unidentified_source_download`, `pegasus_triage_source_download`)
+returns the file as native MCP content, because an MCP client can show an
+image block and read a text block but can do nothing with base64 text, and
+Claude's hosted connector refuses a binary embedded resource
+([ADR-0059](../adr/0059-native-mcp-file-content-and-consolidated-tool-inventory.md)):
 
-**Exports.** A document export accepts at most 32 exact occurrence and
-version selections. Small archives come back inline. Larger ones return a
-five-minute, grant-bound `/automation/document-exports` URL, which needs the
-Documents scope again and keeps the original lease, version and operation
-identity. ZIP output streams in order, without ranges. An invalid, expired or
-foreign export ticket gets the same non-disclosing unavailable response.
+- an image (not SVG) as one JPEG image block, EXIF orientation applied, the
+  longest edge at most 1568 px, re-encoded at the highest quality that fits
+  the byte budget (`maxInlineBytes`, 100 KiB by default, 10 MiB at most);
+- a PDF as its page text, one block per page within the same budget as
+  characters, naming a page that needs OCR and a page cut at the budget
+  (operator, 1 October 2026: PDF pages travel as text, not as images);
+- a text file that already fits the budget as its text;
+- anything else, or any file over 10 MiB, as metadata only.
+
+Every result carries the file's identity, size, media type, SHA-256 and an
+authenticated URL for the original bytes:
+`/automation/documents/{occurrence}/versions/{version}` for a Case document
+(Documents scope) and `/automation/intake-sources/{receipt}` for a retained
+intake source (Intake scope). Each endpoint needs the same bearer audience and
+its scope, rechecks Case or receipt authorisation, and answers with the exact
+SHA-256 as ETag; the document route supports ranges. A metadata-only answer
+fetches zero content bytes. There are no public signed links, no document
+export archive, and no fetches of arbitrary URLs.
+
+**Edit leases.** <a id="edit-leases"></a> A write tool presented without an
+edit lease token claims the record's lease through the same Core port as
+staff, runs its one command, and releases the lease afterwards; while another
+editor holds the record, or the version is stale, the claim is refused and
+nothing is written (operator, 1 October 2026). `pegasus_edit_begin`,
+`pegasus_edit_renew` and `pegasus_edit_end` hold a Case or a Triage Case for
+multi-step work, named by `recordKind`, under that record's own scope
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)).
 
 **Assessment writes.** `pegasus_assessment_update` writes only non-finding
 assessment fields a staff member records, and so can change or clear, on the
@@ -127,9 +153,13 @@ than caller-provided actor data, and keeps Triage distinct from Unidentified.
 `pegasus_triage_complete` and `pegasus_triage_await_information` take no
 `reason`: completion and Awaiting information write their own history text,
 as they do for staff. Findings, response evidence, cancel, reopen and Case
-links keep their reasons. The edit begin, renew and end tools let a session
-hold a Triage for a multi-step change; staff actions on it are refused while
-it does.
+links keep their reasons. `pegasus_triage_record_finding` supersedes an
+earlier finding when it names `supersedesFindingId`;
+`pegasus_triage_response_evidence` and `pegasus_triage_case_link` take an
+`action` of Link or Unlink. Each change holds the Triage for its one command,
+as a staff change does; `pegasus_edit_begin` with `recordKind` Triage lets a
+session hold it for a multi-step change, and staff actions on it are refused
+while it does.
 
 Assignment names a selected staff assignee, separate from the acting principal.
 An actor-relative `Assign to me` is not part of the Automation contract and
@@ -149,13 +179,9 @@ stopped automation client is refused before any tool runs.
 | Tool | Scope | Action |
 | --- | --- | --- |
 | `pegasus_ai_job_list` | `automation.jobs` | List jobs by state and kind; a client sees every queued job and its own taken jobs |
-| `pegasus_ai_job_create` | `automation.jobs` | Create a job of a catalogued kind for a named record; the only way an external scheduler starts an Unidentified-queue pass |
-| `pegasus_ai_job_take` | `automation.jobs` | Claim one queued job under a bounded lease held by the client's name; refused when the job is not queued or the kill switch is on |
-| `pegasus_ai_job_progress` | `automation.jobs` | Renew the lease and record a short progress note; refused after cancellation or lease expiry |
-| `pegasus_ai_job_complete` | `automation.jobs` | Complete MarketResearch after its retained Case files are attached; other proposal kinds become `Draft ready`, naming their result |
+| `pegasus_ai_job_create` | `automation.jobs` | Create an Unidentified-queue pass job, the only kind an external scheduler may start |
+| `pegasus_ai_job_transition` | `automation.jobs` | One tool with an `action`: Take claims a queued job under a bounded lease held by the client's name (refused when the job is not queued or the kill switch is on); Progress renews the lease and records a short note (refused after cancellation, lease expiry or while the kill switch is on); Complete marks a non-MarketResearch job `Draft ready`, naming its result kind; Fail marks it `Failed` with a reason; Release returns a taken job to `Queued` before the lease ends |
 | `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document and one AI market research card and mark the client's MarketResearch job `Draft ready`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or completed Case (operator, 28 September 2026) |
-| `pegasus_ai_job_fail` | `automation.jobs` | Mark the job `Failed` with a reason |
-| `pegasus_ai_job_release` | `automation.jobs` | Return a taken job to `Queued` before the lease ends |
 | `pegasus_estimate_save` | `automation.assessment` | Save an AI-draft estimate on a Case; must cite the Estimate job it fulfils and always lands as `Draft` |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
 | `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through the canonical Core command using its name, Case and document occurrence/version identities, SHA-256, typed actor, expected Case version, edit lease and operation key; return the estimate identity or the same structured refusal as the Case caller |
@@ -177,9 +203,39 @@ estimate tools stay under `automation.assessment` because they write
 assessment values. `pegasus_estimate_save` takes AI drafts only: an estimate
 without a job reference, or naming a job not taken by the calling client, is
 refused. `pegasus_estimate_import` names a retained PDF, XML or JSON file for
-shared extraction and needs no AI job reference. `automation.mail` is granted
-today without a consent description; it must have one before any connector is
-consented to it. Every tool is proven under the tranche rule above.
+shared extraction and needs no AI job reference. Every scope has a consent
+description on the Administrator consent page. Every tool is proven under the
+tranche rule above.
+
+### Tool inventory
+
+The Actor's whole inventory, 36 tools, by scope. "One-command lease" means
+the tool takes `expectedVersion` and `operationKey`, accepts an
+`editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
+its one command when none is given.
+
+| Scope | Tool | Action | Lease |
+| --- | --- | --- | --- |
+| `automation.cases` | `pegasus_case_search` | Search Cases by text, reference, registration, claimant, claim number, Principal, state; cursor page | none |
+| `automation.cases` | `pegasus_case_get` | One Case with its paged documents (occurrence and version ids for download) and history | none |
+| `automation.cases` | `pegasus_case_update_details` | Ordinary Case-detail edit through the staff save path | one-command lease |
+| `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work | explicit lease |
+| `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
+| `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |
+| `automation.intake` | `pegasus_unidentified_list`, `pegasus_unidentified_get` | The open Unidentified queue; one item by U-reference with its sources and history | none |
+| `automation.intake` | `pegasus_unidentified_source_download` | A retained source as native content | none |
+| `automation.intake` | `pegasus_unidentified_resolve` | Resolve an item through the Core command | version and key |
+| `automation.intake` | `pegasus_triage_list`, `pegasus_triage_get` | Triage records; one Triage with findings, evidence, candidates and history | none |
+| `automation.intake` | `pegasus_triage_source_download` | The Triage's retained origin source as native content | none |
+| `automation.intake` | `pegasus_triage_await_information`, `pegasus_triage_record_finding`, `pegasus_triage_response_evidence`, `pegasus_triage_complete`, `pegasus_triage_cancel`, `pegasus_triage_reopen` | The Triage contract above | one-command lease |
+| `automation.intake` | `pegasus_triage_case_link` | Link or unlink the Triage and an instruction Case; both records' versions and leases | one-command lease on each record |
+| `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced | one-command lease |
+| `automation.documents` | `pegasus_document_download` | One exact document version as native content | none |
+| `automation.assessment` | `pegasus_assessment_get`, `pegasus_estimate_list` | The recorded assessment surface; a Case's estimate headers | none |
+| `automation.assessment` | `pegasus_assessment_update`, `pegasus_estimate_save`, `pegasus_estimate_import` | Assessment writes above | one-command lease |
+| `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
+| `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification through the staff command | version and key |
+| `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 
 ## States and transitions
 
@@ -190,8 +246,15 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
 ## Edge cases and fail-closed behaviour
 
 - A revoked, expired or wrong-scope token fails before the tool runs.
-- A foreign or oversize cursor, export ticket or document request gets a
-  non-disclosing failure.
+- A foreign or oversize cursor or document request gets a non-disclosing
+  failure.
+- A download whose file cannot be rendered inline (not an image, PDF or
+  text file; over 10 MiB; an image no quality fits in the budget; bytes that
+  are not a readable PDF) returns metadata and the authenticated content URL,
+  never a fabricated rendering.
+- A write without a lease token is refused, writing nothing, while another
+  editor holds the record or the version is stale, exactly as its claim would
+  be.
 - A stopped automation client is refused by the kill switch.
 - A generic assessment update that names a finding, a Case-owned or derived
   field, or a field no Case section records is refused, naming the field, and
@@ -208,7 +271,7 @@ acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `MCP-01`–`MCP-05` in [capabilities](../capabilities.md).
+- Capabilities: `MCP-01`–`MCP-04` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
@@ -219,4 +282,5 @@ acceptance are separate evidence tiers
 - Technical constraints:
   [ADR-0011](../adr/0011-restrict-mcp-to-automation-actor.md),
   [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md),
-  [ADR-0035](../adr/0035-ai-job-ledger.md).
+  [ADR-0035](../adr/0035-ai-job-ledger.md),
+  [ADR-0059](../adr/0059-native-mcp-file-content-and-consolidated-tool-inventory.md).
