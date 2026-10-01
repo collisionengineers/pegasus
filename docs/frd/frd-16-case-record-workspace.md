@@ -87,6 +87,10 @@ While the report is not ready, the Next action carries the report's
 readiness list: every blocker, one row each with the requirement, its source,
 why it is outstanding, what clears it and a link to the section that clears
 it ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+Where a tab inside that section clears it, the link opens that tab too
+(operator, 1 October 2026): a missing Close-up, Overview or report image
+source opens Files on **Images**, and the agreed fee or its description
+lines open Report on **Fee**.
 With Engineer the list is the next action; in Not ready and Review it follows
 that state's next action. It shows beside every section and in both modes;
 a long list scrolls within the aside rather than pushing the sections down.
@@ -593,6 +597,16 @@ tile shows:
   September 2026). A tag, New tag or In report is a document action: it
   posts in place and redraws only its own tile;
 - Preview and, while the Case edit lease is held, Crop.
+
+While the Case edit lease is held the tile's tools are one panel joined to
+the bottom of the image (operator, 1 October 2026). Its first row is **In
+report**, drawn as a tick box, with the image's **Order** beside it while
+the report uses the image. Its second row is one toolbar of same-size icon
+buttons, each named on hover: Tag, Crop, Rotate and Print on its own page,
+with the drag handle at the end. Without the lease the tile has no tools;
+one line under the image says In report, its order and Full page, or Not
+in report. No tool on the tile depends on the account type or on With
+Engineer.
 
 The Crop lease gate is the record's whole edit mode
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Crop is unavailable

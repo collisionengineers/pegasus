@@ -229,14 +229,15 @@ public sealed partial class AssessmentReportDraftWebTests
         var full = FullAssessmentProjection(caseId);
         source.Readiness = source.Readiness with
         {
-            // A missing Vehicle finding, retail value and outcome, and no
-            // sign-off, repair spec, applied valuation or images.
+            // A missing Vehicle finding, retail value, outcome and agreed fee,
+            // and no sign-off, repair spec, applied valuation or images.
             Assessment = full with
             {
                 Fields =
                 [
                     .. full.Fields.Where(field => field.Path is not (AssessmentVocabulary.VehicleCondition
-                        or AssessmentVocabulary.ValueRetail or AssessmentVocabulary.Outcome)),
+                        or AssessmentVocabulary.ValueRetail or AssessmentVocabulary.Outcome
+                        or AssessmentVocabulary.AgreedFee)),
                 ],
             },
             EligibleSignOffEngineers = [],
@@ -250,6 +251,7 @@ public sealed partial class AssessmentReportDraftWebTests
             ["Pre-incident condition"] = "vehicle",
             ["Retail value"] = "valuation",
             ["Assessment outcome"] = "settlement",
+            ["Agreed fee"] = "report",
             // No Case section clears the Sign-off Engineer: an Administrator
             // sets the name and signature in Accounts (operator, 26 September
             // 2026), so the row sends an Administrator there and nobody else
@@ -258,6 +260,15 @@ public sealed partial class AssessmentReportDraftWebTests
             [CaseReportReadiness.CurrentEstimateRequirement] = "estimate",
             [CaseReportReadiness.CloseUpImageRequirement] = "files",
             [CaseReportReadiness.OverviewImageRequirement] = "files",
+        };
+        // The jump opens the tab inside the section that clears the blocker
+        // (operator, 1 October 2026): Fee for the agreed fee, Images for an
+        // image the report needs; every other section opens as it is.
+        var expectedTabs = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Agreed fee"] = "fee",
+            [CaseReportReadiness.CloseUpImageRequirement] = "images",
+            [CaseReportReadiness.OverviewImageRequirement] = "images",
         };
         Assert.Equal(
             expected.Keys.Order(StringComparer.Ordinal),
@@ -294,6 +305,16 @@ public sealed partial class AssessmentReportDraftWebTests
             else
             {
                 AssertBlockerLinks(row, caseId, key);
+                Assert.Equal(expectedTabs.GetValueOrDefault(reason.Requirement), CaseWorkspaceLabels.Report.BlockerTab(reason));
+                if (expectedTabs.TryGetValue(reason.Requirement, out var tab))
+                {
+                    Assert.Contains($"data-section-tab=\"{tab}\"", row, StringComparison.Ordinal);
+                }
+                else
+                {
+                    // The anchor tag helper writes a null tab as an empty one.
+                    Assert.DoesNotMatch("data-section-tab=\"[^\"]", row);
+                }
             }
         }
 

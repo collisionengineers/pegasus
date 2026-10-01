@@ -185,8 +185,10 @@ Proposal. Its result does not affect Case/PO allocation, Case state, Review,
 Engineer eligibility, due work, chasing or staff discretion. Source images
 stay retained, and report-image selection still excludes images showing a
 person's reflection. The advice never selects, excludes, orders or decides
-report images. Choosing report images is an Engineer decision in the
-report-generation section, not a toggle on the evidence screen.
+report images. Whether the report uses an image is chosen on its image
+tile in Files, by any staff member editing the Case, in any state that can
+be edited
+([FRD-16](frd-16-case-record-workspace.md#files)).
 
 **Report images are prepared without changing the source.** The retained
 bytes and their hashes never change. Every crop or ordering act writes
