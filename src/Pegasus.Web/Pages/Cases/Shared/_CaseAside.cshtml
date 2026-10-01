@@ -147,7 +147,8 @@
                                     <div class="blocker-actions">
                                         <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
                                            asp-route-section="@blockerSection" asp-fragment="section-@blockerSection"
-                                           data-section-jump="@blockerSection">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == blockerSection).Label</a>
+                                           data-section-jump="@blockerSection"
+                                           data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(reason)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == blockerSection).Label</a>
                                     </div>
                                 }
                                 else if (Model.BlockerOpensAccounts(reason))

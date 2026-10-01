@@ -425,6 +425,23 @@ public static class CaseWorkspaceLabels
         };
 
         /// <summary>
+        /// The tab inside <see cref="BlockerSection"/> that clears the blocker
+        /// (operator, 1 October 2026): Images for an image the report needs,
+        /// Fee for the agreed fee and its description lines; null when the
+        /// section's first tab does.
+        /// </summary>
+        public static string? BlockerTab(AssessmentReadinessItem item) => item switch
+        {
+            { Field: AssessmentVocabulary.AgreedFee or AssessmentVocabulary.FeeDescriptionLines } => "fee",
+            {
+                Requirement: CaseReportReadiness.CloseUpImageRequirement
+                    or CaseReportReadiness.OverviewImageRequirement
+                    or CaseReportReadiness.ImageSourceRequirement
+            } => "images",
+            _ => null
+        };
+
+        /// <summary>
         /// The control on the Repair Spec section that clears a repairer VAT
         /// blocker, as a selector: its Repairer VAT status for an unknown
         /// status, Reset to repairer status for a hand-picked set of costs.

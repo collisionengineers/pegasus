@@ -87,6 +87,10 @@ While the report is not ready, the Next action carries the report's
 readiness list: every blocker, one row each with the requirement, its source,
 why it is outstanding, what clears it and a link to the section that clears
 it ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+Where a tab inside that section clears it, the link opens that tab too
+(operator, 1 October 2026): a missing Close-up, Overview or report image
+source opens Files on **Images**, and the agreed fee or its description
+lines open Report on **Fee**.
 With Engineer the list is the next action; in Not ready and Review it follows
 that state's next action. It shows beside every section and in both modes;
 a long list scrolls within the aside rather than pushing the sections down.
