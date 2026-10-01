@@ -143,9 +143,11 @@ received or assigned anything.
   A generated file, an export, a draft, a queue result or a manual statement
   is not enough. Report sent moves the Case into its post-report phase,
   which screens still show as With Engineer. Sent evidence belongs to the
-  report it proves: after Create audit it must be of the Audit report and
-  sent after the Audit was created, and the Inspection's Sent evidence stays
-  with the Inspection.
+  report it proves: after Create audit, the Case's own Mark report sent takes
+  the Audit report's evidence, sent after the Audit was created, while the
+  Inspection view's Mark report sent takes the Inspection report's, on the
+  Inspection's own work and without changing the Case's state (operator,
+  1 October 2026).
 - **Mark completed** records that the current work is complete. It is a
   reversible work state, not a closure. It needs no Audit.
 - **Create audit** adds the Audit to an Inspection + Audit Case
@@ -227,8 +229,8 @@ or one claimed for the action) and the current version, Create audit:
 - moves the Case to With Engineer before the report, keeping the assigned
   Engineer and the Sign-off Engineer;
 - keeps the Inspection's report approval and Sent evidence, where they
-  exist, with the Inspection; an Inspection report not yet sent is never
-  sent afterwards
+  exist, with the Inspection; an Inspection report not yet sent is still
+  generated, sent and marked sent from the Inspection view afterwards
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md));
 - starts the creation of the `a.` Box subfolder
   ([FRD-05](frd-05-documents-extraction-and-custody.md#custody-and-derived-reads));
@@ -238,9 +240,11 @@ There is no separate success message. Replaying the same request creates no
 second Audit, and an edit prepared before Create audit is refused as stale.
 
 **After it.** The Audit drives the Case: its state, queues, Actions menu and
-Next action follow the Audit's report, and report generation, approval, Mark
-report sent and Mark completed act on the Audit report. The Inspection's
-values and its report stay read-only. While the Audit report is being
+Next action follow the Audit's report, and the Case's report generation,
+approval, Mark report sent and Mark completed act on the Audit report. The
+Inspection's values stay read-only; its report, until sent, is generated,
+prepared, sent and marked sent from the Inspection view on the Inspection's
+own work. While the Audit report is being
 prepared, image intake association and evidence promotion are open again, as
 for any Case before its report is sent.
 

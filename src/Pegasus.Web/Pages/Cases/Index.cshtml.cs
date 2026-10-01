@@ -634,7 +634,7 @@ public sealed class IndexModel(
             currentReport = await _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
             deliveryPreparation = currentReport is null
                 ? null
-                : await _deliveryPreparations.GetCurrentAsync(actor, caseId, cancellationToken);
+                : await _deliveryPreparations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
         }
         var next = CaseNextAction.Of(
             basis.Workflow,

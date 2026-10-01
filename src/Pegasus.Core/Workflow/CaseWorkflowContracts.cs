@@ -358,9 +358,16 @@ public sealed record RecordCaseReportApprovalRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    ReportApprovalSubmission Approval)
+    ReportApprovalSubmission Approval,
+    CaseWorkSelector Work = CaseWorkSelector.Current)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
+/// <summary>
+/// Links retained Sent evidence to one report. <paramref name="Work"/> is
+/// the current work by default; the Inspection (primary) work of a Case that
+/// has its Audit links its own evidence without touching the Case's state
+/// (operator, 1 October 2026).
+/// </summary>
 public sealed record LinkReportEvidenceRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -368,19 +375,23 @@ public sealed record LinkReportEvidenceRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    Guid EvidenceId)
+    Guid EvidenceId,
+    CaseWorkSelector Work = CaseWorkSelector.Current)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 /// <summary>
 /// System-worker request to associate retained exact approved-mailbox Sent evidence when
 /// the polling policy supplied one unambiguous authoritative Case identity.
+/// <paramref name="GenerationId"/> is the report generation the send carried,
+/// when the send was Pegasus's own: it names the work the evidence proves.
 /// </summary>
 public sealed record AutoLinkReportEvidenceRequest(
     Guid CaseId,
     Guid EvidenceId,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string Reason,
+    Guid? GenerationId = null);
 
 public enum AutoLinkReportEvidenceDisposition
 {
@@ -396,7 +407,8 @@ public sealed record AutoLinkedReportEvidence(
     Guid CaseId,
     Guid EvidenceId,
     CaseLifecycleState State,
-    long Version);
+    long Version,
+    bool OfCurrentWork = true);
 
 /// <summary>
 /// A policy denial or a concurrent staff change is a retained, visible non-link rather

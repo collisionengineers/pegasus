@@ -11,6 +11,7 @@ public sealed class EfReportRecipientSuggestionQueries(
 {
     public async Task<ReportRecipientSuggestions?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -41,8 +42,8 @@ public sealed class EfReportRecipientSuggestionQueries(
             return null;
         }
 
-        // The email names the current work's report.
-        var workKind = (await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken)).Current.Kind;
+        // The email names the report of the work it delivers.
+        var workKind = (await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken)).Select(work).Kind;
         var reportReference = CaseReferenceFormat.ReportReference(
             new CaseIdentity(caseId, row.PrincipalCode, row.Year, row.Sequence, row.Reference, row.AuditReference),
             workKind);

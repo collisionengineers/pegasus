@@ -597,17 +597,14 @@ internal sealed class EfStaffMailSendStore(
         Guid? caseId = null;
         if (entity.Purpose == StaffMailPurpose.CaseReport)
         {
-            // A report is sent only while its work is the Case's current
-            // work: the Inspection's report no longer drives the Case once the
-            // Audit exists. A send already under way when the Audit was created
-            // is still observed against its Case, so it can finish as Sent;
-            // evidence sent before the Audit is never linked to it.
-            var currentWorkIds = CaseWorkScope.CurrentWorkIds(db);
+            // A report of either work is sent against its Case: the
+            // Inspection's report stays sendable on its own work once the
+            // Audit exists (operator, 1 October 2026). Which work the send
+            // proves is read from the generation when the evidence is linked.
             caseId = await db.Set<CaseReportGenerationEntity>().AsNoTracking()
                 .Where(value => value.Id == entity.ContextId
                     && (!requireFrozenGenerationVersion
-                        || (value.Version == entity.ContextVersion
-                            && currentWorkIds.Contains(value.WorkId))))
+                        || value.Version == entity.ContextVersion))
                 .Select(value => (Guid?)value.CaseId)
                 .SingleOrDefaultAsync(cancellationToken);
             if (caseId is not null)

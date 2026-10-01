@@ -1413,6 +1413,7 @@ public sealed partial class AssessmentReportDraftWebTests
         public Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
             ActionActor actor,
             Guid ownerCaseId,
+            CaseWorkSelector work,
             CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportDeliveryPreparationRecord?>(
                 ownerCaseId == caseId ? record : null);

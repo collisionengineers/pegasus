@@ -63,8 +63,12 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   view.
 - Report in the Audit view shows the Inspection's sent report as one `.pv` line with an
   "Inspection view" link above the Audit card; in the Inspection view the card shows the sent
-  Inspection report with no generation or delivery. Files shows the audit folder chip after the
-  Case folder chip, mirroring its states and tones.
+  Inspection report with no generation or delivery. While the Inspection report is still to be
+  sent after Create audit (operator, 1 October 2026), the Inspection view's Report keeps the
+  Generate, Prepare delivery and Send controls for that report, under the session's lease, and
+  the Actions menu's Mark report sent takes its evidence; every form carries `view=inspection`
+  and acts on the Inspection's own work, never on the Case's state. Files shows the audit folder
+  chip after the Case folder chip, mirroring its states and tones.
 - The words "View" and "Changed from Inspection" belonged to rejected options and are not used.
 
 ## Section order and ownership
