@@ -1,4 +1,5 @@
 using Pegasus.Core.Actors;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -730,6 +731,70 @@ public sealed class RetainedMailTests
                 Caseworker(),
                 new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.InternalCc), reason)));
 
+        Assert.Equal(0, store.AppendCount);
+    }
+
+    [Fact]
+    public async Task CorrectionToANewInstructionStoresTheChosenCaseType()
+    {
+        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
+        var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []));
+        var sut = new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc));
+
+        var result = await sut.ExecuteAsync(
+            Caseworker(),
+            new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+                "Instruction read from the retained message.", CaseType.InspectionAndAudit));
+
+        Assert.Equal(CaseType.InspectionAndAudit, result!.Current.CaseType);
+        Assert.Null(result.Current.StandaloneAuditReport);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(CaseType.Triage)]
+    public async Task CorrectionToANewInstructionRequiresOneOfTheThreeWorkTypes(CaseType? caseType)
+    {
+        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
+        var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []));
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() =>
+            new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc)).ExecuteAsync(
+                Caseworker(),
+                new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "audit"),
+                    "Reviewed.", caseType)));
+
+        Assert.Equal(0, store.AppendCount);
+    }
+
+    [Fact]
+    public async Task CorrectionOutsideANewInstructionCarriesNoCaseType()
+    {
+        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
+        var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []));
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc)).ExecuteAsync(
+                Caseworker(),
+                new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.General, "autoreply"),
+                    "Reviewed.", CaseType.Inspection)));
+
+        Assert.Equal(0, store.AppendCount);
+    }
+
+    [Fact]
+    public async Task CorrectionRefusesACategoryOfTheOtherDirection()
+    {
+        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
+        var store = new ClassificationStore(
+            new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []) { MessageDirection = MailDirection.Sent });
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc)).ExecuteAsync(
+                Caseworker(),
+                new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.InternalCc), "Reviewed.")));
+
+        Assert.Contains("sent classification", exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, store.AppendCount);
     }
 
