@@ -76,8 +76,9 @@ and every write needed three calls (begin lease, write, end lease).
   leave Core and Infrastructure. The staff EVA export (FRD-07,
   `IExportCaseBundle`) is unaffected.
 - The Administrator consent descriptions for the Documents and Intake scopes
-  name export and omit Unidentified and Triage; their wording is
-  operator-approved copy and changes only with approval.
+  now read "Add and download case documents." and "List the intake queue,
+  submit intake, and work Unidentified and Triage records." (operator-approved
+  wording, 1 October 2026).
 - The hosted-connector limitations above are observations of 1 October 2026,
   not Pegasus rules; when the connector accepts binary resources, PDFs may
   travel as resources under a new decision.
