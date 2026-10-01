@@ -23,7 +23,7 @@ never renumbered or reused.
 | [ADR-0002](0002-dotnet-modular-monolith-on-azure.md) | .NET modular monolith on Azure App Service | accepted | ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032, ADR-0043, ADR-0049, ADR-0051, ADR-0056 | — |
 | [ADR-0003](0003-pdfpig-for-first-qdos-slice.md) | PdfPig for the first QDOS embedded-text slice | accepted | — | — |
 | [ADR-0004](0004-provider-api-and-staff-mcp-authentication.md) | Provider API and staff MCP authentication | accepted | ADR-0011 | — |
-| [ADR-0005](0005-multiformat-intake-assets.md) | Multi-format intake and review assets | accepted | ADR-0040 | — |
+| [ADR-0005](0005-multiformat-intake-assets.md) | Multi-format intake and review assets | accepted | ADR-0040, ADR-0061 (decision 5: scan pages) | — |
 | [ADR-0006](0006-provider-neutral-intake-with-contained-qdos-policy.md) | Provider-neutral intake with a contained QDOS policy | accepted | ADR-0008 | — |
 | [ADR-0007](0007-direct-terminal-azure-deployment.md) | Direct authorised-terminal Azure deployment | accepted | ADR-0014, ADR-0015, ADR-0037 | — |
 | [ADR-0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | accepted | — | — |
@@ -57,14 +57,14 @@ never renumbered or reused.
 | [ADR-0037](0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | superseded | ADR-0039 | OPS-10, OPS-24 |
 | [ADR-0038](0038-manual-only-eva-api-submission.md) | Manual-only EVA API submission | superseded | ADR-0048 | EXT-04 |
 | [ADR-0039](0039-windows-and-linux-release-workstations.md) | Windows and Linux release workstations | accepted | — | OPS-10, OPS-24 |
-| [ADR-0040](0040-qualified-document-intelligence-ocr.md) | Qualified Document Intelligence OCR | accepted | ADR-0047 (source qualification only) | INT-16, EXT-12 |
+| [ADR-0040](0040-qualified-document-intelligence-ocr.md) | Qualified Document Intelligence OCR | accepted | ADR-0061 (source qualification only) | INT-16, EXT-12 |
 | [ADR-0041](0041-persistent-automation-keys-and-grant-attribution.md) | Persistent Automation keys and grant attribution | accepted | — | — |
 | [ADR-0042](0042-staff-send-operation-journal.md) | Staff-send operation journal and Sent evidence | accepted | — | — |
 | [ADR-0043](0043-per-engineer-vendor-credential-protection.md) | Per-Engineer vendor credential protection | accepted | — | — |
 | [ADR-0044](0044-mail-occurrence-and-business-identity.md) | Mail occurrence and business identity | accepted | — | — |
 | [ADR-0045](0045-document-custody-and-derived-caches.md) | Document custody and derived caches | accepted | — | — |
 | [ADR-0046](0046-destructive-migration-runtime-shutdown.md) | Destructive migration runtime shutdown | accepted | — | — |
-| [ADR-0047](0047-scanned-instruction-ocr-only.md) | OCR only for incoming scanned instructions | accepted | — | INT-16 |
+| [ADR-0047](0047-scanned-instruction-ocr-only.md) | OCR only for incoming scanned instructions | superseded | ADR-0061 | INT-16 |
 | [ADR-0048](0048-principal-report-generation-policies.md) | Principal report-generation policies | accepted | — | EXT-04 |
 | [ADR-0049](0049-host-web-on-app-service-code-deploy.md) | Host Pegasus Web on an App Service Web App by code deployment | accepted | — | EXT-08 |
 | [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02 |
@@ -78,6 +78,7 @@ never renumbered or reused.
 | [ADR-0058](0058-glass-provider-work-in-the-web-host.md) | Glass's provider work runs in the background of the Web host | accepted | — | EXT-06 |
 | [ADR-0059](0059-native-mcp-file-content-and-consolidated-tool-inventory.md) | Native MCP file content and a consolidated tool inventory | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0060](0060-glass-valuation-account-and-valuation-report.md) | Glass's valuation through a Key Vault-held account, with its report filed on the Case | accepted | — | EXT-13 |
+| [ADR-0061](0061-ocr-every-scanned-document-page.md) | OCR every scanned document page; a full-page raster is a document or a photograph by its colour | accepted | — | INT-16, AI-04 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
