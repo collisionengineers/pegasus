@@ -787,17 +787,20 @@ public sealed class RetainedMailPersistenceTests
         var billing = Message("billing-query", "Billing query", ReceivedAtUtc.AddMinutes(5));
         var unassociated = Message("unassociated-query", "Unassociated", ReceivedAtUtc.AddMinutes(4));
         var sharedToken = Message("shared-token-query", "Shared first", ReceivedAtUtc.AddMinutes(3));
+        // The mail not linked to the Case and the shared-token pair are
+        // cancellations, so the page frame's cancellation read below must
+        // skip the newer unlinked ones and name the shared pair's newer row.
         var fixtures = new[]
         {
             (instruction, ReceivedMailFamily.NewInstructionReceived, "inspection"),
             (query, ReceivedMailFamily.PostReportEmails, "query"),
             (dispute, ReceivedMailFamily.PostReportEmails, "dispute"),
-            (otherCase, ReceivedMailFamily.PostReportEmails, "query"),
+            (otherCase, ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype),
             (caseUpdate, ReceivedMailFamily.InProgressCases, "case-update"),
-            (reversed, ReceivedMailFamily.PostReportEmails, "query"),
+            (reversed, ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype),
             (billing, ReceivedMailFamily.Billing, "billing-query"),
-            (unassociated, ReceivedMailFamily.PostReportEmails, "query"),
-            (sharedToken, ReceivedMailFamily.PostReportEmails, "query")
+            (unassociated, ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype),
+            (sharedToken, ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype)
         };
         foreach (var (message, family, subtype) in fixtures)
         {
@@ -893,14 +896,14 @@ public sealed class RetainedMailPersistenceTests
         Assert.DoesNotContain(details.CorrespondenceEmails, item => item.Subject is
             "Other case" or "Reversed" or "Unassociated");
 
-        // The page frame reads the same linked mail, for the Next action's
-        // cancellation row.
+        // The page frame reads only the newest linked cancellation, for the
+        // Next action: by the same link rule as the list above, not the newer
+        // case update, and not the newer cancellations on another Case, on a
+        // reversed association or on no association.
         var frame = await scope.ServiceProvider
             .GetRequiredService<ICaseQueryStore>()
             .GetPageFrameAsync(caseId, CancellationToken.None);
-        Assert.Equal(
-            details.CorrespondenceEmails.Select(item => item.RetainedMessageId),
-            frame!.CorrespondenceEmails!.Select(item => item.RetainedMessageId));
+        Assert.Equal(sharedFirstId, frame!.LinkedCancellationMessageId);
     }
 
     [Fact]

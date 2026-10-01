@@ -1253,7 +1253,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("case-match outcome", value)
     };
 
-    private static string ToCode(MailDirection value) => value switch
+    internal static string ToCode(MailDirection value) => value switch
     {
         MailDirection.Received => "received",
         MailDirection.Sent => "sent",

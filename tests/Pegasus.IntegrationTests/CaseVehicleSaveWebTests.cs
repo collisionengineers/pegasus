@@ -213,6 +213,8 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         //   configuration in one command (1);
         // - the report snapshot takes the Case's works from the frame at the same version (1);
         // - the Case's AI jobs are read once for the drafts and the pending research (1).
+        // It sends 48 since the Next action reads the Case's newest linked cancellation
+        // (FRD-13) in one statement.
         // The save sent 43 until the lease it reclaims read only the Case's workflow row,
         // then 37, and 35 once its edit basis read the data in two fewer commands.
         // Measured again at the lane's base (2ee268507) in this scenario: 62 and 43.
@@ -228,7 +230,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             + Environment.NewLine + saveDescription);
     }
 
-    private const int CasePageCommands = 47;
+    private const int CasePageCommands = 48;
 
     private const int CaseSaveCommands = 35;
 
@@ -314,7 +316,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // Measured with LocalDB after Lane D's folds: the save is 35 commands and the
         // redirected page 47, 82 in all, with 200,668 bytes in the response. The answered
         // commit is 66 (the save and 31 for the answer) with 33,453 bytes. Before those
-        // folds CI measured 105 (43 and 62) against 84 (43 and 41).
+        // folds CI measured 105 (43 and 62) against 84 (43 and 41). The Next action's
+        // linked-cancellation read (one statement) makes them 83 (35 and 48) and 67
+        // (the save and 32).
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
@@ -332,9 +336,10 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// The answer's own reads for this Case, after the save's <see cref="CaseSaveCommands"/>:
     /// the frame and the workspace, the report's readiness and current generation, the Case's
     /// AI jobs and the workflow configuration, the valuation opening, and the workspace extras.
-    /// The report snapshot takes the Case's works from the frame, as the page's does.
+    /// The report snapshot takes the Case's works from the frame, as the page's does. The
+    /// frame includes the Next action's linked-cancellation read, one statement.
     /// </summary>
-    private const int CommitAnswerCommands = 31;
+    private const int CommitAnswerCommands = 32;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,

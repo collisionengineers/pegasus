@@ -237,13 +237,18 @@ public sealed record CasePageFrame(
     public CaseEditLeaseSnapshot? ActiveEditLease => Frame.ActiveEditLease;
 }
 
-/// <summary>The persistence half of <see cref="CasePageFrame"/>.</summary>
+/// <summary>
+/// The persistence half of <see cref="CasePageFrame"/>. <see
+/// cref="LinkedCancellationMessageId"/> is the newest retained message currently
+/// linked to the Case whose current classification is a received cancellation;
+/// the store reads it only while <see cref="CaseCancellationNotice.Applies"/>.
+/// </summary>
 public sealed record CasePageFrameData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
-    IReadOnlyList<CaseCorrespondenceEmail>? CorrespondenceEmails = null);
+    Guid? LinkedCancellationMessageId = null);
 
 /// <summary>
 /// The cancellation an open Case shows in its Next action (FRD-13 "Cancellation
@@ -253,20 +258,11 @@ public sealed record CasePageFrameData(
 /// </summary>
 public static class CaseCancellationNotice
 {
-    public static Guid? MessageId(CaseWorkflowRecord workflow, IReadOnlyList<CaseCorrespondenceEmail> emails)
+    /// <summary>Whether the Case can show a cancellation: it is neither closed nor archived.</summary>
+    public static bool Applies(CaseWorkflowRecord workflow)
     {
         ArgumentNullException.ThrowIfNull(workflow);
-        ArgumentNullException.ThrowIfNull(emails);
-        if (workflow.Archive is not null || CaseLifecycleRules.IsClosed(workflow.State))
-        {
-            return null;
-        }
-        return emails
-            .Where(email => email.Classification is { IsCancellation: true })
-            .OrderByDescending(email => email.ReceivedAtUtc)
-            .ThenBy(email => email.RetainedMessageId)
-            .Select(email => (Guid?)email.RetainedMessageId)
-            .FirstOrDefault();
+        return workflow.Archive is null && !CaseLifecycleRules.IsClosed(workflow.State);
     }
 }
 
@@ -559,7 +555,7 @@ public sealed class GetCasePageFrame(
             frame.AvailableReportSentEvidence,
             frame.RecordNotes,
             data,
-            CaseCancellationNotice.MessageId(frame.Frame.Workflow, frame.CorrespondenceEmails ?? []));
+            CaseCancellationNotice.Applies(frame.Frame.Workflow) ? frame.LinkedCancellationMessageId : null);
     }
 }
 
