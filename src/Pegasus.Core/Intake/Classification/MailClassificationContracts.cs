@@ -47,7 +47,7 @@ public static class MailTaxonomy
                 ["audit", "diminution", "inspection", "new-client", "website-enquiry"],
             [ReceivedMailFamily.NonClientRelated] = [],
             [ReceivedMailFamily.InProgressCases] =
-                ["cancellation", "case-update", "client-chasing-for-update", "principal-chasing-for-update", "ongoing-correspondence"],
+                ["cancellation", "case-update", "chasing-for-update", "ongoing-correspondence"],
             [ReceivedMailFamily.PostReportEmails] =
                 ["query", "dispute", "amendment-request"],
             [ReceivedMailFamily.PreInstructionEmails] =

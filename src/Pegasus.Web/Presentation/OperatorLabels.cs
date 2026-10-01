@@ -373,13 +373,13 @@ public static class OperatorLabels
     }
 
     /// <summary>
-    /// A received-mail subtype in operator words. The two chasing subtypes are
-    /// one category to the operator, "Update Request" (18 September 2026), and
-    /// its slug never appears on the front end.
+    /// A received-mail subtype in operator words. Chasing is one category to the
+    /// operator, "Update request" (18 September and 1 October 2026), and its
+    /// slug never appears on the front end.
     /// </summary>
     private static string SubtypeWord(string subtype) => subtype switch
     {
-        "client-chasing-for-update" or "principal-chasing-for-update" => "Update Request",
+        "chasing-for-update" => "Update request",
         _ => HumanizeSlug(subtype)
     };
 
