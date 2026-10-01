@@ -990,7 +990,7 @@ public sealed class ProcessQueuedIntake(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
-        if (!IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
+        if (!IntakeOcrOperations.IsEligibleSource(receipt))
         {
             return;
         }
@@ -1009,14 +1009,9 @@ public sealed class ProcessQueuedIntake(
                 "An OCR-qualified source does not identify its retained asset.");
         }
 
-        // One instruction analysis can incorporate OCR from one immutable
-        // retained source. Never queue side effects for a multi-source scan
-        // that the analysis boundary will correctly refuse for staff review.
-        if (qualifiedSources.Select(source => source.Asset!.Id).Distinct().Skip(1).Any())
-        {
-            return;
-        }
-
+        // One operation per scanned document. The instruction reader still
+        // refuses to combine two scanned sources into one decision; the report
+        // reader reads each document on its own, so every one is read.
         foreach (var source in qualifiedSources)
         {
             await IntakeOcrOperations.BeginAsync(

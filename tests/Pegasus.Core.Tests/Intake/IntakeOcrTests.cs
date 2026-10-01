@@ -1,6 +1,7 @@
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -15,6 +16,13 @@ public sealed class IntakeOcrTests
     private static readonly byte[] SourceBytes = [1, 2, 3, 4, 5, 6, 7, 8];
     private const string SourceHash = "aa112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     private const string ResponseHash = "bb112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+
+    /// <summary>OCR text that carries a report signature, so the report reader has something to record.</summary>
+    private const string ConnexusPage = """
+        Engineer Repairable Report
+        Reg No: LD71JHJ
+        Connexus Vehicle Assessors
+        """;
 
     [Fact]
     public void AnOcrRequestMustIdentifyOneIncomingSource()
@@ -53,6 +61,39 @@ public sealed class IntakeOcrTests
         Assert.Equal(SourceHash, evidence.SourceSha256);
         Assert.Equal([2, 5], evidence.QualifiedPages);
         Assert.Equal(ResponseHash, evidence.Result.ResponseSha256);
+    }
+
+    [Fact]
+    public async Task ACompletedOperationAlwaysRecordsTheReportReadingAndReadsTheInstructionOnlyWhenAPrincipalIsStillNeeded()
+    {
+        // The Case was created from the message, so there is no Principal left
+        // to find; the scanned document may still be a report.
+        var harness = new Harness(decision: IntakeDecision.CaseCreated);
+        harness.Provider.OnAnalyze = () => Harness.Completed([2, 5], ConnexusPage);
+
+        await harness.ExecuteAsync();
+
+        Assert.Equal(IntakeOcrState.Completed, harness.Store.Single().State);
+        Assert.True(harness.Store.Single().AnalysisCompleted);
+        var reading = Assert.Single(harness.Reports.Records);
+        Assert.Equal($"third-party-report:{harness.SourceAssetId}:ocr:{harness.WorkItemId:N}", reading.OperationKey);
+        Assert.Equal(harness.SourceAssetId, reading.IntakeAssetId);
+        Assert.Equal(harness.Receipt.Id, reading.ReceiptId);
+        Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, reading.Outcome);
+        Assert.Contains(reading.Candidates, candidate => candidate.SourceLabel == "uploaded instruction.pdf, page 2");
+        Assert.Empty(harness.Analysis.Requests);
+    }
+
+    [Fact]
+    public async Task APrincipalApiReceiptIsEligibleForOcr()
+    {
+        var harness = new Harness(sourceChannel: IntakeSourceChannel.PrincipalApi);
+        harness.Provider.OnAnalyze = () => Harness.Completed([2, 5]);
+
+        await harness.ExecuteAsync();
+
+        Assert.Equal(IntakeOcrState.Completed, harness.Store.Single().State);
+        Assert.Equal(1, harness.Provider.Analyses);
     }
 
     [Fact]
@@ -419,10 +460,11 @@ public sealed class IntakeOcrTests
             string? providerOperationId = null,
             int attemptCount = 0,
             string? sourceSha256 = null,
-            IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload)
+            IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload,
+            IntakeDecision decision = IntakeDecision.OcrRequired)
         {
             SourceAssetId = Guid.NewGuid();
-            Receipt = BuildReceipt(SourceAssetId, sourceChannel);
+            Receipt = BuildReceipt(SourceAssetId, sourceChannel, decision);
             WorkItemId = Guid.NewGuid();
             Store.Seed(new(
                 WorkItemId,
@@ -442,6 +484,7 @@ public sealed class IntakeOcrTests
                 Provider,
                 Documents,
                 Analysis,
+                new RecordThirdPartyReportReading(Reports, new FixedTime(Now)),
                 new FakeReceipts(Receipt),
                 new FixedTime(Now));
         }
@@ -460,18 +503,20 @@ public sealed class IntakeOcrTests
 
         public FakeAnalysis Analysis { get; } = new();
 
+        public RecordingAnalysisStore Reports { get; } = new();
+
         public ProcessIntakeOcr Command { get; }
 
         public Task ExecuteAsync() => Command.ExecuteAsync(WorkItemId, CancellationToken.None);
 
-        public static IntakeOcrResult Completed(IReadOnlyList<int> pages) => new(
+        public static IntakeOcrResult Completed(IReadOnlyList<int> pages, string? text = null) => new(
             IntakeOcrState.Completed,
             IntakeOcrProviderIdentity.Provider,
             IntakeOcrProviderIdentity.ModelId,
             IntakeOcrProviderIdentity.ApiVersion,
             "provider-op-1",
             ResponseHash,
-            [.. pages.Select(page => new IntakeOcrPage(page, $"page {page}", [], []))]);
+            [.. pages.Select(page => new IntakeOcrPage(page, text ?? $"page {page}", [], []))]);
 
         public static IntakeOcrResult Failure(IntakeOcrState state, IntakeOcrFailure failure) => new(
             state,
@@ -483,7 +528,8 @@ public sealed class IntakeOcrTests
 
     private static IntakeReceipt BuildReceipt(
         Guid sourceAssetId,
-        IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload) =>
+        IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload,
+        IntakeDecision decision = IntakeDecision.OcrRequired) =>
         new(
             Guid.NewGuid(),
             "instruction.pdf",
@@ -493,7 +539,7 @@ public sealed class IntakeOcrTests
             new IntakeSourceIdentity(sourceChannel, Guid.NewGuid().ToString("N")),
             Now,
             Now,
-            IntakeDecision.OcrRequired,
+            decision,
             "Recorded by the pipeline.",
             [],
             [],
@@ -765,6 +811,32 @@ public sealed class IntakeOcrTests
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(id == receipt.Id ? receipt : null);
 
+    }
+
+    private sealed class RecordingAnalysisStore : IRetainedInstructionAnalysisStore
+    {
+        public List<RetainedInstructionAnalysis> Records { get; } = [];
+
+        public Task<RetainedInstructionAnalysis?> FindByOperationKeyAsync(
+            string operationKey,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Records.FirstOrDefault(item =>
+                string.Equals(item.OperationKey, operationKey, StringComparison.Ordinal)));
+
+        public Task<(RetainedInstructionAnalysis Analysis, bool IsReplay)> RecordAsync(
+            RetainedInstructionAnalysis analysis,
+            CancellationToken cancellationToken = default)
+        {
+            var existing = Records.FirstOrDefault(item =>
+                string.Equals(item.OperationKey, analysis.OperationKey, StringComparison.Ordinal));
+            if (existing is not null)
+            {
+                return Task.FromResult((existing, true));
+            }
+
+            Records.Add(analysis);
+            return Task.FromResult((analysis, false));
+        }
     }
 
     private sealed class FakeAnalysis : IAnalyzeRetainedInstruction

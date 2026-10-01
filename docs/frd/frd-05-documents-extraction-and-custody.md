@@ -76,22 +76,34 @@ text stay on the ordinary PDF path and are neither sent nor replaced.
 Estimate imports use their deterministic parsers only. A scan-like,
 ambiguous or unsupported estimate is refused; there is no OCR fallback.
 
+Every scanned document page on a mailbox, manual-upload or Principal API
+receipt is OCR'd, one operation per retained PDF, whether or not the
+Principal was already known from the message. Automation sources are not.
 Each OCR operation is tied to exactly one authorised intake asset, its
 content hash, its length and the selected page numbers. Pegasus keeps the
 provider operation, the pinned API and model, the response hash, page
-coordinates and confidence. Instruction validation still runs afterwards.
-Low confidence or missing structure never silently becomes an accepted
-field. A submission with no provider identity stays visible and is not
-blindly repeated.
+coordinates and confidence. A blank page is a page, not a failure.
 
-An instruction with scan-like pages from more than one retained source needs
-staff review. Pegasus does not combine OCR output from separate sources.
+The OCR text is read two ways. The third-party report reader always reads
+it, document by document, and records what the report says beside the
+retained file; this is how a scanned engineer report fills an Audit
+([FRD-16](frd-16-case-record-workspace.md#original-report)). The
+instruction reader reads it only when the receipt still needs a Principal.
+Instruction validation still runs afterwards. Low confidence or missing
+structure never silently becomes an accepted field. A submission with no
+provider identity stays visible and is not blindly repeated.
 
-The provider operation identity and page output are kept before instruction
-analysis runs. The provider finishing is not the same as the work finishing.
-If analysis fails or the receipt version conflicts, Pegasus retries against
+An instruction with scanned pages from more than one retained source still
+needs staff review for the instruction decision: Pegasus does not combine
+OCR output from separate sources into one identification. Each document's
+report reading stands on its own.
+
+The provider operation identity and page output are kept before any
+reading runs. The provider finishing is not the same as the work finishing.
+If a reading fails or the receipt version conflicts, Pegasus retries against
 the kept output without resubmitting pages. Completion is acknowledged only
-after an analysed, no-profile or ambiguous outcome has been recorded. When
+after the report reading is recorded and, where it ran, an analysed,
+no-profile or ambiguous instruction outcome has been recorded. When
 bounded retries run out, the failure stays visible and the original output
 stays kept.
 
