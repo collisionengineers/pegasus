@@ -237,14 +237,15 @@ public sealed class DurableIntakeLinkTests
 
         public List<RecordRecognisedOriginalReport> Recorded { get; } = [];
 
-        public Task<IReadOnlyList<FiledOriginalReportCandidate>> FindAwaitingCandidatesAsync(
-            Guid caseId, Guid receiptId, IReadOnlyCollection<Guid> intakeAssetIds,
+        public Task<FiledOriginalReportCandidates> FindAwaitingCandidatesAsync(
+            Guid caseId, Guid receiptId, IReadOnlyCollection<FiledOriginalReportLookup> assets,
             CancellationToken cancellationToken = default)
         {
-            Asked.AddRange(intakeAssetIds);
-            return Task.FromResult<IReadOnlyList<FiledOriginalReportCandidate>>(
-                intakeAssetIds.Select(assetId => new FiledOriginalReportCandidate(
-                    assetId, Guid.NewGuid(), Guid.NewGuid())).ToArray());
+            Asked.AddRange(assets.Select(asset => asset.IntakeAssetId));
+            return Task.FromResult(new FiledOriginalReportCandidates(
+                true,
+                assets.Select(asset => new FiledOriginalReportCandidate(
+                    asset.IntakeAssetId, Guid.NewGuid(), Guid.NewGuid())).ToArray()));
         }
 
         public Task<OriginalReportRecorded?> RecordRecognisedAsync(

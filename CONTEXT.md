@@ -52,7 +52,8 @@ without that report. The assessment outcome is recorded on the Case, not in
 its identity. When no original report is filed and none was kept at intake,
 **Original report missing** stays outstanding until a filed document is
 recorded as the original report: by Pegasus when it recognises the report
-among files added later, or by staff marking one
+among the Case's files, a scanned report once its text has been read, or by
+staff marking one
 ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
 The Audit of an Inspection + Audit Case is part of that Case, not an Audit
 Case (below).
