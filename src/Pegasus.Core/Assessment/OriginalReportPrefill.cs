@@ -16,13 +16,19 @@ namespace Pegasus.Core.Assessment;
 /// different from printing none, because only printing none lets the intake
 /// verdict stand in.
 /// </summary>
+/// <param name="ThirdPartyEngineerContactId">
+/// The active Third Party Engineer contact whose name is the report's assessor,
+/// when exactly one exists (FRD-04); null links nothing.
+/// </param>
 public sealed record OriginalReportReading(
     string Sha256,
     string? Assessor,
     string? ReportDate,
     string? Roadworthiness,
     string? Outcome,
-    bool OutcomeUnreadable);
+    bool OutcomeUnreadable,
+    Guid? ThirdPartyEngineerContactId = null,
+    string? ThirdPartyEngineerContactName = null);
 
 /// <summary>
 /// How a filed original report fills an Audit's Original report cells (v28
@@ -52,13 +58,15 @@ public static class OriginalReportPrefillPolicy
     /// </summary>
     public const string RecorderId = "original-report-extraction";
 
-    /// <summary>The four cells a reading fills, in section order.</summary>
+    /// <summary>The cells a reading fills, in section order; the last two are the Third Party Engineer link.</summary>
     public static IReadOnlyList<string> Paths { get; } =
     [
         AssessmentVocabulary.OriginalReportAssessor,
         AssessmentVocabulary.OriginalReportDate,
         AssessmentVocabulary.OriginalReportRoadworthiness,
-        AssessmentVocabulary.OriginalReportOutcome
+        AssessmentVocabulary.OriginalReportOutcome,
+        AssessmentVocabulary.OriginalReportEngineerContact,
+        AssessmentVocabulary.OriginalReportEngineerContactName
     ];
 
     private static readonly Regex Whitespace = new(
@@ -149,6 +157,14 @@ public static class OriginalReportPrefillPolicy
         Add(writes, AssessmentVocabulary.OriginalReportDate, reading?.ReportDate);
         Add(writes, AssessmentVocabulary.OriginalReportRoadworthiness, reading?.Roadworthiness);
         Add(writes, AssessmentVocabulary.OriginalReportOutcome, outcome);
+        // The link travels as a pair: the identity staff cannot type and the
+        // name they read. Neither is written without the other.
+        if (reading is { ThirdPartyEngineerContactId: { } contactId, ThirdPartyEngineerContactName: { } contactName })
+        {
+            Add(writes, AssessmentVocabulary.OriginalReportEngineerContact, contactId.ToString("D"));
+            Add(writes, AssessmentVocabulary.OriginalReportEngineerContactName, contactName);
+        }
+
         return writes;
     }
 
