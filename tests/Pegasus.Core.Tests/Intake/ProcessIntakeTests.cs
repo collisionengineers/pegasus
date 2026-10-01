@@ -116,8 +116,9 @@ public sealed class ProcessIntakeTests
         Assert.Null(draft.CaseMatchDecision);
         Assert.Null(draft.InstructionDraft);
         Assert.Empty(draft.Fields);
-        // Scanned pages exist only for identification, which does not run.
-        Assert.Empty(draft.ScannedPdfPages);
+        // Scanned document pages are OCR'd for the report reader whatever the
+        // destination; identification is what does not run here.
+        Assert.Single(draft.ScannedPdfPages);
         Assert.Contains(draft.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
         Assert.Empty(registerUnidentified.Requests);
         Assert.Equal(declaredCaseId, receipt.DeclaredCaseId);

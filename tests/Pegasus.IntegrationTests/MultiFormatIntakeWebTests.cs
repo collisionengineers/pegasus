@@ -402,7 +402,7 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     [Fact]
-    public async Task MultipleScannedAttachmentsAreRetainedForReviewWithoutQueuingOcr()
+    public async Task MultipleScannedAttachmentsEachQueueTheirOwnOcr()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
@@ -416,11 +416,15 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(factory, client, "two-scanned-attachments.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
+        // The instruction decision still needs a person: two scanned sources are
+        // never combined into one. Each document is OCR'd on its own all the same.
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Equal(2, receipt.ScannedPdfPages.Select(candidate => candidate.SourceLabel).Distinct().Count());
         Assert.Equal(2, receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.Attachment));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM ExternalWorkItems WHERE Kind = 'intake_ocr'"));
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(DISTINCT IntakeAssetId) FROM IntakeOcrOperations"));
     }
 
     [Fact]

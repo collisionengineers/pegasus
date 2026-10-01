@@ -5,6 +5,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -28,6 +29,14 @@ public sealed class OcrIntakeRecoveryTests
     private const string ScanLikeBody =
         "Please see the attached instruction. The pages are scans.\r\n";
 
+    /// <summary>
+    /// The structural fake's page text carries a report signature, so the one
+    /// thing OCR completion always does — record the text as a report reading —
+    /// has a row to show for it. No genuine OCR output is claimed.
+    /// </summary>
+    private const string SyntheticReportPage =
+        "SYNTHETIC PAGE\nEngineer Repairable Report\nReg No: LD71JHJ\nConnexus Vehicle Assessors";
+
     [Fact]
     public async Task ASubmittedOperationCompletesOnceAndReanalysesOnce()
     {
@@ -41,7 +50,7 @@ public sealed class OcrIntakeRecoveryTests
         Assert.Equal("provider-op-1", operation.ProviderOperationId);
         Assert.Equal("response-hash-1", operation.ResponseSha256);
         Assert.Equal([1], operation.PageResults.Select(page => page.Number));
-        Assert.Equal("SYNTHETIC PAGE", Assert.Single(operation.PageResults).Text);
+        Assert.Equal(SyntheticReportPage, Assert.Single(operation.PageResults).Text);
         Assert.NotNull(operation.Result);
         Assert.Equal(IntakeOcrState.Completed, operation.Result.State);
         Assert.Equal(IntakeOcrProviderIdentity.Provider, operation.Result.Provider);
@@ -50,7 +59,11 @@ public sealed class OcrIntakeRecoveryTests
         Assert.Equal("provider-op-1", operation.Result.ProviderOperationId);
         Assert.Equal("response-hash-1", operation.Result.ResponseSha256);
         Assert.Equal([1], operation.Result.PageResults.Select(page => page.Number));
-        Assert.Single(harness.Analysis.Requests);
+        // The fixture receipt needs no Principal from OCR (it is NeedsSorting with
+        // a hand-seeded operation), so the instruction reader has nothing to do;
+        // the OCR text is recorded as the report reading, once.
+        Assert.Empty(harness.Analysis.Requests);
+        Assert.NotNull(await harness.ReadReportReadingAsync());
 
         var workItem = await harness.ReadWorkItemAsync();
         Assert.NotNull(workItem);
@@ -73,7 +86,11 @@ public sealed class OcrIntakeRecoveryTests
 
         Assert.Equal(1, harness.Provider.Analyses);
         Assert.Equal(0, harness.Provider.Reconciliations);
-        Assert.Single(harness.Analysis.Requests);
+        // The fixture receipt needs no Principal from OCR (it is NeedsSorting with
+        // a hand-seeded operation), so the instruction reader has nothing to do;
+        // the OCR text is recorded as the report reading, once.
+        Assert.Empty(harness.Analysis.Requests);
+        Assert.NotNull(await harness.ReadReportReadingAsync());
         Assert.Equal(1, await harness.CountOperationsAsync());
     }
 
@@ -93,7 +110,11 @@ public sealed class OcrIntakeRecoveryTests
         await harness.ExecuteAsync();
         Assert.True((await harness.ReadAsync()).AnalysisCompleted);
         Assert.Equal(ExternalWorkStatePersistence.Completed, (await harness.ReadWorkItemAsync())!.State);
-        Assert.Single(harness.Analysis.Requests);
+        // The fixture receipt needs no Principal from OCR (it is NeedsSorting with
+        // a hand-seeded operation), so the instruction reader has nothing to do;
+        // the OCR text is recorded as the report reading, once.
+        Assert.Empty(harness.Analysis.Requests);
+        Assert.NotNull(await harness.ReadReportReadingAsync());
         Assert.Equal(0, harness.Provider.Analyses);
         Assert.Equal(0, harness.Provider.Reconciliations);
     }
@@ -207,7 +228,11 @@ public sealed class OcrIntakeRecoveryTests
         Assert.Equal(IntakeOcrState.Completed, (await harness.ReadAsync()).State);
         Assert.Equal(1, harness.Provider.Analyses);
         Assert.Equal(1, harness.Provider.Reconciliations);
-        Assert.Single(harness.Analysis.Requests);
+        // The fixture receipt needs no Principal from OCR (it is NeedsSorting with
+        // a hand-seeded operation), so the instruction reader has nothing to do;
+        // the OCR text is recorded as the report reading, once.
+        Assert.Empty(harness.Analysis.Requests);
+        Assert.NotNull(await harness.ReadReportReadingAsync());
     }
 
     [Fact]
@@ -335,6 +360,7 @@ public sealed class OcrIntakeRecoveryTests
                 Provider,
                 services.GetRequiredService<IReadLogicalDocumentVersion>(),
                 Analysis,
+                services.GetRequiredService<RecordThirdPartyReportReading>(),
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 TimeProvider.System);
         }
@@ -385,6 +411,7 @@ public sealed class OcrIntakeRecoveryTests
                 Provider,
                 services.GetRequiredService<IReadLogicalDocumentVersion>(),
                 Analysis,
+                services.GetRequiredService<RecordThirdPartyReportReading>(),
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 services.GetRequiredService<TimeProvider>());
             await command.ExecuteAsync(WorkItemId, default);
@@ -400,6 +427,12 @@ public sealed class OcrIntakeRecoveryTests
             return await context.Set<ExternalWorkItemEntity>().AsNoTracking()
                 .SingleOrDefaultAsync(item => item.Id == WorkItemId, CancellationToken.None);
         }
+
+        public Task<RetainedInstructionAnalysis?> ReadReportReadingAsync() =>
+            this.scope.ServiceProvider.GetRequiredService<IRetainedInstructionAnalysisStore>()
+                .FindByOperationKeyAsync(
+                    $"{ThirdPartyReportAnalysis.PolicyKey}:{Request.IntakeAssetId}:ocr:{WorkItemId:N}",
+                    CancellationToken.None);
 
         public async Task<int> CountOperationsAsync()
         {
@@ -418,8 +451,8 @@ public sealed class OcrIntakeRecoveryTests
             "response-hash-1",
             [.. pages.Select(page => new IntakeOcrPage(
                 page,
-                "SYNTHETIC PAGE",
-                [new("SYNTHETIC PAGE", new(1, 2, 5, 6, "inch"), [])],
+                SyntheticReportPage,
+                [new(SyntheticReportPage, new(1, 2, 5, 6, "inch"), [])],
                 []))]);
 
         public async ValueTask DisposeAsync()

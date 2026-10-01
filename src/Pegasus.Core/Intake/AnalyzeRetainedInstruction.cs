@@ -249,12 +249,12 @@ public sealed class AnalyzeRetainedInstruction(
             return Conflict("The intake receipt does not exist.");
         }
 
-        if (request.OcrEvidence is not null && !IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
+        if (request.OcrEvidence is not null && !IntakeOcrOperations.IsEligibleSource(receipt))
         {
             return new(
                 RetainedInstructionAnalysisOutcome.SourceUnavailable,
                 null,
-                "OCR is available only for incoming mailbox or manual-upload instructions.",
+                "OCR is not run for automation sources.",
                 [],
                 false);
         }
@@ -407,12 +407,12 @@ public sealed class AnalyzeRetainedInstruction(
             && readResult.RequiresOcr
             && readResult.ScannedPdfPages.Count > 0)
         {
-            if (!IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
+            if (!IntakeOcrOperations.IsEligibleSource(receipt))
             {
                 return new(
                     RetainedInstructionAnalysisOutcome.SourceUnavailable,
                     null,
-                    "OCR is available only for incoming mailbox or manual-upload instructions.",
+                    "OCR is not run for automation sources.",
                     [],
                     false);
             }
@@ -893,7 +893,9 @@ public sealed class AnalyzeRetainedInstruction(
             && qualified.All(page => page > 0)
             && qualified.Distinct().Count() == qualified.Count
             && result.PageResults.Select(page => page.Number).Order().SequenceEqual(qualified.Order())
-            && result.PageResults.All(page => !string.IsNullOrWhiteSpace(page.Text));
+            // A blank scanned page is a page with nothing on it, not a failure;
+            // the reading needs text on at least one.
+            && result.PageResults.Any(page => !string.IsNullOrWhiteSpace(page.Text));
     }
 
     private static bool IsSha256(string? value) =>
