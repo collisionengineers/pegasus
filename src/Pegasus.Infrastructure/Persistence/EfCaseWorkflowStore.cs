@@ -691,24 +691,28 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(request, "case_report_approved", async (context, workflow, now) =>
         {
-            if (workflow.State != nameof(CaseLifecycleState.ReportPreparation))
+            // The current work's report is approved from Report preparation.
+            // The Inspection report of a Case that has its Audit is approved on
+            // its own work, whatever the Case's state (operator, 1 October 2026).
+            var pastWork = await PastWorkAsync(context, workflow.CaseId, request.Work, cancellationToken);
+            if (pastWork is null && workflow.State != nameof(CaseLifecycleState.ReportPreparation))
             {
                 throw new InvalidOperationException(
                     "A report can be approved only while Report preparation is active.");
             }
 
             var approval = request.Approval;
-            // A generated report of a work that is no longer current (the
-            // Inspection once the Audit exists) is never approved again.
+            // A generated report is approved on the work it was made for.
             var approvedSha256 = approval.ArtifactSha256.ToLowerInvariant();
-            var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
+            var workId = pastWork?.Id
+                ?? await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
             if (await (
                     from artifact in context.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
                     join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
                         on artifact.GenerationId equals generation.Id
                     where generation.CaseId == workflow.CaseId
                         && artifact.Sha256 == approvedSha256
-                        && generation.WorkId != currentWorkId
+                        && generation.WorkId != workId
                     select artifact.Id)
                 .AnyAsync(cancellationToken))
             {
@@ -727,8 +731,16 @@ public sealed class EfCaseWorkflowStore(
                 ApprovedAtUtc = now
             };
             context.CaseReportApprovals.Add(entity);
-            workflow.ReportApprovalId = approval.ApprovalId;
-            workflow.ReportApproval = entity;
+            if (pastWork is null)
+            {
+                workflow.ReportApprovalId = approval.ApprovalId;
+                workflow.ReportApproval = entity;
+            }
+            else
+            {
+                pastWork.ReportApprovalId = approval.ApprovalId;
+                pastWork.ReportApproval = entity;
+            }
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
@@ -736,9 +748,11 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(request, "report_evidence_linked", async (context, workflow, now) =>
         {
+            var pastWork = await PastWorkAsync(context, workflow.CaseId, request.Work, cancellationToken);
             var evaluation = await EvaluateReportEvidenceLinkAsync(
                 context,
                 workflow,
+                pastWork,
                 request.EvidenceId,
                 now,
                 cancellationToken);
@@ -747,8 +761,71 @@ public sealed class EfCaseWorkflowStore(
                 throw new InvalidOperationException(evaluation.Message);
             }
 
-            ApplyReportEvidenceLink(workflow, evaluation.Evidence, request.Actor, now);
+            ApplyReportEvidenceLink(workflow, pastWork, evaluation.Evidence, request.Actor, now);
         }, cancellationToken);
+
+    /// <summary>
+    /// The work a report action addresses when it is not the Case's current
+    /// one: the Inspection (primary) work once the Audit exists, whose report
+    /// is approved and sent on its own without touching the Case's state
+    /// (operator, 1 October 2026). Null when the action addresses the current
+    /// work, whose report facts the workflow itself carries.
+    /// </summary>
+    private static async Task<CaseWorkEntity?> PastWorkAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseWorkSelector selector,
+        CancellationToken cancellationToken)
+    {
+        if (selector != CaseWorkSelector.Primary)
+        {
+            return null;
+        }
+
+        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        return currentWorkId == caseId ? null : await TrackedWorkAsync(context, caseId, cancellationToken);
+    }
+
+    /// <summary>
+    /// The past work a Pegasus report send proves, from the generation the
+    /// send carried: null when the send was not Pegasus's own, names no
+    /// generation of this Case, or is of the current work.
+    /// </summary>
+    private static async Task<CaseWorkEntity?> PastWorkOfGenerationAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid? generationId,
+        CancellationToken cancellationToken)
+    {
+        if (generationId is null)
+        {
+            return null;
+        }
+
+        var workId = await context.Set<CaseReportGenerationEntity>()
+            .AsNoTracking()
+            .Where(item => item.Id == generationId && item.CaseId == caseId)
+            .Select(item => (Guid?)item.WorkId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (workId is not { } generationWorkId)
+        {
+            return null;
+        }
+
+        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        return generationWorkId == currentWorkId
+            ? null
+            : await TrackedWorkAsync(context, generationWorkId, cancellationToken);
+    }
+
+    private static Task<CaseWorkEntity> TrackedWorkAsync(
+        PegasusDbContext context,
+        Guid workId,
+        CancellationToken cancellationToken) =>
+        context.CaseWorks
+            .Include(work => work.ReportApproval)
+            .Include(work => work.ReportSentEvidence)
+            .SingleAsync(work => work.Id == workId, cancellationToken);
 
     public async Task<AutoLinkReportEvidenceResult> TryAutoLinkAsync(
         AutoLinkReportEvidenceRequest request,
@@ -1161,13 +1238,26 @@ public sealed class EfCaseWorkflowStore(
 
             var replayWorkflow = await AutoLinkWorkflowQuery(context, tracking: false)
                 .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
-            if (replay.EventType == "report_evidence_auto_linked"
-                && replayWorkflow is not null
-                && replayWorkflow.State == nameof(CaseLifecycleState.PostReport)
-                && replayWorkflow.ReportSentEvidenceId == request.EvidenceId
-                && replayWorkflow.ReportSentEvidence?.CaseId == request.CaseId)
+            if (replay.EventType == "report_evidence_auto_linked" && replayWorkflow is not null)
             {
-                return AutoLinkLinked(replayWorkflow);
+                if (replayWorkflow.State == nameof(CaseLifecycleState.PostReport)
+                    && replayWorkflow.ReportSentEvidenceId == request.EvidenceId
+                    && replayWorkflow.ReportSentEvidence?.CaseId == request.CaseId)
+                {
+                    return AutoLinkLinked(replayWorkflow);
+                }
+
+                // The Inspection report's evidence, linked on its own work
+                // once the Audit drives the Case.
+                if (await context.CaseWorks
+                        .AsNoTracking()
+                        .AnyAsync(
+                            work => work.CaseId == request.CaseId
+                                && work.ReportSentEvidenceId == request.EvidenceId,
+                            cancellationToken))
+                {
+                    return AutoLinkLinkedOnPastWork(replayWorkflow, request.EvidenceId);
+                }
             }
 
             return AutoLinkNotLinked("concurrency_conflict");
@@ -1190,9 +1280,11 @@ public sealed class EfCaseWorkflowStore(
         }
 
         var now = timeProvider.GetUtcNow();
+        var pastWork = await PastWorkOfGenerationAsync(context, workflow.CaseId, request.GenerationId, cancellationToken);
         var evaluation = await EvaluateReportEvidenceLinkAsync(
             context,
             workflow,
+            pastWork,
             request.EvidenceId,
             now,
             cancellationToken);
@@ -1203,7 +1295,7 @@ public sealed class EfCaseWorkflowStore(
 
         var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
         var beforeVersion = workflow.Version;
-        ApplyReportEvidenceLink(workflow, evaluation.Evidence, request.Actor, now);
+        ApplyReportEvidenceLink(workflow, pastWork, evaluation.Evidence, request.Actor, now);
         workflow.Version = checked(workflow.Version + 1);
         ClearLease(workflow);
         var afterJson = JsonSerializer.Serialize(HistoryValue(workflow));
@@ -1222,17 +1314,26 @@ public sealed class EfCaseWorkflowStore(
             afterJson);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return AutoLinkLinked(workflow);
+        return pastWork is null
+            ? AutoLinkLinked(workflow)
+            : AutoLinkLinkedOnPastWork(workflow, request.EvidenceId);
     }
 
+    /// <summary>
+    /// Whether <paramref name="evidenceId"/> may be linked as the report-Sent
+    /// evidence of the current work (<paramref name="pastWork"/> null: the
+    /// workflow's own, from Report preparation) or of a past work (the
+    /// Inspection once the Audit exists: its own row, in any Case state).
+    /// </summary>
     private static async Task<ReportEvidenceLinkEvaluation> EvaluateReportEvidenceLinkAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
+        CaseWorkEntity? pastWork,
         Guid evidenceId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        if (workflow.State != nameof(CaseLifecycleState.ReportPreparation))
+        if (pastWork is null && workflow.State != nameof(CaseLifecycleState.ReportPreparation))
         {
             return new(
                 null,
@@ -1272,7 +1373,7 @@ public sealed class EfCaseWorkflowStore(
                 "The report-Sent evidence has no authoritative approved-mailbox retention record.");
         }
 
-        if (workflow.ReportSentEvidenceId is not null)
+        if ((pastWork is null ? workflow.ReportSentEvidenceId : pastWork.ReportSentEvidenceId) is not null)
         {
             return new(
                 null,
@@ -1293,13 +1394,22 @@ public sealed class EfCaseWorkflowStore(
                 "evidence_future_dated",
                 "Future-dated retained Sent evidence cannot enter post-report work.");
         }
-        if (workflow.ReportApproval is { } approval
+        var reportApproval = pastWork is null ? workflow.ReportApproval : pastWork.ReportApproval;
+        if (reportApproval is { } approval
             && evidence.SentAtUtc < approval.ApprovedAtUtc)
         {
             return new(
                 null,
                 "evidence_predates_report_approval",
                 "Retained Sent evidence cannot predate the current report approval.");
+        }
+
+        if (pastWork is not null)
+        {
+            // The Inspection report's evidence, once the Audit exists, is
+            // anchored to nothing but its own approval: it may have been sent
+            // before or after Create audit (operator, 1 October 2026).
+            return new(evidence, null, null);
         }
 
         // Create audit is itself a transition into Report preparation, and the
@@ -1340,6 +1450,7 @@ public sealed class EfCaseWorkflowStore(
 
     private static void ApplyReportEvidenceLink(
         CaseWorkflowEntity workflow,
+        CaseWorkEntity? pastWork,
         CaseReportSentEvidenceEntity evidence,
         ActionActor actor,
         DateTimeOffset linkedAtUtc)
@@ -1349,11 +1460,32 @@ public sealed class EfCaseWorkflowStore(
         evidence.LinkedByKind = actor.Kind.ToString();
         evidence.LinkedBySubjectId = actor.SubjectId;
         evidence.LinkedByRolesJson = RolesJson(actor);
+        if (pastWork is not null)
+        {
+            // The Inspection report's evidence, once the Audit drives the
+            // Case: on its own work, and the Case's state stays the Audit's.
+            pastWork.ReportSentEvidenceId = evidence.Id;
+            pastWork.ReportSentEvidence = evidence;
+            return;
+        }
+
         workflow.ReportSentEvidenceId = evidence.Id;
         workflow.ReportSentEvidence = evidence;
         workflow.State = nameof(CaseLifecycleState.PostReport);
         workflow.StateEnteredAtUtc = linkedAtUtc;
     }
+
+    /// <summary>The committed link of a past work's evidence: the Case's state as it stands, unchanged.</summary>
+    private static AutoLinkReportEvidenceResult AutoLinkLinkedOnPastWork(CaseWorkflowEntity workflow, Guid evidenceId) =>
+        new(
+            AutoLinkReportEvidenceDisposition.Linked,
+            new AutoLinkedReportEvidence(
+                workflow.CaseId,
+                evidenceId,
+                Enum.Parse<CaseLifecycleState>(workflow.State),
+                workflow.Version,
+                OfCurrentWork: false),
+            null);
 
     private static AutoLinkReportEvidenceResult AutoLinkLinked(CaseWorkflowEntity workflow)
     {

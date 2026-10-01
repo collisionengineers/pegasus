@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
@@ -57,14 +58,20 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             .ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
 
-        // Only the current work's report is delivered: once an Audit exists the
-        // Inspection's report reads exactly as a superseded one (decision G).
-        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken)
+        // A work's current report is delivered: the current work's, or the
+        // Inspection's once the Audit exists, which stays deliverable on its
+        // own work (operator, 1 October 2026). The generation must be of the
+        // work the request names.
+        var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken)
             .ConfigureAwait(false);
+        if (generation.WorkId != workId)
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
         CaseReportDeliveryPolicy.RequireDeliverable(
             generation.Id,
             Enum.Parse<CaseReportGenerationState>(generation.State),
-            generation.SupersededById is null && generation.WorkId == currentWorkId,
+            generation.SupersededById is null,
             generation.Version,
             request.ExpectedGenerationVersion);
         var artifacts = CaseReportDeliveryPolicy.Attachments(
@@ -122,6 +129,15 @@ public sealed class EfCaseReportDeliveryPreparationStore(
         var now = timeProvider.GetUtcNow();
         CaseMutationGuard.Require(
             workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, now);
+        // The Inspection report already sent once the Audit exists is never
+        // prepared again (operator, 1 October 2026); a replay above returned
+        // the preparation it recorded.
+        if (request.Work == CaseWorkSelector.Primary
+            && await CaseWorkScope.PrimaryReportSentAfterAuditAsync(context, request.CaseId, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
 
         var entity = new CaseReportDeliveryIntentEntity
         {
@@ -174,9 +190,8 @@ public sealed class EfCaseReportDeliveryPreparationStore(
     {
         CaseReportDeliveryPolicy.RequireStaff(actor);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The caller's own predicate stays inside the translatable query —
-        // composing it over the Row projection would force client evaluation.
-        var currentWorkIds = CaseWorkScope.CurrentWorkIds(context);
+        // A generation is its work's current one while nothing superseded it;
+        // the Inspection's stays so once the Audit exists.
         var row = await (
                 from intent in context.Set<CaseReportDeliveryIntentEntity>().AsNoTracking()
                 join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
@@ -184,18 +199,18 @@ public sealed class EfCaseReportDeliveryPreparationStore(
                 join workflow in context.CaseWorkflows.AsNoTracking()
                     on generation.CaseId equals workflow.CaseId
                 where generation.CaseId == caseId && intent.Id == preparationId
-                select new Row(intent, generation, workflow.Version, currentWorkIds.Contains(generation.WorkId)))
+                select new Row(intent, generation, workflow.Version, generation.SupersededById == null))
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         return row is null ? null : await MapAsync(context, row, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
-        ActionActor actor, Guid caseId, CancellationToken cancellationToken)
+        ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
     {
         CaseReportDeliveryPolicy.RequireStaff(actor);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken)
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken)
             .ConfigureAwait(false);
         var row = await (
                 from intent in context.Set<CaseReportDeliveryIntentEntity>().AsNoTracking()
@@ -203,7 +218,7 @@ public sealed class EfCaseReportDeliveryPreparationStore(
                     on intent.GenerationId equals generation.Id
                 join workflow in context.CaseWorkflows.AsNoTracking()
                     on generation.CaseId equals workflow.CaseId
-                where generation.WorkId == currentWorkId && generation.SupersededById == null
+                where generation.WorkId == workId && generation.SupersededById == null
                 orderby intent.PreparedAtUtc descending
                 select new Row(intent, generation, workflow.Version, true))
             .FirstOrDefaultAsync(cancellationToken)
@@ -253,7 +268,9 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             Enum.Parse<CaseReportGenerationState>(generation.State),
             generation.SupersededById is null && isCurrentWork,
             generation.Version,
-            confirmedArtifacts);
+            confirmedArtifacts,
+            // The primary work's id is the Case's; any other work is the current one.
+            generation.WorkId == generation.CaseId ? CaseWorkSelector.Primary : CaseWorkSelector.Current);
     }
 
     /// <summary>

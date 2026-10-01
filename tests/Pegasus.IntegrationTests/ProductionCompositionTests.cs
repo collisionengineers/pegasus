@@ -235,6 +235,49 @@ public sealed class ProductionCompositionTests
         Assert.Contains("Glass:RepairProfileId", error.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Glass's is a connected guide source only where a host composes it, and
+    /// composing or resolving it reads no account: the account is read on each
+    /// valuation, so an unresolved Key Vault reference never stops a Case page.
+    /// </summary>
+    [Fact]
+    public void GlassValuationIsConnectedOnlyWhereComposedAndReadsItsAccountOnlyWhenValuing()
+    {
+        using var bare = BuildGlassProduction(
+            GlassConfiguration(),
+            services => services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>());
+        using (var scope = bare.CreateScope())
+        {
+            Assert.False(scope.ServiceProvider.GetRequiredService<IFetchGuideValuation>()
+                .IsConnected(ValuationSource.Glasses));
+        }
+
+        var reads = 0;
+        using var connected = BuildGlassProduction(GlassConfiguration(), services =>
+        {
+            services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>();
+            services.AddGlassGuideValuation(_ =>
+            {
+                reads++;
+                return GlassValuationAccount.Create(static _ => null);
+            });
+        });
+        using var connectedScope = connected.CreateScope();
+        var fetch = connectedScope.ServiceProvider.GetRequiredService<IFetchGuideValuation>();
+
+        Assert.True(fetch.IsConnected(ValuationSource.Glasses));
+        Assert.False(fetch.IsConnected(ValuationSource.Brego));
+        Assert.IsType<GlassGuideValuationProvider>(
+            Assert.Single(connectedScope.ServiceProvider.GetServices<IGuideValuationProvider>()));
+        Assert.Equal(0, reads);
+    }
+
+    private sealed class NothingScheduled : IScheduleGuideValuationReport
+    {
+        public Task ScheduleAsync(FileGuideValuationReportRequest request, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
+
     private const string BoxConfigJson = """
     {
       "boxAppSettings": {
@@ -303,7 +346,6 @@ public sealed class ProductionCompositionTests
 
         Assert.NotNull(services.GetRequiredService<IAddCaseDocument>());
         Assert.NotNull(services.GetRequiredService<IDownloadCaseDocument>());
-        Assert.NotNull(services.GetRequiredService<IExportCaseDocuments>());
         Assert.NotNull(services.GetRequiredService<ILogicallyRemoveDocument>());
         Assert.NotNull(services.GetRequiredService<ITagCaseImage>());
         Assert.NotNull(services.GetRequiredService<IUntagCaseImage>());
@@ -419,7 +461,7 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void ProductionWebTelemetryIncludesGlassCallbackUrlSanitization()
+    public void ProductionWebComposesGlassCallbackUrlSanitizationAndGlassValuation()
     {
         using var factory = new ConfiguredWebApplicationFactory(
             "Production",
@@ -432,6 +474,9 @@ public sealed class ProductionCompositionTests
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
             initializer => initializer is GlassCallbackTelemetryInitializer);
+        // The same host connects Glass's as a guide valuation source (ADR-0060).
+        Assert.IsType<GlassGuideValuationProvider>(
+            Assert.Single(factory.Services.GetServices<IGuideValuationProvider>()));
     }
 
     [Fact]
@@ -679,7 +724,9 @@ public sealed class ProductionCompositionTests
         return services.BuildServiceProvider();
     }
 
-    private static ServiceProvider BuildGlassProduction(Dictionary<string, string?> configuration)
+    private static ServiceProvider BuildGlassProduction(
+        Dictionary<string, string?> configuration,
+        Action<IServiceCollection>? compose = null)
     {
         var services = NewServices();
         services.AddDataProtection();
@@ -693,6 +740,7 @@ public sealed class ProductionCompositionTests
                     new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
                 static _ => false,
                 static _ => BoxOptions()));
+        compose?.Invoke(services);
         return services.BuildServiceProvider();
     }
 

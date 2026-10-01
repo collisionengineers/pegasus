@@ -445,13 +445,12 @@ public sealed class LogsModel(
         || string.Equals(row.Area, "automation_mcp", StringComparison.Ordinal)
         && row.Operation is
             "pegasus_case_get"
-            or "pegasus_case_edit_begin"
-            or "pegasus_case_edit_renew"
-            or "pegasus_case_edit_end"
+            or "pegasus_edit_begin"
+            or "pegasus_edit_renew"
+            or "pegasus_edit_end"
             or "pegasus_case_update_details"
             or "pegasus_document_add"
             or "pegasus_document_download"
-            or "pegasus_document_export"
             or "pegasus_estimate_import"
             or "pegasus_estimate_save"
             or "pegasus_estimate_list"

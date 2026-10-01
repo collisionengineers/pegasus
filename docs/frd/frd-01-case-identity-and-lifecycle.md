@@ -11,8 +11,9 @@
 - There are four Case types: Inspection, Audit, Inspection + Audit, and
   Triage. They share one sequence per Principal per year.
 - An Inspection + Audit Case keeps its Audit on the same Case. Create audit
-  adds it once the Inspection report is sent; its report reference is
-  `a.{Case/PO}` and uses no new number.
+  adds it while the Case is in work, whether or not the Inspection report
+  has been sent; its report reference is `a.{Case/PO}` and uses no new
+  number.
 - A Case is never deleted. A Case opened under the wrong Principal is marked
   Created in error and linked to its replacement.
 - Each Case keeps its own copy of the parties and addresses agreed for it.
@@ -90,9 +91,10 @@ a fact on the Case, not part of its identity. The filed report fills the
 Case's [Original report](frd-16-case-record-workspace.md#original-report)
 cells at acceptance and when a document is recorded as the original report.
 
-**Inspection + Audit.** The Case starts as a normal Inspection Case. Once
-its Inspection report is sent, **Create audit** (in the Actions menu, inside
-an edit session) adds the Audit to the same Case
+**Inspection + Audit.** The Case starts as a normal Inspection Case.
+**Create audit** (in the Actions menu, in or out of an edit session) adds
+the Audit to the same Case while the Case is in work, whether or not the
+Inspection report has been sent
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)). The Audit:
 
 - is part of the same Case: one Cases record, one Case/PO, one state, one
@@ -173,10 +175,13 @@ under the current process, with its provenance recorded.
 - **Audit.** Another engineering firm has already inspected the vehicle.
   Collision Engineers receives that firm's original Engineer report with the
   instruction and audits or double-checks the work.
-- **Inspection + Audit.** Collision Engineers completes and sends an
-  Inspection report on the Case, then audits that report on the same Case
-  after Create audit. The Audit has its own values, report, reference and
-  fee; the Case's identity, state, files and notes stay shared.
+- **Inspection + Audit.** Collision Engineers prepares an Inspection report
+  on the Case and, after Create audit, audits that work on the same Case.
+  The Audit has its own values, report, reference and fee; the Case's
+  identity, state, files and notes stay shared. An Inspection report not
+  sent before Create audit is sent afterwards from the Inspection view, on
+  the Inspection's own work
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)).
 - **Triage.** A Principal asks Collision Engineers to assess a vehicle
   without a definitive instruction. The Triage Case records the finding and
   its outcome under its own workflow

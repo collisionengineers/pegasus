@@ -84,6 +84,10 @@ param glassMarketValueAssessorBaseUri string
 param glassEstimatorBaseUri string
 @description('Numeric MVA repair-estimate profile id a new Glass estimate is started against. Account configuration; no default.')
 param glassRepairProfileId string
+@description('Versioned Key Vault secret URI containing the Glass valuation account user name (ADR-0060).')
+param glassValuationUsernameSecretUri string
+@description('Versioned Key Vault secret URI containing the Glass valuation account password (ADR-0060).')
+param glassValuationPasswordSecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
 param dvsaApiKeySecretUri string
 @description('Approved DVSA OAuth token endpoint.')
@@ -140,6 +144,8 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     glassMarketValueAssessorBaseUri: glassMarketValueAssessorBaseUri
     glassEstimatorBaseUri: glassEstimatorBaseUri
     glassRepairProfileId: glassRepairProfileId
+    glassValuationUsernameSecretUri: glassValuationUsernameSecretUri
+    glassValuationPasswordSecretUri: glassValuationPasswordSecretUri
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope

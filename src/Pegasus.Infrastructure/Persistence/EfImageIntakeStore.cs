@@ -160,7 +160,8 @@ public sealed class EfImageIntakeStore(
             .Select(link => (Guid?)link.CaseId)
             .SingleOrDefaultAsync(cancellationToken);
         if (receipt.Decision != EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting)
-            || !IsImageAutomationEligible(receipt, acceptedCaseId))
+            || !ImageIntakeLifecycleRules.IsImageRegistrationEligible(
+                EfIntakeReceiptStore.Map(receipt, isDuplicate: false, acceptedCaseId: acceptedCaseId)))
         {
             throw new InvalidOperationException(
                 "Only an image-only intake receipt awaiting sorting can register an Image intake.");

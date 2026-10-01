@@ -40,6 +40,10 @@ accepted recognition bar; the bar is owned by
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis).
 Image material without a usable registration enters Unidentified with a
 reason ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
+Image-only material a member of staff has classified as images received
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction))
+may be registered by staff from the message record or the Unidentified item
+while no Case holds it; automation never widens to it.
 
 An Image-initiated Case is a separate, image-first lifecycle projected over
 the ImageIntake record. It never allocates a Principal, a Case/PO, or a

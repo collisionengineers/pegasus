@@ -39,8 +39,8 @@
         || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     var canConfirmReportSent = mayAct
-        && state == CaseLifecycleState.ReportPreparation
-        && details.AvailableReportSentEvidence.Count > 0;
+        && details.AvailableReportSentEvidence.Count > 0
+        && (Model.InspectionReportAwaitsSend || state == CaseLifecycleState.ReportPreparation);
     var closureOutcomes = Model.AvailableClosureOutcomes;
     var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
     var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
@@ -344,6 +344,11 @@
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                         @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                        @if (Model.InspectionReportAwaitsSend)
+                        {
+                            @* The Inspection report's own evidence, on its work. *@
+                            <input type="hidden" name="view" value="@DetailsModel.InspectionViewKey" />
+                        }
                         <div class="definition-list">
                             <dl class="definition"><dt>Mailbox</dt><dd>@evidence.MailboxIdentity</dd></dl>
                             <dl class="definition"><dt>Sent</dt><dd>@OperatorLabels.OfficeTime(evidence.SentAtUtc)</dd></dl>

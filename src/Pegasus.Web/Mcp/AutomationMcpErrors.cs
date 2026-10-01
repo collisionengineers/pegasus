@@ -38,7 +38,8 @@ internal static class AutomationMcpErrors
         {
             throw new McpException(
                 "Refused: no active edit authority is held for this case. The case is at version "
-                + $"{exception.CaseVersion}; claim edit authority again with pegasus_case_edit_begin.");
+                + $"{exception.CaseVersion}; claim edit authority again with pegasus_edit_begin, "
+                + "or omit editLeaseToken so the write holds the lease for its one command.");
         }
         catch (CaseEditLeaseConflictException exception)
         {

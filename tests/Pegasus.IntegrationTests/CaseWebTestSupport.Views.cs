@@ -30,14 +30,15 @@ internal static partial class CaseWebTestSupport
 
         /// <summary>
         /// This Case once Create audit has run: the primary work keeps the
-        /// Inspection's Sent evidence, the Audit work drives the Case, and the
-        /// workflow's own evidence is cleared.
+        /// Inspection's Sent evidence (none when the Audit was created before
+        /// the Inspection report was sent), the Audit work drives the Case,
+        /// and the workflow's own evidence is cleared.
         /// </summary>
-        public void GiveAudit(DateTimeOffset inspectionSentAtUtc)
+        public void GiveAudit(DateTimeOffset inspectionSentAtUtc, bool inspectionSent = true)
         {
             Works = new(
                 new CaseWork(CaseId, CaseId, CaseWorkKind.Primary, inspectionSentAtUtc.AddDays(-3),
-                    ReportSentEvidence: SentEvidence(inspectionSentAtUtc)),
+                    ReportSentEvidence: inspectionSent ? SentEvidence(inspectionSentAtUtc) : null),
                 new CaseWork(Guid.NewGuid(), CaseId, CaseWorkKind.Audit, inspectionSentAtUtc.AddDays(1)));
             ReportSentEvidence = null;
         }

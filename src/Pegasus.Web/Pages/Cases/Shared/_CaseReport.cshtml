@@ -28,15 +28,25 @@
     // One report per work (v29 P4): the Inspection view shows the
     // Inspection's sent report and nothing to generate or deliver; the Audit
     // view is the current work's, with the sent Inspection report beside it.
+    // While the Inspection report still awaits sending after Create audit
+    // (operator, 1 October 2026), the Inspection view generates, prepares and
+    // sends it on its own work, under the session's lease or one claimed for
+    // the generation; its values stay read-only.
     var inspectionView = Model.IsInspectionView;
+    var inspectionOpen = Model.InspectionReportAwaitsSend;
     var auditView = !inspectionView && Model.Works is { HasAudit: true };
     var generation = inspectionView ? Model.InspectionReportGeneration : Model.CurrentReportGeneration;
-    var preparation = inspectionView ? null : Model.CurrentDeliveryPreparation;
+    var preparation = inspectionView && !inspectionOpen ? null : Model.CurrentDeliveryPreparation;
     var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
         ? CaseReportDeliveryPolicy.SuggestedReview(suggestions)
         : new ReportRecipientReview([], []);
     var labels = CaseWorkspaceLabels.Editors.Report;
-    var offersHead = !Model.AssessmentIsReadOnly && Model.ReportDraftPreparation is not null;
+    var draftPreparation = inspectionOpen ? Model.InspectionReportDraftPreparation : Model.ReportDraftPreparation;
+    var draftCondition = inspectionOpen ? Model.InspectionReportDraftCondition : Model.ReportDraftCondition;
+    var offersHead = (inspectionOpen || !Model.AssessmentIsReadOnly) && draftPreparation is not null;
+    // The lease a Report command runs under: the section's edit, or the
+    // session's lease for the Inspection report after Create audit.
+    var leaseForReport = inspectionOpen ? Model.IsEditing : editing;
     var reportArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
         artifact.Kind == CaseReportArtifactKind.AssessmentReport);
     // Where the report's file stands, as Core reads it from the row.
@@ -52,10 +62,10 @@
     // claims the lease for the one generation, so they are not offered while
     // someone holds the lease; inside it the report's form saves the Case
     // first (data-case-save-first).
-    var canClaimGeneration = offersHead && (editing || Model.CurrentEditLease is null);
+    var canClaimGeneration = offersHead && (leaseForReport || Model.CurrentEditLease is null);
     var canGenerate = canClaimGeneration
         && (reportRetryArtifact is not null
-            || !reportAlreadyConfirmed && Model.ReportDraftCondition is null);
+            || !reportAlreadyConfirmed && draftCondition is null);
     var reportOperationKey = reportRetryArtifact?.OperationKey ?? Model.GenerateReportOperationKey;
     var feeNoteArtifact = generation?.Artifacts
         .FirstOrDefault(artifact => artifact.Kind == CaseReportArtifactKind.FeeNote);
@@ -69,7 +79,9 @@
     // note once it is confirmed (the Fee tab's own rule).
     var cardReport = reportArtifact is { Filing: CaseReportArtifactFiling.Stored } ? reportArtifact : null;
     var cardFeeNote = feeNoteArtifact is { Status: CaseReportArtifactStatus.Confirmed } ? feeNoteArtifact : null;
-    var canPreview = offersHead && Model.ReportDraftCondition is null;
+    // The working draft is the current work's projection; the Inspection
+    // report after Create audit has its generated file to open instead.
+    var canPreview = offersHead && !inspectionOpen && draftCondition is null;
     var generatedAt = generation is null
         ? null
         : Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm", CultureInfo.InvariantCulture);
@@ -82,7 +94,7 @@
 
     // A delivery may attach a subset of the generation's documents (v28 P22),
     // so what it needs is a confirmed report, not every artifact confirmed.
-    var canPrepareDelivery = editing
+    var canPrepareDelivery = leaseForReport
         && generation is not null
         && preparation is null
         && generation.State == CaseReportGenerationState.Confirmed
@@ -131,11 +143,12 @@
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
                       asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report>
                     <input type="hidden" name="operationKey" value="@reportOperationKey" />
-                    @if (editing)
+                    @if (leaseForReport)
                     {
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     }
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     @if (reportRetryArtifact is not null)
                     {
                         <input type="hidden" name="includeFeeNote" value="@(generation!.Snapshot.Report.IncludeFeeNote ? "true" : "false")" />
@@ -155,7 +168,7 @@
                     </button>
                 </form>
             }
-            else if (offersHead && Model.ReportDraftCondition is not null)
+            else if (offersHead && draftCondition is not null)
             {
                 <span class="gated" data-report-gate>
                     <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
@@ -163,7 +176,7 @@
                     <span>@Words.NotReady</span>
                 </span>
             }
-            @if (offersHead && (canPreview || editing || canGenerateRepairSpec || canGenerateImagePack || canGenerateFeeNote))
+            @if (offersHead && (canPreview || leaseForReport || canGenerateRepairSpec || canGenerateImagePack || canGenerateFeeNote))
             {
                 <details class="menu" data-menu data-report-menu>
                     <summary class="btn btn--small"><span>@Words.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
@@ -204,12 +217,13 @@
                             <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateRepairSpec"
                                   asp-route-id="@caseId" asp-route-section="report">
                                 <input type="hidden" name="operationKey" value="@repairSpecOperationKey" />
-                                @if (editing)
+                                @if (leaseForReport)
                                 {
                                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                                 }
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
+                                <input type="hidden" name="view" value="@Model.ViewRoute" />
                                 <button type="submit" class="btn" data-generate-repair-spec>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                                     <span>@ReportLabels.GenerateRepairSpec</span>
@@ -221,12 +235,13 @@
                             <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateImagePack"
                                   asp-route-id="@caseId" asp-route-section="report">
                                 <input type="hidden" name="operationKey" value="@imagePackOperationKey" />
-                                @if (editing)
+                                @if (leaseForReport)
                                 {
                                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                                 }
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
+                                <input type="hidden" name="view" value="@Model.ViewRoute" />
                                 <button type="submit" class="btn" data-generate-image-pack>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
                                     <span>@ReportLabels.GenerateImages</span>
@@ -238,12 +253,13 @@
                             <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateFeeNote"
                                   asp-route-id="@caseId" asp-route-section="report">
                                 <input type="hidden" name="operationKey" value="@feeNoteOperationKey" />
-                                @if (editing)
+                                @if (leaseForReport)
                                 {
                                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                                 }
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
+                                <input type="hidden" name="view" value="@Model.ViewRoute" />
                                 <button type="submit" class="btn">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                                     <span>@ReportLabels.GenerateFeeNote</span>
@@ -286,7 +302,7 @@
             <div class="pv-meta">
                 <div class="pt" data-report-title>@Model.ReportTitle</div>
                 <div class="ps" data-report-status>
-                    @if (inspectionView)
+                    @if (inspectionView && !inspectionOpen)
                     {
                         <span>@Model.InspectionSentLine</span>
                     }
@@ -366,6 +382,7 @@
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                     <input type="hidden" name="generationId" value="@generation.Id" />
                     <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <span class="lg">@Words.ReviewedRecipients</span>
                     @* P21: the addresses this Case already knows, offered by the
                        browser's own picker on every recipient field. *@
@@ -435,7 +452,7 @@
                     </button>
                 </form>
             }
-            @if (preparation is not null && !Model.AssessmentIsReadOnly)
+            @if (preparation is not null && (inspectionOpen || !Model.AssessmentIsReadOnly))
             {
                 <dl class="detail-list" data-report-delivery>
                     <div><dt>@ReportLabels.DeliveryPrepared</dt><dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd></div>
@@ -454,6 +471,7 @@
                       asp-route-id="@caseId" asp-route-section="report" class="button-row" data-send-prepared>
                     <input type="hidden" name="preparationId" value="@preparation.Preparation.Id" />
                     <input type="hidden" name="expectedPreparationVersion" value="@preparation.Preparation.Version" />
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <button type="submit" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@ReportLabels.SendPreparedReport</span>

@@ -41,12 +41,23 @@ internal sealed record MarketResearchCompletionToolResult(
     Guid ValuationId,
     bool IsReplay);
 
+internal enum AiJobTransitionAction
+{
+    Take,
+    Progress,
+    Complete,
+    Fail,
+    Release
+}
+
 /// <summary>
 /// The AI job ledger tools (ADR-0035, FRD-10 § AI job and estimate tools):
 /// the pull side of the ledger for an external AI client. Every tool
 /// requires the <c>automation.jobs</c> scope; creation is limited to the
 /// scheduled Unidentified-queue pass (operator decision D5); take and progress are
-/// refused while the Administrator Send to AI switch is off.
+/// refused while the Administrator Send to AI switch is off. The five
+/// transitions of a held job are one tool with an action, since each is the
+/// same job id, expected version and operation key with one extra field.
 /// </summary>
 [McpServerToolType]
 internal sealed class AiJobMcpTools(
@@ -115,11 +126,11 @@ internal sealed class AiJobMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Creates an Unidentified-queue pass job — the only kind an external scheduler may start. Requires a mcp:-prefixed operation key; replaying the same key returns the same job.")]
+    [Description("Creates an Unidentified-queue pass job, the only kind an external scheduler may start. Requires a mcp:-prefixed operation key; replaying the same key returns the same job.")]
     public async Task<AiJobToolItem> CreateAsync(
         [Description("Must be UnidentifiedQueuePass.")] string kind,
         [Description("Short instruction for the pass, at most 500 characters.")] string instruction,
-        string operationKey,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
@@ -153,107 +164,55 @@ internal sealed class AiJobMcpTools(
     }
 
     [McpServerTool(
-        Name = "pegasus_ai_job_take",
-        Title = "Take an AI job",
+        Name = "pegasus_ai_job_transition",
+        Title = "Move an AI job",
         ReadOnly = false,
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Claims one queued job under a 30-minute lease held by this client. Refused when the job is not queued, its version has moved, or the Administrator has stopped AI work.")]
-    public async Task<AiJobToolItem> TakeAsync(
-        Guid jobId,
-        long expectedVersion,
-        string operationKey,
+    [Description("Moves one AI job for this client. Take claims a queued job under a 30-minute lease. Progress renews the lease and records progressNote. Complete marks a non-MarketResearch job Draft ready with resultKind (Estimate, ProposedResolution or DraftReply, matching the job kind) and the optional resultReference and resultText; nothing is applied to the record, staff confirm through the record's own action. Fail marks the job Failed with reason; it is not re-queued. Release returns a taken job to Queued before its lease ends, with an optional reason. Take and Progress are refused while the Administrator has stopped AI work. MarketResearch completes through pegasus_ai_job_complete_market_research.")]
+    public async Task<AiJobToolItem> TransitionAsync(
+        [Description("The job identifier from pegasus_ai_job_list.")] Guid jobId,
+        [Description("The job version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description("Take, Progress, Complete, Fail or Release.")] string action,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("Progress: the note, at most 500 characters.")] string? progressNote = null,
+        [Description("Complete: Estimate, ProposedResolution or DraftReply.")] string? resultKind = null,
+        [Description("Complete: reference to the draft written through the attributed tools, at most 200 characters.")] string? resultReference = null,
+        [Description("Complete: proposal or draft text, at most 4000 characters.")] string? resultText = null,
+        [Description("Fail: the reason, at most 500 characters. Release: optional.")] string? reason = null,
         CancellationToken cancellationToken = default)
     {
+        var parsedAction = ParseAction(action);
         var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_ai_job_take",
-            jobId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-                Map(await work.TakeAsync(
-                    new(RequireJobId(jobId), expectedVersion, context.Actor, key),
-                    cancellationToken))),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_ai_job_progress",
-        Title = "Report AI job progress",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Renews this client's lease and records a short progress note. Refused after cancellation, lease expiry, or while AI work is stopped.")]
-    public async Task<AiJobToolItem> ProgressAsync(
-        Guid jobId,
-        long expectedVersion,
-        [Description("At most 500 characters.")] string progressNote,
-        string operationKey,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordDenialAsync(
-            context,
-            "pegasus_ai_job_progress",
-            jobId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-                Map(await work.ReportProgressAsync(
-                    new(RequireJobId(jobId), expectedVersion, context.Actor, key, progressNote),
-                    cancellationToken))),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_ai_job_complete",
-        Title = "Complete an AI job",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Marks this client's non-MarketResearch job Draft ready, naming the draft or proposal it produced: an estimate reference, a proposed Unidentified destination with its reason, or draft reply text. MarketResearch uses pegasus_ai_job_complete_market_research. Nothing is applied to the record; staff confirm through the record's own action.")]
-    public async Task<AiJobToolItem> CompleteAsync(
-        Guid jobId,
-        long expectedVersion,
-        [Description("Estimate, ProposedResolution or DraftReply — must match the job kind.")] string resultKind,
-        string operationKey,
-        [Description("Reference to the draft written through the attributed tools, at most 200 characters.")] string? resultReference = null,
-        [Description("Proposal or draft text, at most 4000 characters.")] string? resultText = null,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_ai_job_complete",
-            jobId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+        Task<AiJobToolItem> Run() => AutomationMcpErrors.ExecuteAsync(async () =>
+        {
+            var id = RequireJobId(jobId);
+            var job = await (parsedAction switch
             {
-                if (!Enum.TryParse<AiJobResultKind>(resultKind?.Trim(), ignoreCase: true, out var parsed)
-                    || !Enum.IsDefined(parsed))
-                {
-                    throw new McpException("The result kind is not recognized.");
-                }
+                AiJobTransitionAction.Take => work.TakeAsync(
+                    new(id, expectedVersion, context.Actor, key), cancellationToken),
+                AiJobTransitionAction.Progress => work.ReportProgressAsync(
+                    new(id, expectedVersion, context.Actor, key, Require(progressNote, "Progress", "progressNote")),
+                    cancellationToken),
+                AiJobTransitionAction.Complete => work.CompleteAsync(
+                    new(id, expectedVersion, context.Actor, key, new(ParseResultKind(resultKind), resultReference, resultText)),
+                    cancellationToken),
+                AiJobTransitionAction.Fail => work.FailAsync(
+                    new(id, expectedVersion, context.Actor, key, Require(reason, "Fail", "reason")), cancellationToken),
+                AiJobTransitionAction.Release => work.ReleaseAsync(
+                    new(id, expectedVersion, context.Actor, key, reason), cancellationToken),
+                _ => throw new McpException("action must be Take, Progress, Complete, Fail or Release.")
+            });
+            return Map(job);
+        });
 
-                return Map(await work.CompleteAsync(
-                    new(
-                        RequireJobId(jobId),
-                        expectedVersion,
-                        context.Actor,
-                        key,
-                        new(parsed, resultReference, resultText)),
-                    cancellationToken));
-            }),
-            cancellationToken);
+        // Progress is lease telemetry, not permanent history; only its refusal is material.
+        return parsedAction == AiJobTransitionAction.Progress
+            ? await auditor.RecordDenialAsync(context, "pegasus_ai_job_transition", jobId.ToString("D"), key, Run, cancellationToken)
+            : await auditor.RecordAsync(context, "pegasus_ai_job_transition", jobId.ToString("D"), key, Run, cancellationToken);
     }
 
     [McpServerTool(
@@ -266,18 +225,18 @@ internal sealed class AiJobMcpTools(
         UseStructuredContent = true)]
     [Description("Completes this client's MarketResearch job as Draft ready with one retained findings document and one AI market research valuation. Requires automation.jobs only: it takes no Case edit lease and no Case version, because a source card is not a Case field edit and the Engineer is usually still editing the Case, so it never waits on or ends their session. Nothing is accepted automatically.")]
     public async Task<MarketResearchCompletionToolResult> CompleteMarketResearchAsync(
-        Guid jobId,
-        long expectedJobVersion,
-        Guid caseId,
-        string operationKey,
+        [Description("The MarketResearch job identifier this client holds.")] Guid jobId,
+        [Description("The job version the caller observed; a stale value fails closed.")] long expectedJobVersion,
+        [Description("The Case the research is for.")] Guid caseId,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         [Description("Leaf name for the findings document, at most 255 characters.")] string fileName,
         [Description("Media type for the findings document, at most 200 characters.")] string mediaType,
         [Description("Base64 findings document, at most 10 MiB after decoding.")] string contentBase64,
         [Description("Valuation date, yyyy-MM-dd.")] string recordedDate,
         [Description("Valuation time, HH:mm or HH:mm:ss.")] string recordedTime,
-        long mileage,
-        decimal retailValue,
-        decimal tradeValue,
+        [Description("The mileage the valuation assumes.")] long mileage,
+        [Description("Retail value in pounds.")] decimal retailValue,
+        [Description("Trade value in pounds.")] decimal tradeValue,
         [Description("Optional guide month the research is for, yyyy-MM; the valuation for that month replaces an earlier card for it.")] string? guideMonth = null,
         CancellationToken cancellationToken = default)
     {
@@ -320,67 +279,22 @@ internal sealed class AiJobMcpTools(
             cancellationToken);
     }
 
-    [McpServerTool(
-        Name = "pegasus_ai_job_fail",
-        Title = "Fail an AI job",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Marks this client's job Failed with a reason. The job is not re-queued automatically.")]
-    public async Task<AiJobToolItem> FailAsync(
-        Guid jobId,
-        long expectedVersion,
-        [Description("At most 500 characters.")] string reason,
-        string operationKey,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_ai_job_fail",
-            jobId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-                Map(await work.FailAsync(
-                    new(RequireJobId(jobId), expectedVersion, context.Actor, key, reason),
-                    cancellationToken))),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_ai_job_release",
-        Title = "Release an AI job",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Returns this client's taken job to Queued before its lease ends, optionally with a reason.")]
-    public async Task<AiJobToolItem> ReleaseAsync(
-        Guid jobId,
-        long expectedVersion,
-        string operationKey,
-        [Description("Optional, at most 500 characters.")] string? reason = null,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_ai_job_release",
-            jobId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-                Map(await work.ReleaseAsync(
-                    new(RequireJobId(jobId), expectedVersion, context.Actor, key, reason),
-                    cancellationToken))),
-            cancellationToken);
-    }
-
     private static Guid RequireJobId(Guid jobId) => AutomationMcpErrors.RequireId(jobId, "job identifier");
+
+    private static string Require(string? value, string action, string name) =>
+        string.IsNullOrWhiteSpace(value)
+            ? throw new McpException($"{action} needs {name}.")
+            : value;
+
+    private static AiJobTransitionAction ParseAction(string? action) =>
+        Enum.TryParse<AiJobTransitionAction>(action?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : throw new McpException("action must be Take, Progress, Complete, Fail or Release.");
+
+    private static AiJobResultKind ParseResultKind(string? resultKind) =>
+        Enum.TryParse<AiJobResultKind>(resultKind?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : throw new McpException("Complete needs resultKind: Estimate, ProposedResolution or DraftReply.");
 
     private static AiJobKind ParseKind(string? kind) =>
         Enum.TryParse<AiJobKind>(kind?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)

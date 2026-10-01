@@ -38,7 +38,12 @@
                     {
                         <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-view="@DetailsModel.InspectionViewKey">@inspectionName</a>
                     }
-                    <span class="status status--plain status--green">@Frame.Sent</span>
+                    @if (Model.Works?.Primary.ReportSentEvidence is not null)
+                    {
+                        @* No chip when the Audit was created before the Inspection
+                           report was sent (operator, 1 October 2026). *@
+                        <span class="status status--plain status--green">@Frame.Sent</span>
+                    }
                 </div>
                 <div class="next-row" data-case-view-row="audit">
                     @if (Model.IsInspectionView)
@@ -81,6 +86,17 @@
                     {
                         <a class="btn btn--small btn--primary" href="@draft.Route">@action</a>
                     }
+                </div>
+            }
+            @* FRD-13 "Cancellation messages": while a linked message is currently
+               classified a cancellation and the Case is open, the Next action
+               names it and opens the message. Hold and Principal cancelled stay
+               in the Actions menu; nothing changes by itself. *@
+            @if (Model.Case!.CancellationMessageId is { } cancellationMessageId)
+            {
+                <div class="next-row" data-cancellation-received="@cancellationMessageId">
+                    <span>@Frame.CancellationReceived</span>
+                    <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@cancellationMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a>
                 </div>
             }
             @if (staleGeneration)

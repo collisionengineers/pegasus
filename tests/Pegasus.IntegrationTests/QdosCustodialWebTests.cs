@@ -162,7 +162,6 @@ public sealed class QdosCustodialWebTests
 
     private sealed class RecordingDocumentHandlers :
         IDownloadCaseDocument,
-        IExportCaseDocuments,
         IReadCaseDocumentPreview,
         IReadLogicalDocumentVersion
     {
@@ -180,13 +179,9 @@ public sealed class QdosCustodialWebTests
 
         public byte[] Payload { get; } = Encoding.UTF8.GetBytes("verified report content");
 
-        public byte[] ExportPayload { get; } = Encoding.UTF8.GetBytes("deterministic archive bytes");
-
         public string Sha256 { get; } = new('a', 64);
 
         public List<DownloadCaseDocumentQuery> Downloads { get; } = [];
-
-        public List<ExportCaseDocumentsCommand> Exports { get; } = [];
 
         public Task<DocumentDownload?> ExecuteAsync(
             DownloadCaseDocumentQuery query,
@@ -207,27 +202,6 @@ public sealed class QdosCustodialWebTests
                     MediaType,
                     Payload.Length,
                     Sha256));
-        }
-
-        public Task<DocumentExport> ExecuteAsync(
-            ExportCaseDocumentsCommand command,
-            CancellationToken cancellationToken = default)
-        {
-            Exports.Add(command);
-            var selection = Assert.Single(command.Selections);
-            return Task.FromResult(
-                new DocumentExport(
-                    new MemoryStream(ExportPayload, writable: false),
-                    "case-export.zip",
-                    [
-                        new(
-                            "engineer-report.pdf",
-                            selection.OccurrenceId,
-                            selection.VersionId,
-                            DocumentSemanticRole.EngineerReport,
-                            Payload.Length,
-                            Sha256)
-                    ]));
         }
 
         public Task<CaseDocumentPreview?> ExecuteAsync(

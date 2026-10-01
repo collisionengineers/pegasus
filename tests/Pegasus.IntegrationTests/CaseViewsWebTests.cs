@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.IntegrationTests.Reports;
@@ -120,6 +121,30 @@ public sealed class CaseViewsWebTests
         Assert.Contains(RibbonStateChip(html), audit, StringComparison.Ordinal);
 
         Assert.Equal(CaseWorkSelector.Current, Assert.Single(store.PageFrameQueries).Work);
+    }
+
+    /// <summary>
+    /// Create audit no longer waits for the Inspection report to be sent
+    /// (operator, 1 October 2026): an Audit created before that leaves the
+    /// Inspection row without a Sent chip, never with one it did not earn.
+    /// </summary>
+    [Fact]
+    public async Task TheInspectionRowHasNoSentChipWhenItsReportWasNeverSent()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            SummaryCaseType = CaseType.InspectionAndAudit
+        };
+        store.GiveAudit(InspectionSentAtUtc, inspectionSent: false);
+        using var host = new ReadingHost(store);
+
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+
+        var inspection = ViewRow(ViewsCard(html), "inspection");
+        Assert.Contains($"{Frame.InspectionView} · {Reference}</a>", inspection, StringComparison.Ordinal);
+        Assert.DoesNotContain(Frame.Sent, inspection, StringComparison.Ordinal);
+        Assert.DoesNotContain("status--green", inspection, StringComparison.Ordinal);
         // Razor keeps a data- attribute whose value is null, empty: no view is named.
         Assert.DoesNotMatch("data-case-view=\"[^\"]", html);
         Assert.DoesNotContain(Frame.ReadOnlyAuditCreated, html, StringComparison.Ordinal);
@@ -356,7 +381,7 @@ public sealed class CaseViewsWebTests
         Assert.Equal(operationKey, request.OperationKey);
         Assert.DoesNotContain("data-confirmation", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
 
-        createAudit.Refusal = AuditRefusal.ReportNotSent;
+        createAudit.Refusal = AuditRefusal.Held;
         using var refused = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=CreateAudit",
             Form(
@@ -368,8 +393,152 @@ public sealed class CaseViewsWebTests
 
         AssertPrg(refused, store.CaseId, expectedQuery: string.Empty);
         var after = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
-        Assert.Contains("Create audit is available once the report is sent.", after, StringComparison.Ordinal);
+        Assert.Contains("A held case cannot have an audit created from it.", after, StringComparison.Ordinal);
         Assert.Single(createAudit.Requests);
+    }
+
+    /// <summary>
+    /// The Inspection report still to be sent after Create audit (operator,
+    /// 1 October 2026): the Inspection view prepares and sends it on its own
+    /// work, its forms naming the view, while the Audit view's Inspection
+    /// line carries no Sent.
+    /// </summary>
+    [Fact]
+    public async Task TheInspectionViewPreparesItsReportWhileItAwaitsSending()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            SummaryCaseType = CaseType.InspectionAndAudit
+        };
+        store.GiveAudit(InspectionSentAtUtc, inspectionSent: false);
+        var reports = new ReportsPerWork(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+            Substitute<ICaseReportGenerationStore>(services, reports));
+
+        var auditHtml = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
+        var line = InspectionReportLine(Section(auditHtml, "section-report-title"));
+        Assert.DoesNotContain(Frame.Sent, line, StringComparison.Ordinal);
+
+        var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
+        var inspectionReport = Section(inspectionHtml, "section-report-title");
+        Assert.DoesNotContain(Frame.Sent, ReportStatus(inspectionReport), StringComparison.Ordinal);
+        Assert.Contains("data-prepare-delivery", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains(reports.Inspection.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
+        Assert.DoesNotContain(reports.Audit.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-reference", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkSelector.Primary, reports.CurrentReads);
+    }
+
+    /// <summary>
+    /// Once the Audit exists, the Inspection report already sent is opened,
+    /// never generated, prepared or sent again (operator, 1 October 2026): a
+    /// Report command posted from the Inspection view is refused in or out of
+    /// edit mode, and so is a send of the Inspection's preparation posted
+    /// from the Audit view. None reaches the report use cases.
+    /// </summary>
+    [Fact]
+    public async Task TheInspectionReportSentAfterTheAuditIsNeverGeneratedPreparedOrSentAgain()
+    {
+        var store = AuditedCase();
+        var commands = new RecordingReportCommands();
+        var preparationId = Guid.NewGuid();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<IGetCaseHeader>(services, store);
+            Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId));
+            Substitute<ICaseReportDeliveryPreparationStore>(services, new InspectionPreparation(store.CaseId, preparationId));
+            Substitute<IGenerateCaseReport>(services, commands);
+            Substitute<IPrepareCaseReportDelivery>(services, commands);
+            Substitute<ISendPreparedCaseReport>(services, commands);
+        });
+        var caseId = store.CaseId.ToString("D");
+        var version = store.CaseVersion.ToString(CultureInfo.InvariantCulture);
+        var inspectionReport = $"/Cases/{caseId}?section=report&view=inspection";
+
+        async Task AssertRefusedAsync(string handler, string location, params (string Name, string Value)[] fields)
+        {
+            using var refused = await workspace.Client.PostAsync(
+                $"/Cases/{caseId}?handler={handler}&section=report",
+                Form(workspace.AntiforgeryToken, [("id", caseId), .. fields]));
+
+            Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
+            Assert.Equal(location, refused.Headers.Location?.OriginalString);
+            var html = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, location));
+            Assert.Contains("The case report generation is unavailable.", html, StringComparison.Ordinal);
+        }
+
+        await AssertRefusedAsync(
+            "GenerateReport",
+            inspectionReport,
+            ("operationKey", Guid.NewGuid().ToString("N")),
+            ("editLeaseToken", store.LeaseToken),
+            ("expectedCaseVersion", version),
+            ("view", "inspection"));
+        // Outside edit mode Generate claims a lease of its own; the refusal comes first.
+        await AssertRefusedAsync(
+            "GenerateReport",
+            inspectionReport,
+            ("operationKey", Guid.NewGuid().ToString("N")),
+            ("expectedCaseVersion", version),
+            ("view", "inspection"));
+        await AssertRefusedAsync(
+            "PrepareReportDelivery",
+            inspectionReport,
+            ("operationKey", Guid.NewGuid().ToString("N")),
+            ("editLeaseToken", store.LeaseToken),
+            ("expectedCaseVersion", version),
+            ("generationId", Guid.NewGuid().ToString("D")),
+            ("expectedGenerationVersion", "1"),
+            ("coveringMessage", "Please find attached our report."),
+            ("toRecipients", "handler@principal.example"),
+            ("view", "inspection"));
+        await AssertRefusedAsync(
+            "SendPreparedReport",
+            inspectionReport,
+            ("preparationId", preparationId.ToString("D")),
+            ("expectedPreparationVersion", "1"),
+            ("view", "inspection"));
+        // The Inspection's own preparation, posted from the Audit view.
+        await AssertRefusedAsync(
+            "SendPreparedReport",
+            $"/Cases/{caseId}?section=report",
+            ("preparationId", preparationId.ToString("D")),
+            ("expectedPreparationVersion", "1"));
+
+        Assert.Empty(commands.Calls);
+    }
+
+    /// <summary>
+    /// Mark report sent from the Inspection view marks the Inspection's own
+    /// work and lands back on that view's Report section.
+    /// </summary>
+    [Fact]
+    public async Task MarkReportSentFromTheInspectionViewReturnsToItsReport()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            SummaryCaseType = CaseType.InspectionAndAudit
+        };
+        store.GiveAudit(InspectionSentAtUtc, inspectionSent: false);
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ILinkReportEvidence>(services, store));
+
+        using var linked = await workspace.PostAsync(
+            "Tasks?handler=LinkReportEvidence",
+            workspace.MutationForm(
+                "link-evidence",
+                "Report sent",
+                ("evidenceId", Guid.NewGuid().ToString("D")),
+                ("view", "inspection")));
+
+        Assert.Equal(HttpStatusCode.Redirect, linked.StatusCode);
+        Assert.Equal(
+            $"/Cases/{store.CaseId:D}?section=report&view=inspection",
+            linked.Headers.Location?.OriginalString);
+        Assert.Equal(CaseWorkSelector.Primary, Assert.Single(store.EvidenceLinks).Work);
     }
 
     private static string ViewsCard(string html)
@@ -557,5 +726,62 @@ public sealed class CaseViewsWebTests
                 AuditReference,
                 false));
         }
+    }
+
+    /// <summary>The report use cases a refused command never reaches, recorded rather than run.</summary>
+    private sealed class RecordingReportCommands
+        : IGenerateCaseReport, IPrepareCaseReportDelivery, ISendPreparedCaseReport
+    {
+        public List<object> Calls { get; } = [];
+
+        public Task<CaseReportGenerationResult> ExecuteAsync(
+            GenerateCaseReportRequest request, CancellationToken cancellationToken)
+        {
+            Calls.Add(request);
+            throw new NotSupportedException();
+        }
+
+        public Task<CaseReportDeliveryPreparation> ExecuteAsync(
+            PrepareCaseReportDeliveryRequest request, CancellationToken cancellationToken)
+        {
+            Calls.Add(request);
+            throw new NotSupportedException();
+        }
+
+        public Task<StaffMailOperation> ExecuteAsync(
+            SendPreparedCaseReportRequest request, CancellationToken cancellationToken)
+        {
+            Calls.Add(request);
+            throw new NotSupportedException();
+        }
+    }
+
+    /// <summary>One preparation of the Inspection's report: a preparation of the primary work.</summary>
+    private sealed class InspectionPreparation(Guid caseId, Guid preparationId)
+        : ICaseReportDeliveryPreparationStore
+    {
+        private readonly CaseReportDeliveryPreparationRecord record = new(
+            new(preparationId, caseId, Guid.NewGuid(), 1, 1, [], ActionActor.SystemWorker("test"), InspectionSentAtUtc, "fingerprint"),
+            new([], [], "subject"),
+            0,
+            0,
+            CaseReportGenerationState.Confirmed,
+            true,
+            1,
+            [],
+            CaseWorkSelector.Primary);
+
+        public Task<CaseReportDeliveryPreparationRecord> PrepareAsync(
+            PrepareCaseReportDeliveryCommand command, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseReportDeliveryPreparationRecord?> GetAsync(
+            ActionActor actor, Guid ownerCaseId, Guid ownerPreparationId, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseReportDeliveryPreparationRecord?>(
+                ownerCaseId == caseId && ownerPreparationId == preparationId ? record : null);
+
+        public Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
+            ActionActor actor, Guid ownerCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseReportDeliveryPreparationRecord?>(null);
     }
 }

@@ -9,11 +9,18 @@ using Pegasus.Core.Lifecycle;
 
 namespace Pegasus.Core.Reports;
 
+/// <summary>
+/// One generation request. <paramref name="Work"/> names the work whose
+/// report is made: the current work by default, or the Inspection (primary)
+/// work of a Case that already has its Audit, whose report is still prepared
+/// and sent on its own (operator, 1 October 2026).
+/// </summary>
 public sealed record GenerateCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     string OperationKey, CaseReportArtifactKind Kind, string Reason,
     bool IncludeFeeNote = false,
-    Guid? TargetGenerationId = null);
+    Guid? TargetGenerationId = null,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 public interface IGenerateCaseReport
 {
     Task<CaseReportGenerationResult> ExecuteAsync(
@@ -342,7 +349,8 @@ public sealed record FreezeCaseReportGenerationRequest(
     string TemplateVersion,
     string RendererVersion,
     bool IncludeFeeNote = false,
-    Guid? TargetGenerationId = null);
+    Guid? TargetGenerationId = null,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 
 public sealed record ConfirmCaseReportArtifactRequest(
     ActionActor Actor,
@@ -900,7 +908,8 @@ public sealed class GenerateCaseReport(
                 AssessmentReportContract.TemplateVersion,
                 renderer.EngineVersion,
                 request.IncludeFeeNote,
-                request.TargetGenerationId),
+                request.TargetGenerationId,
+                request.Work),
             cancellationToken).ConfigureAwait(false);
 
         switch (frozen.Outcome)

@@ -601,7 +601,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.ManualAssociation is { IsActive: true } activeAssociationKey
                 ? activeAssociationKey.LastOperationKey
                 : null,
-            entity.DeclaredCaseId);
+            entity.DeclaredCaseId,
+            entity.MailClassificationDecision?.Version);
     }
 
     private static async Task<IntakeAllocationState?> GetAllocationStateAsync(
@@ -774,6 +775,14 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         string actor,
         DateTimeOffset decidedAtUtc)
     {
+        // A correction (a version above one) is the accepted decision: automated
+        // re-evaluation neither overwrites nor removes it, so its permanent
+        // history cannot go with it.
+        if (receipt.MailClassificationDecision is { Version: > 1 })
+        {
+            return;
+        }
+
         if (decision is null)
         {
             if (receipt.MailClassificationDecision is not null)
@@ -794,12 +803,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         }
 
         var entity = receipt.MailClassificationDecision;
-        // A staff correction is the accepted current decision. Automated replay may
-        // still recompute evidence elsewhere, but it must not silently overwrite it.
-        if (entity.Version > 1)
-        {
-            return;
-        }
         entity.Outcome = replacement.Outcome;
         entity.Direction = replacement.Direction;
         entity.Family = replacement.Family;
@@ -1250,7 +1253,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("case-match outcome", value)
     };
 
-    private static string ToCode(MailDirection value) => value switch
+    internal static string ToCode(MailDirection value) => value switch
     {
         MailDirection.Received => "received",
         MailDirection.Sent => "sent",
