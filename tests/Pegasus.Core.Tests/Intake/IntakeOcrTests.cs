@@ -1,3 +1,4 @@
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -82,6 +83,40 @@ public sealed class IntakeOcrTests
         Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, reading.Outcome);
         Assert.Contains(reading.Candidates, candidate => candidate.SourceLabel == "uploaded instruction.pdf, page 2");
         Assert.Empty(harness.Analysis.Requests);
+    }
+
+    [Fact]
+    public async Task ACompletedOperationRecognisesTheFiledReportOnTheReceiptsCase()
+    {
+        var harness = new Harness(decision: IntakeDecision.CaseCreated, caseId: Guid.NewGuid());
+        harness.Provider.OnAnalyze = () => Harness.Completed([2, 5], ConnexusPage);
+
+        await harness.ExecuteAsync();
+
+        Assert.Equal(IntakeOcrState.Completed, harness.Store.Single().State);
+        Assert.True(harness.Store.Single().AnalysisCompleted);
+        var recorded = Assert.Single(harness.Recognition.Recorded);
+        Assert.Equal(harness.Receipt.CurrentCaseId, recorded.CaseId);
+        Assert.Equal(harness.Receipt.Id, recorded.IntakeReceiptId);
+        Assert.Single(harness.Reports.Records);
+    }
+
+    [Fact]
+    public async Task RecognitionBeforeTheDocumentIsFiledSchedulesARetryWithoutResubmitting()
+    {
+        var harness = new Harness(decision: IntakeDecision.CaseCreated, caseId: Guid.NewGuid());
+        harness.Recognition.Filed = false;
+        harness.Provider.OnAnalyze = () => Harness.Completed([2, 5], ConnexusPage);
+
+        await harness.ExecuteAsync();
+
+        var operation = harness.Store.Single();
+        Assert.Equal(IntakeOcrState.RetryScheduled, operation.State);
+        Assert.False(operation.AnalysisCompleted);
+        Assert.StartsWith("ocr_recognition_deferred", operation.LastError, StringComparison.Ordinal);
+        Assert.NotNull(operation.Result);
+        Assert.Equal(1, harness.Provider.Analyses);
+        Assert.Empty(harness.Recognition.Recorded);
     }
 
     [Fact]
@@ -461,10 +496,11 @@ public sealed class IntakeOcrTests
             int attemptCount = 0,
             string? sourceSha256 = null,
             IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload,
-            IntakeDecision decision = IntakeDecision.OcrRequired)
+            IntakeDecision decision = IntakeDecision.OcrRequired,
+            Guid? caseId = null)
         {
             SourceAssetId = Guid.NewGuid();
-            Receipt = BuildReceipt(SourceAssetId, sourceChannel, decision);
+            Receipt = BuildReceipt(SourceAssetId, sourceChannel, decision, caseId);
             WorkItemId = Guid.NewGuid();
             Store.Seed(new(
                 WorkItemId,
@@ -486,7 +522,8 @@ public sealed class IntakeOcrTests
                 Analysis,
                 new RecordThirdPartyReportReading(Reports, new FixedTime(Now)),
                 new FakeReceipts(Receipt),
-                new FixedTime(Now));
+                new FixedTime(Now),
+                new RecogniseFiledOriginalReport(Recognition, OriginalReports));
         }
 
         public Guid WorkItemId { get; }
@@ -504,6 +541,10 @@ public sealed class IntakeOcrTests
         public FakeAnalysis Analysis { get; } = new();
 
         public RecordingAnalysisStore Reports { get; } = new();
+
+        public FakeRecognitionStore Recognition { get; } = new();
+
+        public FakeOriginalReports OriginalReports { get; } = new();
 
         public ProcessIntakeOcr Command { get; }
 
@@ -529,7 +570,8 @@ public sealed class IntakeOcrTests
     private static IntakeReceipt BuildReceipt(
         Guid sourceAssetId,
         IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload,
-        IntakeDecision decision = IntakeDecision.OcrRequired) =>
+        IntakeDecision decision = IntakeDecision.OcrRequired,
+        Guid? caseId = null) =>
         new(
             Guid.NewGuid(),
             "instruction.pdf",
@@ -568,7 +610,8 @@ public sealed class IntakeOcrTests
                     null,
                     null)
             ],
-            Version: 7);
+            Version: 7,
+            AcceptedCaseId: caseId);
 
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider
     {
@@ -590,6 +633,13 @@ public sealed class IntakeOcrTests
 
         public Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken) =>
             Task.FromResult(this.operations.TryGetValue(operationId, out var operation) ? operation : null);
+
+        public Task<IntakeOcrOperation?> FindCompletedBySourceAsync(string sourceSha256, CancellationToken cancellationToken) =>
+            Task.FromResult(this.operations.Values
+                .Where(item => item.State == IntakeOcrState.Completed && item.Result is not null
+                    && string.Equals(item.SourceSha256, sourceSha256, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(item => item.Id)
+                .FirstOrDefault());
 
         // No person re-queued anything here, so a Failed operation stays terminal.
         public Task<IntakeOcrOperation?> ResumeRequestedRetryAsync(
@@ -837,6 +887,49 @@ public sealed class IntakeOcrTests
             Records.Add(analysis);
             return Task.FromResult((analysis, false));
         }
+    }
+
+    /// <summary>A Case that awaits its original report; whether the receipt's file is filed on it yet is the test's choice.</summary>
+    private sealed class FakeRecognitionStore : IRecogniseOriginalReportStore
+    {
+        public bool Filed { get; set; } = true;
+
+        public List<RecordRecognisedOriginalReport> Recorded { get; } = [];
+
+        public Task<FiledOriginalReportCandidates> FindAwaitingCandidatesAsync(
+            Guid caseId, Guid receiptId, IReadOnlyCollection<FiledOriginalReportLookup> assets,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new FiledOriginalReportCandidates(
+                true,
+                Filed
+                    ? [.. assets.Select(asset => new FiledOriginalReportCandidate(asset.IntakeAssetId, Guid.NewGuid(), Guid.NewGuid()))]
+                    : []));
+
+        public Task<OriginalReportRecorded?> RecordRecognisedAsync(
+            RecordRecognisedOriginalReport command, OriginalReportReading reading,
+            CancellationToken cancellationToken = default)
+        {
+            Recorded.Add(command);
+            return Task.FromResult<OriginalReportRecorded?>(new(command.CaseId, command.DocumentOccurrenceId, "report.pdf", 2));
+        }
+    }
+
+    private sealed class FakeOriginalReports : IReadOriginalReport
+    {
+        public bool Recognise { get; set; } = true;
+
+        public Task<OriginalReportReading?> ForIntakeAsync(Guid receiptId, Guid standaloneAuditEvidenceId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OriginalReportReading?> ForDocumentAsync(ActionActor actor, Guid caseId, Guid occurrenceId, Guid versionId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OriginalReportRecognition> RecogniseFiledAssetAsync(Guid receiptId, IntakeAssetRecord asset, CancellationToken cancellationToken) =>
+            Task.FromResult(Recognise
+                ? new OriginalReportRecognition(
+                    OriginalReportRecognitionOutcome.Recognised,
+                    new(asset.ContentHash, "Connexus Vehicle Assessors", "2026-03-09", "unroadworthy", "repairable", false))
+                : new OriginalReportRecognition(OriginalReportRecognitionOutcome.NotRecognised));
     }
 
     private sealed class FakeAnalysis : IAnalyzeRetainedInstruction

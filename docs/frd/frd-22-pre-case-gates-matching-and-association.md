@@ -69,7 +69,8 @@ a pre-Case gate. Once the Principal and identity-critical gates pass, the
 instruction creates the `a.` Case/PO. The Case shows **Original report
 missing** only while it has neither a filed original report nor
 standalone-Audit evidence retained at intake. It clears when Pegasus
-recognises the report among files added to the Case later, or when staff
+recognises the report among the Case's files, a scanned one once its text
+has been read, or when staff
 mark a filed document as the original report
 ([FRD-16](frd-16-case-record-workspace.md#original-report)). A readable report records the
 assessment at intake, and its own reading fills the Case's

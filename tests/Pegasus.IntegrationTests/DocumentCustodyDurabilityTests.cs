@@ -365,7 +365,8 @@ public sealed class DocumentCustodyDurabilityTests
                 AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId),
                 DocumentSemanticRole.Correspondence);
             await SeedCurrentDocumentAsync(
-                database, caseId, 1, "other-case-file.pdf", role: DocumentSemanticRole.Correspondence);
+                database, caseId, 1, "other-case-file.pdf", role: DocumentSemanticRole.Correspondence,
+                sha256: new string('b', 64));
             await using (var context = await database.CreateContextAsync())
             {
                 context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
@@ -385,8 +386,15 @@ public sealed class DocumentCustodyDurabilityTests
             await using (var scope = database.CreateAsyncScope())
             {
                 var store = scope.ServiceProvider.GetRequiredService<IRecogniseOriginalReportStore>();
-                var candidate = Assert.Single(await store.FindAwaitingCandidatesAsync(
-                    caseId, receiptId, [assetId, Guid.NewGuid()], CancellationToken.None));
+                // Found by the bytes' hash, however the file was filed, and whatever
+                // case the hash was recorded in: mail intake writes capitals.
+                var found = await store.FindAwaitingCandidatesAsync(
+                    caseId,
+                    receiptId,
+                    [new(assetId, new string('A', 64)), new(Guid.NewGuid(), new string('c', 64))],
+                    CancellationToken.None);
+                Assert.True(found.CaseAwaitsReport);
+                var candidate = Assert.Single(found.Filed);
                 Assert.Equal(new(assetId, occurrenceId, await VersionIdAsync(database, occurrenceId)), candidate);
                 var command = new RecordRecognisedOriginalReport(
                     caseId,
@@ -402,8 +410,10 @@ public sealed class DocumentCustodyDurabilityTests
                 Assert.NotNull(recorded);
                 Assert.Equal(recorded, replay);
                 Assert.Equal(1, recorded.CaseVersion);
-                Assert.Empty(await store.FindAwaitingCandidatesAsync(
-                    caseId, receiptId, [assetId], CancellationToken.None));
+                var afterwards = await store.FindAwaitingCandidatesAsync(
+                    caseId, receiptId, [new(assetId, new string('a', 64))], CancellationToken.None);
+                Assert.False(afterwards.CaseAwaitsReport);
+                Assert.Empty(afterwards.Filed);
             }
 
             await using var verification = await database.CreateContextAsync();
@@ -476,8 +486,10 @@ public sealed class DocumentCustodyDurabilityTests
                 await context.SaveChangesAsync();
             }
 
-            Assert.Empty(await store.FindAwaitingCandidatesAsync(
-                caseId, receiptId, [assetId], CancellationToken.None));
+            var completed = await store.FindAwaitingCandidatesAsync(
+                caseId, receiptId, [new(assetId, new string('a', 64))], CancellationToken.None);
+            Assert.False(completed.CaseAwaitsReport);
+            Assert.Empty(completed.Filed);
             Assert.Null(await store.RecordRecognisedAsync(command, reading, CancellationToken.None));
 
             await using var verification = await database.CreateContextAsync();
@@ -1515,7 +1527,8 @@ public sealed class DocumentCustodyDurabilityTests
         int ordinal,
         string fileName,
         string? operationKey = null,
-        DocumentSemanticRole role = DocumentSemanticRole.Instruction)
+        DocumentSemanticRole role = DocumentSemanticRole.Instruction,
+        string? sha256 = null)
     {
         await using var context = await database.CreateContextAsync();
         var documentId = Guid.NewGuid();
@@ -1537,7 +1550,7 @@ public sealed class DocumentCustodyDurabilityTests
                 FileName = fileName,
                 MediaType = "application/pdf",
                 ContentLength = 1,
-                Sha256 = new string('a', 64),
+                Sha256 = sha256 ?? new string('a', 64),
                 CustodyStatus = DocumentCustodyStatus.Confirmed,
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 CreatedBy = "Staff:test",

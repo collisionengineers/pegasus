@@ -86,7 +86,8 @@ If no original report is filed on the Case and no standalone-Audit evidence
 was kept at intake, the Case shows **Original report missing** as an
 outstanding requirement. It clears when a filed document is recorded as the
 original report: by Pegasus, when files added to the Case later carry
-exactly one report it recognises, or by staff marking one. The assessment is
+exactly one report it recognises (a scanned report once its text has been
+read), or by staff marking one. The assessment is
 a fact on the Case, not part of its identity. The filed report fills the
 Case's [Original report](frd-16-case-record-workspace.md#original-report)
 cells at acceptance and when a document is recorded as the original report.

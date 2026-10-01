@@ -310,6 +310,9 @@ itself, never the e-mail it arrived in:
   only the report layouts its third-party report profiles know; when none of
   the files is recognised, two or more are, or one could not be read,
   nothing is recorded and staff mark the report;
+- when the report is a scan, from its OCR text once that completes, through
+  the same recognition: the Case already exists, created from the message,
+  and the filed document is read for it as soon as its text is;
 - when staff **Mark as original report**, from that document.
 
 A filled cell is tagged **Extracted** until staff change it. A fill lands

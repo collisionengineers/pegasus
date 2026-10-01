@@ -346,6 +346,18 @@ public sealed record FiledOriginalReportCandidate(
     Guid DocumentOccurrenceId,
     Guid DocumentVersionId);
 
+/// <summary>A receipt's file to look for on the Case: its asset and the hash of its bytes.</summary>
+public sealed record FiledOriginalReportLookup(Guid IntakeAssetId, string Sha256);
+
+/// <summary>
+/// Whether the Case is an open Audit awaiting its report, and which of the
+/// asked-for files are filed on it. The two are told apart so a caller can
+/// wait for a filing that has not happened yet rather than give up.
+/// </summary>
+public sealed record FiledOriginalReportCandidates(
+    bool CaseAwaitsReport,
+    IReadOnlyList<FiledOriginalReportCandidate> Filed);
+
 public sealed record RecordRecognisedOriginalReport(
     Guid CaseId,
     Guid IntakeReceiptId,
@@ -362,14 +374,15 @@ public sealed record RecordRecognisedOriginalReport(
 public interface IRecogniseOriginalReportStore
 {
     /// <summary>
-    /// The receipt's filed documents among <paramref name="intakeAssetIds"/>,
-    /// current and not images; empty unless the Case is an open Audit whose
-    /// original report is missing.
+    /// Which of <paramref name="assets"/> are filed on the Case as current,
+    /// non-image documents, found by the hash of their bytes whichever route
+    /// filed them, and whether the Case is an open Audit whose original report
+    /// is missing at all.
     /// </summary>
-    Task<IReadOnlyList<FiledOriginalReportCandidate>> FindAwaitingCandidatesAsync(
+    Task<FiledOriginalReportCandidates> FindAwaitingCandidatesAsync(
         Guid caseId,
         Guid receiptId,
-        IReadOnlyCollection<Guid> intakeAssetIds,
+        IReadOnlyCollection<FiledOriginalReportLookup> assets,
         CancellationToken cancellationToken = default);
 
     /// <summary>
