@@ -163,6 +163,11 @@ public static class DependencyInjection
         // The prepared tile of a pre-Case image: the Case gallery's rendering over
         // the authorised intake read (Download and Open file keep the original).
         services.AddSingleton<IRenderImageThumbnail, ImageThumbnailRenderer>();
+        // What the Automation MCP download tools hand a client: a photograph
+        // re-encoded to its byte budget, and a PDF's page text. The originals
+        // stay in custody behind the authenticated content URL.
+        services.AddSingleton<IRenderImageForDelivery, ImageDeliveryRenderer>();
+        services.AddSingleton<IExtractPdfPageText, PdfPigPageTextExtractor>();
         services.AddScoped<IReadPreCaseImageThumbnail, ReadPreCaseImageThumbnail>();
         services.AddScoped<IGetUnidentifiedItemContext, GetUnidentifiedItemContext>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
@@ -688,8 +693,6 @@ public static class DependencyInjection
                     provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
                     provider.GetRequiredService<TimeProvider>()));
             services.AddScoped<RecogniseFiledEstimates>();
-            services.AddScoped<IExportCaseDocuments>(provider =>
-                provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ILogicallyRemoveDocument>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IMarkAsOriginalReportStore>(provider =>

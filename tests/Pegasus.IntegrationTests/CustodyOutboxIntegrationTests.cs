@@ -433,7 +433,6 @@ public sealed class CustodyOutboxIntegrationTests
                 .ExecuteAsync(10, CancellationToken.None));
         Assert.Equal([accepted.CustodyWorkId], initialQueue.WorkItemIds);
 
-
         await reconciliation.ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
         await reconciliation.ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
 
@@ -594,7 +593,7 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     [Fact]
-    public async Task LogicallyRemovedVersionCannotBeDownloadedOrExported()
+    public async Task LogicallyRemovedVersionCannotBeDownloaded()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -650,7 +649,6 @@ public sealed class CustodyOutboxIntegrationTests
                     CancellationToken.None));
 
         var downloadOperationKey = $"document-download:{Guid.NewGuid():N}";
-        var exportOperationKey = $"document-export:{Guid.NewGuid():N}";
 
         await using (var download = Assert.IsType<DocumentDownload>(
                          await scope.ServiceProvider.GetRequiredService<IDownloadCaseDocument>()
@@ -681,47 +679,10 @@ public sealed class CustodyOutboxIntegrationTests
             Assert.Equal(added.Version.Sha256, replay.Sha256);
         }
 
-
-        var exportLease = await leases.ClaimAsync(
-            new(
-                accepted.CaseId,
-                checked(addLease.Version + 1),
-                actor,
-                $"document-export-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        await using (var export = await scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                         .ExecuteAsync(
-                             new(
-                                 accepted.CaseId,
-                                 [new(added.Occurrence.Id, added.Version.Id)],
-                                actor,
-                                 exportOperationKey,
-                                 1024 * 1024,
-                                 exportLease.Version,
-                                 exportLease.Token),
-                             CancellationToken.None))
-        {
-            Assert.Equal(added.Version.Id, Assert.Single(export.Manifest).VersionId);
-        }
-        await using (var replay = await scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                         .ExecuteAsync(
-                             new(
-                                 accepted.CaseId,
-                                 [new(added.Occurrence.Id, added.Version.Id)],
-                                 actor,
-                                 exportOperationKey,
-                                 1024 * 1024,
-                                 exportLease.Version,
-                                 exportLease.Token),
-                             CancellationToken.None))
-        {
-            Assert.Equal(added.Version.Id, Assert.Single(replay.Manifest).VersionId);
-        }
-
         var removeLease = await leases.ClaimAsync(
             new(
                 accepted.CaseId,
-                checked(exportLease.Version + 1),
+                checked(addLease.Version + 1),
                 actor,
                 $"document-remove-lease:{Guid.NewGuid():N}"),
             CancellationToken.None);
@@ -731,30 +692,12 @@ public sealed class CustodyOutboxIntegrationTests
         {
             var auditEntries = await auditContext.ActionHistory
                 .Where(value => value.AggregateType == "case_document"
-                    && (value.CorrelationId == downloadOperationKey
-                        || value.CorrelationId == exportOperationKey))
+                    && value.CorrelationId == downloadOperationKey)
                 .ToArrayAsync();
-            Assert.Equal(2, auditEntries.Length);
-            Assert.All(auditEntries, entry =>
-            {
-                Assert.Equal(actor.SubjectId, entry.ActorSubjectId);
-                Assert.False(string.IsNullOrWhiteSpace(entry.AfterJson));
-            });
+            var entry = Assert.Single(auditEntries);
+            Assert.Equal(actor.SubjectId, entry.ActorSubjectId);
+            Assert.False(string.IsNullOrWhiteSpace(entry.AfterJson));
         }
-
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                .ExecuteAsync(
-                    new(
-                        accepted.CaseId,
-                        [new(added.Occurrence.Id, added.Version.Id)],
-                        actor,
-                        $"document-export-over-limit:{Guid.NewGuid():N}",
-                        content.LongLength,
-                        removeLease.Version,
-                        removeLease.Token),
-                    CancellationToken.None));
 
         await scope.ServiceProvider.GetRequiredService<ILogicallyRemoveDocument>()
             .ExecuteAsync(
@@ -777,18 +720,6 @@ public sealed class CustodyOutboxIntegrationTests
                     actor,
                     $"document-download-removed:{Guid.NewGuid():N}"),
                 CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                .ExecuteAsync(
-                    new(
-                        accepted.CaseId,
-                        [new(added.Occurrence.Id, added.Version.Id)],
-                        actor,
-                        $"document-export-removed:{Guid.NewGuid():N}",
-                        1024 * 1024,
-                        checked(removeLease.Version + 1),
-                        removeLease.Token),
-                    CancellationToken.None));
     }
 
     [Fact]
@@ -931,38 +862,6 @@ public sealed class CustodyOutboxIntegrationTests
                         $"terminal-document-remove:{Guid.NewGuid():N}",
                         terminalLease.Version,
                         terminalLease.Token),
-                    CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task ExportIsRefusedForACaseThatIsNotInReview()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        await using var scope = factory.Services.CreateAsyncScope();
-
-        // The queued path allocates the case with nothing confirmed, so it
-        // enters Not ready — which is exactly the stage the rule excludes.
-        var accepted = await AcceptQueuedSourceAsync(scope.ServiceProvider);
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        var lease = await scope.ServiceProvider
-            .GetRequiredService<IAcquireCaseEditLease>()
-            .ExecuteAsync(
-                new(accepted.CaseId, 0, actor, $"export-gate-lease:{Guid.NewGuid():N}"),
-                CancellationToken.None);
-
-        // A greyed button is presentation. The rule is a precondition, so it
-        // holds for every caller and not just the one that renders the button.
-        await Assert.ThrowsAsync<CaseNotInReviewException>(() =>
-            scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                .ExecuteAsync(
-                    new(
-                        accepted.CaseId,
-                        [new(Guid.NewGuid(), Guid.NewGuid())],
-                        actor,
-                        $"export-gate:{Guid.NewGuid():N}",
-                        1024 * 1024,
-                        lease.Version,
-                        lease.Token),
                     CancellationToken.None));
     }
 
@@ -3052,7 +2951,6 @@ public sealed class CustodyOutboxIntegrationTests
                 identity),
             email.Content);
     }
-
 
     private static async Task SeedPrincipalAsync(
         IServiceProvider services,

@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using Microsoft.AspNetCore.DataProtection;
 using Pegasus.Core.Documents;
 
 namespace Pegasus.Web.Mcp;
@@ -19,6 +19,11 @@ internal sealed record DocumentAddToolResult(
     string OperationKey,
     string CorrelationId);
 
+/// <summary>
+/// The structured half of a download: the file's identity, size and hash,
+/// whether its content came back as native content blocks, and where the
+/// original bytes are. Content never travels in this record.
+/// </summary>
 internal sealed record DocumentDownloadToolResult(
     Guid CaseId,
     Guid OccurrenceId,
@@ -28,32 +33,7 @@ internal sealed record DocumentDownloadToolResult(
     long ContentLength,
     string Sha256,
     bool ContentIncluded,
-    string? ContentBase64,
-    string? ContentUrl,
-    string? Notice,
-    string OperationKey,
-    string CorrelationId);
-
-internal sealed record DocumentExportSelectionInput(
-    Guid OccurrenceId,
-    Guid VersionId);
-
-internal sealed record DocumentExportManifestToolItem(
-    string FileName,
-    Guid OccurrenceId,
-    Guid VersionId,
-    string SemanticRole,
-    long ContentLength,
-    string Sha256);
-
-internal sealed record DocumentExportToolResult(
-    Guid CaseId,
-    string FileName,
-    IReadOnlyList<DocumentExportManifestToolItem> Manifest,
-    long ArchiveLength,
-    bool ContentIncluded,
-    string? ContentBase64,
-    string? ContentUrl,
+    string ContentUrl,
     string? Notice,
     string OperationKey,
     string CorrelationId);
@@ -62,24 +42,23 @@ internal sealed record DocumentExportToolResult(
 /// Automation Actor document tools (MCP-04): thin adapters over the same
 /// canonical case-document custody use cases as the staff app, guarded by the
 /// automation.documents scope. Retained content is provenance-labelled with
-/// the Automation document source; mutations present the case edit lease and
-/// expected version like any staff save. Inline content respects client
-/// result-size limits: oversized content returns a bounded manifest and the
-/// retrieval identifiers instead of overflowing silently.
+/// the Automation document source; a mutation presents the case edit lease
+/// and expected version like any staff save, or holds the lease for its one
+/// command when none is presented. A download hands the content back as
+/// native MCP content (<see cref="AutomationFileContent"/>) with the original
+/// always reachable at the authenticated content URL.
 /// </summary>
 [McpServerToolType]
 internal sealed class DocumentMcpTools(
     IAddCaseDocument addDocument,
     IGetCaseDocumentMetadata getDocumentMetadata,
     IDownloadCaseDocument downloadDocument,
-    IExportCaseDocuments exportDocuments,
+    IRenderImageForDelivery images,
+    IExtractPdfPageText pdfText,
+    AutomationEditLease leases,
     AutomationActorResolver resolver,
-    AutomationMcpAuditor auditor,
-    IDataProtectionProvider dataProtectionProvider,
-    TimeProvider timeProvider)
+    AutomationMcpAuditor auditor)
 {
-    private const long MaximumExportArchiveBytes = 20 * 1024 * 1024;
-    private const int DefaultInlineContentBytes = 64 * 1024;
     private const string SourceIdentityPrefix = "automation:";
 
     [McpServerTool(
@@ -90,7 +69,7 @@ internal sealed class DocumentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Retains one document in the canonical case custody boundary, provenance-labelled as Automation-sourced. Content is base64 and is limited to 10 MiB before decoding. Requires the case edit lease from pegasus_case_edit_begin and the observed case version; replaying the same operation key with identical inputs returns the original custody record.")]
+    [Description("Retains one document in the canonical case custody boundary, provenance-labelled as Automation-sourced. Content is base64 and is limited to 10 MiB before decoding. Needs the observed case version; present an edit lease token from pegasus_edit_begin for multi-step work, or omit it and the tool holds the lease for this one command. Replaying the same operation key with identical inputs returns the original custody record.")]
     public async Task<DocumentAddToolResult> AddAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The leaf file name; path components are rejected.")] string fileName,
@@ -98,8 +77,8 @@ internal sealed class DocumentMcpTools(
         [Description("The complete document content encoded as base64.")] string contentBase64,
         [Description("The document semantic role name: OriginalSource, Instruction, Image, Correspondence, EngineerReport, AuditReport, or Other.")] string semanticRole,
         [Description("The case version observed by the caller; a stale value fails closed.")] long expectedCaseVersion,
-        [Description("The active edit lease token from pegasus_case_edit_begin.")] string editLeaseToken,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         [Description("Optional durable source-occurrence identity prefixed 'automation:'; reusing an identity records a new version of the same document. Defaults to one derived from the operation key.")] string? sourceOccurrenceIdentity = null,
         CancellationToken cancellationToken = default)
     {
@@ -123,10 +102,6 @@ internal sealed class DocumentMcpTools(
                 {
                     throw new McpException("The document semantic role is not recognized.");
                 }
-                if (string.IsNullOrWhiteSpace(editLeaseToken))
-                {
-                    throw new McpException("An active edit lease token is required.");
-                }
                 if (expectedCaseVersion < 0)
                 {
                     throw new McpException("The expected case version cannot be negative.");
@@ -148,19 +123,26 @@ internal sealed class DocumentMcpTools(
                     contentBase64,
                     AutomationMcpErrors.MaximumDocumentBytes,
                     "The document content");
-                var result = await addDocument.ExecuteAsync(
-                    new(
-                        caseId,
-                        safeFileName,
-                        safeMediaType,
-                        content,
-                        parsedRole,
-                        DocumentSource.Automation,
-                        identity,
-                        context.Actor,
-                        normalizedKey,
-                        expectedCaseVersion,
-                        editLeaseToken),
+                var result = await leases.RunCaseAsync(
+                    caseId,
+                    expectedCaseVersion,
+                    editLeaseToken,
+                    context.Actor,
+                    normalizedKey,
+                    token => addDocument.ExecuteAsync(
+                        new(
+                            caseId,
+                            safeFileName,
+                            safeMediaType,
+                            content,
+                            parsedRole,
+                            DocumentSource.Automation,
+                            identity,
+                            context.Actor,
+                            normalizedKey,
+                            expectedCaseVersion,
+                            token),
+                        cancellationToken),
                     cancellationToken);
                 return new DocumentAddToolResult(
                     result.Occurrence.Id,
@@ -184,14 +166,13 @@ internal sealed class DocumentMcpTools(
         ReadOnly = true,
         Destructive = false,
         Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Downloads one exact case document occurrence/version from canonical custody as base64. Content larger than the inline limit returns metadata plus the SHA-256 instead; raise maxInlineBytes (up to 10 MiB) only when the client can accept a larger tool result.")]
-    public async Task<DocumentDownloadToolResult> DownloadAsync(
+        OpenWorld = false)]
+    [Description("Returns one exact case document version as native content the client can show: an image as one JPEG image block re-encoded to fit maxInlineBytes (longest edge 1568 px), a PDF as its page text, a small text file as its text. Any other type, or a file over 10 MiB, returns metadata only. Every result carries the file name, media type, size, SHA-256 and an authenticated contentUrl for the original bytes (same bearer token, Documents scope). Document identifiers come from pegasus_case_get.")]
+    public async Task<CallToolResult> DownloadAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case-scoped document occurrence identifier.")] Guid occurrenceId,
         [Description("The exact immutable document-version identifier.")] Guid versionId,
-        [Description("Largest content size returned inline, in bytes; 0 selects the default of 65536.")] int maxInlineBytes = 0,
+        [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB. An image is re-encoded to fit it; PDF text is cut at this many characters; a text file must already fit it.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
@@ -206,178 +187,61 @@ internal sealed class DocumentMcpTools(
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(occurrenceId, "occurrence identifier");
                 AutomationMcpErrors.RequireId(versionId, "version identifier");
-                var inlineLimit = maxInlineBytes == 0
-                    ? DefaultInlineContentBytes
-                    : maxInlineBytes;
-                if (inlineLimit is < 1 or > AutomationMcpErrors.MaximumDocumentBytes)
-                {
-                    throw new McpException(
-                        $"maxInlineBytes must be between 1 and {AutomationMcpErrors.MaximumDocumentBytes}.");
-                }
+                var inlineLimit = AutomationFileContent.NormalizeInlineLimit(maxInlineBytes);
 
                 var metadata = await getDocumentMetadata.ExecuteAsync(
                     new(caseId, occurrenceId, versionId, context.Actor),
                     cancellationToken)
                     ?? throw new McpException("The document version was not found.");
-                if (metadata.ContentLength > inlineLimit)
+                var contentUrl = $"/automation/documents/{occurrenceId:D}/versions/{versionId:D}?caseId={caseId:D}";
+                AutomationFileDelivery delivery;
+                if (!AutomationFileContent.CanDeliverInline(metadata.MediaType, metadata.ContentLength, inlineLimit))
                 {
-                    return new DocumentDownloadToolResult(
-                        caseId, occurrenceId, versionId, metadata.FileName,
-                        metadata.MediaType, metadata.ContentLength, metadata.Sha256,
-                        ContentIncluded: false, ContentBase64: null,
-                        ContentUrl: $"/automation/documents/{occurrenceId:D}/versions/{versionId:D}?caseId={caseId:D}",
-                        Notice: $"The content ({metadata.ContentLength} bytes) exceeds the inline limit of {inlineLimit} bytes; use contentUrl with this bearer token.", operationKey,
-                        AutomationMcpAuditor.CorrelationId(context, operationKey));
-                }
-
-                await using var download = await downloadDocument.ExecuteAsync(
-                    new(caseId, occurrenceId, versionId, context.Actor, operationKey),
-                    cancellationToken)
-                    ?? throw new McpException("The document version was not found.");
-                using var buffer = new MemoryStream();
-                await download.Content.CopyToAsync(buffer, cancellationToken);
-                return new DocumentDownloadToolResult(
-                    caseId,
-                    occurrenceId,
-                    versionId,
-                    download.FileName,
-                    download.MediaType,
-                    download.ContentLength,
-                    download.Sha256,
-                    ContentIncluded: true,
-                    Convert.ToBase64String(buffer.ToArray()),
-                    ContentUrl: null,
-                    Notice: null,
-                    operationKey,
-                    AutomationMcpAuditor.CorrelationId(context, operationKey));
-            }),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_document_export",
-        Title = "Export case documents",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Exports selected case document versions as one deterministic zip archive with a manifest, through the same lease-guarded Core export command as the staff app. Small archives may be returned inline; larger archives return a short-lived authenticated streaming URL.")]
-    public async Task<DocumentExportToolResult> ExportAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The exact occurrence/version pairs to export; at most 32 may be selected per archive.")] IReadOnlyList<DocumentExportSelectionInput> selections,
-        [Description("The case version observed by the caller; a stale value fails closed.")] long expectedCaseVersion,
-        [Description("The active edit lease token from pegasus_case_edit_begin.")] string editLeaseToken,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        [Description("Largest archive size returned inline, in bytes; 0 selects the default of 65536.")] int maxInlineBytes = 0,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_document_export",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
-                if (selections is not { Count: > 0 })
-                {
-                    throw new McpException("At least one occurrence/version selection is required.");
-                }
-                if (selections.Count > AutomationDocumentStreaming.MaximumExportSelections)
-                {
-                    throw new McpException(
-                        $"At most {AutomationDocumentStreaming.MaximumExportSelections} document versions may be exported at once.");
-                }
-                if (string.IsNullOrWhiteSpace(editLeaseToken))
-                {
-                    throw new McpException("An active edit lease token is required.");
-                }
-                if (expectedCaseVersion < 0)
-                {
-                    throw new McpException("The expected case version cannot be negative.");
-                }
-
-                var inlineLimit = maxInlineBytes == 0
-                    ? DefaultInlineContentBytes
-                    : maxInlineBytes;
-                if (inlineLimit is < 1 or > AutomationMcpErrors.MaximumDocumentBytes)
-                {
-                    throw new McpException(
-                        $"maxInlineBytes must be between 1 and {AutomationMcpErrors.MaximumDocumentBytes}.");
-                }
-
-                await using var export = await exportDocuments.ExecuteAsync(
-                    new(
-                        caseId,
-                        selections
-                            .Select(selection => new DocumentExportSelection(
-                                AutomationMcpErrors.RequireId(
-                                    selection.OccurrenceId,
-                                    "occurrence identifier"),
-                                AutomationMcpErrors.RequireId(
-                                    selection.VersionId,
-                                    "version identifier")))
-                            .ToArray(),
-                        context.Actor,
-                        normalizedKey,
-                        MaximumExportArchiveBytes,
-                        expectedCaseVersion,
-                        editLeaseToken),
-                    cancellationToken);
-                var manifest = export.Manifest
-                    .Select(entry => new DocumentExportManifestToolItem(
-                        entry.FileName,
-                        entry.OccurrenceId,
-                        entry.VersionId,
-                        entry.SemanticRole.ToString(),
-                        entry.ContentLength,
-                        entry.Sha256))
-                    .ToArray();
-
-                var archiveLength = export.Content.CanSeek
-                    ? export.Content.Length
-                    : throw new InvalidDataException("The deterministic export stream does not expose its bounded length.");
-                string? inlineContent = null;
-                string? contentUrl = null;
-                if (archiveLength <= inlineLimit)
-                {
-                    using var buffer = new MemoryStream((int)archiveLength);
-                    await export.Content.CopyToAsync(buffer, cancellationToken);
-                    inlineContent = Convert.ToBase64String(buffer.GetBuffer(), 0, (int)buffer.Length);
+                    delivery = AutomationFileContent.Withheld(
+                        metadata.FileName,
+                        metadata.MediaType,
+                        metadata.ContentLength,
+                        metadata.Sha256,
+                        $"The content ({metadata.ContentLength} bytes, {metadata.MediaType}) exceeds the inline limit of {inlineLimit} bytes or is not an image, PDF or text file; fetch contentUrl with this bearer token.",
+                        contentUrl);
                 }
                 else
                 {
-                    var ticket = AutomationDocumentStreaming.ProtectExport(
-                        dataProtectionProvider,
-                        new(
-                            caseId,
-                            selections.Select(value => new DocumentExportSelection(
-                                value.OccurrenceId, value.VersionId)).ToArray(),
-                            expectedCaseVersion,
-                            editLeaseToken,
-                            normalizedKey,
-                            context.GrantId,
-                            timeProvider.GetUtcNow().AddMinutes(5)));
-                    contentUrl = "/automation/document-exports"
-                        + QueryString.Create("ticket", ticket).ToUriComponent();
+                    await using var download = await downloadDocument.ExecuteAsync(
+                        new(caseId, occurrenceId, versionId, context.Actor, operationKey),
+                        cancellationToken)
+                        ?? throw new McpException("The document version was not found.");
+                    using var buffer = new MemoryStream(
+                        (int)Math.Min(download.ContentLength, AutomationMcpErrors.MaximumDocumentBytes));
+                    await download.Content.CopyToAsync(buffer, cancellationToken);
+                    delivery = await AutomationFileContent.DeliverAsync(
+                        images,
+                        pdfText,
+                        download.FileName,
+                        download.MediaType,
+                        download.ContentLength,
+                        download.Sha256,
+                        buffer.GetBuffer().AsMemory(0, (int)buffer.Length),
+                        inlineLimit,
+                        contentUrl,
+                        cancellationToken);
                 }
-                var included = inlineContent is not null;
-                return new DocumentExportToolResult(
-                    caseId,
-                    export.FileName,
-                    manifest,
-                    archiveLength,
-                    included,
-                    inlineContent,
-                    contentUrl,
-                    included
-                        ? null
-                        : $"The archive ({archiveLength} bytes) exceeds the inline limit of {inlineLimit} bytes; use contentUrl with this bearer token.",
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+
+                return AutomationFileContent.ToResult(
+                    delivery,
+                    new DocumentDownloadToolResult(
+                        caseId,
+                        occurrenceId,
+                        versionId,
+                        metadata.FileName,
+                        metadata.MediaType,
+                        metadata.ContentLength,
+                        metadata.Sha256,
+                        delivery.ContentIncluded,
+                        contentUrl,
+                        delivery.Notice,
+                        operationKey,
+                        AutomationMcpAuditor.CorrelationId(context, operationKey)));
             }),
             cancellationToken);
     }

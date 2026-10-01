@@ -390,8 +390,8 @@ public sealed class AutomationAiJobIngressTests
             token,
             ToolCallPayload(
                 4,
-                "pegasus_ai_job_take",
-                new { jobId, expectedVersion = 0, operationKey = "mcp:take-1" })))
+                "pegasus_ai_job_transition",
+                new { jobId, expectedVersion = 0, action = "Take", operationKey = "mcp:take-1" })))
         {
             var taken = await ReadStructuredContentAsync(response);
             Assert.Equal("Taken", taken.GetProperty("state").GetString());
@@ -405,12 +405,36 @@ public sealed class AutomationAiJobIngressTests
             token,
             ToolCallPayload(
                 5,
-                "pegasus_ai_job_progress",
-                new { jobId, expectedVersion = version, progressNote = "Two of five examined.", operationKey = "mcp:progress-1" })))
+                "pegasus_ai_job_transition",
+                new { jobId, expectedVersion = version, action = "Progress", progressNote = "Two of five examined.", operationKey = "mcp:progress-1" })))
         {
             var progressed = await ReadStructuredContentAsync(response);
             Assert.Equal("Two of five examined.", progressed.GetProperty("progressNote").GetString());
             version = progressed.GetProperty("version").GetInt64();
+        }
+
+        // An action outside the five is refused by name, before any Core call.
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                9,
+                "pegasus_ai_job_transition",
+                new { jobId, expectedVersion = version, action = "Finish", operationKey = "mcp:bad-action" })))
+        {
+            Assert.Contains("Take, Progress, Complete, Fail or Release", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        // Complete without its result kind is refused by name.
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                10,
+                "pegasus_ai_job_transition",
+                new { jobId, expectedVersion = version, action = "Complete", operationKey = "mcp:complete-no-kind" })))
+        {
+            Assert.Contains("resultKind", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
         // A result of the wrong kind for the job is refused.
@@ -419,11 +443,12 @@ public sealed class AutomationAiJobIngressTests
             token,
             ToolCallPayload(
                 6,
-                "pegasus_ai_job_complete",
+                "pegasus_ai_job_transition",
                 new
                 {
                     jobId,
                     expectedVersion = version,
+                    action = "Complete",
                     resultKind = "DraftReply",
                     resultText = "Wrong kind.",
                     operationKey = "mcp:complete-wrong"
@@ -438,11 +463,12 @@ public sealed class AutomationAiJobIngressTests
             token,
             ToolCallPayload(
                 7,
-                "pegasus_ai_job_complete",
+                "pegasus_ai_job_transition",
                 new
                 {
                     jobId,
                     expectedVersion = version,
+                    action = "Complete",
                     resultKind = "ProposedResolution",
                     resultText = "U17: add to CE-QDOS-31-00001 (registration match).",
                     operationKey = "mcp:complete-1"
@@ -460,8 +486,8 @@ public sealed class AutomationAiJobIngressTests
             token,
             ToolCallPayload(
                 8,
-                "pegasus_ai_job_release",
-                new { jobId, expectedVersion = version, operationKey = "mcp:release-1" })))
+                "pegasus_ai_job_transition",
+                new { jobId, expectedVersion = version, action = "Release", operationKey = "mcp:release-1" })))
         {
             using var document = await ReadJsonRpcAsync(refused);
             Assert.Contains("cannot move from DraftReady", document.RootElement.ToString(), StringComparison.Ordinal);
@@ -484,7 +510,7 @@ public sealed class AutomationAiJobIngressTests
             WHERE AggregateType = N'automation_mcp'
               AND AggregateId = N'{jobId:D}'
               AND Outcome = N'Succeeded'
-              AND EventKind IN (N'pegasus_ai_job_take', N'pegasus_ai_job_complete')
+              AND EventKind = N'pegasus_ai_job_transition'
             """));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             """
@@ -524,7 +550,7 @@ public sealed class AutomationAiJobIngressTests
         using (var refused = await PostMcpAsync(
             client,
             token,
-            ToolCallPayload(1, "pegasus_ai_job_take", new { jobId = queued, expectedVersion = 0, operationKey = "mcp:take-off" })))
+            ToolCallPayload(1, "pegasus_ai_job_transition", new { jobId = queued, expectedVersion = 0, action = "Take", operationKey = "mcp:take-off" })))
         {
             using var document = await ReadJsonRpcAsync(refused);
             Assert.Contains("disabled by an Administrator", document.RootElement.ToString(), StringComparison.Ordinal);
@@ -535,8 +561,8 @@ public sealed class AutomationAiJobIngressTests
             token,
             ToolCallPayload(
                 2,
-                "pegasus_ai_job_progress",
-                new { jobId = held, expectedVersion = 1, progressNote = "Still going.", operationKey = "mcp:progress-off" })))
+                "pegasus_ai_job_transition",
+                new { jobId = held, expectedVersion = 1, action = "Progress", progressNote = "Still going.", operationKey = "mcp:progress-off" })))
         {
             using var document = await ReadJsonRpcAsync(refused);
             Assert.Contains("disabled by an Administrator", document.RootElement.ToString(), StringComparison.Ordinal);
@@ -547,8 +573,8 @@ public sealed class AutomationAiJobIngressTests
             token,
             ToolCallPayload(
                 3,
-                "pegasus_ai_job_fail",
-                new { jobId = held, expectedVersion = 1, reason = "Stopped by the Administrator.", operationKey = "mcp:fail-off" })))
+                "pegasus_ai_job_transition",
+                new { jobId = held, expectedVersion = 1, action = "Fail", reason = "Stopped by the Administrator.", operationKey = "mcp:fail-off" })))
         {
             var failed = await ReadStructuredContentAsync(response);
             Assert.Equal("Failed", failed.GetProperty("state").GetString());
@@ -560,7 +586,7 @@ public sealed class AutomationAiJobIngressTests
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
-              AND EventKind = N'pegasus_ai_job_take'
+              AND EventKind = N'pegasus_ai_job_transition'
               AND AggregateId = N'{queued:D}'
               AND Outcome = N'Failed'
             """));
