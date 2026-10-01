@@ -913,12 +913,22 @@
                         <label asp-for="ClassificationKey">Classification</label>
                         <select asp-for="ClassificationKey" data-other-toggle>
                             <option value="">Choose classification</option>
-                            @foreach (var option in Pegasus.Web.Pages.Mail.MessageModel.ClassificationOptions)
+                            @foreach (var option in Model.ClassificationOptions)
                             {
                                 <option value="@option.Value">@option.Label</option>
                             }
                         </select>
                         <span asp-validation-for="ClassificationKey"></span>
+                    </div>
+                    <div class="field" data-work-type-field hidden>
+                        <label class="req" asp-for="WorkType">Case type</label>
+                        <select asp-for="WorkType">
+                            <option value="">Choose case type</option>
+                            <option value="@Pegasus.Core.Cases.CaseType.Inspection">Inspection</option>
+                            <option value="@Pegasus.Core.Cases.CaseType.Audit">Audit</option>
+                            <option value="@Pegasus.Core.Cases.CaseType.InspectionAndAudit">Inspection and Audit</option>
+                        </select>
+                        <span asp-validation-for="WorkType"></span>
                     </div>
                     <div class="field" data-other-field hidden>
                         <label asp-for="OtherClassificationName">New category name</label>

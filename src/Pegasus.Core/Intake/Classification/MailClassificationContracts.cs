@@ -144,6 +144,10 @@ public sealed record MailCategory
         && ReceivedFamily == ReceivedMailFamily.PreInstructionEmails
         && string.Equals(Subtype, TriageRequestSubtype, StringComparison.Ordinal);
 
+    public bool IsNewInstruction =>
+        Direction == MailDirection.Received
+        && ReceivedFamily == ReceivedMailFamily.NewInstructionReceived;
+
     public string Name =>
         OtherName
         ?? (ReceivedFamily is { } received

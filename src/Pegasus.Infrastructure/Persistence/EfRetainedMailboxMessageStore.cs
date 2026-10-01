@@ -445,7 +445,11 @@ internal sealed class EfRetainedMailboxMessageStore(
             entity.ImmutableMessageId,
             entity.InternetMessageIdentity,
             entity.ConversationIdentity,
-            await ClassificationDossierAsync(context, receipt?.Decision, cancellationToken));
+            await ClassificationDossierAsync(
+                context,
+                receipt?.Decision,
+                RetainedMailDirection.Of(ParseFolderScope(entity.FolderScope)),
+                cancellationToken));
     }
 
     /// <summary>
@@ -670,20 +674,25 @@ internal sealed class EfRetainedMailboxMessageStore(
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        var externalReceiptToken = await context.RetainedMailboxMessages
+        var message = await context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.Id == messageId)
-            .Select(item => item.ExternalReceiptToken)
+            .Select(item => new { item.ExternalReceiptToken, item.FolderScope })
             .SingleOrDefaultAsync(cancellationToken);
-        return externalReceiptToken is null
+        return message is null
             ? null
-            : await LoadClassificationByTokenAsync(context, externalReceiptToken, cancellationToken);
+            : await LoadClassificationByTokenAsync(
+                context,
+                message.ExternalReceiptToken,
+                RetainedMailDirection.Of(ParseFolderScope(message.FolderScope)),
+                cancellationToken);
     }
 
     /// <summary>The classification dossier of the message whose receipt token is known.</summary>
     private static async Task<MailClassificationDossier?> LoadClassificationByTokenAsync(
         PegasusDbContext context,
         string externalReceiptToken,
+        MailDirection direction,
         CancellationToken cancellationToken)
     {
         var decision = await context.IntakeReceipts
@@ -692,7 +701,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 && item.ExternalReceiptToken == externalReceiptToken)
             .Select(item => item.MailClassificationDecision)
             .SingleOrDefaultAsync(cancellationToken);
-        return await ClassificationDossierAsync(context, decision, cancellationToken);
+        return await ClassificationDossierAsync(context, decision, direction, cancellationToken);
     }
 
     /// <summary>
@@ -702,6 +711,7 @@ internal sealed class EfRetainedMailboxMessageStore(
     private static async Task<MailClassificationDossier?> ClassificationDossierAsync(
         PegasusDbContext context,
         IntakeMailClassificationDecisionEntity? decision,
+        MailDirection direction,
         CancellationToken cancellationToken)
     {
         if (decision is null)
@@ -727,7 +737,10 @@ internal sealed class EfRetainedMailboxMessageStore(
             EfIntakeReceiptStore.MapMailClassificationDecision(decision),
             decision.DecidedByActor,
             decision.DecidedAtUtc,
-            history);
+            history)
+        {
+            MessageDirection = direction
+        };
     }
 
     private static void Apply(

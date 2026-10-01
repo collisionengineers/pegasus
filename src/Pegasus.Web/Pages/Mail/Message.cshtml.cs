@@ -74,8 +74,8 @@ public sealed class MessageModel(
 
     public const string UnlinkAssociationAction = "Unlink";
 
-    public static IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
-        MailClassificationSelection.Options;
+    public IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
+        MailClassificationSelection.OptionsFor(RetainedMailDirection.Of(Detail.Folder));
 
     /// <summary>
     /// The list scope this message was opened from, carried through untouched so
@@ -129,6 +129,9 @@ public sealed class MessageModel(
 
     [BindProperty]
     public string? CorrectionReason { get; set; }
+
+    [BindProperty]
+    public string? WorkType { get; set; }
 
     [BindProperty]
     public int ExpectedRecommendationPolicyVersion { get; set; }
@@ -981,6 +984,12 @@ public sealed class MessageModel(
         {
             ModelState.AddModelError(nameof(ClassificationKey), "Choose a valid classification and complete any Other details.");
         }
+        CaseType? workType = null;
+        if (category is { IsNewInstruction: true }
+            && !MailClassificationSelection.TryParseWorkType(WorkType, out workType))
+        {
+            ModelState.AddModelError(nameof(WorkType), "Choose a valid case type.");
+        }
         if (string.IsNullOrWhiteSpace(CorrectionReason))
         {
             ModelState.AddModelError(nameof(CorrectionReason), "Explain why this classification is being corrected.");
@@ -994,7 +1003,7 @@ public sealed class MessageModel(
         {
             var result = await correctClassification.ExecuteAsync(
                 actor,
-                new(id, ExpectedClassificationVersion, category!, CorrectionReason!),
+                new(id, ExpectedClassificationVersion, category!, CorrectionReason!, workType),
                 cancellationToken);
             if (result is null)
             {

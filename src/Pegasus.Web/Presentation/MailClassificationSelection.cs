@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Presentation;
@@ -37,6 +38,25 @@ public static class MailClassificationSelection
             new(OtherReceivedKey, "Other received classification"),
             new(OtherSentKey, "Other sent classification")
         ];
+
+    /// <summary>The options a message of one direction may be corrected to.</summary>
+    public static IReadOnlyList<SelectionOption> OptionsFor(MailDirection direction) =>
+        direction == MailDirection.Sent
+            ? [.. Options.Where(option => option.Value.StartsWith("sent:", StringComparison.Ordinal) || option.Value == OtherSentKey)]
+            : [.. Options.Where(option => option.Value.StartsWith("received:", StringComparison.Ordinal) || option.Value == OtherReceivedKey)];
+
+    /// <summary>
+    /// Parses the case type a New instruction correction names. Only the three
+    /// work types are accepted; a Triage is a Case type, not instructed work.
+    /// </summary>
+    public static bool TryParseWorkType(string? value, out CaseType? caseType)
+    {
+        caseType = Enum.TryParse<CaseType>(value, out var parsed)
+            && parsed is CaseType.Inspection or CaseType.Audit or CaseType.InspectionAndAudit
+            ? parsed
+            : null;
+        return caseType is not null;
+    }
 
     /// <summary>
     /// Parses a selected classification key into the canonical category.
