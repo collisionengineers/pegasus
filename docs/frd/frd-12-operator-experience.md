@@ -73,8 +73,11 @@ replacement icon is used.
 
 Every drawn control maps to a named handler. A disabled control is allowed
 only for a named integration seam whose row in
-[capabilities](../capabilities.md) records it as a disabled seam. An inert
-control is never rendered. Labels, values and controls carry no explanatory
+[capabilities](../capabilities.md) records it as a disabled seam, and for
+the Case ribbon's Create audit item, which is always listed on an Inspection
++ Audit Case and, when Core refuses it, is disabled with the refusal as its
+hover text ([FRD-16](frd-16-case-record-workspace.md#actions-menu);
+operator, 1 October 2026). An inert control is never rendered. Labels, values and controls carry no explanatory
 copy ([design § No explanatory copy](../design/README.md#no-explanatory-copy-and-page-economy)).
 
 ### Shell and routes
@@ -131,7 +134,8 @@ notification is raised for exactly these causes:
   whoever started the job. Market research never raises one;
 - a Case is assigned to an Engineer: to that Engineer;
 - a Case an Engineer is assigned to is edited by someone else, receives an
-  e-mail, or receives a query: to that Engineer.
+  e-mail, receives a query, or, while it is open, receives a cancellation or
+  has a linked message corrected to one: to that Engineer.
 
 Nobody is notified of their own act. There is no e-mail notification. The
 dialog lists notifications newest first with the Case reference,

@@ -196,6 +196,105 @@ public sealed class AutomationMailIngressTests
     }
 
     [Fact]
+    public async Task ClassificationCorrectionCarriesTheCaseTypeAndKeepsToTheMessageDirection()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var ids = await SeedRetainedAsync(mcpFactory, count: 2);
+        await SeedClassificationAsync(mcpFactory, $"{MailboxId}-1");
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        // The offered options follow the message's direction: an Inbox message
+        // lists no Sent family.
+        using (var read = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(20, "pegasus_mail_get", new { messageId = ids[0] })))
+        {
+            var structured = await ReadStructuredContentAsync(read);
+            var options = structured.GetProperty("classification").GetProperty("correctionOptions")
+                .EnumerateArray()
+                .Select(option => option.GetProperty("value").GetString())
+                .ToArray();
+            Assert.Contains("received:NewInstructionReceived:audit", options);
+            Assert.DoesNotContain("sent:ReportSent", options);
+        }
+
+        // A New instruction correction carries the case type the Worker's
+        // allocation reads.
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                21,
+                "pegasus_mail_correct_classification",
+                new
+                {
+                    messageId = ids[0],
+                    expectedClassificationVersion = 1,
+                    classificationKey = "received:NewInstructionReceived:audit",
+                    workType = "Audit",
+                    reason = "The attached instruction is an Audit.",
+                    operationKey = "mcp:mail-correct-work-type"
+                })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(2, structured.GetProperty("version").GetInt32());
+            Assert.Equal("Audit", structured.GetProperty("current").GetProperty("caseType").GetString());
+        }
+
+        // A Sent family is refused on a received message, and a New instruction
+        // without its case type is refused; neither writes.
+        using (var crossed = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                22,
+                "pegasus_mail_correct_classification",
+                new
+                {
+                    messageId = ids[0],
+                    expectedClassificationVersion = 2,
+                    classificationKey = "sent:ReportSent",
+                    reason = "Wrong direction.",
+                    operationKey = "mcp:mail-correct-crossed"
+                })))
+        {
+            using var document = await ReadJsonRpcAsync(crossed);
+            Assert.Contains("received classification", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        using (var noWorkType = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                23,
+                "pegasus_mail_correct_classification",
+                new
+                {
+                    messageId = ids[0],
+                    expectedClassificationVersion = 2,
+                    classificationKey = "received:NewInstructionReceived:inspection",
+                    reason = "Missing case type.",
+                    operationKey = "mcp:mail-correct-no-work-type"
+                })))
+        {
+            using var document = await ReadJsonRpcAsync(noWorkType);
+            Assert.Contains("requires a case type", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        using (var final = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(24, "pegasus_mail_get", new { messageId = ids[0] })))
+        {
+            var structured = await ReadStructuredContentAsync(final);
+            Assert.Equal(2, structured.GetProperty("classification").GetProperty("version").GetInt32());
+        }
+    }
+
+    [Fact]
     public async Task ClassificationCorrectionIsVersionedReplaySafeAndAttributed()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);

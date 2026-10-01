@@ -337,7 +337,7 @@ public sealed class StaffMailSendPersistenceTests
                 Id = secondRetainedMessageId,
                 MailboxId = mailboxId,
                 MailboxAddress = "mailbox@example.invalid",
-                FolderScope = "Inbox",
+                FolderScope = "inbox",
                 FolderIdentity = "inbox",
                 ImmutableMessageId = "immutable-message-two",
                 InternetMessageIdentity = "<message-two@example.invalid>",
@@ -665,6 +665,183 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Equal(fixture.WorkflowVersion + 1, persisted.Version);
         Assert.Equal(1, await verify.CaseWorkflowEvents.CountAsync(item =>
             item.CaseId == fixture.CaseId && item.EventType == "intake_case_linked"));
+    }
+
+    [Fact]
+    public async Task UnlinkingTheOnlyPostReportMessageReturnsAQueryCaseToCompleted()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        // The fixture's Case is already in Query with this post-report message linked.
+        var fixture = await SeedPostReportQueryAsync(
+            database, mailboxId, retainedMessageId, isQueryReceipt: true, isAssociated: true);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var workflowStore = new EfCaseWorkflowStore(factory, TimeProvider.System);
+        var lease = await workflowStore.ClaimAsync(
+            new(fixture.CaseId, fixture.WorkflowVersion, actor, "claim-unlink-query"),
+            CancellationToken.None);
+        var mutationStore = new EfIntakeMutationStore(factory);
+        var receipt = await mutationStore.GetAsync(fixture.ReceiptId, CancellationToken.None);
+        Assert.NotNull(receipt);
+
+        await mutationStore.ReverseLinkAsync(
+            new(
+                fixture.ReceiptId,
+                fixture.CaseId,
+                receipt!.IntakeVersion,
+                fixture.WorkflowVersion,
+                lease.Token,
+                actor,
+                "unlink-received-query",
+                "This message is not a query on this Case."),
+            DateTimeOffset.UtcNow,
+            CancellationToken.None);
+
+        await using var verify = await factory.CreateDbContextAsync();
+        var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.PostReportComplete), persisted.State);
+        Assert.Equal(nameof(CaseClosureOutcome.PostReportComplete), persisted.ClosureOutcome);
+        Assert.NotNull(persisted.StateEnteredAtUtc);
+        Assert.Equal(fixture.WorkflowVersion + 1, persisted.Version);
+        var withdrawn = Assert.Single(await verify.CaseWorkflowEvents
+            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_withdrawn")
+            .ToListAsync());
+        Assert.Equal(fixture.WorkflowVersion, withdrawn.BeforeVersion);
+        Assert.Equal(persisted.Version, withdrawn.AfterVersion);
+        Assert.Single(await verify.ActionHistory
+            .Where(item => item.AggregateType == "case"
+                && item.AggregateId == fixture.CaseId.ToString("D")
+                && item.EventKind == "case_query_withdrawn")
+            .ToListAsync());
+    }
+
+    [Fact]
+    public async Task UnlinkingOnePostReportMessageLeavesAQueryCaseInQueryWhileAnotherIsLinked()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        var fixture = await SeedPostReportQueryAsync(
+            database, mailboxId, retainedMessageId, isQueryReceipt: true, isAssociated: true);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await SeedSecondLinkedPostReportReceiptAsync(factory, fixture.CaseId);
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var workflowStore = new EfCaseWorkflowStore(factory, TimeProvider.System);
+        var lease = await workflowStore.ClaimAsync(
+            new(fixture.CaseId, fixture.WorkflowVersion, actor, "claim-unlink-one-query"),
+            CancellationToken.None);
+        var mutationStore = new EfIntakeMutationStore(factory);
+        var receipt = await mutationStore.GetAsync(fixture.ReceiptId, CancellationToken.None);
+
+        await mutationStore.ReverseLinkAsync(
+            new(
+                fixture.ReceiptId,
+                fixture.CaseId,
+                receipt!.IntakeVersion,
+                fixture.WorkflowVersion,
+                lease.Token,
+                actor,
+                "unlink-one-received-query",
+                "Not this one."),
+            DateTimeOffset.UtcNow,
+            CancellationToken.None);
+
+        await using var verify = await factory.CreateDbContextAsync();
+        var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.Query), persisted.State);
+        Assert.Null(persisted.ClosureOutcome);
+        Assert.Empty(await verify.CaseWorkflowEvents
+            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_withdrawn")
+            .ToListAsync());
+        Assert.Equal(1, await verify.CaseWorkflowEvents.CountAsync(item =>
+            item.CaseId == fixture.CaseId && item.EventType == "intake_case_link_reversed"));
+    }
+
+    [Fact]
+    public async Task CorrectingTheOnlyLinkedPostReportMessageAwayWithdrawsTheQuery()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        var fixture = await SeedPostReportQueryAsync(
+            database, mailboxId, retainedMessageId, isQueryReceipt: true, isAssociated: true);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
+            actor,
+            new(retainedMessageId, 1, MailCategory.Received(ReceivedMailFamily.General, "case-summary"),
+                "A summary, not a query."));
+
+        Assert.Equal(2, dossier!.Version);
+        await using var verify = await factory.CreateDbContextAsync();
+        var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.PostReportComplete), persisted.State);
+        Assert.Equal(nameof(CaseClosureOutcome.PostReportComplete), persisted.ClosureOutcome);
+        Assert.Equal(fixture.WorkflowVersion + 1, persisted.Version);
+        var withdrawn = Assert.Single(await verify.CaseWorkflowEvents
+            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_withdrawn")
+            .ToListAsync());
+        Assert.Equal(actor.SubjectId, withdrawn.ActorSubjectId);
+        Assert.StartsWith("mail-correction:", withdrawn.OperationKey, StringComparison.Ordinal);
+        Assert.Equal(1L, await verify.IntakeMailClassificationHistory.LongCountAsync());
+    }
+
+    [Fact]
+    public async Task CorrectingALinkedMessageToPostReportOnACompletedCaseEntersQuery()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        var fixture = await SeedPostReportQueryAsync(
+            database, mailboxId, retainedMessageId, isQueryReceipt: false, isAssociated: true);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var seed = await factory.CreateDbContextAsync())
+        {
+            // A Completed Case whose linked message was read as general correspondence.
+            var seededWorkflow = await seed.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
+            seededWorkflow.State = nameof(CaseLifecycleState.PostReportComplete);
+            seededWorkflow.ClosureOutcome = nameof(CaseClosureOutcome.PostReportComplete);
+            var seededDecision = await seed.IntakeMailClassificationDecisions.SingleAsync(item => item.IntakeReceiptId == fixture.ReceiptId);
+            seededDecision.Family = "General";
+            seededDecision.Subtype = "case-summary";
+            await seed.SaveChangesAsync();
+        }
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
+            actor,
+            new(retainedMessageId, 1, MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"),
+                "The client is querying the delivered report."));
+
+        Assert.Equal(2, dossier!.Version);
+        await using var verify = await factory.CreateDbContextAsync();
+        var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.Query), persisted.State);
+        Assert.Null(persisted.ClosureOutcome);
+        Assert.NotNull(persisted.StateEnteredAtUtc);
+        Assert.Equal(fixture.WorkflowVersion + 1, persisted.Version);
+        var received = Assert.Single(await verify.CaseWorkflowEvents
+            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_received")
+            .ToListAsync());
+        Assert.Equal(actor.SubjectId, received.ActorSubjectId);
+        Assert.Single(await verify.ActionHistory
+            .Where(item => item.AggregateType == "case"
+                && item.AggregateId == fixture.CaseId.ToString("D")
+                && item.EventKind == "case_query_received")
+            .ToListAsync());
     }
 
     [Fact]
@@ -1030,6 +1207,67 @@ public sealed class StaffMailSendPersistenceTests
 
     private sealed record QueryReplyFixture(Guid CaseId, Guid ReceiptId, long WorkflowVersion);
 
+    // A second received post-report receipt, linked by staff to the same Case.
+    private static async Task SeedSecondLinkedPostReportReceiptAsync(
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid caseId)
+    {
+        var receiptId = Guid.NewGuid();
+        var nowUtc = new DateTimeOffset(2026, 9, 10, 8, 30, 0, TimeSpan.Zero);
+        await using var db = await factory.CreateDbContextAsync();
+        db.IntakeReceipts.Add(new IntakeReceiptEntity
+        {
+            Id = receiptId,
+            SourceFileName = "second-post-report-query.eml",
+            MediaType = "message/rfc822",
+            SourceLength = 1,
+            SourceHash = new string('B', 64),
+            SourceChannel = "mailbox",
+            ExternalReceiptToken = $"retained:{Guid.NewGuid():N}",
+            ReceivedAtUtc = nowUtc,
+            ProcessedAtUtc = nowUtc,
+            SourceReaderKey = "staff-mail-test",
+            SourceReaderVersion = "1",
+            Version = 0,
+            Decision = "case_created",
+            DecisionReason = "post-report correspondence",
+            EvidenceJson = "{\"version\":1,\"data\":[]}",
+            FieldsJson = "{\"version\":1,\"data\":[]}",
+            OcrCandidatesJson = "{\"version\":1,\"data\":[]}",
+            MailClassificationDecision = new()
+            {
+                IntakeReceiptId = receiptId,
+                Outcome = "classified",
+                Direction = "received",
+                Family = "post-report-emails",
+                Subtype = "dispute",
+                IsReplyContext = false,
+                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
+                PredicatesJson = "{\"version\":1,\"data\":[]}",
+                Reason = "staff-mail test classification",
+                PolicyKey = "staff-mail-test",
+                PolicyVersion = 1,
+                DecidedByActor = "test",
+                DecidedAtUtc = nowUtc,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            }
+        });
+        db.IntakeManualAssociations.Add(new()
+        {
+            IntakeReceiptId = receiptId,
+            CaseId = caseId,
+            IsActive = true,
+            Version = 0,
+            LinkedAtUtc = nowUtc,
+            ActorKind = "Staff",
+            ActorSubjectId = Guid.NewGuid().ToString("D"),
+            ActorRolesJson = "[]",
+            LastOperationKey = $"staff-mail-query-link:{receiptId:N}"
+        });
+        await db.SaveChangesAsync();
+    }
+
     private static StaffMailSendCommand Command() => new(
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), Guid.NewGuid(), 1,
         StaffMailPurpose.GeneralCorrespondence, Guid.NewGuid(), 1,
@@ -1121,7 +1359,7 @@ public sealed class StaffMailSendPersistenceTests
             Id = retainedMessageId,
             MailboxId = mailboxId,
             MailboxAddress = "mailbox@example.invalid",
-            FolderScope = "Inbox",
+            FolderScope = "inbox",
             FolderIdentity = "inbox",
             ImmutableMessageId = "immutable-message",
             InternetMessageIdentity = "<message@example.invalid>",

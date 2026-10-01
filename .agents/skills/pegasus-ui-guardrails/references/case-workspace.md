@@ -46,7 +46,8 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
 24 September 2026; FRD-16):
 
 - The **Views** card is the first card in the aside and renders only once the Case has its Audit.
-  Its rows are "Inspection · {Case/PO}" with a "Sent" chip and "Audit · a.{Case/PO}" with the Case
+  Its rows are "Inspection · {Case/PO}" with a "Sent" chip only when the Inspection report was sent
+  (none when the Audit was created first) and "Audit · a.{Case/PO}" with the Case
   state chip; the current view is plain, the other a link (`?view=inspection|audit`,
   server-rendered). The Audit view is the default. Without an Audit there is no card and `view`
   is ignored; a standalone Audit and a Triage Case have one view.
@@ -62,8 +63,12 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   view.
 - Report in the Audit view shows the Inspection's sent report as one `.pv` line with an
   "Inspection view" link above the Audit card; in the Inspection view the card shows the sent
-  Inspection report with no generation or delivery. Files shows the audit folder chip after the
-  Case folder chip, mirroring its states and tones.
+  Inspection report with no generation or delivery. While the Inspection report is still to be
+  sent after Create audit (operator, 1 October 2026), the Inspection view's Report keeps the
+  Generate, Prepare delivery and Send controls for that report, under the session's lease, and
+  the Actions menu's Mark report sent takes its evidence; every form carries `view=inspection`
+  and acts on the Inspection's own work, never on the Case's state. Files shows the audit folder
+  chip after the Case folder chip, mirroring its states and tones.
 - The words "View" and "Changed from Inspection" belonged to rejected options and are not used.
 
 ## Section order and ownership
@@ -149,7 +154,10 @@ offered while a colleague holds it. Typical entries include:
 - Archive;
 - Place on Hold / Release Hold;
 - Correct principal;
-- Create audit.
+- Create audit, the one item always listed (on an Inspection + Audit Case, in every state): when
+  Core refuses it, or a colleague holds the lease, it renders disabled inside a `.menu-gated`
+  span whose `title` states the reason on hover (operator, 1 October 2026). Do not extend this
+  treatment to other items without the same explicit instruction.
 
 Close case remains destructive, separated and styled in red.
 

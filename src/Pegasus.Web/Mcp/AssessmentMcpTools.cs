@@ -177,6 +177,7 @@ internal sealed class AssessmentMcpTools(
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
+    AutomationEditLease leases,
     IImportRawEstimate? importRawEstimate = null)
 {
     [McpServerTool(
@@ -187,16 +188,16 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, edit lease, parser route and replay rules as the Case UI apply. An automation import lands as a Draft; a staff member puts it in use with Use repair spec.")]
+    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, parser route and replay rules as the Case UI apply; present an edit lease token for multi-step work or omit it and the tool holds the lease for this one command. An automation import lands as a Draft; a staff member puts it in use with Use repair spec.")]
     public async Task<EstimateImportToolResult> ImportEstimateAsync(
-        Guid caseId,
-        long expectedVersion,
-        string editLeaseToken,
-        string operationKey,
-        string name,
-        Guid occurrenceId,
-        Guid documentVersionId,
-        string sha256,
+        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("The estimate's name on its tab (at most 100 characters).")] string name,
+        [Description("The retained document's occurrence identifier (from pegasus_case_get).")] Guid occurrenceId,
+        [Description("The retained document's exact version identifier.")] Guid documentVersionId,
+        [Description("The retained document's SHA-256, as pegasus_case_get and the download report it.")] string sha256,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
@@ -213,9 +214,16 @@ internal sealed class AssessmentMcpTools(
                 AutomationMcpErrors.RequireId(documentVersionId, "document version identifier");
                 var importer = importRawEstimate
                     ?? throw new McpException("Estimate import is unavailable in this runtime.");
-                var imported = await importer.ExecuteAsync(
-                    new(context.Actor, caseId, expectedVersion, editLeaseToken,
-                        occurrenceId, documentVersionId, sha256, key, name),
+                var imported = await leases.RunCaseAsync(
+                    caseId,
+                    expectedVersion,
+                    editLeaseToken,
+                    context.Actor,
+                    key,
+                    token => importer.ExecuteAsync(
+                        new(context.Actor, caseId, expectedVersion, token,
+                            occurrenceId, documentVersionId, sha256, key, name),
+                        cancellationToken),
                     cancellationToken);
                 return new EstimateImportToolResult(
                     caseId, imported.EstimateId, name.Trim(), key,
@@ -232,11 +240,10 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Saves an AI-draft estimate on a case (FRD-10 § AI job and estimate tools): creates a named Draft, or replaces the header and lines of an existing AI-draft estimate when estimateId is supplied. Requires the edit lease and expected case version like every case mutation, and must cite the Estimate job this client currently holds (aiJobId); the estimate always lands as Draft and never becomes Current here — a staff member does that with Use repair spec. Rates are per hour in pounds; vatPercent is free per estimate and defaults to 20. Line types follow the estimate-line vocabulary (new_part, repair, rnr, paint_*, check_labour, specialist_*); workUnits are labour hours, paintWorkUnits paint hours, price is per unit and multiplied by quantity (default 1).")]
+    [Description("Saves an AI-draft estimate on a case (FRD-10 § AI job and estimate tools): creates a named Draft, or replaces the header and lines of an existing AI-draft estimate when estimateId is supplied. Needs the expected case version like every case mutation (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command), and must cite the Estimate job this client currently holds (aiJobId); the estimate always lands as Draft and never becomes Current here — a staff member does that with Use repair spec. Rates are per hour in pounds; vatPercent is free per estimate and defaults to 20. Line types follow the estimate-line vocabulary (new_part, repair, rnr, paint_*, check_labour, specialist_*); workUnits are labour hours, paintWorkUnits paint hours, price is per unit and multiplied by quantity (default 1).")]
     public async Task<EstimateSaveToolResult> SaveEstimateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("The lease token from pegasus_case_edit_begin.")] string editLeaseToken,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why the estimate is being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("The Estimate AI job this draft fulfils; must be taken by this client.")] Guid aiJobId,
@@ -246,6 +253,7 @@ internal sealed class AssessmentMcpTools(
         [Description("One hourly rate for both panel and paint labour.")] decimal? labourRate = null,
         [Description("Other costs amount.")] decimal? otherCosts = null,
         [Description("VAT percentage, 0 to 100; defaults to 20.")] decimal? vatPercent = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
@@ -261,29 +269,32 @@ internal sealed class AssessmentMcpTools(
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(aiJobId, "AI job identifier");
-                if (string.IsNullOrWhiteSpace(editLeaseToken))
-                {
-                    throw new McpException("An active edit lease token is required.");
-                }
                 ArgumentNullException.ThrowIfNull(lines);
 
-                var saved = await saveEstimate.ExecuteAsync(
-                    new(
-                        caseId,
-                        expectedVersion,
-                        context.Actor,
-                        normalizedKey,
-                        reason,
-                        editLeaseToken,
-                        estimateId,
+                var saved = await leases.RunCaseAsync(
+                    caseId,
+                    expectedVersion,
+                    editLeaseToken,
+                    context.Actor,
+                    normalizedKey,
+                    token => saveEstimate.ExecuteAsync(
                         new(
-                            name,
-                            labourRate,
-                            otherCosts,
-                            vatPercent ?? EstimatePolicy.DefaultVatPercent),
-                        lines.Select(MapLineInput).ToArray(),
-                        new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
-                        aiJobId),
+                            caseId,
+                            expectedVersion,
+                            context.Actor,
+                            normalizedKey,
+                            reason,
+                            token,
+                            estimateId,
+                            new(
+                                name,
+                                labourRate,
+                                otherCosts,
+                                vatPercent ?? EstimatePolicy.DefaultVatPercent),
+                            lines.Select(MapLineInput).ToArray(),
+                            new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
+                            aiJobId),
+                        cancellationToken),
                     cancellationToken);
                 var workflow = await workflowQueries.GetAsync(caseId, cancellationToken)
                     ?? throw new McpException("The case was not found.");
@@ -389,14 +400,14 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records assessment fields that staff can also record on the Case, under the case edit lease and expected version. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag until a staff member changes or clears it on the field's Case section. Professional findings, case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
+    [Description("Records assessment fields that staff can also record on the Case, under the expected case version; present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag until a staff member changes or clears it on the field's Case section. Professional findings, case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("The lease token from pegasus_case_edit_begin.")] string editLeaseToken,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("Scalar assessment values keyed by field path, limited to fields staff can record on the Case; a null value clears the field.")] Dictionary<string, string?>? fields = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
@@ -411,24 +422,27 @@ internal sealed class AssessmentMcpTools(
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
-                if (string.IsNullOrWhiteSpace(editLeaseToken))
-                {
-                    throw new McpException("An active edit lease token is required.");
-                }
                 foreach (var path in fields?.Keys ?? Enumerable.Empty<string>())
                 {
                     RequireGenericWrite(path);
                 }
 
-                var projection = await saveAssessment.ExecuteAsync(
-                    new(
-                        caseId,
-                        expectedVersion,
-                        context.Actor,
-                        normalizedKey,
-                        reason,
-                        editLeaseToken,
-                        fields ?? new Dictionary<string, string?>(StringComparer.Ordinal)),
+                var projection = await leases.RunCaseAsync(
+                    caseId,
+                    expectedVersion,
+                    editLeaseToken,
+                    context.Actor,
+                    normalizedKey,
+                    token => saveAssessment.ExecuteAsync(
+                        new(
+                            caseId,
+                            expectedVersion,
+                            context.Actor,
+                            normalizedKey,
+                            reason,
+                            token,
+                            fields ?? new Dictionary<string, string?>(StringComparer.Ordinal)),
+                        cancellationToken),
                     cancellationToken);
                 return new AssessmentUpdateToolResult(
                     projection.CaseId,
@@ -475,11 +489,10 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Ordinary case-detail editing through the same Core save path as the staff case screen: claimant, claim number, vehicle identity and mileage, accident circumstances, dates, contact, VAT status, and inspection fields. Supplied values are merged over the currently confirmed values; omitted values stay unchanged. Requires the edit lease and expected case version; the save re-opens completeness review exactly as a staff edit does. Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment' and must be saved together with inspectionAddress.")]
+    [Description("Ordinary case-detail editing through the same Core save path as the staff case screen: claimant, claim number, vehicle identity and mileage, accident circumstances, dates, contact, VAT status, and inspection fields. Supplied values are merged over the currently confirmed values; omitted values stay unchanged. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command); the save re-opens completeness review exactly as a staff edit does. Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment' and must be saved together with inspectionAddress.")]
     public async Task<CaseUpdateDetailsToolResult> UpdateDetailsAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("The lease token from pegasus_case_edit_begin.")] string editLeaseToken,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         [Description("Why these details are being corrected (case history reason).")] string reason,
         [Description("Claimant name.")] string? claimantName = null,
@@ -500,6 +513,7 @@ internal sealed class AssessmentMcpTools(
         [Description("Inspection address; must accompany inspectionMode.")] string? inspectionAddress = null,
         [Description("Inspection mode: physical_address or image_based_assessment.")] string? inspectionMode = null,
         [Description("Storage location for the vehicle.")] string? storageLocation = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
@@ -512,10 +526,6 @@ internal sealed class AssessmentMcpTools(
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
-                if (string.IsNullOrWhiteSpace(editLeaseToken))
-                {
-                    throw new McpException("An active edit lease token is required.");
-                }
 
                 var current = await caseDataQueries.GetAsync(caseId, CaseWorkSelector.Current, cancellationToken)
                     ?? throw new McpException("The case was not found.");
@@ -553,15 +563,22 @@ internal sealed class AssessmentMcpTools(
                     ClaimSourceOverrideContactName: current.Workspace?.ClaimSource?.OverrideContactName,
                     ClaimSourceOverrideContactTelephone: current.Workspace?.ClaimSource?.OverrideContactTelephone,
                     ClaimSourceOverrideContactEmailAddress: current.Workspace?.ClaimSource?.OverrideContactEmailAddress);
-                var saved = await saveCase.ExecuteAsync(
-                    new(
-                        caseId,
-                        expectedVersion,
-                        context.Actor,
-                        normalizedKey,
-                        reason,
-                        editLeaseToken,
-                        merged),
+                var saved = await leases.RunCaseAsync(
+                    caseId,
+                    expectedVersion,
+                    editLeaseToken,
+                    context.Actor,
+                    normalizedKey,
+                    token => saveCase.ExecuteAsync(
+                        new(
+                            caseId,
+                            expectedVersion,
+                            context.Actor,
+                            normalizedKey,
+                            reason,
+                            token,
+                            merged),
+                        cancellationToken),
                     cancellationToken);
                 return new CaseUpdateDetailsToolResult(
                     saved.Identity.CaseId,

@@ -27,8 +27,8 @@ public sealed class AuthorizeModel : AdministrationPageModel
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [AutomationMcp.CasesScope] = "Search and read cases, take and renew edit leases, update case details.",
-            [AutomationMcp.IntakeScope] = "List the intake queue and submit intake on the automation channel.",
-            [AutomationMcp.DocumentsScope] = "Add, download and export case documents.",
+            [AutomationMcp.IntakeScope] = "List the intake queue, submit intake, and work Unidentified and Triage records.",
+            [AutomationMcp.DocumentsScope] = "Add and download case documents.",
             [AutomationMcp.AssessmentScope] = "Read and update assessment values under an edit lease.",
             [AutomationMcp.MailScope] = "List and read retained mail and correct a message's classification.",
             [AutomationMcp.JobsScope] = "List, take, progress, complete, fail and release AI jobs; create Unidentified-queue passes."

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
@@ -211,17 +212,43 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
             () => readiness.RequireReadyAsync(harness.ReadyRequest(moved), CancellationToken.None));
     }
 
+    /// <summary>
+    /// The Inspection report of a Case that has its Audit is prepared on its
+    /// own work while it awaits sending; once sent it is never prepared again,
+    /// though the preparation already made still replays (operator,
+    /// 1 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task TheInspectionReportSentAfterTheAuditIsNeverPreparedAgain()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await CaseReportGenerationPersistenceTests.GiveAuditAsync(harness.Factory, harness.CaseId, StartUtc);
+        var command = harness.PrepareCommand();
+        command = command with { Request = command.Request with { Work = CaseWorkSelector.Primary } };
+        var prepared = await harness.Store.PrepareAsync(command, CancellationToken.None);
+
+        await CaseReportGenerationPersistenceTests.LinkInspectionSentEvidenceAsync(harness.Factory, harness.CaseId, StartUtc);
+
+        var replay = await harness.Store.PrepareAsync(command, CancellationToken.None);
+        Assert.Equal(prepared.Preparation.Id, replay.Preparation.Id);
+        var again = command with { Request = command.Request with { OperationKey = "prepare-delivery-2" } };
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => harness.Store.PrepareAsync(again, CancellationToken.None));
+        Assert.Equal("The case report generation is unavailable.", refusal.Message);
+        Assert.Equal(1, await harness.IntentCountAsync());
+    }
+
     [Fact]
     public async Task GetCurrentReturnsTheLatestPreparationOfTheCurrentGenerationOnly()
     {
         await using var harness = await Harness.CreateAsync();
         var first = await harness.Store.PrepareAsync(harness.PrepareCommand(), CancellationToken.None);
 
-        var current = await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CancellationToken.None);
+        var current = await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(first.Preparation.Id, current!.Preparation.Id);
 
         await harness.SupersedeGenerationAsync();
-        Assert.Null(await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CancellationToken.None));
+        Assert.Null(await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
     }
 
     [Fact]
@@ -230,7 +257,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         await using var harness = await Harness.CreateAsync();
 
         var suggestions = await new EfReportRecipientSuggestionQueries(harness.Factory)
-            .GetAsync(harness.CaseId, CancellationToken.None);
+            .GetAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
 
         Assert.NotNull(suggestions);
         Assert.True(suggestions!.Settings.IncludeOriginalInstructionSender);

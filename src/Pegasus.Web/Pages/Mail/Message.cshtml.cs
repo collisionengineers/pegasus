@@ -21,6 +21,14 @@ namespace Pegasus.Web.Pages.Mail;
 /// Reads one retained message and invokes the existing Core commands for its
 /// classification, Case association, folder move, and post-report AI job.
 /// </remarks>
+/// <summary>The next action a message's classification offers (FRD-20).</summary>
+public enum MessageOffer
+{
+    CreateCase,
+    OpenTriage,
+    RegisterImages
+}
+
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
     ICreateAiJob createAiJob,
@@ -43,7 +51,9 @@ public sealed class MessageModel(
     IReverseIntakeLink reverseIntakeLink,
     IDismissRetainedMail dismissRetainedMail,
     IRestoreRetainedMail restoreRetainedMail,
-    IGetRetainedMailAttachmentOutcomes attachmentOutcomes) : StaffPageModel
+    IGetRetainedMailAttachmentOutcomes attachmentOutcomes,
+    IGetIntakeOfferedActions offeredActions,
+    Pegasus.Web.Intake.StaffIntakeActions intakeActions) : StaffPageModel
 {
     /// <summary>
     /// One attachment's outcome in operator words (message planning, 13 September):
@@ -74,8 +84,8 @@ public sealed class MessageModel(
 
     public const string UnlinkAssociationAction = "Unlink";
 
-    public static IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
-        MailClassificationSelection.Options;
+    public IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
+        MailClassificationSelection.OptionsFor(RetainedMailDirection.Of(Detail.Folder));
 
     /// <summary>
     /// The list scope this message was opened from, carried through untouched so
@@ -131,6 +141,9 @@ public sealed class MessageModel(
     public string? CorrectionReason { get; set; }
 
     [BindProperty]
+    public string? WorkType { get; set; }
+
+    [BindProperty]
     public int ExpectedRecommendationPolicyVersion { get; set; }
 
     [BindProperty]
@@ -175,8 +188,11 @@ public sealed class MessageModel(
     [BindProperty]
     public List<string> SelectedAttachments { get; set; } = [];
 
+    // Nullable on purpose: a non-nullable bound string is implicitly required,
+    // and every post from this page that is not the compose form (a correction,
+    // a folder move) omits it. Send validates it itself below.
     [BindProperty]
-    public string CorrespondenceOperationKey { get; set; } = NewOperationKey();
+    public string? CorrespondenceOperationKey { get; set; } = NewOperationKey();
 
     [TempData]
     public string? ClassificationNotice { get; set; }
@@ -205,6 +221,27 @@ public sealed class MessageModel(
         IsQueryResponseSource && QueryResponseCondition is null;
 
     public IntakeReceipt? AssociationReceipt { get; private set; }
+
+    /// <summary>What the message's receipt offers right now; none once a Case holds it.</summary>
+    public IntakeOfferedActions Offers { get; private set; } = IntakeOfferedActions.None;
+
+    /// <summary>
+    /// The one next action the current classification calls for (operator,
+    /// 1 October 2026): staff press it; nothing runs on its own. Absent when
+    /// the classification names none, the receipt no longer qualifies, or a
+    /// Case already holds the message.
+    /// </summary>
+    public MessageOffer? Offer =>
+        AssociationReceipt is { CurrentCaseId: null }
+        && Detail.Classification?.Current is { Outcome: MailClassificationOutcome.Classified, Category: { } category }
+            ? category switch
+            {
+                { IsNewInstruction: true } when Offers.CanCreateCase => MessageOffer.CreateCase,
+                { IsTriageRequest: true } when Offers.CanOpenTriage => MessageOffer.OpenTriage,
+                { IsImagesReceived: true } when Offers.CanRegisterImages => MessageOffer.RegisterImages,
+                _ => null
+            }
+            : null;
 
     public CaseHeader? CurrentCase { get; private set; }
 
@@ -981,6 +1018,12 @@ public sealed class MessageModel(
         {
             ModelState.AddModelError(nameof(ClassificationKey), "Choose a valid classification and complete any Other details.");
         }
+        CaseType? workType = null;
+        if (category is { IsNewInstruction: true }
+            && !MailClassificationSelection.TryParseWorkType(WorkType, out workType))
+        {
+            ModelState.AddModelError(nameof(WorkType), "Choose a valid case type.");
+        }
         if (string.IsNullOrWhiteSpace(CorrectionReason))
         {
             ModelState.AddModelError(nameof(CorrectionReason), "Explain why this classification is being corrected.");
@@ -994,7 +1037,7 @@ public sealed class MessageModel(
         {
             var result = await correctClassification.ExecuteAsync(
                 actor,
-                new(id, ExpectedClassificationVersion, category!, CorrectionReason!),
+                new(id, ExpectedClassificationVersion, category!, CorrectionReason!, workType),
                 cancellationToken);
             if (result is null)
             {
@@ -1027,6 +1070,78 @@ public sealed class MessageModel(
             queue = QueueFilter,
             sort = OldestFirst ? "oldest" : null
         });
+    }
+
+    public Task<IActionResult> OnPostOpenTriageAsync(
+        Guid id,
+        string? vehicleRegistration,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        RunOfferedActionAsync(
+            id,
+            async (actor, receipt) =>
+            {
+                await intakeActions.OpenTriageAsync(actor, receipt, vehicleRegistration, operationKey, cancellationToken);
+                return "The Triage was opened.";
+            },
+            cancellationToken);
+
+    public Task<IActionResult> OnPostRegisterImagesAsync(
+        Guid id,
+        string? vehicleRegistration,
+        string reason,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        RunOfferedActionAsync(
+            id,
+            async (actor, receipt) =>
+            {
+                var record = await intakeActions.RegisterImagesAsync(
+                    actor, receipt, vehicleRegistration, reason, operationKey, cancellationToken);
+                return $"Registered as vehicle images {record.ImageIntakeReference}.";
+            },
+            cancellationToken);
+
+    // The offered next action runs against the message's own receipt. A
+    // refusal reloads the record with the reason, as a correction does.
+    private async Task<IActionResult> RunOfferedActionAsync(
+        Guid id,
+        Func<ActionActor, IntakeReceipt, Task<string>> run,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var receipt = await GetExactAssociationAsync(actor, id, cancellationToken);
+            if (receipt is null)
+            {
+                return NotFound();
+            }
+            ClassificationNotice = await run(actor, receipt);
+            return RedirectToMessage(id);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
+            || IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                exception is ArgumentException argument
+                    ? argument.Message
+                    : "The action was not applied because the item changed or the action is not permitted. Reload and try again.");
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
     }
 
     public async Task<IActionResult> OnPostMoveToRecommendedFolderAsync(
@@ -1252,7 +1367,7 @@ public sealed class MessageModel(
                     CorrespondenceSubject!.Trim(),
                     CorrespondenceBody!.Trim(),
                     attachments,
-                    CorrespondenceOperationKey.Trim()),
+                    CorrespondenceOperationKey!.Trim()),
                 cancellationToken);
             CorrespondenceOperation = operation;
             if (operation.State == StaffMailState.Sent)
@@ -1595,11 +1710,7 @@ public sealed class MessageModel(
         && detail.Classification?.Current is
         {
             Outcome: MailClassificationOutcome.Classified,
-            Category:
-            {
-                Direction: MailDirection.Received,
-                ReceivedFamily: ReceivedMailFamily.PostReportEmails
-            }
+            Category.IsPostReport: true
         };
 
     private async Task LoadAssociationSafelyAsync(
@@ -1635,6 +1746,9 @@ public sealed class MessageModel(
         {
             return;
         }
+        Offers = AssociationReceipt.CurrentCaseId is null
+            ? await offeredActions.ExecuteAsync(actor, AssociationReceipt, cancellationToken)
+            : IntakeOfferedActions.None;
 
         if (AssociationReceipt.CurrentCaseId is { } currentCaseId)
         {

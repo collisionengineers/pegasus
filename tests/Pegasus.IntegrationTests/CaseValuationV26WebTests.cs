@@ -4,10 +4,13 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure;
+using Pegasus.Infrastructure.Glass;
 using Pegasus.Web.Presentation;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
@@ -885,6 +888,129 @@ public sealed class CaseValuationV26WebTests
         Assert.Contains("data-case-editing=\"true\"", html, StringComparison.Ordinal);
         Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
         Assert.DoesNotContain("value=\"13250.00\"", EntryCard(html, "brego"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Glass's connected (ADR-0060): the card is offered Get valuation, which
+    /// answers Retail Transacted and Glass's Trade for the posted month, and
+    /// the valuation's report — the stocked vehicle's "Values Only" print over
+    /// the same signed-in session — is filed after the figures have answered.
+    /// The press itself records nothing on the Case.
+    /// </summary>
+    [Fact]
+    public async Task GlassesGetValuationAnswersTheFiguresAndFilesItsReportAfterwards()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var mva = ScriptedGlassFor42000Miles();
+        var filing = new RecordingReportFiling();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            ConnectGlass(services, mva);
+            services.AddScoped<IFileGuideValuationReport>(_ => filing);
+        });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        Assert.Contains("data-valuation-get", EntryCard(html, "glasses"), StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-get", EntryCard(html, "brego"), StringComparison.Ordinal);
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Glasses, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("ok", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal("17717.00", answer.RootElement.GetProperty("retail").GetString());
+        Assert.Equal("15600.00", answer.RootElement.GetProperty("trade").GetString());
+        Assert.Equal("2026-08", answer.RootElement.GetProperty("guideMonth").GetString());
+        Assert.Contains(mva.Requests, request =>
+            request.Path == "/index/create-new-vehicle/value/0/valuate/1/mileage/42000/valdate/202608/condition/false");
+
+        var (filed, pdf) = await filing.Filed.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.Equal(store.CaseId, filed.CaseId);
+        Assert.Equal(ValuationSource.Glasses, filed.Source);
+        Assert.Equal("AB12CDE", filed.Registration);
+        Assert.Equal(new DateOnly(2026, 8, 1), filed.GuideMonth);
+        Assert.Equal("glass-stock:" + GlassProviderFixture.VehicleId, filed.Report.Identity);
+        Assert.Equal(GlassProviderFixture.ReportPdf, System.Text.Encoding.UTF8.GetString(pdf));
+        Assert.Empty(store.Saves);
+    }
+
+    /// <summary>
+    /// A valuation Glass's cannot make answers the card's approved notice and
+    /// stocks nothing, so no report is filed.
+    /// </summary>
+    [Fact]
+    public async Task AGlassesValuationThatIsNotPossibleAnswersUnavailableAndFilesNothing()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var mva = ScriptedGlassFor42000Miles();
+        mva.Set("GET /three-phase-vehicle/get-values", new(HttpStatusCode.OK, GlassProviderFixture.ValuationNotPossible));
+        var filing = new RecordingReportFiling();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            ConnectGlass(services, mva);
+            services.AddScoped<IFileGuideValuationReport>(_ => filing);
+        });
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Glasses, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("unavailable", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal(0, mva.Count("GET /index/create-new-vehicle"));
+        Assert.False(filing.Filed.Task.IsCompleted);
+        Assert.Empty(store.Saves);
+    }
+
+    /// <summary>The scripted Glass's, answering the Case's own 42,000 miles.</summary>
+    private static ScriptedGlass ScriptedGlassFor42000Miles()
+    {
+        var mva = new ScriptedGlass();
+        GlassProviderFixture.Script(mva);
+        mva.Set(
+            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/42000",
+            new(HttpStatusCode.OK, "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":1,\"natcode\":\""
+                + GlassProviderFixture.NatCode + "\"}"));
+        return mva;
+    }
+
+    /// <summary>Glass's as Production composes it, over the scripted provider.</summary>
+    private static void ConnectGlass(IServiceCollection services, ScriptedGlass mva)
+    {
+        services.AddSingleton(new GlassRepairEstimateOptions(
+            GlassProviderFixture.MvaBase,
+            GlassProviderFixture.EstimatorBase,
+            GlassProviderFixture.CallbackBase,
+            GlassProviderFixture.ProfileId,
+            SessionLifetime: TimeSpan.FromHours(8),
+            ExportPollInterval: TimeSpan.FromMilliseconds(5),
+            ExportTimeout: TimeSpan.FromMilliseconds(50),
+            MaximumExportBytes: 16 * 1024 * 1024));
+        services.Configure<HttpClientFactoryOptions>(
+            GlassRepairEstimateOptions.HttpClientName,
+            options => options.HttpMessageHandlerBuilderActions.Add(handler => handler.PrimaryHandler = mva));
+        services.AddGlassGuideValuation(_ => GlassValuationAccount.Create(key =>
+            key.EndsWith("Username", StringComparison.Ordinal) ? "valuation-test" : "synthetic-password"));
+    }
+
+    /// <summary>Records the filing the press handed on, and reads its report as filing would.</summary>
+    private sealed class RecordingReportFiling : IFileGuideValuationReport
+    {
+        public TaskCompletionSource<(FileGuideValuationReportRequest Request, byte[] Pdf)> Filed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<Pegasus.Core.Custody.CaseArtifactCustodyResult> ExecuteAsync(
+            FileGuideValuationReportRequest request, CancellationToken cancellationToken)
+        {
+            Filed.TrySetResult((request, await request.Report.FetchPdfAsync(cancellationToken)));
+            return new(Pegasus.Core.Custody.CaseArtifactCustodyDisposition.Confirmed,
+                null, null, null, null, null, null, null, null, null, null);
+        }
     }
 
     private static async Task<HttpResponseMessage> PostGetValuationAsync(

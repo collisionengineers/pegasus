@@ -124,6 +124,8 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Glass:EstimatorBaseUri")]
     [InlineData("Glass:CallbackBaseUri")]
     [InlineData("Glass:RepairProfileId")]
+    [InlineData("Glass:ValuationAccount:Username")]
+    [InlineData("Glass:ValuationAccount:Password")]
     [InlineData("GitHub:ProblemReports:Token")]
     [InlineData("GitHub:ProblemReports:Repository")]
     public void ProductionFailsClosedWithoutTheExternalConfigurationItComposes(string missingKey)
@@ -160,6 +162,8 @@ public sealed class LocalIntakeAccessTests
             ["Glass:EstimatorBaseUri"] = "https://ere.test/",
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
             ["Glass:RepairProfileId"] = "4063",
+            ["Glass:ValuationAccount:Username"] = "valuation-test",
+            ["Glass:ValuationAccount:Password"] = "synthetic-password",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
         };

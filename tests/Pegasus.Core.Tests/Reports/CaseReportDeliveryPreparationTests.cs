@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
@@ -492,7 +493,7 @@ public sealed class CaseReportDeliveryPreparationTests
     /// <summary>A Case whose report has never been sent.</summary>
     private sealed class NoSendHistory : ICaseReportSendHistoryQueries
     {
-        public Task<CaseReportSendHistory> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CaseReportSendHistory> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult(CaseReportSendHistory.None);
     }
 
@@ -512,7 +513,7 @@ public sealed class CaseReportDeliveryPreparationTests
             throw new NotSupportedException();
 
         public Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 
@@ -527,13 +528,13 @@ public sealed class CaseReportDeliveryPreparationTests
             throw new NotSupportedException();
 
         public Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 
     private sealed class RefusingSuggestions : IReportRecipientSuggestionQueries
     {
-        public Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 
@@ -551,14 +552,14 @@ public sealed class CaseReportDeliveryPreparationTests
                 : null);
 
         public Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult(record);
     }
 
     private sealed class FixedSuggestions(ReportRecipientSuggestions suggestions)
         : IReportRecipientSuggestionQueries
     {
-        public Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<ReportRecipientSuggestions?>(caseId == CaseId ? suggestions : null);
     }
 

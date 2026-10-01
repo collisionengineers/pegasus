@@ -127,6 +127,13 @@ public sealed class ProcessIntake(
             }
         }
 
+        // A corrected classification is the accepted one: a re-evaluation reads
+        // it in place of the classifier, so the receipt's decision, evidence and
+        // audit evidence all follow the correction.
+        var retainedClassification = replaceExisting && existing is { IsMailClassificationCorrected: true }
+            ? existing.MailClassificationDecision
+            : null;
+
         IntakeAssetRecord sourceAsset;
         if (retainedSourceStorageKey is null)
         {
@@ -221,6 +228,7 @@ public sealed class ProcessIntake(
                 readResult,
                 safeSource.SourceIdentity,
                 safeSource.ReceivedAtUtc,
+                retainedClassification,
                 cancellationToken)
             : DeclaredDestinationAssessment(readResult);
         activity?.SetTag("intake.declared_destination", safeSource.DeclaredCaseId is not null);
@@ -870,6 +878,7 @@ public sealed class ProcessIntake(
         IntakeSourceReadResult readResult,
         IntakeSourceIdentity sourceIdentity,
         DateTimeOffset receivedAtUtc,
+        MailClassificationResult? retainedClassification,
         CancellationToken cancellationToken)
     {
         var sourceChannel = sourceIdentity.Channel;
@@ -1003,7 +1012,7 @@ public sealed class ProcessIntake(
             : principalContext?.PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
                 ? readResult
                 : readResult with { Content = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult).ToArray() };
-        var mailClassificationDecision = EvaluateMailClassification(
+        var mailClassificationDecision = retainedClassification ?? EvaluateMailClassification(
             readResult,
             conflictingProfile ? null : principalContext?.PrincipalCode,
             instructionSelection.InstructionContent);
@@ -1237,35 +1246,8 @@ public sealed class ProcessIntake(
     /// the detail and by the recorded classification decision itself.
     /// </remarks>
     private static IntakeEvidence? AcceptedTriageMatchEvidence(
-        MailClassificationResult? classification)
-    {
-        // A reply is correspondence about a Triage, not a new assessment
-        // request — FRD-03 begins a Triage from a *Principal request*. The
-        // subject tell is anchored past RE/FW on purpose and the body tell
-        // matches quoted text, so every reply in a Triage thread classifies
-        // as one; and Triage identity is per message, never per claim or
-        // registration, so honouring a reply here would open a second Open
-        // Triage on the same vehicle for ordinary thread traffic. The reply
-        // still leaves case allocation alone and reaches Unidentified, which
-        // is a queue somebody works — today it reaches none.
-        if (classification is not { IsTriageRequest: true }
-            || classification.Category?.IsReplyContext == true)
-        {
-            return null;
-        }
-
-        var matched = string.Join(
-            ", ",
-            classification.Predicates.Where(predicate => predicate.Matched).Select(predicate => predicate.Key));
-        return new(
-            IntakeEvidenceSource.SystemDefault,
-            IntakeEvidenceStrength.Strong,
-            IntakeEvidenceFinding.AcceptedTriageMatch,
-            MailCategory.TriageRequestSubtype,
-            $"The accepted route classification recorded this message as a Triage request (predicates: {matched}).",
-            classification.PolicyKey,
-            classification.PolicyVersion);
-    }
+        MailClassificationResult? classification) =>
+        MailTriageMatch.Evidence(classification);
 
     /// <summary>
     /// Classification belongs to the established Principal — the accepted

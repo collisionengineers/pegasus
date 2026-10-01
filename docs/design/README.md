@@ -164,8 +164,9 @@ panel.
 
 Once an Inspection + Audit Case has its Audit, a **Views** card heads the
 aside, above Figures, in the context-card pattern: two rows, "Inspection ·
-{Case/PO}" with a plain green "Sent" chip and "Audit · a.{Case/PO}" with the
-Case's state chip as the ribbon draws it. The current view reads plain
+{Case/PO}" with a plain green "Sent" chip when the Inspection report was
+sent (no chip when the Audit was created first) and "Audit · a.{Case/PO}"
+with the Case's state chip as the ribbon draws it. The current view reads plain
 (`aria-current="page"`) and the other is a link; the Audit view is the
 default. Before the Audit exists, and on a standalone Audit or a Triage Case,
 there is no card. The ribbon keeps the Case/PO and gains no Audit reference.
@@ -174,14 +175,20 @@ the one availability label **Read-only · Audit created** instead. In Files,
 an Audit folder chip follows the Case folder chip in the same tones: **Box
 audit · confirmed**, **Box audit folder: preparing** or **Box audit folder:
 unavailable**. Report shows the Inspection's sent report as one `.pv` line
-above the Audit report card, with an **Inspection view** link. A Triage Case
+above the Audit report card, with an **Inspection view** link. While the
+Inspection report is still to be sent, the Inspection view's Report keeps
+the generation and delivery controls for that report alone (operator,
+1 October 2026). A Triage Case
 at `/Cases/{id}` keeps the Triage page's own layout, with the Case's Files
 panel before Notes.
 
 The **Actions** menu holds exactly the progressions the state permits — Hand
 to Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
-or Engineer, Archive, Place on Hold or Release Hold, Correct principal, Create
-audit — then, after a separator and in red, Close case. Outside an edit
+or Engineer, Archive, Place on Hold or Release Hold, Correct principal — and,
+on an Inspection + Audit Case, Create audit in every state: a disabled
+`.btn` inside a `.menu-gated` span whose `title` states Core's refusal on
+hover when it is not permitted (operator, 1 October 2026) — then, after a
+separator and in red, Close case. Outside an edit
 session the menu appears only when Send to EVA is available. Damage uses the
 **plan** only: a top-down drawing of the recorded vehicle (car, van or
 motorbike), one yellow comic burst per recorded damage sized and placed by
@@ -710,7 +717,7 @@ on a source with no working provider, shown in that source's card from the
 start (28 September 2026), with no Get valuation button; "report a
 problem" opens the Report a problem dialog. It replaces the 18 September
 "Error. Contact an administrator." Received-mail chasing categories read
-"Update Request", also the operator's wording; "provider" never appears in
+"Update request", also the operator's wording; "provider" never appears in
 operator copy (Principal is the word).
 
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
@@ -786,8 +793,8 @@ Repair Spec and the valuation calculator carry no Save or Apply of their own.
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
-repair-estimate launch. A Glass's valuation is a card the Engineer fills in;
-no guide provider is connected
+repair-estimate launch. Glass's is the one connected guide source, so only its
+card offers Get valuation; the other guide cards are filled in by hand
 ([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
 temporary section-scoped drop overlay; Cazana remains the disabled seam.

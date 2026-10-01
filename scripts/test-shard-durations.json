@@ -21,6 +21,7 @@
   "Pegasus.IntegrationTests.AutomationDocumentIngressTests": 43.26,
   "Pegasus.IntegrationTests.AutomationDocumentStreamingTests": 42.35,
   "Pegasus.IntegrationTests.AutomationIntakeParityIngressTests": 32.61,
+  "Pegasus.IntegrationTests.AutomationIntakeSubmitIngressTests": 30.0,
   "Pegasus.IntegrationTests.AutomationMailIngressTests": 20.12,
   "Pegasus.IntegrationTests.AutomationMcpIngressTests": 58.02,
   "Pegasus.IntegrationTests.AutomationMcpOptionsTests": 0.0,

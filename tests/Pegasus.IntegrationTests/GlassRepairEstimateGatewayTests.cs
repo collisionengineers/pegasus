@@ -2258,11 +2258,6 @@ public sealed class GlassRepairEstimateGatewayTests
                 : base.SendAsync(request, cancellationToken);
     }
 
-    private sealed class ClientFactory(HttpMessageHandler handler) : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
-    }
-
     private sealed class CaseAuthorityDouble(GlassRepairEstimateCaseFacts facts) : IGlassRepairEstimateCaseAuthority
     {
         public GlassRepairEstimateCaseFacts Facts { get; set; } = facts;
@@ -2734,7 +2729,7 @@ public sealed class GlassRepairEstimateGatewayTests
                     custody,
                     custody,
                     import,
-                    new ClientFactory(transport?.Invoke(mva) ?? mva),
+                    new ScriptedClientFactory(transport?.Invoke(mva) ?? mva),
                     protector,
                     options,
                     clock,

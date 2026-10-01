@@ -696,17 +696,24 @@ The approved release operator supplies these deployment inputs:
 | `GLASS_MARKET_VALUE_ASSESSOR_BASE_URI` | Glass's Market Value Assessor origin. Defaults to `https://www.marketvalueassessor.jdpower.com/`. |
 | `GLASS_ESTIMATOR_BASE_URI` | Glass's repair estimator origin a launch may send the staff member to. Defaults to `https://repairestimate.autovistagroup.com/`. |
 | `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |
+| `GLASS_VALUATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-username`, the Glass's valuation account name ([ADR-0060](adr/0060-glass-valuation-account-and-valuation-report.md)). No default. |
+| `GLASS_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-password`, that account's password. No default. |
 
 Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
 hostname. These are references, never PFX bytes or passwords in the repository.
-The Web host lists the four `Glass:*` keys among its Production required
-settings, so a Web App deployed without them stops at startup naming the key;
-the migration host is built the same way and must be handed the same values.
+The Web host lists the four `Glass:*` keys and the two
+`Glass:ValuationAccount:*` keys among its Production required settings, so a
+Web App deployed without them stops at startup naming the key; the migration
+host is built the same way and must be handed the same values.
 Initial certificate creation is a separately authorized operator action; no
-secret is seeded. Each staff member's own Glass's account name and password
-are entered by an Administrator on that staff account's Glass's page and are
-held protected per staff account, never in deployment configuration.
+secret is seeded. The Glass's valuation account is the one Glass's login held
+in deployment configuration: the release operator creates its two secrets in
+the deployment vault and grants the Web identity secret-read access at each
+secret's scope, and Bicep hands the Web App Key Vault references to them. Each
+staff member's own Glass's account name and password, used for the repair
+estimate, are entered by an Administrator on that staff account's Glass's page
+and are held protected per staff account, never in deployment configuration.
 
 For rotation, publish new certificate secret versions, then deploy all replicas
 with both the new and still-required old versions. Verify token issue,

@@ -1,5 +1,6 @@
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Notifications;
 using Pegasus.Core.Workflow;
 
@@ -17,6 +18,7 @@ public sealed class StaffNotificationTests
     [InlineData(StaffNotificationCause.EditedByOther)]
     [InlineData(StaffNotificationCause.EmailReceived)]
     [InlineData(StaffNotificationCause.QueryReceived)]
+    [InlineData(StaffNotificationCause.CancellationReceived)]
     [InlineData(StaffNotificationCause.CaseAssigned)]
     public void TheEngineerIsToldUnlessTheyDidItThemself(StaffNotificationCause cause)
     {
@@ -78,14 +80,14 @@ public sealed class StaffNotificationTests
     {
         var store = new FakeStore();
         var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.Query, EngineerId));
-        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows);
+        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, new NoReceipts());
 
-        var query = await notifier.NotifyMailArrivalAsync(CaseId, null, default);
+        var query = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), null, default);
         workflows.Current = Workflow(CaseLifecycleState.PostReport, EngineerId);
-        var mail = await notifier.NotifyMailArrivalAsync(CaseId, ActionActor.Staff(OtherId, [StaffRole.User]), default);
-        var own = await notifier.NotifyMailArrivalAsync(CaseId, ActionActor.Staff(EngineerId, [StaffRole.Engineer]), default);
+        var mail = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), ActionActor.Staff(OtherId, [StaffRole.User]), default);
+        var own = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), ActionActor.Staff(EngineerId, [StaffRole.Engineer]), default);
         workflows.Current = Workflow(CaseLifecycleState.Review, null);
-        var unassigned = await notifier.NotifyMailArrivalAsync(CaseId, null, default);
+        var unassigned = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), null, default);
 
         Assert.Equal(StaffNotificationCause.QueryReceived, query!.Cause);
         Assert.Equal($"/Cases/{CaseId:D}?section=correspondence", query.Route);
@@ -96,11 +98,56 @@ public sealed class StaffNotificationTests
     }
 
     [Fact]
+    public async Task ACancellationOnAnOpenCaseIsNamedAsOneAndAClosedCaseHearsOfOrdinaryMail()
+    {
+        var store = new FakeStore();
+        var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.ReportPreparation, EngineerId));
+        var receiptId = Guid.NewGuid();
+        var receipts = new FakeReceipts(
+            receiptId,
+            MailCategory.Received(ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype));
+        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, receipts);
+
+        var open = await notifier.NotifyMailArrivalAsync(CaseId, receiptId, null, default);
+        var corrected = await notifier.NotifyCancellationReceivedAsync(CaseId, ActionActor.Staff(OtherId, [StaffRole.User]), default);
+        var other = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), null, default);
+        workflows.Current = Workflow(CaseLifecycleState.PostReportComplete, EngineerId);
+        var closed = await notifier.NotifyMailArrivalAsync(CaseId, receiptId, null, default);
+        var closedCorrection = await notifier.NotifyCancellationReceivedAsync(CaseId, null, default);
+
+        Assert.Equal(StaffNotificationCause.CancellationReceived, open!.Cause);
+        Assert.Equal($"/Cases/{CaseId:D}?section=correspondence", open.Route);
+        Assert.Equal(StaffNotificationCause.CancellationReceived, corrected!.Cause);
+        Assert.Equal(StaffNotificationCause.EmailReceived, other!.Cause);
+        Assert.Equal(StaffNotificationCause.EmailReceived, closed!.Cause);
+        Assert.Null(closedCorrection);
+    }
+
+    [Fact]
+    public async Task ACancellationOnACaseAlreadyInQueryIsNamedAsACancellation()
+    {
+        var store = new FakeStore();
+        var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.Query, EngineerId));
+        var receiptId = Guid.NewGuid();
+        var receipts = new FakeReceipts(
+            receiptId,
+            MailCategory.Received(ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype));
+        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, receipts);
+
+        var cancellation = await notifier.NotifyMailArrivalAsync(
+            CaseId, receiptId, ActionActor.Staff(OtherId, [StaffRole.User]), default);
+
+        Assert.Equal(StaffNotificationCause.CancellationReceived, cancellation!.Cause);
+        Assert.Equal(EngineerId, cancellation.StaffId);
+        Assert.Equal($"/Cases/{CaseId:D}?section=correspondence", cancellation.Route);
+    }
+
+    [Fact]
     public async Task AnAiDraftOnACaseTellsTheEngineerAndAnUnidentifiedDraftTellsTheStarter()
     {
         var store = new FakeStore();
         var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.ReportPreparation, EngineerId));
-        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows);
+        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, new NoReceipts());
         var item = Guid.NewGuid();
 
         var estimate = await notifier.NotifyAiDraftReadyAsync(Job(AiJobKind.Estimate, CaseId) with { State = AiJobState.DraftReady }, default);
@@ -169,6 +216,22 @@ public sealed class StaffNotificationTests
 
         public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
             Task.FromResult(false);
+    }
+
+    private sealed class FakeReceipts(Guid receiptId, MailCategory category) : IIntakeReceiptQueries
+    {
+        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<IntakeReceipt?>(id != receiptId ? null : new(
+                receiptId, "message.eml", "message/rfc822", 1, new string('A', 64),
+                new(IntakeSourceChannel.Mailbox, "token"), Now, Now, IntakeDecision.NeedsSorting, "Fixture.",
+                [], [], null, [], null, null, false, "reader", "1", null, null,
+                MailClassificationDecision: MailClassificationResult.Classified(category, [], "Fixture.", "policy", 1)));
+    }
+
+    private sealed class NoReceipts : IIntakeReceiptQueries
+    {
+        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<IntakeReceipt?>(null);
     }
 
     private sealed class FakeStore : IStaffNotificationStore

@@ -31,10 +31,12 @@ for browsing mail live in [FRD-20](frd-20-mailbox-workspace.md).
 Report-sent evidence links one exact, immutable Outlook Sent item to exactly
 one Case. The mailbox must be on the Administrator's allowlist. On an
 Inspection + Audit Case the evidence belongs to one report: the Inspection's
-stays with the Inspection when Create audit runs, and the Audit report's
-must be of that report and sent after the Audit was created. Automatic
-matching links only a Sent item of the report the Case is currently
-preparing
+stays with the Inspection when Create audit runs, an Inspection report sent
+afterwards links to the Inspection's own work from the Inspection view, and
+the Audit report's must be of that report and sent after the Audit was
+created. Automatic matching reads which report Pegasus's own send carried
+and links the Sent item to that work; a send of the Inspection report after
+Create audit never moves the Case's state (operator, 1 October 2026)
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)).
 
 The record keeps:

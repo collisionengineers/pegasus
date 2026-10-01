@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Pegasus.Core;
+using Pegasus.Core.Cases;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Intake;
@@ -61,7 +62,8 @@ internal sealed record MailToolClassificationResult(
     IReadOnlyList<MailToolPredicate> Predicates,
     string Reason,
     string PolicyKey,
-    int PolicyVersion);
+    int PolicyVersion,
+    string? CaseType);
 
 internal sealed record MailToolCorrectionHistoryEntry(
     int Version,
@@ -255,7 +257,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Corrects one retained message's classification using the same versioned Core command as the staff workspace. Requires the exact classification key from the correction options (Other keys also need otherName and otherReasoning), a reason, the expected classification version, and a mcp:-prefixed operation key. The prior decision stays in permanent history.")]
+    [Description("Corrects one retained message's classification using the same versioned Core command as the staff workspace. Requires the exact classification key from the message's correction options (Other keys also need otherName and otherReasoning; a received:NewInstructionReceived key also needs workType), a reason, the expected classification version, and a mcp:-prefixed operation key. The prior decision stays in permanent history.")]
     public async Task<MailToolClassification> CorrectClassificationAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         [Description("The classification version last read, for optimistic concurrency.")] int expectedClassificationVersion,
@@ -264,6 +266,7 @@ internal sealed class MailMcpTools(
         [Description("Caller idempotency key, prefixed mcp:.")] string operationKey,
         [Description("New category name; required only with an other-received or other-sent key.")] string? otherName = null,
         [Description("Why no existing category fits; required only with an other-received or other-sent key.")] string? otherReasoning = null,
+        [Description("The case type a New instruction names: Inspection, Audit or InspectionAndAudit; required only with a received:NewInstructionReceived key.")] string? workType = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.MailScope, cancellationToken);
@@ -284,6 +287,12 @@ internal sealed class MailMcpTools(
                     throw new McpException(
                         "The classification key is not a canonical correction option, or the Other details are missing or outside their bounds.");
                 }
+                CaseType? caseType = null;
+                if (!string.IsNullOrWhiteSpace(workType)
+                    && !MailClassificationSelection.TryParseWorkType(workType.Trim(), out caseType))
+                {
+                    throw new McpException("The work type is not Inspection, Audit or InspectionAndAudit.");
+                }
 
                 var dossier = await correctClassification.ExecuteAsync(
                     context.Actor,
@@ -291,7 +300,8 @@ internal sealed class MailMcpTools(
                         AutomationMcpErrors.RequireId(messageId, "retained message identifier"),
                         expectedClassificationVersion,
                         category!,
-                        reason),
+                        reason,
+                        caseType),
                     cancellationToken)
                     ?? throw new McpException(
                         "The retained message was not found or has no classification decision to correct.");
@@ -331,7 +341,7 @@ internal sealed class MailMcpTools(
             entry.Actor,
             entry.Reason,
             entry.CorrectedAtUtc)).ToArray(),
-        MailClassificationSelection.Options);
+        MailClassificationSelection.OptionsFor(dossier.MessageDirection));
 
     private static MailToolClassificationResult Map(MailClassificationResult result) => new(
         result.Outcome.ToString(),
@@ -350,5 +360,6 @@ internal sealed class MailMcpTools(
             predicate.Detail)).ToArray(),
         result.Reason,
         result.PolicyKey,
-        result.PolicyVersion);
+        result.PolicyVersion,
+        result.CaseType?.ToString());
 }

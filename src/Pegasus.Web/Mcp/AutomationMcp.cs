@@ -21,6 +21,7 @@ public static class AutomationMcp
     public const string ClientDisplayName = "Pegasus Automation Actor";
     public const string EndpointPolicy = "AutomationMcpEndpoint";
     public const string DocumentsEndpointPolicy = "AutomationMcpDocumentsEndpoint";
+    public const string IntakeEndpointPolicy = "AutomationMcpIntakeEndpoint";
     public const string RateLimitPolicy = "AutomationMcp";
     public const string Audience = "pegasus-automation-mcp";
     public const string TokenEndpointPath = "/connect/token";

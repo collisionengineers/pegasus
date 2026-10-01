@@ -11,8 +11,10 @@
   cell as it is left, a composite editor when it is left or after a short
   pause. Each save records the Case fields, the Repair Spec and the
   valuation calculation together, and the page keeps editing.
-- One Actions menu offers only what Core allows for the current state.
-  Hand to Engineer is the only way out of Review.
+- One Actions menu offers only what Core allows for the current state;
+  Create audit alone is always listed on an Inspection + Audit Case, greyed
+  out with its reason when refused. Hand to Engineer is the only way out of
+  Review.
 - The Engineer sections (Damage, Valuation, Estimate, Settlement, Report)
   are editable by every enabled staff role in Not ready, Review and With
   Engineer, and read-only in Held,
@@ -92,6 +94,9 @@ When a newer fact has made the current generation stale, the Next action
 carries the dismissable warning "A newer fact changed after this generation.
 Generate again before delivery." There is no page-wide stale bar and no
 second stale notice in Report (operator, 28 September 2026).
+While a linked message is currently classified a cancellation and the Case
+is open, the Next action also carries **Cancellation received** with **Open
+message** ([FRD-13](frd-13-case-lifecycle-and-workflow.md#cancellation-messages)).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Delivery is the Next action only once the report is
@@ -180,7 +185,8 @@ its address is ignored.
 
 **The Views card** heads the aside, above Figures, and exists only once the
 Audit exists. It holds two rows: "Inspection · {Case/PO}" with a "Sent"
-chip, and "Audit · a.{Case/PO}" with the Case's state chip. The current view
+chip when the Inspection report was sent (none when the Audit was created
+first), and "Audit · a.{Case/PO}" with the Case's state chip. The current view
 reads plain and the other is a link. `?view=audit` and `?view=inspection`
 address the two views; the Audit view
 is the default, and a write returns to it. The ribbon is unchanged: its
@@ -199,12 +205,19 @@ edit lease, such as Add evidence, previews and downloads, stay, and every
 change that needs the lease is made in the Audit view. A staff member who
 holds the edit lease and opens the Inspection view keeps the ribbon's
 editing controls, but every section there stays read-only. The Next action
-links to the Audit view.
+links to the Audit view. The one exception is the Inspection report while it
+is still to be sent: the Inspection view's Report section generates it,
+prepares and sends its delivery, and the Actions menu's Mark report sent
+takes its evidence, all on the Inspection's own work and without changing
+the Case's state (operator, 1 October 2026).
 
 ### Actions menu
 
 The one **Actions** menu offers only what the Core use cases permit for the
-current state, in and out of an edit session (operator, 29 September 2026).
+current state, in and out of an edit session (operator, 29 September 2026),
+with one exception: Create audit is always listed on an Inspection + Audit
+Case and, when refused, is greyed out with the refusal as its hover text
+(operator, 1 October 2026).
 An item taken outside a session runs under a lease claimed for that one
 action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
@@ -237,8 +250,10 @@ to Engineer needs no session. The rules behind each action are in
 - **Correct principal**, which records Created in error and creates the
   replacement Case
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
-- **Create audit**, after Correct principal, on an Inspection + Audit Case
-  once its Inspection report is sent
+- **Create audit**, after Correct principal, listed on every Inspection +
+  Audit Case and live while the Case is in work, whether or not its
+  Inspection report is sent; when refused it is greyed out and its hover
+  text states the refusal
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)). Its
   compact dialog states the Case, the Audit reference and the Engineer, asks
   for no reason and has no outcome. It posts in place and lands on the Audit
@@ -392,9 +407,13 @@ saved as entered. While editing, the boxes are
 inputs that belong to the Case form, and the card has **Get valuation**,
 which asks the connected provider for the Case's accepted registration and
 mileage in that month and fills the boxes in place, without redrawing the
-page. A source with no connected provider shows "{Source} valuation is
+page. Glass's is the connected source; its valuation's PDF report is filed on
+the Case's Documents after the figures have answered and appears there on the
+next load ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+A source with no connected provider shows "{Source} valuation is
 unavailable. Contact an administrator or report a problem." on its card from
-the start and offers no Get valuation (28 September 2026).
+the start and offers no Get valuation (28 September 2026); a connected source
+that cannot answer shows the same sentence when pressed.
 The card has no Save of its own (23 September 2026): each save records
 every card whose figures changed, a card left blank or unchanged records
 nothing, and the same source and month replaces the earlier card; a typed
@@ -501,9 +520,12 @@ Once the Case has an Audit, Report follows the view
 In the Audit view the report card's status begins with the Audit reference,
 and above the card one line stands for the Inspection's sent report: its
 title, "{Case/PO} · Sent {date}" and an **Inspection view** link. In the
-Inspection view the card shows the Inspection report with the status
-"{Case/PO} · Sent {date}"; it can be opened and downloaded, and generation
-and delivery are not shown. The Next action lists no blockers there; while
+Inspection view the card shows the Inspection report: once sent, with the
+status "{Case/PO} · Sent {date}", openable and downloadable, with no
+generation or delivery; while still to be sent, with its generation status
+and the Audit view's Generate, Prepare delivery and Send controls, acting on
+the Inspection's own work under the session's lease or one claimed for the
+generation (operator, 1 October 2026). The Next action lists no blockers there; while
 the Audit's report is not ready its one line reads Report not ready and links
 to the Audit view.
 
@@ -735,7 +757,9 @@ Section editability by state:
 | Completed, Query | Read-only (Return to Engineer to edit) | Read-only |
 
 Whatever the state, the Inspection view of a Case with an Audit is
-read-only apart from Files' and Notes' actions that need no edit lease.
+read-only apart from Files' and Notes' actions that need no edit lease and
+the Inspection report's own generation and delivery while it is still to be
+sent.
 
 ## Edge cases and fail-closed behaviour
 
@@ -754,7 +778,9 @@ read-only apart from Files' and Notes' actions that need no edit lease.
 - An ambiguous raw estimate file is refused with its reason.
 - A `view` value on a Case without an Audit is ignored. Every write changes
   the current values, the Audit's once it exists, and returns to the Audit
-  view; the Inspection's values never change after Create audit.
+  view, except a Report command on the Inspection report still to be sent,
+  which acts on the Inspection's work and returns to the Inspection view;
+  the Inspection's values never change after Create audit.
 
 ## Acceptance evidence
 

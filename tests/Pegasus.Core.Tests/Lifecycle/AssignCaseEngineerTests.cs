@@ -126,7 +126,10 @@ public sealed class AssignCaseEngineerTests
             return Task.FromResult<Pegasus.Core.Notifications.StaffNotification?>(null);
         }
 
-        public Task<Pegasus.Core.Notifications.StaffNotification?> NotifyMailArrivalAsync(Guid caseId, ActionActor? actor, CancellationToken cancellationToken) =>
+        public Task<Pegasus.Core.Notifications.StaffNotification?> NotifyMailArrivalAsync(Guid caseId, Guid intakeReceiptId, ActionActor? actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<Pegasus.Core.Notifications.StaffNotification?> NotifyCancellationReceivedAsync(Guid caseId, ActionActor? actor, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<Pegasus.Core.Notifications.StaffNotification?> NotifyAiDraftReadyAsync(Pegasus.Core.AiWork.AiJobRecord job, CancellationToken cancellationToken) =>
