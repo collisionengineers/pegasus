@@ -39,9 +39,11 @@
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     // The confirmation is a lease-carrying Core action; without detected
     // evidence there is nothing to confirm (D10: a send is never asserted here).
+    // The Inspection view marks the Inspection report sent on its own work
+    // while it awaits sending after Create audit (operator, 1 October 2026).
     var canConfirmReportSent = mayAct
-        && state == CaseLifecycleState.ReportPreparation
-        && details.AvailableReportSentEvidence.Count > 0;
+        && details.AvailableReportSentEvidence.Count > 0
+        && (Model.InspectionReportAwaitsSend || state == CaseLifecycleState.ReportPreparation);
     var canMarkCompleted = mayAct && state == CaseLifecycleState.PostReport;
     var canReturnToReview = mayActOnCaseData
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;

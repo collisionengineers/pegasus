@@ -202,7 +202,11 @@ edit lease, such as Add evidence, previews and downloads, stay, and every
 change that needs the lease is made in the Audit view. A staff member who
 holds the edit lease and opens the Inspection view keeps the ribbon's
 editing controls, but every section there stays read-only. The Next action
-links to the Audit view.
+links to the Audit view. The one exception is the Inspection report while it
+is still to be sent: the Inspection view's Report section generates it,
+prepares and sends its delivery, and the Actions menu's Mark report sent
+takes its evidence, all on the Inspection's own work and without changing
+the Case's state (operator, 1 October 2026).
 
 ### Actions menu
 
@@ -509,9 +513,12 @@ Once the Case has an Audit, Report follows the view
 In the Audit view the report card's status begins with the Audit reference,
 and above the card one line stands for the Inspection's sent report: its
 title, "{Case/PO} · Sent {date}" and an **Inspection view** link. In the
-Inspection view the card shows the Inspection report with the status
-"{Case/PO} · Sent {date}"; it can be opened and downloaded, and generation
-and delivery are not shown. The Next action lists no blockers there; while
+Inspection view the card shows the Inspection report: once sent, with the
+status "{Case/PO} · Sent {date}", openable and downloadable, with no
+generation or delivery; while still to be sent, with its generation status
+and the Audit view's Generate, Prepare delivery and Send controls, acting on
+the Inspection's own work under the session's lease or one claimed for the
+generation (operator, 1 October 2026). The Next action lists no blockers there; while
 the Audit's report is not ready its one line reads Report not ready and links
 to the Audit view.
 
@@ -743,7 +750,9 @@ Section editability by state:
 | Completed, Query | Read-only (Return to Engineer to edit) | Read-only |
 
 Whatever the state, the Inspection view of a Case with an Audit is
-read-only apart from Files' and Notes' actions that need no edit lease.
+read-only apart from Files' and Notes' actions that need no edit lease and
+the Inspection report's own generation and delivery while it is still to be
+sent.
 
 ## Edge cases and fail-closed behaviour
 
@@ -762,7 +771,9 @@ read-only apart from Files' and Notes' actions that need no edit lease.
 - An ambiguous raw estimate file is refused with its reason.
 - A `view` value on a Case without an Audit is ignored. Every write changes
   the current values, the Audit's once it exists, and returns to the Audit
-  view; the Inspection's values never change after Create audit.
+  view, except a Report command on the Inspection report still to be sent,
+  which acts on the Inspection's work and returns to the Inspection view;
+  the Inspection's values never change after Create audit.
 
 ## Acceptance evidence
 

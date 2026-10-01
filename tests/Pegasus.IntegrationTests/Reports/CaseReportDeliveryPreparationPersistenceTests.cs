@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
@@ -217,11 +218,11 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         await using var harness = await Harness.CreateAsync();
         var first = await harness.Store.PrepareAsync(harness.PrepareCommand(), CancellationToken.None);
 
-        var current = await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CancellationToken.None);
+        var current = await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(first.Preparation.Id, current!.Preparation.Id);
 
         await harness.SupersedeGenerationAsync();
-        Assert.Null(await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CancellationToken.None));
+        Assert.Null(await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
     }
 
     [Fact]
@@ -230,7 +231,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         await using var harness = await Harness.CreateAsync();
 
         var suggestions = await new EfReportRecipientSuggestionQueries(harness.Factory)
-            .GetAsync(harness.CaseId, CancellationToken.None);
+            .GetAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
 
         Assert.NotNull(suggestions);
         Assert.True(suggestions!.Settings.IncludeOriginalInstructionSender);

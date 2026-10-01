@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -16,12 +17,13 @@ internal sealed class EfCaseReportSendHistoryQueries(
 {
     private static readonly JsonSerializerOptions SnapshotJsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<CaseReportSendHistory> GetAsync(Guid caseId, CancellationToken cancellationToken)
+    public async Task<CaseReportSendHistory> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // Only sends of the current work's reports count: an Audit report's
-        // re-send suffix never counts the Inspection's sends (decision X).
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken)
+        // Only sends of the named work's reports count: an Audit report's
+        // re-send suffix never counts the Inspection's sends, nor the other
+        // way round (decision X).
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken)
             .ConfigureAwait(false);
         var sends = await (
                 from send in context.Set<StaffMailSendOperationEntity>().AsNoTracking()

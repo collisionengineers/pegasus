@@ -396,6 +396,40 @@ public sealed class CaseViewsWebTests
         Assert.Single(createAudit.Requests);
     }
 
+    /// <summary>
+    /// The Inspection report still to be sent after Create audit (operator,
+    /// 1 October 2026): the Inspection view prepares and sends it on its own
+    /// work, its forms naming the view, while the Audit view's Inspection
+    /// line carries no Sent.
+    /// </summary>
+    [Fact]
+    public async Task TheInspectionViewPreparesItsReportWhileItAwaitsSending()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            SummaryCaseType = CaseType.InspectionAndAudit
+        };
+        store.GiveAudit(InspectionSentAtUtc, inspectionSent: false);
+        var reports = new ReportsPerWork(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+            Substitute<ICaseReportGenerationStore>(services, reports));
+
+        var auditHtml = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
+        var line = InspectionReportLine(Section(auditHtml, "section-report-title"));
+        Assert.DoesNotContain(Frame.Sent, line, StringComparison.Ordinal);
+
+        var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
+        var inspectionReport = Section(inspectionHtml, "section-report-title");
+        Assert.DoesNotContain(Frame.Sent, ReportStatus(inspectionReport), StringComparison.Ordinal);
+        Assert.Contains("data-prepare-delivery", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains(reports.Inspection.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
+        Assert.DoesNotContain(reports.Audit.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-reference", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkSelector.Primary, reports.CurrentReads);
+    }
+
     private static string ViewsCard(string html)
     {
         var start = html.IndexOf("data-case-views>", StringComparison.Ordinal);

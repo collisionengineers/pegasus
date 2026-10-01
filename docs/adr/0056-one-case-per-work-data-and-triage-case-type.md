@@ -74,6 +74,11 @@ they ship as one rework with one destructive migration.
    audit the report approval and Sent evidence move from the Case workflow to
    the primary work, and the Audit's Sent evidence must follow the Audit's
    creation. Fees and MI count the first confirmed report of each work.
+   *Amended 1 October 2026:* only a work's own superseded generations are
+   closed. The primary work's report, when not yet sent at Create audit, is
+   still generated, approved, sent and marked sent on that work, from the
+   Inspection view, and never changes the Case's state; every report action
+   names the work it addresses.
 5. **The `a.` folder.** Each Case document records its custody folder: the
    Case folder or its audit folder. An Audit-work report is filed in the
    `a.{Case/PO}` Box subfolder under the Case folder, which Pegasus creates
