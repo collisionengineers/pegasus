@@ -8,6 +8,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -485,6 +486,53 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal(0, workflow.Version);
         Assert.Equal(lease.ExpiresAtUtc, workflow.EditLeaseExpiresAtUtc);
         CaseMutationGuard.Require(workflow, actor, 0, lease.Token, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// A guide valuation's report is filed while the Engineer who pressed Get
+    /// valuation still holds the Case open with the figures unsaved (ADR-0059):
+    /// it must leave their version and lease standing so their Save still
+    /// lands, and a second filing of the same report files nothing new.
+    /// </summary>
+    [Fact]
+    public async Task AGuideValuationReportIsFiledWithoutTouchingTheOpenEditSession()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var lease = await new AcquireCaseEditLease(new EfCaseWorkflowStore(factory, TimeProvider.System))
+            .ExecuteAsync(new(caseId, 0, actor, "lease-valuation"), default);
+        var filing = new FileGuideValuationReport(
+            new EfCaseArtifactCustody(factory, new SuccessfulContentStore(), new MemoryArtifactStore(), TimeProvider.System));
+        var request = new FileGuideValuationReportRequest(
+            actor, caseId, ValuationSource.Glasses, "AB12CDE", new DateOnly(2031, 4, 1), new PdfReport());
+
+        var filed = await filing.ExecuteAsync(request, default);
+        var again = await filing.ExecuteAsync(request, default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, filed.Disposition);
+        Assert.Equal(filed.VersionId, again.VersionId);
+        await using var context = await factory.CreateDbContextAsync();
+        var version = Assert.Single(await context.Set<DocumentVersionEntity>().ToArrayAsync());
+        Assert.Equal("Glass's valuation AB12CDE 2031-04.pdf", version.FileName);
+        Assert.Equal("application/pdf", version.MediaType);
+        var occurrence = Assert.Single(await context.Set<DocumentOccurrenceEntity>().ToArrayAsync());
+        Assert.Equal(DocumentSemanticRole.Other, occurrence.SemanticRole);
+        Assert.Equal("guide-valuation-report:Glasses:glass-stock:33636950", occurrence.OperationKey);
+        var workflow = await context.CaseWorkflows.SingleAsync();
+        Assert.Equal(0, workflow.Version);
+        Assert.Equal(lease.ExpiresAtUtc, workflow.EditLeaseExpiresAtUtc);
+        CaseMutationGuard.Require(workflow, actor, 0, lease.Token, DateTimeOffset.UtcNow);
+    }
+
+    private sealed class PdfReport : IGuideValuationReport
+    {
+        public string Identity => "glass-stock:33636950";
+
+        public Task<byte[]> FetchPdfAsync(CancellationToken cancellationToken) =>
+            Task.FromResult("%PDF-1.4\n% synthetic valuation report\n%%EOF\n"u8.ToArray());
     }
 
     /// <summary>

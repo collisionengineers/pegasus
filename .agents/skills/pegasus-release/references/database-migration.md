@@ -81,6 +81,8 @@ only when the stamp changes.
      Glass__EstimatorBaseUri = $values['GLASS_ESTIMATOR_BASE_URI']
      Glass__CallbackBaseUri = $webOrigin
      Glass__RepairProfileId = $values['GLASS_REPAIR_PROFILE_ID']
+     Glass__ValuationAccount__Username = 'migration-host-placeholder'
+     Glass__ValuationAccount__Password = 'migration-host-placeholder'
      GitHub__ProblemReports__Token = 'migration-host-placeholder'
      GitHub__ProblemReports__Repository = $values['GITHUB_PROBLEM_REPORT_REPOSITORY']
    }
@@ -90,13 +92,14 @@ only when the stamp changes.
    ```
 
    `GitHub__ProblemReports__Token`, `Graph__ChangeNotificationClientState`, `Box__ConfigJson`,
-   `Box__ClientSecret`, `Eva__ClientId`, and `Eva__ClientSecret` above are
-   intentionally non-empty process-only placeholders, not azd configuration
-   or secrets. The migration host validates the GitHub configuration but does
-   not dispatch problem reports. The Box value is shape-valid JWT JSON. The
-   migration host builds its deferred Box and EVA factories but does not use
-   their external routes.
-   The four `Glass__*` values are the Web host's Production required keys;
+   `Box__ClientSecret`, `Eva__ClientId`, `Eva__ClientSecret`,
+   `Glass__ValuationAccount__Username`, and `Glass__ValuationAccount__Password`
+   above are intentionally non-empty process-only placeholders, not azd
+   configuration or secrets. The migration host validates the GitHub
+   configuration but does not dispatch problem reports. The Box value is
+   shape-valid JWT JSON. The migration host builds its deferred Box, EVA and
+   Glass's valuation factories but does not use their external routes.
+   The four non-secret `Glass__*` values are the Web host's Production required keys;
    the two provider origins and the profile id are the same
    non-secret azd values bicep hands the Web App, and the callback origin is
    the fixed Web App origin `$webOrigin` from the release skill (the template

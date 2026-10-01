@@ -311,6 +311,8 @@ if ($Mode -eq 'PreProvision') {
         'AZURE_KEY_VAULT_NAME',
         'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
         'GITHUB_PROBLEM_REPORT_REPOSITORY',
+        'GLASS_VALUATION_USERNAME_SECRET_URI',
+        'GLASS_VALUATION_PASSWORD_SECRET_URI',
         'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
         'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'
     )
@@ -320,19 +322,24 @@ if ($Mode -eq 'PreProvision') {
             throw "azd environment $Environment is missing $key."
         }
     }
-    $problemReportUri = $null
-    $problemReportSecret = [string]$environmentValues['GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI']
-    if (-not [Uri]::TryCreate($problemReportSecret, [UriKind]::Absolute, [ref]$problemReportUri) -or
-        $problemReportUri.Scheme -ne 'https' -or
-        -not $problemReportUri.IsDefaultPort -or
-        $problemReportUri.UserInfo.Length -ne 0 -or
-        $problemReportUri.Query.Length -ne 0 -or
-        $problemReportUri.Fragment.Length -ne 0 -or
-        $problemReportUri.AbsolutePath -cnotmatch '^/secrets/[^/]+/[^/]+/?$' -or
-        -not $problemReportUri.Host.Equals(
-            "$($environmentValues['AZURE_KEY_VAULT_NAME']).vault.azure.net",
-            [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI must be a versioned HTTPS secret URI in the deployment Azure Key Vault.'
+    # An empty or malformed secret URI still deploys, as an app setting the
+    # platform can never resolve; the feature behind it then fails for ever.
+    foreach ($key in @('GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
+        'GLASS_VALUATION_USERNAME_SECRET_URI',
+        'GLASS_VALUATION_PASSWORD_SECRET_URI')) {
+        $secretUri = $null
+        if (-not [Uri]::TryCreate([string]$environmentValues[$key], [UriKind]::Absolute, [ref]$secretUri) -or
+            $secretUri.Scheme -ne 'https' -or
+            -not $secretUri.IsDefaultPort -or
+            $secretUri.UserInfo.Length -ne 0 -or
+            $secretUri.Query.Length -ne 0 -or
+            $secretUri.Fragment.Length -ne 0 -or
+            $secretUri.AbsolutePath -cnotmatch '^/secrets/[^/]+/[^/]+/?$' -or
+            -not $secretUri.Host.Equals(
+                "$($environmentValues['AZURE_KEY_VAULT_NAME']).vault.azure.net",
+                [StringComparison]::OrdinalIgnoreCase)) {
+            throw "$key must be a versioned HTTPS secret URI in the deployment Azure Key Vault."
+        }
     }
     if ([string]$environmentValues['GITHUB_PROBLEM_REPORT_REPOSITORY'] -cnotmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
         throw 'GITHUB_PROBLEM_REPORT_REPOSITORY must be an explicit GitHub owner/name.'
