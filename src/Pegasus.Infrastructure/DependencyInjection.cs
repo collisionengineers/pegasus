@@ -547,9 +547,12 @@ public static class DependencyInjection
         services.AddScoped<ICreateAiJob, CreateAiJob>();
         services.AddScoped<IMarketResearchQueries, MarketResearchQueries>();
         services.AddScoped<IStartMarketResearch, StartMarketResearch>();
-        // Guide providers register beside their adapter; none is connected yet,
-        // so the set is empty and Get valuation answers with a notice.
+        // Guide providers register beside their adapter (Glass's through
+        // AddGlassGuideValuation); a host that composes none answers Get
+        // valuation with the card's notice. A fetched valuation's report is
+        // filed by the host's own scheduler.
         services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
+        services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();
         services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
@@ -930,6 +933,30 @@ public static class DependencyInjection
         services.AddScoped<EvaSubmissionStore>();
         services.AddScoped<ISubmitCaseToEva>(provider =>
             provider.GetRequiredService<EvaSubmissionStore>());
+        return services;
+    }
+
+    /// <summary>
+    /// Connects Glass's as a guide valuation source (ADR-0060). A host that
+    /// does not call this has no Glass's provider, so the Case's Glass's card
+    /// says it is unavailable and offers no Get valuation. The account comes
+    /// through a factory and is read on each valuation, for the same
+    /// unresolved-Key-Vault-reference reason as EVA's options; the Glass's
+    /// origin and request timeout are the estimate adapter's own.
+    /// </summary>
+    public static IServiceCollection AddGlassGuideValuation(
+        this IServiceCollection services,
+        Func<IServiceProvider, GlassValuationAccount> accountFactory)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(accountFactory);
+
+        services.AddSingleton<IGuideValuationProvider>(provider => new GlassGuideValuationProvider(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            () => provider.GetRequiredService<GlassRepairEstimateOptions>(),
+            () => accountFactory(provider),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<GlassGuideValuationProvider>>()));
         return services;
     }
 
