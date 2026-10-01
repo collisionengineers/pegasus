@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.IntegrationTests.Reports;
@@ -222,6 +223,36 @@ public sealed class CaseAssetPreparationWebTests
             $"data-evidence-preparation-occurrence=\"{fixture.OverviewOccurrenceId:D}\"",
             grid,
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Nothing on the Case page follows the account type (operator, 1 October
+    /// 2026): a User editing a Case in Review, before any Engineer has it,
+    /// gets the tile's whole tool panel — In report and its order, Tag, Crop,
+    /// Rotate, Full page and the drag handle.
+    /// </summary>
+    [Fact]
+    public async Task AUserEditingAReviewCaseGetsEveryImageTool()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store(CaseLifecycleState.Review);
+        using var workspace = await EnterEngineerEditModeAsync(
+            store,
+            services => Substitute<ICaseAssetPreparationQueries>(services, store),
+            StaffRole.User);
+
+        var leased = await workspace.GetWorkspaceAsync();
+        var card = Card(ImageGrid(await GetFilesFragmentAsync(workspace, leased)), fixture.OverviewOccurrenceId);
+
+        Assert.Contains("image-tile-panel", card, StringComparison.Ordinal);
+        Assert.Contains("handler=SetImageInReport", card, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-order", card, StringComparison.Ordinal);
+        Assert.Contains("data-tag-picker", card, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-crop-occurrence", card, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-rotate", card, StringComparison.Ordinal);
+        Assert.Contains("data-image-full-page", card, StringComparison.Ordinal);
+        Assert.Contains("class=\"grip\"", card, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-image-report-read", card, StringComparison.Ordinal);
     }
 
     /// <summary>

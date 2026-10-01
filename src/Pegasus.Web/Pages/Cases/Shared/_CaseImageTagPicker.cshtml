@@ -10,7 +10,7 @@
    page comes back with the chips redrawn. The disclosure is the browser's;
    data-menu gives it the frame's outside-click and Escape closing. *@
 <details class="tag-picker" data-tag-picker data-menu>
-    <summary class="btn btn--small">@TagLabels.Tag</summary>
+    <summary class="icon-button" title="@TagLabels.Tag"><svg class="icon" aria-hidden="true"><use href="#icon-tag" /></svg><span class="sr-only">@TagLabels.Tag</span></summary>
     <div class="tag-picker-body">
         @foreach (var tag in view.Vocabulary)
         {

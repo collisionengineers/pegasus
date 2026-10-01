@@ -582,6 +582,16 @@ tile shows:
   posts in place and redraws only its own tile;
 - Preview and, while the Case edit lease is held, Crop.
 
+While the Case edit lease is held the tile's tools are one panel joined to
+the bottom of the image (operator, 1 October 2026). Its first row is **In
+report**, drawn as a tick box, with the image's **Order** beside it while
+the report uses the image. Its second row is one toolbar of same-size icon
+buttons, each named on hover: Tag, Crop, Rotate and Print on its own page,
+with the drag handle at the end. Without the lease the tile has no tools;
+one line under the image says In report, its order and Full page, or Not
+in report. No tool on the tile depends on the account type or on With
+Engineer.
+
 The Crop lease gate is the record's whole edit mode
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Crop is unavailable
 once the Case reaches Completed or Query, and never on an archived Case. It
