@@ -244,7 +244,13 @@ complete membership, and fail-closed source-identity rules apply to both.
   operation identities.
 - **Photograph selection.** One Core policy selects direct image evidence
   and embedded PDF photographs before separate asset retention. Inline and
-  signature graphics are excluded. Embedded images need at least 40,000
+  signature graphics are excluded. A full-page raster on a page with almost
+  no text is read by its colour first
+  ([ADR-0061](../adr/0061-ocr-every-scanned-document-page.md)): mostly
+  paper-white is a scanned document page and produces no embedded image at
+  all; anything else is a photograph that fills the page and is an ordinary
+  embedded image. Photos laid out with margins or several to a page are
+  selected as before. Embedded images need at least 40,000
   encoded bytes and, when dimensions are known, a longest-to-shortest side
   ratio below 3. Unknown dimensions keep the size-based selection. These are
   image heuristics, not a logo classifier. Repeated photograph content is

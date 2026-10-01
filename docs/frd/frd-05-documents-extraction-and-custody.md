@@ -8,8 +8,11 @@
   and keeps MP4 and MOV video without reading it.
 - Original bytes are saved before anything is extracted from them. Macros and
   active content are never run.
-- Scanned pages go to Azure Document Intelligence OCR. Corrupt, encrypted or
-  readable pages never do.
+- A page that is one big raster with almost no text is a scanned document
+  page when the raster is mostly paper-white, otherwise a photograph that
+  fills the page. Scanned document pages go to Azure Document Intelligence
+  OCR and keep no image. Photographs, corrupt or encrypted files and readable
+  pages never go to OCR.
 - Box is where a Case's files live for good. Staging areas and caches are
   temporary and never prove custody.
 - A gallery never hides an image whose custody is still in progress; it shows
@@ -52,17 +55,23 @@ Pegasus must:
 - never run macros, active content, external relationships or embedded
   instructions;
 - tell scan-like material apart from corrupt, blank, unsupported or encrypted
-  material;
+  material, and a scanned document page from a photograph that fills the
+  page;
 - keep accepted MP4 and MOV evidence without sending it to OCR or image
   cropping, offer a safe preview only for a browser-supported encoding, and
   always offer download.
 
 #### Qualified OCR
 
-Scan-like pages from incoming instructions go to the approved Azure Document
-Intelligence `prebuilt-layout` boundary
-([ADR-0047](../adr/0047-scanned-instruction-ocr-only.md)). Corrupt, encrypted
-and non-renderable inputs are never sent to OCR. Pages with readable embedded
+A page with fewer than 80 embedded characters and one raster covering at
+least 80% of it is a full-page raster. Its colour says what it is
+([ADR-0061](../adr/0061-ocr-every-scanned-document-page.md)): mostly
+paper-white is a scanned document page; anything else is a photograph that
+fills the page. A scanned document page keeps no image and goes to the
+approved Azure Document Intelligence `prebuilt-layout` boundary. A
+photograph page is an ordinary image page and is not sent. The verdict and
+the measured share are recorded on the receipt. Corrupt, encrypted and
+non-renderable inputs are never sent to OCR. Pages with readable embedded
 text stay on the ordinary PDF path and are neither sent nor replaced.
 Estimate imports use their deterministic parsers only. A scan-like,
 ambiguous or unsupported estimate is refused; there is no OCR fallback.

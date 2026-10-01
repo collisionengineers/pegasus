@@ -318,12 +318,87 @@ public sealed partial class MultiFormatIntakeWebTests
             "SELECT IntakeAssetId FROM IntakeOcrOperations"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM ExternalWorkItems WHERE Kind = 'intake_ocr'"));
-        // Scan detection reads the PDF image placement, but the synthetic
-        // three-byte raster is not a selected photograph and therefore remains
-        // inside the retained original rather than becoming a separate asset.
+        // A white full-page raster is a scanned document page. Its raster IS
+        // the page, so it stays inside the retained original and never becomes
+        // a separate asset.
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "scan-page-document");
         Assert.DoesNotContain(
             receipt.AssetRecords,
             asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
+    }
+
+    [Fact]
+    public async Task AFullPageDocumentRasterEmitsNoEmbeddedImageEvenWhenPhotographSized()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        // Mostly paper-white with enough noise that the PNG is far over the
+        // 40 KB photograph floor: size alone would have made it a photograph.
+        var pdf = CreateImagePdf(new PdfImagePlacement(
+            0, 0, 612, 792, 0xff, 0xff, 0xff,
+            SampleWidth: 210, SampleHeight: 297, Pixels: PaperPixels(210, 297, seed: 11, whiteShare: 0.65)));
+
+        var result = await UploadAsync(factory, client, "scanned-report.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        var candidate = Assert.Single(receipt.ScannedPdfPages);
+        Assert.Equal(1, candidate.PageNumber);
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM IntakeOcrOperations"));
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "scan-page-document");
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "scan-page-photograph");
+        Assert.DoesNotContain(
+            receipt.AssetRecords,
+            asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
+    }
+
+    [Fact]
+    public async Task APhotographSizedRasterOnAReadablePageIsStillRetained()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        // A letter with a photograph on it: the page has readable text, so the
+        // colour rule never runs and the photograph is kept as before.
+        var pdf = CreateImageAndTextPdf(
+            "This instruction letter carries a photograph of the damage beneath its text. "
+            + "The text is long enough to count as readable embedded content on the page.",
+            new PdfImagePlacement(
+                20, 20, 300, 400, 0xff, 0xff, 0xff,
+                SampleWidth: 210, SampleHeight: 297, Pixels: RandomPixels(210, 297, 13)));
+
+        var result = await UploadAsync(factory, client, "letter-with-photo.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Empty(receipt.ScannedPdfPages);
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "scan-page-document");
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "scan-page-photograph");
+        var photograph = Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
+        Assert.Equal(1, photograph.PageNumber);
+    }
+
+    [Fact]
+    public async Task AFullPagePhotographIsKeptAsAPhotographAndNotSentToOcr()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        // The same geometry as a scan — one raster covering a text-free page —
+        // but the raster is not paper-white, so the page is a photograph.
+        var pdf = CreateImagePdf(new PdfImagePlacement(
+            0, 0, 612, 792, 0xff, 0xff, 0xff,
+            SampleWidth: 210, SampleHeight: 297, Pixels: RandomPixels(210, 297, 12)));
+
+        var result = await UploadAsync(factory, client, "full-page-photo.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Empty(receipt.ScannedPdfPages);
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM IntakeOcrOperations"));
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "scan-page-photograph");
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "scanned-pdf-page");
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "insufficient-embedded-text");
+        var photograph = Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
+        Assert.Equal(1, photograph.PageNumber);
+        Assert.True(photograph.ContentLength >= InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
     }
 
     [Fact]
@@ -1305,6 +1380,80 @@ public sealed partial class MultiFormatIntakeWebTests
         var pixels = new byte[checked(width * height * 3)];
         new Random(seed).NextBytes(pixels);
         return pixels;
+    }
+
+    /// <summary>
+    /// A scanned page: <paramref name="whiteShare"/> of the pixels are paper
+    /// white, the rest dark noise. Noise does not compress, so a page with a
+    /// third of it is comfortably over the 40 KB photograph floor as a PNG.
+    /// </summary>
+    private static byte[] PaperPixels(int width, int height, int seed, double whiteShare)
+    {
+        var random = new Random(seed);
+        var pixels = new byte[checked(width * height * 3)];
+        for (var offset = 0; offset < pixels.Length; offset += 3)
+        {
+            if (random.NextDouble() < whiteShare)
+            {
+                pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 0xff;
+            }
+            else
+            {
+                pixels[offset] = (byte)random.Next(0, 160);
+                pixels[offset + 1] = (byte)random.Next(0, 160);
+                pixels[offset + 2] = (byte)random.Next(0, 160);
+            }
+        }
+
+        return pixels;
+    }
+
+    /// <summary>
+    /// One page carrying both printed text and image placements: a readable
+    /// page with pictures on it, the ordinary instruction-letter shape.
+    /// </summary>
+    private static byte[] CreateImageAndTextPdf(string text, params PdfImagePlacement[] images)
+    {
+        var objectBodies = new List<byte[]>
+        {
+            Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+            Encoding.ASCII.GetBytes("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+        };
+        var firstImageObject = 4;
+        var fontObject = firstImageObject + images.Length;
+        var contentObject = fontObject + 1;
+        var resources = string.Join(
+            " ",
+            images.Select((_, index) => $"/Im{index + 1} {firstImageObject + index} 0 R"));
+        objectBodies.Add(Encoding.ASCII.GetBytes(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            + $"/Resources << /XObject << {resources} >> /Font << /F1 {fontObject} 0 R >> >> "
+            + $"/Contents {contentObject} 0 R >>"));
+        foreach (var image in images)
+        {
+            var pixels = image.Pixels ?? [image.Red, image.Green, image.Blue];
+            using var imageObject = new MemoryStream();
+            WriteAscii(
+                imageObject,
+                $"<< /Type /XObject /Subtype /Image /Width {image.SampleWidth} /Height {image.SampleHeight} "
+                + $"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Length {pixels.Length} >>\nstream\n");
+            imageObject.Write(pixels);
+            WriteAscii(imageObject, "\nendstream");
+            objectBodies.Add(imageObject.ToArray());
+        }
+
+        objectBodies.Add(Encoding.ASCII.GetBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"));
+        var operators = Encoding.ASCII.GetBytes(string.Join(
+                string.Empty,
+                images.Select((image, index) =>
+                    $"q\n{image.Width} 0 0 {image.Height} {image.X} {image.Y} cm\n/Im{index + 1} Do\nQ\n")))
+            .Concat(CreatePdfTextOperators(text))
+            .ToArray();
+        objectBodies.Add(Encoding.ASCII.GetBytes($"<< /Length {operators.Length} >>\nstream\n")
+            .Concat(operators)
+            .Concat(Encoding.ASCII.GetBytes("\nendstream"))
+            .ToArray());
+        return WritePdfObjects(objectBodies);
     }
 
     private static byte[] CreateImagePdf(
