@@ -621,9 +621,12 @@ public sealed class Top15InstructionCorpusTests
                 Assert.True(pageStart >= 0, "The supplied MP OCR evidence must identify its page.");
                 // This is the supplied, hash-bound corpus OCR result, not an
                 // Azure request or invented provider operation/response.
-                read = AnalyzeRetainedInstruction.CreateOcrReadResult(new(hash, [1], new(
-                    IntakeOcrState.Completed, "supplied-corpus", "astra-ocr", "reference-v1",
-                    ResponseSha256: ocrHash, Pages: [new(1, supplied[pageStart..], [], [])])));
+                read = IntakeOcrText.ReadResult(
+                    $"uploaded {Path.GetFileName(sample.PackRelativePath)}",
+                    hash,
+                    new(
+                        IntakeOcrState.Completed, "supplied-corpus", "astra-ocr", "reference-v1",
+                        ResponseSha256: ocrHash, Pages: [new(1, supplied[pageStart..], [], [])]));
                 Assert.Equal(hash, Assert.Single(read.Content).Locator?.Sha256);
                 Assert.Equal("ocr", Assert.Single(read.Content).Locator?.DocumentRole);
             }

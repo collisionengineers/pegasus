@@ -38,16 +38,31 @@ public static class IntakeOcrOperations
             cancellationToken);
     }
 
+    /// <summary>
+    /// The reader's label for a retained document: the one its page fragments
+    /// and OCR candidates carry, and the one an OCR reading of it must carry
+    /// too. The uploaded file itself is <c>uploaded {name}</c>; an attachment
+    /// keeps the label the reader gave it.
+    /// </summary>
+    public static string DocumentLabel(IntakeReceipt receipt, IntakeAssetRecord asset)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        ArgumentNullException.ThrowIfNull(asset);
+        return asset.Kind == IntakeAssetKind.Source && asset.Disposition == IntakeAssetDisposition.Source
+            ? UploadedSourceLabel(receipt)
+            : asset.SourceLabel;
+    }
+
+    private static string UploadedSourceLabel(IntakeReceipt receipt) =>
+        $"uploaded {Path.GetFileName(receipt.SourceFileName)}";
+
     internal static IntakeAssetRecord? ResolveQualifiedAsset(
         IntakeReceipt receipt,
         string sourceLabel)
     {
         ArgumentNullException.ThrowIfNull(receipt);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceLabel);
-        var isUploadedPdf = string.Equals(
-            sourceLabel,
-            $"uploaded {Path.GetFileName(receipt.SourceFileName)}",
-            StringComparison.Ordinal);
+        var isUploadedPdf = string.Equals(sourceLabel, UploadedSourceLabel(receipt), StringComparison.Ordinal);
         return receipt.AssetRecords.SingleOrDefault(asset =>
             isUploadedPdf
                 ? asset.Kind == IntakeAssetKind.Source && asset.Disposition == IntakeAssetDisposition.Source

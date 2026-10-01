@@ -238,6 +238,7 @@ public static class DependencyInjection
         services.AddScoped<EfRetainedInstructionAnalysisStore>();
         services.AddScoped<IRetainedInstructionAnalysisStore>(provider =>
             provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<RecordThirdPartyReportReading>();
         services.AddScoped<AnalyzeRetainedInstruction>();
         services.AddScoped<IAnalyzeRetainedInstruction>(provider =>
             provider.GetRequiredService<AnalyzeRetainedInstruction>());
