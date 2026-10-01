@@ -312,7 +312,8 @@ public sealed partial class AssessmentReportDraftWebTests
                 }
                 else
                 {
-                    Assert.DoesNotContain("data-section-tab", row, StringComparison.Ordinal);
+                    // The anchor tag helper writes a null tab as an empty one.
+                    Assert.DoesNotMatch("data-section-tab=\"[^\"]", row);
                 }
             }
         }
