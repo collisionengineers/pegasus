@@ -128,6 +128,17 @@ Classification, Case linking and folder moves are offered only from the
 opened message record, never from a row or the quick preview. There is no
 bulk action: each decision applies to one exact message.
 
+The correction picker offers only the message's own direction, and a
+correction to New instruction asks for the case type. Once a classification
+is saved, the message record offers the one next action it calls for:
+**Create case** for a New instruction, **Open the Triage** for a Triage
+request, **Register images** for images received, each only while the
+receipt still qualifies and no Case holds it. Staff press it; nothing runs on
+its own, and a Case or Triage already opened from the message stays as it is
+when the message is corrected away (operator, 1 October 2026). A correction
+to or from a post-report classification on a linked Case follows
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query).
+
 Case linking starts with a deliberate Case search, then shows the target
 summary, asks for a reason and needs explicit confirmation. Linking may
 happen while classification is still unresolved, when the link evidence on

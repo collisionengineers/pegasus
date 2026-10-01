@@ -23,7 +23,10 @@ public enum StaffNotificationCause
     EmailReceived,
 
     /// <summary>A post-report query arrived on a Case the engineer is assigned to.</summary>
-    QueryReceived
+    QueryReceived,
+
+    /// <summary>A cancellation arrived on, or was corrected onto, an open Case the engineer is assigned to.</summary>
+    CancellationReceived
 }
 
 /// <summary>
@@ -108,7 +111,8 @@ public static class StaffNotificationPolicy
             StaffNotificationCause.CaseAssigned => caseEngineerId,
             StaffNotificationCause.EditedByOther
                 or StaffNotificationCause.EmailReceived
-                or StaffNotificationCause.QueryReceived => caseEngineerId,
+                or StaffNotificationCause.QueryReceived
+                or StaffNotificationCause.CancellationReceived => caseEngineerId,
             _ => throw new ArgumentOutOfRangeException(nameof(cause), cause, null)
         };
         return recipient is { } id && id != Guid.Empty && id != actorStaffId ? id : null;

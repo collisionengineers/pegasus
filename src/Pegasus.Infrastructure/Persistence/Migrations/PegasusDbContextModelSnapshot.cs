@@ -7095,7 +7095,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("StaffNotifications", null, t =>
                         {
-                            t.HasCheckConstraint("CK_StaffNotifications_Cause", "[Cause] IN ('AiDraftReady', 'CaseAssigned', 'EditedByOther', 'EmailReceived', 'QueryReceived')");
+                            t.HasCheckConstraint("CK_StaffNotifications_Cause", "[Cause] IN ('AiDraftReady', 'CaseAssigned', 'EditedByOther', 'EmailReceived', 'QueryReceived', 'CancellationReceived')");
                         });
                 });
 

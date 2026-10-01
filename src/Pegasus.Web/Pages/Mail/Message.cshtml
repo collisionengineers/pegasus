@@ -132,6 +132,35 @@
         </div>
     }
 
+    @if (Model.Offer is { } offer)
+    {
+        @* The one next action the classification calls for (FRD-20): staff
+           press it; nothing runs on its own. *@
+        <div class="record-bar" data-offered-action="@offer">
+            <span class="eyebrow">@OperatorLabels.MailClassification(Model.Detail.Classification!.Current.Category!)</span>
+            <span class="record-bar-end">
+                @if (offer == Pegasus.Web.Pages.Mail.MessageOffer.CreateCase)
+                {
+                    <a class="btn btn--dark" asp-page="/Cases/Create" asp-route-receiptId="@Model.AssociationReceipt!.Id">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Create case</span>
+                    </a>
+                }
+                else if (offer == Pegasus.Web.Pages.Mail.MessageOffer.OpenTriage)
+                {
+                    <button class="btn btn--dark" type="button" data-dialog-open="messageTriageDialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-clipboard-list" /></svg><span>Open the Triage</span>
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn--dark" type="button" data-dialog-open="messageRegisterImagesDialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
+                    </button>
+                }
+            </span>
+        </div>
+    }
+
     <nav class="tabs" aria-label="Sections">
         <a class="tab" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
            asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
@@ -892,6 +921,72 @@
     </div>
 </article>
 
+@if (Model.Offer == Pegasus.Web.Pages.Mail.MessageOffer.OpenTriage)
+{
+    <div id="messageTriageDialog" class="dialog-backdrop" role="dialog" aria-modal="true"
+         aria-labelledby="messageTriageDialog_title" data-dialog="messageTriageDialog" hidden>
+        <section class="dialog">
+            <div class="dialog-head">
+                <h2 id="messageTriageDialog_title" tabindex="-1">Open the Triage</h2>
+            </div>
+            <form method="post"
+                  asp-page-handler="OpenTriage" asp-route-id="@summary.Id"
+                  asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                  asp-route-search="@Model.SearchTerm"
+                  asp-route-queue="@Model.QueueFilter"
+                  asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                  asp-route-pageNumber="@Model.PageNumber">
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                <div class="dialog-body stack">
+                    <div class="field">
+                        <label class="req" for="messageTriageVrm">Vehicle registration</label>
+                        <input id="messageTriageVrm" class="mono" name="vehicleRegistration" value="@Model.Offers.SuggestedRegistration" maxlength="20" required data-dialog-initial-focus />
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="submit" class="btn btn--dark">Open the Triage</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@if (Model.Offer == Pegasus.Web.Pages.Mail.MessageOffer.RegisterImages)
+{
+    <div id="messageRegisterImagesDialog" class="dialog-backdrop" role="dialog" aria-modal="true"
+         aria-labelledby="messageRegisterImagesDialog_title" data-dialog="messageRegisterImagesDialog" hidden>
+        <section class="dialog">
+            <div class="dialog-head">
+                <h2 id="messageRegisterImagesDialog_title" tabindex="-1">Register images</h2>
+            </div>
+            <form method="post"
+                  asp-page-handler="RegisterImages" asp-route-id="@summary.Id"
+                  asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                  asp-route-search="@Model.SearchTerm"
+                  asp-route-queue="@Model.QueueFilter"
+                  asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                  asp-route-pageNumber="@Model.PageNumber">
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                <div class="dialog-body stack">
+                    <div class="field">
+                        <label class="req" for="messageRegisterVrm">Vehicle registration</label>
+                        <input id="messageRegisterVrm" class="mono" name="vehicleRegistration" value="@Model.Offers.SuggestedRegistration" maxlength="20" required data-dialog-initial-focus />
+                    </div>
+                    <div class="field">
+                        <label class="req" for="messageRegisterReason">Reason</label>
+                        <textarea id="messageRegisterReason" name="reason" maxlength="500" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="submit" class="btn btn--dark">Register images</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
 @if (dossier is { } correctionDossier)
 {
     <div id="correctClassificationDialog" class="dialog-backdrop" role="dialog" aria-modal="true"
@@ -913,12 +1008,22 @@
                         <label asp-for="ClassificationKey">Classification</label>
                         <select asp-for="ClassificationKey" data-other-toggle>
                             <option value="">Choose classification</option>
-                            @foreach (var option in Pegasus.Web.Pages.Mail.MessageModel.ClassificationOptions)
+                            @foreach (var option in Model.ClassificationOptions)
                             {
                                 <option value="@option.Value">@option.Label</option>
                             }
                         </select>
                         <span asp-validation-for="ClassificationKey"></span>
+                    </div>
+                    <div class="field" data-work-type-field hidden>
+                        <label class="req" asp-for="WorkType">Case type</label>
+                        <select asp-for="WorkType">
+                            <option value="">Choose case type</option>
+                            <option value="@Pegasus.Core.Cases.CaseType.Inspection">Inspection</option>
+                            <option value="@Pegasus.Core.Cases.CaseType.Audit">Audit</option>
+                            <option value="@Pegasus.Core.Cases.CaseType.InspectionAndAudit">Inspection and Audit</option>
+                        </select>
+                        <span asp-validation-for="WorkType"></span>
                     </div>
                     <div class="field" data-other-field hidden>
                         <label asp-for="OtherClassificationName">New category name</label>

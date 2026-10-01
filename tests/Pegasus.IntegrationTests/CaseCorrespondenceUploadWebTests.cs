@@ -1,5 +1,8 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -61,5 +64,79 @@ public sealed class CaseCorrespondenceUploadWebTests
         Assert.Equal(HttpStatusCode.OK, message.StatusCode);
         var messageHtml = await message.Content.ReadAsStringAsync();
         Assert.Contains("QDOS test instruction", messageHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ALinkedCancellationNamesItselfInTheNextActionUntilItIsCorrectedAway()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "CORR-EML-02");
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+        var messageId = Guid.Parse(Regex.Match(html, "data-correspondence-row=\"([0-9a-f-]{36})\"").Groups[1].Value);
+        Assert.DoesNotContain("data-cancellation-received", html, StringComparison.Ordinal);
+
+        // FRD-13: while the linked message's current classification is a
+        // cancellation, the open Case's Next action names it and opens it.
+        await SetClassificationAsync(factory, messageId, "in-progress-cases", "cancellation");
+        html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Contains($"data-cancellation-received=\"{messageId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Cancellation received</span>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Inbox/{messageId:D}\"", html, StringComparison.Ordinal);
+
+        // Corrected to anything else, the row goes.
+        await SetClassificationAsync(factory, messageId, "in-progress-cases", "case-update");
+        html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.DoesNotContain("data-cancellation-received", html, StringComparison.Ordinal);
+    }
+
+    // The linked message's current classification, as the mailbox pipeline or
+    // a correction would leave it.
+    private static async Task SetClassificationAsync(
+        IntakeWebApplicationFactory factory,
+        Guid messageId,
+        string family,
+        string subtype)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var token = await context.RetainedMailboxMessages
+            .Where(item => item.Id == messageId)
+            .Select(item => item.ExternalReceiptToken)
+            .SingleAsync();
+        var receipt = await context.IntakeReceipts
+            .Include(item => item.MailClassificationDecision)
+            .SingleAsync(item => item.ExternalReceiptToken == token);
+        if (receipt.MailClassificationDecision is { } decision)
+        {
+            decision.Outcome = "classified";
+            decision.Direction = "received";
+            decision.Family = family;
+            decision.Subtype = subtype;
+        }
+        else
+        {
+            receipt.MailClassificationDecision = new()
+            {
+                IntakeReceiptId = receipt.Id,
+                Outcome = "classified",
+                Direction = "received",
+                Family = family,
+                Subtype = subtype,
+                IsReplyContext = false,
+                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
+                PredicatesJson = "{\"version\":1,\"data\":[]}",
+                Reason = "Fixture.",
+                PolicyKey = "fixture",
+                PolicyVersion = 1,
+                DecidedByActor = "test",
+                DecidedAtUtc = DateTimeOffset.UtcNow,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            };
+        }
+        await context.SaveChangesAsync();
     }
 }
