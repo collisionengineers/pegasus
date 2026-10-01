@@ -177,6 +177,9 @@ if (productionProfile)
         "Glass:EstimatorBaseUri",
         "Glass:CallbackBaseUri",
         "Glass:RepairProfileId",
+        // Glass's valuation account (ADR-0059), read on each Get valuation.
+        "Glass:ValuationAccount:Username",
+        "Glass:ValuationAccount:Password",
         "GitHub:ProblemReports:Token",
         "GitHub:ProblemReports:Repository"
     })
@@ -673,6 +676,10 @@ if (productionProfile)
 {
     builder.Services.AddEvaApiSubmission(
         _ => EvaApiOptions.Create(key => builder.Configuration[key]));
+    // Glass's valuation (ADR-0059): Production only, like EVA, and its
+    // Key Vault-held account is read on each valuation for the same reason.
+    builder.Services.AddGlassGuideValuation(
+        _ => Pegasus.Infrastructure.Glass.GlassValuationAccount.Create(key => builder.Configuration[key]));
 }
 
 builder.Services.AddPegasusReportRendering();
@@ -682,6 +689,11 @@ builder.Services.AddPegasusReportRendering();
 builder.Services.AddSingleton<Pegasus.Web.Background.ProviderWorkQueue>();
 builder.Services.AddHostedService<Pegasus.Web.Background.ProviderWorkService>();
 builder.Services.AddScoped<Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork>();
+// A guide valuation's report is fetched over the provider session this host
+// holds, so it is filed on the same queue after the figures have answered.
+builder.Services.AddScoped<
+    Pegasus.Core.Assessment.IScheduleGuideValuationReport,
+    Pegasus.Web.Background.GuideValuationReportScheduler>();
 builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
 if (developmentOfflineProfile)
 {

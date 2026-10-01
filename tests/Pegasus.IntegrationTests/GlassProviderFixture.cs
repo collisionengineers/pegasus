@@ -66,6 +66,52 @@ internal static class GlassProviderFixture
         "<html><body onLoad=\"b_load()\"><script>function b_load(){ window.opener.ere_callback_xml( "
         + arguments + "); window.close(); }</script></body></html>";
 
+    /// <summary>The account's stock id for a valued vehicle, and its report's download path.</summary>
+    public const string StockedVehicleId = "33636950";
+    public const string ReportPath = "/ndp_download/18390/pdf_v34638_20261001152551.pdf";
+
+    /// <summary>A valuation report: only its PDF signature is ever read.</summary>
+    public const string ReportPdf = "%PDF-1.4\n% synthetic valuation report\n%%EOF\n";
+
+    /// <summary>
+    /// The valuation page in the captured shape: a script first, the Glass's
+    /// Trade and Retail Transacted boxes, a commented-out repair-cost box that
+    /// is never a figure, the mileage line, and the provider's trailing
+    /// byte-order mark.
+    /// </summary>
+    public static string Values(string trade = "&#163;15,600", string retail = "£17,717") => $$"""
+        <script type="text/javascript">
+                hideDialog();
+                    $('#banner3').attr('src', 'http://test.glassguide.co.uk/panelserver/Directory.asp');
+        </script>
+        <div id="three_phase_glass_trade" class="three_phase_value_box">
+            <div class="three_phase_text">Glass's Trade</div>
+                <div class="three_phase_icon_none" title=""></div>
+            <div class="three_phase_value_text">{{trade}}</div>
+            </div>
+        <div id="three_phase_transacted" class="three_phase_value_box">
+            <div class="three_phase_text">Retail Transacted</div>
+                <div class="three_phase_icon_none" title=""></div>
+            <div class="three_phase_value_text">{{retail}}</div>
+        </div>
+        <!--<div id="three_phase_repair_cost" class="three_phase_value_box">
+            <div class="three_phase_text">Total Repair Cost</div>
+                <div class="three_phase_icon_none" title=""></div>
+            <div class="three_phase_value_text">99,999    </div>
+            </div>-->
+        <div id="three_phase_mileage" style="left: 190px">
+        Mileage 33,000</div>
+        """ + "﻿";
+
+    /// <summary>The portal's "valuation not possible": JSON where the page would be.</summary>
+    public const string ValuationNotPossible = "{\"success\":false,\"errormsg\":\"Valuation not possible\"}";
+
+    /// <summary>The print's answer: one download link for the report.</summary>
+    public static string ReportLink(string path = ReportPath) =>
+        "﻿<h4>Please click on the link below to open or save the report.</h4>"
+        + "<a style=\"text-decoration: underline;color: #023899;\" href=\"" + path
+        + "\" target=\"_blank\">pdf_v34638_20261001152551.pdf</a>";
+
     /// <summary>
     /// The provider's own answers, in the shapes the supplied captures record:
     /// byte-order marked JSON, a same-origin login redirect, the candidate
@@ -94,7 +140,7 @@ internal static class GlassProviderFixture
             HttpStatusCode.OK,
             "{\"success\":true,\"html\":\"<div class=\\\"three_phase_car_info car1\\\">"
             + "Test Make, Test Model, N\\/C: " + NatCode + "<\\/div>\"}"));
-        mva.Set("GET /three-phase-vehicle/get-values", new(HttpStatusCode.OK, "<div></div>"));
+        mva.Set("GET /three-phase-vehicle/get-values", new(HttpStatusCode.OK, Values()));
         mva.Set("GET /three-phase-vehicle/refresh-vrm-count", new(HttpStatusCode.OK, string.Empty));
         mva.Set("GET /index/create-new-vehicle", new(
             HttpStatusCode.OK, "\uFEFF{\"vrm\":\"" + Registration + "\",\"id\":\"" + VehicleId + "\"}"));
@@ -114,7 +160,16 @@ internal static class GlassProviderFixture
             HttpStatusCode.OK,
             GlassEstimateXmlParserTests.GlassExport.BuildXml(),
             ContentType: "application/xml"));
+        mva.Set("GET /pdf-print/storess/template/0/printaction/vehicle-valuation/vehicles/", new(
+            HttpStatusCode.OK, ReportLink()));
+        mva.Set("GET /ndp_download/18390/", new(HttpStatusCode.OK, ReportPdf, ContentType: "application/pdf"));
     }
+}
+
+/// <summary>Hands every named client the scripted provider.</summary>
+internal sealed class ScriptedClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
 }
 
 /// <summary>

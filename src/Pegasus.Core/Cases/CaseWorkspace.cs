@@ -89,6 +89,25 @@ public static class CaseOdometer
             ? originalValue * KilometresPerMile
             : originalValue / KilometresPerMile;
     }
+
+    /// <summary>
+    /// A recorded reading in whole miles, as a provider that values by mileage
+    /// is asked for it. A reading recorded with no unit is in miles — that is
+    /// what the estate's odometer field means — but a unit that is stated and
+    /// unreadable is ambiguous, so no conversion is offered for it.
+    /// </summary>
+    public static bool TryWholeMiles(long reading, string? statedUnit, out long miles)
+    {
+        var unit = CaseOdometerUnit.Miles;
+        if (!string.IsNullOrEmpty(statedUnit) && !TryParseUnit(statedUnit, out unit))
+        {
+            miles = default;
+            return false;
+        }
+
+        miles = (long)Math.Round(Display(reading, unit, CaseOdometerUnit.Miles), MidpointRounding.AwayFromZero);
+        return true;
+    }
 }
 
 /// <summary>

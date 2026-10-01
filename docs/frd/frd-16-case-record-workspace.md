@@ -392,9 +392,13 @@ saved as entered. While editing, the boxes are
 inputs that belong to the Case form, and the card has **Get valuation**,
 which asks the connected provider for the Case's accepted registration and
 mileage in that month and fills the boxes in place, without redrawing the
-page. A source with no connected provider shows "{Source} valuation is
+page. Glass's is the connected source; its valuation's PDF report is filed on
+the Case's Documents after the figures have answered and appears there on the
+next load ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+A source with no connected provider shows "{Source} valuation is
 unavailable. Contact an administrator or report a problem." on its card from
-the start and offers no Get valuation (28 September 2026).
+the start and offers no Get valuation (28 September 2026); a connected source
+that cannot answer shows the same sentence when pressed.
 The card has no Save of its own (23 September 2026): each save records
 every card whose figures changed, a card left blank or unchanged records
 nothing, and the same source and month replaces the earlier card; a typed

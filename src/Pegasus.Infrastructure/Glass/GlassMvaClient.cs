@@ -10,7 +10,8 @@ namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
 /// Why one Glass's stage stopped. The code is the whole operator-facing
-/// record: it is written to the session's <c>LastError</c> and never carries a
+/// record: it is written to an estimate session's <c>LastError</c>, or to the
+/// host log when Get valuation could not answer, and never carries a
 /// credential, a cookie, a CSRF token, the <c>ere_session</c> or any part of a
 /// provider URL.
 /// </summary>
@@ -39,8 +40,9 @@ internal sealed class GlassMvaStageException(
 
 /// <summary>
 /// The one list of Glass's stage failure codes. A code names the stage and what
-/// about it refused, so a session's <c>LastError</c> is enough to say where a
-/// launch stopped without holding anything the provider handed over.
+/// about it refused, so a session's <c>LastError</c> or a valuation's log line
+/// is enough to say where it stopped without holding anything the provider
+/// handed over.
 /// </summary>
 internal static class GlassFailure
 {
@@ -56,7 +58,13 @@ internal static class GlassFailure
     public const string CandidatesNone = "glass.candidates.none";
     public const string CandidatesAmbiguous = "glass.candidates.ambiguous";
     public const string ValuationRequest = "glass.valuation.request";
+    public const string ValuationNotPossible = "glass.valuation.not_possible";
+    public const string ValuationUnreadable = "glass.valuation.unreadable";
     public const string RefreshRequest = "glass.refresh.request";
+    public const string ReportRequest = "glass.report.request";
+    public const string ReportNone = "glass.report.none";
+    public const string ReportAmbiguous = "glass.report.ambiguous";
+    public const string ReportOffOrigin = "glass.report.off_origin";
     public const string VehicleRequest = "glass.vehicle.request";
     public const string VehicleIdentity = "glass.vehicle.identity";
     public const string DetailsRequest = "glass.details.request";
@@ -95,6 +103,12 @@ internal static class GlassFailure
 internal sealed record GlassVehicleLookup(string NatCode, int CandidateOrdinal);
 
 /// <summary>
+/// The two figures Glass's valuation page answers: Retail Transacted, which a
+/// guide card holds as its retail, and Glass's Trade.
+/// </summary>
+internal sealed record GlassGuideFigures(decimal Retail, decimal Trade);
+
+/// <summary>
 /// What stage 18 started and stage 19 proved about its launch URL. The
 /// provider's own callback is kept whole rather than split into the estimate
 /// and session it names, because relaying to it is what a completion does and
@@ -104,9 +118,10 @@ internal sealed record GlassEstimateLaunch(string EreId, Uri OriginalCallback, U
 
 /// <summary>
 /// The Market Value Assessor transport: every HTTP stage of a Glass's Repair
-/// Estimate session and nothing else. The session policy — what is persisted,
-/// when, and what a failure means to the Case — belongs to
-/// <see cref="GlassRepairEstimateGateway"/>.
+/// Estimate session and of a Glass's valuation, and nothing else. The session
+/// policy — what is persisted, when, and what a failure means to the Case —
+/// belongs to <see cref="GlassRepairEstimateGateway"/>; what a valuation
+/// answers belongs to <see cref="GlassGuideValuationProvider"/>.
 ///
 /// <para>
 /// <b>HTTP 200 is not stage success.</b> Every stage checks the application
@@ -175,6 +190,13 @@ internal sealed partial class GlassMvaClient(
     private const string Grid = "stocklistGrid";
 
     /// <summary>
+    /// The account's "Vehicle Valuation Report – Glass's Values Only" print
+    /// template, the one filed as a valuation's evidence (operator, 1 October
+    /// 2026).
+    /// </summary>
+    private const string ValuationReportTemplate = "0";
+
+    /// <summary>
     /// Signs in and proves the session is authenticated (stages 1–4): read the
     /// login page, take its single-use CSRF token, post the form, require a
     /// same-origin redirect rather than a re-rendered login form, and require
@@ -233,32 +255,28 @@ internal sealed partial class GlassMvaClient(
     public async Task<GlassVehicleLookup> LookupAsync(
         string registration, long mileageMiles, CancellationToken cancellationToken)
     {
-        var search = $"index/search-vrm/vrms_reg_no/{Uri.EscapeDataString(registration)}"
-            + $"/valuate/1/vrms_mileage/{mileageMiles.ToString(CultureInfo.InvariantCulture)}";
-        var (natCode, lookupDetail) = await LookupNatCodeAsync(search, cancellationToken);
-        var valuationDate = ValuationMonth();
-        var candidates = await CandidatesAsync(valuationDate, lookupDetail, cancellationToken);
-        var ordinal = CandidateOrdinal(candidates, natCode);
+        // The estimate needs only the vehicle: its valuation page is read
+        // because the provider's own flow reads it before the vehicle is
+        // created, and its figures are left to Get valuation.
+        var (lookup, _) = await ValuationPageAsync(registration, mileageMiles, ValuationMonth(), cancellationToken);
+        await RefreshAsync(cancellationToken);
+        return lookup;
+    }
 
-        // The valuation body is deliberately discarded: Pegasus records no
-        // Glass's valuation (D03), and the stage exists only because the
-        // provider's own flow performs it before the vehicle is created.
-        await TextAsync(
-            new HttpRequestMessage(
-                HttpMethod.Get,
-                options.MarketValueAssessor(
-                    $"three-phase-vehicle/get-values/vehicle/{ordinal.ToString(CultureInfo.InvariantCulture)}"
-                    + $"/source/vrm/valdate/{valuationDate}")),
-            ajax: true,
-            GlassFailure.ValuationRequest,
-            cancellationToken);
-        await TextAsync(
-            new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor("three-phase-vehicle/refresh-vrm-count")),
-            ajax: true,
-            GlassFailure.RefreshRequest,
-            cancellationToken);
-
-        return new(natCode, ordinal);
+    /// <summary>
+    /// Values the registration in the given month (stages 5–10, as the
+    /// estimate's lookup runs them) and reads the two figures off the page.
+    /// A page the portal answers as "valuation not possible", or one without
+    /// exactly one of each figure, is refused before the refresh, as the
+    /// portal itself only refreshes after a page it could show.
+    /// </summary>
+    public async Task<GlassGuideFigures> ValueAsync(
+        string registration, long mileageMiles, DateOnly month, CancellationToken cancellationToken)
+    {
+        var (_, page) = await ValuationPageAsync(registration, mileageMiles, Month(month), cancellationToken);
+        var figures = GuideFigures(page);
+        await RefreshAsync(cancellationToken);
+        return figures;
     }
 
     /// <summary>
@@ -267,8 +285,50 @@ internal sealed partial class GlassMvaClient(
     /// retried: a lost answer is reported as unknown and reconciled by a
     /// person.
     /// </summary>
-    public async Task<string> CreateVehicleAsync(
-        string registration, long mileageMiles, CancellationToken cancellationToken)
+    public Task<string> CreateVehicleAsync(
+        string registration, long mileageMiles, CancellationToken cancellationToken) =>
+        CreateVehicleForAsync(registration, mileageMiles, ValuationMonth(), cancellationToken);
+
+    /// <summary>
+    /// Saves a valued vehicle to the account's stock list in the month it was
+    /// valued, as the portal does after every valuation in insurance mode.
+    /// </summary>
+    public Task<string> CreateVehicleAsync(
+        string registration, long mileageMiles, DateOnly month, CancellationToken cancellationToken) =>
+        CreateVehicleForAsync(registration, mileageMiles, Month(month), cancellationToken);
+
+    /// <summary>
+    /// The address of the account's valuation report for one stocked vehicle:
+    /// the print the portal produces on demand, answered as a page carrying
+    /// exactly one download link on Glass's own origin.
+    /// </summary>
+    public async Task<Uri> ValuationReportAsync(string vehicleId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(vehicleId) || !vehicleId.All(char.IsAsciiDigit))
+        {
+            throw new ArgumentException("A Glass's stock vehicle id is required.", nameof(vehicleId));
+        }
+
+        var answer = await TextAsync(
+            new HttpRequestMessage(
+                HttpMethod.Get,
+                options.MarketValueAssessor(
+                    $"pdf-print/storess/template/{ValuationReportTemplate}/printaction/vehicle-valuation/vehicles/{vehicleId}")),
+            ajax: true,
+            GlassFailure.ReportRequest,
+            cancellationToken);
+        var links = Links(answer, ReportLink());
+        return links.Count switch
+        {
+            1 when options.IsMarketValueAssessor(links[0]) => links[0],
+            1 => throw new GlassMvaStageException(GlassFailure.ReportOffOrigin),
+            0 => throw new GlassMvaStageException(GlassFailure.ReportNone),
+            _ => throw new GlassMvaStageException(GlassFailure.ReportAmbiguous),
+        };
+    }
+
+    private async Task<string> CreateVehicleForAsync(
+        string registration, long mileageMiles, string valuationDate, CancellationToken cancellationToken)
     {
         var created = await JsonAsync(
             new HttpRequestMessage(
@@ -276,7 +336,7 @@ internal sealed partial class GlassMvaClient(
                 options.MarketValueAssessor(
                     "index/create-new-vehicle/value/0/valuate/1"
                     + $"/mileage/{mileageMiles.ToString(CultureInfo.InvariantCulture)}"
-                    + $"/valdate/{ValuationMonth()}/condition/false")),
+                    + $"/valdate/{valuationDate}/condition/false")),
             GlassFailure.VehicleRequest,
             cancellationToken,
             // A lost answer here may still have created the vehicle.
@@ -518,7 +578,7 @@ internal sealed partial class GlassMvaClient(
                 ajax: true,
                 GlassFailure.ExportRequest,
                 cancellationToken);
-            var links = ExportLinks(grid);
+            var links = Links(grid, ExportLink());
             if (links.Count == 1)
             {
                 return options.IsMarketValueAssessor(links[0])
@@ -538,7 +598,10 @@ internal sealed partial class GlassMvaClient(
         }
     }
 
-    /// <summary>Downloads the export, refusing anything past the configured cap (stage 25).</summary>
+    /// <summary>
+    /// Downloads a file Glass's published — the estimate's export (stage 25) or
+    /// a valuation report — refusing anything past the configured cap.
+    /// </summary>
     public async Task<byte[]> DownloadExportAsync(Uri export, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(
@@ -606,6 +669,109 @@ internal sealed partial class GlassMvaClient(
         }
 
         return new(callerMatch.Groups[1].Value, caller, rewritten);
+    }
+
+    /// <summary>
+    /// Stages 5–9: the lookup, the candidate it settles on, and that
+    /// candidate's valuation page for the month, as the portal reads them.
+    /// </summary>
+    private async Task<(GlassVehicleLookup Lookup, string Page)> ValuationPageAsync(
+        string registration, long mileageMiles, string valuationDate, CancellationToken cancellationToken)
+    {
+        var search = $"index/search-vrm/vrms_reg_no/{Uri.EscapeDataString(registration)}"
+            + $"/valuate/1/vrms_mileage/{mileageMiles.ToString(CultureInfo.InvariantCulture)}";
+        var (natCode, lookupDetail) = await LookupNatCodeAsync(search, cancellationToken);
+        var candidates = await CandidatesAsync(valuationDate, lookupDetail, cancellationToken);
+        var ordinal = CandidateOrdinal(candidates, natCode);
+        var page = await TextAsync(
+            new HttpRequestMessage(
+                HttpMethod.Get,
+                options.MarketValueAssessor(
+                    $"three-phase-vehicle/get-values/vehicle/{ordinal.ToString(CultureInfo.InvariantCulture)}"
+                    + $"/source/vrm/valdate/{valuationDate}")),
+            ajax: true,
+            GlassFailure.ValuationRequest,
+            cancellationToken);
+        return (new(natCode, ordinal), page);
+    }
+
+    /// <summary>Stage 10: the portal's own refresh of the account's lookup count.</summary>
+    private async Task RefreshAsync(CancellationToken cancellationToken) =>
+        await TextAsync(
+            new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor("three-phase-vehicle/refresh-vrm-count")),
+            ajax: true,
+            GlassFailure.RefreshRequest,
+            cancellationToken);
+
+    /// <summary>
+    /// Retail Transacted and Glass's Trade, read off the valuation page. The
+    /// portal answers "valuation not possible" with JSON in place of the page;
+    /// that is refused naming only which of its fields were present. Each
+    /// figure comes from its own value box — comments and scripts are removed
+    /// first, because the page carries a commented-out box of its own — and a
+    /// box that is missing, repeated or holds anything but an amount is
+    /// unreadable rather than guessed at.
+    /// </summary>
+    internal static GlassGuideFigures GuideFigures(string page)
+    {
+        var body = page.Trim('﻿', ' ', '\t', '\r', '\n');
+        if (body.StartsWith('{'))
+        {
+            string detail;
+            try
+            {
+                using var document = JsonDocument.Parse(body);
+                var root = document.RootElement;
+                detail = $"success={Text(root, "success") ?? "absent"}"
+                    + $" errormsg={(string.IsNullOrEmpty(Text(root, "errormsg")) ? "absent" : "present")}";
+            }
+            catch (JsonException)
+            {
+                throw new GlassMvaStageException(GlassFailure.ValuationUnreadable);
+            }
+
+            throw new GlassMvaStageException(GlassFailure.ValuationNotPossible, detail: detail);
+        }
+
+        try
+        {
+            var html = InertHtml().Replace(body, string.Empty);
+            var boxes = ValueBox().Matches(html);
+            return new(Figure(html, boxes, "three_phase_transacted"), Figure(html, boxes, "three_phase_glass_trade"));
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            throw new GlassMvaStageException(GlassFailure.ValuationUnreadable);
+        }
+    }
+
+    private static decimal Figure(string html, MatchCollection boxes, string boxId)
+    {
+        var at = boxes.Cast<Match>()
+            .Select((box, index) => (Box: box, Index: index))
+            .Where(candidate => candidate.Box.Groups[1].Value == boxId)
+            .ToArray();
+        if (at.Length != 1)
+        {
+            throw new GlassMvaStageException(GlassFailure.ValuationUnreadable, detail: $"box={boxId} count={at.Length}");
+        }
+
+        var start = at[0].Box.Index;
+        var end = at[0].Index + 1 < boxes.Count ? boxes[at[0].Index + 1].Index : html.Length;
+        var values = ValueText().Matches(html[start..end]);
+        if (values.Count != 1)
+        {
+            throw new GlassMvaStageException(GlassFailure.ValuationUnreadable, detail: $"box={boxId} values={values.Count}");
+        }
+
+        var amount = WebUtility.HtmlDecode(values[0].Groups[1].Value).Trim().TrimStart('£').Trim();
+        return decimal.TryParse(
+                amount,
+                NumberStyles.AllowThousands | NumberStyles.AllowDecimalPoint,
+                CultureInfo.InvariantCulture,
+                out var figure)
+            ? figure
+            : throw new GlassMvaStageException(GlassFailure.ValuationUnreadable, detail: $"box={boxId} amount=unreadable");
     }
 
     /// <summary>
@@ -770,9 +936,9 @@ internal sealed partial class GlassMvaClient(
         throw new GlassMvaStageException(GlassFailure.RelayShape);
     }
 
-    /// <summary>Every export link the grid offers, as absolute addresses.</summary>
-    private List<Uri> ExportLinks(string grid) =>
-        [.. ExportLink().Matches(grid)
+    /// <summary>Every download link of one kind a page offers, as absolute addresses.</summary>
+    private List<Uri> Links(string html, Regex link) =>
+        [.. link.Matches(html)
             .Select(match => Absolute(
                 new Uri(WebUtility.HtmlDecode(match.Groups[1].Value), UriKind.RelativeOrAbsolute),
                 options.MarketValueAssessorBaseUri))
@@ -786,6 +952,8 @@ internal sealed partial class GlassMvaClient(
     private string ValuationMonth() =>
         LondonCalendar.LocalAt(timeProvider.GetUtcNow())
             .ToString("yyyyMM", CultureInfo.InvariantCulture);
+
+    private static string Month(DateOnly month) => month.ToString("yyyyMM", CultureInfo.InvariantCulture);
 
     private async Task<JsonElement> JsonAsync(
         HttpRequestMessage request,
@@ -983,4 +1151,22 @@ internal sealed partial class GlassMvaClient(
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
         100)]
     private static partial Regex ExportLink();
+
+    [GeneratedRegex(
+        @"href=""([^""]{0,400}?/ndp_download/[^""]{0,200}?\.pdf)""",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex ReportLink();
+
+    [GeneratedRegex(
+        @"<div\b[^>]*\bid=""(three_phase_[a-z_]+)""[^>]*\bclass=""three_phase_value_box""",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex ValueBox();
+
+    [GeneratedRegex(
+        @"class=""three_phase_value_text""\s*>([^<]*)<",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex ValueText();
 }

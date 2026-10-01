@@ -134,9 +134,10 @@ The accepted intake target includes all four business mailboxes. WhatsApp is
 a source of supplied instructions/images, not an authorization or requirement
 to invent automated WhatsApp ingestion. Guided capture runs outside Pegasus
 through Tractable, which emails a PDF that intake reads; Pegasus has no
-Tractable integration and no capture of its own. Glass's repair estimates and native Pegasus reports are
-included; Glass's valuation and additional spreadsheet-driven customer,
-recipient/package/chase and garage-procedure automation remain deferred.
+Tractable integration and no capture of its own. Glass's repair estimates,
+Glass's valuation and native Pegasus reports are included; additional
+spreadsheet-driven customer, recipient/package/chase and garage-procedure
+automation remain deferred.
 
 ## Excluded product capabilities
 

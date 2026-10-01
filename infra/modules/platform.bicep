@@ -50,6 +50,10 @@ param evaInstructionEmail string
 param glassMarketValueAssessorBaseUri string
 param glassEstimatorBaseUri string
 param glassRepairProfileId string
+// ADR-0059. The Glass's valuation account Get valuation signs in with; the
+// Web identity reads each secret through its own secret-scoped grant.
+param glassValuationUsernameSecretUri string
+param glassValuationPasswordSecretUri string
 
 var suffix =take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
 var prefix = 'pegasus-prod'
@@ -476,6 +480,9 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         { name: 'Glass__EstimatorBaseUri', value: glassEstimatorBaseUri }
         { name: 'Glass__CallbackBaseUri', value: webPublicOrigin }
         { name: 'Glass__RepairProfileId', value: glassRepairProfileId }
+        // ADR-0059 Glass's valuation account, read on each Get valuation.
+        { name: 'Glass__ValuationAccount__Username', value: '@Microsoft.KeyVault(SecretUri=${glassValuationUsernameSecretUri})' }
+        { name: 'Glass__ValuationAccount__Password', value: '@Microsoft.KeyVault(SecretUri=${glassValuationPasswordSecretUri})' }
       ], automationMcpSigningCertificateEnvironment, automationMcpEncryptionCertificateEnvironment)
     }
   }

@@ -94,15 +94,9 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
         }
 
         var statedUnit = CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleMileageUnit);
-        var unit = CaseOdometerUnit.Miles;
-        if (statedUnit is { Length: > 0 } && !CaseOdometer.TryParseUnit(statedUnit, out unit))
-        {
-            throw new GlassRepairEstimateRefusalException(
+        return CaseOdometer.TryWholeMiles(mileage, statedUnit, out var miles)
+            ? miles
+            : throw new GlassRepairEstimateRefusalException(
                 "The case records an unrecognized mileage unit, so no Glass's estimate can be started for it.");
-        }
-
-        return (long)Math.Round(
-            CaseOdometer.Display(mileage, unit, CaseOdometerUnit.Miles),
-            MidpointRounding.AwayFromZero);
     }
 }
