@@ -304,7 +304,7 @@ internal static class ThirdPartySections
 public static class ThirdPartyReportExtraction
 {
     /// <summary>Versioned with the rule tables; recorded on every candidate.</summary>
-    public const string ProfileVersion = "third-party-report-extraction/2";
+    public const string ProfileVersion = "third-party-report-extraction/3";
 
     // Printed money is not always two decimals — Laird prints "£1686.7" — and
     // a two-decimal-only pattern silently dropped the tenth, which is exactly
@@ -669,11 +669,60 @@ public static class ThirdPartyReportExtraction
         + @"|Date of Report|Date of Inspection|Date Instructed|Date of Accident|Miles|Km";
 
     /// <summary>
-    /// The rule table per family. John R Bell is deliberately empty: the only
-    /// original in the corpus is scan-only, so no printed layout has been
-    /// observed and no rule is guessed for it — its fields stay unavailable
-    /// until OCR text reaches this engine.
+    /// The printed labels of John R Bell's form, in the order OCR reads them.
     /// </summary>
+    private const string JohnRBellLabels =
+        @"DATE|MY REF|CLAIM NO|CLIENT|Repairers?|Inspected on|At|Year|Make|CC|Model|Reg\.?\s*No\.?"
+        + @"|Extras/Modifications|Mileage|Tax Expiry|Tread on tyres|Chassis No\.?|Static test|Footbrake"
+        + @"|Handbrake|Steering|Paintwork Colour|Overall Pre-Accident Condition|Guide Values|Retail|Trade"
+        + @"|Direction of Impact|Degree of Damage|Roadworthy|Legal to drive|Labour rate|Inc\.? VAT|GENERAL REMARKS";
+
+    /// <summary>
+    /// John R Bell's report is a printed form, always scanned, so its text is
+    /// OCR output in reading order: a row of labels, then the row of their
+    /// values, each on its own line. A rule allows the value on the label's
+    /// line or on a following line, and where the form prints several labels
+    /// before their values ("Repairers / Inspected on / At", the mileage
+    /// row) it skips only those labels. Nothing is taken by position alone.
+    /// The form prints no repairable or total-loss word, so no outcome rule
+    /// exists; a cost of repairs is a figure, not a verdict.
+    /// </summary>
+    private static readonly ThirdPartyFieldRule[] JohnRBellRules =
+    [
+        new(F.ReportDate, K.Date, @"\bDATE\s*:?\s*(?<v>\d{1,2}/\d{1,2}/\d{2,4})\b"),
+        new(F.ReportReference, K.Reference, @"\bMY\s+REF\s*:?\s*(?<v>\d{3,7})\b", ReferenceRole: "our-ref"),
+        new(F.ClaimReference, K.Reference, @"\bCLAIM\s+NO\s*:?\s*(?<v>[A-Z0-9]{1,6}(?:/[A-Z0-9]{1,8}){1,4})", ReferenceRole: "your-ref"),
+        new(F.Claimant, K.Text, @"\bCLIENT\s*:\s*(?<v>[^\n]{2,80}?)[ \t]*$", PartyRole: "claimant"),
+        new(F.EngineerName, K.Text, @"^[ \t]*(?<v>JOHN\s+R\.?\s+BELL)[ \t]+M\.\s*Inst"),
+        new(F.EngineerQualifications, K.Text,
+            @"^[ \t]*JOHN\s+R\.?\s+BELL[ \t]+(?<v>M\.\s*Inst\.?\s*A\.?E\.?A\.?(?:[ \t]+M\.?F\.?I\.?E\.?A\.?)?)"),
+        new(F.Repairer, K.Text,
+            @"^[ \t]*Repairers?[ \t]*:?[ \t]*\n(?:[ \t]*(?:Inspected\s+on|At)[ \t]*\n)*[ \t]*(?<v>[A-Z][^\n]{2,80}?)[ \t]*$",
+            PartyRole: "repairer"),
+        new(F.InspectionDate, K.Date, @"\bInspected\s+on\b(?:[^\n]*\n){0,3}?[ \t]*(?<v>\d{1,2}/\d{1,2}/\d{2,4})[ \t]*$"),
+        new(F.ObservedInspectionMethod, K.Text, @"^[ \t]*(?<v>Via\s+Images)[ \t]*$"),
+        new(F.Make, K.Text, @"^[ \t]*Make[ \t]*\n[ \t]*(?<v>[A-Z][A-Z \-]{1,30}?)[ \t]*$"),
+        new(F.Model, K.Text, @"^[ \t]*Model[ \t]*\n[ \t]*(?<v>[A-Z0-9][^\n]{1,40}?)[ \t]*$"),
+        new(F.Registration, K.Registration, @"\bReg\.?\s*No\.?\s*:?\s*\n?[ \t]*(?<v>[A-Z]{2}\d{2}\s?[A-Z]{3})\b"),
+        new(F.Mileage, K.Mileage, @"^[ \t]*Mileage[ \t]*\n(?:[^\n]*\n){0,3}?[ \t]*(?<v>\d{4,7})[ \t]*$", Unit: "miles"),
+        new(F.Vin, K.Text, @"^[ \t]*(?<v>[A-HJ-NPR-Z0-9]{17})[ \t]*$", CoLabel: @"Chassis\s*No"),
+        new(F.Severity, K.Text, @"\bDegree\s+of\s+Damage\s*:?\s*\n?[ \t]*(?<v>Light|Moderate|Medium|Heavy|Severe)\b"),
+        new(F.Roadworthiness, K.Text,
+            @"\bRoadworthy\s*/\s*Unroadworthy\s*\??\s*\n?[ \t]*(?<v>Unroadworthy|Roadworthy)\b", RawWholeMatch: true),
+        new(F.Retail, K.Money, @"\bRetail\s*" + Money, RawWholeMatch: true),
+        new(F.Trade, K.Money, @"\bTrade\s*" + Money, RawWholeMatch: true),
+        new(F.LabourAmount, K.Money, @"\bagreed\s+at\s*" + Money + @"\s*labour", ReferenceRole: R.Agreed),
+        new(F.Parts, K.Money, @"\bparts\s+approx\.?\s*" + Money, ReferenceRole: R.Agreed),
+        new(F.PaintMaterials, K.Money, @"\bPaint\s+materials\s*" + Money, ReferenceRole: R.Agreed),
+        new(F.LabourRate, K.Money, @"\bLabour\s+rate\s*" + Money, ReferenceRole: R.Agreed, Unit: "per hour"),
+        new(F.Gross, K.Money, @"\bInc\.?\s*VAT\s*" + Money, ReferenceRole: R.Agreed, RawWholeMatch: true),
+        new(F.MinimumRepairDays, K.Number, @"\bApprox\.?\s*repair\s+time\s*(?<v>\d+)\s*-\s*\d+\s*days", Unit: "days"),
+        new(F.MaximumRepairDays, K.Number, @"\bApprox\.?\s*repair\s+time\s*\d+\s*-\s*(?<v>\d+)\s*days", Unit: "days"),
+        new(F.Declaration, K.Text,
+            @"(?<v>This\s+engineer'?s\s+report\s+is\s+addressed\s+TO\s+THE\s+COURT[^\n]{0,200})")
+    ];
+
+    /// <summary>The rule table per family.</summary>
     private static readonly Dictionary<ThirdPartyReportFamily, ThirdPartyFamilyRules> Rules = new()
     {
         [ThirdPartyReportFamily.Connexus] = new(NarrativeLabels, NarrativeRules),
@@ -682,7 +731,7 @@ public static class ThirdPartyReportExtraction
         [ThirdPartyReportFamily.Laird] = new(LairdLabels, LairdRules),
         [ThirdPartyReportFamily.Montgomery] = new(MontgomeryLabels, MontgomeryRules),
         [ThirdPartyReportFamily.SPrint] = new(SPrintLabels, SPrintRules),
-        [ThirdPartyReportFamily.JohnRBell] = new(string.Empty, [])
+        [ThirdPartyReportFamily.JohnRBell] = new(JohnRBellLabels, JohnRBellRules)
     };
 
     private static readonly Dictionary<ThirdPartyReportFamily, IReadOnlyList<CompiledRule>> CompiledRules =
