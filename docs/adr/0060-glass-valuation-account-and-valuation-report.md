@@ -1,5 +1,5 @@
 ---
-id: ADR-0059
+id: ADR-0060
 status: accepted
 date: 2026-10-01
 supersedes: []
@@ -9,7 +9,7 @@ related_frd: [FRD-24, FRD-16]
 tags: [glass, valuation, key-vault, custody, background-work]
 ---
 
-# ADR-0059: Glass's valuation through a Key Vault-held account, with its report filed on the Case
+# ADR-0060: Glass's valuation through a Key Vault-held account, with its report filed on the Case
 
 ## Status
 

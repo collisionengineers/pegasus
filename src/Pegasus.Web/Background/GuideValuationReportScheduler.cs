@@ -7,7 +7,7 @@ namespace Pegasus.Web.Background;
 /// Files a guide valuation's report after Get valuation has answered its
 /// figures (operator, 1 October 2026): the report is fetched over the
 /// provider's own signed-in session, which lives in this host, so the work
-/// runs on this host's provider work queue (ADR-0058, ADR-0059). Work for one
+/// runs on this host's provider work queue (ADR-0058, ADR-0060). Work for one
 /// Case runs in the order it was pressed. A full queue files the report in the
 /// press itself rather than dropping it.
 /// </summary>

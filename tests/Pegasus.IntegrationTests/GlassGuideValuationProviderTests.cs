@@ -8,7 +8,7 @@ using static Pegasus.IntegrationTests.GlassProviderFixture;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// Glass's as a guide valuation source (ADR-0059) against the scripted Market
+/// Glass's as a guide valuation source (ADR-0060) against the scripted Market
 /// Value Assessor: the figures, the month and mileage it is asked for, the
 /// stock save and the report the portal itself makes, and the one answer —
 /// unavailable — every failure gives the card.
@@ -67,7 +67,9 @@ public sealed class GlassGuideValuationProviderTests
     public async Task AReportLinkThatIsNotOneOnGlassOwnOriginIsRefused(string? link, string code)
     {
         var harness = Harness.Create();
-        harness.Mva.Set("GET /pdf-print/", new(
+        // The scripted print route is replaced at its full length: the longest
+        // matching prefix answers.
+        harness.Mva.Set("GET /pdf-print/storess/template/0/printaction/vehicle-valuation/vehicles/", new(
             HttpStatusCode.OK, link is null ? "<h4>No report</h4>" : ReportLink(link)));
         var quote = await harness.Provider.GetAsync(Request(), default);
 

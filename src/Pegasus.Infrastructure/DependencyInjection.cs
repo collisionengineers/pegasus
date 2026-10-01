@@ -933,7 +933,7 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Connects Glass's as a guide valuation source (ADR-0059). A host that
+    /// Connects Glass's as a guide valuation source (ADR-0060). A host that
     /// does not call this has no Glass's provider, so the Case's Glass's card
     /// says it is unavailable and offers no Get valuation. The account comes
     /// through a factory and is read on each valuation, for the same

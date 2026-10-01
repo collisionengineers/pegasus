@@ -149,7 +149,7 @@ the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
 market research is automation-only.
 
 Glass's is the one connected guide source
-([ADR-0059](../adr/0059-glass-valuation-account-and-valuation-report.md)).
+([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md)).
 Its Get valuation signs in with the Glass's valuation account, values the
 Case's accepted registration and mileage for the card's month, and fills the
 card with Retail Transacted as its retail and Glass's Trade as its trade.

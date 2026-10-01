@@ -891,7 +891,7 @@ public sealed class CaseValuationV26WebTests
     }
 
     /// <summary>
-    /// Glass's connected (ADR-0059): the card is offered Get valuation, which
+    /// Glass's connected (ADR-0060): the card is offered Get valuation, which
     /// answers Retail Transacted and Glass's Trade for the posted month, and
     /// the valuation's report — the stocked vehicle's "Values Only" print over
     /// the same signed-in session — is filed after the figures have answered.

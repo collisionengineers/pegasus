@@ -490,7 +490,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
     /// <summary>
     /// A guide valuation's report is filed while the Engineer who pressed Get
-    /// valuation still holds the Case open with the figures unsaved (ADR-0059):
+    /// valuation still holds the Case open with the figures unsaved (ADR-0060):
     /// it must leave their version and lease standing so their Save still
     /// lands, and a second filing of the same report files nothing new.
     /// </summary>

@@ -2,7 +2,7 @@ namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
 /// The Glass's account Get valuation signs in with: one account Collision
-/// Engineers holds for valuations, delivered from Key Vault (ADR-0059). The
+/// Engineers holds for valuations, delivered from Key Vault (ADR-0060). The
 /// repair estimate never uses it; each Engineer's own account stays theirs
 /// (ADR-0043).
 ///
