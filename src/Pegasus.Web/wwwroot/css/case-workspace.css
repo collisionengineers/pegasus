@@ -263,17 +263,19 @@
 .image-tile--tools{row-gap:0}
 .image-tile--tools>.th{border-radius:3px 3px 0 0}
 .image-tile--tools>.tag-chips{margin-top:6px}
-.image-tile-panel{border:1px solid var(--line);border-top:0;border-radius:0 0 3px 3px;background:#fff;min-width:0}
+.image-tile-panel{border:1px solid var(--line);border-top:0;border-radius:0 0 3px 3px;background:#fff;min-width:0;container-type:inline-size}
 .image-tile-row{display:flex;align-items:center;gap:4px;min-height:34px;padding:3px 4px;min-width:0}
 .image-tile-row+.image-tile-row{border-top:1px solid var(--line)}
 .image-tile-row>form{display:contents}
-.image-tile-toggle{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:2px 6px;border:1px solid transparent;border-radius:3px;background:none;color:var(--ink);font:600 11.5px var(--font);white-space:nowrap;cursor:pointer}
+.image-tile-toggle{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:2px 4px;border:1px solid transparent;border-radius:3px;background:none;color:var(--ink);font:600 11.5px var(--font);white-space:nowrap;cursor:pointer}
 .image-tile-toggle:hover{border-color:var(--line);background:var(--surface-3)}
 .image-tile-toggle .icon{width:16px;height:16px;color:var(--muted)}
 .image-tile-toggle[aria-pressed="true"] .icon{color:var(--green)}
-.image-tile-order{display:inline-flex;align-items:center;gap:5px;margin-left:auto;font-size:11px;color:var(--muted)}
-.image-tile-order .fi.num{width:46px;min-height:28px;padding:2px 5px;font-size:12px;text-align:right}
+.image-tile-order{display:inline-flex;align-items:center;gap:4px;margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap}
+.image-tile-order .fi.num{width:42px;min-height:28px;padding:2px 5px;font-size:12px;text-align:right}
 .image-tile-tools{display:inline-flex;gap:2px;align-items:center}
+/* A narrow tile keeps the order box and names it on hover instead. */
+@container (max-width:175px){.image-tile-order>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}}
 .image-tile-toolbar .icon-button,.image-tile-toolbar .tag-picker>summary{display:inline-grid;place-items:center;width:28px;height:28px;min-width:28px;min-height:28px;padding:0;border:1px solid transparent;border-radius:3px;background:none;color:var(--muted);cursor:pointer}
 .image-tile-toolbar .icon-button:hover,.image-tile-toolbar .tag-picker>summary:hover,.image-tile-toolbar .tag-picker[open]>summary{border-color:var(--line);background:var(--surface-3);color:var(--navy)}
 .image-tile-toolbar .icon-button[aria-pressed="true"]{border-color:var(--navy);color:var(--navy);background:#f4f7fa}
