@@ -275,39 +275,6 @@ public sealed class DocumentDownload(
     public ValueTask DisposeAsync() => Content.DisposeAsync();
 }
 
-public sealed record ExportCaseDocumentsCommand(
-    Guid CaseId,
-    IReadOnlyList<DocumentExportSelection> Selections,
-    ActionActor Actor,
-    string OperationKey,
-    long MaximumArchiveBytes,
-    long ExpectedCaseVersion,
-    string EditLeaseToken);
-
-public sealed record DocumentExportSelection(Guid OccurrenceId, Guid VersionId);
-
-public sealed record DocumentExportManifestEntry(
-    string FileName,
-    Guid OccurrenceId,
-    Guid VersionId,
-    DocumentSemanticRole SemanticRole,
-    long ContentLength,
-    string Sha256);
-
-public sealed class DocumentExport(
-    Stream content,
-    string fileName,
-    IReadOnlyList<DocumentExportManifestEntry> manifest) : IAsyncDisposable
-{
-    public Stream Content { get; } = content ?? throw new ArgumentNullException(nameof(content));
-
-    public string FileName { get; } = fileName;
-
-    public IReadOnlyList<DocumentExportManifestEntry> Manifest { get; } = manifest;
-
-    public ValueTask DisposeAsync() => Content.DisposeAsync();
-}
-
 public sealed record LogicallyRemoveDocumentCommand(
     Guid CaseId,
     Guid OccurrenceId,
@@ -350,27 +317,6 @@ public interface IGetCaseDocumentMetadata
 {
     Task<CaseDocumentMetadata?> ExecuteAsync(
         GetCaseDocumentMetadataQuery query,
-        CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// Export was attempted on a case that is not in <c>Review</c>.
-/// </summary>
-/// <remarks>
-/// The operator's rule (2026-08-04) is that a case exports only in Review. A
-/// disabled button is presentation; this is the condition itself, so it holds
-/// for every caller rather than only for the one that renders the button.
-/// </remarks>
-public sealed class CaseNotInReviewException(Guid caseId)
-    : InvalidOperationException("A case can only be exported while it is in Review.")
-{
-    public Guid CaseId { get; } = caseId;
-}
-
-public interface IExportCaseDocuments
-{
-    Task<DocumentExport> ExecuteAsync(
-        ExportCaseDocumentsCommand command,
         CancellationToken cancellationToken = default);
 }
 
