@@ -4226,13 +4226,17 @@ public sealed partial class DetailsModel(
 
         // The same bytes already confirmed in Case Files — a retry, or a file
         // that arrived by email — are imported from there, not stored again,
-        // when that stored file is itself importable: the import reads its
-        // stored name and type, not the dropped file's.
+        // when one estimate format names that stored file: the import reads
+        // its stored name and type, not the dropped file's. The bytes are
+        // the dropped file's, which the import parses now, so this does not
+        // wait for the Worker to have read the stored copy.
         var sourceIdentity = $"estimate-import:{operationKey}";
         var reusable = CaseFiles.Live(documents)
             .Where(file => file.Version.ContentLength == fileBytes.LongLength
                 && string.Equals(file.Version.Sha256, uploadedSha256, StringComparison.OrdinalIgnoreCase)
-                && IsImportableEstimate(file))
+                && file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && file.Occurrence.Source != DocumentSource.Generated
+                && EstimateFormatCount(file.Version.FileName, file.Version.MediaType) == 1)
             .OrderBy(file => file.Occurrence.Ordinal)
             .FirstOrDefault();
 
@@ -4364,14 +4368,15 @@ public sealed partial class DetailsModel(
     public bool CanImportEstimate(CaseFile file) => CanEditEngineering && IsImportableEstimate(file);
 
     /// <summary>
-    /// A confirmed file Pegasus did not generate, within the import's size
-    /// bound, that exactly one estimate format recognises by name and type.
+    /// A confirmed file Pegasus did not generate that the Worker, reading it
+    /// once after it was filed, found to be an estimate
+    /// (<see cref="RecogniseFiledEstimates"/>). The name alone never makes a
+    /// file one: every PDF names the PDF format.
     /// </summary>
-    private bool IsImportableEstimate(CaseFile file) =>
+    private static bool IsImportableEstimate(CaseFile file) =>
         file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed
         && file.Occurrence.Source != DocumentSource.Generated
-        && file.Version.ContentLength is > 0 and <= ImportRawEstimate.MaximumDocumentBytes
-        && EstimateFormatCount(file.Version.FileName, file.Version.MediaType) == 1;
+        && file.Version.IsRecognisedEstimate == true;
 
     private int EstimateFormatCount(string fileName, string mediaType)
     {
