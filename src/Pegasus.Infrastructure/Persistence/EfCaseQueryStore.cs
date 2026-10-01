@@ -373,7 +373,10 @@ public sealed class EfCaseQueryStore(
             frame,
             documents,
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
-            recordNotes);
+            recordNotes,
+            // The Next action's cancellation row reads the linked mail's current
+            // classification on every render (FRD-13 "Cancellation messages").
+            await ReadCorrespondenceEmailsAsync(context, caseId, cancellationToken));
     }
 
     /// <summary>

@@ -116,6 +116,15 @@ correspondent's reply to a Sent message takes the Sent category with reply
 context. The taxonomy also allows `Other`, which needs both a new category
 name and a reason.
 
+A correction keeps to the message's direction: a received message takes only
+a received category, a sent message only a sent one. A correction to
+`new-instruction-received` names the case type the instruction carries,
+Inspection, Audit or Inspection and Audit, which Create case preselects and
+allocation reads. A correction to or from `triage-request` writes or removes
+the receipt's accepted Triage match, so Open the Triage reads one fact. A
+re-evaluation reads a corrected classification in place of the classifier and
+never removes or overwrites it or its history.
+
 ### Classification, destination, and folder catalogue
 
 A known classification has its own typed destination. It is never collapsed

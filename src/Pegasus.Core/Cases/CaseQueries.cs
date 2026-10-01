@@ -5,6 +5,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Vehicle;
@@ -228,7 +229,8 @@ public sealed record CasePageFrame(
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
-    CaseDataProjection Data)
+    CaseDataProjection Data,
+    Guid? CancellationMessageId = null)
 {
     public CaseSearchItem Summary => Frame.Summary;
     public CaseWorkflowRecord Workflow => Frame.Workflow;
@@ -240,7 +242,33 @@ public sealed record CasePageFrameData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
-    CaseRecordNotes RecordNotes);
+    CaseRecordNotes RecordNotes,
+    IReadOnlyList<CaseCorrespondenceEmail>? CorrespondenceEmails = null);
+
+/// <summary>
+/// The cancellation an open Case shows in its Next action (FRD-13 "Cancellation
+/// messages"): the newest linked received message whose current classification
+/// is a cancellation, while the Case is neither closed nor archived. The
+/// classification is read live, so a correction shows or clears it at once.
+/// </summary>
+public static class CaseCancellationNotice
+{
+    public static Guid? MessageId(CaseWorkflowRecord workflow, IReadOnlyList<CaseCorrespondenceEmail> emails)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        ArgumentNullException.ThrowIfNull(emails);
+        if (workflow.Archive is not null || CaseLifecycleRules.IsClosed(workflow.State))
+        {
+            return null;
+        }
+        return emails
+            .Where(email => email.Classification is { IsCancellation: true })
+            .OrderByDescending(email => email.ReceivedAtUtc)
+            .ThenBy(email => email.RetainedMessageId)
+            .Select(email => (Guid?)email.RetainedMessageId)
+            .FirstOrDefault();
+    }
+}
 
 public sealed record CaseVehicleSection(
     CaseSectionFrame Frame,
@@ -530,7 +558,8 @@ public sealed class GetCasePageFrame(
             frame.Documents,
             frame.AvailableReportSentEvidence,
             frame.RecordNotes,
-            data);
+            data,
+            CaseCancellationNotice.MessageId(frame.Frame.Workflow, frame.CorrespondenceEmails ?? []));
     }
 }
 

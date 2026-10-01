@@ -223,6 +223,73 @@ public sealed class TriageFromIntakeIntegrationTests
     }
 
     [Fact]
+    public async Task StaffCorrectingAMessageToTriageRequestOpensTheTriageFromTheMessage()
+    {
+        // FRD-03's third way, from the message itself: the route read nothing
+        // in this message, staff correct it to Triage request, and the message
+        // record then offers Open the Triage against the same receipt.
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var email = IntakeTestEvidence.CreateEmail(
+            "corrected-to-triage.eml",
+            "Further to our call this morning, please see the vehicle details below.");
+
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+
+        Guid messageId;
+        await using (var lookup = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = lookup.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var token = await context.IntakeReceipts.Where(item => item.Id == receiptId).Select(item => item.ExternalReceiptToken).SingleAsync();
+            messageId = await context.RetainedMailboxMessages.Where(item => item.ExternalReceiptToken == token).Select(item => item.Id).SingleAsync();
+            Assert.Equal(1, await context.IntakeMailClassificationDecisions.Where(item => item.IntakeReceiptId == receiptId).Select(item => item.Version).SingleAsync());
+            Assert.Empty(await lookup.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
+        }
+
+        // Before the correction the message offers nothing.
+        var before = await IntakeWebDriver.GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.DoesNotContain("data-offered-action", before, StringComparison.Ordinal);
+
+        using var correction = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
+            ["ExpectedClassificationVersion"] = "1",
+            ["ClassificationKey"] = "received:PreInstructionEmails:triage-request",
+            ["CorrectionReason"] = "The Principal asked for a Triage on the call."
+        });
+        using var corrected = await client.PostAsync($"/Inbox/{messageId:D}?handler=CorrectClassification", correction);
+        Assert.Equal(HttpStatusCode.Redirect, corrected.StatusCode);
+
+        var offered = await IntakeWebDriver.GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.Contains("data-offered-action=\"OpenTriage\"", offered, StringComparison.Ordinal);
+        Assert.Contains("handler=OpenTriage", offered, StringComparison.Ordinal);
+
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
+            ["vehicleRegistration"] = "vn64 wng",
+            ["operationKey"] = Guid.NewGuid().ToString("N")
+        });
+        using var opened = await client.PostAsync($"/Inbox/{messageId:D}?handler=OpenTriage", form);
+        Assert.Equal(HttpStatusCode.Redirect, opened.StatusCode);
+
+        await using var after = factory.Services.CreateAsyncScope();
+        var triage = Assert.Single(
+            await after.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+        var detail = Assert.IsType<TriageDetail>(
+            await after.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .GetAsync(triage.CaseId, CancellationToken.None));
+        Assert.Equal(receiptId, detail.Record.Origin?.ReceiptId);
+        Assert.Equal("VN64WNG", detail.Record.NormalizedVehicleRegistration);
+
+        // Opened once: the offer is gone and the Case tab names the Triage.
+        var settled = await IntakeWebDriver.GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.DoesNotContain("data-offered-action", settled, StringComparison.Ordinal);
+    }
+
+    [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task StaffSupplyingTheRegistrationOpensTheTriageAndClosesTheUnidentifiedItem()
     {

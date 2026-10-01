@@ -488,6 +488,7 @@ public static class OperatorLabels
             Pegasus.Core.Notifications.StaffNotificationCause.EditedByOther => "Edited by a colleague",
             Pegasus.Core.Notifications.StaffNotificationCause.EmailReceived => "E-mail received",
             Pegasus.Core.Notifications.StaffNotificationCause.QueryReceived => "Query received",
+            Pegasus.Core.Notifications.StaffNotificationCause.CancellationReceived => "Cancellation received",
             _ => Humanise(notification.Cause.ToString())
         };
     }

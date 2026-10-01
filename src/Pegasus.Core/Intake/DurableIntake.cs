@@ -1246,7 +1246,7 @@ public sealed class ProcessQueuedIntake(
         if (outcome == AutomaticCaseAssociationOutcome.Associated && caseNotifier is not null)
         {
             // Work Centre D10 cause 3: the Case's engineer learns an e-mail arrived.
-            await caseNotifier.NotifyMailArrivalAsync(matchedCaseId, null, cancellationToken);
+            await caseNotifier.NotifyMailArrivalAsync(matchedCaseId, receipt.Id, null, cancellationToken);
         }
 
         return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
@@ -1660,7 +1660,7 @@ public sealed class LinkIntake(
         {
             // Work Centre D10 cause 3: the Case's engineer learns an e-mail (or a
             // query) arrived, unless they linked it themself.
-            await caseNotifier.NotifyMailArrivalAsync(request.CaseId, request.Actor, cancellationToken);
+            await caseNotifier.NotifyMailArrivalAsync(request.CaseId, request.ReceiptId, request.Actor, cancellationToken);
         }
 
         // The reasoned link committed. The same observable owner completes
