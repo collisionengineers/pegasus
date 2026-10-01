@@ -6,13 +6,17 @@
     report fills the cells staff have not recorded, when the Case is
     accepted, when Pegasus recognises the report among files added later, and
     when a document is marked as the original report, tagged Extracted until
-    staff change them (Core's OriginalReportPrefillPolicy).
+    staff change them (Core's OriginalReportPrefillPolicy). The fifth cell
+    links the Audit's Third Party Engineer contact (FRD-04): filled by the
+    recognised report's assessor when a contact of that name exists, chosen
+    by staff otherwise, the same select the Repairer contact uses.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Assessment
 @using Pegasus.Core.Intake.ThirdPartyReports
 @using Pegasus.Web.Pages
 @using Pegasus.Web.Presentation
+@using Pegasus.Core.Cases
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @{
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "original-report");
@@ -32,6 +36,7 @@
                 await Field(AssessmentVocabulary.OriginalReportDate, labels[AssessmentVocabulary.OriginalReportDate]);
                 await Field(AssessmentVocabulary.OriginalReportRoadworthiness, labels[AssessmentVocabulary.OriginalReportRoadworthiness]);
                 await Field(AssessmentVocabulary.OriginalReportOutcome, labels[AssessmentVocabulary.OriginalReportOutcome]);
+                await ContactField();
             }
         </div>
         @if (editable)
@@ -88,6 +93,40 @@
                 {
                     <input id="@id" class="fi" name="@name" form="case-edit-form" maxlength="@definition.MaximumLength" value="@value" list="@(path == AssessmentVocabulary.OriginalReportAssessor ? "original-report-assessors" : null)" />
                 }
+            }
+        </div>
+        await Task.CompletedTask;
+    }
+
+    private async Task ContactField()
+    {
+        var path = AssessmentVocabulary.OriginalReportEngineerContact;
+        var editable = Model.SectionIsEditable("original-report") && Model.Case!.Data is not null;
+        var linkedId = Guid.TryParse(Model.AssessmentEditorValue(path), out var parsed) ? parsed : (Guid?)null;
+        var linkedName = Model.AssessmentEditorValue(AssessmentVocabulary.OriginalReportEngineerContactName);
+        var tag = Model.AssessmentSourceTag(path);
+        var name = CaseWorkspaceLabels.Editors.FormName(path);
+        var label = OperatorLabels.CaseWorkspace.ThirdPartyEngineerDirectory;
+        const string id = "f-original-report-engineer-contact";
+        <div class="fc @(editable ? null : "ro")" data-field="@path">
+            @if (editable)
+            {
+                <label for="@id">@label@(tag?.Render())</label>
+            }
+            else
+            {
+                <span class="lbl">@label@(tag?.Render())</span>
+            }
+            <div class="fv @(linkedId is null ? "empty" : null)">@(linkedId is null ? OperatorLabels.CaseWorkspace.NotLinked : linkedName ?? linkedId.Value.ToString("D"))</div>
+            @if (editable)
+            {
+                <select id="@id" class="fi" name="@name" form="case-edit-form">
+                    <option value="">@OperatorLabels.CaseWorkspace.NotLinked</option>
+                    @foreach (var contact in Model.ThirdPartyEngineerChoices)
+                    {
+                        <option value="@contact.OrganizationId" selected="@(contact.OrganizationId == linkedId ? "selected" : null)">@contact.Name</option>
+                    }
+                </select>
             }
         </div>
         await Task.CompletedTask;
