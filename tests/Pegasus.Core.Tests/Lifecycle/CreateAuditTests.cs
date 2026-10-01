@@ -14,40 +14,41 @@ public sealed class CreateAuditTests
     private static readonly ActionActor Staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
     private static readonly DateTimeOffset Now = new(2026, 9, 24, 10, 0, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// Create audit is allowed in every working state, whether or not the
+    /// Inspection report has been sent (operator, 1 October 2026).
+    /// </summary>
     [Theory]
+    [InlineData(CaseLifecycleState.NotReady)]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
     [InlineData(CaseLifecycleState.PostReport)]
     [InlineData(CaseLifecycleState.PostReportComplete)]
     [InlineData(CaseLifecycleState.Query)]
-    public void CreateAuditIsAllowedOnceTheReportIsSent(CaseLifecycleState state)
+    public void CreateAuditIsAllowedInEveryWorkingState(CaseLifecycleState state)
     {
         Assert.Null(AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(state), PrimaryOnly()));
         Assert.Null(AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(state), works: null));
-    }
-
-    [Theory]
-    [InlineData(CaseLifecycleState.Held)]
-    [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.Review)]
-    [InlineData(CaseLifecycleState.NotReady)]
-    [InlineData(CaseLifecycleState.PrincipalCancelled)]
-    [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
-    [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
-    public void CreateAuditIsRefusedBeforeTheReportIsSentOrAfterAClosedDisposition(CaseLifecycleState state)
-    {
-        Assert.Equal(
-            AuditRefusal.ReportNotSent,
-            AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(state), PrimaryOnly()));
+        Assert.Null(AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(state, sent: false), PrimaryOnly()));
     }
 
     [Fact]
-    public void APostReportCaseWithoutSentEvidenceHasNotSentItsReport()
+    public void AHeldCaseIsRefused()
     {
         Assert.Equal(
-            AuditRefusal.ReportNotSent,
-            AuditPolicy.Refusal(
-                CaseType.InspectionAndAudit,
-                Workflow(CaseLifecycleState.PostReport, sent: false),
-                PrimaryOnly()));
+            AuditRefusal.Held,
+            AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(CaseLifecycleState.Held), PrimaryOnly()));
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
+    [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
+    [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
+    public void AClosedDispositionIsRefused(CaseLifecycleState state)
+    {
+        Assert.Equal(
+            AuditRefusal.Closed,
+            AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(state), PrimaryOnly()));
     }
 
     [Fact]
@@ -86,7 +87,8 @@ public sealed class CreateAuditTests
     [InlineData(AuditRefusal.CreatedInError, "A case recorded as created in error cannot have an audit created from it.")]
     [InlineData(AuditRefusal.Archived, "An archived case cannot have an audit created from it.")]
     [InlineData(AuditRefusal.AuditAlreadyExists, "This case already has its audit.")]
-    [InlineData(AuditRefusal.ReportNotSent, "Create audit is available once the report is sent.")]
+    [InlineData(AuditRefusal.Held, "A held case cannot have an audit created from it.")]
+    [InlineData(AuditRefusal.Closed, "A closed case cannot have an audit created from it.")]
     [InlineData(AuditRefusal.NoAssignedEngineer, "Report preparation requires an assigned Engineer.")]
     public void EachRefusalReadsItsApprovedMessage(AuditRefusal refusal, string message)
     {
@@ -130,7 +132,7 @@ public sealed class CreateAuditTests
 
         var exception = await Assert.ThrowsAsync<AuditCreationException>(() => sut.ExecuteAsync(Request(), default));
 
-        Assert.Equal(AuditRefusal.ReportNotSent, exception.Refusal);
+        Assert.Equal(AuditRefusal.Held, exception.Refusal);
         Assert.Equal(CaseId, exception.CaseId);
         Assert.Empty(store.Commands);
     }

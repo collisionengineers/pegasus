@@ -54,7 +54,7 @@
     var closureOutcomes = Model.AvailableClosureOutcomes;
     var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
     var offersHoldGroup = mayActOnCaseData && !isClosed;
-    var offersCreateAudit = Model.CanCreateAudit;
+    var offersCreateAudit = Model.OffersCreateAudit;
     // The menu shows whenever it has an item to offer.
     var offersActionsMenu = canUnlinkEvidence || canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
         || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
@@ -307,10 +307,26 @@
                         }
                         @if (offersCreateAudit)
                         {
-                            <button type="button" class="btn" data-dialog-open="case-create-audit-dialog" data-create-audit>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                                <span>@Frame.CreateAudit</span>
-                            </button>
+                            @if (Model.CreateAuditCondition is { } createAuditCondition)
+                            {
+                                @* Listed on every Inspection + Audit Case; greyed out with
+                                   its blocker on hover (operator, 1 October 2026). The
+                                   wrapper carries the title: a disabled button takes no
+                                   pointer events. *@
+                                <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
+                                    <button type="button" class="btn" disabled aria-disabled="true" data-create-audit>
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                        <span>@Frame.CreateAudit</span>
+                                    </button>
+                                </span>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-create-audit-dialog" data-create-audit>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                    <span>@Frame.CreateAudit</span>
+                                </button>
+                            }
                         }
                     }
                     @if (offersAdverseClosure)

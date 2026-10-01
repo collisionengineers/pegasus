@@ -38,7 +38,12 @@
                     {
                         <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-view="@DetailsModel.InspectionViewKey">@inspectionName</a>
                     }
-                    <span class="status status--plain status--green">@Frame.Sent</span>
+                    @if (Model.Works?.Primary.ReportSentEvidence is not null)
+                    {
+                        @* No chip when the Audit was created before the Inspection
+                           report was sent (operator, 1 October 2026). *@
+                        <span class="status status--plain status--green">@Frame.Sent</span>
+                    }
                 </div>
                 <div class="next-row" data-case-view-row="audit">
                     @if (Model.IsInspectionView)
