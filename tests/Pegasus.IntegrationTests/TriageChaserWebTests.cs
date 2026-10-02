@@ -899,6 +899,52 @@ public sealed partial class QdosTriageIntegrationTests
     /// A refused send redisplays what the operator typed — To, Cc, Subject
     /// and Body — not the template again.
     /// </summary>
+    /// <summary>
+    /// A reply the mailbox provider refuses is an outcome, not a fault: the
+    /// redirect lands on the record with the Failed status stated and the
+    /// reply form offered again under a fresh operation key.
+    /// </summary>
+    [Fact]
+    public async Task AFailedReplyStatesItsStatusAndOffersTheReplyAgain()
+    {
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Failed };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = fixture.Version.ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = operationKey,
+            ["to"] = "reply@example.invalid",
+            ["subject"] = "Re: Originating triage subject",
+            ["body"] = "Please supply the requested additional vehicle details."
+        });
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+
+        using var reloaded = await client.GetAsync(response.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, reloaded.StatusCode);
+        var html = await reloaded.Content.ReadAsStringAsync();
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.Triage.SendStatus(StaffMailPurpose.TriageChaser, StaffMailState.Failed),
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("data-triage-reply-form", html, StringComparison.Ordinal);
+        Assert.DoesNotContain($"value=\"{operationKey}\"", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ARefusedSendKeepsThePostedText()
     {

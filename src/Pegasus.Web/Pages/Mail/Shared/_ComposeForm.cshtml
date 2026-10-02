@@ -62,28 +62,18 @@
                     <input type="hidden" asp-for="OperationId" />
                     <input type="hidden" asp-for="ExpectedContextVersion" />
                     <div class="mail-compose-form-fields">
-                        <div class="mail-compose-case-search">
-                            <div class="field">
-                                <label asp-for="CaseQuery">Find a Case</label>
-                                <input asp-for="CaseQuery" type="search" maxlength="300" data-dialog-initial-focus />
-                                <span asp-validation-for="CaseQuery"></span>
-                            </div>
-                            <button type="submit" asp-page="/Mail/Compose" asp-page-handler="SearchCase" class="btn">Search</button>
+                        @* Find a Case is an autocomplete: typing fetches the
+                           option list from CaseOptions; choosing an option posts
+                           SelectCase exactly as the earlier result buttons did. *@
+                        <div class="field case-picker" data-case-picker
+                             data-case-picker-url="@Url.Page("/Mail/Compose", "CaseOptions")">
+                            <label asp-for="CaseQuery">@OperatorLabels.Upload.FindCase</label>
+                            <input asp-for="CaseQuery" type="search" maxlength="300" autocomplete="off"
+                                   role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                   aria-controls="mail-compose-case-options" data-dialog-initial-focus />
+                            <span asp-validation-for="CaseQuery"></span>
+                            <div id="mail-compose-case-options" class="case-picker-options" data-case-picker-options hidden></div>
                         </div>
-                        @if (Model.CaseResults.Count > 0)
-                        {
-                            <ul class="search-results" data-mail-compose-results>
-                                @foreach (var candidate in Model.CaseResults)
-                                {
-                                    <li>
-                                        <button type="submit" asp-page="/Mail/Compose" asp-page-handler="SelectCase"
-                                                name="SelectedCaseReference" value="@candidate.Reference" class="btn">
-                                            @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")
-                                        </button>
-                                    </li>
-                                }
-                            </ul>
-                        }
                         <div class="field mail-compose-case-reference">
                             <label asp-for="CaseReference">Case / PO</label>
                             <input asp-for="CaseReference" type="text" maxlength="100" />
