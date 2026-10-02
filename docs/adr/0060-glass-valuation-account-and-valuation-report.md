@@ -60,7 +60,11 @@ if the stock save fails; that valuation then has no report.
 **Every failure is the card's existing notice.** Whatever stops a valuation —
 the account, the registration, the provider or the network — the card answers
 the approved "unavailable" sentence and the host log names the stage by its
-failure code. No new operator copy is added (operator, 1 October 2026).
+failure code. No new operator copy is added (operator, 1 October 2026). The
+one exception is Glass's answering that it does not value a vehicle of that
+age (`glass.valuation.vehicle_age`, matched on "due to the age" in its
+message). Nothing is broken, so the card shows the operator's own sentence as
+an info notice instead (2 October 2026).
 
 **The report is filed after the answer.** Each valuation's stocked vehicle is
 printed with the account's "Vehicle Valuation Report – Glass's Values Only"
