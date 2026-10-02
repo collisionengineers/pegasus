@@ -399,7 +399,7 @@
             </form>
             <div class="dialog-foot">
                 <a class="btn" href="@Model.PageUrl" data-dialog-close data-dialog-initial-focus>@Labels.Cancel</a>
-                <button type="submit" form="upload-confirm-form" class="btn btn--primary" data-confirm-submit>@Labels.ConfirmAdd(target?.Reference ?? string.Empty)</button>
+                <button type="submit" form="upload-confirm-form" class="btn btn--primary" data-confirm-submit data-busy-label="@OperatorLabels.Busy.Adding">@Labels.ConfirmAdd(target?.Reference ?? string.Empty)</button>
             </div>
         </section>
     </div>
@@ -436,7 +436,7 @@
             </form>
             <div class="dialog-foot">
                 <a class="btn" href="@Model.PageUrl" data-dialog-close>@Labels.Cancel</a>
-                <button type="submit" form="upload-discard-form" class="btn btn--danger">@Labels.Discard</button>
+                <button type="submit" form="upload-discard-form" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Discarding">@Labels.Discard</button>
             </div>
         </section>
     </div>

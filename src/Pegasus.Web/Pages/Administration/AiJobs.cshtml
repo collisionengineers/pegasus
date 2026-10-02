@@ -56,7 +56,7 @@
                                             <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
                                             <label for="stop-reason-@job.JobId">Reason</label>
                                             <input id="stop-reason-@job.JobId" name="reason" required maxlength="500" />
-                                            <button class="btn btn--small btn--danger" type="submit">Confirm stop</button>
+                                            <button class="btn btn--small btn--danger" type="submit" data-busy-label="@OperatorLabels.Busy.Stopping">Confirm stop</button>
                                         </form>
                                     </details>
                                 }

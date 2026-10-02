@@ -57,7 +57,7 @@
                                 {
                                     <form method="post" asp-page-handler="Retry" asp-route-id="@report.Id">
                                         <input type="hidden" name="operationKey" value="@ProblemReportsModel.NewOperationKey()" />
-                                        <button type="submit" class="btn btn--small">@OperatorLabels.ProblemReports.Retry</button>
+                                        <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Retrying">@OperatorLabels.ProblemReports.Retry</button>
                                     </form>
                                 }
                                 else if (report.Status == Pegasus.Core.Support.ProblemReportStatus.Unknown)
@@ -68,11 +68,11 @@
                                             <input type="hidden" name="operationKey" value="@ProblemReportsModel.NewOperationKey()" />
                                             <label for="issue-@report.Id">Matching issue number</label>
                                             <input id="issue-@report.Id" name="issueNumber" type="number" min="1" required />
-                                            <button type="submit" class="btn btn--small">Confirm issue</button>
+                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Confirming">Confirm issue</button>
                                         </form>
                                         <form method="post" asp-page-handler="ConfirmNoIssue" asp-route-id="@report.Id">
                                             <input type="hidden" name="operationKey" value="@ProblemReportsModel.NewOperationKey()" />
-                                            <button type="submit" class="btn btn--small">Confirm no issue</button>
+                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Confirming">Confirm no issue</button>
                                         </form>
                                     </div>
                                 }

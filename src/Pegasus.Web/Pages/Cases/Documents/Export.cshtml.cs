@@ -64,10 +64,9 @@ public sealed partial class ExportModel(
             if (export.Bundle is not { } bundle
                 || SafeArchiveName(bundle.FileName) is not { } fileName)
             {
-                TempData["CaseError"] = export.BlockingReasons.Count > 0
+                return Refuse(caseId, export.BlockingReasons.Count > 0
                     ? string.Join(" ", export.BlockingReasons)
-                    : "The case could not be exported.";
-                return RedirectToDetails(caseId);
+                    : "The case could not be exported.");
             }
 
             Response.Headers.CacheControl = "private, no-store";
@@ -97,9 +96,28 @@ public sealed partial class ExportModel(
             or UnauthorizedAccessException)
         {
             LogDocumentExportFailed(logger, caseId, exception);
-            TempData["CaseError"] = "The case could not be exported.";
-            return RedirectToDetails(caseId);
+            return Refuse(caseId, "The case could not be exported.");
         }
+    }
+
+    /// <summary>
+    /// The page fetches the archive (site.js <c>data-busy-download</c>) so its
+    /// button stays busy until the file arrives; that fetch reads a refusal's
+    /// reason from the body and shows it. A plain post reads it on the Case.
+    /// </summary>
+    private IActionResult Refuse(Guid caseId, string reason)
+    {
+        if (IsScriptRequest)
+        {
+            return new ContentResult
+            {
+                StatusCode = StatusCodes.Status422UnprocessableEntity,
+                Content = reason,
+                ContentType = "text/plain; charset=utf-8"
+            };
+        }
+        TempData["CaseError"] = reason;
+        return RedirectToDetails(caseId);
     }
 
     private static string? SafeArchiveName(string value) =>

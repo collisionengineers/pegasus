@@ -51,8 +51,8 @@
                 <input type="hidden" name="@parameter.Key" value="@parameter.Value" />
             }
             <input type="hidden" asp-for="OperationKey" />
-            <button type="submit" asp-page-handler="Accept" class="btn btn--primary">Authorise the connector</button>
-            <button type="submit" asp-page-handler="Deny" class="btn">Refuse</button>
+            <button type="submit" asp-page-handler="Accept" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Authorising">Authorise the connector</button>
+            <button type="submit" asp-page-handler="Deny" class="btn" data-busy-label="@OperatorLabels.Busy.Refusing">Refuse</button>
         </form>
     </div>
 </section>
