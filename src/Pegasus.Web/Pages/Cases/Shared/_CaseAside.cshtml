@@ -6,7 +6,7 @@
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @{
     var workflow = Model.Case!.Workflow;
-    var staleGeneration = Model.CurrentReportGeneration is { State: CaseReportGenerationState.Stale };
+    var staleGeneration = Model.ViewedReportGeneration is { State: CaseReportGenerationState.Stale };
     var next = Model.NextAction;
     var reportBlockers = Model.NextActionBlockers;
     var engineerValue = Model.EngineerValue;
@@ -107,11 +107,27 @@
                     <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
                 </div>
             }
+            @* The step is the viewed work's and its link stays in that view
+               (operator, 2 October 2026). Create audit opens the Actions
+               menu's own dialog, greyed with its reason as the menu item is. *@
             @if (next is { } nextRow)
             {
                 <div class="next-row">
                     <span data-next-label>@nextRow.Label</span>
-                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@(Model.IsInspectionView ? null : nextRow.SectionKey)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == nextRow.SectionKey).Label</a>
+                    @if (!nextRow.OpensCreateAudit)
+                    {
+                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@nextRow.SectionKey">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == nextRow.SectionKey).Label</a>
+                    }
+                    else if (Model.CreateAuditCondition is { } createAuditCondition)
+                    {
+                        <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
+                            <button type="button" class="btn btn--small" disabled aria-disabled="true" data-next-create-audit>@Frame.CreateAudit</button>
+                        </span>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn--small" data-dialog-open="case-create-audit-dialog" data-next-create-audit>@Frame.CreateAudit</button>
+                    }
                 </div>
             }
             @if (reportBlockers.Count > 0)
@@ -146,7 +162,7 @@
                                 {
                                     <div class="blocker-actions">
                                         <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
-                                           asp-route-section="@blockerSection" asp-fragment="section-@blockerSection"
+                                           asp-route-section="@blockerSection" asp-route-view="@Model.ViewRoute" asp-fragment="section-@blockerSection"
                                            data-section-jump="@blockerSection"
                                            data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(reason)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == blockerSection).Label</a>
                                     </div>

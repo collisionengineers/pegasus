@@ -174,11 +174,13 @@ In the Inspection view no section head offers Edit; each editable head shows
 the one availability label **Read-only · Audit created** instead. In Files,
 an Audit folder chip follows the Case folder chip in the same tones: **Box
 audit · confirmed**, **Box audit folder: preparing** or **Box audit folder:
-unavailable**. Report shows the Inspection's sent report as one `.pv` line
-above the Audit report card, with an **Inspection view** link. While the
-Inspection report is still to be sent, the Inspection view's Report keeps
-the generation and delivery controls for that report alone (operator,
-1 October 2026). A Triage Case
+unavailable**. Report in the Audit view shows the Audit report alone
+(operator, 2 October 2026). While the Inspection report is still to be
+sent, the Inspection view's Report keeps the generation and delivery
+controls for that report alone (operator, 1 October 2026), and Next action
+there states that report's own step and blockers, with links that stay in
+the view; once it is sent, Next action states nothing (operator, 2 October
+2026). A Triage Case
 at `/Cases/{id}` keeps the Triage page's own layout, with the Case's Files
 panel before Notes.
 

@@ -433,7 +433,7 @@
         selectTab(all[nextIndex].getAttribute('data-section-link'));
     });
     document.addEventListener('click', function (event) {
-        // An empty jump (the Inspection view's Next action) is an ordinary link.
+        // An empty jump is an ordinary link.
         var jump = event.target.closest('[data-section-jump]:not([data-section-jump=""])');
         if (!jump || !record.contains(jump)) {
             return;

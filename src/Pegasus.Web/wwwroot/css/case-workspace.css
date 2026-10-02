@@ -40,6 +40,8 @@
 .next-row+.next-row{margin-top:8px}
 .next-row.ai-next{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
 .next-row .src-tag{margin-right:4px}
+/* Create audit as the next step, greyed with its reason as the Actions menu's item is. */
+.next-row .menu-gated{cursor:not-allowed}
 /* Views (v29 option 4): the aside's first card once the Case has its Audit;
    the current view reads plain and strong, the other is a link. */
 [data-case-views] .next-row{gap:8px}

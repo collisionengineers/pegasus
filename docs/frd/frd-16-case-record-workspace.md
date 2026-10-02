@@ -104,7 +104,11 @@ message** ([FRD-13](frd-13-case-lifecycle-and-workflow.md#cancellation-messages)
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Delivery is the Next action only once the report is
-stored (operator, 27 September 2026).
+stored (operator, 27 September 2026). Once the report is sent, the Next
+action is **Create audit** on an Inspection + Audit Case that has no Audit
+yet, with the Actions menu's own control (greyed with its reason where Core
+refuses it), and **Mark completed** on any other Case (operator, 2 October
+2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 Below 1441px the aside folds into a strip above the sections.
@@ -208,12 +212,15 @@ which both views share, carry no such label: their actions that need no Case
 edit lease, such as Add evidence, previews and downloads, stay, and every
 change that needs the lease is made in the Audit view. A staff member who
 holds the edit lease and opens the Inspection view keeps the ribbon's
-editing controls, but every section there stays read-only. The Next action
-links to the Audit view. The one exception is the Inspection report while it
-is still to be sent: the Inspection view's Report section generates it,
-prepares and sends its delivery, and the Actions menu's Mark report sent
-takes its evidence, all on the Inspection's own work and without changing
-the Case's state (operator, 1 October 2026).
+editing controls, but every section there stays read-only. The one
+exception is the Inspection report while it is still to be sent: the
+Inspection view's Report section generates it, prepares and sends its
+delivery, and the Actions menu's Mark report sent takes its evidence, all on
+the Inspection's own work and without changing the Case's state (operator,
+1 October 2026). The Next action is the viewed work's (operator, 2 October
+2026): in the Inspection view it states the Inspection report's own step,
+lists that report's blockers while it is not ready, and its links stay in
+the Inspection view; once the Inspection report is sent it states nothing.
 
 ### Actions menu
 
@@ -526,17 +533,17 @@ viewer by itself, once. A report still being filed shows the warning notice
 
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
-In the Audit view the report card's status begins with the Audit reference,
-and above the card one line stands for the Inspection's sent report: its
-title, "{Case/PO} · Sent {date}" and an **Inspection view** link. In the
+In the Audit view the report card's status begins with the Audit reference
+and the section shows the Audit report alone; the Views card is the way to
+the Inspection report (operator, 2 October 2026). In the
 Inspection view the card shows the Inspection report: once sent, with the
 status "{Case/PO} · Sent {date}", openable and downloadable, with no
 generation or delivery; while still to be sent, with its generation status
 and the Audit view's Generate, Prepare delivery and Send controls, acting on
 the Inspection's own work under the session's lease or one claimed for the
-generation (operator, 1 October 2026). The Next action lists no blockers there; while
-the Audit's report is not ready its one line reads Report not ready and links
-to the Audit view.
+generation (operator, 1 October 2026). The Next action there is the
+Inspection report's own step and lists that report's blockers while it is
+not ready ([Inspection and Audit views](#inspection-and-audit-views)).
 
 ### Files
 

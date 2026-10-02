@@ -59,10 +59,14 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   lease-requiring edit exists only in the Audit view. A lease holder at `?view=inspection` keeps
   the ribbon's editing controls, but every section still renders read-only.
 - Carry `view` only where the Inspection view is reachable (Refresh, section links, previews,
-  lazy section loads). The Next action always goes to the Audit, and writes return to the default
-  view.
-- Report in the Audit view shows the Inspection's sent report as one `.pv` line with an
-  "Inspection view" link above the Audit card; in the Inspection view the card shows the sent
+  lazy section loads, the Next action's links). Writes return to the default view.
+- The Next action is the viewed work's (operator, 2 October 2026): the Inspection view states
+  the Inspection report's own step and lists its blockers, nothing once that report is sent;
+  the Audit view states the Audit's. Once the report is sent on an Inspection + Audit Case with
+  no Audit, the step is Create audit with the Actions menu's own control (`data-dialog-open` or
+  the `.menu-gated` span with its reason).
+- Report in the Audit view shows the Audit report alone (operator, 2 October 2026); the Views
+  card is the route to the Inspection report. In the Inspection view the card shows the sent
   Inspection report with no generation or delivery. While the Inspection report is still to be
   sent after Create audit (operator, 1 October 2026), the Inspection view's Report keeps the
   Generate, Prepare delivery and Send controls for that report, under the session's lease, and
