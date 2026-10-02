@@ -147,15 +147,6 @@ public sealed class CaseRecordGapsV26WebTests
                 StringComparison.Ordinal);
         }
 
-        // The fifth cell is the Third Party Engineer contact: one select, offering
-        // "Not linked", in the same grid as the four cells (FRD-04).
-        Assert.Contains(
-            $"<select id=\"f-original-report-engineer-contact\" class=\"fi\" name=\"{CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.OriginalReportEngineerContact)}\" form=\"case-edit-form\"",
-            originalReport,
-            StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.CaseWorkspace.ThirdPartyEngineerDirectory, originalReport, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.CaseWorkspace.NotLinked, originalReport, StringComparison.Ordinal);
-
         using var response = await SaveAsync(
             workspace,
             values.Select(item => (CaseWorkspaceLabels.Editors.FormName(item.Item1), item.Item2)).ToArray());
@@ -782,12 +773,6 @@ public sealed class CaseRecordGapsV26WebTests
         Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.FindPossibleMatchesAsync(
             ActionActor actor, string name, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ContactDirectoryRecord>>([]);
-
-        // No Third Party Engineer contact exists in these fixtures, so a
-        // recognised report links nothing here.
-        Task<ContactDirectoryRecord?> IContactDirectoryQueries.FindActiveByRoleAndNameAsync(
-            ContactRole role, string name, CancellationToken cancellationToken) =>
-            Task.FromResult<ContactDirectoryRecord?>(null);
 
         Task<IReadOnlyList<PrincipalAdministrationDetails>> IContactDirectoryQueries.ListPrincipalChoicesAsync(
             ActionActor actor, CancellationToken cancellationToken) =>

@@ -172,9 +172,7 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.OriginalReportAssessor] = "Assessor",
             [AssessmentVocabulary.OriginalReportDate] = "Report date",
             [AssessmentVocabulary.OriginalReportRoadworthiness] = "Roadworthiness",
-            [AssessmentVocabulary.OriginalReportOutcome] = "Repairable status",
-            [AssessmentVocabulary.OriginalReportEngineerContact] = "Third Party Engineer contact",
-            [AssessmentVocabulary.OriginalReportEngineerContactName] = "Third Party Engineer contact name"
+            [AssessmentVocabulary.OriginalReportOutcome] = "Repairable status"
         };
 
         public static IReadOnlyDictionary<string, string> Report { get; } = new Dictionary<string, string>

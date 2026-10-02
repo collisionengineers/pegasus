@@ -173,9 +173,6 @@ public sealed partial class DetailsModel(
     /// </summary>
     public IReadOnlyList<ContactDirectoryRecord> RepairerChoices { get; private set; } = [];
 
-    /// <summary>The active Third Party Engineer contacts an Audit may link, while editing.</summary>
-    public IReadOnlyList<ContactDirectoryRecord> ThirdPartyEngineerChoices { get; private set; } = [];
-
     /// <summary>
     /// The active Claim source records the Overview's claim source select
     /// offers while the record is being edited; each option carries the
@@ -1572,9 +1569,6 @@ public sealed partial class DetailsModel(
         var repairers = inspectionRendered && canEditCaseData
             ? reads.Start(token => contactDirectory.ListByRoleAsync(actor, ContactRole.Repairer, token))
             : null;
-        var thirdPartyEngineers = details.Summary.CaseType == CaseType.Audit && canEditCaseData
-            ? reads.Start(token => contactDirectory.ListByRoleAsync(actor, ContactRole.ThirdPartyEngineer, token))
-            : null;
         var files = filesRendered
             ? reads.Start(token => ReadFilesAsync(id, canEditCaseData, token))
             : null;
@@ -1602,10 +1596,6 @@ public sealed partial class DetailsModel(
         if (repairers is not null)
         {
             RepairerChoices = await repairers;
-        }
-        if (thirdPartyEngineers is not null)
-        {
-            ThirdPartyEngineerChoices = await thirdPartyEngineers;
         }
         if (files is not null)
         {
@@ -1975,20 +1965,6 @@ public sealed partial class DetailsModel(
                 AssessmentPolicy.RequireOriginalReportScope(
                     settlementFields.Keys,
                     current.Summary.CaseType);
-                // The Third Party Engineer contact is a link to the directory: its
-                // name is copied beside its identity, so a later directory edit
-                // never rewrites the Case. Only the rendered select, which offers
-                // "Not linked" explicitly, may clear it.
-                if (settlementFields.TryGetValue(AssessmentVocabulary.OriginalReportEngineerContact, out var engineerContactId))
-                {
-                    var engineerContact = Guid.TryParse(engineerContactId, out var engineerOrganizationId)
-                        ? (await contactDirectory.ListByRoleAsync(actor, ContactRole.ThirdPartyEngineer, cancellationToken))
-                            .SingleOrDefault(item => item.OrganizationId == engineerOrganizationId)
-                            ?? throw new InvalidOperationException("The selected engineer is not an active directory Third Party Engineer.")
-                        : null;
-                    settlementFields[AssessmentVocabulary.OriginalReportEngineerContact] = engineerContact?.OrganizationId.ToString("D");
-                    settlementFields[AssessmentVocabulary.OriginalReportEngineerContactName] = engineerContact?.Name;
-                }
                 // The report's three values are Valuation's own boxes (operator,
                 // 26 September 2026), saved like any field.
                 var valuationFields = assessmentFields.Where(field => EditorLabels.Valuation.ContainsKey(field.Key))

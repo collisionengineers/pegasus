@@ -306,6 +306,8 @@ A filed original report fills them (#840). Pegasus reads the report file
 itself, never the e-mail it arrived in:
 
 - when a standalone Audit is accepted, from the report retained at intake;
+  custody then files that report as the Case's Audit report, and the other
+  attachments as instruction documents;
 - when files reach an open Audit that lists **Original report missing** —
   through Add evidence, through Upload and Add to an existing case, or by
   e-mail, matched or linked by staff — and exactly one of them is a report
@@ -326,15 +328,6 @@ the report prints no value for it, prints two different values, or prints a
 word the cell's list does not hold. Roadworthiness reads a printed Yes/No or
 Roadworthy/Unroadworthy. Repairable status reads a printed Repairable,
 Repair or Total loss; the report never fills Cash in lieu or Contract repair.
-
-The section's fifth cell is the Audit's **Third Party Engineer contact**
-([FRD-04](frd-04-parties-accounts-and-access.md)). When the recognised
-report's assessor is the name of exactly one active Third Party Engineer
-contact, the fill links that contact, tagged Extracted; otherwise it links
-nothing and the other cells still fill. Staff choose another contact, or
-none, from the same select the Repairer contact uses. The link copies the
-contact's name beside its identity, so a later directory edit never
-rewrites the Case. The Assessor cell keeps the name the report printed.
 
 Repairable status alone falls back to the Audit's intake verdict — the
 report's literal repairable or total-loss wording, or the Principal API's

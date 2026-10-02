@@ -57,22 +57,6 @@ public sealed class OriginalReportPrefillPolicyTests
     }
 
     [Fact]
-    public void ALinkedThirdPartyEngineerContactIsWrittenAsItsIdentityAndCopiedName()
-    {
-        var contactId = Guid.NewGuid();
-        var linked = new OriginalReportReading(
-            Sha256, "John R Bell", "2026-09-30", "roadworthy", null, false, contactId, "John R Bell");
-        var unlinked = new OriginalReportReading(Sha256, "John R Bell", "2026-09-30", "roadworthy", null, false);
-
-        var writes = OriginalReportPrefillPolicy.Writes(linked, null);
-
-        Assert.Equal(contactId.ToString("D"), writes[AssessmentVocabulary.OriginalReportEngineerContact]);
-        Assert.Equal("John R Bell", writes[AssessmentVocabulary.OriginalReportEngineerContactName]);
-        Assert.DoesNotContain(AssessmentVocabulary.OriginalReportEngineerContact, OriginalReportPrefillPolicy.Writes(unlinked, null).Keys);
-        Assert.DoesNotContain(AssessmentVocabulary.OriginalReportEngineerContactName, OriginalReportPrefillPolicy.Writes(unlinked, null).Keys);
-    }
-
-    [Fact]
     public void AReadReportFillsAllFourCells()
     {
         var writes = OriginalReportPrefillPolicy.Writes(

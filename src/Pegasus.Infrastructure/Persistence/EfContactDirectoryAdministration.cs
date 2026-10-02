@@ -125,35 +125,6 @@ public sealed class EfContactDirectoryAdministration(
         return await LoadRecordsAsync(context, ids, latestCases: null, cancellationToken);
     }
 
-    public async Task<ContactDirectoryRecord?> FindActiveByRoleAndNameAsync(
-        ContactRole role,
-        string name,
-        CancellationToken cancellationToken)
-    {
-        var normalized = name?.Trim().ToUpperInvariant() ?? string.Empty;
-        if (normalized.Length == 0)
-        {
-            return null;
-        }
-
-        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        var roleCode = ToCode(role);
-        var ids = await context.Organizations.AsNoTracking()
-            .Where(item => item.Active
-                && item.NormalizedName == normalized
-                && item.ContactRoles.Any(contactRole => contactRole.Role == roleCode))
-            .OrderBy(item => item.Id)
-            .Select(item => item.Id)
-            .Take(2)
-            .ToArrayAsync(cancellationToken);
-        if (ids.Length != 1)
-        {
-            return null;
-        }
-
-        return (await LoadRecordsAsync(context, ids, latestCases: null, cancellationToken)).SingleOrDefault();
-    }
-
     public async Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
