@@ -78,7 +78,10 @@ they ship as one rework with one destructive migration.
    closed. The primary work's report, when not yet sent at Create audit, is
    still generated, approved, sent and marked sent on that work, from the
    Inspection view, and never changes the Case's state; every report action
-   names the work it addresses.
+   names the work it addresses. *Amended 2 October 2026:* the Case page's
+   Next action states the viewed work's step, the Inspection report's in the
+   Inspection view, and the Audit view's Report section shows the Audit
+   report alone.
 5. **The `a.` folder.** Each Case document records its custody folder: the
    Case folder or its audit folder. An Audit-work report is filed in the
    `a.{Case/PO}` Box subfolder under the Case folder, which Pegasus creates

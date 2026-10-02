@@ -52,8 +52,6 @@ public static class CaseWorkspaceLabels
         public const string InspectionView = "Inspection";
         public const string AuditView = "Audit";
         public const string Sent = "Sent";
-        /// <summary>The Audit view's sent Inspection report line links to its own view (v29 P4).</summary>
-        public const string InspectionViewLink = "Inspection view";
         /// <summary>The Create audit dialog's facts (v29 P5).</summary>
         public const string AuditDialogCase = "Case";
         public const string AuditReference = "Audit reference";
