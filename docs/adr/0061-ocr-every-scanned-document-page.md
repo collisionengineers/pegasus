@@ -33,8 +33,7 @@ was already established from the message. The third-party report reader reads
 the OCR text for every asset. The instruction reader reads it only when the
 receipt still needs a Principal. An Audit Case whose original report arrived as
 a scan is filled from the OCR text through the same recognition that fills it
-from a readable report, and the recognised report's issuer links the Case to
-its Third Party Engineer contact.
+from a readable report.
 
 ADR-0047's restriction of OCR to instruction identification is replaced. Its
 surviving clauses are carried here: the operation binds to the exact retained

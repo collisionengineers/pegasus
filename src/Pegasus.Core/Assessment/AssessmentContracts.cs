@@ -123,10 +123,6 @@ public static class AssessmentVocabulary
     public const string OriginalReportDate = "original_report.report_date";
     public const string OriginalReportRoadworthiness = "original_report.roadworthiness";
     public const string OriginalReportOutcome = "original_report.outcome";
-    /// <summary>The Contacts directory Third Party Engineer the Audit is linked to: the organisation identity.</summary>
-    public const string OriginalReportEngineerContact = "original_report.engineer_contact";
-    /// <summary>The linked contact's name as copied onto the Case, so a later directory edit never rewrites it.</summary>
-    public const string OriginalReportEngineerContactName = "original_report.engineer_contact_name";
     public const string SettlementSalvageAt = "settlement.salvage.at";
     public const string SettlementSalvageAgent = "settlement.salvage.agent";
     public const string SettlementSalvageAgentReference = "settlement.salvage.agent_reference";
@@ -279,10 +275,6 @@ public static class AssessmentVocabulary
             Codes: ["roadworthy", "unroadworthy"]),
         new(OriginalReportOutcome, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: ["repairable", "total_loss", "cash_in_lieu", "contract_repair"]),
-        // The Third Party Engineer contact the Audit is linked to (FRD-04): the
-        // directory identity and the name copied beside it.
-        new(OriginalReportEngineerContact, AssessmentFieldType.Text, 36, IsFinding: false),
-        new(OriginalReportEngineerContactName, AssessmentFieldType.Text, 300, IsFinding: false),
         new(SettlementSalvageAt, AssessmentFieldType.Text, 400, IsFinding: false),
         new(SettlementSalvageAgent, AssessmentFieldType.Text, 200, IsFinding: false),
         new(SettlementSalvageAgentReference, AssessmentFieldType.Text, 100, IsFinding: false),
