@@ -27,7 +27,7 @@
     var editing = Model.SectionIsEditable("report");
     // One report per work (v29 P4): the Inspection view shows the
     // Inspection's sent report and nothing to generate or deliver; the Audit
-    // view is the current work's, with the sent Inspection report beside it.
+    // view shows the Audit report alone (operator, 2 October 2026).
     // While the Inspection report still awaits sending after Create audit
     // (operator, 1 October 2026), the Inspection view generates, prepares and
     // sends it on its own work, under the session's lease or one claimed for
@@ -281,21 +281,6 @@
             <button type="button" class="report-tab" role="tab" aria-selected="false" aria-controls="report-pane-fee" data-report-tab="fee">@Words.FeeTab</button>
         </div>
         <div id="report-pane-report" class="stack" role="tabpanel" aria-label="@Words.ReportTab" data-report-pane="report">
-        @if (auditView)
-        {
-            @* The Inspection's sent report: one line, and the way to its view. *@
-            <div class="pv" data-inspection-report>
-                <div class="pv-thumb" aria-hidden="true"></div>
-                <div class="pv-meta">
-                    <div class="pt">@(Model.InspectionReportTitle ?? Model.ReportTitle)</div>
-                    <div class="ps"><span>@Model.InspectionSentLine</span></div>
-                </div>
-                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@caseId"
-                   asp-route-section="report" asp-route-view="@DetailsModel.InspectionViewKey"
-                   asp-fragment="section-report">@CaseWorkspaceLabels.Frame.InspectionViewLink</a>
-            </div>
-        }
-
         @* The preview card: what the report is and where its generation stands. *@
         <div class="pv" data-report-preview-card>
             <div class="pv-thumb" aria-hidden="true"></div>
