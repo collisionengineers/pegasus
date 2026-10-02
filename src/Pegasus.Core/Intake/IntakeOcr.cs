@@ -333,11 +333,13 @@ public interface IIntakeOcrOperationStore
     Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The latest completed operation whose source has this SHA-256, with its
-    /// page output; null when no completed reading of those bytes exists. This
-    /// is how a reader of a filed document finds the OCR text intake already
-    /// paid for, by the bytes alone: the Case document carries the hash even
-    /// when it no longer names the intake asset.
+    /// An operation whose source has this SHA-256 and whose page output is
+    /// retained, whatever state the operation is in now; null when no reading
+    /// of those bytes exists. This is how a reader of a filed document finds
+    /// the OCR text intake already paid for, by the bytes alone: the Case
+    /// document carries the hash even when it no longer names the intake
+    /// asset, and the operation may be retrying the work that follows its
+    /// reading while the reader asks.
     /// </summary>
     Task<IntakeOcrOperation?> FindCompletedBySourceAsync(
         string sourceSha256,

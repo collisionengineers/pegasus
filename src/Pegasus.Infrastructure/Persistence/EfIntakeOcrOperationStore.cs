@@ -52,14 +52,16 @@ public sealed class EfIntakeOcrOperationStore(
 
         // Mail intake records the hash in capitals, custody in lower case, so
         // both spellings are asked for; SQL Server's char comparison ignores the
-        // fixed-width column's padding.
+        // fixed-width column's padding. The retained output is the fact asked
+        // about, not the row's state: only a validated completion writes
+        // ResultJson, and the row leaves Completed while the work that follows
+        // the reading (the report reading, the Audit's recognition) is retried.
+        // A reader asking during that retry must still find the text.
         var upper = sourceSha256.Trim().ToUpperInvariant();
         var lower = sourceSha256.Trim().ToLowerInvariant();
-        var completed = nameof(IntakeOcrState.Completed);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.Set<IntakeOcrOperationEntity>().AsNoTracking()
-            .Where(item => item.State == completed
-                && item.ResultJson != null
+            .Where(item => item.ResultJson != null
                 && (item.SourceSha256 == upper || item.SourceSha256 == lower))
             .OrderBy(item => item.Id)
             .FirstOrDefaultAsync(cancellationToken);

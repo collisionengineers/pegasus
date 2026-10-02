@@ -306,6 +306,8 @@ A filed original report fills them (#840). Pegasus reads the report file
 itself, never the e-mail it arrived in:
 
 - when a standalone Audit is accepted, from the report retained at intake;
+  custody then files that report as the Case's Audit report, and the other
+  attachments as instruction documents;
 - when files reach an open Audit that lists **Original report missing** —
   through Add evidence, through Upload and Add to an existing case, or by
   e-mail, matched or linked by staff — and exactly one of them is a report
