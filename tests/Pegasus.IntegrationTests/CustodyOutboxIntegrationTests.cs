@@ -2660,6 +2660,20 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.True(
             documents > 0,
             $"Custody completed but registered {documents} case documents.");
+
+        // The report the intake identified is filed as the Audit report, not
+        // as a second instruction document: nothing recognises it later,
+        // because a Case that holds its report does not await one.
+        var filed = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == outcome.Identity.CaseId
+                select new { version.FileName, occurrence.SemanticRole })
+            .ToDictionaryAsync(item => item.FileName, item => item.SemanticRole);
+        Assert.Equal(DocumentSemanticRole.AuditReport, filed["Bodyshopreport236503-V1.pdf"]);
+        Assert.Equal(DocumentSemanticRole.Instruction, filed["AuditReportNotification236503-V1.pdf"]);
+        Assert.Equal(DocumentSemanticRole.OriginalSource, filed[$"e2e-audit-{fixtureId}.eml"]);
     }
 
     /// <summary>
