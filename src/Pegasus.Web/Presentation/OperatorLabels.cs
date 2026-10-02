@@ -897,6 +897,11 @@ public static class OperatorLabels
         public const string TriageAssignRefused = "The Triage was not assigned because it changed, someone is editing it, or the action is not permitted.";
         public const string JobCompleted = "The AI job was completed.";
         public const string JobRefused = "The AI job changed before it could be completed. Refresh and try again.";
+
+        /// <summary>Every row's Dismiss (FRD-15); the New cases icon button names its Case.</summary>
+        public const string Dismiss = "Dismiss";
+
+        public static string DismissRow(string reference) => $"{Dismiss} {reference}";
     }
 
     /// <summary>
