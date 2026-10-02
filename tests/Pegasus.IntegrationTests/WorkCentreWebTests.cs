@@ -454,6 +454,47 @@ public sealed class WorkCentreWebTests
         Assert.DoesNotContain("<a ", actions.Groups[1].Value, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Every row offers Dismiss (FRD-15): the open Needs attention row, each
+    /// New cases row (an icon button naming its Case) and each AI job. A
+    /// dismissed job leaves the AI jobs tab and the only notice is its leaving.
+    /// </summary>
+    [Fact]
+    public async Task EveryRowOffersDismissAndADismissedJobLeavesTheAiJobsTab()
+    {
+        var item = Item(NeedsAttentionKind.ReviewCase, "QDOS26300", NeedsAttentionPriority.Today, Now.AddHours(3));
+        var newCase = new RecentCaseRow(
+            RecentCaseRowKind.NewCase, Guid.NewGuid(), "QDOS26301", "AB12CDE", "Meridian Claims", "QDOS", Now.AddHours(-1), CaseArrival.Email);
+        var queued = Job(AiJobKind.Estimate, AiJobState.Queued, "QDOS26302", Guid.NewGuid());
+        var kept = Job(AiJobKind.Estimate, AiJobState.Queued, "QDOS26303", Guid.NewGuid());
+        using var host = Host(
+            new FakeSnapshot { Items = [item], TodayCount = 1 },
+            new FakeRecentCases { Rows = [newCase] },
+            new FakeAiJobs { Open = [queued, kept] });
+        using var client = Client(host);
+
+        var attention = await GetOkAsync(client, $"/?selected={item.Id:D}");
+        Assert.Contains("data-wc-dismiss", attention, StringComparison.Ordinal);
+        Assert.Contains($"name=\"recordId\" value=\"{item.Id}\"", attention, StringComparison.Ordinal);
+        Assert.Contains($"name=\"recordId\" value=\"{newCase.CaseId}\"", attention, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Dismiss QDOS26301\"", attention, StringComparison.Ordinal);
+        Assert.Contains($"name=\"recordId\" value=\"{queued.JobId}\"", attention, StringComparison.Ordinal);
+
+        using var dismissed = await client.PostAsync("/?handler=Dismiss", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["recordId"] = queued.JobId.ToString("D"),
+            ["returnUrl"] = "/?scope=office&tab=ai-jobs",
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client)
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, dismissed.StatusCode);
+        Assert.Equal("/?scope=office&tab=ai-jobs", dismissed.Headers.Location?.OriginalString);
+
+        var jobs = await GetOkAsync(client, "/?tab=ai-jobs");
+        Assert.DoesNotContain($"data-wc-job=\"{queued.JobId}\"", jobs, StringComparison.Ordinal);
+        Assert.Contains($"data-wc-job=\"{kept.JobId}\"", jobs, StringComparison.Ordinal);
+        Assert.DoesNotContain("Dismissed", jobs, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AFailedLiveReadIsStatedAndRendersNoZeroMetrics()
     {

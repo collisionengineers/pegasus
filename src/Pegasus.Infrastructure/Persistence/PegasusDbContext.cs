@@ -1159,6 +1159,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         ReleaseNoteModelConfiguration.Configure(builder);
         ProblemReportModelConfiguration.Configure(builder);
         EmailTemplateModelConfiguration.Configure(builder);
+        WorkCentreDismissalModelConfiguration.Configure(builder);
     }
 }
 

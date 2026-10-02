@@ -153,4 +153,7 @@ public sealed record NeedsAttentionItem(
 
     /// <summary>The relative application path the row's action opens (Work Centre P4).</summary>
     public string Route { get; init; } = string.Empty;
+
+    /// <summary>When the row's current occurrence began; a dismissal of <see cref="Id"/> at or after it hides the row.</summary>
+    public DateTimeOffset QualifiedAtUtc { get; init; }
 }

@@ -401,7 +401,11 @@ public sealed record TriageSummary(
     string Reference,
     string? PrincipalCode,
     string? ClaimNumber = null,
-    Guid? PrincipalId = null);
+    Guid? PrincipalId = null)
+{
+    /// <summary>When the record last changed state; null when it has stayed in the state it was opened in.</summary>
+    public DateTimeOffset? StateEnteredAtUtc { get; init; }
+}
 
 public sealed record TriageDetail(
     TriageRecord Record,
