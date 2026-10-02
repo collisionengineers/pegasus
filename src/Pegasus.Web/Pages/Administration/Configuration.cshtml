@@ -38,13 +38,13 @@
                         }
                     </div>
                 </fieldset>
-                <div class="button-row"><button type="reset" class="btn">Reset</button><button type="submit" class="btn btn--primary">Save workflow settings</button></div>
+                <div class="button-row"><button type="reset" class="btn">Reset</button><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save workflow settings</button></div>
             </form>
         </section>
         <section class="panel" aria-labelledby="rates-title">
             <div class="panel-head">
                 <h2 id="rates-title">Labour-rate cards</h2>
-                <form method="post" asp-page-handler="NewCard"><button class="btn" type="submit">Add rate card</button></form>
+                <form method="post" asp-page-handler="NewCard"><button class="btn" type="submit" data-busy-label="@OperatorLabels.Busy.Adding">Add rate card</button></form>
             </div>
             <div class="table-wrap no-border"><table>
                 <caption class="sr-only">Labour-rate cards</caption>
@@ -67,7 +67,7 @@
                             <input type="hidden" name="CardId" value="@card.Id" />
                             <input type="hidden" name="CardExpectedVersion" value="@rowVersion" />
                             <input type="hidden" name="CardOperationKey" value="@rowOperationKey" />
-                            <div class="button-row"><button type="reset" class="btn btn--small">Reset</button><button type="submit" class="btn btn--small btn--primary">Save</button></div>
+                            <div class="button-row"><button type="reset" class="btn btn--small">Reset</button><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
                         </form></td>
                     </tr>
                 }
@@ -81,7 +81,7 @@
                             <input type="hidden" name="CardId" value="@Model.CardId" />
                             <input type="hidden" name="CardExpectedVersion" value="@Model.CardExpectedVersion" />
                             <input type="hidden" name="CardOperationKey" value="@Model.CardOperationKey" />
-                            <div class="button-row"><button type="reset" class="btn btn--small">Reset</button><button type="submit" class="btn btn--small btn--primary">Save</button><a class="btn btn--small" asp-page="/Administration/Configuration">Cancel</a></div>
+                            <div class="button-row"><button type="reset" class="btn btn--small">Reset</button><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button><a class="btn btn--small" asp-page="/Administration/Configuration">Cancel</a></div>
                         </form></td>
                     </tr>
                 }

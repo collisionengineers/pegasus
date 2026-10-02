@@ -30,8 +30,8 @@
                     <div class="field"><label for="report-engineer">Person</label><select id="report-engineer" asp-for="EngineerId" name="engineerId"><option value="">All people</option>@foreach (var person in Model.People) { <option value="@person.Id">@person.UserName</option> }</select></div>
                     <div class="cluster">
                         <button class="btn btn--dark" type="submit">Apply</button>
-                        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
-                        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Workbook" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" data-report-workbook><svg class="icon" aria-hidden="true"><use href="#icon-file-spreadsheet" /></svg><span>Download workbook</span></a>
+                        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+                        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Workbook" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" data-report-workbook data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-file-spreadsheet" /></svg><span>Download workbook</span></a>
                     </div>
                 </form>
                 <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
@@ -85,7 +85,7 @@
                 <h2 id="mi02-title">Reports by Principal</h2>
                 <span class="meta">MI02</span>
                 <div class="panel-actions">
-                    <a class="btn btn--small" asp-page="/Administration/Reports" asp-page-handler="PrincipalCsv" asp-route-from="@from" asp-route-to="@to"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+                    <a class="btn btn--small" asp-page="/Administration/Reports" asp-page-handler="PrincipalCsv" asp-route-from="@from" asp-route-to="@to" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
                 </div>
             </div>
             <div class="panel-body">
@@ -167,7 +167,7 @@
                 <h2 id="mi03-title">Turnaround</h2>
                 <span class="meta">MI03</span>
                 <div class="panel-actions">
-                    <a class="btn btn--small" asp-page="/Administration/Reports" asp-page-handler="TurnaroundCsv" asp-route-from="@from" asp-route-to="@to"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+                    <a class="btn btn--small" asp-page="/Administration/Reports" asp-page-handler="TurnaroundCsv" asp-route-from="@from" asp-route-to="@to" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
                 </div>
             </div>
             <div class="panel-body">

@@ -204,7 +204,7 @@
                                 <input type="hidden" name="returnUrl" value="@returnUrl" />
                                 <label class="sr-only" for="reevaluate-reason">Reason</label>
                                 <input id="reevaluate-reason" name="reason" maxlength="500" required placeholder="Reason" />
-                                <button class="btn" type="submit">@OperatorLabels.IntakeLog.Reevaluate</button>
+                                <button class="btn" type="submit" data-busy-label="@OperatorLabels.Busy.Checking">@OperatorLabels.IntakeLog.Reevaluate</button>
                             </form>
                         }
                         @if (detail.Actions.CanRetryAllocation && detail.AllocationAttempts.LastOrDefault() is { } lastAttempt)
@@ -217,7 +217,7 @@
                                 <input type="hidden" name="returnUrl" value="@returnUrl" />
                                 <label class="sr-only" for="retry-allocation-reason">Reason</label>
                                 <input id="retry-allocation-reason" name="reason" maxlength="500" required placeholder="Reason" />
-                                <button class="btn" type="submit">@OperatorLabels.IntakeLog.RetryAllocation</button>
+                                <button class="btn" type="submit" data-busy-label="@OperatorLabels.Busy.Retrying">@OperatorLabels.IntakeLog.RetryAllocation</button>
                             </form>
                         }
                         @if (detail.Actions.CanRetryOcr)
@@ -229,7 +229,7 @@
                                 <input type="hidden" name="returnUrl" value="@returnUrl" />
                                 <label class="sr-only" for="retry-ocr-reason">Reason</label>
                                 <input id="retry-ocr-reason" name="reason" maxlength="500" required placeholder="Reason" />
-                                <button class="btn" type="submit">@OperatorLabels.IntakeLog.RetryOcr</button>
+                                <button class="btn" type="submit" data-busy-label="@OperatorLabels.Busy.Retrying">@OperatorLabels.IntakeLog.RetryOcr</button>
                             </form>
                         }
                         <a class="btn" href="@Model.IntakeUrl()">Close</a>

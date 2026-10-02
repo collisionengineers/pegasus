@@ -94,7 +94,7 @@ else
                            (operator, 25 September 2026). *@
                         <form method="post" asp-page="/Cases/Details" asp-page-handler="ImportCaseFileEstimate" asp-route-id="@workflow.CaseId" data-import-case-file-estimate>
                             @{ RowMutationFields(occurrence.Id, version.Id); }
-                            <button type="submit" class="btn btn--small">@FilesLabels.ImportEstimate</button>
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Importing" class="btn btn--small">@FilesLabels.ImportEstimate</button>
                         </form>
                     }
                     @if (mayEdit)
@@ -103,7 +103,7 @@ else
                         {
                             <form method="post" asp-page="/Cases/Custody" asp-page-handler="MarkAsOriginalReport" asp-route-id="@workflow.CaseId">
                                 @{ RowMutationFields(occurrence.Id, version.Id); }
-                                <button type="submit" class="btn btn--small">@OperatorLabels.MarkAsOriginalReport</button>
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Marking" class="btn btn--small">@OperatorLabels.MarkAsOriginalReport</button>
                             </form>
                         }
                         <button type="button" class="btn btn--small btn--icon btn--danger" data-dialog-open="remove-doc-@occurrence.Id" title="@FilesLabels.Remove" aria-label="@FilesLabels.Remove @version.FileName">

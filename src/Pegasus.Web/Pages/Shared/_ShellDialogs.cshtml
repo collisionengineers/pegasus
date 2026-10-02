@@ -59,7 +59,7 @@
                 <span>Change password</span>
             </a>
             <form method="post" asp-page="/Account/SignOut">
-                <button type="submit" class="btn btn--danger">
+                <button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.SigningOut">
                     <svg class="icon" aria-hidden="true"><use href="#icon-log-out" /></svg>
                     <span>Sign out</span>
                 </button>
@@ -88,7 +88,7 @@
                     {
                         <form method="post" asp-page="/Notifications" asp-page-handler="Open" asp-route-id="@notification.Id" class="row-form">
                             <input type="hidden" name="returnUrl" value="@returnUrl" />
-                            <button type="submit" class="row-button@(notification.IsUnread ? " row-button--unread" : "")" data-notification="@notification.Id">
+                            <button type="submit" class="row-button@(notification.IsUnread ? " row-button--unread" : "")" data-notification="@notification.Id" data-busy-label="@OperatorLabels.Busy.Opening">
                                 <span class="title">@OperatorLabels.NotificationCause(notification)</span>
                                 <span class="sub"><span class="ref">@notification.Reference</span>@if (!string.IsNullOrWhiteSpace(notification.Registration)){<text> · <span class="mono">@notification.Registration</span></text>}</span>
                                 <span class="side">
@@ -113,7 +113,7 @@
             {
                 <form method="post" asp-page="/Notifications" asp-page-handler="MarkAllRead" class="left">
                     <input type="hidden" name="returnUrl" value="@returnUrl" />
-                    <button type="submit" class="btn">@OperatorLabels.Shell.MarkAllRead</button>
+                    <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Marking">@OperatorLabels.Shell.MarkAllRead</button>
                 </form>
             }
             <button type="button" class="btn btn--dark" data-dialog-close>Close</button>
@@ -194,7 +194,7 @@
                 <a class="btn left" asp-page="/ReleaseNotes">@OperatorLabels.Shell.ReleaseNotes</a>
                 <form method="post" asp-page="/ReleaseNotes" asp-page-handler="Acknowledge" asp-route-id="@releaseNote.Id">
                     <input type="hidden" name="returnUrl" value="@returnUrl" />
-                    <button type="submit" class="btn btn--dark" data-release-note-acknowledge>@OperatorLabels.Shell.GotIt</button>
+                    <button type="submit" class="btn btn--dark" data-release-note-acknowledge data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.Shell.GotIt</button>
                 </form>
             </div>
         </section>
@@ -231,7 +231,7 @@
             </div>
             <div class="dialog-foot">
                 <button type="button" class="btn" data-dialog-close>Cancel</button>
-                <button type="submit" class="btn btn--primary">@OperatorLabels.ProblemReports.Send</button>
+                <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.ProblemReports.Send</button>
             </div>
         </form>
     </section>

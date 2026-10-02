@@ -41,10 +41,10 @@
                 {
                     <p class="field-hint">Confirm the provider outcome before starting another message.</p>
                     <form method="post" asp-page="/Mail/Compose" asp-page-handler="Reconcile"
-                          data-mail-compose-form>
+                          data-mail-compose-form data-mail-compose-recovering="@OperatorLabels.Busy.Recovering">
                         <input type="hidden" name="operationId" value="@operation.Id" />
                         <input type="hidden" name="expectedOperationVersion" value="@operation.Version" />
-                        <button type="submit" class="btn">
+                        <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Reconciling">
                             <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
                             <span>@OperatorLabels.StaffMail.Reconcile</span>
                         </button>
@@ -62,7 +62,7 @@
             else
             {
                 <form method="post" asp-page="/Mail/Compose" asp-page-handler="Send"
-                      class="mail-compose-form" data-mail-compose-form>
+                      class="mail-compose-form" data-mail-compose-form data-mail-compose-recovering="@OperatorLabels.Busy.Recovering">
                     <input type="hidden" asp-for="OperationKey" />
                     <input type="hidden" asp-for="OperationId" />
                     <input type="hidden" asp-for="ExpectedContextVersion" />
@@ -128,7 +128,7 @@
                     @if (!unresolvedOperation)
                     {
                         <footer class="mail-compose-footer">
-                            <button type="submit" class="btn btn--primary">
+                            <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                                 <span>Send</span>
                             </button>
