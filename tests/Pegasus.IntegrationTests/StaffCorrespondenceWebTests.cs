@@ -547,10 +547,6 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>
-    /// A send the provider refuses is an outcome, not a fault: the redirected
-    /// GET shows the Failed state and offers the form again under a new key.
-    /// </summary>
-    /// <summary>
     /// FRD-21: the composer names why the provider refused the send, in
     /// operator words, under the Failed state. Nothing claims success.
     /// </summary>
@@ -633,6 +629,10 @@ public sealed class StaffCorrespondenceWebTests
         Assert.DoesNotContain("Correspondence sent.", statusHtml, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A send the provider refuses is an outcome, not a fault: the redirected
+    /// GET shows the Failed state and offers the form again under a new key.
+    /// </summary>
     [Fact]
     public async Task AFailedComposeSendShowsItsStateAndOffersANewSend()
     {

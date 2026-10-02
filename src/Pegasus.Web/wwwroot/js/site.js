@@ -319,7 +319,7 @@
             if (!response.ok || type.indexOf('text/') === 0 && !/attachment/i.test(response.headers.get('Content-Disposition') || '')) {
                 return response.text().then(function (text) {
                     var reason = type.indexOf('text/plain') === 0 ? text.trim() : '';
-                    throw new Error(reason || failed);
+                    throw { refusal: reason || failed };
                 });
             }
             return response.blob().then(function (blob) {
@@ -334,7 +334,9 @@
             });
         }).catch(function (error) {
             if (typeof window.pegasusToast === 'function') {
-                window.pegasusToast(error.message || failed, 'danger');
+                // Only the server's own reason is shown; a network failure's
+                // browser text is not operator wording.
+                window.pegasusToast(error && error.refusal || failed, 'danger');
             }
         }).finally(function () {
             endBusy(form || control);

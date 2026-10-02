@@ -1331,7 +1331,7 @@
             if (!next || next.dataset.inplaceSubmitting === 'true') { idle(form); return; }
             // Waiters run together once the queue empties; the first to post
             // holds it, and the next follows that post.
-            if (submitting) { commitWaiters.push({ run: proceed }); return; }
+            if (submitting) { commitWaiters.push({ run: proceed, abandon: abandon }); return; }
             var button = submitter && next !== form ? Array.prototype.find.call(next.elements, function (element) {
                 return element.type === 'submit' && element.name === name && element.value === value
                     && element.getAttribute('formaction') === formaction;
