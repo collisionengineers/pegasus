@@ -116,6 +116,8 @@ public sealed class GlassGuideValuationProviderTests
     [InlineData("POST /login/index", 200, "<form name=\"Form_Login\"></form>", "glass.login.redirect")]
     [InlineData("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1", 200,
         "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":-1}", "glass.lookup.notfound")]
+    [InlineData("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1", 200,
+        UnknownPlate, "glass.lookup.notfound")]
     [InlineData("GET /three-phase-vehicle/get-vehicles", 200,
         "{\"success\":true,\"html\":\"<div class=\\\"three_phase_car_info car1\\\">N\\/C: 999<\\/div>\"}", "glass.candidates.none")]
     [InlineData("GET /three-phase-vehicle/get-values", 200, ValuationNotPossible, "glass.valuation.not_possible")]
@@ -132,6 +134,8 @@ public sealed class GlassGuideValuationProviderTests
 
         Assert.IsType<GlassMvaStageException>(unavailable.InnerException);
         Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
+        // A valuation never stands in a placeholder for a plate it cannot find.
+        Assert.Equal(0, harness.Mva.Count("POST /index/unqualified-vehicle-insert"));
         Assert.Equal(0, harness.Mva.Count("GET /three-phase-vehicle/refresh-vrm-count"));
         Assert.Contains(harness.Logger.Messages, message => message.Contains(code, StringComparison.Ordinal));
         Assert.DoesNotContain(harness.Logger.Messages, message => message.Contains(Registration, StringComparison.Ordinal));
@@ -156,6 +160,34 @@ public sealed class GlassGuideValuationProviderTests
         Assert.Contains(harness.Logger.Messages, message =>
             message.Contains("glass.valuation.vehicle_age success=False errormsg=present", StringComparison.Ordinal));
         Assert.DoesNotContain(harness.Logger.Messages, message => message.Contains("rolling", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Issue 996: the portal answers a plate its VRM supplier does not know
+    /// with a type number that is the JSON <c>false</c>. That is "not found"
+    /// after the one search, not three empty candidate reads, and the card
+    /// says the same approved sentence as for any other failure.
+    /// </summary>
+    [Fact]
+    public async Task APlateTheProviderDoesNotKnowIsUnavailableAfterOneRequest()
+    {
+        var harness = Harness.Create();
+        const string search = "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000";
+        harness.Mva.Set(search, new(HttpStatusCode.OK, UnknownPlate));
+
+        var unavailable = await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
+            harness.Provider.GetAsync(Request(), default));
+
+        var stage = Assert.IsType<GlassMvaStageException>(unavailable.InnerException);
+        Assert.Equal("glass.lookup.notfound", stage.FailureCode);
+        Assert.Equal(1, harness.Mva.Count(search));
+        Assert.Equal(0, harness.Mva.Count("GET /three-phase-vehicle/get-vehicles"));
+        Assert.Equal(0, harness.Mva.Count("POST /index/unqualified-vehicle-insert"));
+        Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Contains(harness.Logger.Messages, message =>
+            message.Contains("glass.lookup.notfound", StringComparison.Ordinal)
+            && message.Contains("natcode=absent", StringComparison.Ordinal));
+        Assert.DoesNotContain(harness.Logger.Messages, message => message.Contains(Registration, StringComparison.Ordinal));
     }
 
     [Fact]

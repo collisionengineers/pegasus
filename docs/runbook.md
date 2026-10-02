@@ -1139,6 +1139,24 @@ it stopped.
 - `glass.export.unreadable` means the reader refused the export. The warning
   names the position or field, the rejected XML is on the Case in Files, and
   **Fetch again** reads the same estimate once the reader is fixed.
+- A launch on a plate Glass's does not know logs stage `Lookup` at
+  `glass.lookup.notfound`, then "launches on a placeholder vehicle" and the
+  stages `InsertPlaceholder` and `RequirePlaceholder`
+  ([FRD-25](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return)).
+  The return logs "returned a placeholder estimate identified as type number
+  …" with whether the export named a plate and a mileage; read that line
+  against the first live return before loosening or tightening the rule.
+- `glass.placeholder.request` or `glass.placeholder.id` with `Unknown` means
+  the insert's answer was lost or unreadable. Look in the account's stock
+  list for a placeholder whose model text is the Case registration before
+  closing the session with a reason.
+- `glass.placeholder.refused` (`Failed`) is the portal's own validation
+  refusing the insert; `glass.placeholder.identity` (`Failed` on launch,
+  `Unknown` on Resume) means the stock entry no longer reads as the
+  placeholder: its registration is set, or its type number changed.
+- A Get valuation logged at `glass.lookup.notfound … natcode=absent` means
+  Glass's does not know the plate; the card's notice is the approved one and
+  there is no placeholder for a valuation.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.

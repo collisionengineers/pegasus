@@ -31,6 +31,31 @@ internal static class GlassProviderFixture
     public const string EreSession = "me3d4aa4kg79prs0do2emalhc5";
     public const string ProfileId = "4063";
 
+    /// <summary>
+    /// The portal's answer for a plate its VRM supplier does not know, as
+    /// captured on 2 October 2026: no stock, no lookup result and a type
+    /// number that is the JSON <c>false</c>, not a string.
+    /// </summary>
+    public const string UnknownPlate = "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0,\"natcode\":false}";
+
+    /// <summary>The stock id and the unqualified type number the portal gave the captured placeholder.</summary>
+    public const string PlaceholderVehicleId = "33638050";
+    public const string PlaceholderNatCode = "49205";
+
+    /// <summary>The insert's answer: an empty title and the new stock id.</summary>
+    public static string PlaceholderInserted(string vehicleId = PlaceholderVehicleId) =>
+        "{\"title\":\"\",\"message\":\"\",\"new_vehicle_id\":\"" + vehicleId + "\"}";
+
+    /// <summary>The portal's own validation refusal, as captured for a one-digit month.</summary>
+    public const string PlaceholderRefused =
+        "{\"title\":\"error\",\"message\":{\"Month manufacturer\":{\"stringLengthTooShort\":\"'1' is less than 2 characters long\"}}}";
+
+    /// <summary>The placeholder's detail form: no registration, no mileage, the unqualified type number.</summary>
+    public static string PlaceholderDetail(
+        string registration = "", long mileage = 0, string vehicleId = PlaceholderVehicleId,
+        string natCode = PlaceholderNatCode, string profile = ProfileId) =>
+        VehicleDetail(registration, mileage, vehicleId, natCode, profile);
+
     /// <summary>The operator's Save &amp; Exit, as the provider composes it.</summary>
     public const string SavedQuery =
         "?Total=0&DoSave=1&ErrMsg=D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2F1788356510_008376.xml";
@@ -149,6 +174,8 @@ internal static class GlassProviderFixture
         mva.Set("GET /three-phase-vehicle/refresh-vrm-count", new(HttpStatusCode.OK, string.Empty));
         mva.Set("GET /index/create-new-vehicle", new(
             HttpStatusCode.OK, "\uFEFF{\"vrm\":\"" + Registration + "\",\"id\":\"" + VehicleId + "\"}"));
+        // Only a launch whose lookup found nothing asks for this.
+        mva.Set("POST /index/unqualified-vehicle-insert", new(HttpStatusCode.OK, PlaceholderInserted()));
         mva.Set("GET /index/vehicle-details/", new(HttpStatusCode.OK, "<div></div>"));
         mva.Set("GET /index/vehicle-detail-inline-fragment/", new(HttpStatusCode.OK, "<div></div>"));
         mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, VehicleDetail()));
@@ -168,6 +195,20 @@ internal static class GlassProviderFixture
         mva.Set("GET /pdf-print/storess/template/0/printaction/vehicle-valuation/vehicles/", new(
             HttpStatusCode.OK, ReportLink()));
         mva.Set("GET /ndp_download/18390/", new(HttpStatusCode.OK, ReportPdf, ContentType: "application/pdf"));
+    }
+
+    /// <summary>
+    /// The script for a plate the provider does not know: the stock search
+    /// answers nothing, and the vehicle the launch then opens is the
+    /// placeholder the insert answered.
+    /// </summary>
+    public static void ScriptUnknownPlate(ScriptedGlass mva)
+    {
+        ArgumentNullException.ThrowIfNull(mva);
+        mva.Set(
+            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
+            new(HttpStatusCode.OK, UnknownPlate));
+        mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, PlaceholderDetail()));
     }
 }
 
