@@ -72,6 +72,19 @@ public sealed class GuideValuationProviderUnavailableException(
     Exception? innerException = null)
     : InvalidOperationException($"No valuation provider could answer for {source}.", innerException);
 
+/// <summary>
+/// The source's provider answered that it does not value a vehicle of this
+/// age. Nothing is broken, so the card says that rather than "unavailable"
+/// (operator, 2 October 2026).
+/// </summary>
+public sealed class GuideValuationVehicleAgeException(
+    ValuationSource source,
+    Exception? innerException = null)
+    : InvalidOperationException($"{source} does not value a vehicle of this age.", innerException)
+{
+    public ValuationSource ValuationSource { get; } = source;
+}
+
 public sealed record FetchGuideValuationRequest(
     Guid CaseId,
     long ExpectedVersion,
