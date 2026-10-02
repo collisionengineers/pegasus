@@ -619,7 +619,11 @@ and approved provider configuration have been deployed.
    resolves its stable Graph identity and performs a read-only folder access
    check. Select Intake, Sent observation and staff-send capabilities. A saved
    row does not grant Exchange access. Enable staff-send only after recording
-   the verified effective encoded-message byte ceiling for that mailbox.
+   the verified effective encoded-message byte ceiling for that mailbox, and
+   only after `Test-ServicePrincipalAuthorization` for the Web identity on that
+   mailbox lists `Mail.ReadWrite` and `Mail.Send` as well as `Mail.Read`. A
+   staff send that fails at stage `CreateDraft` with `graph_rejected_403` in
+   `StaffMailSendOperations` means those two scoped grants are missing.
 4. Enable the mailbox. Pegasus records its own UTC start boundary and
    generation. Earlier mail does not become a historic backlog. Check the
    capability state, last successful poll, last error, activation time and

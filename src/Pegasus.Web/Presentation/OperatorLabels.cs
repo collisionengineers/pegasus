@@ -1799,6 +1799,26 @@ public static class OperatorLabels
             _ => throw new InvalidOperationException(
                 $"Unknown staff mail state '{(int)state}'.")
         };
+
+        /// <summary>
+        /// A refused send's reason in operator words (FRD-21: a send Graph
+        /// refuses shows as a failure on the composer). The failure code is
+        /// the engine's; nothing here is sent.
+        /// </summary>
+        public static string Failure(string failureCode)
+        {
+            var reason = failureCode switch
+            {
+                "graph_rejected_403" =>
+                    "The mailbox refused the message. Pegasus is not permitted to write to or send from this mailbox.",
+                "staff_send_content_invalid" => "The message content was refused.",
+                "staff_send_authorization_lost" => "Your authorisation changed before the message was sent.",
+                _ when failureCode.StartsWith("graph_rejected_", StringComparison.Ordinal) =>
+                    $"The mail service refused the message (code {failureCode["graph_rejected_".Length..]}).",
+                _ => $"The message was refused ({failureCode})."
+            };
+            return reason + " Nothing was sent.";
+        }
     }
 
     /// <summary>A Principal contact's own labels (Administration → Contacts, Principal details) — one list.</summary>

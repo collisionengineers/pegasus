@@ -32,6 +32,11 @@
             <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
                 <h2 id="mail-compose-status-title">Send status</h2>
                 <p>@OperatorLabels.StaffMail.State(operation.State)</p>
+                @if (operation.State == Pegasus.Core.Operations.StaffMailState.Failed
+                    && operation.FailureCode is { Length: > 0 } failureCode)
+                {
+                    <p class="field-hint">@OperatorLabels.StaffMail.Failure(failureCode)</p>
+                }
                 @if (unresolvedOperation)
                 {
                     <p class="field-hint">Confirm the provider outcome before starting another message.</p>
