@@ -57,7 +57,7 @@
     var selectedId = editable ? basis?.ValuationId : applied?.GuideValuationId;
 
     string GetValuationAction(ValuationSource source) =>
-        Url.Page("/Cases/Details", "GetValuation", new { id = caseId, source })!;
+        Url.Page("/Cases/Details", "GetValuation", new { id = caseId, source, view = Model.ViewRoute })!;
     var basisName = basis is null ? null : ValuationLabels.SourceLabel(basis.Details.Source);
     var appliedBasis = applied is null
         ? null
@@ -116,17 +116,20 @@
                 ValueCell(AssessmentVocabulary.ValueTrade, "trade");
                 ValueCell(AssessmentVocabulary.ValueEngineer, "engineer"); }
         </div>
-        @if (editable)
+        @if (editable && !Model.IsInspectionView)
         {
             @* The research form carries the month, the lease, the version and
                the operation key; AI market research runs the existing job for
-               that month. The guide sources are the cards below. *@
+               that month. The guide sources are the cards below. The job lands
+               on the current work, so the Inspection view offers it once the
+               job names the work it was asked from. *@
             <div class="val-tools" data-valuation-tools>
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="StartMarketResearch" asp-route-id="@caseId"
                       id="case-market-research-form" data-valuation-research-form>
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                 </form>
                 <div class="fc val-month">
                     <label for="f-valuation-month">@ValuationLabels.ValuationMonth</label>
@@ -320,7 +323,7 @@
 
         <div class="calc" data-valuation-calc
              data-valuation-form="@(editable ? "true" : null)"
-             data-preview-url="@(editable ? Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId }) : null)"
+             data-preview-url="@(editable ? Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId, view = Model.ViewRoute }) : null)"
              data-text-use="@(editable ? ValuationLabels.UseThisValue : null)"
              data-text-using="@(editable ? ValuationLabels.UsingThisValue : null)"
              data-text-use-needs-retail="@(editable ? ValuationLabels.UseNeedsRetail : null)"

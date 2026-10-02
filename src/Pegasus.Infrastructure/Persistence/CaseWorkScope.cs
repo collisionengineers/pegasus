@@ -26,30 +26,19 @@ internal static class CaseWorkScope
         return works.SingleOrDefault(work => work.Kind == CaseWorkKinds.Audit)?.Id ?? caseId;
     }
 
-    public static Task<Guid> ResolveIdAsync(
+    /// <summary>
+    /// The selected work's id. The Case's works are tracked whichever is
+    /// selected, so a row added to the primary work is fixed up as well.
+    /// </summary>
+    public static async Task<Guid> ResolveIdAsync(
         PegasusDbContext context,
         Guid caseId,
         CaseWorkSelector selector,
-        CancellationToken cancellationToken) =>
-        selector == CaseWorkSelector.Primary
-            ? Task.FromResult(caseId)
-            : CurrentIdAsync(context, caseId, cancellationToken);
-
-    /// <summary>
-    /// Whether the Case has its Audit and its primary work already holds the
-    /// Inspection report's sent evidence, in one command. That report is then
-    /// opened, never generated, prepared or sent again (operator, 1 October
-    /// 2026).
-    /// </summary>
-    public static Task<bool> PrimaryReportSentAfterAuditAsync(
-        PegasusDbContext context,
-        Guid caseId,
-        CancellationToken cancellationToken) =>
-        context.CaseWorks.AnyAsync(
-            work => work.Id == caseId
-                && work.ReportSentEvidenceId != null
-                && context.CaseWorks.Any(audit => audit.CaseId == caseId && audit.Kind == CaseWorkKinds.Audit),
-            cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var currentId = await CurrentIdAsync(context, caseId, cancellationToken);
+        return selector == CaseWorkSelector.Primary ? caseId : currentId;
+    }
 
     /// <summary>
     /// The selected work of one Case as a query, so a read can filter on it

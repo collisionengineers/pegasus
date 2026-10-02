@@ -1280,13 +1280,6 @@
         if (form.hasAttribute('data-glass-window')) {
             return false;
         }
-        // A write lands on the default view (v29), so one posted from the
-        // Inspection view navigates rather than swapping that view in place.
-        // Razor renders the attribute empty on every other Case, so its value
-        // decides, not its presence.
-        if (record.getAttribute('data-case-view') && (form.getAttribute('method') || 'get').toLowerCase() === 'post') {
-            return false;
-        }
         var dialogs = document.querySelector('[data-case-dialogs]');
         return record.contains(form) || (dialogs && dialogs.contains(form));
     }

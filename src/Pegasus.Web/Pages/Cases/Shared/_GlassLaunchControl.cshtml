@@ -25,6 +25,7 @@
             <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
             <input type="hidden" name="expectedCaseVersion" value="@Model.Case.Workflow.Version" />
             <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
+            <input type="hidden" name="view" value="@Model.ViewRoute" />
             <input type="hidden" name="sessionId" value="@glassSession.Id" />
             <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
             <button type="submit" class="btn btn--small">
@@ -46,6 +47,7 @@
                 <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
                 <input type="hidden" name="expectedCaseVersion" value="@Model.Case.Workflow.Version" />
                 <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <input type="hidden" name="sessionId" value="@glassSession.Id" />
                 <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
                 <button type="submit" class="btn btn--small">
@@ -60,6 +62,7 @@
             <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
             <input type="hidden" name="expectedCaseVersion" value="@Model.Case.Workflow.Version" />
             <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
+            <input type="hidden" name="view" value="@Model.ViewRoute" />
             <button type="submit" class="btn btn--small">
                 <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
                 <span>@GlassLabels.Launch</span>

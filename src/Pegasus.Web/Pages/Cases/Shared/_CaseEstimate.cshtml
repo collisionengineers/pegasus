@@ -107,7 +107,7 @@
         ? null
         : $"{RepairSpecificationRouteWords.Of(estimate.Source.Route)} · {OperatorLabels.OfficeTime(estimate.CreatedAtUtc)} · {estimate.Lines.Count} {(estimate.Lines.Count == 1 ? "line" : "lines")}";
 
-    var editLineAction = Url.Page("/Cases/Details", "EditLine", new { id = caseId, section = "estimate" });
+    var editLineAction = Url.Page("/Cases/Details", "EditLine", new { id = caseId, section = "estimate", view = Model.ViewRoute });
     var lineOrigins = estimate?.Lines.ToDictionary(line => line.Id, line => line) ?? new Dictionary<Guid, CaseEstimateLineRecord>();
     var operations = new[]
     {
@@ -564,6 +564,7 @@
                     <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
                     <input type="hidden" name="editLeaseToken" value="@(canImport ? Model.LeaseToken : string.Empty)" />
                     <input type="hidden" name="section" value="estimate" />
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <div class="estimate-import-control">
                         <div class="estimate-import-fallback" data-estimate-import-fallback>
                             <label for="estimate-import-file">@ImportLabels.FileLabel</label>
@@ -588,7 +589,7 @@
             @if (editing && Model.SendToClaudeCondition is null)
             {
                 <a class="btn btn--small btn--primary" asp-page="/Cases/Details" asp-route-id="@caseId"
-                   asp-route-section="estimate" asp-route-dialog="send-to-claude"
+                   asp-route-section="estimate" asp-route-dialog="send-to-claude" asp-route-view="@Model.ViewRoute"
                    data-dialog-open="send-to-ai-dialog" data-estimate-send-to-ai>
                     <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
                     <span>@EstimateLabels.SendToAi</span>
@@ -610,7 +611,7 @@
                         @if (offersNewEstimate)
                         {
                             <a class="btn" asp-page="/Cases/Details" asp-route-id="@caseId"
-                               asp-route-section="estimate" asp-route-estimate="new" data-estimate-new>
+                               asp-route-section="estimate" asp-route-estimate="new" asp-route-view="@Model.ViewRoute" data-estimate-new>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
                                 <span>@EngineerLabels.NewEstimate</span>
                             </a>
@@ -684,7 +685,7 @@
                 {
                     <a class="estimate-tab" role="tab" aria-selected="true"
                        asp-page="/Cases/Details" asp-route-id="@caseId"
-                       asp-route-section="estimate" asp-route-estimate="new" data-estimate-tab="new">
+                       asp-route-section="estimate" asp-route-estimate="new" asp-route-view="@Model.ViewRoute" data-estimate-tab="new">
                         <span>@EngineerLabels.NewEstimate</span>
                         <span class="status status--plain status--amber">@EngineerLabels.EstimateState(RepairSpecificationState.Draft)</span>
                     </a>
@@ -714,6 +715,7 @@
                           asp-route-id="@caseId" asp-route-section="estimate">
                         <input type="hidden" name="operationKey" value="@Model.UseEstimateOperationKey" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
                         <button type="submit" class="btn btn--small btn--primary" data-estimate-use>
                             <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
@@ -727,6 +729,7 @@
                           asp-route-id="@caseId" asp-route-section="estimate">
                         <input type="hidden" name="operationKey" value="@Model.DuplicateOperationKey" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
                         <button type="submit" class="btn btn--small" data-estimate-duplicate>
                             <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
@@ -739,7 +742,7 @@
                     <a class="btn btn--small btn--danger" asp-page="/Cases/Details"
                        asp-route-id="@caseId" asp-route-section="estimate"
                        asp-route-estimate="@estimate.SpecificationId"
-                       asp-route-dialog="delete-estimate" data-dialog-open="delete-estimate-dialog" data-estimate-discard>
+                       asp-route-dialog="delete-estimate" asp-route-view="@Model.ViewRoute" data-dialog-open="delete-estimate-dialog" data-estimate-discard>
                         <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
                         <span>@EstimateLabels.Discard</span>
                     </a>
@@ -765,6 +768,7 @@
                         <input type="hidden" name="expectedVersion" value="@caseVersion" />
                         <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
                     </form>
                 }
@@ -775,6 +779,7 @@
                         <input type="hidden" name="expectedVersion" value="@caseVersion" />
                         <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
                     </form>
                 }
@@ -935,6 +940,7 @@
                                             <form method="post" asp-page="/Cases/Details" asp-page-handler="RestoreEstimateSnapshot" asp-route-id="@caseId" asp-route-section="estimate">
                                                 <input type="hidden" name="operationKey" value="@Model.RestoreOperationKey" />
                                                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                                <input type="hidden" name="view" value="@Model.ViewRoute" />
                                                 <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
                                                 <input type="hidden" name="snapshotId" value="@version.Id" />
                                                 <button type="submit" class="btn btn--small" data-estimate-restore="@version.Number">@EstimateLabels.Restore</button>
@@ -993,6 +999,7 @@
                   asp-route-id="@caseId" asp-route-section="estimate">
                 <input type="hidden" name="operationKey" value="@Model.DiscardOperationKey" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <input type="hidden" name="estimateId" value="@discardable.SpecificationId" />
                 <div class="dialog-body stack">
                     <p class="consequence">@EstimateLabels.DiscardPrompt(discardable.Details.Name)</p>
@@ -1027,6 +1034,7 @@
             <form method="post" asp-page="/Cases/Details" asp-page-handler="SendToClaude"
                   asp-route-id="@caseId" asp-route-section="estimate" data-estimate-send-to-ai-form>
                 <input type="hidden" name="operationKey" value="@Model.SendOperationKey" />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <div class="dialog-body stack">
                     <div class="field">
                         <label for="ai-direction">@EngineerLabels.Direction</label>

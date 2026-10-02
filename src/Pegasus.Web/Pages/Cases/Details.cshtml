@@ -100,7 +100,7 @@
                     ViewData["RefreshFields"] = new Dictionary<string, string?>
                     {
                         ["section"] = Model.Section,
-                        ["view"] = Model.IsInspectionView ? DetailsModel.InspectionViewKey : null
+                        ["view"] = Model.ViewRoute
                     };
                 }
                 <partial name="Shared/_RefreshButton" />

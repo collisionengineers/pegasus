@@ -92,7 +92,11 @@ public sealed record FetchGuideValuationRequest(
     string OperationKey,
     string EditLeaseToken,
     ValuationSource Source,
-    DateOnly GuideMonth);
+    DateOnly GuideMonth)
+{
+    /// <summary>The work whose registration and mileage are valued (operator, 2 October 2026).</summary>
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 /// <summary>
 /// Get valuation for one guide source: asks that source's provider for the
@@ -161,7 +165,7 @@ public sealed class FetchGuideValuation(
         var provider = _providers.FirstOrDefault(candidate => candidate.Source == request.Source)
             ?? throw new GuideValuationProviderUnavailableException(request.Source);
 
-        var data = await _caseData.GetAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken)
+        var data = await _caseData.GetAsync(request.CaseId, request.Work, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         var registration = Accepted(data.Vehicle.Registration)?.Value;
         if (string.IsNullOrWhiteSpace(registration))

@@ -170,8 +170,8 @@ with the Case's state chip as the ribbon draws it. The current view reads plain
 (`aria-current="page"`) and the other is a link; the Audit view is the
 default. Before the Audit exists, and on a standalone Audit or a Triage Case,
 there is no card. The ribbon keeps the Case/PO and gains no Audit reference.
-In the Inspection view no section head offers Edit; each editable head shows
-the one availability label **Read-only · Audit created** instead. In Files,
+The Inspection view edits as the Audit view does, writing the Inspection's
+own values (operator, 2 October 2026). In Files,
 an Audit folder chip follows the Case folder chip in the same tones: **Box
 audit · confirmed**, **Box audit folder: preparing** or **Box audit folder:
 unavailable**. Report in the Audit view shows the Audit report alone
@@ -874,7 +874,7 @@ deleted in wave 5.
 | `fg`, `fc`, `fv`, `fi`, `ro` | One-look cells: the same cells in both modes; the value (`fv`) is a greyed box that becomes its white control (`fi`) while editing; `ro` marks a cell rendered without a control, whose greyed value stays while the rest edits; no padlock |
 | `src-tag` and its `--lookup`, `--ai`, `--warn` tones | The source tag: one word in the cell's label line saying where a value came from ([source tags](README.md#source-tags)); the same pill names other short origins (AI, Manual, Amended) |
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
-| `gated`, `avail` | The dashed availability label, stated once per section head; in the Inspection view it reads "Read-only · Audit created" |
+| `gated`, `avail` | The dashed availability label, stated once per section head |
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures |
 | `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |

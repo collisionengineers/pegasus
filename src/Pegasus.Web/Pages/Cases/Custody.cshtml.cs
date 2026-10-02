@@ -40,7 +40,7 @@ public sealed class CustodyModel(
     public IActionResult OnGet() => NotFound();
 
     private RedirectToPageResult RedirectToFiles(Guid id) =>
-        RedirectToPage("/Cases/Details", new { id, section = "files" });
+        RedirectToPage("/Cases/Details", new { id, section = "files", view = ReturnView });
 
     public async Task<IActionResult> OnPostRetryCustodyAsync(
         Guid id,

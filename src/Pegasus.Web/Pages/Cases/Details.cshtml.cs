@@ -377,15 +377,9 @@ public sealed partial class DetailsModel(
     /// follows the shared assessment-writable lifecycle states and is read by
     /// the Engineer forms. The record has no Open Assessment action and no
     /// section visibility gate (D30). An unresolved access answer reads as
-    /// read-only, and so does the Inspection view (v29 P3).
+    /// read-only. Both views follow the Case's state (operator, 2 October 2026).
     /// </summary>
-    public bool AssessmentIsReadOnly
-    {
-        get => assessmentIsReadOnly || IsInspectionView;
-        private set => assessmentIsReadOnly = value;
-    }
-
-    private bool assessmentIsReadOnly = true;
+    public bool AssessmentIsReadOnly { get; private set; } = true;
 
     /// <summary>
     /// D11: whether GuardEstimateEditAsync/OnPostImportEstimateAsync will
@@ -542,8 +536,7 @@ public sealed partial class DetailsModel(
 
     public bool CanEditCaseData => !IsPostReportReadOnly
         && !string.IsNullOrWhiteSpace(RenderLeaseToken)
-        && CurrentWorkflow?.Archive is null
-        && !IsInspectionView;
+        && CurrentWorkflow?.Archive is null;
 
     public bool CanEditEngineering => CanEditCaseData && AssessmentCanOpen && !AssessmentIsReadOnly;
 
@@ -753,7 +746,10 @@ public sealed partial class DetailsModel(
     /// </summary>
     public bool CanLaunchGlass =>
         AssessmentCanOpen && !AssessmentIsReadOnly && GlassAccountEnabled
-        && GlassSessionElsewhere is null;
+        && GlassSessionElsewhere is null
+        // Glass's imports into the current work: the Inspection view offers
+        // it once a session names the work it was launched from.
+        && !IsInspectionView;
 
     /// <summary>
     /// Whether the session on the screen can be picked back up: an open
@@ -780,7 +776,6 @@ public sealed partial class DetailsModel(
     /// none while its provider work is running in the background.
     /// </summary>
     public bool CanCloseGlass => AssessmentCanOpen
-        && !IsInspectionView
         && !GlassWorkRunning
         && GlassSession is { } session
         && GlassRepairEstimateSessionPolicy.CanClose(session.State);
@@ -1017,15 +1012,14 @@ public sealed partial class DetailsModel(
 
         Assessment = workspace.Assessment;
         CurrentSpecification = workspace.CurrentSpecification;
-        // Readiness is the current work's: it drives the Next action, and only
-        // while the assessment can open. The wording is the view's own (v29 P3),
-        // read in every state so the Incident narrative and the statement of
-        // truth show what the report prints even on a Held, Query or closed
-        // Case; only the editable wording blocks wait for the assessment.
+        // Every report read is the viewed work's (operator, 2 October 2026).
+        // Readiness drives the Next action, and only while the assessment can
+        // open. The wording is read in every state so the Incident narrative
+        // and the statement of truth show what the report prints even on a
+        // Held, Query or closed Case; only the editable wording blocks wait for
+        // the assessment.
         var canOpen = AssessmentCanOpen;
-        var readsOwnWording = IsInspectionView || !AssessmentCanOpen;
         var asksSendToAi = AssessmentCanOpen && !AssessmentIsReadOnly;
-        var readsInspectionReport = Works is { HasAudit: true };
         var principalCode = Case!.Workflow.Identity.PrincipalCode;
         // The snapshot source takes what this page already read for the work
         // rather than reading the workspace, preparations, valuations and the
@@ -1044,22 +1038,9 @@ public sealed partial class DetailsModel(
         var salvageMatrix = CanEditEngineering
             ? reads.Start(token => principalSalvageMatrices.GetForCaseAsync(id, token))
             : null;
-        var readinessInputs = canOpen
-            ? reads.Start(token => reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, reuse, token))
-            : null;
-        // The Inspection report's own readiness while it awaits sending after
-        // Create audit (operator, 1 October 2026).
-        var inspectionReadinessInputs = InspectionReportAwaitsSend
-            ? reads.Start(token => reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Primary, reuse, token))
-            : null;
-        var ownWordingInputs = readsOwnWording
-            ? reads.Start(token => reportSnapshotSource.GetAsync(id, actor, work, reuse, token))
-            : null;
+        var reportInputs = reads.Start(token => reportSnapshotSource.GetAsync(id, actor, work, reuse, token));
         var currentGeneration = reads.Start(token =>
-            reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, token));
-        var inspectionGeneration = readsInspectionReport
-            ? reads.Start(token => reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Primary, token))
-            : null;
+            reportGenerations.GetCurrentAsync(actor, id, work, token));
         var sendingToAi = asksSendToAi
             ? reads.Start(token => sendToAiControl.IsEnabledAsync(token))
             : null;
@@ -1072,22 +1053,21 @@ public sealed partial class DetailsModel(
         var saved = await savedReasons;
         UnroadworthyReasonWordings = [.. UnroadworthyReasonBank.Standard, .. saved.Select(item => item.Text)];
         PrincipalSalvageMatrix = salvageMatrix is null ? null : await salvageMatrix;
-        var inputs = readinessInputs is null ? null : await readinessInputs;
-        if (inputs is not null)
+        var inputs = await reportInputs;
+        if (inputs is not null && canOpen)
         {
             var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
             ReportDraftPreparation = new(readiness.Reasons);
             EligibleSignOffEngineers = inputs.Readiness.EligibleSignOffEngineers;
             SelectedSignOffEngineerId = readiness.Signatory?.StaffId;
         }
-        var wordingInputs = ownWordingInputs is null ? inputs : await ownWordingInputs;
-        if (wordingInputs is not null)
+        if (inputs is not null)
         {
-            IncidentNarrative = ReportWordingComposition.NatureOfIncidentOf(wordingInputs.Projection);
-            StatementOfTruth = AssessmentReportContract.StatementOfTruthOf(wordingInputs.Projection);
+            IncidentNarrative = ReportWordingComposition.NatureOfIncidentOf(inputs.Projection);
+            StatementOfTruth = AssessmentReportContract.StatementOfTruthOf(inputs.Projection);
             if (AssessmentCanOpen)
             {
-                var wording = WordingOf(wordingInputs.Projection);
+                var wording = WordingOf(inputs.Projection);
                 ReportWording = wording.Offered;
                 ReportWordingComposed = wording.Snapshot is { } wordingSnapshot
                     ? ReportWording.Where(block => !block.Manual).ToDictionary(
@@ -1099,43 +1079,24 @@ public sealed partial class DetailsModel(
             }
         }
         CurrentReportGeneration = await currentGeneration;
-        if (inspectionGeneration is not null)
-        {
-            InspectionReportGeneration = await inspectionGeneration;
-        }
-        if (inspectionReadinessInputs is not null)
-        {
-            var inspectionInputs = await inspectionReadinessInputs;
-            InspectionReportDraftPreparation = inspectionInputs is null
-                ? null
-                : new(CaseReportReadiness.Evaluate(inspectionInputs.Readiness).Reasons);
-            InspectionReportDraftCondition = InspectionReportDraftPreparation is null
-                ? Labels.CaseWorkspace.EngineerSections.NotAvailableForCase
-                : InspectionReportDraftPreparation.CanGenerate
-                    ? null
-                    : Labels.CaseWorkspace.EngineerSections.NotReady;
-        }
         EvaluateEngineerSectionConditions(sendingToAi is not null && await sendingToAi);
         ApplyGlassSession(await glass);
 
         // What the first reads decided: the selected estimate's snapshots, and
-        // the delivery reads a stored report needs.
+        // the delivery reads a stored report needs, the viewed work's too.
         var selectedSpecificationId = SelectedEstimate?.SpecificationId;
-        // The delivery reads follow the report the section delivers: the
-        // Inspection's while it awaits sending after Create audit.
-        var reportWork = ReportWorkSelector;
-        var generated = (reportWork == CaseWorkSelector.Primary ? InspectionReportGeneration : CurrentReportGeneration) is not null;
+        var generated = CurrentReportGeneration is not null;
         var snapshots = selectedSpecificationId is { } specificationId
             ? reads.Start(token => specificationSnapshots.ListAsync(id, specificationId, token))
             : null;
         var delivery = generated
-            ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, reportWork, token))
+            ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, work, token))
             : null;
         var suggestions = generated
-            ? reads.Start(token => reportRecipientSuggestions.GetAsync(id, reportWork, token))
+            ? reads.Start(token => reportRecipientSuggestions.GetAsync(id, work, token))
             : null;
         var history = generated
-            ? reads.Start(token => reportSendHistory.GetAsync(id, reportWork, token))
+            ? reads.Start(token => reportSendHistory.GetAsync(id, work, token))
             : null;
         await reads.WhenAllAsync();
 
@@ -1306,6 +1267,12 @@ public sealed partial class DetailsModel(
         else if (AssessmentIsReadOnly)
         {
             SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete;
+        }
+        else if (IsInspectionView)
+        {
+            // The AI draft lands on the current work: the Inspection view
+            // offers it once the job names the work it was asked from.
+            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.NotAvailableForCase;
         }
         else if (!sendingToAiEnabled)
         {
@@ -1640,7 +1607,8 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// The full-POST fallback lands back on the section the operator was
     /// looking at (v25 decision 3); the scripted path never navigates. A save
-    /// that carried a repair specification keeps that specification selected.
+    /// that carried a repair specification keeps that specification selected,
+    /// and every post returns to the view it was made in.
     /// </summary>
     private RedirectToPageResult RedirectToSection(Guid id, string? section, string? estimate = null) =>
         (string.IsNullOrWhiteSpace(section) || NormalizeSection(section) == Labels.CaseWorkspace.DefaultSectionKey)
@@ -1650,7 +1618,8 @@ public sealed partial class DetailsModel(
             {
                 id,
                 section = string.IsNullOrWhiteSpace(section) ? null : NormalizeSection(section),
-                estimate
+                estimate,
+                view = ReturnView
             });
 
     public async Task<IActionResult> OnPostRenewLeaseAsync(
@@ -1818,6 +1787,9 @@ public sealed partial class DetailsModel(
             AnswerInPlace();
         }
         assessmentFields ??= [];
+        // The save writes the work of the view it was posted from (operator,
+        // 2 October 2026) and reads that work's values.
+        var work = WorkSelector;
         // The Repair Spec editor and the valuation calculator join the Case
         // form (one Save, 23 September 2026). They read like the estimate and
         // valuation commands did, so they answer to the assessment access
@@ -1886,7 +1858,7 @@ public sealed partial class DetailsModel(
                     savedEstimate = estimate.EstimateId?.ToString("D") ?? "new";
                 }
                 var recordedCards = guideEntries is { Length: > 0 } || carriesCalculator
-                    ? await listCaseValuations.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken)
+                    ? await listCaseValuations.ExecuteAsync(id, work, cancellationToken)
                     : [];
                 var adoption = carriesCalculator
                     ? ChosenCalculation(selection, guideEntries ?? [], recordedCards)
@@ -1912,7 +1884,7 @@ public sealed partial class DetailsModel(
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
                     || damageSubmitted || wordingSubmitted || guideEntries is { Length: > 0 }
                     || estimate is not null || adoption is not null;
-                var current = await getCaseEditBasis.ExecuteAsync(new(id, actor), cancellationToken)
+                var current = await getCaseEditBasis.ExecuteAsync(new(id, actor, work), cancellationToken)
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
                 var data = current.Data;
                 // This read supplies unshown values, never new write authority.
@@ -1929,7 +1901,7 @@ public sealed partial class DetailsModel(
                 {
                     throw new InvalidOperationException("The case is read-only once Complete.");
                 }
-                var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
+                var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), cancellationToken);
                 var assessment = workspace?.Assessment;
                 string? Recorded(string path) => assessment?.Field(path)?.Value;
                 decimal? Money(string path) => decimal.TryParse(Recorded(path), NumberStyles.Number,
@@ -2076,6 +2048,7 @@ public sealed partial class DetailsModel(
                 {
                     workspaceSave = await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
                     {
+                        Work = work,
                         Valuation = guideValuations.Count == 0 && adoption is null && valuationFields.Count == 0
                             ? null
                             : new(guideValuations, adoption, valuationFields.Count == 0 ? null : valuationFields),
@@ -2137,7 +2110,7 @@ public sealed partial class DetailsModel(
                         // fields. The composed sentence is read here rather than
                         // posted back, so the form cannot claim one it never saw.
                         ReportWording = !wordingSubmitted ? null : await ReportWordingOf(
-                            id, actor, wordingEdits!, cancellationToken)
+                            id, actor, work, wordingEdits!, cancellationToken)
                     }, cancellationToken);
                 }
                 catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
@@ -2229,10 +2202,11 @@ public sealed partial class DetailsModel(
     private async Task<CaseWorkspaceReportWording> ReportWordingOf(
         Guid caseId,
         ActionActor actor,
+        CaseWorkSelector work,
         IReadOnlyList<ReportWordingEditForm> edits,
         CancellationToken cancellationToken)
     {
-        var inputs = await reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, cancellationToken);
+        var inputs = await reportSnapshotSource.GetAsync(caseId, actor, work, reuse: null, cancellationToken);
         if (inputs is null)
         {
             throw new InvalidOperationException("The report wording is unavailable. Refresh the Case and retry.");
@@ -2295,7 +2269,7 @@ public sealed partial class DetailsModel(
             // rather than rendered empty.
             return Request.Headers.ContainsKey("X-Pegasus-Document-Preview")
                 ? EnhancedPreviewRefusal(exception.Message)
-                : RedirectToReport(id, RequestedView);
+                : RedirectToReport(id);
         }
         switch (result.Outcome)
         {
@@ -2311,7 +2285,7 @@ public sealed partial class DetailsModel(
                     return EnhancedPreviewRefusal(detail);
                 }
                 // The Report section lists each blocker with its section.
-                return RedirectToReport(id, RequestedView);
+                return RedirectToReport(id);
             default:
                 // DOCS-014: an inline preview of the unretained working
                 // draft is a view, never a completed download — recorded
@@ -2347,7 +2321,7 @@ public sealed partial class DetailsModel(
                     return EnhancedPreviewRefusal(reason);
                 }
                 TempData["CaseError"] = reason;
-                return RedirectToEstimate(id, estimateId.ToString("D"), view: RequestedView);
+                return RedirectToEstimate(id, estimateId.ToString("D"));
             case RenderCaseEstimateDocumentOutcome.Rendered:
                 var artifact = result.Artifact!;
                 await estimateDocumentPresentations.RecordPreviewedAsync(
@@ -2393,12 +2367,11 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         long expectedCaseVersion,
         bool includeFeeNote,
-        string? view,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
             CaseReportArtifactKind.AssessmentReport, includeFeeNote,
-            targetGenerationId: null, view, cancellationToken);
+            targetGenerationId: null, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
         Guid id,
@@ -2406,12 +2379,11 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         long expectedCaseVersion,
         Guid targetGenerationId,
-        string? view,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
             CaseReportArtifactKind.FeeNote, includeFeeNote: false,
-            targetGenerationId, view, cancellationToken);
+            targetGenerationId, cancellationToken);
 
     /// <summary>
     /// The two companion documents a delivery may attach (v28 P22). Each is a
@@ -2425,12 +2397,11 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         long expectedCaseVersion,
         Guid targetGenerationId,
-        string? view,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
             CaseReportArtifactKind.RepairSpecification, includeFeeNote: false,
-            targetGenerationId, view, cancellationToken);
+            targetGenerationId, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateImagePackAsync(
         Guid id,
@@ -2438,12 +2409,11 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         long expectedCaseVersion,
         Guid targetGenerationId,
-        string? view,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
             CaseReportArtifactKind.ImagePack, includeFeeNote: false,
-            targetGenerationId, view, cancellationToken);
+            targetGenerationId, cancellationToken);
 
     /// <summary>
     /// Every Generate, in or out of edit mode: the report (operator, 26
@@ -2460,16 +2430,15 @@ public sealed partial class DetailsModel(
         CaseReportArtifactKind kind,
         bool includeFeeNote,
         Guid? targetGenerationId,
-        string? view,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             return await GenerateWithOneOffLeaseAsync(
                 id, operationKey, expectedCaseVersion, kind, includeFeeNote,
-                targetGenerationId, view, cancellationToken);
+                targetGenerationId, cancellationToken);
         }
-        var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken, view);
+        var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
             return guard;
@@ -2480,7 +2449,7 @@ public sealed partial class DetailsModel(
         }
         return await GenerateAsync(
             actor, id, operationKey, editLeaseToken, expectedCaseVersion,
-            kind, includeFeeNote, targetGenerationId, view, cancellationToken);
+            kind, includeFeeNote, targetGenerationId, cancellationToken);
     }
 
     /// <summary>
@@ -2497,13 +2466,11 @@ public sealed partial class DetailsModel(
         CaseReportArtifactKind kind,
         bool includeFeeNote,
         Guid? targetGenerationId,
-        string? view,
         CancellationToken cancellationToken)
     {
-        var returnView = ViewRouteOf(view);
         var guard = await GuardSectionCommandAsync(
-            id, operationKey, editLeaseToken: null, () => RedirectToReport(id, returnView), cancellationToken,
-            requireLease: false, inspectionReport: IsInspectionViewRoute(view));
+            id, operationKey, editLeaseToken: null, () => RedirectToReport(id), cancellationToken,
+            requireLease: false);
         if (guard is not null)
         {
             return guard;
@@ -2528,14 +2495,14 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "claim_lease", exception);
             TempData["CaseError"] = ClaimLeaseFailureMessage(exception);
-            return RedirectToReport(id, returnView);
+            return RedirectToReport(id);
         }
 
         try
         {
             return await GenerateAsync(
                 actor, id, operationKey, lease.Token, expectedCaseVersion,
-                kind, includeFeeNote, targetGenerationId, view, cancellationToken);
+                kind, includeFeeNote, targetGenerationId, cancellationToken);
         }
         finally
         {
@@ -2554,10 +2521,8 @@ public sealed partial class DetailsModel(
         CaseReportArtifactKind kind,
         bool includeFeeNote,
         Guid? targetGenerationId,
-        string? view,
         CancellationToken cancellationToken)
     {
-        var returnView = ViewRouteOf(view);
         CaseReportGenerationResult result;
         try
         {
@@ -2580,7 +2545,7 @@ public sealed partial class DetailsModel(
                     },
                     includeFeeNote,
                     targetGenerationId,
-                    ReportWorkOf(view)),
+                    WorkSelector),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -2600,7 +2565,7 @@ public sealed partial class DetailsModel(
                     Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.NotStoredInBox(kind),
                 _ => MutationRefusalMessage(exception, NotGenerated(kind)),
             };
-            return RedirectToReport(id, returnView);
+            return RedirectToReport(id);
         }
 
         switch (result.Outcome)
@@ -2613,14 +2578,14 @@ public sealed partial class DetailsModel(
                     Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationNotReady + ":",
                     string.Join("; ", result.Reasons.Select(reason =>
                         $"{reason.Requirement}: {reason.WhyOutstanding}")));
-                return RedirectToReport(id, returnView);
+                return RedirectToReport(id);
             case CaseReportGenerationOutcome.Pending:
                 // Not yet stored is not success: the page says so in amber.
                 TempData["CaseWarning"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationPending;
-                return RedirectToReport(id, returnView);
+                return RedirectToReport(id);
             case CaseReportGenerationOutcome.Failed:
                 TempData["CaseError"] = NotGenerated(kind);
-                return RedirectToReport(id, returnView);
+                return RedirectToReport(id);
             default:
                 ClearLeaseState();
                 if (kind == CaseReportArtifactKind.AssessmentReport
@@ -2642,7 +2607,7 @@ public sealed partial class DetailsModel(
                         Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RepairSpecGenerated,
                     _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ImagesGenerated,
                 };
-                return RedirectToReport(id, returnView);
+                return RedirectToReport(id);
         }
     }
 
@@ -2719,11 +2684,9 @@ public sealed partial class DetailsModel(
         string[]? toRecipients,
         string[]? ccRecipients,
         CaseReportArtifactKind[]? attach,
-        string? view,
         CancellationToken cancellationToken)
     {
-        var returnView = ViewRouteOf(view);
-        var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken, view);
+        var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
             return guard;
@@ -2740,7 +2703,7 @@ public sealed partial class DetailsModel(
         catch (ArgumentException)
         {
             TempData["CaseError"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.MessageRefused;
-            return RedirectToReport(id, returnView);
+            return RedirectToReport(id);
         }
 
         try
@@ -2757,7 +2720,7 @@ public sealed partial class DetailsModel(
                     coveringMessage!,
                     new(toRecipients ?? [], ccRecipients ?? []),
                     attach,
-                    ReportWorkOf(view)),
+                    WorkSelector),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -2771,13 +2734,13 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = MutationRefusalMessage(
                 exception,
                 "The report delivery could not be prepared. Retry the operation.");
-            return RedirectToReport(id, returnView);
+            return RedirectToReport(id);
         }
 
         ClearLeaseState();
         TempData["CaseStatus"] =
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DeliveryPrepared + ".";
-        return RedirectToReport(id, returnView);
+        return RedirectToReport(id);
     }
 
     /// <summary>
@@ -2792,39 +2755,19 @@ public sealed partial class DetailsModel(
         Guid id,
         Guid preparationId,
         long expectedPreparationVersion,
-        string? view,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
-        var returnView = ViewRouteOf(view);
         var operationKey = preparationId.ToString("N");
-        // Sent from the Inspection view, the Inspection report is sent only
-        // while it awaits sending after Create audit (operator, 1 October 2026).
-        var inspectionReport = IsInspectionViewRoute(view);
-        if (inspectionReport && !await InspectionReportAwaitsSendAsync(id, actor, cancellationToken))
-        {
-            TempData["CaseError"] = ReportGenerationUnavailable;
-            return RedirectToReport(id, returnView);
-        }
 
         StaffMailOperation operation;
         try
         {
-            var preparation = await deliveryPreparations.GetAsync(
-                actor, id, preparationId, cancellationToken)
+            _ = await deliveryPreparations.GetAsync(actor, id, preparationId, cancellationToken)
                 ?? throw new InvalidOperationException("The report delivery preparation is unavailable.");
-            // A preparation of the primary work posted from elsewhere: the
-            // Inspection report already sent once the Audit exists is never
-            // sent again. The Inspection view's own post was read above.
-            if (preparation.Work == CaseWorkSelector.Primary
-                && !inspectionReport
-                && await InspectionReportSentAfterAuditAsync(id, actor, cancellationToken))
-            {
-                throw new InvalidOperationException(ReportGenerationUnavailable);
-            }
             operation = await sendPreparedReport.ExecuteAsync(
                 new(actor, id, preparationId, expectedPreparationVersion, operationKey),
                 cancellationToken);
@@ -2840,7 +2783,7 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = MutationRefusalMessage(
                 exception,
                 "The report was not sent because the case changed or the preparation is no longer current. Prepare it again.");
-            return RedirectToReport(id, returnView);
+            return RedirectToReport(id);
         }
 
         switch (operation.State)
@@ -2874,30 +2817,26 @@ public sealed partial class DetailsModel(
                 break;
         }
 
-        return RedirectToReport(id, returnView);
+        return RedirectToReport(id);
     }
 
     /// <summary>
     /// The Report-section mutation guard: the estimate guard's rules
     /// (writable case, valid form and live lease) with the Report
     /// section's redirect target. The command store compares the posted Case
-    /// version with current persisted state. A command posted from the
-    /// Inspection view acts on the Inspection report of a Case that has its
-    /// Audit only while that report awaits sending, whatever the Case's state.
+    /// version with current persisted state.
     /// </summary>
     private Task<IActionResult?> GuardReportCommandAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
-        CancellationToken cancellationToken,
-        string? view = null) =>
+        CancellationToken cancellationToken) =>
         GuardSectionCommandAsync(
             id,
             operationKey,
             editLeaseToken,
-            () => RedirectToReport(id, ViewRouteOf(view)),
-            cancellationToken,
-            inspectionReport: IsInspectionViewRoute(view));
+            () => RedirectToReport(id),
+            cancellationToken);
 
     /// <summary>
     /// What every section command on the record requires before it touches
@@ -2913,8 +2852,7 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         Func<IActionResult> redirect,
         CancellationToken cancellationToken,
-        bool requireLease = true,
-        bool inspectionReport = false)
+        bool requireLease = true)
     {
         if (!TryGetActor(out var actor))
         {
@@ -2926,20 +2864,11 @@ public sealed partial class DetailsModel(
         {
             return NotFound();
         }
-        // A command posted from the Inspection view acts on the Inspection
-        // report only while the Case has its Audit and that report awaits
-        // sending, whatever the Case's state: the Case's read-only states are
-        // the Audit's. Once sent, it is opened, never generated, prepared or
-        // sent again (operator, 1 October 2026).
-        if (inspectionReport)
-        {
-            if (!await InspectionReportAwaitsSendAsync(id, actor, cancellationToken))
-            {
-                TempData["CaseError"] = ReportGenerationUnavailable;
-                return redirect();
-            }
-        }
-        else if (access.IsReadOnly)
+        // A command posted from the Inspection view of a Case that has its
+        // Audit acts on the Inspection's own work whatever the Case's state:
+        // the Case's read-only states are the Audit's (operator, 1 October
+        // 2026).
+        if (access.IsReadOnly && !await PostedFromInspectionViewAsync(id, actor, cancellationToken))
         {
             TempData["CaseError"] = "The case is read-only once Complete.";
             return redirect();
@@ -2959,31 +2888,17 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Whether the Case has its Audit and its Inspection report is still to be
-    /// sent, read from the Case header for a posted Report command.
+    /// Whether a posted command names the Inspection view of a Case that has
+    /// its Audit, read from the Case header; the view alone names nothing on
+    /// a Case with one work.
     /// </summary>
-    private async Task<bool> InspectionReportAwaitsSendAsync(Guid id, ActionActor actor, CancellationToken cancellationToken) =>
-        await ReadWorksAsync(id, actor, cancellationToken) is { HasAudit: true, Primary.ReportSentEvidence: null };
+    private async Task<bool> PostedFromInspectionViewAsync(Guid id, ActionActor actor, CancellationToken cancellationToken) =>
+        WorkSelector == CaseWorkSelector.Primary
+        && (await getCaseHeader.ExecuteAsync(new GetCaseHeaderQuery(id, actor), cancellationToken))?.Works is { HasAudit: true };
 
-    /// <summary>
-    /// Whether the Case has its Audit and its Inspection report was already
-    /// sent: that report is opened, never sent again (operator, 1 October 2026).
-    /// </summary>
-    private async Task<bool> InspectionReportSentAfterAuditAsync(Guid id, ActionActor actor, CancellationToken cancellationToken) =>
-        await ReadWorksAsync(id, actor, cancellationToken) is { HasAudit: true, Primary.ReportSentEvidence: not null };
-
-    /// <summary>The Case's works, read from the Case header for a posted Report command.</summary>
-    private async Task<CaseWorkSet?> ReadWorksAsync(Guid id, ActionActor actor, CancellationToken cancellationToken) =>
-        (await getCaseHeader.ExecuteAsync(new GetCaseHeaderQuery(id, actor), cancellationToken))?.Works;
-
-    /// <summary>
-    /// Back to the Report section: a GET handler passes <paramref name="view"/>
-    /// (the Inspection view it was reached from), as does a Report command on
-    /// the Inspection report after Create audit; other writes land on the
-    /// default view.
-    /// </summary>
-    private RedirectToPageResult RedirectToReport(Guid id, string? view = null) =>
-        RedirectToPage("/Cases/Details", new { id, section = "report", view });
+    /// <summary>Back to the Report section, in the view the request came from.</summary>
+    private RedirectToPageResult RedirectToReport(Guid id) =>
+        RedirectToPage("/Cases/Details", new { id, section = "report", view = ReturnView });
 
     private static DateOnly? ParseGuideMonth(string? value)
     {
@@ -3021,7 +2936,7 @@ public sealed partial class DetailsModel(
             cancellationToken);
 
     private RedirectToPageResult RedirectToValuation(Guid id) =>
-        RedirectToPage("/Cases/Details", new { id, section = "valuation" });
+        RedirectToPage("/Cases/Details", new { id, section = "valuation", view = ReturnView });
 
     /// <summary>
     /// One posted image edit. The form carries what the operator chose; the
@@ -3296,7 +3211,7 @@ public sealed partial class DetailsModel(
         try
         {
             var existing = await ResolveEstimateAsync(id, editor.EstimateId, cancellationToken);
-            var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
+            var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor, WorkSelector), cancellationToken);
             decimal? engineerValue = workspace?.Assessment.Field(AssessmentVocabulary.ValueEngineer) is { } field
                 && decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var recorded)
                     ? recorded
@@ -3386,7 +3301,7 @@ public sealed partial class DetailsModel(
                 new ScaleRepairSpecificationRequest(
                     id, expectedVersion.Value, actor, operationKey, editLeaseToken!, estimateId.Value,
                     targetPercent.Value,
-                    floors),
+                    floors) { Work = WorkSelector },
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
@@ -3425,7 +3340,7 @@ public sealed partial class DetailsModel(
         try
         {
             await removeRepairSpecificationScaling.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, editLeaseToken!, estimateId),
+                new(id, expectedVersion, actor, operationKey, editLeaseToken!, estimateId) { Work = WorkSelector },
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
@@ -3464,7 +3379,7 @@ public sealed partial class DetailsModel(
         try
         {
             await restoreRepairSpecificationSnapshot.ExecuteAsync(
-                new(id, currentCaseVersion, actor, operationKey, editLeaseToken!, estimateId, snapshotId),
+                new(id, currentCaseVersion, actor, operationKey, editLeaseToken!, estimateId, snapshotId) { Work = WorkSelector },
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
@@ -3503,7 +3418,7 @@ public sealed partial class DetailsModel(
         try
         {
             var copy = await duplicateEstimate.ExecuteAsync(
-                new(id, currentCaseVersion, actor, operationKey, "Estimate duplicated", editLeaseToken!, estimateId),
+                new(id, currentCaseVersion, actor, operationKey, "Estimate duplicated", editLeaseToken!, estimateId) { Work = WorkSelector },
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
@@ -3549,7 +3464,7 @@ public sealed partial class DetailsModel(
         try
         {
             await discardEstimate.ExecuteAsync(
-                new(id, currentCaseVersion, actor, operationKey, reason.Trim(), editLeaseToken!, estimateId),
+                new(id, currentCaseVersion, actor, operationKey, reason.Trim(), editLeaseToken!, estimateId) { Work = WorkSelector },
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
@@ -3592,7 +3507,7 @@ public sealed partial class DetailsModel(
         try
         {
             await setCurrentEstimate.ExecuteAsync(
-                new(id, currentCaseVersion, actor, operationKey, "Estimate made current", editLeaseToken!, estimateId),
+                new(id, currentCaseVersion, actor, operationKey, "Estimate made current", editLeaseToken!, estimateId) { Work = WorkSelector },
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
@@ -3811,18 +3726,19 @@ public sealed partial class DetailsModel(
     /// Where every Glass's answer but the estimator itself goes: the provider
     /// runs in a window opened from the Case record, so the answer hands that
     /// record's Estimate section back to the window that holds it rather than
-    /// rendering it where the provider was. Shared with the provider's return.
+    /// rendering it where the provider was. Shared with the provider's return;
+    /// a command posted from the Case returns to the view it was posted from.
     /// </summary>
-    public static PartialViewResult GlassReturn(PageModel page, Guid caseId)
+    public static PartialViewResult GlassReturn(PageModel page, Guid caseId, string? view = null)
     {
         ArgumentNullException.ThrowIfNull(page);
         page.Response.Headers.CacheControl = "no-store";
         return page.Partial(
             "_GlassReturn",
-            page.Url.Page("/Cases/Details", new { id = caseId, section = "estimate" })!);
+            page.Url.Page("/Cases/Details", new { id = caseId, section = "estimate", view })!);
     }
 
-    private PartialViewResult GlassReturn(Guid id) => GlassReturn(this, id);
+    private PartialViewResult GlassReturn(Guid id) => GlassReturn(this, id, ReturnView);
 
     /// <summary>
     /// The one operator-facing reading of a settled Glass's session, shared by
@@ -4384,13 +4300,13 @@ public sealed partial class DetailsModel(
                 return RedirectToEstimate(id);
             }
 
-            var importedBefore = (await listEstimates.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken))
+            var importedBefore = (await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken))
                 .Any(estimate => estimate.State != RepairSpecificationState.Discarded
                     && string.Equals(
                         estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
             return await ImportRetainedEstimateAsync(new(actor!, id, importVersion, importLeaseToken,
-                source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty),
+                source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty) { Work = WorkSelector },
                 cancellationToken, expectedVersion, resultingVersion);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
@@ -4441,7 +4357,7 @@ public sealed partial class DetailsModel(
         {
             return await ImportRetainedEstimateAsync(
                 new(actor!, id, expectedVersion, leaseToken!, source.Occurrence.Id, source.Version.Id,
-                    source.Version.Sha256, operationKey, string.Empty),
+                    source.Version.Sha256, operationKey, string.Empty) { Work = WorkSelector },
                 cancellationToken);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
@@ -4637,7 +4553,7 @@ public sealed partial class DetailsModel(
     /// </summary>
     private async Task<string> ImportedMessageAsync(Guid caseId, Guid estimateId, CancellationToken cancellationToken)
     {
-        var estimates = await listEstimates.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
+        var estimates = await listEstimates.ExecuteAsync(caseId, WorkSelector, cancellationToken);
         return estimates.Any(estimate => estimate.SpecificationId == estimateId && estimate.IsCurrent)
             ? Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported
             : Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.AlreadyImported;
@@ -4679,11 +4595,10 @@ public sealed partial class DetailsModel(
     private RedirectToPageResult RedirectToEstimate(
         Guid id,
         string? estimate = null,
-        string? dialog = null,
-        string? view = null) =>
+        string? dialog = null) =>
         RedirectToPage(
             "/Cases/Details",
-            new { id, section = "estimate", estimate, dialog, view });
+            new { id, section = "estimate", estimate, dialog, view = ReturnView });
 
     /// <summary>The page state the frame's extra reads start from.</summary>
     private sealed record WorkspaceExtrasInputs(
