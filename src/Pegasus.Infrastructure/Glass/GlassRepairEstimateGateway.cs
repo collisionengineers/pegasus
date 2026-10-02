@@ -30,7 +30,8 @@ namespace Pegasus.Infrastructure.Glass;
 /// <b>A provider failure is data, not an exception.</b> Every outcome the
 /// provider can produce lands on the session as a state and a failure code, so
 /// the operator sees where it stopped. An outcome Pegasus cannot determine —
-/// a lost answer to vehicle creation or to starting the estimate — is
+/// a lost answer to vehicle creation, to inserting a placeholder or to
+/// starting the estimate — is
 /// <see cref="GlassRepairEstimateSessionState.Unknown"/>, keeps the account's
 /// one live slot, and waits for a person. It is never replaced by a fresh
 /// launch. Programming errors still throw.
@@ -255,23 +256,46 @@ public sealed partial class GlassRepairEstimateGateway(
         try
         {
             await StageAsync(session, "SignIn", () => client.SignInAsync(credential.Username, credential.Password, cancellationToken));
-            if (provider.NatCode is null)
+            if (provider.NatCode is null && !provider.Placeholder)
             {
-                var lookup = await StageAsync(session, "Lookup", () => client.LookupAsync(provider.Registration, provider.MileageMiles, cancellationToken));
-                provider.NatCode = lookup.NatCode;
+                try
+                {
+                    var lookup = await StageAsync(session, "Lookup", () => client.LookupAsync(provider.Registration, provider.MileageMiles, cancellationToken));
+                    provider.NatCode = lookup.NatCode;
+                }
+                catch (GlassMvaStageException notFound) when (notFound.FailureCode == GlassFailure.LookupNotFound)
+                {
+                    // The portal's own "vehicle details have not been found".
+                    // The estimate is started on a placeholder vehicle and the
+                    // Engineer identifies the real one inside the estimator
+                    // (operator, 2 October 2026).
+                    provider.Placeholder = true;
+                    LogPlaceholderLaunch(logger, session.Id, session.CaseId, notFound.Detail ?? string.Empty);
+                }
             }
             if (provider.MvaVehicleId is null)
             {
                 session = await WriteAsync(session, GlassRepairEstimateSessionState.Launching,
                     null, provider, digest, null, cancellationToken);
-                provider.MvaVehicleId = await StageAsync(session, "CreateVehicle", () => client.CreateVehicleAsync(
-                    provider.Registration, provider.MileageMiles, cancellationToken));
+                provider.MvaVehicleId = provider.Placeholder
+                    ? await StageAsync(session, "InsertPlaceholder", () => client.InsertPlaceholderAsync(
+                        provider.Registration, cancellationToken))
+                    : await StageAsync(session, "CreateVehicle", () => client.CreateVehicleAsync(
+                        provider.Registration, provider.MileageMiles, cancellationToken));
                 // Keep a successful answer even if the work was interrupted.
                 session = await WriteAsync(session with { ProviderVehicleId = provider.MvaVehicleId },
                     GlassRepairEstimateSessionState.Launching, null, provider, digest, null, CancellationToken.None);
             }
-            await StageAsync(session, "RequireVehicle", () => client.RequireVehicleAsync(provider.MvaVehicleId, provider.NatCode,
-                provider.Registration, provider.MileageMiles, cancellationToken));
+            if (provider.Placeholder)
+            {
+                provider.NatCode = await StageAsync(session, "RequirePlaceholder", () => client.RequirePlaceholderAsync(
+                    provider.MvaVehicleId, provider.NatCode, cancellationToken));
+            }
+            else
+            {
+                await StageAsync(session, "RequireVehicle", () => client.RequireVehicleAsync(provider.MvaVehicleId, provider.NatCode!,
+                    provider.Registration, provider.MileageMiles, cancellationToken));
+            }
             await StageAsync(session, "SelectOnly", () => client.SelectOnlyAsync(provider.MvaVehicleId, cancellationToken));
             provider.EstimateStartAttempted = true;
             session = await WriteAsync(session, GlassRepairEstimateSessionState.Launching,
@@ -325,8 +349,7 @@ public sealed partial class GlassRepairEstimateGateway(
         try
         {
             await StageAsync(session, "SignIn", () => client.SignInAsync(credential.Username, credential.Password, cancellationToken));
-            await StageAsync(session, "RequireVehicle", () => client.RequireVehicleAsync(vehicleId, provider.NatCode!,
-                provider.Registration, provider.MileageMiles, cancellationToken));
+            await RequireSessionVehicleAsync(session, provider, client, vehicleId, cancellationToken);
             await StageAsync(session, "SelectOnly", () => client.SelectOnlyAsync(vehicleId, cancellationToken));
             var launch = await StageAsync(session, "EstimatorUrlIssued", () => client.StartEstimateAsync(ereId, callback, cancellationToken));
             Record(provider, launch);
@@ -727,8 +750,7 @@ public sealed partial class GlassRepairEstimateGateway(
         try
         {
             await StageAsync(session, "SignIn", () => lookup.SignInAsync(credential.Username, credential.Password, cancellationToken));
-            await StageAsync(session, "RequireVehicle", () => lookup.RequireVehicleAsync(lookupVehicle, provider.NatCode!,
-                provider.Registration, provider.MileageMiles, cancellationToken));
+            await RequireSessionVehicleAsync(session, provider, lookup, lookupVehicle, cancellationToken);
             await StageAsync(session, "SelectOnly", () => lookup.SelectOnlyAsync(lookupVehicle, cancellationToken));
         }
         catch (Exception failure)
@@ -786,6 +808,21 @@ public sealed partial class GlassRepairEstimateGateway(
             return (await store.GetAsync(sessionId, cancellationToken))?.Session ?? session;
         }
     }
+
+    /// <summary>
+    /// Re-proves the vehicle a session already recorded before it is selected
+    /// again: a placeholder by the placeholder rule, under the type number the
+    /// launch recorded; any other vehicle by the launch's registration,
+    /// mileage and type number.
+    /// </summary>
+    private Task RequireSessionVehicleAsync(
+        GlassRepairEstimateSession session, ProviderState provider, GlassMvaClient client,
+        string vehicleId, CancellationToken cancellationToken) =>
+        provider.Placeholder
+            ? StageAsync(session, "RequirePlaceholder", () => client.RequirePlaceholderAsync(
+                vehicleId, provider.NatCode, cancellationToken))
+            : StageAsync(session, "RequireVehicle", () => client.RequireVehicleAsync(vehicleId, provider.NatCode!,
+                provider.Registration, provider.MileageMiles, cancellationToken));
 
     /// <summary>
     /// A session past Prepared whose provider identities were not all recorded:
@@ -865,6 +902,16 @@ public sealed partial class GlassRepairEstimateGateway(
         {
             export = GlassEstimateXmlParser.Read(exported);
             RequireSameVehicle(export, provider);
+            if (provider.Placeholder)
+            {
+                LogPlaceholderReturn(
+                    logger,
+                    session.Id,
+                    session.CaseId,
+                    export.Identity.TypeNumber ?? "absent",
+                    string.IsNullOrWhiteSpace(export.Identity.RegistrationPlate) ? "absent" : "case",
+                    export.Identity.Mileage is null or 0 ? "absent" : "case");
+            }
         }
         catch (EstimateParseRejectedException rejection)
         {
@@ -1069,19 +1116,45 @@ public sealed partial class GlassRepairEstimateGateway(
     /// calculation is a real Glass's document, but it is not an estimate to
     /// import, and it says so rather than landing as an empty Draft.
     /// </summary>
+    /// <remarks>
+    /// A placeholder session launched on a vehicle with no registration, no
+    /// mileage and no real type number, and the Engineer identified the
+    /// vehicle inside the estimator. Its export may therefore name no plate
+    /// and no mileage, or the Case's own; any other vehicle's is refused. The
+    /// type number it names is the Engineer's choice and is recorded, not
+    /// compared (operator, 2 October 2026; to be read against the first live
+    /// return).
+    /// </remarks>
     private static void RequireSameVehicle(GlassEstimateExport export, ProviderState provider)
     {
-        if (!GlassRepairEstimateSessionPolicy.SameRegistration(export.Identity.RegistrationPlate, provider.Registration))
+        var identity = export.Identity;
+        if (provider.Placeholder)
         {
-            throw new GlassMvaStageException(GlassFailure.IdentityRegistration);
+            if (!string.IsNullOrWhiteSpace(identity.RegistrationPlate)
+                && !GlassRepairEstimateSessionPolicy.SameRegistration(identity.RegistrationPlate, provider.Registration))
+            {
+                throw new GlassMvaStageException(GlassFailure.IdentityRegistration);
+            }
+            if (identity.Mileage is { } mileage && mileage != 0 && mileage != provider.MileageMiles)
+            {
+                throw new GlassMvaStageException(GlassFailure.IdentityMileage);
+            }
+            provider.ReturnedTypeNumber = identity.TypeNumber;
         }
-        if (export.Identity.Mileage != provider.MileageMiles)
+        else
         {
-            throw new GlassMvaStageException(GlassFailure.IdentityMileage);
-        }
-        if (!string.Equals(export.Identity.TypeNumber, provider.NatCode, StringComparison.Ordinal))
-        {
-            throw new GlassMvaStageException(GlassFailure.IdentityNatCode);
+            if (!GlassRepairEstimateSessionPolicy.SameRegistration(identity.RegistrationPlate, provider.Registration))
+            {
+                throw new GlassMvaStageException(GlassFailure.IdentityRegistration);
+            }
+            if (identity.Mileage != provider.MileageMiles)
+            {
+                throw new GlassMvaStageException(GlassFailure.IdentityMileage);
+            }
+            if (!string.Equals(identity.TypeNumber, provider.NatCode, StringComparison.Ordinal))
+            {
+                throw new GlassMvaStageException(GlassFailure.IdentityNatCode);
+            }
         }
         if (export.Estimate.Lines.Count == 0 || export.Estimate.SourceTotals?.Gross is not > 0m)
         {
@@ -1310,6 +1383,17 @@ public sealed partial class GlassRepairEstimateGateway(
     private static partial void LogSettled(
         ILogger logger, Guid sessionId, Guid caseId, GlassRepairEstimateSessionState state, string failureCode, string detail);
 
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Glass's session {SessionId} for case {CaseId} launches on a placeholder vehicle after lookup {Detail}")]
+    private static partial void LogPlaceholderLaunch(ILogger logger, Guid sessionId, Guid caseId, string detail);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Glass's session {SessionId} for case {CaseId} returned a placeholder estimate identified as type number {TypeNumber} with plate {Plate} and mileage {Mileage}")]
+    private static partial void LogPlaceholderReturn(
+        ILogger logger, Guid sessionId, Guid caseId, string typeNumber, string plate, string mileage);
+
     private async Task<GlassRepairEstimateSession> WriteAsync(
         GlassRepairEstimateSession session,
         GlassRepairEstimateSessionState state,
@@ -1448,6 +1532,22 @@ public sealed partial class GlassRepairEstimateGateway(
         public string LeaseToken { get; set; } = string.Empty;
 
         public string? NatCode { get; set; }
+
+        /// <summary>
+        /// The launch's lookup found no vehicle for the registration, so the
+        /// estimate was started on an unqualified placeholder vehicle and the
+        /// Engineer identified the real one inside the estimator. Absent from
+        /// state protected before it existed, which reads as false.
+        /// </summary>
+        public bool Placeholder { get; set; }
+
+        /// <summary>
+        /// The type number a placeholder session's export named: the
+        /// Engineer's choice inside the estimator. Kept apart from
+        /// <see cref="NatCode"/>, which stays the placeholder's own so the
+        /// stock vehicle can be re-proved by it.
+        /// </summary>
+        public string? ReturnedTypeNumber { get; set; }
 
         public string? PegasusCallback { get; set; }
 

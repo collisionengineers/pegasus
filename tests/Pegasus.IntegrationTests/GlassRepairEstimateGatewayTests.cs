@@ -649,21 +649,14 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
-            "lookup-unavailable",
+            // Readable JSON that is not the portal's answer: no lookup field at
+            // all. It is a bad request, never "not found", so no placeholder.
+            "lookup-without-vrm-lookup",
             "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1",
             (int)HttpStatusCode.OK,
-            "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}",
+            "\uFEFF{\"stockcount\":0}",
             null,
-            GlassFailure.LookupUnavailable,
-            GlassRepairEstimateSessionState.Failed
-        },
-        {
-            "lookup-not-found",
-            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
-            (int)HttpStatusCode.OK,
-            "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":-1}",
-            null,
-            GlassFailure.LookupNotFound,
+            GlassFailure.LookupRequest,
             GlassRepairEstimateSessionState.Failed
         },
         {
@@ -807,39 +800,6 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Null(session.ProviderEstimateId);
     }
 
-    [Fact]
-    public async Task TheFreshLookupIsRetriedExactlyOnce()
-    {
-        var harness = Harness.Create();
-        harness.Mva.Enqueue(
-            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1",
-            new Reply(HttpStatusCode.OK, "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}"));
-
-        var session = await harness.LaunchAsync();
-
-        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
-        Assert.Equal(
-            2,
-            harness.Mva.Count(
-                "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1"));
-    }
-
-    [Fact]
-    public async Task ALookupThatNeverSucceedsIsTriedTwiceAndNoMore()
-    {
-        var harness = Harness.Create();
-        harness.Mva.Set(
-            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1",
-            new(HttpStatusCode.OK, "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}"));
-
-        await harness.LaunchAsync();
-
-        Assert.Equal(
-            2,
-            harness.Mva.Count(
-                "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1"));
-    }
-
     /// <summary>
     /// The portal's own rule: a registration the account does not stock is
     /// looked up by the stock search itself and never searched afresh. The
@@ -862,21 +822,312 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(1, harness.Mva.Count("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000"));
     }
 
-    [Fact]
-    public async Task AVehicleTheProviderCannotFindIsRefusedOnce()
+    // ------------------------------------------------ a plate Glass's does not know
+
+    private const string StockSearch = "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000";
+    private const string FreshSearch = StockSearch + "/nostocksearch/1";
+    private const string PlaceholderInsert = "POST /index/unqualified-vehicle-insert";
+
+    /// <summary>
+    /// Every answer the portal gives for a plate it cannot match, each on the
+    /// route that is the lookup for it. The last field says whether the
+    /// account stocked the plate, so the fresh search was the lookup.
+    /// </summary>
+    public static TheoryData<string, string, bool> LookupsWithoutATypeNumber() => new()
     {
+        // The captured answer: a type number that is the JSON false (issue 996).
+        { "natcode-false", UnknownPlate, false },
+        { "natcode-absent-after-fresh-search", "﻿{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}", true },
+        { "natcode-blank", "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0,\"natcode\":\"\"}", false },
+        { "natcode-number", "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":1,\"natcode\":49205}", false },
+        { "vrm-lookup-negative", "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":-1}", false },
+    };
+
+    /// <summary>
+    /// The portal's own rule: an answer without a type number is "vehicle
+    /// details have not been found". It is decided by the one search — the
+    /// portal never repeats it — with no candidate read, and the launch goes
+    /// on with a placeholder vehicle instead of stopping.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(LookupsWithoutATypeNumber))]
+    public async Task ALookupWithoutATypeNumberIsNotFoundInOneRequest(string name, string answer, bool stocked)
+    {
+        Assert.NotEmpty(name);
         var harness = Harness.Create();
-        harness.Mva.Set(
-            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
-            new(HttpStatusCode.OK, "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":-1}"));
+        ScriptUnknownPlate(harness.Mva);
+        if (stocked)
+        {
+            harness.Mva.Set(StockSearch, new(HttpStatusCode.OK, "{\"stockcount\":3,\"vehicle_id\":\"33576604\",\"vrm_lookup\":0}"));
+        }
+        harness.Mva.Set(stocked ? FreshSearch : StockSearch, new(HttpStatusCode.OK, answer));
 
         var session = await harness.LaunchAsync();
 
-        Assert.Equal(GlassRepairEstimateSessionState.Failed, session.State);
-        Assert.Equal(GlassFailure.LookupNotFound, session.FailureCode);
-        Assert.Equal(1, harness.Mva.Count("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000"));
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        Assert.Equal(PlaceholderVehicleId, session.ProviderVehicleId);
+        Assert.Equal(stocked ? 1 : 0, harness.Mva.Count(FreshSearch));
+        Assert.Equal(stocked ? 2 : 1, harness.Mva.Count(StockSearch));
+        Assert.Equal(0, harness.Mva.Count("GET /three-phase-vehicle/get-vehicles"));
+        Assert.Equal(0, harness.Mva.Count("GET /three-phase-vehicle/get-values"));
+        Assert.Equal(0, harness.Mva.Count("GET /three-phase-vehicle/refresh-vrm-count"));
+        Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(1, harness.Mva.Count(PlaceholderInsert));
+    }
+
+    /// <summary>
+    /// Operator, 2 October 2026: a plate Glass's does not know still gets its
+    /// estimate. The launch inserts the portal's own unqualified vehicle, posted
+    /// as the operator's browser posted it with the Case registration as its
+    /// model text, proves it by the placeholder rule, selects it and opens the
+    /// estimator, where the Engineer identifies the real vehicle.
+    /// </summary>
+    [Fact]
+    public async Task APlateTheProviderDoesNotKnowLaunchesOnAPlaceholderVehicle()
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        ScriptUnknownPlate(harness.Mva);
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        Assert.Equal(PlaceholderVehicleId, session.ProviderVehicleId);
+        Assert.Equal(EreId, session.ProviderEstimateId);
+        Assert.Null(session.FailureCode);
+
+        var insert = Assert.Single(harness.Mva.Requests, request => request.Path == "/index/unqualified-vehicle-insert");
+        Assert.Equal("POST", insert.Method);
+        Assert.Equal(
+            new (string, string)[]
+            {
+                ("make", "*"), ("uqmodel", "*"), ("edit_make", "All"), ("edit_model", Registration), ("edit_trim", ""),
+                ("edit_month", "01"), ("edit_year", "2025"), ("edit_plate", "25"), ("edit_cc", ""),
+                ("edit_body", "default"), ("edit_bodytext", "Body type"), ("edit_fuel", "default"), ("edit_fueltext", "Fuel type"),
+                ("edit_transm", "default"), ("edit_transmtext", "Transmission"), ("edit_gear", ""),
+                ("edit_drive", "default"), ("edit_drivetext", "Drive/power train"),
+            },
+            FormPairs(insert.Body));
+        Assert.Equal("XMLHttpRequest", insert.Requested);
+        Assert.Equal("https://mva.test/index", insert.Referer);
+        Assert.Contains("NDP=session-cookie", insert.Cookie, StringComparison.Ordinal);
+
+        Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(0, harness.Mva.Count("GET /three-phase-vehicle/get-vehicles"));
+        Assert.Equal(1, harness.Mva.Count("GET /index/update-vehicle-select/grid/stocklistGrid/id/" + PlaceholderVehicleId + "/select/true"));
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
+
+        Assert.Contains(logger.Messages, message => message.Contains("stage Lookup outcome glass.lookup.notfound", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, message => message.Contains("launches on a placeholder vehicle after lookup stockcount=0 vrm_lookup=0 natcode=absent", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, message => message.Contains("stage InsertPlaceholder outcome Succeeded", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, message => message.Contains("stage RequirePlaceholder outcome Succeeded", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, message => message.Contains(Registration, StringComparison.Ordinal));
+
+        var state = await harness.ProviderStateAsync(session.Id);
+        Assert.True(state.GetProperty("placeholder").GetBoolean());
+        Assert.Equal(PlaceholderNatCode, state.GetProperty("natCode").GetString());
+    }
+
+    public static TheoryData<string, string, string, GlassRepairEstimateSessionState, string> PlaceholderRefusals() => new()
+    {
+        { "insert-title-error", PlaceholderInsert, GlassProviderFixture.PlaceholderRefused, GlassRepairEstimateSessionState.Failed, GlassFailure.PlaceholderRefused },
+        { "insert-no-id", PlaceholderInsert, PlaceholderInserted(string.Empty), GlassRepairEstimateSessionState.Unknown, GlassFailure.PlaceholderId },
+        { "insert-id-zero", PlaceholderInsert, PlaceholderInserted("0"), GlassRepairEstimateSessionState.Unknown, GlassFailure.PlaceholderId },
+        { "insert-not-json", PlaceholderInsert, "<html>not json</html>", GlassRepairEstimateSessionState.Unknown, GlassFailure.PlaceholderRequest },
+        { "details-registration", "GET /index/vehicle-details-value/", PlaceholderDetail(registration: "ZZ99ZZZ"), GlassRepairEstimateSessionState.Failed, GlassFailure.PlaceholderIdentity },
+        { "details-natcode-missing", "GET /index/vehicle-details-value/", PlaceholderDetail(natCode: string.Empty), GlassRepairEstimateSessionState.Failed, GlassFailure.PlaceholderIdentity },
+        { "details-natcode-not-digits", "GET /index/vehicle-details-value/", PlaceholderDetail(natCode: "49A05"), GlassRepairEstimateSessionState.Failed, GlassFailure.PlaceholderIdentity },
+        { "details-other-id", "GET /index/vehicle-details-value/", PlaceholderDetail(vehicleId: "9999"), GlassRepairEstimateSessionState.Failed, GlassFailure.PlaceholderIdentity },
+        { "details-profile", "GET /index/vehicle-details-value/", PlaceholderDetail(profile: "9999"), GlassRepairEstimateSessionState.Failed, GlassFailure.DetailsProfile },
+    };
+
+    /// <summary>
+    /// Each placeholder stage refuses with its own code. The insert changes
+    /// the account, so anything but the portal's own validation refusal is an
+    /// unknown outcome; the placeholder's detail form must be the placeholder
+    /// and nothing else before it is selected.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PlaceholderRefusals))]
+    public async Task APlaceholderStageThatRefusesStopsTheLaunchWhereItStopped(
+        string name, string route, string body, GlassRepairEstimateSessionState expectedState, string expectedFailure)
+    {
+        Assert.NotEmpty(name);
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        harness.Mva.Set(route, new(HttpStatusCode.OK, body));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(expectedState, session.State);
+        Assert.Equal(expectedFailure, session.FailureCode);
+        Assert.Equal(0, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
     }
+
+    [Fact]
+    public async Task ALostPlaceholderInsertIsUnknownAndNeverRetried()
+    {
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        harness.Mva.Set(PlaceholderInsert, new(HttpStatusCode.InternalServerError, string.Empty));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, session.State);
+        Assert.Equal(GlassFailure.PlaceholderRequest, session.FailureCode);
+        Assert.Equal(1, harness.Mva.Count(PlaceholderInsert));
+
+        var resumed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, resumed.State);
+        Assert.Equal(1, harness.Mva.Count(PlaceholderInsert));
+        // The account is still held: a fresh launch is refused, not stacked.
+        await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() =>
+            harness.LaunchAsync(operationKey: "glass-launch-2"));
+    }
+
+    /// <summary>
+    /// A placeholder launched with no plate and no mileage, and the Engineer
+    /// identified the vehicle inside the estimator: the export may name no
+    /// plate and no mileage, or the Case's own, and its type number is the
+    /// Engineer's choice, recorded beside the placeholder's own.
+    /// </summary>
+    [Theory]
+    [InlineData("", "0")]
+    [InlineData("", "")]
+    [InlineData(Registration, "33000")]
+    [InlineData(" ab12 cde ", "0")]
+    public async Task APlaceholderReturnIsAcceptedWithAnAbsentOrCasePlateAndMileage(string plate, string mileage)
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        ScriptUnknownPlate(harness.Mva);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK,
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: plate, mileage: mileage, typeNumber: "987654321"),
+            ContentType: "application/xml"));
+
+        var completed = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Single(harness.Import.Requests);
+        Assert.Contains(logger.Messages, message =>
+            message.Contains("returned a placeholder estimate identified as type number 987654321", StringComparison.Ordinal));
+        var state = await harness.ProviderStateAsync(session.Id);
+        Assert.Equal("987654321", state.GetProperty("returnedTypeNumber").GetString());
+        Assert.Equal(PlaceholderNatCode, state.GetProperty("natCode").GetString());
+    }
+
+    public static TheoryData<string, string> PlaceholderExportsOfAnotherVehicle() => new()
+    {
+        { GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: "ZZ99ZZZ", mileage: "0"), GlassFailure.IdentityRegistration },
+        { GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: "", mileage: "12345"), GlassFailure.IdentityMileage },
+        {
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(
+                registration: "",
+                mileage: "0",
+                positions: string.Empty,
+                attachment: string.Empty,
+                partsTotal: "0.00",
+                labourTotal: "0.00",
+                paintTotal: "0.00",
+                netTotal: "0.00",
+                vatMaterial: "0.00",
+                grossTotal: "0.00"),
+            GlassFailure.ExportEmpty
+        },
+    };
+
+    [Theory]
+    [MemberData(nameof(PlaceholderExportsOfAnotherVehicle))]
+    public async Task APlaceholderReturnNamingAnotherVehicleIsRefused(string xml, string expectedFailure)
+    {
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ndp_download/", new(HttpStatusCode.OK, xml, ContentType: "application/xml"));
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, settled.State);
+        Assert.Equal(expectedFailure, settled.FailureCode);
+        Assert.Empty(harness.Import.Requests);
+    }
+
+    /// <summary>
+    /// A resumed placeholder session is re-proved by the placeholder rule under
+    /// the type number the launch recorded, never by a registration or mileage
+    /// it does not have; a stock entry that no longer reads as that placeholder
+    /// is refused and the session stays for reconciliation.
+    /// </summary>
+    [Fact]
+    public async Task APlaceholderSessionReopensUnderItsRecordedTypeNumber()
+    {
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        var session = await harness.LaunchAsync();
+
+        var reopened = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, reopened.State);
+        Assert.Equal(2, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(1, harness.Mva.Count(PlaceholderInsert));
+        Assert.Equal(2, harness.Mva.Count("GET /index/vehicle-details-value/"));
+
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, PlaceholderDetail(natCode: "49206")));
+        var refused = await harness.ResumeAsync(
+            new(harness.Engineer, reopened.Id, reopened.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, refused.State);
+        Assert.Equal(GlassFailure.PlaceholderIdentity, refused.FailureCode);
+        Assert.Equal(2, harness.Mva.Count("POST /ere/start-ere"));
+    }
+
+    /// <summary>
+    /// The lookup after a custody failure re-proves the placeholder by its
+    /// own type number, which is why the export's type number is recorded
+    /// beside it and never in its place.
+    /// </summary>
+    [Fact]
+    public async Task APlaceholderSessionLooksItsExportUpAgainAfterCustodyFails()
+    {
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK,
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: "", mileage: "0", typeNumber: "987654321"),
+            ContentType: "application/xml"));
+        harness.Custody.Failure = new InvalidOperationException("Module checksum failed");
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, settled.State);
+        Assert.Equal(GlassFailure.CustodyFailed, settled.FailureCode);
+        var relays = harness.Mva.Count("GET /ere/ere-callback/");
+
+        harness.Custody.Failure = null;
+        var completed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, settled.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(relays, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Equal(1, harness.Mva.Count(PlaceholderInsert));
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Single(harness.Import.Requests);
+    }
+
+    /// <summary>The posted form as name/value pairs, decoded the way the portal reads them.</summary>
+    private static (string, string)[] FormPairs(string? body) =>
+        [.. (body ?? string.Empty).Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(pair => pair.Split('=', 2))
+            .Select(parts => (
+                Uri.UnescapeDataString(parts[0].Replace('+', ' ')),
+                Uri.UnescapeDataString(parts.Length > 1 ? parts[1].Replace('+', ' ') : string.Empty)))];
 
     /// <summary>
     /// The candidate list is a read the portal's page makes straight after
@@ -911,23 +1162,6 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassFailure.CandidatesRefused, session.FailureCode);
         Assert.Equal(3, harness.Mva.Count("GET /three-phase-vehicle/get-vehicles"));
         Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
-    }
-
-    [Fact]
-    public async Task ANewVehicleLookupWithoutATypeNumberIsRetriedOnce()
-    {
-        var harness = Harness.Create();
-        harness.Mva.Enqueue(
-            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
-            new Reply(HttpStatusCode.OK, "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}"),
-            new Reply(HttpStatusCode.OK,
-                "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":1,\"natcode\":\"" + GlassProviderFixture.NatCode + "\"}"));
-
-        var session = await harness.LaunchAsync();
-
-        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
-        Assert.Equal(0, harness.Mva.Count("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1"));
-        Assert.Equal(2, harness.Mva.Count("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000"));
     }
 
     [Theory]
@@ -1198,6 +1432,10 @@ public sealed class GlassRepairEstimateGatewayTests
     {
         { GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: "ZZ99ZZZ"), GlassFailure.IdentityRegistration },
         { GlassEstimateXmlParserTests.GlassExport.BuildXml(mileage: "12345"), GlassFailure.IdentityMileage },
+        // An export naming no plate or no mileage is accepted only from a
+        // placeholder session; a vehicle the lookup found must be named.
+        { GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: ""), GlassFailure.IdentityRegistration },
+        { GlassEstimateXmlParserTests.GlassExport.BuildXml(mileage: "0"), GlassFailure.IdentityMileage },
         { GlassEstimateXmlParserTests.GlassExport.BuildXml(typeNumber: "999999999"), GlassFailure.IdentityNatCode },
         {
             // A real, well-formed Glass's document that costs nothing: valid to
@@ -2669,6 +2907,17 @@ public sealed class GlassRepairEstimateGatewayTests
         public IDataProtectionProvider Protection { get; }
 
         public string CorrelationOf(Guid sessionId) => correlations[sessionId];
+
+        /// <summary>The session's protected provider state, read back as the gateway reads it.</summary>
+        public async Task<System.Text.Json.JsonElement> ProviderStateAsync(Guid sessionId)
+        {
+            var material = await Sessions.GetAsync(sessionId, CancellationToken.None)
+                ?? throw new InvalidOperationException("The session was not stored.");
+            var plain = Protection.CreateProtector(GlassRepairEstimateGateway.ProtectionPurpose)
+                .Unprotect(material.ProtectedProviderState);
+            using var document = System.Text.Json.JsonDocument.Parse(plain);
+            return document.RootElement.Clone();
+        }
 
         public Guid CaseId { get; }
 

@@ -197,6 +197,26 @@ at the provider is left without a session. A second click of the same Launch
 waits on the first click's work. If the queue is full, the work runs in the
 staff member's own request, as it did before, and is never dropped.
 
+**A plate Glass's does not know (operator, 2 October 2026).** The launch's
+lookup is Glass's own plate search, made once; the portal does not repeat
+it. An answer without a type number is Glass's "vehicle details have not been
+found" and settles nothing. The launch then inserts a placeholder vehicle into
+the account's stock list — the portal's own "Add Unqualified Vehicle", with
+the Case registration as its model text so the stock list names the Case —
+one per launch and never reused, proves it, selects it and opens the
+estimator as usual. The Engineer identifies the real vehicle inside the
+estimator with its Alternative vehicle selection. The Case page shows
+nothing new: the session line reads as for any launch, and the host log says
+the launch is on a placeholder. Get valuation on such a plate stays
+unavailable; a placeholder has no value
+([ADR-0062](../adr/0062-glass-placeholder-vehicle-for-unknown-plates.md)).
+
+The return of a placeholder session is checked as any other, except for the
+vehicle's identity: the export may name no plate and no mileage, or the
+Case's own, and any other vehicle's is refused; the type number it names is
+the Engineer's choice and is recorded on the session, not compared. This rule
+stands until the first live return has been read.
+
 ### Glass's interrupted sessions
 
 A Glass's launch records its callback and external account before contacting
@@ -250,8 +270,10 @@ match the account used at launch.
 
 Before selecting a vehicle or reopening an estimate, the provider detail form
 must identify the expected vehicle ID, registration, mileage and NatCode, and
-offer the configured repair profile. Missing or contradictory controls refuse
-the action. Resume uses the positive estimate ID already recorded; uncertain
+offer the configured repair profile. A placeholder's form must identify the
+recorded vehicle ID, a numeric type number (the one the launch recorded, once
+it has) and an empty registration, and offer the profile; it has no mileage
+to prove. Missing or contradictory controls refuse the action. Resume uses the positive estimate ID already recorded; uncertain
 writes never restart at zero. A URL issued by the provider establishes no
 claim that the hosted editor has initialized successfully.
 
