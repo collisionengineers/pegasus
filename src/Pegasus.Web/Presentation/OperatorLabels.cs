@@ -1887,8 +1887,10 @@ public static class OperatorLabels
             {
                 "graph_rejected_403" =>
                     "The mailbox refused the message. Pegasus is not permitted to write to or send from this mailbox.",
-                "staff_send_content_invalid" => "The message content was refused.",
-                "staff_send_authorization_lost" => "Your authorisation changed before the message was sent.",
+                "staff_send_content_invalid" =>
+                    "The message could not be prepared for sending. It may be larger than the mailbox allows.",
+                "staff_send_authorization_lost" =>
+                    "Your authorisation or the mailbox's send setting changed before the message was sent.",
                 _ when failureCode.StartsWith("graph_rejected_", StringComparison.Ordinal) =>
                     $"The mail service refused the message (code {failureCode["graph_rejected_".Length..]}).",
                 _ => $"The message was refused ({failureCode})."
