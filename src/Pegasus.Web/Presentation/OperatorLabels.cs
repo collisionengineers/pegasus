@@ -2090,8 +2090,6 @@ public static class OperatorLabels
         public const string Repairer = "Repairer";
         public const string RepairerDirectory = "Repairer contact";
         public const string NotLinked = "Not linked";
-        // The Audit's Third Party Engineer, linked from the Contacts directory.
-        public const string ThirdPartyEngineerDirectory = "Third Party Engineer contact";
         // End of the Inspect-at and repairer labels.
         public const string FilesPanel = "Files";
         public const string AddEvidence = "Add evidence";

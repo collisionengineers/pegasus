@@ -72,7 +72,6 @@ public sealed class ReadOriginalReport(
     IGetCaseDocumentMetadata metadata,
     IReadLogicalDocumentVersion documents,
     IIntakeOcrOperationStore ocrOperations,
-    IContactDirectoryQueries contacts,
     TimeProvider timeProvider) : IReadOriginalReport
 {
     /// <summary>A report beyond this size is not read; the estimate import's cap.</summary>
@@ -177,24 +176,19 @@ public sealed class ReadOriginalReport(
             return Recognition(OriginalReportRecognitionOutcome.NotRecognised, null, "failed");
         }
 
-        // Bytes that could not be matched, or a scan whose text has not
-        // arrived yet, may still be the report: nothing is decided on them.
-        if (extracted.Status is StatusHashMismatch or StatusAwaitingOcr)
+        return extracted switch
         {
-            return Recognition(OriginalReportRecognitionOutcome.Unavailable, null, extracted.Status);
-        }
-
-        if (extracted.Candidate is null)
-        {
-            return Recognition(OriginalReportRecognitionOutcome.NotRecognised, null, extracted.Status);
-        }
-
-        return Recognition(
-            OriginalReportRecognitionOutcome.Recognised,
-            await LinkAsync(
+            // Bytes that could not be matched, or a scan whose text has not
+            // arrived yet, may still be the report: nothing is decided on them.
+            { Status: StatusHashMismatch or StatusAwaitingOcr } =>
+                Recognition(OriginalReportRecognitionOutcome.Unavailable, null, extracted.Status),
+            { Candidate: null } =>
+                Recognition(OriginalReportRecognitionOutcome.NotRecognised, null, extracted.Status),
+            _ => Recognition(
+                OriginalReportRecognitionOutcome.Recognised,
                 OriginalReportPrefillPolicy.Read(extracted.Candidate, asset.ContentHash.ToLowerInvariant()),
-                cancellationToken),
-            extracted.Status);
+                extracted.Status)
+        };
     }
 
     private async Task<OriginalReportReading?> ReadAsync(
@@ -208,36 +202,9 @@ public sealed class ReadOriginalReport(
         var extracted = await ExtractAsync(content, fileName, mediaType, sha256, receiptId, cancellationToken);
         return Outcome(
             extracted.Status is StatusRead or StatusNoSignature
-                ? await LinkAsync(OriginalReportPrefillPolicy.Read(extracted.Candidate, sha256), cancellationToken)
+                ? OriginalReportPrefillPolicy.Read(extracted.Candidate, sha256)
                 : null,
             extracted.Status);
-    }
-
-    /// <summary>
-    /// The recognised report's assessor is the name of a Third Party Engineer
-    /// in the Contacts directory, or it is not. When exactly one active contact
-    /// carries that name the reading links it (FRD-04); the cells fill either
-    /// way, and a missing contact is the operator's to add, not a reading's
-    /// to invent.
-    /// </summary>
-    private async Task<OriginalReportReading> LinkAsync(
-        OriginalReportReading reading,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(reading.Assessor))
-        {
-            return reading;
-        }
-
-        var contact = await contacts.FindActiveByRoleAndNameAsync(
-            ContactRole.ThirdPartyEngineer, reading.Assessor, cancellationToken);
-        return contact is null
-            ? reading
-            : reading with
-            {
-                ThirdPartyEngineerContactId = contact.OrganizationId,
-                ThirdPartyEngineerContactName = contact.Name
-            };
     }
 
     private const string StatusHashMismatch = "hash_mismatch";

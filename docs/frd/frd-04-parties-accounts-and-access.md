@@ -154,11 +154,7 @@ notes follow the chosen record, and a changed choice must still be an active
 Claim Source when the Case is saved. The Case may override the chosen
 source's contact name, telephone and e-mail for that Case alone. The override
 wins per field; changing or clearing the chosen source clears it. Repairer,
-Storage and Third Party Engineer contacts have no notes. An Audit Case links
-one Third Party Engineer contact: Pegasus links it from the recognised
-report's assessor when one active contact has that name, and staff may
-change or clear it in the Case's Original report section
-([FRD-16](frd-16-case-record-workspace.md#original-report)).
+Storage and Third Party Engineer contacts have no notes.
 
 Every change is a permanent action-history event with actor, time, operation
 identity and before and after values. Routine settings changes need no

@@ -327,15 +327,6 @@ word the cell's list does not hold. Roadworthiness reads a printed Yes/No or
 Roadworthy/Unroadworthy. Repairable status reads a printed Repairable,
 Repair or Total loss; the report never fills Cash in lieu or Contract repair.
 
-The section's fifth cell is the Audit's **Third Party Engineer contact**
-([FRD-04](frd-04-parties-accounts-and-access.md)). When the recognised
-report's assessor is the name of exactly one active Third Party Engineer
-contact, the fill links that contact, tagged Extracted; otherwise it links
-nothing and the other cells still fill. Staff choose another contact, or
-none, from the same select the Repairer contact uses. The link copies the
-contact's name beside its identity, so a later directory edit never
-rewrites the Case. The Assessor cell keeps the name the report printed.
-
 Repairable status alone falls back to the Audit's intake verdict — the
 report's literal repairable or total-loss wording, or the Principal API's
 declared verdict — when the report prints no outcome or cannot be read. A
