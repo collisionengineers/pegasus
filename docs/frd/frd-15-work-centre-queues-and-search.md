@@ -107,7 +107,8 @@ instant, earliest first and undated last, then received, then reference. The
 due text is in words ("2 days overdue", "Due today", "Due Fri", "Due 24 Sep")
 coloured by group; Received is the age ("3 d ago"). There is no priority
 chip. The list is paged at 50, reading "Page 1 of N · earliest due first"
-with Previous and Next. Nothing is silently dropped.
+with Previous and Next. An item leaves only when it no longer qualifies or
+is dismissed; nothing is silently dropped.
 
 **The open row.** Choosing a task opens the row in place, beneath it: the
 kind, a chip only when Overdue (red, with how late) or Due today (amber), the
@@ -118,7 +119,8 @@ assignment dialog on the Work Centre. Review Case opens the Case, and so
 does Open Case on a Vehicle images paired item. Open Triage opens the Triage
 Case page. An AI draft offers its per-kind action. **Assign
 to me** is offered to every enabled staff role on an Unassigned item and on
-a Triage item without an assignee, where Core would accept it.
+a Triage item without an assignee, where Core would accept it. **Dismiss**
+follows the next action on every open row.
 
 **New cases.** Every Case except a Triage Case created in the last 7 calendar
 days, newest first, whatever created it: reference, registration, claimant,
@@ -126,7 +128,7 @@ principal and an arrival chip (Manual, E-mail, Principal API, Automation). A
 "Since you last looked" divider marks what is new for this person. Opening the
 Work Centre records the look. A change the Automation actor makes to an
 existing Case appears as a "Changed by automation" row naming the change. The
-section is paged.
+section is paged. Each row ends with an icon-only **Dismiss** naming its Case.
 
 **AI jobs.** The office's unfinished AI jobs (Queued, Taken with its lease
 expiry, Draft ready) and those that failed in the same 7 days, excluding
@@ -135,8 +137,32 @@ record, who started it and when, then the lease expiry or failure reason and
 the Draft ready action defined per kind in
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
 (Review estimate, Open query, Review, Complete job). A failed job shows its
-reason with Open Case. There is no Cancel here; an Administrator stops a job
-on Administration AI jobs.
+reason with Open Case. Every job ends with **Dismiss**. There is no Cancel
+here; an Administrator stops a job on Administration AI jobs.
+
+**Dismiss** (2 October 2026) takes a row off the Work Centre without
+changing its record. A dismissal belongs to the record behind the row (the
+Case, Unidentified item or AI job) and applies for everyone: every row of
+that record that began at or before the dismissal leaves every tab, so a
+Case dismissed from New cases also leaves Needs attention, and a Draft ready
+job leaves both Needs attention and AI jobs. A row that begins after the
+dismissal shows again:
+
+| Row | Begins when |
+| --- | --- |
+| Case | Its chase fell due (each chase is a new row) |
+| Held | The hold was placed |
+| Review, Unassigned | The Case entered Review |
+| Vehicle images paired | The images were paired |
+| Unidentified | The item was opened or reopened |
+| Triage | The Triage changed state, or opened |
+| AI draft, AI job | The job entered the state it shows (taken, draft written, failed, or returned to the queue when its lease lapsed); a job released back to the queue keeps its creation time |
+| New case, Changed by automation | The Case was created; the change was made |
+
+Due dates play no part, so a target change never brings a dismissed row back.
+The section counts, kind chips, groups and pages leave dismissed rows out;
+the five metrics count records and do not change. There is no undo and no
+list of dismissed rows, and no notice: the row's leaving is the answer.
 
 ### Cases: queues and filters
 
@@ -363,8 +389,8 @@ permits it ([FRD-13](frd-13-case-lifecycle-and-workflow.md)).
   its failure, never `0`.
 - A stale version on a pre-Case record or a Triage Case is a
   non-destructive conflict. A replay shows the original result.
-- A Needs attention item with no due instant sorts last and is never
-  dropped.
+- A Needs attention item with no due instant sorts last and leaves only
+  when it no longer qualifies or is dismissed.
 - An unreadable Unidentified item still shows its reference, origin and
   bounded detail.
 

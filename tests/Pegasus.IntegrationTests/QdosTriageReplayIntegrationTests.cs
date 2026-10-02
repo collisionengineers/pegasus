@@ -122,6 +122,14 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(5, reopened.Version);
         Assert.Equal(TriageState.Open, reopened.State);
 
+        // The Work Centre row's occurrence begins at the reopen, the last state change.
+        var reopenedAt = (await GetTriageAsync(factory.Services, triageId)).History
+            .Single(entry => entry.OperationKey == "replay-reopen").OccurredAtUtc;
+        var openRow = Assert.Single(
+            await services.GetRequiredService<IListTriage>().ListAllAsync(staffActor, TriageState.Open, CancellationToken.None),
+            row => row.CaseId == triageId);
+        Assert.Equal(reopenedAt, openRow.StateEnteredAtUtc);
+
         await Assert.ThrowsAsync<TriageVersionConflictException>(
             () => awaitInformation.ExecuteAsync(
                 awaitRequest with
