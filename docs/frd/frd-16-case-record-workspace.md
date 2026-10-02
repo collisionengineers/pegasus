@@ -91,6 +91,11 @@ Where a tab inside that section clears it, the link opens that tab too
 (operator, 1 October 2026): a missing Close-up, Overview or report image
 source opens Files on **Images**, and the agreed fee or its description
 lines open Report on **Fee**.
+The rows run in page order (operator, 2 October 2026): section by section
+from the top, then by where the field that clears each sits within its
+section, so working down the list moves down the page; a blocker no Case
+section clears comes last. The Cases list's Current work names the same
+first row.
 With Engineer the list is the next action; in Not ready and Review it follows
 that state's next action. It shows beside every section and in both modes;
 a long list scrolls within the aside rather than pushing the sections down.
