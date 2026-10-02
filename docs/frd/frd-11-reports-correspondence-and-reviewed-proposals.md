@@ -292,7 +292,9 @@ or longer than 5000 characters. The report's name and that message are frozen
 with the preparation, so what was reviewed is what is sent. Send uses only the
 frozen message, and custody keeps its own name for the same bytes. A send is a
 staff send that actually left the approved mailbox; a prepared-but-unsent
-delivery is not one. The subject stays the Case or Audit reference.
+delivery is not one. The subject stays the Case or Audit reference. A send the
+mailbox provider refuses is shown as a failed send; that preparation is spent,
+and Prepare delivery is offered again so a fresh preparation can be sent.
 
 **Report and fee note.** They are separately addressable files in custody.
 The operator generating the report chooses whether the fee note is a separate

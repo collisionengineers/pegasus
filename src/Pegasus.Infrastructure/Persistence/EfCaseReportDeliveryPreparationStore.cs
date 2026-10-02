@@ -225,7 +225,18 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             .OrderBy(artifact => artifact.Kind)
             .Select(CaseReportDeliveryPolicy.AttachmentOf)
             .ToArray();
-        return Map(row.Intent, row.CaseVersion, row.Generation, row.IsCurrentWork, confirmed);
+        // The report send's operation key is the preparation id in "N" form
+        // (one send operation per preparation per actor), so the preparation's
+        // latest send outcome is the newest operation under that key.
+        var operationKey = row.Intent.Id.ToString("N");
+        var latestSendState = await context.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            .Where(operation => operation.Purpose == StaffMailPurpose.CaseReport
+                && operation.OperationKey == operationKey)
+            .OrderByDescending(operation => operation.CreatedAtUtc)
+            .Select(operation => (StaffMailState?)operation.State)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return Map(row.Intent, row.CaseVersion, row.Generation, row.IsCurrentWork, confirmed, latestSendState);
     }
 
     private static CaseReportDeliveryPreparationRecord Map(
@@ -233,7 +244,8 @@ public sealed class EfCaseReportDeliveryPreparationStore(
         long caseVersion,
         CaseReportGenerationEntity generation,
         bool isCurrentWork,
-        IReadOnlyList<StaffMailAttachment> confirmedArtifacts)
+        IReadOnlyList<StaffMailAttachment> confirmedArtifacts,
+        StaffMailState? latestSendState = null)
     {
         var payload = JsonSerializer.Deserialize<Payload>(entity.PayloadJson, PayloadJsonOptions)
             ?? throw new InvalidDataException(
@@ -261,7 +273,8 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             generation.Version,
             confirmedArtifacts,
             // The primary work's id is the Case's; any other work is the current one.
-            generation.WorkId == generation.CaseId ? CaseWorkSelector.Primary : CaseWorkSelector.Current);
+            generation.WorkId == generation.CaseId ? CaseWorkSelector.Primary : CaseWorkSelector.Current,
+            latestSendState);
     }
 
     /// <summary>
