@@ -71,7 +71,9 @@ upload rather than chosen after it:
   that member of staff's decision, in their name, and files the source, its
   documents and its photographs on the Case, straight to the Case's Box
   folder and never through holding. No Unidentified item and no Vehicle
-  images record is made for it. A file that could not be read keeps that
+  images record is made for it. A source that is itself a photograph (JPEG
+  or PNG) is filed as one of the Case's images, so it appears under Images
+  rather than Documents. A file that could not be read keeps that
   outcome; its original still files.
 - After posting, the operator returns to the Case's Files panel with a
   one-time notice, "N files received for {reference}. They appear under
