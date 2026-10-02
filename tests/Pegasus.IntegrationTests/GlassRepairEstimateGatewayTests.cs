@@ -1432,10 +1432,6 @@ public sealed class GlassRepairEstimateGatewayTests
     {
         { GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: "ZZ99ZZZ"), GlassFailure.IdentityRegistration },
         { GlassEstimateXmlParserTests.GlassExport.BuildXml(mileage: "12345"), GlassFailure.IdentityMileage },
-        // An export naming no plate or no mileage is accepted only from a
-        // placeholder session; a vehicle the lookup found must be named.
-        { GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: ""), GlassFailure.IdentityRegistration },
-        { GlassEstimateXmlParserTests.GlassExport.BuildXml(mileage: "0"), GlassFailure.IdentityMileage },
         { GlassEstimateXmlParserTests.GlassExport.BuildXml(typeNumber: "999999999"), GlassFailure.IdentityNatCode },
         {
             // A real, well-formed Glass's document that costs nothing: valid to
@@ -1479,6 +1475,31 @@ public sealed class GlassRepairEstimateGatewayTests
         {
             Assert.Empty(harness.Custody.Retained);
         }
+    }
+
+    /// <summary>
+    /// An export naming no plate or no mileage is accepted only from a
+    /// placeholder session; a vehicle the lookup found must be named in full.
+    /// (Its own theory: rows of the one above share a display name once xUnit
+    /// shortens the XML, and the shard guard reads that as a duplicate.)
+    /// </summary>
+    [Theory]
+    [InlineData("registration", GlassFailure.IdentityRegistration)]
+    [InlineData("mileage", GlassFailure.IdentityMileage)]
+    public async Task AnOrdinaryExportMustNameItsPlateAndMileage(string blank, string expectedFailure)
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        var xml = blank == "registration"
+            ? GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: "")
+            : GlassEstimateXmlParserTests.GlassExport.BuildXml(mileage: "0");
+        harness.Mva.Set("GET /ndp_download/", new(HttpStatusCode.OK, xml, ContentType: "application/xml"));
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, settled.State);
+        Assert.Equal(expectedFailure, settled.FailureCode);
+        Assert.Empty(harness.Import.Requests);
     }
 
     /// <summary>
