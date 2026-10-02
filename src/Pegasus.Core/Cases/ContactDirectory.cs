@@ -84,14 +84,6 @@ public interface IContactDirectoryQueries
         ActionActor actor, ContactRole role, CancellationToken cancellationToken);
     Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(
         ActionActor actor, string name, CancellationToken cancellationToken);
-    /// <summary>
-    /// The one active organisation holding <paramref name="role"/> whose name
-    /// is <paramref name="name"/> (compared as the directory normalises names);
-    /// null when none or more than one does. A system lookup for linking a
-    /// recognised document's issuer, so it takes no actor.
-    /// </summary>
-    Task<ContactDirectoryRecord?> FindActiveByRoleAndNameAsync(
-        ContactRole role, string name, CancellationToken cancellationToken);
     Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(
         ActionActor actor, CancellationToken cancellationToken);
 }

@@ -1,6 +1,10 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -1437,6 +1441,98 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         }
     }
 
+    /// <summary>
+    /// The Worker reads a standalone Audit's retained original report inside
+    /// automatic acceptance (<see cref="ReadOriginalReport.ForIntakeAsync"/>).
+    /// Every SQL that read issues must succeed under the Worker's own role:
+    /// a denied table is swallowed as "the report could not be read" and the
+    /// Audit is created with its Original report cells blank, which is how
+    /// Release 79's contact lookup (a join to a table the Worker may not
+    /// read) emptied every Exclusive Audit's cells in production. The real
+    /// stores run here; only the bytes and the PDF reader are stand-ins.
+    /// </summary>
+    [Fact]
+    public async Task WorkerRuntimeReadsAStandaloneAuditsOriginalReportAtAcceptance()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        var receiptId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var evidenceId = Guid.NewGuid();
+        var reportBytes = Encoding.UTF8.GetBytes("%PDF synthetic original report");
+        // Mail intake records the asset hash in capitals.
+        var reportHash = Convert.ToHexString(SHA256.HashData(reportBytes));
+        var emptyEnvelope = EfIntakeReceiptStore.SerializeEnvelope(Array.Empty<string>());
+        await database.ExecuteAsync($"""
+            INSERT INTO [dbo].[IntakeReceipts] (
+                [Id], [SourceFileName], [MediaType], [SourceLength], [SourceHash],
+                [SourceChannel], [ExternalReceiptToken], [ReceivedAtUtc], [ProcessedAtUtc],
+                [SourceReaderKey], [SourceReaderVersion], [Version], [Decision],
+                [DecisionReason], [EvidenceJson], [FieldsJson], [OcrCandidatesJson])
+            VALUES
+                ('{receiptId:D}', N'audit.eml', N'message/rfc822', 1,
+                 REPLICATE(N'A', 64), N'mailbox', N'original-report-role:{receiptId:N}',
+                 '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00',
+                 N'runtime-role-test', N'1', 1, N'case_created', N'Standalone Audit fixture',
+                 N'{emptyEnvelope}', N'{emptyEnvelope}', N'{emptyEnvelope}');
+            INSERT INTO [dbo].[IntakeAssets] (
+                [Id], [IntakeReceiptId], [SourceLabel], [FileName], [MediaType],
+                [Kind], [Disposition], [ContentLength], [ContentHash], [StorageKey])
+            VALUES (
+                '{assetId:D}', '{receiptId:D}', N'uploaded audit.eml, attachment 2: report.pdf', N'report.pdf',
+                N'application/pdf', N'attachment', N'attachment', {reportBytes.Length}, N'{reportHash}',
+                N'runtime-role/{assetId:N}');
+            INSERT INTO [dbo].[StandaloneAuditEvidence] (
+                [Id], [IntakeReceiptId], [OriginalReportAssetId], [Assessment], [ConfirmedByKind],
+                [ConfirmedBySubjectId], [ConfirmedByRolesJson], [ConfirmedAtUtc], [OperationKey],
+                [Reason], [RequestHash], [ResultingReceiptVersion])
+            VALUES (
+                '{evidenceId:D}', '{receiptId:D}', '{assetId:D}', N'repairable', N'SystemWorker',
+                N'system-worker:automatic-standalone-audit', N'[]', '2031-05-06T10:31:00+00:00',
+                N'automatic-standalone-audit:{receiptId:N}', N'The retained original report states Repairable.',
+                REPLICATE(N'b', 64), 1);
+            CREATE USER [pegasus_test_original_report_worker] WITHOUT LOGIN;
+            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_original_report_worker];
+            """);
+
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync();
+        await using var impersonation = connection.CreateCommand();
+        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_original_report_worker';";
+        await impersonation.ExecuteNonQueryAsync();
+        try
+        {
+            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
+            var contextFactory = new ConnectedContextFactory(options);
+            var artifacts = new FixedArtifactStore($"runtime-role/{assetId:N}", reportBytes);
+            var reader = new ReadOriginalReport(
+                new ConnexusReportReader(),
+                new EfStandaloneAuditEvidenceStore(contextFactory, artifacts, TimeProvider.System),
+                new EfIntakeReceiptStore(contextFactory),
+                artifacts,
+                new NoCaseDocumentMetadata(),
+                new NoLogicalDocumentVersionReader(),
+                new EfIntakeOcrOperationStore(contextFactory),
+                TimeProvider.System);
+
+            var reading = await reader.ForIntakeAsync(receiptId, evidenceId, CancellationToken.None);
+
+            Assert.NotNull(reading);
+            Assert.Equal(reportHash.ToLowerInvariant(), reading.Sha256.ToLowerInvariant());
+            Assert.Equal("Connexus Vehicle Assessors", reading.Assessor);
+            Assert.Equal("2026-03-09", reading.ReportDate);
+            Assert.Equal("unroadworthy", reading.Roadworthiness);
+            Assert.Equal("repairable", reading.Outcome);
+        }
+        finally
+        {
+            impersonation.CommandText = "REVERT;";
+            await impersonation.ExecuteNonQueryAsync();
+        }
+    }
+
     [Fact]
     public async Task WorkerReconcilesRegisteredImageUsingCurrentCaseIdentityExactlyOnce()
     {
@@ -1857,6 +1953,58 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         : IDbContextFactory<PegasusDbContext>
     {
         public PegasusDbContext CreateDbContext() => new(options);
+    }
+
+    /// <summary>A synthetic Connexus report: one readable page, no scanned pages.</summary>
+    private sealed class ConnexusReportReader : IIntakeSourceReader
+    {
+        private const string Report = """
+            Mr D Roberton                                        Date:  09/03/2026
+            Gravesend                                            Our Ref:  00077570/PK
+
+                           Engineer Repairable Report
+
+                 Vehicle Value: £9,267.00      Repair Cost: £6,143.90 inc VAT     Roadworthy: No
+
+            Phil Kendrick AQP CAE AMIMI
+            Connexus Vehicle Assessors
+            """;
+
+        public Task<IntakeSourceReadResult> ReadAsync(IntakeSource source, CancellationToken cancellationToken) =>
+            Task.FromResult(new IntakeSourceReadResult(
+                IntakeSourceReadStatus.Readable,
+                [new(IntakeEvidenceSource.PdfContent, $"uploaded {source.FileName}, page 1", Report)],
+                [],
+                [],
+                RequiresOcr: false));
+    }
+
+    private sealed class FixedArtifactStore(string storageKey, byte[] content) : IIntakeArtifactStore
+    {
+        public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> value, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId, string contentHash, Stream value, long contentLength,
+            DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(string key, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(key == storageKey ? content : null);
+    }
+
+    private sealed class NoCaseDocumentMetadata : IGetCaseDocumentMetadata
+    {
+        public Task<CaseDocumentMetadata?> ExecuteAsync(
+            GetCaseDocumentMetadataQuery query, CancellationToken cancellationToken = default) =>
+            Task.FromResult<CaseDocumentMetadata?>(null);
+    }
+
+    private sealed class NoLogicalDocumentVersionReader : IReadLogicalDocumentVersion
+    {
+        public Task<LogicalDocumentContent> OpenAsync(
+            ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private static async Task<string[]> ReadValuesAsync(
