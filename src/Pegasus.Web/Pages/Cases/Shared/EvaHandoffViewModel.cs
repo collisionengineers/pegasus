@@ -21,6 +21,7 @@ public sealed record EvaHandoffViewModel(
     string ExportOperationKey,
     string SubmitOperationKey,
     bool CanRetryAutomaticFailure = false,
-    bool ShowAutomaticFailureNotice = false);
+    bool ShowAutomaticFailureNotice = false,
+    string? View = null);
 
 public sealed record EvaHandoffEngineerOption(Guid Id, string Name);

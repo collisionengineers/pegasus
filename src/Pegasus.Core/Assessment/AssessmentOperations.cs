@@ -14,7 +14,7 @@ public sealed class GetCaseAssessment(ICaseAssessmentStore store) : IGetCaseAsse
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
 
-        var projection = await _store.GetAsync(caseId, cancellationToken);
+        var projection = await _store.GetAsync(caseId, Cases.CaseWorkSelector.Current, cancellationToken);
         return projection is null
             ? null
             : projection with { Readiness = AssessmentPolicy.EvaluateReadiness(projection) };

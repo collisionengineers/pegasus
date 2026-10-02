@@ -84,6 +84,11 @@
 
     function trapFocus(event) {
         if (event.key === "Escape") {
+            // An open Find a Case list takes the first Escape and closes
+            // itself; the composer closes on the next one.
+            if (host.querySelector("[data-case-picker-options]:not([hidden])")) {
+                return;
+            }
             event.preventDefault();
             closeComposer();
             return;
@@ -173,6 +178,9 @@
     }
 
     function bindContent() {
+        if (typeof window.pegasusBindCasePickers === "function") {
+            window.pegasusBindCasePickers(host);
+        }
         host.querySelectorAll("[data-mail-compose-close]").forEach(function (close) {
             close.addEventListener("click", function (event) {
                 event.preventDefault();
@@ -188,7 +196,12 @@
                 }
                 event.preventDefault();
                 var submitter = event.submitter;
-                var action = submitter && submitter.formAction || form.action;
+                // Only a button that names its own action overrides the form's:
+                // the formAction property of a button without the attribute is
+                // the document URL, which would post the send to the host page.
+                var action = submitter && submitter.hasAttribute("formaction")
+                    ? submitter.formAction
+                    : form.action;
                 var preferResults = submitter && /handler=SearchCase/i.test(action);
                 var formData = new FormData(form);
                 // FormData(form) deliberately excludes the successful submit

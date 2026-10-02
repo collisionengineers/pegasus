@@ -14,9 +14,10 @@ public enum CaseWorkKind
 }
 
 /// <summary>
-/// Which work a read addresses. <see cref="Current"/> (the default) is the
-/// work the Case is on — the Audit once one exists; <see cref="Primary"/>
-/// reads the Inspection's own data for the read-only Inspection view.
+/// Which work a read or write addresses. <see cref="Current"/> (the default)
+/// is the work the Case is on — the Audit once one exists;
+/// <see cref="Primary"/> is the Inspection's own data, which the Inspection
+/// view reads and edits (operator, 2 October 2026).
 /// </summary>
 public enum CaseWorkSelector
 {

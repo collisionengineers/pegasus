@@ -23,7 +23,8 @@
   section using its keyboard-accessible Import action or a section-scoped
   file drop. The imported spec is the one in use at once.
 - Once an Inspection + Audit Case has its Audit, a Views card heads the
-  aside. The Audit view is the default; the Inspection view is read-only.
+  aside. The Audit view is the default; the Inspection view edits the
+  Inspection's own values and report.
 
 ## Purpose
 
@@ -91,6 +92,11 @@ Where a tab inside that section clears it, the link opens that tab too
 (operator, 1 October 2026): a missing Close-up, Overview or report image
 source opens Files on **Images**, and the agreed fee or its description
 lines open Report on **Fee**.
+The rows run in page order (operator, 2 October 2026): section by section
+from the top, then by where the field that clears each sits within its
+section, so working down the list moves down the page; a blocker no Case
+section clears comes last. The Cases list's Current work names the same
+first row.
 With Engineer the list is the next action; in Not ready and Review it follows
 that state's next action. It shows beside every section and in both modes;
 a long list scrolls within the aside rather than pushing the sections down.
@@ -104,7 +110,11 @@ message** ([FRD-13](frd-13-case-lifecycle-and-workflow.md#cancellation-messages)
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Delivery is the Next action only once the report is
-stored (operator, 27 September 2026).
+stored (operator, 27 September 2026). Once the report is sent, the Next
+action is **Create audit** on an Inspection + Audit Case that has no Audit
+yet, with the Actions menu's own control (greyed with its reason where Core
+refuses it), and **Mark completed** on any other Case (operator, 2 October
+2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 Below 1441px the aside folds into a strip above the sections.
@@ -201,19 +211,22 @@ both views.
 edits the Audit's values, and the Actions menu, Next action and the report
 readiness follow the Audit.
 
-**The Inspection view** shows the Inspection's values and its sent report,
-read-only. No section offers Edit; instead each editable section head shows
-the one availability label **Read-only · Audit created**. Files and Notes,
-which both views share, carry no such label: their actions that need no Case
-edit lease, such as Add evidence, previews and downloads, stay, and every
-change that needs the lease is made in the Audit view. A staff member who
-holds the edit lease and opens the Inspection view keeps the ribbon's
-editing controls, but every section there stays read-only. The Next action
-links to the Audit view. The one exception is the Inspection report while it
-is still to be sent: the Inspection view's Report section generates it,
-prepares and sends its delivery, and the Actions menu's Mark report sent
-takes its evidence, all on the Inspection's own work and without changing
-the Case's state (operator, 1 October 2026).
+**The Inspection view** shows the Inspection's values and its report and
+edits them (operator, 2 October 2026): every section head offers Edit as
+in the Audit view, under the one Case edit lease, and every change saved
+there writes the Inspection's own values, before and after its report is
+sent. Such a save changes nothing of the Case's own: its state, due date,
+completeness and matching are the Audit's. Files and Notes are shared by
+both views. The Inspection view's Report section generates the Inspection
+report, prepares and sends its delivery, and the Actions menu's Mark report
+sent takes its evidence, all on the Inspection's own work and without
+changing the Case's state (operator, 1 October 2026); a sent Inspection
+report may be generated and sent again when needed (operator, 2 October
+2026). The Next action is the viewed work's (operator, 2 October 2026): in
+the Inspection view it states the Inspection report's own step, lists that
+report's blockers while it is not ready, and its links stay in the
+Inspection view; once the Inspection report is sent it states nothing,
+unless a later change made that report stale.
 
 ### Actions menu
 
@@ -526,17 +539,16 @@ viewer by itself, once. A report still being filed shows the warning notice
 
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
-In the Audit view the report card's status begins with the Audit reference,
-and above the card one line stands for the Inspection's sent report: its
-title, "{Case/PO} · Sent {date}" and an **Inspection view** link. In the
-Inspection view the card shows the Inspection report: once sent, with the
-status "{Case/PO} · Sent {date}", openable and downloadable, with no
-generation or delivery; while still to be sent, with its generation status
-and the Audit view's Generate, Prepare delivery and Send controls, acting on
+In the Audit view the report card's status begins with the Audit reference
+and the section shows the Audit report alone; the Views card is the way to
+the Inspection report (operator, 2 October 2026). In the
+Inspection view the card shows the Inspection report with its generation
+status and the same Generate, Prepare delivery and Send controls, acting on
 the Inspection's own work under the session's lease or one claimed for the
-generation (operator, 1 October 2026). The Next action lists no blockers there; while
-the Audit's report is not ready its one line reads Report not ready and links
-to the Audit view.
+generation, before and after that report is sent (operator, 1 and 2 October
+2026). The Next action there is the
+Inspection report's own step and lists that report's blockers while it is
+not ready ([Inspection and Audit views](#inspection-and-audit-views)).
 
 ### Files
 
@@ -775,10 +787,9 @@ Section editability by state:
 | Held | Read-only | Read-only |
 | Completed, Query | Read-only (Return to Engineer to edit) | Read-only |
 
-Whatever the state, the Inspection view of a Case with an Audit is
-read-only apart from Files' and Notes' actions that need no edit lease and
-the Inspection report's own generation and delivery while it is still to be
-sent.
+The Inspection view of a Case with an Audit follows the same table: the
+state is the Case's, so the Audit's, and a save there writes the
+Inspection's values only.
 
 ## Edge cases and fail-closed behaviour
 
@@ -795,11 +806,11 @@ sent.
   control.
 - Crop is refused on an archived Case and in Completed or Query.
 - An ambiguous raw estimate file is refused with its reason.
-- A `view` value on a Case without an Audit is ignored. Every write changes
-  the current values, the Audit's once it exists, and returns to the Audit
-  view, except a Report command on the Inspection report still to be sent,
-  which acts on the Inspection's work and returns to the Inspection view;
-  the Inspection's values never change after Create audit.
+- A `view` value on a Case without an Audit is ignored. Every write names
+  the view it was posted from and returns to it: from the Audit view it
+  changes the Audit's values, from the Inspection view the Inspection's
+  (operator, 2 October 2026). The one Case edit lease and Case version
+  serialise edits to both works.
 
 ## Acceptance evidence
 

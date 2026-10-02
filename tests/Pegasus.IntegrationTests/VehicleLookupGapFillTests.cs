@@ -140,7 +140,7 @@ public sealed class VehicleLookupGapFillTests
         await using var scope = database.CreateAsyncScope();
         var projection = Assert.IsType<CaseAssessmentProjection>(
             await scope.ServiceProvider.GetRequiredService<ICaseAssessmentStore>()
-                .GetAsync(caseId, CancellationToken.None));
+                .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None));
         Assert.DoesNotContain(
             AssessmentPolicy.EvaluateReadiness(projection),
             item => item.Field is { } field && AssessmentVocabulary.LookupDerivedPaths.Contains(field));

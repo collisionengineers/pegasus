@@ -51,7 +51,6 @@ internal static class GlassFailure
     public const string LoginRedirect = "glass.login.redirect";
     public const string LoginLanding = "glass.login.landing";
     public const string LookupRequest = "glass.lookup.request";
-    public const string LookupUnavailable = "glass.lookup.unavailable";
     public const string LookupNotFound = "glass.lookup.notfound";
     public const string CandidatesRequest = "glass.candidates.request";
     public const string CandidatesRefused = "glass.candidates.refused";
@@ -68,6 +67,10 @@ internal static class GlassFailure
     public const string ReportOffOrigin = "glass.report.off_origin";
     public const string VehicleRequest = "glass.vehicle.request";
     public const string VehicleIdentity = "glass.vehicle.identity";
+    public const string PlaceholderRequest = "glass.placeholder.request";
+    public const string PlaceholderRefused = "glass.placeholder.refused";
+    public const string PlaceholderId = "glass.placeholder.id";
+    public const string PlaceholderIdentity = "glass.placeholder.identity";
     public const string DetailsRequest = "glass.details.request";
     public const string DetailsProfile = "glass.details.profile";
     public const string DetailsIdentity = "glass.details.identity";
@@ -133,14 +136,14 @@ internal sealed record GlassEstimateLaunch(string EreId, Uri OriginalCallback, U
 /// </para>
 ///
 /// <para>
-/// <b>Nothing retries blindly.</b> Only the two reads that follow a lookup
-/// retry, and only when the provider answered readable JSON that reported
-/// nothing yet: the VRM lookup once after 250 ms, and the candidate list
-/// twice more at the same spacing, because the portal's own page reads it
+/// <b>Nothing retries blindly.</b> Only the candidate list is read again,
+/// and only when the provider answered readable JSON that reported nothing
+/// yet: twice more, 250 ms apart, because the portal's own page reads it
 /// after the lookup and a list that is not ready is an empty answer, not a
-/// refusal. Vehicle creation and starting the estimate change state inside
-/// the Glass's account, so a lost answer to either is reported as unknown
-/// rather than repeated.
+/// refusal. The plate search itself is never repeated; the portal does not
+/// repeat it either. Vehicle creation, inserting a placeholder and starting
+/// the estimate change state inside the Glass's account, so a lost answer to
+/// any of them is reported as unknown rather than repeated.
 /// </para>
 ///
 /// <para>
@@ -149,10 +152,13 @@ internal sealed record GlassEstimateLaunch(string EreId, Uri OriginalCallback, U
 /// (<c>stockcount &gt; 0</c>) the portal asks the operator and "Continue with
 /// New Entry" repeats the search as a fresh one (<c>nostocksearch/1</c>);
 /// when it holds nothing the stock search's own answer is the lookup and no
-/// fresh search is ever made. A negative <c>vrm_lookup</c> is the portal's
-/// "vehicle details have not been found" and is refused without retry.
-/// The live evidence for this is the provider's <c>searches.js</c>; the
-/// spike only ever ran registrations the account already stocked.
+/// fresh search is ever made. An answer without a type number — a negative
+/// <c>vrm_lookup</c>, or a <c>natcode</c> that is absent, blank or the JSON
+/// <c>false</c> the portal answered for a plate its VRM supplier does not
+/// know (2 October 2026) — is the portal's "vehicle details have not been
+/// found" and is refused at once. The live evidence for this is the
+/// provider's <c>searches.js</c> and the captured answers; the spike only
+/// ever ran registrations the account already stocked.
 /// </para>
 ///
 /// <para>
@@ -250,8 +256,9 @@ internal sealed partial class GlassMvaClient(
 
     /// <summary>
     /// Looks the registration up and establishes its Glass's type number
-    /// (stages 5–10). The lookup is the one stage that may be retried,
-    /// because it reads and changes nothing.
+    /// (stages 5–10). A plate the provider does not know is refused here with
+    /// <see cref="GlassFailure.LookupNotFound"/> after one search; nothing in
+    /// these stages changes the account.
     /// </summary>
     public async Task<GlassVehicleLookup> LookupAsync(
         string registration, long mileageMiles, CancellationToken cancellationToken)
@@ -356,6 +363,70 @@ internal sealed partial class GlassMvaClient(
     }
 
     /// <summary>
+    /// The portal's "Add Unqualified Vehicle" form, exactly as the operator's
+    /// browser posted it on 2 October 2026: every control at its default, the
+    /// make and model lists at "All", a two-digit month (a one-digit one is
+    /// refused by the portal's own validation) and a free-text model that
+    /// names the Case's registration so the stock list says which Case the
+    /// placeholder belongs to. The unqualified vehicle carries no Glass's
+    /// data of its own; the Engineer identifies the real vehicle inside the
+    /// estimator.
+    /// </summary>
+    private static readonly (string Name, string Value)[] PlaceholderForm =
+    [
+        ("make", "*"),
+        ("uqmodel", "*"),
+        ("edit_make", "All"),
+        ("edit_model", string.Empty),
+        ("edit_trim", string.Empty),
+        ("edit_month", "01"),
+        ("edit_year", "2025"),
+        ("edit_plate", "25"),
+        ("edit_cc", string.Empty),
+        ("edit_body", "default"),
+        ("edit_bodytext", "Body type"),
+        ("edit_fuel", "default"),
+        ("edit_fueltext", "Fuel type"),
+        ("edit_transm", "default"),
+        ("edit_transmtext", "Transmission"),
+        ("edit_gear", string.Empty),
+        ("edit_drive", "default"),
+        ("edit_drivetext", "Drive/power train"),
+    ];
+
+    /// <summary>
+    /// Inserts a placeholder vehicle into the account's stock list for a
+    /// registration the provider does not know, and answers its stock id.
+    /// Like vehicle creation this changes the account, so it is never
+    /// retried: a lost or unreadable answer, and an answer naming no usable
+    /// id, are reported as unknown. The portal's own validation refusal (a
+    /// non-empty <c>title</c>) created nothing and is a known outcome.
+    /// </summary>
+    public async Task<string> InsertPlaceholderAsync(string registration, CancellationToken cancellationToken)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Post, options.MarketValueAssessor("index/unqualified-vehicle-insert"))
+        {
+            Content = new FormUrlEncodedContent(PlaceholderForm.Select(field =>
+                new KeyValuePair<string?, string?>(field.Name, field.Name == "edit_model" ? registration : field.Value))),
+        };
+        // A lost answer here may still have inserted the placeholder.
+        var inserted = await JsonAsync(request, GlassFailure.PlaceholderRequest, cancellationToken, outcomeUnknown: true);
+        if (!string.IsNullOrEmpty(Text(inserted, "title")))
+        {
+            throw new GlassMvaStageException(GlassFailure.PlaceholderRefused);
+        }
+
+        var id = Text(inserted, "new_vehicle_id");
+        if (!long.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var numeric) || numeric <= 0)
+        {
+            throw new GlassMvaStageException(GlassFailure.PlaceholderId, outcomeUnknown: true);
+        }
+
+        return id!;
+    }
+
+    /// <summary>
     /// Proves the created vehicle is the one the estimate will be started for
     /// (stages 12–14): its detail fragments load and its valuation page names
     /// both the requested repair profile and the type number the lookup
@@ -364,6 +435,49 @@ internal sealed partial class GlassMvaClient(
     public async Task RequireVehicleAsync(
         string vehicleId, string natCode, string registration, long mileageMiles,
         CancellationToken cancellationToken)
+    {
+        var inputs = await VehicleControlsAsync(vehicleId, cancellationToken);
+        if (string.IsNullOrWhiteSpace(natCode) || Field(inputs, "id") != vehicleId || Field(inputs, "natcode") != natCode
+            || !GlassRepairEstimateSessionPolicy.SameRegistration(Field(inputs, "registration_number"), registration)
+            || !long.TryParse(Field(inputs, "mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
+            || mileage != mileageMiles)
+        {
+            throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+        }
+    }
+
+    /// <summary>
+    /// Proves a stock vehicle is the placeholder this session inserted and
+    /// answers the type number the portal gave it. A placeholder has no
+    /// registration and no mileage of its own — the Engineer identifies the
+    /// real vehicle inside the estimator — so its identity is its id, an empty
+    /// registration control, a numeric type number (the same one as before,
+    /// when the session already recorded it) and the repair profile.
+    /// </summary>
+    public async Task<string> RequirePlaceholderAsync(
+        string vehicleId, string? natCode, CancellationToken cancellationToken)
+    {
+        var inputs = await VehicleControlsAsync(vehicleId, cancellationToken);
+        var stated = Field(inputs, "natcode");
+        if (Field(inputs, "id") != vehicleId
+            || string.IsNullOrEmpty(stated) || !stated.All(char.IsAsciiDigit)
+            || (natCode is not null && stated != natCode)
+            || Field(inputs, "registration_number") is not { Length: 0 })
+        {
+            throw new GlassMvaStageException(GlassFailure.PlaceholderIdentity);
+        }
+
+        return stated;
+    }
+
+    /// <summary>
+    /// Stages 12–14's reads: the vehicle's detail fragments and its valuation
+    /// page, whose named controls are the only things that establish identity
+    /// (scripts, comments and unrelated text can carry the right numbers for
+    /// the wrong vehicle), and which must offer the configured repair profile.
+    /// </summary>
+    private async Task<Dictionary<string, string>[]> VehicleControlsAsync(
+        string vehicleId, CancellationToken cancellationToken)
     {
         await TextAsync(
             new HttpRequestMessage(
@@ -394,15 +508,6 @@ internal sealed partial class GlassMvaClient(
             var controls = InertHtml().Replace(value, string.Empty);
             var inputs = InputControl().Matches(controls).Cast<Match>()
                 .Select(match => Attributes(match.Groups[1].Value)).ToArray();
-            string? Field(string name)
-            {
-                var values = inputs.Where(input => input.GetValueOrDefault("name") == name)
-                    .Select(input => input.ContainsKey("disabled") ? null : input.GetValueOrDefault("value"))
-                    .Distinct(StringComparer.Ordinal).ToArray();
-                // The captured page repeats id in two forms. Equal repeats are valid;
-                // contradictory repeats or absent values do not identify a vehicle.
-                return values.Length == 1 ? values[0] : null;
-            }
             var profiles = SelectControl().Matches(controls).Cast<Match>()
                 .Where(match => Attributes(match.Groups[1].Value).GetValueOrDefault("name") == "ere_profile")
                 .ToArray();
@@ -414,18 +519,26 @@ internal sealed partial class GlassMvaClient(
             {
                 throw new GlassMvaStageException(GlassFailure.DetailsProfile);
             }
-            if (string.IsNullOrWhiteSpace(natCode) || Field("id") != vehicleId || Field("natcode") != natCode
-                || !GlassRepairEstimateSessionPolicy.SameRegistration(Field("registration_number"), registration)
-                || !long.TryParse(Field("mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
-                || mileage != mileageMiles)
-            {
-                throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
-            }
+
+            return inputs;
         }
         catch (RegexMatchTimeoutException)
         {
             throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
         }
+    }
+
+    /// <summary>
+    /// One named control's value. The captured page repeats id in two forms:
+    /// equal repeats are valid; contradictory repeats, a disabled control or
+    /// an absent one do not identify a vehicle.
+    /// </summary>
+    private static string? Field(Dictionary<string, string>[] inputs, string name)
+    {
+        var values = inputs.Where(input => input.GetValueOrDefault("name") == name)
+            .Select(input => input.ContainsKey("disabled") ? null : input.GetValueOrDefault("value"))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        return values.Length == 1 ? values[0] : null;
     }
 
     private static Dictionary<string, string> Attributes(string html)
@@ -784,49 +897,44 @@ internal sealed partial class GlassMvaClient(
     }
 
     /// <summary>
-    /// Stages 5–6, the one retryable stage: the stock search is the lookup,
-    /// and only a registration the account already stocks is looked up
-    /// again as a fresh search, exactly as the portal's "Continue with New
-    /// Entry" does. A readable answer that reports no lookup yet is retried
-    /// once after 250 ms; an unreadable one is not retried at all, because
-    /// there is nothing to say it was safe; and an answer that reports the
-    /// vehicle was not found is the provider's decision, not a glitch.
+    /// Stages 5–6: the stock search is the lookup, and only a registration
+    /// the account already stocks is looked up again as a fresh search,
+    /// exactly as the portal's "Continue with New Entry" does. Nothing is
+    /// repeated. An answer whose <c>vrm_lookup</c> cannot be read is not the
+    /// portal's answer and is refused as a bad request; one that reports the
+    /// vehicle was not found, or carries no type number at all (the portal
+    /// answers <c>"natcode":false</c> for a plate its supplier does not
+    /// know), is the provider's own "not found".
     /// </summary>
     private async Task<(string NatCode, string Detail)> LookupNatCodeAsync(
         string search, CancellationToken cancellationToken)
     {
-        var stock = await JsonAsync(
+        var answer = await JsonAsync(
             new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor(search)),
             GlassFailure.LookupRequest,
             cancellationToken);
-        var path = Number(stock, "stockcount") > 0 ? search + "/nostocksearch/1" : search;
-        JsonElement? answer = path == search ? stock : null;
-        for (var attempt = 1; ; attempt++)
+        if (Number(answer, "stockcount") > 0)
         {
-            answer ??= await JsonAsync(
-                new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor(path)),
+            answer = await JsonAsync(
+                new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor(search + "/nostocksearch/1")),
                 GlassFailure.LookupRequest,
                 cancellationToken);
-            var lookup = Number(answer.Value, "vrm_lookup");
-            var natCode = Text(answer.Value, "natcode");
-            var detail = $"stockcount={Text(answer.Value, "stockcount") ?? "?"} vrm_lookup={Text(answer.Value, "vrm_lookup") ?? "?"}"
-                + $" natcode={(string.IsNullOrEmpty(natCode) ? "absent" : "present")} attempt={attempt}";
-            if (lookup < 0)
-            {
-                throw new GlassMvaStageException(GlassFailure.LookupNotFound, detail: detail);
-            }
-            if (lookup >= 0 && !string.IsNullOrEmpty(natCode))
-            {
-                return (natCode, detail);
-            }
-            if (attempt == 2)
-            {
-                throw new GlassMvaStageException(GlassFailure.LookupUnavailable, detail: detail);
-            }
-
-            answer = null;
-            await Task.Delay(LookupRetryDelay, timeProvider, cancellationToken);
         }
+
+        var lookup = Number(answer, "vrm_lookup");
+        var natCode = StringOf(answer, "natcode");
+        var detail = $"stockcount={Text(answer, "stockcount") ?? "?"} vrm_lookup={Text(answer, "vrm_lookup") ?? "?"}"
+            + $" natcode={(string.IsNullOrEmpty(natCode) ? "absent" : "present")}";
+        if (lookup is null)
+        {
+            throw new GlassMvaStageException(GlassFailure.LookupRequest, detail: detail);
+        }
+        if (lookup < 0 || string.IsNullOrEmpty(natCode))
+        {
+            throw new GlassMvaStageException(GlassFailure.LookupNotFound, detail: detail);
+        }
+
+        return (natCode, detail);
     }
 
     /// <summary>
@@ -1110,6 +1218,17 @@ internal sealed partial class GlassMvaClient(
                 JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => value.ToString(),
                 _ => null,
             }
+            : null;
+
+    /// <summary>
+    /// A field only when the provider answered it as a string. The portal
+    /// answers <c>"natcode":false</c> for a plate it does not know, and a
+    /// boolean read as text would pass for a type number.
+    /// </summary>
+    private static string? StringOf(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value)
+            && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
             : null;
 
     private static long? Number(JsonElement element, string name) =>

@@ -112,6 +112,7 @@ else
                                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                                     <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
                                     <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                                     <button type="submit" class="image-tile-toggle" aria-pressed="@(preparation.InReport ? "true" : "false")" data-image-in-report>
                                         <svg class="icon" aria-hidden="true"><use href="@(preparation.InReport ? "#icon-square-check" : "#icon-square")" /></svg>
                                         <span>@ReportImageLabels.InReport</span>
@@ -131,7 +132,8 @@ else
                                          occurrence.Id,
                                          leaseToken,
                                          vocabulary,
-                                         occurrence.Tags))" />
+                                         occurrence.Tags,
+                                         Model.ViewRoute))" />
                             @if (mayCrop)
                             {
                                 <button type="button" class="icon-button" data-preparation-crop data-preparation-crop-occurrence="@occurrence.Id" title="@TagLabels.Crop" aria-label="@TagLabels.Crop"><svg class="icon" aria-hidden="true"><use href="#icon-crop" /></svg></button>
@@ -190,6 +192,7 @@ else
                             <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                             <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
                             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                            <input type="hidden" name="view" value="@Model.ViewRoute" />
                             <input type="hidden" name="section" value="files" />
                             <input type="hidden" name="preparationEdits[0].OccurrenceId" value="@occurrence.Id" />
                             <input type="hidden" name="preparationEdits[0].ExpectedPreparationVersion" value="@preparation.PreparationVersion" />

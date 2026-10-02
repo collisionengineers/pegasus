@@ -475,7 +475,7 @@ public sealed class RepairSpecificationActTests
 
     private sealed class RecordingAssessment(decimal engineerValue, decimal? contractSum = null) : ICaseAssessmentStore
     {
-        public Task<CaseAssessmentProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CaseAssessmentProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseAssessmentProjection?>(Projection(caseId));
 
         private CaseAssessmentProjection Projection(Guid caseId)

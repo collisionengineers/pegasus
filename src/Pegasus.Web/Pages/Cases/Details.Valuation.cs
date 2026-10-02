@@ -542,6 +542,7 @@ public sealed partial class DetailsModel
                 {
                     GuideRetailValue = retail,
                     ClaimantVatRegistered = claimantVat,
+                    Work = WorkSelector,
                 },
                 cancellationToken);
             return Partial("Cases/Shared/_CaseValuationLines", preview.Calculation);
@@ -756,7 +757,7 @@ public sealed partial class DetailsModel
             var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
             var month = ParseGuideMonth(guideMonth) ?? new DateOnly(today.Year, today.Month, 1);
             var quote = await fetchGuideValuation.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, editLeaseToken!, source, month),
+                new(id, expectedVersion, actor, operationKey, editLeaseToken!, source, month) { Work = WorkSelector },
                 cancellationToken);
             if (json)
             {

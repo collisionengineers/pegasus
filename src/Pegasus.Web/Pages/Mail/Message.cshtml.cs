@@ -313,8 +313,6 @@ public sealed class MessageModel(
 
     public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
 
-    public IReadOnlyList<CaseSearchItem> CorrespondenceCaseResults { get; private set; } = [];
-
     public bool StaffMailAvailable => staffMailSend is not UnavailableStaffMailSend;
 
     public bool CorrespondenceSendBlocked { get; private set; }
@@ -597,24 +595,24 @@ public sealed class MessageModel(
     public Task<IActionResult> OnPostForwardAsync(Guid id, CancellationToken cancellationToken) =>
         SendCorrespondenceAsync(id, StaffMailComposeMode.Forward, cancellationToken);
 
-    public async Task<IActionResult> OnPostSearchCorrespondenceCaseAsync(
+    /// <summary>
+    /// Find a Case for Reply/Forward: the option list the picker fetches as
+    /// staff type. Choosing an option posts <c>SelectCorrespondenceCase</c>.
+    /// </summary>
+    public async Task<IActionResult> OnGetCorrespondenceCaseOptionsAsync(
         Guid id,
+        string? q,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        if (!StaffMailAvailable || !TryParseListContext(out _)) return NotFound();
-        if (!TryNormalizeCorrespondenceCaseQuery(out var query) || string.IsNullOrWhiteSpace(query))
-        {
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                ModelState.AddModelError(
-                    nameof(CorrespondenceCaseQuery), "Enter a Case search term.");
-            }
-            return await ReloadAsync(actor, id, cancellationToken);
-        }
-        CorrespondenceCaseQuery = query;
-        CorrespondenceCaseResults = await SearchCasesAsync(actor, query, cancellationToken);
-        return await ReloadAsync(actor, id, cancellationToken);
+        if (!StaffMailAvailable) return NotFound();
+        return Partial(
+            "/Pages/Shared/_CaseOptions.cshtml",
+            new Pegasus.Web.Presentation.CaseOptions(
+                await SearchCasesAsync(actor, q, cancellationToken),
+                Url.Page("/Mail/Message", "SelectCorrespondenceCase", new { id })!,
+                nameof(SelectedCorrespondenceCaseReference),
+                "message-case-option"));
     }
 
     public async Task<IActionResult> OnPostSelectCorrespondenceCaseAsync(
@@ -1473,11 +1471,6 @@ public sealed class MessageModel(
         {
             CorrespondenceCaseReference = Detail.Summary.CaseReference;
         }
-        if (TryNormalizeCorrespondenceCaseQuery(out var query) && query is not null)
-        {
-            CorrespondenceCaseResults = await SearchCasesAsync(
-                actor, query, cancellationToken);
-        }
         CorrespondenceCase = await ResolveCaseAsync(
             actor, CorrespondenceCaseReference, cancellationToken);
         if (CorrespondenceCase is not null)
@@ -1546,17 +1539,10 @@ public sealed class MessageModel(
             new(actor, new CaseSearchFilters(Query: value), PageSize: 10), cancellationToken)).Items;
     }
 
-    private bool TryNormalizeCorrespondenceCaseQuery(out string? query)
-    {
-        if (TryNormalizeCaseQueryValue(CorrespondenceCaseQuery, out query)) return true;
-        ModelState.AddModelError(nameof(CorrespondenceCaseQuery), "Case searches must be 300 characters or fewer.");
-        return false;
-    }
-
     private static bool TryNormalizeCaseQueryValue(string? value, out string? normalized)
     {
         normalized = value?.Trim();
-        return string.IsNullOrWhiteSpace(normalized) || normalized.Length <= 300;
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 300;
     }
 
     private static bool TryNormalizeCaseReference(string? value, out string? normalized)

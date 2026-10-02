@@ -214,7 +214,9 @@ audit created from it."; Created in error keeps its own refusal), an
 archived Case, a Case that already has its Audit, and while a colleague
 holds the edit lease (the sections' own editing wording). A held Case is
 live again after Release Hold. It uses the same staff authorisation as the
-other Actions-menu progressions.
+other Actions-menu progressions. Once the Inspection report is sent, Create
+audit is the Case's Next action, stated in the aside and the Cases quick
+detail with the same control (operator, 2 October 2026).
 With no assigned Engineer it is refused with Return to Engineer's refusal,
 "Report preparation requires an assigned Engineer.", and the assigned
 Engineer must still be eligible, as for Return to Engineer. It asks for no
@@ -229,9 +231,9 @@ or one claimed for the action) and the current version, Create audit:
 - moves the Case to With Engineer before the report, keeping the assigned
   Engineer and the Sign-off Engineer;
 - keeps the Inspection's report approval and Sent evidence, where they
-  exist, with the Inspection; an Inspection report not yet sent is still
-  generated, sent and marked sent from the Inspection view afterwards
-  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md));
+  exist, with the Inspection; the Inspection report is still generated,
+  sent and marked sent from the Inspection view afterwards, again if
+  needed ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md));
 - starts the creation of the `a.` Box subfolder
   ([FRD-05](frd-05-documents-extraction-and-custody.md#custody-and-derived-reads));
 - records one history line, "Audit {Audit reference} created by {name}".
@@ -240,11 +242,14 @@ There is no separate success message. Replaying the same request creates no
 second Audit, and an edit prepared before Create audit is refused as stale.
 
 **After it.** The Audit drives the Case: its state, queues, Actions menu and
-Next action follow the Audit's report, and the Case's report generation,
-approval, Mark report sent and Mark completed act on the Audit report. The
-Inspection's values stay read-only; its report, until sent, is generated,
-prepared, sent and marked sent from the Inspection view on the Inspection's
-own work. While the Audit report is being
+the Audit view's Next action follow the Audit's report, and the Case's report
+generation, approval, Mark report sent and Mark completed act on the Audit
+report. The Inspection's values are edited from the Inspection view, on the
+Inspection's own work and without any effect on the Case's state, due date,
+completeness or matching; its report is generated, prepared, sent and marked
+sent from that view, again when needed, and that view's Next action states
+the Inspection report's own step (operator, 2 October 2026). While the Audit
+report is being
 prepared, image intake association and evidence promotion are open again, as
 for any Case before its report is sent.
 

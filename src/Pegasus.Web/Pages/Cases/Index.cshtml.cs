@@ -629,7 +629,8 @@ public sealed class IndexModel(
             if (AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
                 && await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, cancellationToken) is { } reportInputs)
             {
-                reportBlockers = CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons;
+                reportBlockers = CaseWorkspaceLabels.Report.InPageOrder(
+                    CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons);
             }
             currentReport = await _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
             deliveryPreparation = currentReport is null
@@ -638,6 +639,8 @@ public sealed class IndexModel(
         }
         var next = CaseNextAction.Of(
             basis.Workflow,
+            basis.Summary.CaseType,
+            basis.Frame.Works,
             missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
             reportBlockers,
             _ => null,

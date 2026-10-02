@@ -233,6 +233,9 @@ public sealed record PreviewValuationRequest(
     public decimal? GuideRetailValue { get; init; }
 
     public bool? ClaimantVatRegistered { get; init; }
+
+    /// <summary>The work whose valuation the Save will record (operator, 2 October 2026).</summary>
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
 }
 
 /// <summary>
@@ -261,6 +264,7 @@ public interface IAppliedValuationStore
 {
     Task<ValuationCalculationBasis> ReadBasisAsync(
         Guid caseId,
+        CaseWorkSelector work,
         Guid guideValuationId,
         CancellationToken cancellationToken);
 
@@ -273,6 +277,7 @@ public interface IAppliedValuationStore
     /// </summary>
     Task<ValuationCalculationBasis> ReadCalculationContextAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<AppliedValuation>> ListAppliedAsync(
@@ -769,7 +774,7 @@ public sealed class PreviewValuationCalculation(IAppliedValuationStore store)
         if (request.GuideRetailValue is { } retail)
         {
             // The card as the Engineer has it, which may not be recorded yet.
-            basis = (await store.ReadCalculationContextAsync(request.CaseId, cancellationToken))
+            basis = (await store.ReadCalculationContextAsync(request.CaseId, request.Work, cancellationToken))
                 with
             {
                 GuideValuationId = selection.GuideValuationId,
@@ -780,6 +785,7 @@ public sealed class PreviewValuationCalculation(IAppliedValuationStore store)
         {
             basis = await store.ReadBasisAsync(
                 request.CaseId,
+                request.Work,
                 selection.GuideValuationId,
                 cancellationToken);
         }
