@@ -17,6 +17,26 @@ The operator enabled staff-send on `instructions@collisionengineers.co.uk` at 13
 | Code change | PR 1006 (Release 82) already shows a refused send as Failed. PR `task/compose-send-feedback` adds the reason in operator words under that state on both composers, logs each refusal with its operation id and failure code, and corrects the Compose dialog: the focus ring stays inside the scroll area and the Message box absorbs spare height instead of scrolling. |
 | Still owed | Release 82 is live with the grant in place, so the PR 1006 proof can run now: one Compose send to `digital@collisionengineers.co.uk` reaching `Submitted` and then `Sent` with the Sent item linked to its Case. After this PR's release: the dialog screenshots at 1580×1000 and a smaller desktop height. |
 
+## Release 83 — 2 October 2026 (deployment live)
+
+Release 83 deployed [PR 1011](https://github.com/collisionengineers/pegasus/pull/1011), which merged two PRs into `dev` together with the fixes their reviews found:
+
+- [PR 1009](https://github.com/collisionengineers/pegasus/pull/1009): a refused staff send names its reason under the Failed state on both composers, and the refusal is logged (event 7401). The Compose dialog stays inside its frame.
+- [PR 1010](https://github.com/collisionengineers/pegasus/pull/1010): every action button shows a busy label and ring until its result arrives; slow preview links and downloads do too. The Case-page EVA ZIP export now returns its file.
+- Review fixes in PR 1011: a Case action queued behind a second commit returns to idle when that commit is refused; a failed download shows operator wording, not the browser's fetch error; the Compose Message box no longer shrinks below its textarea; the content-invalid and authorisation-lost reasons name their real causes.
+
+The route was the normal App Service route with the migration identity unchanged, run from the Windows workstation; no SQL step ran. Web and Worker are Running on the approved release, and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `be444d33ba55fec4c6ef92ca2509d17161a41866` (the merge of PR 1011 into `dev`; its tree equals the PR head `cb9c0f970` that CI tested). Promoted atomically to both `dev` and `main` at 21:59:36Z; `main` was `60bfdb832`. Manifest schema 3 SHA-256 `A59F5F51A724EC2300E956155480AB5B24D43B8738544A9DBFE688919195406B`. `web.zip` SHA-256 `7DB3A664A403981B35CED63C4E911B2718CF308176A4FFC470E164F5DA214384`, 106,934,509 bytes. `worker.zip` SHA-256 `268DF66B9C2986BE49E79D7F97394CC6849D3057F95ED16B70E07F5AFF84D5D8`. Windows `efbundle.exe` SHA-256 `8CC148477835A77227D94F07C852DDDE3C1DCF7A48C264E776364230C558F6E7`, built and not run. |
+| Review and verification | PRs 1009 and 1010 each had an independent code review; neither found a blocker. PR 1009 passed CI at its head. PR 1010's shard 3 failed twice on `CaseValuationV26WebTests.GlassesGetValuationAnswersTheFiguresAndFilesItsReportAfterwards` ("Collection was modified"): the test read the Glass fake's request list while the background report fetch was still adding to it. The test now reads it after filing completes. PR 1011's first run then failed once on `MailWorkspaceWebTests.MessageDetailShowsTheBodyAttachmentsThreadOutcomeAndTheWayBack`, because a random operation key contained `2048`; that check now matches the byte count only when it stands alone. CI at `cb9c0f970` passed all jobs. The Local, Artifact, PreDeploy and PreProvision gates passed. The operator granted merge authority and ordered the release (2 October 2026). |
+| Schema and grants | Unchanged. The manifest identity `20261002105641_WorkCentreDismissals` equals the deployed head; no migration or bootstrap ran. |
+| Web and Worker deployment | Provision took 13 seconds (22:07:21–22:07:34Z) and changed nothing: B1 quota in `uksouth` read 3, the six-name `Disabled` census stayed `false` and the four schedules unchanged. `az webapp deploy` (OneDeploy `cfc920a7-6263-4b75-ac5e-e4324f7cd300`, package `20261002220749.zip`) restarted the site; the exact SHA answered at 22:12:38Z. The Worker ZIP was deployed at 22:15:25Z. |
+| Production smoke | Passed at 22:17:04Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20261002220749.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-10-02T22:15:03Z`; the active Graph subscription expires `2026-10-08T13:10:00Z`. |
+| Still owed | The live proofs of the changes themselves:<br>• PR 1009: one Compose send to `digital@` reaching Sent now that the Exchange `Mail.ReadWrite`/`Mail.Send` grant exists, and Compose dialog screenshots.<br>• PR 1010: a live walk of busy buttons on the Case page, Triage, the composers and Glass's paths, and one EVA ZIP export from the Case page.<br>The Release 81 and 82 proofs remain owed. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-83-be444d33`; the build and deploy drivers and their logs at `artifacts/releases/release-83-driver`. |
+
 ## Release 82 — 2 October 2026 (deployment live)
 
 Release 82 deployed [PR 1008](https://github.com/collisionengineers/pegasus/pull/1008), which merged five PRs into `dev` together:
