@@ -608,8 +608,9 @@ public sealed partial class DetailsModel(
         ReportDraftPreparation is { CanGenerate: false }
         && ReportDraftReasons.Count > 0;
 
+    /// <summary>The report blockers in the order the page shows what clears them.</summary>
     public IReadOnlyList<AssessmentReadinessItem> ReportDraftReasons =>
-        ReportDraftPreparation?.Reasons ?? [];
+        Pegasus.Web.Presentation.CaseWorkspaceLabels.Report.InPageOrder(ReportDraftPreparation?.Reasons ?? []);
 
     /// <summary>
     /// The Case's current generated report snapshot (B05): the newest

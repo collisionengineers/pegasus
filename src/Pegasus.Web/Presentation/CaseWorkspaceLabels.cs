@@ -451,6 +451,58 @@ public static class CaseWorkspaceLabels
             item == CaseReportReadiness.RepairerVatStatusUnknown ? "#estimate-vat-status"
             : item == CaseReportReadiness.RepairerVatHandPicked ? "[data-vat-reset]"
             : null;
+
+        /// <summary>
+        /// The report blockers in the order the Case page shows what clears
+        /// them (operator, 2 October 2026), so working down the list moves
+        /// down the page: by <see cref="BlockerSection"/> in section order,
+        /// then by <see cref="PageFieldOrder"/> within it. A blocker naming no
+        /// field follows its section's fields; one no section clears comes
+        /// last. Ties keep Core's order.
+        /// </summary>
+        public static IReadOnlyList<AssessmentReadinessItem> InPageOrder(IReadOnlyList<AssessmentReadinessItem> items) =>
+        [
+            // A rank is the count of entries before a match, so no match
+            // (no section, no field) ranks after every entry.
+            .. items
+                .OrderBy(item => OperatorLabels.CaseWorkspace.Sections
+                    .TakeWhile(section => section.Key != BlockerSection(item)).Count())
+                .ThenBy(item => PageFieldOrder.TakeWhile(field => field != item.Field).Count())
+        ];
+
+        /// <summary>
+        /// Every field a report blocker names, in the order the Case
+        /// sections draw the control that records it. Only the order within
+        /// one section is read.
+        /// </summary>
+        internal static readonly IReadOnlyList<string> PageFieldOrder =
+        [
+            CaseDataFieldNames.ClaimNumber,
+            CaseDataFieldNames.IncidentDate,
+            CaseDataFieldNames.ClaimantName,
+            CaseDataFieldNames.InspectionDate,
+            CaseDataFieldNames.InspectionMode,
+            CaseDataFieldNames.InspectionAddress,
+            CaseDataFieldNames.VehicleRegistration,
+            AssessmentVocabulary.VehicleType,
+            AssessmentVocabulary.VehicleCondition,
+            AssessmentVocabulary.HistoryCheck,
+            AssessmentVocabulary.ImpactLocation,
+            AssessmentVocabulary.ImpactSeverity,
+            AssessmentVocabulary.DamageUnrelated,
+            AssessmentVocabulary.ValueRetail,
+            AssessmentVocabulary.ValueTrade,
+            AssessmentVocabulary.ValueEngineer,
+            AssessmentVocabulary.Outcome,
+            AssessmentVocabulary.SalvageCategory,
+            AssessmentVocabulary.SalvageValue,
+            AssessmentVocabulary.LegalStatus,
+            AssessmentVocabulary.UnroadworthyReason,
+            AssessmentVocabulary.SettlementContractSum,
+            AssessmentVocabulary.ReportDate,
+            AssessmentVocabulary.ReportValuationCommentaryText,
+            AssessmentVocabulary.AgreedFee
+        ];
     }
 
     /// <summary>
