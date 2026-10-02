@@ -639,6 +639,8 @@ public sealed class IndexModel(
         }
         var next = CaseNextAction.Of(
             basis.Workflow,
+            basis.Summary.CaseType,
+            basis.Frame.Works,
             missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
             reportBlockers,
             _ => null,
