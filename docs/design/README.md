@@ -722,6 +722,13 @@ problem" opens the Report a problem dialog. It replaces the 18 September
 "Update request", also the operator's wording; "provider" never appears in
 operator copy (Principal is the word).
 
+> Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.
+
+The operator's wording (2 October 2026) for Get valuation when Glass's
+answers that it does not value a vehicle of that age. It shows in the
+Glass's card as an info notice, with no Report a problem, because nothing is
+broken; every other failure keeps the unavailable sentence.
+
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
 
 These words are banned from operator-facing copy in
@@ -1104,6 +1111,7 @@ Use guidance only where the operator must understand a consequence:
 - "Created in error cannot be reopened. Create and link the replacement case."
 - "Unlinking this email cancels case <reference>."
 - "{Source} valuation is unavailable. Contact an administrator or report a problem."
+- "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15."
 
 Illustrative text must not fabricate operational input. Loading, empty,
 stale/partial, retryable error, denied/unauthenticated, validation, conflict,

@@ -960,7 +960,11 @@ public sealed class EfTriageStore(
             caseRow.Reference,
             caseRow.PrincipalId,
             principal.Code,
-            draft == null ? null : draft.ClaimNumber);
+            draft == null ? null : draft.ClaimNumber,
+            context.TriageHistory
+                .Where(history => history.TriageCaseId == item.CaseId
+                    && history.EventType.StartsWith(StateEventPrefix))
+                .Max(history => (DateTimeOffset?)history.OccurredAtUtc));
 
     private static TriageSummary ToSummary(TriageWithDraftRow row) => new(
         row.Item.CaseId,
@@ -973,14 +977,18 @@ public sealed class EfTriageStore(
         row.Reference,
         row.PrincipalCode,
         row.ClaimNumber,
-        row.PrincipalId);
+        row.PrincipalId)
+    {
+        StateEnteredAtUtc = row.StateEnteredAtUtc
+    };
 
     private sealed record TriageWithDraftRow(
         TriageEntity Item,
         string Reference,
         Guid PrincipalId,
         string PrincipalCode,
-        string? ClaimNumber);
+        string? ClaimNumber,
+        DateTimeOffset? StateEnteredAtUtc);
 
     public async Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -1366,8 +1374,10 @@ public sealed class EfTriageStore(
         string eventType) =>
         Hash($"{eventType}|{request.CaseId:N}|{request.ExpectedVersion}|{request.Roadworthiness}|{request.Assessment}|{request.SupersedesFindingId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
+    private const string StateEventPrefix = "triage_state_";
+
     private static string StateEventType(TriageState targetState) =>
-        $"triage_state_{ToCode(targetState)}";
+        StateEventPrefix + ToCode(targetState);
 
     private static string StateRequestHash(
         TriageMutationRequest request,

@@ -73,6 +73,12 @@ public sealed class UnidentifiedRecordWebTests
 
         var back = await IntakeWebDriver.GetHtmlAsync(client, "/Cases?tab=unidentified");
         Assert.Contains($">{reference}</a>", back, StringComparison.Ordinal);
+        // The reopen begins a new occurrence, so a Work Centre dismissal before it no longer hides the row.
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var reopenedAt = (await store.HistoryAsync(itemId, CancellationToken.None)).Max(entry => entry.OccurredAtUtc);
+        var row = Assert.Single(await store.ListQueueAsync(null, CancellationToken.None), item => item.Id == itemId);
+        Assert.Equal(reopenedAt, row.OpenedAtUtc);
     }
 
     [Fact]

@@ -246,7 +246,7 @@
 #section-settlement .salvage-share .snaps button{min-height:24px;padding:0 7px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;font:600 11px var(--mono);color:var(--muted);cursor:pointer}
 #section-settlement .salvage-share .snaps button.on{border-color:var(--navy);color:var(--navy);background:#f4f7fa}
 #section-settlement .salvage-share .read{font-size:11.5px;color:var(--muted)}
-#section-settlement .reason-bank{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+#section-settlement .reason-bank{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;grid-column:-2/-1}
 #section-settlement .reason-bank .btn{font-size:11.5px;text-align:left}
 #section-settlement [data-settlement-computed-reserve] .fv{font-size:12px}
 

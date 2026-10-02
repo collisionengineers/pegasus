@@ -600,6 +600,13 @@ function Get-MigrationPermissionMatrix {
     # data snapshot row. Neither role deletes one.
     $expected.Add('pegasus_web_runtime_role|G|UPDATE|CaseDataSnapshots')
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|CaseDataSnapshots')
+    # 20261002105641_WorkCentreDismissals: Web records each Work Centre dismissal
+    # and moves a later one on; there is no undo, so neither role deletes one.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|WorkCentreDismissals")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|WorkCentreDismissals')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|WorkCentreDismissals')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the
