@@ -22,7 +22,9 @@ namespace Pegasus.Infrastructure.Glass;
 /// <b>Every failure is "unavailable".</b> The card says the same approved
 /// sentence whatever stopped the valuation — the account, the plate, the
 /// provider or the network — and the reason goes to the host log by its
-/// failure code. Configuration is read on each valuation, never when the
+/// failure code. The one exception is Glass's answering that it does not
+/// value a vehicle of this age, which nothing can fix: the card says that
+/// instead (operator, 2 October 2026). Configuration is read on each valuation, never when the
 /// provider is built: every Case page builds it, including on a host whose
 /// Glass's settings are not yet resolved.
 /// </para>
@@ -59,6 +61,11 @@ public sealed partial class GlassGuideValuationProvider(
                 timeProvider);
             await client.SignInAsync(signIn.Username, signIn.Password, cancellationToken);
             figures = await client.ValueAsync(request.Registration, miles, request.GuideMonth, cancellationToken);
+        }
+        catch (GlassMvaStageException exception) when (exception.FailureCode == GlassFailure.ValuationVehicleAge)
+        {
+            LogUnavailable(logger, request.CaseId, request.GuideMonth, exception.FailureCode, exception.Detail);
+            throw new GuideValuationVehicleAgeException(Source, exception);
         }
         catch (Exception exception) when (Unavailable(exception, cancellationToken))
         {

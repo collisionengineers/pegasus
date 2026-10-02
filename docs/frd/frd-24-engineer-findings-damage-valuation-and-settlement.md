@@ -135,6 +135,10 @@ that source's connected provider for the month and fills the card's boxes.
 A source with no connected provider says so on its card before anything is
 pressed, `{Source} valuation is unavailable. Contact an administrator or
 report a problem.`, and offers no Get valuation (23 and 28 September 2026).
+When Glass's answers that it does not value a vehicle of that age, its card
+shows an info notice instead, `Glass's cannot value this vehicle because of
+its age: Glass's values cars and motorcycles up to 20 years old and light
+commercial vehicles up to 15.` (operator, 2 October 2026).
 The card has no Save of its own: the Case's single
 workspace Save records every changed card with whatever was entered, and any
 of its month, retail and trade may be left blank (operator, 23 September
@@ -363,7 +367,8 @@ matrix. Web tests cover Airbags deployed and
 the temporary repair rows in read and edit and through the Case Save, and
 the salvage matrix handed to the Case only while it edits. Integration tests
 cover Glass's Get valuation against the scripted provider — its figures, month,
-mileage and stock save, every failure answering the notice — and its report
+mileage and stock save, every failure answering the notice and a vehicle
+too old to value answering its own sentence — and its report
 filed on the Case without touching the open edit session. Live
 Glass's evidence is a separate tier
 ([engineering](../engineering.md#required-evidence-tiers)).
