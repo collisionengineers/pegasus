@@ -214,7 +214,7 @@ internal sealed class EfQueuedCustodyProcessor(
                         casePayload.MediaType!,
                         casePayload.SourceLength!.Value,
                         casePayload.SourceHash!,
-                        DocumentSemanticRole.OriginalSource,
+                        IntakeCaseEvidenceRoles.For(IntakeAssetKind.Source, casePayload.MediaType!),
                         $"{casePayload.OperationKey}:source",
                         version.RemoteId,
                         version.BoxVersionId,
