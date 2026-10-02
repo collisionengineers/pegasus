@@ -8018,6 +8018,24 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.WorkCentreDismissalEntity", b =>
+                {
+                    b.Property<Guid>("RecordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("DismissedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DismissedBySubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("RecordId");
+
+                    b.ToTable("WorkCentreDismissals", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.WorkflowConfigurationEntity", b =>
                 {
                     b.Property<string>("Id")

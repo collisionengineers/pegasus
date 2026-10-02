@@ -309,6 +309,14 @@
                                                         </button>
                                                     </form>
                                                 }
+                                                <form method="post" asp-page="/Index" asp-page-handler="Dismiss" data-wc-dismiss>
+                                                    <input type="hidden" name="recordId" value="@item.Id" />
+                                                    <input type="hidden" name="returnUrl" value="@Model.PageUrl()" />
+                                                    <button type="submit" class="btn">
+                                                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                                        <span>@Labels.Dismiss</span>
+                                                    </button>
+                                                </form>
                                             </div>
                                         </div>
                                     </td>
@@ -431,14 +439,23 @@
                     var changed = row.Kind == RecentCaseRowKind.ChangedByAutomation;
                     var subParts = new[] { row.Registration, row.Claimant, row.Principal, changed ? OperatorLabels.HistoryEvent(row.ChangeKind) : null }
                         .Where(part => !string.IsNullOrWhiteSpace(part));
-                    <a class="row-button" asp-page="/Cases/Details" asp-route-id="@row.CaseId" data-wc-new-case="@(changed ? "changed" : "new")">
-                        <span class="title">@row.Reference@(changed ? " · " + Labels.ChangedByAutomation : null)</span>
-                        <span class="sub">@string.Join(" · ", subParts)</span>
-                        <span class="side">
-                            <span class="status status--@Labels.ArrivalTone(row.Arrival)" data-wc-arrival>@Labels.Arrival(row.Arrival)</span>
-                            <time datetime="@row.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.OccurredAtUtc)</time>
-                        </span>
-                    </a>
+                    <div class="wc-new-case">
+                        <a class="row-button" asp-page="/Cases/Details" asp-route-id="@row.CaseId" data-wc-new-case="@(changed ? "changed" : "new")">
+                            <span class="title">@row.Reference@(changed ? " · " + Labels.ChangedByAutomation : null)</span>
+                            <span class="sub">@string.Join(" · ", subParts)</span>
+                            <span class="side">
+                                <span class="status status--@Labels.ArrivalTone(row.Arrival)" data-wc-arrival>@Labels.Arrival(row.Arrival)</span>
+                                <time datetime="@row.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.OccurredAtUtc)</time>
+                            </span>
+                        </a>
+                        <form method="post" asp-page="/Index" asp-page-handler="Dismiss" data-wc-dismiss>
+                            <input type="hidden" name="recordId" value="@row.CaseId" />
+                            <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, tab: IndexModel.NewCasesTab)" />
+                            <button type="submit" class="btn btn--small btn--icon" aria-label="@Labels.DismissRow(row.Reference)" title="@Labels.DismissRow(row.Reference)">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                            </button>
+                        </form>
+                    </div>
                 }
             </div>
             <div class="pagination">
@@ -537,6 +554,11 @@
                             {
                                 <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@failedCaseId">@Labels.OpenCase</a>
                             }
+                            <form method="post" asp-page="/Index" asp-page-handler="Dismiss" data-wc-dismiss>
+                                <input type="hidden" name="recordId" value="@job.JobId" />
+                                <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, tab: IndexModel.AiJobsTab)" />
+                                <button type="submit" class="btn btn--small">@Labels.Dismiss</button>
+                            </form>
                         </div>
                     </article>
                 }

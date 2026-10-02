@@ -722,6 +722,14 @@ public static class CaseWorkspaceLabels
             SourceLabel(source) + " valuation is unavailable. Contact an administrator or ";
         public const string ReportAProblem = "report a problem";
         public static string Unavailable(ValuationSource source) => UnavailableLead(source) + ReportAProblem + ".";
+
+        /// <summary>
+        /// Get valuation when Glass's answers that it does not value a vehicle
+        /// of this age (operator-approved wording, 2 October 2026), shown as
+        /// information with no Report a problem: nothing is broken.
+        /// </summary>
+        public const string VehicleAgeNotValued =
+            "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.";
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.

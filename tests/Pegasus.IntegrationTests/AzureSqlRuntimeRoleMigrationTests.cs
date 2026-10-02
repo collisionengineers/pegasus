@@ -890,6 +890,43 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 """));
     }
 
+    // 20261002105641_WorkCentreDismissals: Web records each Work Centre
+    // dismissal and moves a later one on; there is no undo, so neither role
+    // deletes one, and the Worker has no part in it.
+    [Fact]
+    public async Task LatestMigrationGivesWorkCentreDismissalsItsExactRuntimePermissions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            [
+                $"{WebRole}:D:DELETE",
+                $"{WebRole}:G:INSERT",
+                $"{WebRole}:G:SELECT",
+                $"{WebRole}:G:UPDATE",
+                $"{WorkerRole}:D:DELETE"
+            ],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    principal.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE permission.major_id = OBJECT_ID(N'[dbo].[WorkCentreDismissals]')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
+                """));
+    }
+
     [Fact]
     public async Task RetainedMailSearchProjectionUsesExactCallerPermissions()
     {

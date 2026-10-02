@@ -59,6 +59,7 @@ internal static class GlassFailure
     public const string CandidatesAmbiguous = "glass.candidates.ambiguous";
     public const string ValuationRequest = "glass.valuation.request";
     public const string ValuationNotPossible = "glass.valuation.not_possible";
+    public const string ValuationVehicleAge = "glass.valuation.vehicle_age";
     public const string ValuationUnreadable = "glass.valuation.unreadable";
     public const string RefreshRequest = "glass.refresh.request";
     public const string ReportRequest = "glass.report.request";
@@ -706,7 +707,10 @@ internal sealed partial class GlassMvaClient(
     /// <summary>
     /// Retail Transacted and Glass's Trade, read off the valuation page. The
     /// portal answers "valuation not possible" with JSON in place of the page;
-    /// that is refused naming only which of its fields were present. Each
+    /// that is refused naming only which of its fields were present, and as
+    /// the vehicle's age when its message says the vehicle is not valued
+    /// "due to the age" (Glass's values cars and motorcycles for 20 years and
+    /// light commercial vehicles for 15). Each
     /// figure comes from its own value box — comments and scripts are removed
     /// first, because the page carries a commented-out box of its own — and a
     /// box that is missing, repeated or holds anything but an amount is
@@ -718,19 +722,24 @@ internal sealed partial class GlassMvaClient(
         if (body.StartsWith('{'))
         {
             string detail;
+            bool vehicleAge;
             try
             {
                 using var document = JsonDocument.Parse(body);
                 var root = document.RootElement;
+                var message = Text(root, "errormsg");
                 detail = $"success={Text(root, "success") ?? "absent"}"
-                    + $" errormsg={(string.IsNullOrEmpty(Text(root, "errormsg")) ? "absent" : "present")}";
+                    + $" errormsg={(string.IsNullOrEmpty(message) ? "absent" : "present")}";
+                vehicleAge = message?.Contains("due to the age", StringComparison.OrdinalIgnoreCase) == true;
             }
             catch (JsonException)
             {
                 throw new GlassMvaStageException(GlassFailure.ValuationUnreadable);
             }
 
-            throw new GlassMvaStageException(GlassFailure.ValuationNotPossible, detail: detail);
+            throw new GlassMvaStageException(
+                vehicleAge ? GlassFailure.ValuationVehicleAge : GlassFailure.ValuationNotPossible,
+                detail: detail);
         }
 
         try
