@@ -87,7 +87,7 @@
                     @if (Model.CanTakeOverEdit)
                     {
                         <input type="hidden" name="takeOver" value="true" />
-                        <button type="submit" class="btn btn--primary">Take over</button>
+                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Opening">Take over</button>
                     }
                     else
                     {
@@ -96,7 +96,7 @@
                         {
                             <input type="hidden" name="takeOver" value="true" />
                         }
-                        <button type="submit" class="btn btn--primary">Edit record</button>
+                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Opening">Edit record</button>
                     }
                 </form>
             }
@@ -104,7 +104,7 @@
             {
                 <form method="post" asp-page-handler="CancelEdit" asp-route-id="@Model.Detail.Record.Id">
                     <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
-                    <button type="submit" class="btn">Cancel</button>
+                    <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Closing">Cancel</button>
                 </form>
                 <form method="post" asp-page-handler="HeartbeatEdit" asp-route-id="@Model.Detail.Record.Id" data-edit-heartbeat data-edit-heartbeat-status="image-intake-edit-heartbeat-status" hidden>
                     <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
@@ -176,7 +176,7 @@
                             </div>
                             <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
                             <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
-                            <div class="button-row"><button type="submit" class="btn btn--primary">Save</button></div>
+                            <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
                         </form>
                     }
                     else

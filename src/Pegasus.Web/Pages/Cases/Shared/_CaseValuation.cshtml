@@ -137,7 +137,7 @@
                 </div>
                 <span class="val-get">
                     <span class="lbl">@ValuationLabels.GetValuation</span>
-                    <button type="submit" form="case-market-research-form" class="btn btn--small" data-valuation-source="ai-market-research">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Starting" form="case-market-research-form" class="btn btn--small" data-valuation-source="ai-market-research">
                         <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
                         <span>@ValuationLabels.SourceLabel(ValuationSource.AiMarketResearch)</span>
                     </button>
@@ -245,7 +245,7 @@
                         <div class="entry-actions">
                             @if (connected)
                             {
-                                <button type="button" class="btn btn--small" data-valuation-get data-valuation-source="@slug"
+                                <button type="button" class="btn btn--small" data-valuation-get data-busy-label="@OperatorLabels.Busy.LookingUp" data-valuation-source="@slug"
                                         data-valuation-url="@GetValuationAction(source)"><span>@ValuationLabels.GetValuation</span></button>
                             }
                             <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>@ValuationLabels.UseThisValue</span></button>
@@ -286,7 +286,7 @@
                             </label>
                             @if (isAi)
                             {
-                                <button type="submit" form="case-market-research-form" class="btn btn--small btn--ghost" data-valuation-card-get="@ValuationLabels.SourceSlug(valuation.Details.Source)"><span>@ValuationLabels.GetValuation</span></button>
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Starting" form="case-market-research-form" class="btn btn--small btn--ghost" data-valuation-card-get="@ValuationLabels.SourceSlug(valuation.Details.Source)"><span>@ValuationLabels.GetValuation</span></button>
                             }
                             @if (valuation.Details.RetailValue is > 0m)
                             {

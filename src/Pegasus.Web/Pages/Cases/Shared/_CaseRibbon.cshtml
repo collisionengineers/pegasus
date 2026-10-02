@@ -157,7 +157,7 @@
                 <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
-                <button type="submit" class="btn btn--small">
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Renewing" class="btn btn--small">
                     <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
                     <span>@Frame.RenewEditing</span>
                 </button>
@@ -181,12 +181,12 @@
                    commit Ctrl S and Enter reach, and the script hides it;
                    without script it is the save. It stands first so
                    Enter in a cell never lands on a Repair Spec line button. *@
-                <button type="submit" form="case-edit-form" class="btn btn--small" data-case-save-now>
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" form="case-edit-form" class="btn btn--small" data-case-save-now>
                     <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
                     <span>@Frame.SaveNow</span>
                 </button>
             }
-            <button type="submit" form="case-finish-editing-form" class="btn" data-case-done>
+            <button type="submit" data-busy-label="@OperatorLabels.Busy.Finishing" form="case-finish-editing-form" class="btn" data-case-done>
                 <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
                 <span>@Frame.Done</span>
             </button>
@@ -213,7 +213,7 @@
                 }
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
-                <button type="submit" class="btn btn--dark" data-case-edit>
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--dark" data-case-edit>
                     <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
                     <span>@(Model.ColleagueIsEditing ? Frame.TakeOver : Frame.EditCase)</span>
                 </button>

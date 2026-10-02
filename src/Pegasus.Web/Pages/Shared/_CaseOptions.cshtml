@@ -9,7 +9,7 @@
     {
         var candidate = Model.Items[index];
         <li role="none">
-            <button type="submit" role="option" id="@(Model.IdPrefix)-@index" class="command-result"
+            <button type="submit" role="option" id="@(Model.IdPrefix)-@index" class="command-result" data-busy-label="@OperatorLabels.Busy.Linking"
                     aria-selected="false" formaction="@Model.FormAction"
                     name="@Model.FieldName" value="@candidate.Reference">
                 @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")

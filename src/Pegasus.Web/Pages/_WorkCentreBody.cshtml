@@ -303,7 +303,7 @@
                                                         }
                                                         <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                                                         <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                                        <button type="submit" class="btn">
+                                                        <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Assigning">
                                                             <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
                                                             <span>@Labels.AssignToMe</span>
                                                         </button>
@@ -312,7 +312,7 @@
                                                 <form method="post" asp-page="/Index" asp-page-handler="Dismiss" data-wc-dismiss>
                                                     <input type="hidden" name="recordId" value="@item.Id" />
                                                     <input type="hidden" name="returnUrl" value="@Model.PageUrl()" />
-                                                    <button type="submit" class="btn">
+                                                    <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Dismissing">
                                                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                                                         <span>@Labels.Dismiss</span>
                                                     </button>
@@ -388,10 +388,10 @@
                     <div class="dialog-foot">
                         @if (assignment.CanAssignToMe)
                         {
-                            <button type="submit" form="wc-assign-me-form" class="btn">@Labels.AssignToMe</button>
+                            <button type="submit" form="wc-assign-me-form" class="btn" data-busy-label="@OperatorLabels.Busy.Assigning">@Labels.AssignToMe</button>
                         }
                         <button type="button" class="btn" data-dialog-close>Cancel</button>
-                        <button type="submit" form="wc-assign-form" class="btn btn--primary">@(assignment.EngineerName is null ? Labels.Assign : Labels.Reassign)</button>
+                        <button type="submit" form="wc-assign-form" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Assigning">@(assignment.EngineerName is null ? Labels.Assign : Labels.Reassign)</button>
                     </div>
                 </section>
             </div>
@@ -451,7 +451,7 @@
                         <form method="post" asp-page="/Index" asp-page-handler="Dismiss" data-wc-dismiss>
                             <input type="hidden" name="recordId" value="@row.CaseId" />
                             <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, tab: IndexModel.NewCasesTab)" />
-                            <button type="submit" class="btn btn--small btn--icon" aria-label="@Labels.DismissRow(row.Reference)" title="@Labels.DismissRow(row.Reference)">
+                            <button type="submit" class="btn btn--small btn--icon" aria-label="@Labels.DismissRow(row.Reference)" title="@Labels.DismissRow(row.Reference)" data-busy-label="@OperatorLabels.Busy.Dismissing">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                             </button>
                         </form>
@@ -547,7 +547,7 @@
                                     <input type="hidden" name="expectedVersion" value="@job.Version" />
                                     <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                                     <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, tab: IndexModel.AiJobsTab)" />
-                                    <button type="submit" class="btn btn--small">@OperatorLabels.AiJobs.CompleteJob</button>
+                                    <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Completing">@OperatorLabels.AiJobs.CompleteJob</button>
                                 </form>
                             }
                             @if (job.State == AiJobState.Failed && job.SubjectKind == AiJobSubjectKind.Case && job.SubjectId is { } failedCaseId)
@@ -557,7 +557,7 @@
                             <form method="post" asp-page="/Index" asp-page-handler="Dismiss" data-wc-dismiss>
                                 <input type="hidden" name="recordId" value="@job.JobId" />
                                 <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, tab: IndexModel.AiJobsTab)" />
-                                <button type="submit" class="btn btn--small">@Labels.Dismiss</button>
+                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Dismissing">@Labels.Dismiss</button>
                             </form>
                         </div>
                     </article>

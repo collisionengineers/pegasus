@@ -161,7 +161,7 @@
                             <span>@ReportLabels.IncludeFeeNote</span>
                         </label>
                     }
-                    <button type="submit" class="btn btn--small btn--primary">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                         <span>@ReportLabels.GenerateReport</span>
                     </button>
@@ -186,7 +186,7 @@
                                Download draft (script); the link itself opens the PDF
                                without script. *@
                             <a class="btn" href="@previewHref" target="_blank" rel="noopener"
-                           data-report-preview data-document-preview data-file-name="@draftFileName" data-no-inplace>
+                           data-report-preview data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@draftFileName" data-no-inplace>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                                 <span>@Words.PreviewDraft</span>
                             </a>
@@ -197,7 +197,7 @@
                                document the specification section opens. *@
                             <a class="btn" asp-page="/Cases/Details" asp-page-handler="EstimateDocument"
                                asp-route-id="@caseId" asp-route-estimateId="@currentSpecification"
-                               target="_blank" rel="noopener" data-document-preview data-no-inplace
+                               target="_blank" rel="noopener" data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace
                                data-report-preview-spec>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                                 <span>@ReportLabels.PreviewRepairSpec</span>
@@ -206,7 +206,7 @@
                         @if (canPreview && inReport > 0)
                         {
                             <a class="btn" href="@imagePackHref" target="_blank" rel="noopener"
-                               data-document-preview data-no-inplace data-report-preview-images>
+                               data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace data-report-preview-images>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
                                 <span>@ReportLabels.PreviewImages</span>
                             </a>
@@ -223,7 +223,7 @@
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
                                 <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                <button type="submit" class="btn" data-generate-repair-spec>
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn" data-generate-repair-spec>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                                     <span>@ReportLabels.GenerateRepairSpec</span>
                                 </button>
@@ -241,7 +241,7 @@
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
                                 <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                <button type="submit" class="btn" data-generate-image-pack>
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn" data-generate-image-pack>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
                                     <span>@ReportLabels.GenerateImages</span>
                                 </button>
@@ -259,7 +259,7 @@
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
                                 <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                <button type="submit" class="btn">
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                                     <span>@ReportLabels.GenerateFeeNote</span>
                                 </button>
@@ -323,7 +323,7 @@
                             new { id = caseId, generationId = generation.Id, artifactId = storedReport.Id, view = Model.ViewRoute })!;
                         <a class="btn btn--small" href="@storedReportHref"
                            target="_blank" rel="noopener" data-report-artifact="@storedReport.Kind"
-                           data-document-preview data-file-name="@storedReport.FileName" data-no-inplace
+                           data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@storedReport.FileName" data-no-inplace
                            data-open-on-arrival="@(Model.OpenReportArtifactId == storedReport.Id ? "true" : "false")">
                             <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                             <span>@(generation.Snapshot.Report.IncludeFeeNote
@@ -339,7 +339,7 @@
                            asp-route-id="@caseId" asp-route-generationId="@generation.Id"
                            asp-route-artifactId="@separateFeeNote.Id" asp-route-view="@Model.ViewRoute"
                            target="_blank" rel="noopener" data-report-fee-card
-                           data-document-preview data-file-name="@separateFeeNote.FileName" data-no-inplace>
+                           data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@separateFeeNote.FileName" data-no-inplace>
                             <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                             <span>@ReportLabels.OpenFeeNote</span>
                         </a>
@@ -423,7 +423,7 @@
                     <textarea id="report-message" name="coveringMessage" rows="9" required
                               maxlength="@Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength"
                               data-report-message>@Model.ReportDeliveryMessage</textarea>
-                    <button type="submit" class="btn btn--small btn--primary">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Preparing" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@ReportLabels.PrepareDelivery</span>
                     </button>
@@ -449,7 +449,7 @@
                     <input type="hidden" name="preparationId" value="@preparation.Preparation.Id" />
                     <input type="hidden" name="expectedPreparationVersion" value="@preparation.Preparation.Version" />
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
-                    <button type="submit" class="btn btn--small btn--primary">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@ReportLabels.SendPreparedReport</span>
                     </button>

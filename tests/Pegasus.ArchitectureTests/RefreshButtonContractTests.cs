@@ -61,16 +61,29 @@ public sealed class RefreshButtonContractTests
     }
 
     [Fact]
-    public void TheSpinnerIsDeclaredExactlyOnce()
+    public void TheSpinIsDeclaredExactlyOnce()
     {
+        // The Refresh icon, an action's busy ring and a loading viewer share
+        // the one spin; no stylesheet declares a second turning keyframe.
         var siteCss = Read("src/Pegasus.Web/wwwroot/css/site.css");
 
         Assert.Equal(
             1,
             Regex.Count(siteCss, @"@keyframes\s+pegasus-spin\b"));
-        Assert.Equal(
-            1,
-            Regex.Count(siteCss, @"animation:\s*pegasus-spin\b"));
+        foreach (var path in Directory.GetFiles(
+                     Path.Combine(RepositoryRoot, "src/Pegasus.Web/wwwroot/css"),
+                     "*.css",
+                     SearchOption.AllDirectories))
+        {
+            // A keyframes block is its name and a body of { … } steps.
+            foreach (Match keyframes in Regex.Matches(Read(path), @"@keyframes\s+([\w-]+)\s*(\{(?:[^{}]*\{[^{}]*\})*[^{}]*\})"))
+            {
+                Assert.True(
+                    keyframes.Groups[1].Value == "pegasus-spin"
+                        || !keyframes.Groups[2].Value.Contains("rotate(", StringComparison.Ordinal),
+                    $"{Relative(path)} declares the turning keyframe {keyframes.Groups[1].Value}; use pegasus-spin.");
+            }
+        }
     }
 
     [Fact]
