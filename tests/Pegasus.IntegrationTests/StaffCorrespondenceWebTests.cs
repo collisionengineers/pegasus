@@ -547,6 +547,89 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>
+    /// FRD-21: the composer names why the provider refused the send, in
+    /// operator words, under the Failed state. Nothing claims success.
+    /// </summary>
+    [Fact]
+    public async Task AFailedComposeSendNamesItsReason()
+    {
+        var send = new RecordingStaffMailSend
+        {
+            NextState = StaffMailState.Failed,
+            NextFailureCode = "graph_rejected_403"
+        };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 REASON", "SC08-COMPOSE-REASON");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+        var (operationKey, token) = await ComposeFormTokensAsync(
+            client, $"/Inbox/Compose?caseReference={caseReference}");
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["OperationKey"] = operationKey,
+                ["CaseReference"] = caseReference,
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["To"] = "claimant@example.invalid",
+                ["Subject"] = "Following up",
+                ["Body"] = "Please find the update below."
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        using var status = await client.GetAsync(response.Headers.Location);
+        var statusHtml = await status.Content.ReadAsStringAsync();
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Failed), statusHtml, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.Failure("graph_rejected_403"), statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Correspondence sent.", statusHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>The retained-message composer names the reason the same way.</summary>
+    [Fact]
+    public async Task AFailedRetainedReplyNamesItsReason()
+    {
+        var send = new RecordingStaffMailSend
+        {
+            NextState = StaffMailState.Failed,
+            NextFailureCode = "graph_rejected_403"
+        };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 REPLY REASON", "SC08-MSG-REASON");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        var form = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+            ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceSubject"] = "Re: Source subject",
+            ["CorrespondenceBody"] = "Reviewed response."
+        };
+
+        using var response = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+        using var status = await client.GetAsync(response.Headers.Location);
+        var statusHtml = await status.Content.ReadAsStringAsync();
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Failed), statusHtml, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.Failure("graph_rejected_403"), statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Correspondence sent.", statusHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A send the provider refuses is an outcome, not a fault: the redirected
     /// GET shows the Failed state and offers the form again under a new key.
     /// </summary>
@@ -1978,6 +2061,9 @@ public sealed class StaffCorrespondenceWebTests
 
         public StaffMailState NextState { get; set; } = StaffMailState.Submitted;
 
+        /// <summary>The engine's failure code a Failed <see cref="NextState"/> carries.</summary>
+        public string? NextFailureCode { get; set; } = "graph_rejected_403";
+
         public DateTimeOffset NextPreparedAtUtc { get; set; } = NowUtc;
 
         public bool CoordinateNextTwoSends { get; set; }
@@ -2033,7 +2119,7 @@ public sealed class StaffCorrespondenceWebTests
                     preparedAtUtc,
                     NextState == StaffMailState.Sent ? preparedAtUtc : null,
                     NextState == StaffMailState.Sent ? preparedAtUtc : null,
-                    null,
+                    NextState == StaffMailState.Failed ? NextFailureCode : null,
                     command.ApprovedMailboxId,
                     command.ExpectedMailboxGeneration,
                     new string('A', 64),

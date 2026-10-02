@@ -38,7 +38,8 @@ public sealed class ComposeModel(
     IGetCaseHeader getCaseHeader,
     IListCaseReferences listCaseReferences,
     ISearchCases searchCases,
-    IStaffMailAttachmentResolver attachmentResolver) : StaffPageModel
+    IStaffMailAttachmentResolver attachmentResolver,
+    ILogger<ComposeModel> logger) : StaffPageModel
 {
     [BindProperty(SupportsGet = true, Name = "caseReference")]
     public string? CaseReference { get; set; }
@@ -256,6 +257,10 @@ public sealed class ComposeModel(
         if (Operation.State == StaffMailState.Sent)
         {
             SendNotice = "Correspondence sent.";
+        }
+        else if (Operation.State == StaffMailState.Failed)
+        {
+            StaffMailSendLog.Refused(logger, Operation.Id, DefaultMailbox.Id, Operation.FailureCode);
         }
         return RedirectToPage(new { caseReference = details.Summary.Reference, operationId = Operation.Id });
     }

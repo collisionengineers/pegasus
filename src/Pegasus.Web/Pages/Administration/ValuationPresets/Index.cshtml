@@ -75,13 +75,13 @@
                                     <input type="hidden" name="expectedVersion" value="@rowVersion" />
                                     <input type="hidden" name="operationKey" value="@rowOperationKey" />
                                     <button type="reset" form="@saveFormId" class="btn btn--small">Reset</button>
-                                    <button type="submit" class="btn btn--small btn--primary">@ValuationPresetLabels.Save</button>
+                                    <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@ValuationPresetLabels.Save</button>
                                 </form>
                                 <form id="@removeFormId" method="post" asp-page-handler="Remove">
                                     <input type="hidden" name="presetId" value="@presetId" />
                                     <input type="hidden" name="expectedVersion" value="@rowVersion" />
                                     <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                    <button type="submit" class="btn btn--small btn--danger">@ValuationPresetLabels.Remove</button>
+                                    <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@ValuationPresetLabels.Remove</button>
                                 </form>
                             </td>
                         </tr>
@@ -106,7 +106,7 @@
                                 <input type="hidden" name="presetId" value="@Model.CreatePresetId.ToString("D")" />
                                 <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
                                 <a class="btn btn--small" asp-page="/Administration/ValuationPresets/Index">Cancel</a>
-                                <button type="submit" class="btn btn--small btn--primary">Add</button>
+                                <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">Add</button>
                             </form>
                         </td>
                     </tr>

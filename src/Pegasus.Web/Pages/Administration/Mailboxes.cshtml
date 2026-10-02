@@ -121,7 +121,7 @@
                                     <div class="field"><label class="sr-only" for="@stateId">@OperatorLabels.MailSettings.State</label><select form="@formId" id="@stateId" name="CategoryForm.SelectedState"><option value="Active" selected="@Model.IsCategoryStateSelected(category, ApprovedOutlookCategoryState.Active)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Active)</option><option value="Disabled" selected="@Model.IsCategoryStateSelected(category, ApprovedOutlookCategoryState.Disabled)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Disabled)</option></select></div>
                                 </td>
                                 <td class="cluster">
-                                    <button form="@formId" type="submit" class="btn btn--small btn--dark">@OperatorLabels.MailSettings.SaveCategory</button>
+                                    <button form="@formId" type="submit" class="btn btn--small btn--dark" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.MailSettings.SaveCategory</button>
                                     <button form="@formId" type="reset" class="btn btn--small">Reset</button>
                                 </td>
                             </tr>
@@ -144,7 +144,7 @@
                     <div class="field"><label class="req" for="new-category-display-name">@OperatorLabels.MailSettings.DisplayName</label><input id="new-category-display-name" name="CategoryForm.DisplayName" value="@Model.NewCategoryDisplayName" required maxlength="255" /></div>
                     <div class="field"><label for="new-category-state">@OperatorLabels.MailSettings.State</label><select id="new-category-state" name="CategoryForm.SelectedState"><option value="Active" selected="@Model.IsNewCategoryStateSelected(ApprovedOutlookCategoryState.Active)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Active)</option><option value="Disabled" selected="@Model.IsNewCategoryStateSelected(ApprovedOutlookCategoryState.Disabled)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Disabled)</option></select></div>
             </div>
-            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">@OperatorLabels.MailSettings.AddCategory</button></div>
+            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">@OperatorLabels.MailSettings.AddCategory</button></div>
         </form>
     </section>
 </div>
@@ -171,7 +171,7 @@
             </div>
             <div class="dialog-foot">
                 <button type="reset" class="btn" data-dialog-close>Cancel</button>
-                <button type="submit" class="btn btn--primary" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">Save</button>
+                <button type="submit" class="btn btn--primary" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)" data-busy-label="@OperatorLabels.Busy.Saving">Save</button>
             </div>
         </form>
     </section>
@@ -191,7 +191,7 @@
                 <div class="field"><label for="new-mailbox-send-limit">Verified encoded-message size limit (bytes)</label><input id="new-mailbox-send-limit" name="MailboxForm.VerifiedEncodedMessageSizeLimit" value="@Model.NewVerifiedSendLimit" type="number" min="1" step="1" /></div>
                 <div class="field"><label for="new-mailbox-state">@OperatorLabels.MailSettings.State</label><select id="new-mailbox-state" name="MailboxForm.SelectedState"><option value="Approved" selected="@Model.IsNewStateSelected(ApprovedMailboxState.Approved)">@OperatorLabels.MailSettings.MailboxState(ApprovedMailboxState.Approved)</option><option value="Disabled" selected="@Model.IsNewStateSelected(ApprovedMailboxState.Disabled)">@OperatorLabels.MailSettings.MailboxState(ApprovedMailboxState.Disabled)</option></select></div>
             </div>
-            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">@OperatorLabels.MailSettings.AddMailbox</button></div>
+            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">@OperatorLabels.MailSettings.AddMailbox</button></div>
         </form>
     </section>
 </div>
@@ -214,7 +214,7 @@
                     <section class="contact-section" aria-labelledby="@dialogId-access"><h3 id="@dialogId-access">Access and polling</h3><dl class="definition-list"><div class="definition"><dt>Activation</dt><dd>@OperatorLabels.OfficeTime(mailbox.ActivatedAtUtc, OperatorLabels.MailSettings.NotActivated)</dd></div><div class="definition"><dt>@OperatorLabels.MailSettings.Subscription</dt><dd>@Model.SubscriptionStatusFor(mailbox)</dd></div>@if (Model.PollStatusForMailbox(mailbox) is { } poll) { <div class="definition"><dt>Last success</dt><dd>@OperatorLabels.OfficeTime(poll.LastCompletedAtUtc, "Not yet polled")</dd></div><div class="definition"><dt>Freshness</dt><dd>@Model.PollFreshnessFor(poll)</dd></div><div class="definition"><dt>Last error</dt><dd>@(poll.LastFailureCode ?? "None")</dd></div> }</dl></section>
                     <section class="contact-section" aria-labelledby="@dialogId-folders"><h3 id="@dialogId-folders">Logical folders</h3><dl class="definition-list">@foreach (var folder in MailLogicalFolders.All) { var configured = mailbox.FolderBindings.Any(item => item.FolderType == folder.Type); <div class="definition"><dt>@folder.Label</dt><dd>@OperatorLabels.MailSettings.FolderState(configured)</dd></div> }</dl></section>
                 </div>
-                <div class="dialog-foot"><button type="reset" class="btn" data-dialog-close>Cancel</button>@if (mailbox.IdentityIsBound) { <button type="submit" class="btn" formaction="@Url.Page(null, "ResolveFolders")">@OperatorLabels.MailSettings.Refresh</button> }<button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "Update")">@OperatorLabels.MailSettings.SaveMailbox</button></div>
+                <div class="dialog-foot"><button type="reset" class="btn" data-dialog-close>Cancel</button>@if (mailbox.IdentityIsBound) { <button type="submit" class="btn" formaction="@Url.Page(null, "ResolveFolders")" data-busy-label="@OperatorLabels.Busy.Refreshing">@OperatorLabels.MailSettings.Refresh</button> }<button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "Update")" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.MailSettings.SaveMailbox</button></div>
             </form>
         </section>
     </div>

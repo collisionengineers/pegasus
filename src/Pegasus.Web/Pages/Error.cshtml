@@ -34,7 +34,7 @@
                 <label for="problem-description">@OperatorLabels.ProblemReports.WhatHappened</label>
                 <textarea id="problem-description" name="description" rows="4" maxlength="@Pegasus.Core.Support.ProblemReportPolicy.MaximumDescriptionLength" required></textarea>
             </div>
-            <div class="button-row"><button type="submit" class="btn">@OperatorLabels.Shell.ReportProblem</button></div>
+            <div class="button-row"><button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.Shell.ReportProblem</button></div>
         </form>
     }
     @if (Model.ShowRequestId)

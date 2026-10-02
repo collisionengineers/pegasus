@@ -156,8 +156,9 @@
                 recover.className = "btn";
                 recover.setAttribute("data-mail-compose-recover-send", "");
                 recover.textContent = "Recover send";
+                recover.setAttribute("data-busy-label", form ? form.getAttribute("data-mail-compose-recovering") || "" : "");
                 recover.addEventListener("click", function () {
-                    request(pendingSend.action, pendingSend.options, false, true);
+                    request(pendingSend.action, pendingSend.options, false, true, recover);
                 });
                 status.after(recover);
             }
@@ -165,8 +166,13 @@
         status.focus();
     }
 
-    function request(url, options, preferResults, sendMayBeUncertain) {
+    // The pressed button shows its busy word until the composer answers
+    // (site.js pegasusBusy); a rendered answer replaces the button anyway.
+    function request(url, options, preferResults, sendMayBeUncertain, control, form) {
         loading = true;
+        if (window.pegasusBusy && control) {
+            window.pegasusBusy.start(control, form || null);
+        }
         return window.fetch(url, options)
             .then(function (response) { return response.text(); })
             .then(function (markup) {
@@ -174,7 +180,12 @@
                 pendingSend = null;
             })
             .catch(function () { showFailure(sendMayBeUncertain); })
-            .finally(function () { loading = false; });
+            .finally(function () {
+                loading = false;
+                if (window.pegasusBusy) {
+                    window.pegasusBusy.end(form || control);
+                }
+            });
     }
 
     function bindContent() {
@@ -223,7 +234,7 @@
                     // uncertainty into a separately addressed send.
                     pendingSend = { action: action, options: options };
                 }
-                request(action, options, preferResults, isSend);
+                request(action, options, preferResults, isSend, submitter || null, form);
             });
         });
     }

@@ -920,6 +920,23 @@
             window.pegasusResetRefresh(form);
         }
     }
+    // An action answered in place never navigates, so it shows and ends its
+    // own busy state (site.js pegasusBusy). A commit nobody pressed (an idle,
+    // leaving a cell) has the ribbon's Saving word as its feedback; a button
+    // that commits, such as Save wording to the bank, shows busy itself. A
+    // Refresh has its own. An import is pressed on its picker.
+    function busy(form, submitter) {
+        if (!window.pegasusBusy || form.hasAttribute('data-refresh-form')
+            || (!submitter && editorLabels[form.getAttribute('id')])) {
+            return;
+        }
+        var control = submitter
+            || (form.hasAttribute('data-estimate-import-form') ? form.querySelector('[data-estimate-import-picker]') : null);
+        window.pegasusBusy.start(control, form);
+    }
+    function idle(form) {
+        if (window.pegasusBusy) { window.pegasusBusy.end(form); }
+    }
     function submitInPlace(form, submitter) {
         // A section-head Edit keeps its own section where it is on screen.
         var editKey = submitter ? submitter.getAttribute('data-section-edit') : null;
@@ -944,9 +961,11 @@
             action = url.toString();
             if (form.hasAttribute('data-estimate-compare-form')) {
                 form.setAttribute('aria-busy', 'true');
+                busy(form, submitter);
                 return showEstimate(action).finally(function () {
                     form.removeAttribute('aria-busy');
                     form.removeAttribute('data-inplace-submitting');
+                    idle(form);
                     submitting = false;
                     settleQueue();
                 });
@@ -997,6 +1016,7 @@
         }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
+            idle(form);
             resetRefresh(form);
             if (importSection && importSection.isConnected) {
                 importSection.removeAttribute('data-estimate-importing');
@@ -1074,6 +1094,7 @@
         }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
+            idle(form);
             submitting = false;
             settleQueue();
         });
@@ -1301,20 +1322,26 @@
         var name = submitter ? submitter.name : '';
         var value = submitter ? submitter.value : '';
         var formaction = submitter ? submitter.getAttribute('formaction') : null;
+        // A refused commit drops what waited on it; the press is idle again.
+        function abandon() { idle(form); resetRefresh(form); }
         function proceed() {
             // A form that waited on a commit is found again: the ribbon's and
             // the dialogs' forms are drawn afresh with the Case's new authority.
             var next = refind(form);
-            if (!next || next.dataset.inplaceSubmitting === 'true') { return; }
+            if (!next || next.dataset.inplaceSubmitting === 'true') { idle(form); return; }
             // Waiters run together once the queue empties; the first to post
             // holds it, and the next follows that post.
-            if (submitting) { commitWaiters.push({ run: proceed }); return; }
+            if (submitting) { commitWaiters.push({ run: proceed, abandon: abandon }); return; }
             var button = submitter && next !== form ? Array.prototype.find.call(next.elements, function (element) {
                 return element.type === 'submit' && element.name === name && element.value === value
                     && element.getAttribute('formaction') === formaction;
             }) || null : submitter;
             submitting = true;
             next.dataset.inplaceSubmitting = 'true';
+            // The press shows at once, even while it waits behind a commit;
+            // a form drawn afresh in the meantime takes the state over.
+            if (next !== form) { idle(form); }
+            busy(next, button);
             // A document action (tag, untag, new tag, In report) while editing
             // is not an edit of the Case: it posts at once and redraws only
             // its own tile, so the sections stay as the operator has them.
@@ -1333,13 +1360,13 @@
             // flight (F5 bypasses the disabled button) stays busy until its
             // own response lands.
             if (isCommit) { commitPending = true; }
-            else if (commitInFlight && !form.hasAttribute('data-refresh-form')) { afterCommit(proceed); }
+            else if (commitInFlight && !form.hasAttribute('data-refresh-form')) { busy(form, submitter); afterCommit(proceed, abandon); }
             else { resetRefresh(form); }
             return;
         }
         // Every other post (an action, Done, a refresh) follows the change
         // not yet sent, so it reads the Case as the operator has it.
-        if (isCommit) { proceed(); } else { afterCommit(proceed); }
+        if (isCommit) { proceed(); } else { busy(form, submitter); afterCommit(proceed, abandon); }
     });
     function refind(form) {
         if (form.isConnected) { return form; }
@@ -1425,7 +1452,14 @@
     function finishGlassOpening() {
         glassOpening = false;
         if (glassWindowWatch) { window.clearInterval(glassWindowWatch); glassWindowWatch = null; }
-        record.querySelectorAll('[data-glass-window]').forEach(function (form) { form.removeAttribute('aria-busy'); });
+        record.querySelectorAll('[data-glass-window]').forEach(function (form) {
+            form.removeAttribute('aria-busy');
+            idle(form);
+            form.querySelectorAll('[data-busy-aside]').forEach(function (button) {
+                button.removeAttribute('aria-disabled');
+                button.removeAttribute('data-busy-aside');
+            });
+        });
     }
     function cancelGlassOpening() {
         if (glassWindow && !glassWindow.closed) { glassWindow.close(); }
@@ -1509,6 +1543,7 @@
         if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }
         glassOpening = true;
         form.setAttribute('aria-busy', 'true');
+        busy(form, event.submitter || null);
         glassWindowWatch = window.setInterval(function () {
             if (glassWindow.closed) { finishGlassOpening(); }
         }, 500);
@@ -1526,6 +1561,14 @@
             }
             next.target = windowName;
             next.setAttribute('aria-busy', 'true');
+            // Opening ends as the launch reaches the pop-up; the controls
+            // stand aside while Glass's is open there.
+            idle(form);
+            idle(next);
+            next.querySelectorAll('button[type="submit"]').forEach(function (button) {
+                button.setAttribute('aria-disabled', 'true');
+                button.setAttribute('data-busy-aside', '');
+            });
             HTMLFormElement.prototype.submit.call(next);
         }, cancelGlassOpening);
     });
@@ -2580,7 +2623,7 @@
                 var card = button.closest('[data-valuation-entry]');
                 var caseForm = document.getElementById('case-edit-form');
                 var url = button.getAttribute('data-valuation-url');
-                if (!card || !caseForm || !url || button.disabled) {
+                if (!card || !caseForm || !url || button.hasAttribute('data-busy')) {
                     return;
                 }
                 var notice = card.querySelector('[data-valuation-notice]');
@@ -2591,7 +2634,7 @@
                     body.append('guideMonth', month.value);
                 }
                 showNotice(notice, false);
-                button.disabled = true;
+                if (window.pegasusBusy) { window.pegasusBusy.start(button); }
                 fetch(url, {
                     method: 'POST',
                     body: body,
@@ -2624,7 +2667,7 @@
                 }).catch(function () {
                     showNotice(notice, true, null);
                 }).then(function () {
-                    button.disabled = false;
+                    if (window.pegasusBusy) { window.pegasusBusy.end(button); }
                 });
             });
         });
@@ -3933,6 +3976,11 @@
     async function openInViewer(trigger, viewer) {
         var menu = trigger.closest('details[data-menu]');
         if (menu) { menu.open = false; }
+        // A preview renders on demand. The press shows on the link, or on its
+        // menu's button once the menu has closed, until the document opens.
+        var shown = menu ? menu.querySelector('summary') : trigger;
+        if (shown && shown.hasAttribute('data-busy')) { return; }
+        if (window.pegasusBusy) { window.pegasusBusy.start(shown, null, trigger.getAttribute('data-busy-label')); }
         var response;
         var message = 'Preview unavailable';
         try {
@@ -3956,6 +4004,8 @@
         } catch (error) {
             if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
             else { window.alert(message); }
+        } finally {
+            if (window.pegasusBusy) { window.pegasusBusy.end(shown); }
         }
     }
 

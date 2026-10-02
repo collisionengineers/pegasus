@@ -1783,7 +1783,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("data-attachment-outcome=", attachments, StringComparison.Ordinal);
         // Megabytes, never bytes.
         Assert.Contains("under 0.1 MB", attachments, StringComparison.Ordinal);
-        Assert.DoesNotContain("2048", attachments, StringComparison.Ordinal);
+        // The byte count standing alone, not inside a random key or identifier.
+        Assert.DoesNotMatch(@"(?<![0-9A-Za-z-])2048(?![0-9A-Za-z-])", attachments);
 
         var thread = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}{query}&section=thread");
         Assert.Contains("Message 0 from instructions", thread, StringComparison.Ordinal);

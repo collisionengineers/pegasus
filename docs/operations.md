@@ -4,6 +4,19 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## 2 October 2026 — staff send refused by the mailbox, and the Exchange grant
+
+The operator enabled staff-send on `instructions@collisionengineers.co.uk` at 13:08:25Z (`AllowStaffSend`, `IsDefaultStaffSend`, verified limit 100,000,000 bytes) and then tried to send. Both attempts failed; the Release 80 Compose dialog could only say "No confirmation received".
+
+| Observation | Value |
+| --- | --- |
+| Send journal (SQL) | `StaffMailSendOperations` holds two operations, both `Failed` at stage `CreateDraft` with `LastError = graph_rejected_403`: 13:58:12Z (`CaseReport`, `a.QDOS26059`) and 17:01:59Z (`GeneralCorrespondence`). `ActionHistory` records prepared, draftcreating, failed for each. Telemetry showed nothing: the workspace reached its daily cap at 03:52Z. |
+| Exchange read-back before the grant | The Web service principal `f3b032cc-7591-4ea8-bd68-d165578c576f` held one Exchange Application RBAC assignment, `Application Mail.Read`, scoped to `Pegasus Production Instructions Mailbox`; `Test-ServicePrincipalAuthorization` on `instructions@` returned `Mail.Read` only. The Worker service principal is the same. Neither identity holds any Microsoft Graph directory app role, as intended. |
+| Cause | Compose creates a Graph draft in the mailbox and then sends it. Both need the scoped `Application Mail.ReadWrite` and `Application Mail.Send` that the runbook requires for staff sending; the 14 September grant added read only. |
+| Tenant change (done) | The operator granted `EXCHANGE GRANT AUTH` for exactly two scoped assignments, run as the Digital Operator (Exchange Administrator) through the Exchange admin API: `Application Mail.ReadWrite` (`Pegasus Production Web Instructions Mail ReadWrite`, created 19:31:25Z) and `Application Mail.Send` (`Pegasus Production Web Instructions Mail Send`, 19:31:27Z), both for the Web service principal on the existing scope `Pegasus Production Instructions Mailbox`. Read-back: the Web identity now holds `Application Mail.Read`, `Mail.ReadWrite` and `Mail.Send` on that scope and nothing else; `Test-ServicePrincipalAuthorization` lists all three as `InScope True` for `instructions@collisionengineers.co.uk` and `InScope False` for `desk@collisionengineers.co.uk`. The Worker still holds `Application Mail.Read` only. Log at ignored `artifacts/exchange-grant-2026-10-02/exchange-grant.log`. |
+| Code change | PR 1006 (Release 82) already shows a refused send as Failed. PR `task/compose-send-feedback` adds the reason in operator words under that state on both composers, logs each refusal with its operation id and failure code, and corrects the Compose dialog: the focus ring stays inside the scroll area and the Message box absorbs spare height instead of scrolling. |
+| Still owed | Release 82 is live with the grant in place, so the PR 1006 proof can run now: one Compose send to `digital@collisionengineers.co.uk` reaching `Submitted` and then `Sent` with the Sent item linked to its Case. After this PR's release: the dialog screenshots at 1580×1000 and a smaller desktop height. |
+
 ## Release 82 — 2 October 2026 (deployment live)
 
 Release 82 deployed [PR 1008](https://github.com/collisionengineers/pegasus/pull/1008), which merged five PRs into `dev` together:

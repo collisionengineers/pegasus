@@ -442,6 +442,82 @@ public static class OperatorLabels
         };
     }
 
+    /// <summary>
+    /// What an action button says while its request runs (site.js
+    /// <c>pegasusBusy</c>). A button names its word in
+    /// <c>data-busy-label</c>; one without it says <see cref="Working"/>,
+    /// which the layouts render as the page default.
+    /// </summary>
+    public static class Busy
+    {
+        public const string Working = "Working…";
+        public const string Adding = "Adding…";
+        public const string Applying = "Applying…";
+        public const string Archiving = "Archiving…";
+        public const string Assigning = "Assigning…";
+        public const string Authorising = "Authorising…";
+        public const string Changing = "Changing…";
+        public const string Checking = "Checking…";
+        public const string Clearing = "Clearing…";
+        public const string Closing = "Closing…";
+        public const string Completing = "Completing…";
+        public const string Confirming = "Confirming…";
+        public const string Creating = "Creating…";
+        public const string Deleting = "Deleting…";
+        public const string Disabling = "Disabling…";
+        public const string Discarding = "Discarding…";
+        public const string Dismissing = "Dismissing…";
+        public const string Downloading = "Downloading…";
+        public const string Drafting = "Drafting…";
+        public const string Duplicating = "Duplicating…";
+        public const string Enabling = "Enabling…";
+        public const string Exporting = "Exporting…";
+        public const string Finishing = "Finishing…";
+        public const string Generating = "Generating…";
+        public const string HandingOver = "Handing over…";
+        public const string Importing = "Importing…";
+        public const string Linking = "Linking…";
+        public const string Loading = "Loading…";
+        public const string LookingUp = "Looking up…";
+        public const string Marking = "Marking…";
+        public const string Moving = "Moving…";
+        public const string Opening = "Opening…";
+        public const string Pausing = "Pausing…";
+        public const string Placing = "Placing on hold…";
+        public const string Preparing = "Preparing…";
+        public const string Publishing = "Publishing…";
+        public const string Reconciling = "Reconciling…";
+        public const string Recording = "Recording…";
+        public const string Refreshing = "Refreshing…";
+        public const string Refusing = "Refusing…";
+        public const string Registering = "Registering…";
+        public const string Releasing = "Releasing…";
+        public const string Removing = "Removing…";
+        public const string Renewing = "Renewing…";
+        public const string Reopening = "Reopening…";
+        public const string Replacing = "Replacing…";
+        public const string Resetting = "Resetting…";
+        public const string Restoring = "Restoring…";
+        public const string Resuming = "Resuming…";
+        public const string Retrying = "Retrying…";
+        public const string Returning = "Returning…";
+        public const string Revoking = "Revoking…";
+        public const string Saving = "Saving…";
+        public const string Searching = "Searching…";
+        public const string Sending = "Sending…";
+        public const string SigningIn = "Signing in…";
+        public const string SigningOut = "Signing out…";
+        public const string Starting = "Starting…";
+        public const string Stopping = "Stopping…";
+        public const string Tagging = "Tagging…";
+        public const string Unlinking = "Unlinking…";
+        public const string Uploading = "Uploading…";
+        public const string Recovering = "Recovering…";
+
+        /// <summary>What a fetched download says when the file did not arrive and the server gave no reason.</summary>
+        public const string DownloadFailed = "The file could not be downloaded. Try again.";
+    }
+
     /// <summary>The shell's own words (v26 shell): the rail foot and the bell.</summary>
     public static class Shell
     {
@@ -1799,6 +1875,28 @@ public static class OperatorLabels
             _ => throw new InvalidOperationException(
                 $"Unknown staff mail state '{(int)state}'.")
         };
+
+        /// <summary>
+        /// A refused send's reason in operator words (FRD-21: a send Graph
+        /// refuses shows as a failure on the composer). The failure code is
+        /// the engine's; nothing here is sent.
+        /// </summary>
+        public static string Failure(string failureCode)
+        {
+            var reason = failureCode switch
+            {
+                "graph_rejected_403" =>
+                    "The mailbox refused the message. Pegasus is not permitted to write to or send from this mailbox.",
+                "staff_send_content_invalid" =>
+                    "The message could not be prepared for sending. It may be larger than the mailbox allows.",
+                "staff_send_authorization_lost" =>
+                    "Your authorisation or the mailbox's send setting changed before the message was sent.",
+                _ when failureCode.StartsWith("graph_rejected_", StringComparison.Ordinal) =>
+                    $"The mail service refused the message (code {failureCode["graph_rejected_".Length..]}).",
+                _ => $"The message was refused ({failureCode})."
+            };
+            return reason + " Nothing was sent.";
+        }
     }
 
     /// <summary>A Principal contact's own labels (Administration → Contacts, Principal details) — one list.</summary>

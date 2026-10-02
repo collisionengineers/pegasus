@@ -190,7 +190,7 @@
                         }
                         <partial name="Cases/Shared/_TriageDeterminationFields" model="view" />
                         <div class="button-row">
-                            <button type="submit" name="actionName"
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" name="actionName"
                                     value="@(currentFinding is null ? "record_finding" : "supersede_finding")"
                                     class="btn @(savePrimary ? "btn--primary" : string.Empty)">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
@@ -231,7 +231,7 @@
                         <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId">
                             <input type="hidden" name="expectedVersion" value="@record.Version" />
                             <input type="hidden" name="operationKey" value="@view.OperationKey" />
-                            <button type="submit" name="actionName" value="complete" class="btn btn--primary" data-triage-complete>
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Completing" name="actionName" value="complete" class="btn btn--primary" data-triage-complete>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
                                 <span>@Labels.CompleteTriage</span>
                             </button>
@@ -256,7 +256,7 @@
                         <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId">
                             <input type="hidden" name="expectedVersion" value="@record.Version" />
                             <input type="hidden" name="operationKey" value="@view.OperationKey" />
-                            <button type="submit" name="actionName" value="await_information" class="btn" data-triage-await>
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" name="actionName" value="await_information" class="btn" data-triage-await>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
                                 <span>@Labels.AwaitInformation</span>
                             </button>
@@ -330,7 +330,7 @@
                             <form method="post" asp-page-handler="TriageReconcileReply" asp-route-id="@record.CaseId" class="mb-2">
                                 <input type="hidden" name="operationId" value="@replyOperation.Id" />
                                 <input type="hidden" name="expectedOperationVersion" value="@replyOperation.Version" />
-                                <button type="submit" class="btn btn--small">
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Reconciling" class="btn btn--small">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
                                     <span>@Labels.ReconcileStatus</span>
                                 </button>
@@ -373,7 +373,7 @@
                                 </fieldset>
                             }
                             <div class="button-row">
-                                <button type="submit" class="btn btn--primary">
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                                     <span>@(view.IsOutcomeReply ? Labels.SendReply : Labels.SendChaser)</span>
                                 </button>
@@ -422,7 +422,7 @@
                                     <textarea id="triage-unlink-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
                                 </div>
                                 <div class="button-row">
-                                    <button type="submit" name="actionName" value="unlink_response" class="btn">
+                                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Unlinking" name="actionName" value="unlink_response" class="btn">
                                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                                         <span>Unlink response</span>
                                     </button>
@@ -455,7 +455,7 @@
                                 <textarea id="triage-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
                             </div>
                             <div class="button-row">
-                                <button type="submit" name="actionName" value="link_response" class="btn btn--dark">
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Linking" name="actionName" value="link_response" class="btn btn--dark">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
                                     <span>Record and link exact response</span>
                                 </button>
@@ -564,7 +564,7 @@
                             <textarea id="triage-note" name="note" rows="3" required maxlength="@TriageNotes.MaximumLength"></textarea>
                         </div>
                         <div class="button-row">
-                            <button type="submit" class="btn btn--dark">
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn btn--dark">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
                                 <span>Add note</span>
                             </button>
@@ -622,10 +622,10 @@
                 <div class="dialog-foot">
                     @if (record.AssigneeId is not null)
                     {
-                        <button type="submit" name="actionName" value="unassign" class="btn" formnovalidate data-triage-unassign>@Labels.Unassign</button>
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Removing" name="actionName" value="unassign" class="btn" formnovalidate data-triage-unassign>@Labels.Unassign</button>
                     }
                     <button type="button" class="btn" data-dialog-close>@Labels.Cancel</button>
-                    <button type="submit" name="actionName" value="assign" class="btn btn--primary">@Labels.Assign</button>
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Assigning" name="actionName" value="assign" class="btn btn--primary">@Labels.Assign</button>
                 </div>
             </form>
         </section>
@@ -654,7 +654,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>@Labels.Cancel</button>
-                    <button type="submit" name="actionName" value="supersede_finding" class="btn btn--primary">@Labels.RecordCorrection</button>
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Recording" name="actionName" value="supersede_finding" class="btn btn--primary">@Labels.RecordCorrection</button>
                 </div>
             </form>
         </section>
@@ -698,7 +698,7 @@
                     </div>
                     <div class="dialog-foot">
                         <button type="button" class="btn" data-dialog-close>Cancel</button>
-                        <button type="submit" class="btn btn--primary">Link case</button>
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Linking" class="btn btn--primary">Link case</button>
                     </div>
                 </form>
             </section>
