@@ -37,7 +37,7 @@
                 <textarea id="case-note" name="note" rows="2" required
                           maxlength="@Pegasus.Core.Cases.AddCaseNote.MaximumLength"></textarea>
                 <div class="button-row">
-                    <button type="submit" class="btn btn--primary">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
                         <span>Add Case note</span>
                     </button>
@@ -128,7 +128,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--primary">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Recording" class="btn btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@CaseWorkspaceLabels.Chase.RecordChase</span>
                     </button>

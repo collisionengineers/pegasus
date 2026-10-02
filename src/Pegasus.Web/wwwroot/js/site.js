@@ -105,6 +105,269 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindRefreshFeedback);
     window.pegasusResetRefresh = resetRefresh;
 
+    // Action feedback: the Refresh button's twin for every action. From the
+    // press until the result arrives, the pressed control says what it is
+    // doing (its data-busy-label, or the page's default from the layout), a
+    // ring takes the place of its icon, and the form's other submit buttons
+    // stand aside. The words are the signal and the ring decorates them, so
+    // reduced motion and forced colours lose nothing.
+    //
+    // The pressed button is never disabled: a disabled submitter drops its
+    // name and value from the post. A busy form refuses another submit
+    // instead, which is the double-submit guard every POST form has.
+    //
+    // A full-page post ends with its navigation. A script that answers a
+    // press in place (case-workspace.js, mail-compose.js, upload.js) prevents
+    // the default, so this listener leaves it alone, and the script starts
+    // and ends the state itself through window.pegasusBusy.
+    var busyContents = new WeakMap();
+    var busyForms = new WeakMap();
+    var busyStatus = null;
+    function busyWords(control) {
+        return control.getAttribute('data-busy-label')
+            || document.documentElement.getAttribute('data-busy-label') || '';
+    }
+    function announceBusy(words) {
+        if (!busyStatus) {
+            busyStatus = document.createElement('span');
+            busyStatus.className = 'sr-only';
+            busyStatus.setAttribute('role', 'status');
+            busyStatus.setAttribute('aria-live', 'polite');
+            document.body.appendChild(busyStatus);
+        }
+        busyStatus.textContent = words;
+    }
+    function isSubmitControl(element) {
+        return (element instanceof HTMLButtonElement || element instanceof HTMLInputElement)
+            && element.type === 'submit';
+    }
+    function defaultSubmitter(form) {
+        return Array.prototype.find.call(form.elements, isSubmitControl) || null;
+    }
+    function startControl(control, words) {
+        if (!control || busyContents.has(control)) {
+            return;
+        }
+        words = words || busyWords(control);
+        var saved = { ariaLabel: control.getAttribute('aria-label'), value: null, nodes: null };
+        if (control instanceof HTMLSelectElement) {
+            // A choice that posts keeps its options; it only stands still.
+        } else if (control instanceof HTMLInputElement) {
+            saved.value = control.value;
+            control.value = words;
+        } else {
+            var hasText = control.textContent.trim() !== '';
+            saved.nodes = document.createDocumentFragment();
+            while (control.firstChild) {
+                saved.nodes.appendChild(control.firstChild);
+            }
+            var ring = document.createElement('span');
+            ring.className = 'busy-ring';
+            ring.setAttribute('aria-hidden', 'true');
+            control.appendChild(ring);
+            if (hasText) {
+                var label = document.createElement('span');
+                label.textContent = words;
+                control.appendChild(label);
+            } else {
+                control.setAttribute('aria-label', words);
+            }
+        }
+        busyContents.set(control, saved);
+        control.setAttribute('data-busy', '');
+        control.setAttribute('aria-busy', 'true');
+        if (control instanceof HTMLAnchorElement) {
+            control.setAttribute('aria-disabled', 'true');
+        }
+        announceBusy(words);
+    }
+    function endControl(control) {
+        var saved = control ? busyContents.get(control) : null;
+        if (!saved) {
+            return;
+        }
+        busyContents.delete(control);
+        if (saved.nodes) {
+            control.textContent = '';
+            control.appendChild(saved.nodes);
+        } else if (saved.value !== null) {
+            control.value = saved.value;
+        }
+        if (saved.ariaLabel === null) {
+            control.removeAttribute('aria-label');
+        } else {
+            control.setAttribute('aria-label', saved.ariaLabel);
+        }
+        control.removeAttribute('data-busy');
+        control.removeAttribute('aria-busy');
+        if (control instanceof HTMLAnchorElement) {
+            control.removeAttribute('aria-disabled');
+        }
+    }
+    // words overrides the control's own, for a control that stands in for
+    // another: a menu's button while the item pressed inside it loads.
+    function startBusy(control, form, words) {
+        form = form || (control && control.form) || null;
+        if (form && !control) {
+            control = defaultSubmitter(form);
+        }
+        startControl(control, words);
+        if (!form) {
+            return;
+        }
+        busyForms.set(form, control);
+        form.setAttribute('data-busy-form', '');
+        // form.elements includes the buttons tied to the form by form="…",
+        // such as a dialog's footer, so they stand aside too.
+        Array.prototype.forEach.call(form.elements, function (element) {
+            if (element !== control && isSubmitControl(element) && !element.hasAttribute('aria-disabled')) {
+                element.setAttribute('aria-disabled', 'true');
+                element.setAttribute('data-busy-aside', '');
+            }
+        });
+    }
+    function endBusy(target) {
+        if (!target) {
+            return;
+        }
+        if (target instanceof HTMLFormElement) {
+            var control = busyForms.get(target);
+            busyForms.delete(target);
+            target.removeAttribute('data-busy-form');
+            Array.prototype.forEach.call(target.elements, function (element) {
+                if (element.hasAttribute('data-busy-aside')) {
+                    element.removeAttribute('aria-disabled');
+                    element.removeAttribute('data-busy-aside');
+                }
+            });
+            endControl(control);
+            return;
+        }
+        endControl(target);
+    }
+    window.pegasusBusy = { start: startBusy, end: endBusy, isBusy: function (form) { return busyForms.has(form); } };
+    // A post made with form.submit() fires no submit event: the pressed
+    // control starts the state, and a second press while it runs is refused.
+    // True when the form was already busy.
+    function startBusyOnce(control, form) {
+        if (busyForms.has(form)) {
+            return true;
+        }
+        busyForms.set(form, null);
+        startControl(control);
+        busyForms.set(form, control);
+        form.setAttribute('data-busy-form', '');
+        return false;
+    }
+    window.pegasusBusy.startOnce = startBusyOnce;
+
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (form instanceof HTMLFormElement && busyForms.has(form)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    }, true);
+    // On window, so it runs after every page script has had its say: a
+    // submit a script prevented is either refused or answered in place.
+    window.addEventListener('submit', function (event) {
+        var form = event.target;
+        var submitter = event.submitter || null;
+        if (event.defaultPrevented || !(form instanceof HTMLFormElement)) {
+            return;
+        }
+        var method = (submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get';
+        if (method.toLowerCase() !== 'post' || form.hasAttribute('target')
+            || (submitter && submitter.hasAttribute('formtarget'))) {
+            return;
+        }
+        startBusy(submitter || defaultSubmitter(form), form);
+    });
+    // A page restored from the back/forward cache comes back as it was left,
+    // mid-post; it is idle again.
+    window.addEventListener('pageshow', function (event) {
+        if (!event.persisted) {
+            return;
+        }
+        document.querySelectorAll('[data-busy-form]').forEach(endBusy);
+        document.querySelectorAll('[data-busy]').forEach(endBusy);
+        document.querySelectorAll('[data-refresh-form]').forEach(resetRefresh);
+    });
+
+    // A download answers with a file, not a page, so no navigation ends its
+    // busy state. A [data-busy-download] link or form fetches the file
+    // instead and hands it to the browser: the state ends when the file
+    // arrives, and a refusal shows as a toast rather than a blank page. A
+    // refusal's plain-text body is its reason.
+    function fileName(response) {
+        var disposition = response.headers.get('Content-Disposition') || '';
+        var encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+        if (encoded) {
+            try { return decodeURIComponent(encoded[1]); } catch (error) { /* fall through */ }
+        }
+        var plain = /filename="?([^";]+)"?/i.exec(disposition);
+        return plain ? plain[1] : '';
+    }
+    function busyDownload(control, form, url, init) {
+        startBusy(control, form);
+        var failed = (control && control.getAttribute('data-busy-download-failed'))
+            || (form && form.getAttribute('data-busy-download-failed')) || '';
+        init.credentials = 'same-origin';
+        init.headers = { 'X-Requested-With': 'fetch' };
+        return fetch(url, init).then(function (response) {
+            var type = response.headers.get('Content-Type') || '';
+            if (!response.ok || type.indexOf('text/') === 0 && !/attachment/i.test(response.headers.get('Content-Disposition') || '')) {
+                return response.text().then(function (text) {
+                    var reason = type.indexOf('text/plain') === 0 ? text.trim() : '';
+                    throw { refusal: reason || failed };
+                });
+            }
+            return response.blob().then(function (blob) {
+                var href = URL.createObjectURL(blob);
+                var save = document.createElement('a');
+                save.href = href;
+                save.download = fileName(response);
+                document.body.appendChild(save);
+                save.click();
+                save.remove();
+                window.setTimeout(function () { URL.revokeObjectURL(href); }, 60000);
+            });
+        }).catch(function (error) {
+            if (typeof window.pegasusToast === 'function') {
+                // Only the server's own reason is shown; a network failure's
+                // browser text is not operator wording.
+                window.pegasusToast(error && error.refusal || failed, 'danger');
+            }
+        }).finally(function () {
+            endBusy(form || control);
+        });
+    }
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest && event.target.closest('a[data-busy-download]');
+        if (!link || event.defaultPrevented || event.button !== 0
+            || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+            return;
+        }
+        event.preventDefault();
+        if (busyContents.has(link)) {
+            return;
+        }
+        busyDownload(link, null, link.href, { method: 'GET' });
+    });
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-busy-download') || event.defaultPrevented) {
+            return;
+        }
+        event.preventDefault();
+        var submitter = event.submitter || null;
+        var url = (submitter && submitter.getAttribute('formaction')) || form.action;
+        busyDownload(submitter || defaultSubmitter(form), form, url, {
+            method: 'POST',
+            body: new FormData(form, submitter && submitter.name ? submitter : undefined)
+        });
+    });
+
     // Copy a support reference. Without script the value is still selectable
     // text, which is why the button is rendered hidden and revealed here rather
     // than shipped as a control that might do nothing.
@@ -250,28 +513,6 @@
     }
     bindEditScopeHeartbeats(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEditScopeHeartbeats);
-
-    // A Triage Case page action posts once and holds the record for that one
-    // save. Marking the form busy as it submits greys its buttons (the shared
-    // form[aria-busy] rule) and refuses a second submit while the first is in
-    // flight, so a double click cannot put two posts in flight together. The
-    // page's dialogs post from outside the record, so the guard is the page's
-    // rather than the record's.
-    if (document.querySelector('[data-triage-record]')) {
-        document.addEventListener('submit', function (event) {
-            var form = event.target;
-            if (event.defaultPrevented
-                || !(form instanceof HTMLFormElement)
-                || (form.getAttribute('method') || 'get').toLowerCase() !== 'post') {
-                return;
-            }
-            if (form.getAttribute('aria-busy') === 'true') {
-                event.preventDefault();
-                return;
-            }
-            form.setAttribute('aria-busy', 'true');
-        });
-    }
 
     // Global drop safety net. Without this, a file dropped anywhere off a
     // dropzone's own listeners below — the heading, a panel border, released
@@ -1069,6 +1310,7 @@
                     remove.className = 'precase-tag-remove';
                     remove.setAttribute('aria-label', 'Remove tag ' + option.textContent);
                     remove.setAttribute('data-precase-tag-remove', option.value);
+                    remove.setAttribute('data-busy-label', (preCaseTools && preCaseTools.getAttribute('data-busy-tagging')) || '');
                     remove.textContent = '×';
                     chip.appendChild(remove);
                     tagList.appendChild(chip);
@@ -1156,9 +1398,11 @@
             selection.style.height = (frame.height * 100) + '%';
         }
 
-        function postPreCaseCrop(clear) {
+        // Both post with submit(), which fires no submit event, so the
+        // pressed control starts its own busy state; the page load ends it.
+        function postPreCaseCrop(clear, control) {
             var item = preCaseItem();
-            if (!item || !preCaseCropForm) {
+            if (!item || !preCaseCropForm || (window.pegasusBusy && window.pegasusBusy.startOnce(control, preCaseCropForm))) {
                 return;
             }
             var frame = preCaseCropping && preCaseCropping.frame;
@@ -1180,9 +1424,9 @@
             preCaseCropForm.submit();
         }
 
-        function postPreCaseTag(tagId, applied) {
+        function postPreCaseTag(tagId, applied, control) {
             var item = preCaseItem();
-            if (!item || !preCaseTagForm || !tagId) {
+            if (!item || !preCaseTagForm || !tagId || (window.pegasusBusy && window.pegasusBusy.startOnce(control, preCaseTagForm))) {
                 return;
             }
             preCaseTagForm.elements.intakeAssetId.value = item.getAttribute('data-precase-asset');
@@ -1199,16 +1443,16 @@
                 rotateView.addEventListener('click', removePreCaseView);
             }
             preCaseTools.querySelector('[data-precase-crop-start]').addEventListener('click', beginPreCaseCrop);
-            preCaseTools.querySelector('[data-precase-crop-apply]').addEventListener('click', function () { postPreCaseCrop(false); });
-            preCaseTools.querySelector('[data-precase-crop-clear]').addEventListener('click', function () { postPreCaseCrop(true); });
+            preCaseTools.querySelector('[data-precase-crop-apply]').addEventListener('click', function (event) { postPreCaseCrop(false, event.currentTarget); });
+            preCaseTools.querySelector('[data-precase-crop-clear]').addEventListener('click', function (event) { postPreCaseCrop(true, event.currentTarget); });
             preCaseTools.querySelector('[data-precase-crop-cancel]').addEventListener('click', endPreCaseCrop);
             preCaseTools.querySelector('[data-precase-tag-select]').addEventListener('change', function (event) {
-                postPreCaseTag(event.target.value, true);
+                postPreCaseTag(event.target.value, true, event.target);
             });
             preCaseTools.addEventListener('click', function (event) {
                 var remove = event.target.closest('[data-precase-tag-remove]');
                 if (remove) {
-                    postPreCaseTag(remove.getAttribute('data-precase-tag-remove'), false);
+                    postPreCaseTag(remove.getAttribute('data-precase-tag-remove'), false, remove);
                 }
             });
         }

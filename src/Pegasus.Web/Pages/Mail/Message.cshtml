@@ -41,7 +41,7 @@
               asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
               data-message-dismissal="@(Model.IsDismissed ? "restore" : "dismiss")">
             <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-            <button class="btn" type="submit">
+            <button class="btn" type="submit" data-busy-label="@(Model.IsDismissed ? OperatorLabels.Busy.Restoring : OperatorLabels.Busy.Dismissing)">
                 <svg class="icon" aria-hidden="true"><use href="@(Model.IsDismissed ? "#icon-undo" : "#icon-x")" /></svg>
                 <span>@(Model.IsDismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss)</span>
             </button>
@@ -113,7 +113,7 @@
                           asp-route-section="@Model.ActiveSection">
                         <input type="hidden" name="operationKey"
                                value="@($"query-response:{Pegasus.Web.Pages.StaffPageModel.NewOperationKey()}")" />
-                        <button class="btn btn--dark" type="submit">
+                        <button class="btn btn--dark" type="submit" data-busy-label="@OperatorLabels.Busy.Drafting">
                             <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
                             <span>@OperatorLabels.QueryResponseJobs.Create</span>
                         </button>
@@ -244,13 +244,18 @@
                 <div class="panel-head"><h2>Send status</h2></div>
                 <div class="panel-body fact-grid">
                     <dl class="fact"><dt>State</dt><dd>@OperatorLabels.StaffMail.State(mailOperation.State)</dd></dl>
+                    @if (mailOperation.State == Pegasus.Core.Operations.StaffMailState.Failed
+                        && mailOperation.FailureCode is { Length: > 0 } failureCode)
+                    {
+                        <dl class="fact"><dt>Reason</dt><dd>@OperatorLabels.StaffMail.Failure(failureCode)</dd></dl>
+                    }
                     @if (mailOperation.State is Pegasus.Core.Operations.StaffMailState.Submitted
                         or Pegasus.Core.Operations.StaffMailState.Unknown)
                     {
                         <form method="post" asp-page-handler="ReconcileCorrespondence" asp-route-id="@summary.Id">
                             <input type="hidden" name="mailOperationId" value="@mailOperation.Id" />
                             <input type="hidden" name="expectedOperationVersion" value="@mailOperation.Version" />
-                            <button type="submit" class="btn">
+                            <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Reconciling">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
                                 <span>@OperatorLabels.StaffMail.Reconcile</span>
                             </button>
@@ -353,7 +358,7 @@
                             </fieldset>
                         }
                         <div class="button-row">
-                            <button type="submit" class="btn btn--dark">
+                            <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Sending">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                                 <span>Send</span>
                             </button>
@@ -480,7 +485,7 @@
                                             <input type="hidden" name="ExpectedMailboxVersion" value="@recoveryMailboxVersion" />
                                             <input type="hidden" name="MoveOperationKey" value="@recoveryOperationKey" />
                                             <input type="hidden" name="Reason" value="@uncertainMove.Reason" />
-                                            <button class="btn" type="submit">Check move status</button>
+                                            <button class="btn" type="submit" data-busy-label="@OperatorLabels.Busy.Checking">Check move status</button>
                                         </form>
                                     }
                                     else if (Model.Detail.SuggestedMove is { } suggestedMove
@@ -701,7 +706,7 @@
                                         <input type="hidden" name="expectedIntakeVersion" value="@associationReceipt.Version" />
                                         <input type="hidden" name="expectedCaseVersion" value="@currentDestination.Version" />
                                         <input type="hidden" name="leaseOperationKey" value="@Guid.NewGuid().ToString("N")" />
-                                        <button class="btn" type="submit">Unlink</button>
+                                        <button class="btn" type="submit" data-busy-label="@OperatorLabels.Busy.Unlinking">Unlink</button>
                                     </form>
                                 }
                             </div>
@@ -900,7 +905,7 @@
                                             <input type="hidden" name="expectedIntakeVersion" value="@associationReceipt.Version" />
                                             <input type="hidden" name="expectedCaseVersion" value="@targetDestination.Version" />
                                             <input type="hidden" name="leaseOperationKey" value="@Guid.NewGuid().ToString("N")" />
-                                            <button class="btn btn--dark" type="submit">Link to this case</button>
+                                            <button class="btn btn--dark" type="submit" data-busy-label="@OperatorLabels.Busy.Linking">Link to this case</button>
                                         </form>
                                     }
                                 </div>
@@ -937,7 +942,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--dark">Open the Triage</button>
+                    <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Opening">Open the Triage</button>
                 </div>
             </form>
         </section>
@@ -972,7 +977,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--dark">Register images</button>
+                    <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Registering">Register images</button>
                 </div>
             </form>
         </section>
@@ -1033,7 +1038,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--dark">Save correction</button>
+                    <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Saving">Save correction</button>
                 </div>
             </form>
         </section>
@@ -1087,7 +1092,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--dark">Move</button>
+                    <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Moving">Move</button>
                 </div>
             </form>
         </section>

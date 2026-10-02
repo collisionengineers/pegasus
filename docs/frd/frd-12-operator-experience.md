@@ -263,6 +263,14 @@ accepted. Workflow transitions are owned by
 [FRD-13](frd-13-case-lifecycle-and-workflow.md). The UI offers a transition
 only where its Core use case permits it for the current state and account.
 
+Every button or link that asks the server to do something shows that it is
+working from the press until the result arrives. It says what it is doing
+("Saving…", "Sending…", "Generating…") beside a turning ring. The form's
+other buttons stand aside, and a second press is refused. This covers
+actions answered in place, slow document previews and file downloads. A
+download stays busy until the file arrives, and a refusal shows its reason.
+Busy is not disabled: the pressed button keeps its colours.
+
 ## Edge cases and fail-closed behaviour
 
 Record edit ownership for Triage Cases and Image Intake is owned by

@@ -349,7 +349,7 @@
                                   data-mail-row-action="@rowHandler.ToLowerInvariant()">
                                 <input type="hidden" name="id" value="@item.Id" />
                                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                <button type="submit" class="icon-button"
+                                <button type="submit" class="icon-button" data-busy-label="@(Model.Dismissed ? OperatorLabels.Busy.Restoring : OperatorLabels.Busy.Dismissing)"
                                         title="@(Model.Dismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss)"
                                         aria-label="@(Model.Dismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss) @Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">
                                     <svg class="icon" aria-hidden="true"><use href="@(Model.Dismissed ? "#icon-undo" : "#icon-x")" /></svg>

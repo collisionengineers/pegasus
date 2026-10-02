@@ -93,14 +93,14 @@
                 </div>
                 @if (!Model.EditingExisting)
                 {
-                    <div class="button-row"><button class="btn btn--small" type="submit" formaction="?handler=FindMatches" formnovalidate>Check existing contacts</button></div>
+                    <div class="button-row"><button class="btn btn--small" type="submit" formaction="?handler=FindMatches" formnovalidate data-busy-label="@OperatorLabels.Busy.Checking">Check existing contacts</button></div>
                     @if (Model.PossibleMatches.Count > 0)
                     {
-                        <section class="panel" aria-labelledby="possible-matches-title"><div class="panel-head"><h3 id="possible-matches-title">Possible existing contacts</h3></div><div class="panel-body stack">@foreach (var contact in Model.PossibleMatches) { var formId = "choose-contact-" + contact.OrganizationId.ToString("N"); <div class="button-row"><span>@contact.Name · @string.Join(", ", contact.Roles.Select(IndexModel.RoleLabel))</span><button class="btn btn--small" type="submit" form="@formId">Use this contact</button></div> }</div></section>
+                        <section class="panel" aria-labelledby="possible-matches-title"><div class="panel-head"><h3 id="possible-matches-title">Possible existing contacts</h3></div><div class="panel-body stack">@foreach (var contact in Model.PossibleMatches) { var formId = "choose-contact-" + contact.OrganizationId.ToString("N"); <div class="button-row"><span>@contact.Name · @string.Join(", ", contact.Roles.Select(IndexModel.RoleLabel))</span><button class="btn btn--small" type="submit" form="@formId" data-busy-label="@OperatorLabels.Busy.Adding">Use this contact</button></div> }</div></section>
                     }
                 }
             </div>
-            <div class="dialog-foot"><a class="btn" asp-page="Index" asp-route-search="@Model.Search" asp-route-type="@Model.Type" asp-route-sort="@Model.Sort">Cancel</a><button class="btn btn--primary" type="submit">Save @IndexModel.RoleLabel(role)</button></div>
+            <div class="dialog-foot"><a class="btn" asp-page="Index" asp-route-search="@Model.Search" asp-route-type="@Model.Type" asp-route-sort="@Model.Sort">Cancel</a><button class="btn btn--primary" type="submit" data-busy-label="@OperatorLabels.Busy.Saving">Save @IndexModel.RoleLabel(role)</button></div>
         </form>
         @foreach (var contact in Model.PossibleMatches)
         {

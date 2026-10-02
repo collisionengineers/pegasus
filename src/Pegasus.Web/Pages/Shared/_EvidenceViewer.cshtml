@@ -44,15 +44,15 @@
                rotation, Clear restores the original, Cancel leaves crop mode;
                the Tag select puts a tag on and a chip's × takes it off. *@
             var returnUrl = Context.Request.Path + Context.Request.QueryString;
-            <div class="evidence-precase" data-precase-tools hidden>
+            <div class="evidence-precase" data-precase-tools data-busy-tagging="@OperatorLabels.Busy.Tagging" hidden>
                 <span class="evidence-precase-set" data-precase-view>
                     <button type="button" class="btn btn--small" data-precase-crop-start>@OperatorLabels.PreCaseImages.Crop</button>
                     <span class="muted" data-precase-crop-state></span>
                 </span>
                 <span class="evidence-precase-set" data-precase-cropping hidden>
                     <span class="muted">@OperatorLabels.PreCaseImages.DrawHint</span>
-                    <button type="button" class="btn btn--small btn--primary" data-precase-crop-apply>@OperatorLabels.PreCaseImages.Apply</button>
-                    <button type="button" class="btn btn--small" data-precase-crop-clear>@OperatorLabels.PreCaseImages.Clear</button>
+                    <button type="button" class="btn btn--small btn--primary" data-precase-crop-apply data-busy-label="@OperatorLabels.Busy.Applying">@OperatorLabels.PreCaseImages.Apply</button>
+                    <button type="button" class="btn btn--small" data-precase-crop-clear data-busy-label="@OperatorLabels.Busy.Clearing">@OperatorLabels.PreCaseImages.Clear</button>
                     <button type="button" class="btn btn--small" data-precase-crop-cancel>@OperatorLabels.PreCaseImages.Cancel</button>
                 </span>
                 <span class="evidence-precase-set">

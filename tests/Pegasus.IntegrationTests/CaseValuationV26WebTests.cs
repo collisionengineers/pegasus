@@ -924,10 +924,11 @@ public sealed class CaseValuationV26WebTests
         Assert.Equal("17717.00", answer.RootElement.GetProperty("retail").GetString());
         Assert.Equal("15600.00", answer.RootElement.GetProperty("trade").GetString());
         Assert.Equal("2026-08", answer.RootElement.GetProperty("guideMonth").GetString());
+        // The report is fetched after the answer; the fake's request list is
+        // read only once filing has finished with it.
+        var (filed, pdf) = await filing.Filed.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Contains(mva.Requests, request =>
             request.Path == "/index/create-new-vehicle/value/0/valuate/1/mileage/42000/valdate/202608/condition/false");
-
-        var (filed, pdf) = await filing.Filed.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(store.CaseId, filed.CaseId);
         Assert.Equal(ValuationSource.Glasses, filed.Source);
         Assert.Equal("AB12CDE", filed.Registration);

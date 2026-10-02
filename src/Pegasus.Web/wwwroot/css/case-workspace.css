@@ -190,8 +190,7 @@
 #section-valuation .valuation-card .notice .link-button{color:inherit;text-decoration:underline}
 #section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:8px}
 #section-valuation [data-valuation-lines-host][aria-busy="true"]{opacity:.65}
-#section-valuation .valuation-card.is-pending .meta::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:valspin .8s linear infinite}
-@keyframes valspin{to{transform:rotate(360deg)}}
+#section-valuation .valuation-card.is-pending .meta::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:pegasus-spin .8s linear infinite}
 #section-valuation .valuation-card .gated{margin-left:0}
 #section-valuation .calc{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);grid-template-rows:auto 1fr;gap:14px;align-items:start}
 /* The calculation runs down its column beside the report switches and the lines. */
@@ -582,7 +581,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .case-viewer-stage.is-cropping img{transition:none}
 .case-viewer-stage iframe{width:100%;height:100%;border:0;background:#fff;border-radius:2px}
 .case-viewer-stage video{max-width:100%;max-height:100%}
-.case-viewer-stage[aria-busy="true"]::after{content:"";position:absolute;width:2rem;height:2rem;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .9s linear infinite;pointer-events:none}
+.case-viewer-stage[aria-busy="true"]::after{content:"";position:absolute;width:2rem;height:2rem;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:pegasus-spin .9s linear infinite;pointer-events:none}
 .case-viewer-strip{grid-column:1/-1;display:flex;gap:6px;padding:12px 14px;overflow-x:auto;border-top:1px solid rgba(255,255,255,.1)}
 .case-viewer-strip[hidden]{display:none}
 .case-viewer-strip button{flex:0 0 84px;height:63px;border:2px solid transparent;border-radius:3px;background:rgba(255,255,255,.06);opacity:.5;cursor:pointer;padding:0;overflow:hidden;color:#fff;font:600 9px var(--mono)}

@@ -113,7 +113,7 @@ else
                                     <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
                                     <input type="hidden" name="editLeaseToken" value="@leaseToken" />
                                     <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                    <button type="submit" class="image-tile-toggle" aria-pressed="@(preparation.InReport ? "true" : "false")" data-image-in-report>
+                                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" class="image-tile-toggle" aria-pressed="@(preparation.InReport ? "true" : "false")" data-image-in-report>
                                         <svg class="icon" aria-hidden="true"><use href="@(preparation.InReport ? "#icon-square-check" : "#icon-square")" /></svg>
                                         <span>@ReportImageLabels.InReport</span>
                                     </button>
@@ -220,7 +220,7 @@ else
                                     <option value="true" selected="@(preparation.FullPage)">Yes</option>
                                 </select>
                             </label>
-                            <button type="submit" class="btn btn--small">Save image preparation</button>
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" class="btn btn--small">Save image preparation</button>
                         </form>
                     </noscript>
                 }

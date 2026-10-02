@@ -268,8 +268,9 @@
                 event.preventDefault();
                 uploading = true;
                 render();
-                submit.disabled = true;
-                submitLabel.textContent = 'Uploading';
+                // The shared busy state (site.js pegasusBusy) carries the
+                // button's Uploading word until the response lands.
+                if (window.pegasusBusy) { window.pegasusBusy.start(submit, form); }
                 form.querySelectorAll('button[type="reset"]').forEach(function (button) { button.disabled = true; });
                 fetch(form.getAttribute('action') || window.location.href, {
                     method: 'POST',

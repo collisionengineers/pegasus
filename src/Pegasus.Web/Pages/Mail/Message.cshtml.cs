@@ -53,7 +53,8 @@ public sealed class MessageModel(
     IRestoreRetainedMail restoreRetainedMail,
     IGetRetainedMailAttachmentOutcomes attachmentOutcomes,
     IGetIntakeOfferedActions offeredActions,
-    Pegasus.Web.Intake.StaffIntakeActions intakeActions) : StaffPageModel
+    Pegasus.Web.Intake.StaffIntakeActions intakeActions,
+    ILogger<MessageModel> logger) : StaffPageModel
 {
     /// <summary>
     /// One attachment's outcome in operator words (message planning, 13 September):
@@ -1370,6 +1371,8 @@ public sealed class MessageModel(
             CorrespondenceOperation = operation;
             if (operation.State == StaffMailState.Sent)
                 CorrespondenceNotice = "Correspondence sent.";
+            else if (operation.State == StaffMailState.Failed)
+                StaffMailSendLog.Refused(logger, operation.Id, CorrespondenceMailbox!.Id, operation.FailureCode);
         }
         catch (StaffAuthorizationException)
         {
