@@ -1391,61 +1391,85 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     /// <summary>
-    /// Once the Audit exists, the Inspection report already sent is opened,
-    /// never generated again (operator, 1 October 2026): neither the report
-    /// nor a companion document freezes on the primary work, and a companion
-    /// addressed to the Audit's work never attaches to the Inspection's
-    /// generation.
+    /// Once the Audit exists, the Inspection report already sent is generated
+    /// again on its own work (operator, 2 October 2026): the new generation
+    /// supersedes only the Inspection's earlier one, the Audit's stays
+    /// current, and a companion addressed to the Audit's work never attaches
+    /// to the Inspection's generation.
     /// </summary>
     [Fact]
-    public async Task TheInspectionReportSentAfterTheAuditIsNeverGeneratedAgain()
+    public async Task TheInspectionReportSentAfterTheAuditIsGeneratedAgainOnItsOwnWork()
     {
         await using var harness = await Harness.CreateAsync();
-        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+        var inspection = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
             .ExecuteAsync(harness.Request(), CancellationToken.None);
-        var inspectionGenerationId = report.Generation!.Id;
-        await GiveAuditAsync(harness.Factory, harness.CaseId, Harness.StartUtc);
+        var inspectionGenerationId = inspection.Generation!.Id;
+        var auditWorkId = await GiveAuditAsync(harness.Factory, harness.CaseId, Harness.StartUtc);
         await LinkInspectionSentEvidenceAsync(harness.Factory, harness.CaseId, Harness.StartUtc);
+        harness.UseAuditWork(auditWorkId);
+        var audit = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(operationKey: "case-report-audit"), CancellationToken.None);
+        Assert.Equal(auditWorkId, audit.Generation!.WorkId);
 
-        foreach (var request in new[]
-        {
-            harness.Request(operationKey: "case-report-inspection-again") with { Work = CaseWorkSelector.Primary },
-            harness.Request(
-                CaseReportArtifactKind.FeeNote,
-                "case-report-inspection-fee",
-                targetGenerationId: inspectionGenerationId) with { Work = CaseWorkSelector.Primary },
-            // The current work is the Audit's, so the Inspection's generation is not its own.
-            harness.Request(
-                CaseReportArtifactKind.FeeNote,
-                "case-report-audit-fee",
-                targetGenerationId: inspectionGenerationId),
-        })
-        {
-            var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
-                    .ExecuteAsync(request, CancellationToken.None));
-            Assert.Equal("The case report generation is unavailable.", refusal.Message);
-        }
+        // The current work is the Audit's, so the Inspection's generation is not its own.
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                .ExecuteAsync(
+                    harness.Request(
+                        CaseReportArtifactKind.FeeNote,
+                        "case-report-audit-fee",
+                        targetGenerationId: inspectionGenerationId),
+                    CancellationToken.None));
+        Assert.Equal("The case report generation is unavailable.", refusal.Message);
 
-        Assert.Single(await harness.ArtifactRowsAsync());
+        // The next day's report is dated afresh, so it is new material.
+        var nextDay = Harness.StartUtc.AddDays(1);
+        var nextDayLease = await new AcquireCaseEditLease(
+                new EfCaseWorkflowStore(harness.Factory, Harness.ClockAt(nextDay)))
+            .ExecuteAsync(
+                new(harness.CaseId, 1, harness.StaffActor, "lease-inspection-again"),
+                CancellationToken.None);
+        var again = await harness.Generate(
+                new RecordingCustody(harness), new RecordingRenderer(harness), store: harness.StoreAt(nextDay))
+            .ExecuteAsync(
+                harness.Request(operationKey: "case-report-inspection-again") with
+                {
+                    LeaseToken = nextDayLease.Token,
+                    Work = CaseWorkSelector.Primary,
+                },
+                CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, again.Outcome);
+        Assert.Equal(harness.CaseId, again.Generation!.WorkId);
+        // Each work's rows are its own: the Inspection's earlier generation is
+        // superseded within the primary work, the Audit's untouched.
+        var inspectionRows = await harness.Store.ListAsync(
+            harness.StaffActor, harness.CaseId, CaseWorkSelector.Primary, CancellationToken.None);
+        Assert.Equal(again.Generation.Id, Assert.Single(inspectionRows, row => row.Id == inspectionGenerationId).SupersededById);
+        var auditRow = Assert.Single(await harness.GenerationRowsAsync(), row => row.Id == audit.Generation.Id);
+        Assert.Null(auditRow.SupersededById);
+        Assert.Equal(CaseReportGenerationState.Confirmed, auditRow.State);
     }
 
     /// <summary>
     /// The Case as Create audit leaves it: an Audit work beside the primary
-    /// one, which keeps the Inspection report's own facts.
+    /// one, which keeps the Inspection report's own facts. Returns the Audit
+    /// work's id.
     /// </summary>
-    internal static async Task GiveAuditAsync(
+    internal static async Task<Guid> GiveAuditAsync(
         IDbContextFactory<PegasusDbContext> factory, Guid caseId, DateTimeOffset createdAtUtc)
     {
         await using var context = await factory.CreateDbContextAsync();
+        var auditWorkId = Guid.NewGuid();
         context.CaseWorks.Add(new CaseWorkEntity
         {
-            Id = Guid.NewGuid(),
+            Id = auditWorkId,
             CaseId = caseId,
             Kind = CaseWorkKinds.Audit,
             CreatedAtUtc = createdAtUtc,
         });
         await context.SaveChangesAsync();
+        return auditWorkId;
     }
 
     /// <summary>The Inspection report's Sent evidence, linked to the primary work once the Audit exists.</summary>
@@ -2264,6 +2288,9 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Accepts a different Engineer's Value, a material change.</summary>
         public void AcceptEngineerValue(decimal value) => snapshotSource.AcceptEngineerValue(value);
 
+        /// <summary>The current work's inputs are read from the Audit's work from now on.</summary>
+        public void UseAuditWork(Guid auditWorkId) => snapshotSource.AuditWorkId = auditWorkId;
+
         /// <summary>Types the three boxes with no basis card, so no applied valuation row exists.</summary>
         public void TypeValues(decimal retail, decimal trade, decimal engineer) =>
             snapshotSource.TypeValues(retail, trade, engineer);
@@ -2718,14 +2745,18 @@ public sealed class CaseReportGenerationPersistenceTests
         public void TransformAssessment(Func<CaseAssessmentProjection, CaseAssessmentProjection> revise) =>
             transform = revise;
 
+        /// <summary>The Audit work, once the test gives the Case one; the current work is then the Audit's.</summary>
+        public Guid? AuditWorkId { get; set; }
+
         public Task<CaseReportFreezeInputs?> GetAsync(
             Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             var current = transform?.Invoke(assessment) ?? assessment;
+            // The primary work's id is the Case's.
+            var workId = work == CaseWorkSelector.Current && AuditWorkId is { } auditWorkId ? auditWorkId : caseId;
             return Task.FromResult<CaseReportFreezeInputs?>(
                 requestedCaseId == caseId
-                    // The seeded Case has only its primary work, whose id is the Case's.
-                    ? new(projection with { Assessment = current }, Readiness(current), "RPT31001", 1) { WorkId = caseId }
+                    ? new(projection with { Assessment = current }, Readiness(current), "RPT31001", 1) { WorkId = workId }
                     : null);
         }
 

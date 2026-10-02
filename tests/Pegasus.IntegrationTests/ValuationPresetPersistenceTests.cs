@@ -317,6 +317,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
         var guideStamp = (await harness.Valuations.ReadBasisAsync(
             caseId,
+            CaseWorkSelector.Current,
             guide.ValuationId,
             CancellationToken.None)).GuideValuationStampUtc;
 
@@ -440,6 +441,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         // re-applying reads them back instead of resolving the preset again.
         var recordedBasis = await harness.Valuations.ReadBasisAsync(
             caseId,
+            CaseWorkSelector.Current,
             guide.ValuationId,
             CancellationToken.None);
         Assert.Equal(

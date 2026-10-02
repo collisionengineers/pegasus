@@ -129,15 +129,6 @@ public sealed class EfCaseReportDeliveryPreparationStore(
         var now = timeProvider.GetUtcNow();
         CaseMutationGuard.Require(
             workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, now);
-        // The Inspection report already sent once the Audit exists is never
-        // prepared again (operator, 1 October 2026); a replay above returned
-        // the preparation it recorded.
-        if (request.Work == CaseWorkSelector.Primary
-            && await CaseWorkScope.PrimaryReportSentAfterAuditAsync(context, request.CaseId, cancellationToken)
-                .ConfigureAwait(false))
-        {
-            throw new InvalidOperationException("The case report generation is unavailable.");
-        }
 
         var entity = new CaseReportDeliveryIntentEntity
         {

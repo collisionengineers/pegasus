@@ -671,6 +671,57 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(3, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
     }
 
+    /// <summary>
+    /// An estimate act from the Inspection view once the Audit exists writes
+    /// the Inspection's own specification (operator, 2 October 2026); the
+    /// Audit's is left exactly as it was.
+    /// </summary>
+    [Fact]
+    public async Task APrimaryEstimateActOnAnAuditedCaseChangesTheInspectionSpecificationOnly()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("primary-estimate-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var save = new SaveEstimate(
+            harness.RepairSpecifications, new EfAiJobStore(harness.Factory, harness.Clock), harness.Clock);
+        EstimateLineInput[] lines = [new("repair", null, "Repair door", 4m, null, false, null, null, "judgement", null)];
+        SaveEstimateRequest Created(CaseEditLease lease, string operationKey) => new(
+            caseId, lease.Version, engineer, operationKey, "Recorded the repairer's estimate.", lease.Token, null,
+            new("Repairer", 80m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            lines, new(RepairSpecificationSourceRoute.Manual, null, null, null));
+
+        var inspectionLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "primary-estimate-lease-1");
+        var inspection = await save.ExecuteAsync(
+            Created(inspectionLease, "primary-estimate-inspection"), CancellationToken.None);
+        var auditWorkId = await Reports.CaseReportGenerationPersistenceTests.GiveAuditAsync(
+            harness.Factory, caseId, harness.Clock.GetUtcNow());
+        var auditLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "primary-estimate-lease-2");
+        var audit = await save.ExecuteAsync(Created(auditLease, "primary-estimate-audit"), CancellationToken.None);
+
+        var editLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "primary-estimate-lease-3");
+        await save.ExecuteAsync(
+            new SaveEstimateRequest(
+                caseId, editLease.Version, engineer, "primary-estimate-edit", "Repriced at the agreed rate.",
+                editLease.Token, inspection.SpecificationId, inspection.Details with { LabourRate = 55m },
+                lines, inspection.Source)
+            {
+                Work = CaseWorkSelector.Primary,
+            },
+            CancellationToken.None);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var rows = await context.CaseRepairSpecifications.AsNoTracking()
+            .Where(item => item.Work.CaseId == caseId)
+            .ToDictionaryAsync(item => item.Id);
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(caseId, rows[inspection.SpecificationId].WorkId);
+        Assert.Equal(55m, rows[inspection.SpecificationId].LabourRate);
+        Assert.True(rows[inspection.SpecificationId].IsCurrent);
+        Assert.Equal(auditWorkId, rows[audit.SpecificationId].WorkId);
+        Assert.Equal(80m, rows[audit.SpecificationId].LabourRate);
+        Assert.True(rows[audit.SpecificationId].IsCurrent);
+    }
+
     [Fact]
     public async Task NamedEstimatesUseReportsFreshnessWhenReselectingOrChangingCurrent()
     {

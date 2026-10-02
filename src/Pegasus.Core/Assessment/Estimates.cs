@@ -1056,6 +1056,9 @@ public sealed record SaveEstimateRequest(
 
     /// <summary>What this specification says about the one it supplements (v28 P20); null clears it.</summary>
     public RepairSpecificationSupplementary? Supplementary { get; init; }
+
+    /// <summary>The work whose specification this writes (operator, 2 October 2026).</summary>
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
 }
 
 public sealed record DuplicateEstimateRequest(
@@ -1066,7 +1069,10 @@ public sealed record DuplicateEstimateRequest(
     string Reason,
     string EditLeaseToken,
     Guid EstimateId)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken)
+{
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 /// <summary>The reason is the discard reason and is recorded on the estimate.</summary>
 public sealed record DiscardEstimateRequest(
@@ -1077,7 +1083,10 @@ public sealed record DiscardEstimateRequest(
     string Reason,
     string EditLeaseToken,
     Guid EstimateId)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken)
+{
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 public sealed record SetCurrentEstimateRequest(
     Guid CaseId,
@@ -1087,7 +1096,10 @@ public sealed record SetCurrentEstimateRequest(
     string Reason,
     string EditLeaseToken,
     Guid EstimateId)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken)
+{
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 public interface ISaveEstimate
 {
