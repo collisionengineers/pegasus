@@ -441,7 +441,7 @@ public sealed class ComposeModel(
     private static bool TryNormalizeCaseQueryValue(string? value, out string? normalized)
     {
         normalized = value?.Trim();
-        return string.IsNullOrWhiteSpace(normalized) || normalized.Length <= 300;
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 300;
     }
 
     private static bool TryNormalizeCaseReference(string? value, out string? normalized)
