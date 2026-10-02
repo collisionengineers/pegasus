@@ -107,7 +107,7 @@
                     </div>
                     <div class="dialog-foot">
                         <button type="button" class="btn" data-dialog-close>Cancel</button>
-                        <button type="submit" class="btn btn--primary">@Frame.PlaceOnHold</button>
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Placing" class="btn btn--primary">@Frame.PlaceOnHold</button>
                     </div>
                 </form>
             </section>
@@ -180,7 +180,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--danger">Create linked replacement</button>
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--danger">Create linked replacement</button>
                 </div>
             </form>
         </section>
@@ -235,7 +235,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--danger btn--danger-solid">@OperatorLabels.CaseWorkspace.CloseCase</button>
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Closing" class="btn btn--danger btn--danger-solid">@OperatorLabels.CaseWorkspace.CloseCase</button>
                 </div>
             </form>
         </section>
@@ -303,12 +303,12 @@
             <div class="dialog-foot">
                 @if (Model.CanAssignToMe)
                 {
-                    <button type="submit" form="case-assign-to-me-form" class="btn">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Assigning" form="case-assign-to-me-form" class="btn">
                         <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
                         <span>@Frame.AssignToMe</span>
                     </button>
                 }
-                <button type="submit" form="case-handoff-form" class="btn btn--primary">@CaseWorkspaceLabels.HandToEngineer</button>
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.HandingOver" form="case-handoff-form" class="btn btn--primary">@CaseWorkspaceLabels.HandToEngineer</button>
             </div>
         </section>
     </div>
@@ -364,7 +364,7 @@
                             <input id="report-sent-reason-@evidence.EvidenceId" name="reason" required maxlength="500" />
                         </div>
                         <div class="button-row">
-                            <button type="submit" class="btn btn--primary">Confirm detected evidence</button>
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Linking" class="btn btn--primary">Confirm detected evidence</button>
                         </div>
                     </form>
                 }
@@ -400,7 +400,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--primary" data-dialog-initial-focus>
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--primary" data-dialog-initial-focus>
                         <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
                         <span>@Frame.CreateAudit</span>
                     </button>

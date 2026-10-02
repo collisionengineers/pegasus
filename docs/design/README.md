@@ -465,7 +465,9 @@ There is no product-wide motion system and no approved duration or easing
 tokens. Hover and focus state transitions are 140ms (the prototype's
 `.13–.14s ease`); dialog and toast
 entrance is a single opacity/translate step; both are removed under reduced
-motion. Marketing scroll reveals, staggered entrances, hover scaling and CTA
+motion. The one spin (`pegasus-spin`) turns the Refresh icon, an action
+button's busy ring and a loading viewer. It decorates words that already say
+what is happening, so reduced motion stops it and loses nothing. Marketing scroll reveals, staggered entrances, hover scaling and CTA
 lift are excluded. Do not invent duration or easing tokens during
 implementation.
 
@@ -846,6 +848,7 @@ deleted in wave 5.
 | `page-header`, `page-title`, `eyebrow`, `page-actions` | Header row |
 | `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (dismiss, section fold) |
 | `freshness`, `freshness-status`, `health-dot`, `refresh-button` (`Shared/_RefreshButton`) | Page freshness line and the one Refresh control every surface composes; the label becomes "Refreshing" and the icon spins while a refresh runs (`prefers-reduced-motion` keeps the label and disabled state) |
+| `busy-ring`, `[data-busy]`, `[data-busy-aside]`, `data-busy-label`, `data-busy-download` | Action feedback (site.js `pegasusBusy`): from the press until the result arrives the pressed button or link shows a ring and its busy words (`OperatorLabels.Busy`), keeping its colours; the form's other submit buttons stand aside. A download link or form fetches its file and stays busy until it arrives |
 | `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
