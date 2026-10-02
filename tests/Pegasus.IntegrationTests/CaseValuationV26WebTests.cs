@@ -967,6 +967,39 @@ public sealed class CaseValuationV26WebTests
         Assert.Empty(store.Saves);
     }
 
+    /// <summary>
+    /// A vehicle older than Glass's values answers the card's own approved
+    /// sentence (operator, 2 October 2026), not "unavailable", and files nothing.
+    /// </summary>
+    [Fact]
+    public async Task AGlassesVehicleTooOldToValueAnswersItsOwnSentenceAndFilesNothing()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var mva = ScriptedGlassFor42000Miles();
+        mva.Set("GET /three-phase-vehicle/get-values", new(HttpStatusCode.OK, GlassProviderFixture.ValuationVehicleAge));
+        var filing = new RecordingReportFiling();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            ConnectGlass(services, mva);
+            services.AddScoped<IFileGuideValuationReport>(_ => filing);
+        });
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Glasses, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("vehicle_age", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal(
+            "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.",
+            answer.RootElement.GetProperty("message").GetString());
+        Assert.Equal(0, mva.Count("GET /index/create-new-vehicle"));
+        Assert.False(filing.Filed.Task.IsCompleted);
+        Assert.Empty(store.Saves);
+    }
+
     /// <summary>The scripted Glass's, answering the Case's own 42,000 miles.</summary>
     private static ScriptedGlass ScriptedGlassFor42000Miles()
     {

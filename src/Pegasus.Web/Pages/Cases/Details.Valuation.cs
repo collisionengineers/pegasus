@@ -710,7 +710,8 @@ public sealed partial class DetailsModel
     /// the chosen month, for the card to show in its boxes. Nothing is written
     /// here and the edit session carries on as it was; the Case save records the
     /// card. The card's script asks for JSON — the figures, "unavailable" while
-    /// the source has no connected provider, or a refusal and its message — so
+    /// the source has no connected provider, "vehicle_age" when the source does
+    /// not value a vehicle of this age, or a refusal and its message — so
     /// the page is never redrawn and nothing unsaved is put at risk. Any other
     /// caller is answered on the Valuation section.
     /// </summary>
@@ -779,6 +780,14 @@ public sealed partial class DetailsModel
                 return new JsonResult(new { status = "unavailable" });
             }
             TempData["CaseError"] = CaseWorkspaceLabels.Valuation.Unavailable(source);
+        }
+        catch (GuideValuationVehicleAgeException)
+        {
+            if (json)
+            {
+                return new JsonResult(new { status = "vehicle_age", message = CaseWorkspaceLabels.Valuation.VehicleAgeNotValued });
+            }
+            TempData["CaseError"] = CaseWorkspaceLabels.Valuation.VehicleAgeNotValued;
         }
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException

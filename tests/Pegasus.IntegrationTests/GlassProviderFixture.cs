@@ -106,6 +106,11 @@ internal static class GlassProviderFixture
     /// <summary>The portal's "valuation not possible": JSON where the page would be.</summary>
     public const string ValuationNotPossible = "{\"success\":false,\"errormsg\":\"Valuation not possible\"}";
 
+    /// <summary>The portal's refusal of a vehicle older than it values, worded as its dialog shows it.</summary>
+    public const string ValuationVehicleAge = "{\"success\":false,\"errormsg\":\"Thank you for your valuation request, unfortunately"
+        + " the vehicle you have requested is not valued due to the age you have specified. Glass's currently have a rolling"
+        + " 20 year valuation period for Cars & Motorcycles and a 15 year rolling valuation period for Light Commercial Vehicles.\"}";
+
     /// <summary>The print's answer: one download link for the report.</summary>
     public static string ReportLink(string path = ReportPath) =>
         "﻿<h4>Please click on the link below to open or save the report.</h4>"

@@ -2621,6 +2621,12 @@
                         }
                         return;
                     }
+                    // A source that does not value a vehicle of this age says
+                    // so as information: nothing is broken (operator, 2 October 2026).
+                    if (answer && answer.status === 'vehicle_age') {
+                        showNotice(notice, true, answer.message, 'info');
+                        return;
+                    }
                     showNotice(notice, true, answer && answer.status === 'refused' ? answer.message : null);
                 }).catch(function () {
                     showNotice(notice, true, null);
@@ -2645,12 +2651,17 @@
     // The card's notice: the approved unavailable sentence, or a refusal's own
     // words in its place when the server gave some. A source known to have no
     // provider keeps its notice standing, and it returns to the sentence when
-    // the words go.
-    function showNotice(notice, visible, message) {
+    // the words go. A connected source's notice is a danger notice unless the
+    // tone says the words are information.
+    function showNotice(notice, visible, message, tone) {
         if (!notice) {
             return;
         }
         var standing = notice.hasAttribute('data-valuation-not-connected');
+        if (!standing) {
+            notice.classList.toggle('notice--info', tone === 'info');
+            notice.classList.toggle('notice--danger', tone !== 'info');
+        }
         var unavailable = notice.querySelector('[data-valuation-unavailable]');
         var refused = notice.querySelector('[data-valuation-refused]');
         if (refused) {

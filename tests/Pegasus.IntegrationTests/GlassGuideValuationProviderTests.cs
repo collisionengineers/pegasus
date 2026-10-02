@@ -11,7 +11,7 @@ namespace Pegasus.IntegrationTests;
 /// Glass's as a guide valuation source (ADR-0060) against the scripted Market
 /// Value Assessor: the figures, the month and mileage it is asked for, the
 /// stock save and the report the portal itself makes, and the one answer —
-/// unavailable — every failure gives the card.
+/// unavailable — every failure gives the card, but for a vehicle too old to value.
 /// </summary>
 public sealed class GlassGuideValuationProviderTests
 {
@@ -135,6 +135,27 @@ public sealed class GlassGuideValuationProviderTests
         Assert.Equal(0, harness.Mva.Count("GET /three-phase-vehicle/refresh-vrm-count"));
         Assert.Contains(harness.Logger.Messages, message => message.Contains(code, StringComparison.Ordinal));
         Assert.DoesNotContain(harness.Logger.Messages, message => message.Contains(Registration, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A vehicle older than Glass's values is not a failure to report: the
+    /// card says so (operator, 2 October 2026). The log names it by its code
+    /// and never holds the provider's message.
+    /// </summary>
+    [Fact]
+    public async Task AVehicleTooOldToValueIsItsOwnAnswerAndSavesNothingToTheStockList()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set("GET /three-phase-vehicle/get-values", new(HttpStatusCode.OK, ValuationVehicleAge));
+
+        var refused = await Assert.ThrowsAsync<GuideValuationVehicleAgeException>(() =>
+            harness.Provider.GetAsync(Request(), default));
+
+        Assert.Equal(ValuationSource.Glasses, refused.ValuationSource);
+        Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Contains(harness.Logger.Messages, message =>
+            message.Contains("glass.valuation.vehicle_age success=False errormsg=present", StringComparison.Ordinal));
+        Assert.DoesNotContain(harness.Logger.Messages, message => message.Contains("rolling", StringComparison.Ordinal));
     }
 
     [Fact]
