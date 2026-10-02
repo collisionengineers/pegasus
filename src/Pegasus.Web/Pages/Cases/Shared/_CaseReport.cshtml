@@ -88,9 +88,14 @@
 
     // A delivery may attach a subset of the generation's documents (v28 P22),
     // so what it needs is a confirmed report, not every artifact confirmed.
+    // A preparation whose send failed or was cancelled is spent: it is not
+    // offered for sending again, and a fresh preparation may be made.
+    var preparationSpent = preparation?.LatestSendState
+        is Pegasus.Core.Operations.StaffMailState.Failed
+        or Pegasus.Core.Operations.StaffMailState.Cancelled;
     var canPrepareDelivery = leaseForReport
         && generation is not null
-        && preparation is null
+        && (preparation is null || preparationSpent)
         && generation.State == CaseReportGenerationState.Confirmed
         && reportArtifact?.Status == CaseReportArtifactStatus.Confirmed;
     var repairSpecArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
@@ -424,7 +429,7 @@
                     </button>
                 </form>
             }
-            @if (preparation is not null && !Model.AssessmentIsReadOnly)
+            @if (preparation is not null && !preparationSpent && !Model.AssessmentIsReadOnly)
             {
                 <dl class="detail-list" data-report-delivery>
                     <div><dt>@ReportLabels.DeliveryPrepared</dt><dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd></div>

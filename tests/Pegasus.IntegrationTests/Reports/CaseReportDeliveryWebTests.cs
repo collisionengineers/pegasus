@@ -884,9 +884,57 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Empty(prepare.Requests);
     }
 
+    /// <summary>
+    /// A preparation whose send failed is spent: Send is not offered for it
+    /// again and Prepare delivery is offered instead, so a fresh preparation
+    /// can be sent once the cause is put right. An unsent preparation keeps
+    /// its Send and offers no second Prepare.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(StaffMailState.Failed)]
+    public async Task AFailedSendSpendsThePreparationAndOffersPrepareDeliveryAgain(
+        StaffMailState? latestSendState)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var preparationId = Guid.NewGuid();
+        var generation = new FakeCurrentGeneration(caseId, includeFeeNote: false);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendPreparedReport: new RecordingSendPreparedReport(StaffMailState.Failed))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(generation);
+                services.RemoveAll<ICaseReportDeliveryPreparationStore>();
+                services.AddSingleton<ICaseReportDeliveryPreparationStore>(
+                    new FakeDeliveryPreparation(caseId, generation.Record.Id, preparationId, latestSendState));
+            }));
+        using var client = Client(factory);
+
+        var html = await EnterEditModeAsync(client, caseId);
+
+        if (latestSendState is StaffMailState.Failed)
+        {
+            Assert.DoesNotContain("data-send-prepared", html, StringComparison.Ordinal);
+            Assert.Contains("handler=PrepareReportDelivery", FormHtml(html, "PrepareReportDelivery"), StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Contains("data-send-prepared", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("handler=PrepareReportDelivery", html, StringComparison.Ordinal);
+        }
+    }
+
     [Theory]
     [InlineData(StaffMailState.Submitted)]
     [InlineData(StaffMailState.Unknown)]
+    [InlineData(StaffMailState.Failed)]
     public async Task SendPreparedReportDerivesStableOperationKeyAndDoesNotClaimSent(
         StaffMailState returnedState)
     {
@@ -934,9 +982,12 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(ActorKind.Staff, request.Actor.Kind);
 
         var reloaded = await GetHtmlAsync(client, response.Headers.Location!.OriginalString!);
-        var expectedMessage = returnedState == StaffMailState.Submitted
-            ? Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendAccepted
-            : Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown;
+        var expectedMessage = returnedState switch
+        {
+            StaffMailState.Submitted => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendAccepted,
+            StaffMailState.Failed => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendFailed,
+            _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown
+        };
         Assert.Contains(expectedMessage, reloaded, StringComparison.Ordinal);
         Assert.DoesNotContain(
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendObservedSent,
@@ -1385,7 +1436,8 @@ public sealed partial class AssessmentReportDraftWebTests
         }
     }
 
-    private sealed class FakeDeliveryPreparation(Guid caseId, Guid generationId, Guid preparationId)
+    private sealed class FakeDeliveryPreparation(
+        Guid caseId, Guid generationId, Guid preparationId, StaffMailState? latestSendState = null)
         : ICaseReportDeliveryPreparationStore
     {
         private readonly CaseReportDeliveryPreparationRecord record = new(
@@ -1396,7 +1448,8 @@ public sealed partial class AssessmentReportDraftWebTests
             CaseReportGenerationState.Confirmed,
             true,
             1,
-            []);
+            [],
+            LatestSendState: latestSendState);
 
         public Task<CaseReportDeliveryPreparationRecord> PrepareAsync(
             PrepareCaseReportDeliveryCommand command,
