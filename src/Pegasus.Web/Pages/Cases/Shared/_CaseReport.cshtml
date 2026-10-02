@@ -25,28 +25,22 @@
     var workflow = details.Workflow;
     var caseId = workflow.CaseId;
     var editing = Model.SectionIsEditable("report");
-    // One report per work (v29 P4): the Inspection view shows the
-    // Inspection's sent report and nothing to generate or deliver; the Audit
+    // One report per work (v29 P4): each view's card is its own work's report,
+    // generated, prepared and sent under the same rules, the Inspection's
+    // before and after it is sent (operator, 1 and 2 October 2026). The Audit
     // view shows the Audit report alone (operator, 2 October 2026).
-    // While the Inspection report still awaits sending after Create audit
-    // (operator, 1 October 2026), the Inspection view generates, prepares and
-    // sends it on its own work, under the session's lease or one claimed for
-    // the generation; its values stay read-only.
-    var inspectionView = Model.IsInspectionView;
-    var inspectionOpen = Model.InspectionReportAwaitsSend;
-    var auditView = !inspectionView && Model.Works is { HasAudit: true };
-    var generation = inspectionView ? Model.InspectionReportGeneration : Model.CurrentReportGeneration;
-    var preparation = inspectionView && !inspectionOpen ? null : Model.CurrentDeliveryPreparation;
+    var auditView = !Model.IsInspectionView && Model.Works is { HasAudit: true };
+    var generation = Model.CurrentReportGeneration;
+    var preparation = Model.CurrentDeliveryPreparation;
     var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
         ? CaseReportDeliveryPolicy.SuggestedReview(suggestions)
         : new ReportRecipientReview([], []);
     var labels = CaseWorkspaceLabels.Editors.Report;
-    var draftPreparation = inspectionOpen ? Model.InspectionReportDraftPreparation : Model.ReportDraftPreparation;
-    var draftCondition = inspectionOpen ? Model.InspectionReportDraftCondition : Model.ReportDraftCondition;
-    var offersHead = (inspectionOpen || !Model.AssessmentIsReadOnly) && draftPreparation is not null;
-    // The lease a Report command runs under: the section's edit, or the
-    // session's lease for the Inspection report after Create audit.
-    var leaseForReport = inspectionOpen ? Model.IsEditing : editing;
+    var draftPreparation = Model.ReportDraftPreparation;
+    var draftCondition = Model.ReportDraftCondition;
+    var offersHead = !Model.AssessmentIsReadOnly && draftPreparation is not null;
+    // The lease a Report command runs under: the section's edit.
+    var leaseForReport = editing;
     var reportArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
         artifact.Kind == CaseReportArtifactKind.AssessmentReport);
     // Where the report's file stands, as Core reads it from the row.
@@ -79,9 +73,9 @@
     // note once it is confirmed (the Fee tab's own rule).
     var cardReport = reportArtifact is { Filing: CaseReportArtifactFiling.Stored } ? reportArtifact : null;
     var cardFeeNote = feeNoteArtifact is { Status: CaseReportArtifactStatus.Confirmed } ? feeNoteArtifact : null;
-    // The working draft is the current work's projection; the Inspection
-    // report after Create audit has its generated file to open instead.
-    var canPreview = offersHead && !inspectionOpen && draftCondition is null;
+    // The working draft is the current work's projection; the Inspection view
+    // has its generated file to open instead.
+    var canPreview = offersHead && !Model.IsInspectionView && draftCondition is null;
     var generatedAt = generation is null
         ? null
         : Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm", CultureInfo.InvariantCulture);
@@ -287,30 +281,23 @@
             <div class="pv-meta">
                 <div class="pt" data-report-title>@Model.ReportTitle</div>
                 <div class="ps" data-report-status>
-                    @if (inspectionView && !inspectionOpen)
+                    @if (auditView)
                     {
-                        <span>@Model.InspectionSentLine</span>
+                        <span class="mono" data-report-reference>@Model.AuditReportReference · </span>
+                    }
+                    @if (generation is null)
+                    {
+                        <span>@Words.NoGeneration</span>
                     }
                     else
                     {
-                        @if (auditView)
+                        @* When it was generated and where its file stands.
+                           A report that was never drawn has no date to give. *@
+                        @if (reportFiling != CaseReportArtifactFiling.NotProduced)
                         {
-                            <span class="mono" data-report-reference>@Model.AuditReportReference · </span>
+                            <span>@Words.Generated <b>@generatedAt</b> · </span>
                         }
-                        @if (generation is null)
-                        {
-                            <span>@Words.NoGeneration</span>
-                        }
-                        else
-                        {
-                            @* When it was generated and where its file stands.
-                               A report that was never drawn has no date to give. *@
-                            @if (reportFiling != CaseReportArtifactFiling.NotProduced)
-                            {
-                                <span>@Words.Generated <b>@generatedAt</b> · </span>
-                            }
-                            <span class="status status--plain @FilingTone(reportFiling)" data-report-filing>@ReportLabels.Filing(reportFiling)</span>
-                        }
+                        <span class="status status--plain @FilingTone(reportFiling)" data-report-filing>@ReportLabels.Filing(reportFiling)</span>
                     }
                 </div>
             </div>
@@ -437,7 +424,7 @@
                     </button>
                 </form>
             }
-            @if (preparation is not null && (inspectionOpen || !Model.AssessmentIsReadOnly))
+            @if (preparation is not null && !Model.AssessmentIsReadOnly)
             {
                 <dl class="detail-list" data-report-delivery>
                     <div><dt>@ReportLabels.DeliveryPrepared</dt><dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd></div>

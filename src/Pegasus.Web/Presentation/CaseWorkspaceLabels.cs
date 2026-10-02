@@ -45,8 +45,6 @@ public static class CaseWorkspaceLabels
         public const string Editing = "Editing";
         public const string Archived = "Archived";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
-        /// <summary>The Inspection view's section heads once the Case has its Audit (v29 P3).</summary>
-        public const string ReadOnlyAuditCreated = "Read-only · Audit created";
         /// <summary>The aside's Views card and its two rows, present once the Case has its Audit (v29 option 4).</summary>
         public const string Views = "Views";
         public const string InspectionView = "Inspection";

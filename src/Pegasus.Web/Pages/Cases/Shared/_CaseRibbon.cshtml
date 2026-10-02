@@ -39,11 +39,11 @@
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     // The confirmation is a lease-carrying Core action; without detected
     // evidence there is nothing to confirm (D10: a send is never asserted here).
-    // The Inspection view marks the Inspection report sent on its own work
-    // while it awaits sending after Create audit (operator, 1 October 2026).
+    // The Inspection view marks the Inspection report sent on its own work,
+    // whatever the Case's state (operator, 1 and 2 October 2026).
     var canConfirmReportSent = mayAct
         && details.AvailableReportSentEvidence.Count > 0
-        && (Model.InspectionReportAwaitsSend || state == CaseLifecycleState.ReportPreparation);
+        && (Model.IsInspectionView || state == CaseLifecycleState.ReportPreparation);
     var canMarkCompleted = mayAct && state == CaseLifecycleState.PostReport;
     var canReturnToReview = mayActOnCaseData
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
@@ -147,6 +147,7 @@
                 <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
             </form>
             @* Script hides this and beats instead; without script it is
                how editing is kept. *@
@@ -155,6 +156,7 @@
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <button type="submit" class="btn btn--small">
                     <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
                     <span>@Frame.RenewEditing</span>
@@ -173,7 +175,7 @@
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
             </form>
             <span class="status status--navy status--plain case-edit-badge">@Frame.Editing</span>
-            @if (editingCaseData && details.Data is not null && !Model.IsInspectionView)
+            @if (editingCaseData && details.Data is not null)
             {
                 @* The Case form's default submit. With script it is the
                    commit Ctrl S and Enter reach, and the script hides it;
@@ -189,14 +191,14 @@
                 <span>@Frame.Done</span>
             </button>
         }
-        else if (!Model.IsInspectionView && (!Model.IsPostReportReadOnly || Model.ColleagueIsEditing)
+        else if ((!Model.IsPostReportReadOnly || Model.ColleagueIsEditing)
             && (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff))
         {
             @* A colleague's staff lease can be taken over by an authorised
                editor; the operation rotates its token and records the prior
                holder. The viewer's own lease is resumed, never taken over.
-               The Inspection view offers no Edit (v29 P3), and neither does
-               a Completed or Query Case: its sections read, and Return to
+               Both views offer Edit (operator, 2 October 2026); a Completed
+               or Query Case does not: its sections read, and Return to
                Engineer is an Actions-menu item that needs no session. A
                colleague's lease there is still offered Take over
                (operator, 29 September 2026), since the Actions menu is
@@ -210,6 +212,7 @@
                     <input type="hidden" name="takeOver" value="true" />
                 }
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <button type="submit" class="btn btn--dark" data-case-edit>
                     <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
                     <span>@(Model.ColleagueIsEditing ? Frame.TakeOver : Frame.EditCase)</span>

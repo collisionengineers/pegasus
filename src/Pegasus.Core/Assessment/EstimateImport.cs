@@ -24,7 +24,11 @@ public sealed record ImportRawEstimateRequest(
     string Sha256,
     string OperationKey,
     string Name)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, ImportRawEstimate.ImportReason, EditLeaseToken);
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, ImportRawEstimate.ImportReason, EditLeaseToken)
+{
+    /// <summary>The work the estimate is imported into (operator, 2 October 2026).</summary>
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 public interface IImportRawEstimate
 {
@@ -231,7 +235,7 @@ public sealed class ImportRawEstimate(
         {
             throw new EstimateParseRejectedException("The Case does not hold the exact source the import names.");
         }
-        var existing = await estimates.ExecuteAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken);
+        var existing = await estimates.ExecuteAsync(request.CaseId, request.Work, cancellationToken);
         if (existing.FirstOrDefault(estimate =>
                 estimate.State != RepairSpecificationState.Discarded
                 && string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal)) is { } replayed)
@@ -280,6 +284,7 @@ public sealed class ImportRawEstimate(
             {
                 SelectedRateCardId = card?.Id,
                 SelectedRateCardVersion = card?.Version,
+                Work = request.Work,
             }),
             cancellationToken);
         return new(saved.SpecificationId);

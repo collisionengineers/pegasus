@@ -1541,6 +1541,64 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
+    /// An edit from the Inspection view once the Audit exists writes the
+    /// primary work only and moves nothing that is the Case's: its state, due
+    /// work, completeness and accepted deadline stay as the Audit has them
+    /// (operator, 2 October 2026). It stales the Inspection's report, never
+    /// the Audit's.
+    /// </summary>
+    [Fact]
+    public async Task APrimarySaveOnAnAuditedCaseWritesThePrimaryWorkOnly()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var auditWorkId = await Reports.CaseReportGenerationPersistenceTests.GiveAuditAsync(
+            harness.Factory, harness.CaseId, harness.TimeProvider.GetUtcNow());
+        var inspectionGenerationId = await SeedCurrentGenerationAsync(harness, initial.Version);
+        var auditGenerationId = await SeedCurrentGenerationAsync(harness, initial.Version, auditWorkId);
+        DateOnly? acceptedDeadline;
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            acceptedDeadline = (await context.Cases.SingleAsync(item => item.Id == harness.CaseId))
+                .AcceptedInspectionDeadline;
+        }
+
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "primary-save-lease");
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "primary-save") with
+            {
+                Work = CaseWorkSelector.Primary,
+                Overview = Overview("Jane Example") with { DueBy = new DateOnly(2031, 5, 18) },
+                Inspection = Inspection(CaseReportAddressTreatment.PhysicalVehicleLocation, "1 Depot Road") with
+                {
+                    InspectionDate = new DateOnly(2031, 5, 21),
+                    InspectionDeadline = new DateOnly(2031, 5, 25),
+                },
+                Completeness = new(false, false),
+            },
+            CancellationToken.None);
+
+        Assert.Equal(CaseLifecycleState.Review, saved.Data.State);
+        Assert.Equal(new DateOnly(2031, 5, 21), (await ReadEditableCaseDataAsync(harness)).InspectionDate);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.False(await context.CaseDataFields.AnyAsync(item => item.WorkId == auditWorkId));
+            Assert.False(await context.CaseAssessmentFields.AnyAsync(item => item.WorkId == auditWorkId));
+            Assert.False(await context.CaseDueWork.AnyAsync(item => item.CaseId == harness.CaseId));
+            var caseRow = await context.Cases.SingleAsync(item => item.Id == harness.CaseId);
+            Assert.True(caseRow.InstructionComplete);
+            Assert.True(caseRow.ImagesComplete);
+            Assert.Equal(acceptedDeadline, caseRow.AcceptedInspectionDeadline);
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId);
+            Assert.Equal(nameof(CaseLifecycleState.Review), workflow.State);
+            var generations = await context.Set<CaseReportGenerationEntity>()
+                .ToDictionaryAsync(item => item.Id, item => item.State);
+            Assert.Equal(nameof(CaseReportGenerationState.Stale), generations[inspectionGenerationId]);
+            Assert.Equal(nameof(CaseReportGenerationState.Confirmed), generations[auditGenerationId]);
+        }
+    }
+
+    /// <summary>
     /// A calculation records without the Case's mileage (operator, 26
     /// September 2026): its Engineer's Value row carries none.
     /// </summary>
@@ -2101,7 +2159,7 @@ public sealed class CaseWorkspacePersistenceTests
         return id;
     }
 
-    private static async Task<Guid> SeedCurrentGenerationAsync(Harness harness, long caseVersion)
+    private static async Task<Guid> SeedCurrentGenerationAsync(Harness harness, long caseVersion, Guid? workId = null)
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
         var generationId = Guid.NewGuid();
@@ -2109,7 +2167,7 @@ public sealed class CaseWorkspacePersistenceTests
         {
             Id = generationId,
             CaseId = harness.CaseId,
-            WorkId = harness.CaseId,
+            WorkId = workId ?? harness.CaseId,
             CaseVersion = caseVersion,
             SnapshotHash = new string('6', 64),
             SnapshotJson = ReportGenerationSnapshotFixture.Json(harness.CaseId, "workspace-mileage-source-generation"),

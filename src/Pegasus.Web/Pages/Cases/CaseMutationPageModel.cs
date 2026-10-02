@@ -652,7 +652,21 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     }
 
     protected RedirectToPageResult RedirectToDetails(Guid id) =>
-        RedirectToPage("/Cases/Details", new { id });
+        RedirectToPage("/Cases/Details", new { id, view = ReturnView });
+
+    /// <summary>
+    /// The view of the Case record a request returns to: the Inspection view
+    /// when the form posted from it carries its <c>view</c> field (or a GET
+    /// names it), else none, the default view (operator, 2 October 2026).
+    /// </summary>
+    protected string? ReturnView
+    {
+        get
+        {
+            var posted = Request.HasFormContentType ? Request.Form["view"].ToString() : string.Empty;
+            return DetailsModel.ViewRouteOf(string.IsNullOrEmpty(posted) ? Request.Query["view"].ToString() : posted);
+        }
+    }
 
     /// <summary>
     /// Redirects back into the Files section's Images tab: the tag, untag, and create-tag
@@ -663,7 +677,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         RedirectToPage(
             "/Cases/Details",
             pageHandler: null,
-            routeValues: new { id, section = "files" },
+            routeValues: new { id, section = "files", view = ReturnView },
             fragment: "case-files-images");
 
     /// <summary>

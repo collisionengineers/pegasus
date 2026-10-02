@@ -67,7 +67,7 @@ public sealed class TasksModel(
 
     /// <summary>The Notes section is where a note or a chase is read back.</summary>
     private RedirectToPageResult RedirectToNotes(Guid id) =>
-        RedirectToPage("/Cases/Details", new { id, section = "notes" });
+        RedirectToPage("/Cases/Details", new { id, section = "notes", view = ReturnView });
 
     public Task<IActionResult> OnPostRecordManualChaseAsync(
         Guid id,
@@ -131,7 +131,7 @@ public sealed class TasksModel(
                     evidenceId,
                     // The Inspection view marks the Inspection report sent on
                     // its own work once the Audit exists (operator, 1 October 2026).
-                    DetailsModel.ReportWorkOf(view)),
+                    DetailsModel.WorkOf(view)),
                 cancellationToken),
             "The exact retained report-Sent evidence was linked.",
             // ...and reads the outcome back where it was marked.

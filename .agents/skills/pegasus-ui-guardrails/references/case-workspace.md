@@ -53,26 +53,25 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   is ignored; a standalone Audit and a Triage Case have one view.
 - Do not add a view switch to the ribbon or the section row, and do not put the Audit reference on
   the ribbon. The Scroll/Tabs switch is unchanged.
-- **The Inspection view is read-only.** No Edit anywhere in it. Each editable section head shows
-  the approved `.gated` label "Read-only · Audit created" instead; Files and Notes carry no
-  label. Actions that need no Case lease (Add evidence, previews, downloads) stay; every
-  lease-requiring edit exists only in the Audit view. A lease holder at `?view=inspection` keeps
-  the ribbon's editing controls, but every section still renders read-only.
-- Carry `view` only where the Inspection view is reachable (Refresh, section links, previews,
-  lazy section loads, the Next action's links). Writes return to the default view.
+- **The Inspection view edits the Inspection's own values** (operator, 2 October 2026): the
+  same section-head Edit, the one Case lease and the one Save form as the Audit view, in the
+  same geometry. Do not reintroduce a read-only label or a per-view lease. A save there changes
+  nothing of the Case's state, due date, completeness or matching.
+- Carry `view` on everything the Inspection view renders that comes back to the Case: section
+  links, Refresh, previews, lazy section loads, the Next action's links, and every POST form
+  (hidden `view`), whose handler writes the view's work (`WorkOf(view)`) and returns to that view.
 - The Next action is the viewed work's (operator, 2 October 2026): the Inspection view states
   the Inspection report's own step and lists its blockers, nothing once that report is sent;
   the Audit view states the Audit's. Once the report is sent on an Inspection + Audit Case with
   no Audit, the step is Create audit with the Actions menu's own control (`data-dialog-open` or
   the `.menu-gated` span with its reason).
 - Report in the Audit view shows the Audit report alone (operator, 2 October 2026); the Views
-  card is the route to the Inspection report. In the Inspection view the card shows the sent
-  Inspection report with no generation or delivery. While the Inspection report is still to be
-  sent after Create audit (operator, 1 October 2026), the Inspection view's Report keeps the
-  Generate, Prepare delivery and Send controls for that report, under the session's lease, and
-  the Actions menu's Mark report sent takes its evidence; every form carries `view=inspection`
-  and acts on the Inspection's own work, never on the Case's state. Files shows the audit folder
-  chip after the Case folder chip, mirroring its states and tones.
+  card is the route to the Inspection report. In the Inspection view the card is the Inspection
+  report with its Generate, Prepare delivery and Send controls, before and after it is sent
+  (operator, 1 and 2 October 2026), and the Actions menu's Mark report sent takes its evidence;
+  every form carries `view=inspection` and acts on the Inspection's own work, never on the
+  Case's state. Files shows the audit folder chip after the Case folder chip, mirroring its
+  states and tones.
 - The words "View" and "Changed from Inspection" belonged to rejected options and are not used.
 
 ## Section order and ownership
@@ -291,7 +290,7 @@ Any Case UI change should be checked against:
 - read and edit modes when the feature is editable;
 - colleague-editing / blocked state when the change touches edit authority;
 - Scroll/Tabs if the change affects section presentation;
-- both views, and the Inspection view's read-only label, when the Case has an Audit.
+- both views, each editing its own work, when the Case has an Audit.
 
 A feature addition does not authorize moving existing fields/actions to make room. Fit the feature
 inside its owning section unless the task explicitly requests a layout redesign.
