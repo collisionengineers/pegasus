@@ -4,6 +4,23 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Intake data wipe — 2 October 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped for the maintenance window and read back `Stopped` at 09:08:23Z,
+  then resumed and read back `Running` at 09:09:29Z. The fresh dry run found
+  40 blobs (69,899,921 bytes) in `pegcustody252ow37gij/transient-intake` and
+  454 rows across 89 non-preserved tables in SQL `pegasus` on
+  `pegasus-prod-sql-252ow37gij` (3 Cases); the batch reported 455 affected
+  rows including the mail-boundary update. The committed mail cutoff is
+  `2026-10-02T09:08:51.6449061+00:00`; 39 effective tables and 686 preserved
+  rows remain. `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences`
+  were unchanged at 49/10/1. `ValuationPresets` and `EmailTemplates` remained
+  0/0, and built-in image tags 5/5. `authentication-ring`, `box-links`,
+  `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. Post-run script verification reported zero
+  blobs remaining and zero wiped tables holding rows.
+
 ## Release 80 — 2 October 2026 (deployment live)
 
 Release 80 deployed [PR 997](https://github.com/collisionengineers/pegasus/pull/997), the fix for the Audit regression the operator reported after Release 79:
