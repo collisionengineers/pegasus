@@ -302,6 +302,7 @@ public sealed record CaseWorkspaceEstimate(
             SelectedRateCardId = SelectedRateCardId,
             SelectedRateCardVersion = SelectedRateCardVersion,
             Supplementary = Supplementary,
+            Work = owner.Work,
         };
     }
 }
@@ -343,6 +344,11 @@ public sealed record CaseWorkspaceCompleteness(
 /// The save needs no reason (planning decision A, 13 September): its history
 /// line records what changed. A typed <paramref name="Reason"/> is kept beside
 /// that account when one is given.
+///
+/// <see cref="Work"/> names the work the save writes: the current work, or
+/// the Inspection (primary) work from the Inspection view once the Audit
+/// exists (operator, 2 October 2026). An edit of the primary work while the
+/// Audit exists moves nothing that is the Case's: its state is the Audit's.
 /// </summary>
 public sealed record SaveCaseWorkspaceRequest(
     Guid CaseId,
@@ -353,6 +359,8 @@ public sealed record SaveCaseWorkspaceRequest(
     string EditLeaseToken)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason ?? string.Empty, EditLeaseToken)
 {
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+
     public CaseWorkspaceOverview? Overview { get; init; }
 
     public CaseWorkspaceInspection? Inspection { get; init; }

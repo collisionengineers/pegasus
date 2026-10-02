@@ -138,15 +138,6 @@ public sealed class EfCaseReportGenerationStore(
         var now = timeProvider.GetUtcNow();
         CaseMutationGuard.Require(
             workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, now);
-        // The Inspection report already sent once the Audit exists is opened,
-        // never generated again: neither the report nor a companion document
-        // (operator, 1 October 2026). A replay above returned its own result.
-        if (request.Work == CaseWorkSelector.Primary
-            && await CaseWorkScope.PrimaryReportSentAfterAuditAsync(context, request.CaseId, cancellationToken)
-                .ConfigureAwait(false))
-        {
-            throw new InvalidOperationException("The case report generation is unavailable.");
-        }
         if (request.Kind != CaseReportArtifactKind.AssessmentReport)
         {
             return await FreezeCompanionAsync(
@@ -784,9 +775,9 @@ public sealed class EfCaseReportGenerationStore(
     /// <summary>
     /// The same-context stale core the sibling B stores call inside their
     /// own transactions, so a material change and the staleness it causes
-    /// commit atomically. Only the Case's current generation moves: a
-    /// superseded generation keeps its bytes, its state and its history
-    /// exactly as issued. This never saves — the caller's transaction does.
+    /// commit atomically. A change that edits no work of its own moves the
+    /// current work's report. This never saves — the caller's transaction
+    /// does.
     /// </summary>
     internal static async Task<int> MarkStaleAsync(
         PegasusDbContext context,
@@ -795,10 +786,26 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        // Only the current work's report moves: once an Audit exists the
-        // Inspection's issued report stays exactly as it was sent.
         var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken)
             .ConfigureAwait(false);
+        return await MarkWorkStaleAsync(context, caseId, workId, reasonCode, nowUtc, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Marks the current generation of <paramref name="workId"/> stale: an
+    /// edit stales the report of the work it edited, never the other work's
+    /// (operator, 2 October 2026). A superseded generation keeps its bytes,
+    /// its state and its history exactly as issued. This never saves.
+    /// </summary>
+    internal static async Task<int> MarkWorkStaleAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid workId,
+        string reasonCode,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
         var current = await context.Set<CaseReportGenerationEntity>()
             .Where(item => item.WorkId == workId
                 && item.SupersededById == null
@@ -873,7 +880,7 @@ public sealed class EfCaseReportGenerationStore(
                 row.SignOffEngineerId, row.AssignedEngineerId, profiles);
             if (!SignatoryMatches(DeserializeSnapshot(row.Generation), signatory))
             {
-                await MarkStaleAsync(context, row.Generation.CaseId,
+                await MarkWorkStaleAsync(context, row.Generation.CaseId, row.Generation.WorkId,
                     CaseReportStaleReasons.SignatoryChanged, nowUtc, cancellationToken);
             }
         }

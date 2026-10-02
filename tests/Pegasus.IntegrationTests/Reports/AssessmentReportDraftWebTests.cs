@@ -568,7 +568,7 @@ public sealed partial class AssessmentReportDraftWebTests
         }, CancellationToken.None);
         var assessmentStore = new EfCaseAssessmentStore(harness.Factory, harness.TimeProvider,
             new EfRepairSpecificationStore(harness.Factory, harness.TimeProvider));
-        var persisted = await assessmentStore.GetAsync(harness.CaseId, CancellationToken.None);
+        var persisted = await assessmentStore.GetAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(persisted);
         Assert.Equal(saved.Version, persisted.CaseVersion);
         var input = existing with

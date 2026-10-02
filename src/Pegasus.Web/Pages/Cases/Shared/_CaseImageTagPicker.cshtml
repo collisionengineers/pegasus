@@ -26,6 +26,7 @@
                 <input type="hidden" name="expectedVersion" value="@view.CaseVersion" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@view.EditLeaseToken" />
+                <input type="hidden" name="view" value="@view.View" />
                 <button type="submit"
                         class="tag-option"
                         aria-pressed="@(applied ? "true" : "false")">
@@ -47,6 +48,7 @@
             <input type="hidden" name="id" value="@view.CaseId" />
             <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
             <input type="hidden" name="editLeaseToken" value="@view.EditLeaseToken" />
+            <input type="hidden" name="view" value="@view.View" />
             <label class="sr-only" for="tag-name-@slug">@TagLabels.Name</label>
             <input id="tag-name-@slug"
                    name="name"

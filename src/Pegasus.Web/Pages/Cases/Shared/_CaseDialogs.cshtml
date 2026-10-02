@@ -40,7 +40,7 @@
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     var canConfirmReportSent = mayAct
         && details.AvailableReportSentEvidence.Count > 0
-        && (Model.InspectionReportAwaitsSend || state == CaseLifecycleState.ReportPreparation);
+        && (Model.IsInspectionView || state == CaseLifecycleState.ReportPreparation);
     var closureOutcomes = Model.AvailableClosureOutcomes;
     var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
     var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
@@ -56,6 +56,10 @@
         if (leased)
         {
             fields["editLeaseToken"] = Model.LeaseToken;
+        }
+        if (Model.ViewRoute is { } view)
+        {
+            fields["view"] = view;
         }
         return fields;
     }
@@ -90,6 +94,7 @@
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                     @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <div class="dialog-body stack">
                         <div class="field">
                             <label class="req" for="case-hold-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
@@ -158,6 +163,7 @@
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <div class="dialog-body stack">
                     <div class="notice notice--warning">
                         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
@@ -210,6 +216,7 @@
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <div class="dialog-body stack">
                     <div class="field">
                         <label class="req" for="case-close-outcome">@OperatorLabels.CaseWorkspace.ClosureOutcome</label>
@@ -266,6 +273,7 @@
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                     @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <input type="hidden" name="instructionsComplete" value="@(Model.EvaHandoff!.InstructionsComplete)" />
                     <input type="hidden" name="imagesComplete" value="@(Model.EvaHandoff!.ImagesComplete)" />
                     <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
@@ -288,6 +296,7 @@
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                         @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                        <input type="hidden" name="view" value="@Model.ViewRoute" />
                     </form>
                 }
             </div>
@@ -316,7 +325,7 @@
                 </button>
             </div>
             <div class="dialog-body stack">
-                <partial name="Cases/Shared/_EvaHandoff" model="Model.EvaHandoff!" />
+                <partial name="Cases/Shared/_EvaHandoff" model="Model.EvaHandoff! with { View = Model.ViewRoute }" />
             </div>
         </section>
     </div>
@@ -344,11 +353,8 @@
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                         @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
-                        @if (Model.InspectionReportAwaitsSend)
-                        {
-                            @* The Inspection report's own evidence, on its work. *@
-                            <input type="hidden" name="view" value="@DetailsModel.InspectionViewKey" />
-                        }
+                        @* In the Inspection view, the Inspection report's own evidence, on its work. *@
+                        <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <div class="definition-list">
                             <dl class="definition"><dt>Mailbox</dt><dd>@evidence.MailboxIdentity</dd></dl>
                             <dl class="definition"><dt>Sent</dt><dd>@OperatorLabels.OfficeTime(evidence.SentAtUtc)</dd></dl>

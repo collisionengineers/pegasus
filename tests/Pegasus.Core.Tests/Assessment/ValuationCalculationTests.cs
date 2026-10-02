@@ -641,11 +641,13 @@ public sealed class ValuationCalculationTests
 
         public Task<ValuationCalculationBasis> ReadCalculationContextAsync(
             Guid caseId,
+            CaseWorkSelector work,
             CancellationToken cancellationToken) =>
             Task.FromResult(Context);
 
         public Task<ValuationCalculationBasis> ReadBasisAsync(
             Guid caseId,
+            CaseWorkSelector work,
             Guid guideValuationId,
             CancellationToken cancellationToken) =>
             Bases.TryGetValue(guideValuationId, out var basis)

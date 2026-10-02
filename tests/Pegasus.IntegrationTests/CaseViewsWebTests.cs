@@ -20,9 +20,9 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// The two views of an Inspection + Audit Case once it has its Audit (v29
 /// option 4, Stage 2 slice 7): the Views card heading the aside, the Audit
-/// view by default, the read-only Inspection view with the approved label on
-/// every editable head, the Report of each view, the Audit folder chip in
-/// Files, and Create audit's dialog and in-place post.
+/// view by default, the Inspection view that reads and edits the primary work
+/// (operator, 2 October 2026), the Report of each view, the Audit folder chip
+/// in Files, and Create audit's dialog and in-place post.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseViewsWebTests
@@ -65,10 +65,10 @@ public sealed class CaseViewsWebTests
         Assert.DoesNotContain("data-case-views", html, StringComparison.Ordinal);
         // Razor keeps a data- attribute whose value is null, empty: no view is named.
         Assert.DoesNotMatch("data-case-view=\"[^\"]", html);
-        Assert.DoesNotContain(Frame.ReadOnlyAuditCreated, html, StringComparison.Ordinal);
         Assert.Contains("data-section-edit=", html, StringComparison.Ordinal);
         Assert.Contains("data-case-edit-form", RecordBar(html), StringComparison.Ordinal);
-        Assert.DoesNotContain("data-inspection-report", html, StringComparison.Ordinal);
+        // No form names a view the Case does not have.
+        Assert.DoesNotContain("name=\"view\" value=\"inspection\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -81,7 +81,6 @@ public sealed class CaseViewsWebTests
 
         Assert.DoesNotContain("data-case-views", html, StringComparison.Ordinal);
         Assert.Contains("id=\"section-original-report\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(Frame.ReadOnlyAuditCreated, html, StringComparison.Ordinal);
         Assert.Contains("data-section-edit=", html, StringComparison.Ordinal);
     }
 
@@ -147,18 +146,17 @@ public sealed class CaseViewsWebTests
         Assert.DoesNotContain("status--green", inspection, StringComparison.Ordinal);
         // Razor keeps a data- attribute whose value is null, empty: no view is named.
         Assert.DoesNotMatch("data-case-view=\"[^\"]", html);
-        Assert.DoesNotContain(Frame.ReadOnlyAuditCreated, html, StringComparison.Ordinal);
         Assert.Contains("data-section-edit=", html, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The Inspection view reads the primary work and never edits: no Edit in
-    /// the ribbon or any head, the approved label on every editable head but
-    /// Files and Notes, and its section links, Refresh and mounted bodies
-    /// stay in the view.
+    /// The Inspection view reads the primary work and edits it (operator,
+    /// 2 October 2026): the ribbon's Edit and every section head's Edit, each
+    /// claim naming the view, no read-only label anywhere, and its section
+    /// links, Refresh and mounted bodies stay in the view.
     /// </summary>
     [Fact]
-    public async Task TheInspectionViewReadsThePrimaryWorkAndOffersNoEdit()
+    public async Task TheInspectionViewReadsThePrimaryWorkAndOffersEdit()
     {
         var store = AuditedCase();
         using var host = new ReadingHost(store);
@@ -167,13 +165,15 @@ public sealed class CaseViewsWebTests
 
         Assert.Equal(CaseWorkSelector.Primary, Assert.Single(store.PageFrameQueries).Work);
         Assert.Contains("data-case-view=\"inspection\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-section-edit=", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-case-edit-form", html, StringComparison.Ordinal);
+        Assert.Contains("data-case-edit-form", RecordBar(html), StringComparison.Ordinal);
+        Assert.DoesNotContain("Read-only · Audit created", html, StringComparison.Ordinal);
         foreach (var key in new[] { "overview", "claim", "inspection", "estimate", "settlement", "report" })
         {
+            Assert.Contains($"data-section-edit=\"{key}\"", html, StringComparison.Ordinal);
             Assert.Matches(
-                $"data-section-availability=\"{key}\">\\s*<svg[^>]*>.*?</svg>\\s*<span>{Regex.Escape(Frame.ReadOnlyAuditCreated)}</span>",
+                $"name=\"section\" value=\"{key}\" />\\s*<input type=\"hidden\" name=\"view\" value=\"inspection\" />",
                 html);
+            Assert.DoesNotContain($"data-section-availability=\"{key}\"", html, StringComparison.Ordinal);
         }
 
         var card = ViewsCard(html);
@@ -196,46 +196,68 @@ public sealed class CaseViewsWebTests
 
         var vehicle = await host.ReadAsync($"/Cases/{store.CaseId:D}/Section?section=vehicle&view=inspection");
         Assert.Equal(CaseWorkSelector.Primary, store.VehicleSectionQueries[^1].Work);
-        Assert.Contains(Frame.ReadOnlyAuditCreated, vehicle, StringComparison.Ordinal);
+        Assert.Contains("data-section-edit=\"vehicle\"", vehicle, StringComparison.Ordinal);
+        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", vehicle, StringComparison.Ordinal);
         var audited = await host.ReadAsync($"/Cases/{store.CaseId:D}/Section?section=vehicle");
         Assert.Equal(CaseWorkSelector.Current, store.VehicleSectionQueries[^1].Work);
-        Assert.DoesNotContain(Frame.ReadOnlyAuditCreated, audited, StringComparison.Ordinal);
+        Assert.Contains("data-section-edit=\"vehicle\"", audited, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"view\" value=\"inspection\"", audited, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Decisions answer 3: the lease is Case-wide, so its holder at
-    /// <c>?view=inspection</c> keeps the ribbon's editing controls while every
-    /// section reads; the Audit view is where the sections edit.
+    /// The lease is Case-wide (Decisions answer 3), and its holder at
+    /// <c>?view=inspection</c> edits the Inspection there (operator, 2 October
+    /// 2026): the Case form names the view, and a save posted from it writes
+    /// the primary work and returns to the Inspection view.
     /// </summary>
     [Fact]
-    public async Task TheLeaseHolderKeepsTheRibbonControlsWhileTheInspectionViewReads()
+    public async Task TheLeaseHolderSavesThePrimaryWorkFromTheInspectionView()
     {
-        var store = AuditedCase();
-        using var workspace = await EnterEditModeAsync(store, _ => { });
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            SummaryCaseType = CaseType.InspectionAndAudit,
+            AcceptWorkspaceSaves = true
+        };
+        store.GiveAudit(InspectionSentAtUtc);
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISaveCaseWorkspace>(services, store));
 
         var html = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
 
         var bar = RecordBar(html);
         Assert.Contains($">{Frame.Editing}</span>", bar, StringComparison.Ordinal);
         Assert.Contains("data-case-done", bar, StringComparison.Ordinal);
-        // The Inspection view edits nothing, so the Case form and its Save now
-        // are absent there.
-        Assert.DoesNotContain("data-case-save-now", bar, StringComparison.Ordinal);
+        Assert.Contains("data-case-save-now", bar, StringComparison.Ordinal);
         Assert.Contains("data-case-actions", bar, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-case-edit-form", bar, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"case-edit-form\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("form=\"case-edit-form\"", MainColumn(html), StringComparison.Ordinal);
-        Assert.Contains($"<span>{Frame.ReadOnlyAuditCreated}</span>", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"case-edit-form\"", html, StringComparison.Ordinal);
+        Assert.Contains("form=\"case-edit-form\"", MainColumn(html), StringComparison.Ordinal);
+        Assert.Matches(
+            "(?s)id=\"case-edit-form\"[^>]*>(?:(?!</form>).)*<input type=\"hidden\" name=\"view\" value=\"inspection\" />",
+            html);
+        Assert.DoesNotContain("Read-only · Audit created", html, StringComparison.Ordinal);
 
-        var audit = await workspace.GetWorkspaceAsync();
-        Assert.Contains("id=\"case-edit-form\"", audit, StringComparison.Ordinal);
+        using var saved = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                Guid.NewGuid().ToString("N"),
+                "Inspection corrected",
+                ("claimantName", "Inspection claimant"),
+                ("section", "claim"),
+                ("view", "inspection")));
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Equal(
+            $"/Cases/{store.CaseId:D}?section=claim&view=inspection",
+            saved.Headers.Location?.OriginalString);
+        Assert.Equal(CaseWorkSelector.Primary, Assert.Single(store.Saves).Work);
     }
 
     /// <summary>
     /// One report per work (v29 P4): the Audit view's card carries a.{Case/PO}
     /// and shows the Audit report alone (operator, 2 October 2026); the
-    /// Inspection view shows only its own sent report, with nothing to
-    /// generate or deliver.
+    /// Inspection view shows its own report, sent or not, with the same
+    /// delivery and More menu the Audit view offers (operator, 2 October 2026).
     /// </summary>
     [Fact]
     public async Task EachViewShowsItsOwnReport()
@@ -249,7 +271,6 @@ public sealed class CaseViewsWebTests
         var auditHtml = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
         var auditReport = Section(auditHtml, "section-report-title");
         Assert.Contains($"<span class=\"mono\" data-report-reference>{AuditReference} · </span>", auditReport, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-inspection-report", auditReport, StringComparison.Ordinal);
         Assert.DoesNotContain(sentLine, auditReport, StringComparison.Ordinal);
         Assert.DoesNotContain(reports.Inspection!.Id.ToString("D"), auditReport, StringComparison.Ordinal);
         Assert.Contains($"{AuditReference} · </span>", ReportStatus(auditReport), StringComparison.Ordinal);
@@ -264,17 +285,17 @@ public sealed class CaseViewsWebTests
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
         var inspectionReport = Section(inspectionHtml, "section-report-title");
-        Assert.Contains($"<span>{sentLine}</span>", ReportStatus(inspectionReport), StringComparison.Ordinal);
+        // The sent report reads as its generation, as the Audit's does.
+        Assert.DoesNotContain(sentLine, ReportStatus(inspectionReport), StringComparison.Ordinal);
+        Assert.Contains("data-report-filing", ReportStatus(inspectionReport), StringComparison.Ordinal);
         Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
         Assert.DoesNotContain(reports.Audit!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
-        foreach (var hidden in new[]
-        {
-            "data-inspection-report", "data-report-reference", "data-report-not-ready", "data-report-gate",
-            "data-generate-report", "data-prepare-delivery", "data-send-prepared", "data-report-menu"
-        })
-        {
-            Assert.DoesNotContain(hidden, inspectionReport, StringComparison.Ordinal);
-        }
+        Assert.DoesNotContain("data-report-reference", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains("data-prepare-delivery", inspectionReport, StringComparison.Ordinal);
+        Assert.Equal(
+            auditReport.Contains("data-report-menu", StringComparison.Ordinal),
+            inspectionReport.Contains("data-report-menu", StringComparison.Ordinal));
+        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
         Assert.Contains(CaseWorkSelector.Primary, reports.CurrentReads);
     }
 
@@ -616,21 +637,19 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
-    /// Once the Audit exists, the Inspection report already sent is opened,
-    /// never generated, prepared or sent again (operator, 1 October 2026): a
-    /// Report command posted from the Inspection view is refused in or out of
-    /// edit mode, and so is a send of the Inspection's preparation posted
-    /// from the Audit view. None reaches the report use cases.
+    /// The Inspection report already sent is generated, prepared and sent
+    /// again from the Inspection view when needed (operator, 2 October 2026):
+    /// each command posted from it reaches the report use cases on the
+    /// Inspection's own work and lands back on the Inspection view's Report.
     /// </summary>
     [Fact]
-    public async Task TheInspectionReportSentAfterTheAuditIsNeverGeneratedPreparedOrSentAgain()
+    public async Task TheInspectionReportIsGeneratedPreparedAndSentAgainFromTheInspectionView()
     {
         var store = AuditedCase();
         var commands = new RecordingReportCommands();
         var preparationId = Guid.NewGuid();
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
-            Substitute<IGetCaseHeader>(services, store);
             Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId));
             Substitute<ICaseReportDeliveryPreparationStore>(services, new InspectionPreparation(store.CaseId, preparationId));
             Substitute<IGenerateCaseReport>(services, commands);
@@ -639,59 +658,40 @@ public sealed class CaseViewsWebTests
         });
         var caseId = store.CaseId.ToString("D");
         var version = store.CaseVersion.ToString(CultureInfo.InvariantCulture);
-        var inspectionReport = $"/Cases/{caseId}?section=report&view=inspection";
 
-        async Task AssertRefusedAsync(string handler, string location, params (string Name, string Value)[] fields)
+        async Task PostFromTheInspectionViewAsync(string handler, params (string Name, string Value)[] fields)
         {
-            using var refused = await workspace.Client.PostAsync(
+            using var posted = await workspace.Client.PostAsync(
                 $"/Cases/{caseId}?handler={handler}&section=report",
-                Form(workspace.AntiforgeryToken, [("id", caseId), .. fields]));
+                Form(workspace.AntiforgeryToken, [("id", caseId), .. fields, ("view", "inspection")]));
 
-            Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
-            Assert.Equal(location, refused.Headers.Location?.OriginalString);
-            var html = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, location));
-            Assert.Contains("The case report generation is unavailable.", html, StringComparison.Ordinal);
+            Assert.Equal(HttpStatusCode.Redirect, posted.StatusCode);
+            Assert.Equal($"/Cases/{caseId}?section=report&view=inspection", posted.Headers.Location?.OriginalString);
         }
 
-        await AssertRefusedAsync(
+        await PostFromTheInspectionViewAsync(
             "GenerateReport",
-            inspectionReport,
             ("operationKey", Guid.NewGuid().ToString("N")),
             ("editLeaseToken", store.LeaseToken),
-            ("expectedCaseVersion", version),
-            ("view", "inspection"));
-        // Outside edit mode Generate claims a lease of its own; the refusal comes first.
-        await AssertRefusedAsync(
-            "GenerateReport",
-            inspectionReport,
-            ("operationKey", Guid.NewGuid().ToString("N")),
-            ("expectedCaseVersion", version),
-            ("view", "inspection"));
-        await AssertRefusedAsync(
+            ("expectedCaseVersion", version));
+        await PostFromTheInspectionViewAsync(
             "PrepareReportDelivery",
-            inspectionReport,
             ("operationKey", Guid.NewGuid().ToString("N")),
             ("editLeaseToken", store.LeaseToken),
             ("expectedCaseVersion", version),
             ("generationId", Guid.NewGuid().ToString("D")),
             ("expectedGenerationVersion", "1"),
             ("coveringMessage", "Please find attached our report."),
-            ("toRecipients", "handler@principal.example"),
-            ("view", "inspection"));
-        await AssertRefusedAsync(
+            ("toRecipients", "handler@principal.example"));
+        await PostFromTheInspectionViewAsync(
             "SendPreparedReport",
-            inspectionReport,
-            ("preparationId", preparationId.ToString("D")),
-            ("expectedPreparationVersion", "1"),
-            ("view", "inspection"));
-        // The Inspection's own preparation, posted from the Audit view.
-        await AssertRefusedAsync(
-            "SendPreparedReport",
-            $"/Cases/{caseId}?section=report",
             ("preparationId", preparationId.ToString("D")),
             ("expectedPreparationVersion", "1"));
 
-        Assert.Empty(commands.Calls);
+        Assert.Equal(3, commands.Calls.Count);
+        Assert.Equal(CaseWorkSelector.Primary, Assert.IsType<GenerateCaseReportRequest>(commands.Calls[0]).Work);
+        Assert.Equal(CaseWorkSelector.Primary, Assert.IsType<PrepareCaseReportDeliveryRequest>(commands.Calls[1]).Work);
+        Assert.Equal(preparationId, Assert.IsType<SendPreparedCaseReportRequest>(commands.Calls[2]).PreparationId);
     }
 
     /// <summary>
@@ -927,7 +927,11 @@ public sealed class CaseViewsWebTests
         }
     }
 
-    /// <summary>The report use cases a refused command never reaches, recorded rather than run.</summary>
+    /// <summary>
+    /// The report use cases, recorded rather than run: each refuses after
+    /// recording, the way a use case states its own refusal, so the page
+    /// answers with its redirect.
+    /// </summary>
     private sealed class RecordingReportCommands
         : IGenerateCaseReport, IPrepareCaseReportDelivery, ISendPreparedCaseReport
     {
@@ -937,21 +941,21 @@ public sealed class CaseViewsWebTests
             GenerateCaseReportRequest request, CancellationToken cancellationToken)
         {
             Calls.Add(request);
-            throw new NotSupportedException();
+            throw new InvalidOperationException("Recorded.");
         }
 
         public Task<CaseReportDeliveryPreparation> ExecuteAsync(
             PrepareCaseReportDeliveryRequest request, CancellationToken cancellationToken)
         {
             Calls.Add(request);
-            throw new NotSupportedException();
+            throw new InvalidOperationException("Recorded.");
         }
 
         public Task<StaffMailOperation> ExecuteAsync(
             SendPreparedCaseReportRequest request, CancellationToken cancellationToken)
         {
             Calls.Add(request);
-            throw new NotSupportedException();
+            throw new InvalidOperationException("Recorded.");
         }
     }
 

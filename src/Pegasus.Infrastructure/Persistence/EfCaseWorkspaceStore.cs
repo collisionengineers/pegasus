@@ -57,6 +57,7 @@ public sealed class EfCaseWorkspaceStore(
             return await ProjectAsync(
                 context,
                 request.CaseId,
+                request.Work,
                 await ReplayedEstimateIdAsync(context, request.CaseId, request.OperationKey, cancellationToken),
                 wasReplay: true,
                 cancellationToken);
@@ -89,13 +90,17 @@ public sealed class EfCaseWorkspaceStore(
                 "The Case cannot be saved in its current state.");
         }
 
-        // The save writes the current work, resolved after the guards: Create
-        // audit takes the same workflow lock and bumps the version, so a save
-        // prepared against the Inspection is refused as stale. Matching, the
-        // accepted deadline, due work and the completeness gate are the Case's
-        // and move only on a primary-work save (decision M).
-        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
-        var isPrimary = workId == request.CaseId;
+        // The save writes the work the request names, resolved after the
+        // guards: Create audit takes the same workflow lock and bumps the
+        // version, so a save prepared against the Inspection is refused as
+        // stale. Matching, the accepted deadline, due work, the completeness
+        // gate and the state switch are the Case's and move only while the
+        // Case has no Audit (decision M): an edit of the Inspection from its
+        // view once the Audit exists moves none of them, since the Case's
+        // state is the Audit's (operator, 2 October 2026).
+        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
+        var workId = request.Work == CaseWorkSelector.Primary ? request.CaseId : currentWorkId;
+        var movesCase = currentWorkId == request.CaseId;
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: true)
             .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
             ?? throw new InvalidDataException(
@@ -128,7 +133,7 @@ public sealed class EfCaseWorkspaceStore(
         if (data != beforeData)
         {
             CaseDataFieldWriter.ApplyEditableData(context, snapshot, data, request.Actor, now);
-            if (isPrimary)
+            if (movesCase)
             {
                 CaseMatchIndexProjector.Apply(
                     context,
@@ -144,12 +149,12 @@ public sealed class EfCaseWorkspaceStore(
         }
         var afterReportData = EffectiveReportData(snapshot.Fields);
 
-        if (isPrimary && request.Inspection is not null)
+        if (movesCase && request.Inspection is not null)
         {
             snapshot.Work.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
         }
 
-        var dueByChanged = isPrimary && request.Overview is not null && data.DueBy != beforeData.DueBy;
+        var dueByChanged = movesCase && request.Overview is not null && data.DueBy != beforeData.DueBy;
 
         var assessmentFields = await context.CaseAssessmentFields
             .Where(item => item.WorkId == workId)
@@ -223,7 +228,7 @@ public sealed class EfCaseWorkspaceStore(
         var estimateEdit = request.Estimate is { } estimateSection
             ? await EfRepairSpecificationStore.ApplyEditAsync(
                 context,
-                workflow,
+                workId,
                 estimateSection.ToSaveEstimateRequest(request),
                 now,
                 leaveUnchanged: true,
@@ -252,6 +257,7 @@ public sealed class EfCaseWorkspaceStore(
             ? await EfValuationStore.AdoptAsync(
                 context,
                 workflow,
+                workId,
                 request.Actor,
                 request.OperationKey,
                 adoption,
@@ -277,7 +283,7 @@ public sealed class EfCaseWorkspaceStore(
             workflow.SignOffEngineerId = signOffEngineerId;
         }
 
-        if (isPrimary && request.Completeness is { } completeness)
+        if (movesCase && request.Completeness is { } completeness)
         {
             snapshot.Work.Case.InstructionComplete =
                 completeness.InstructionComplete ?? snapshot.Work.Case.InstructionComplete;
@@ -293,7 +299,7 @@ public sealed class EfCaseWorkspaceStore(
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
-        if (isPrimary
+        if (movesCase
             && workflow.AssignedEngineerId is null
             && state is CaseLifecycleState.NotReady or CaseLifecycleState.Review)
         {
@@ -335,7 +341,7 @@ public sealed class EfCaseWorkspaceStore(
                 snapshot.Work.Case.AcceptedInspectionDeadline,
                 dueWorkVersionBeforeSave);
         }
-        else if (isPrimary)
+        else if (movesCase)
         {
             CaseDueWorkScheduler.ProjectDueBy(
                 context,
@@ -418,21 +424,24 @@ public sealed class EfCaseWorkspaceStore(
         // The report is marked stale once per save, by the first rule that
         // finds it stale: the workspace's own, then the specification's (an
         // edit of the current one changes the breakdown a report pinned),
-        // then the valuation's.
+        // then the valuation's. Only the edited work's report moves, never
+        // the other work's (operator, 2 October 2026).
         if (freshness.IsStale)
         {
-            await EfCaseReportGenerationStore.MarkStaleAsync(
+            await EfCaseReportGenerationStore.MarkWorkStaleAsync(
                 context,
                 request.CaseId,
+                workId,
                 freshness.ReasonCode!,
                 now,
                 cancellationToken);
         }
         else if (estimateEdit is { Changed: true, ChangesCurrent: true })
         {
-            await EfCaseReportGenerationStore.MarkStaleAsync(
+            await EfCaseReportGenerationStore.MarkWorkStaleAsync(
                 context,
                 request.CaseId,
+                workId,
                 "current_estimate_saved",
                 now,
                 cancellationToken);
@@ -443,6 +452,7 @@ public sealed class EfCaseWorkspaceStore(
             await EfValuationStore.MarkStaleIfNeededAsync(
                 context,
                 request.CaseId,
+                workId,
                 guideEntries.Before,
                 adopted is null ? guideEntries.After : EfValuationStore.WithApplied(guideEntries.After, adopted),
                 now,
@@ -477,23 +487,26 @@ public sealed class EfCaseWorkspaceStore(
         return await ProjectAsync(
             context,
             request.CaseId,
+            request.Work,
             estimateEdit?.Entity.Id,
             wasReplay: false,
             cancellationToken);
     }
 
     /// <summary>
-    /// The Case as the save left it, with the specification the save carried
-    /// (<paramref name="estimateId"/>) rather than whichever Draft is latest.
+    /// The work the save wrote as the save left it, with the specification
+    /// the save carried (<paramref name="estimateId"/>) rather than whichever
+    /// Draft is latest.
     /// </summary>
     private static async Task<SaveCaseWorkspaceResult> ProjectAsync(
         PegasusDbContext context,
         Guid caseId,
+        CaseWorkSelector work,
         Guid? estimateId,
         bool wasReplay,
         CancellationToken cancellationToken)
     {
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
             .SingleAsync(item => item.WorkId == workId, cancellationToken);
         var workflow = await context.CaseWorkflows.AsNoTracking()
@@ -687,6 +700,7 @@ public sealed class EfCaseWorkspaceStore(
                 request.OperationKey,
                 request.Reason,
                 request.EditLeaseToken,
+                request.Work,
                 request.Overview,
                 request.Inspection,
                 request.Vehicle,

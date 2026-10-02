@@ -29,6 +29,7 @@ public sealed class EfCaseAssessmentStore(
 
     public async Task<CaseAssessmentProjection?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -46,12 +47,14 @@ public sealed class EfCaseAssessmentStore(
             return null;
         }
 
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var fields = await context.CaseAssessmentFields.AsNoTracking()
             .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
-        var specificationId = await CurrentSpecificationIdAsync(caseId, cancellationToken);
+        var specificationId = await EfRepairSpecificationStore.CurrentQuery(context, workId)
+            .Select(item => (Guid?)item.Id)
+            .SingleOrDefaultAsync(cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
             .Where(item => item.WorkId == workId
                 && item.RepairSpecificationId == specificationId)

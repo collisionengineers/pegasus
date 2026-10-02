@@ -21,6 +21,7 @@
         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
         <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
         <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+        <input type="hidden" name="view" value="@Model.ViewRoute" />
     }
 }
 
@@ -130,7 +131,8 @@ else
                     ["occurrenceId"] = occurrence.Id.ToString(),
                     ["expectedVersion"] = workflow.Version.ToString(),
                     ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
-                    ["editLeaseToken"] = leaseToken
+                    ["editLeaseToken"] = leaseToken,
+                    ["view"] = Model.ViewRoute
                 }
             })" />
         }

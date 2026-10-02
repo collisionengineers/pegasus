@@ -6,7 +6,7 @@
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @{
     var workflow = Model.Case!.Workflow;
-    var staleGeneration = Model.ViewedReportGeneration is { State: CaseReportGenerationState.Stale };
+    var staleGeneration = Model.CurrentReportGeneration is { State: CaseReportGenerationState.Stale };
     var next = Model.NextAction;
     var reportBlockers = Model.NextActionBlockers;
     var engineerValue = Model.EngineerValue;

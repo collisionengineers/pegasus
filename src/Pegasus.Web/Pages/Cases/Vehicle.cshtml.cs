@@ -47,6 +47,6 @@ public sealed class VehicleModel(
                     editLeaseToken),
                 cancellationToken),
             "The vehicle lookup was queued. Refresh later for current, stale, partial, no-result, unavailable, or failed evidence.",
-            caseId => RedirectToPage("/Cases/Details", new { id = caseId, section = "vehicle" }),
+            caseId => RedirectToPage("/Cases/Details", new { id = caseId, section = "vehicle", view = ReturnView }),
             keepEditing: true);
 }

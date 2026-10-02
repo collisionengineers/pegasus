@@ -32,6 +32,7 @@
                   asp-page-handler="AddNote" class="note-form" data-case-note-form>
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <label class="lbl" for="case-note">Case note</label>
                 <textarea id="case-note" name="note" rows="2" required
                           maxlength="@Pegasus.Core.Cases.AddCaseNote.MaximumLength"></textarea>
@@ -116,6 +117,7 @@
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <div class="dialog-body stack">
                     <div class="form-grid form-grid--2">
                         <div class="field"><label class="req" for="chase-recipient">@CaseWorkspaceLabels.Chase.Recipient</label><input id="chase-recipient" name="recipient" required maxlength="500" data-dialog-initial-focus /></div>

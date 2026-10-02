@@ -49,6 +49,7 @@ public sealed class EfValuationStore(
     internal static async Task<AppliedValuation?> AdoptAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
+        Guid workId,
         ActionActor actor,
         string operationKey,
         ValuationCalculationSelection selection,
@@ -60,8 +61,7 @@ public sealed class EfValuationStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        // The adoption belongs to the Case's current work: the Audit once it exists.
-        var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
+        // The adoption belongs to the work the Case save edits.
         CaseValuationEntity guideEntity;
         if (selection.GuideValuationId != Guid.Empty)
         {
@@ -224,6 +224,7 @@ public sealed class EfValuationStore(
     /// </summary>
     public async Task<ValuationCalculationBasis> ReadBasisAsync(
         Guid caseId,
+        CaseWorkSelector work,
         Guid guideValuationId,
         CancellationToken cancellationToken)
     {
@@ -233,7 +234,7 @@ public sealed class EfValuationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var guide = await RequiredGuideAsync(
             context,
             workId,
@@ -254,6 +255,7 @@ public sealed class EfValuationStore(
 
     public async Task<ValuationCalculationBasis> ReadCalculationContextAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -262,7 +264,7 @@ public sealed class EfValuationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var claimantVatField = await context.CaseAssessmentFields.AsNoTracking()
             .SingleOrDefaultAsync(
                 item => item.WorkId == workId
@@ -515,6 +517,7 @@ public sealed class EfValuationStore(
     internal static async Task MarkStaleIfNeededAsync(
         PegasusDbContext context,
         Guid caseId,
+        Guid workId,
         CaseReportValuationDependencies before,
         CaseReportValuationDependencies after,
         DateTimeOffset now,
@@ -523,9 +526,10 @@ public sealed class EfValuationStore(
         var freshness = CaseReportFreshness.ClassifyValuation(before, after);
         if (freshness.IsStale)
         {
-            await EfCaseReportGenerationStore.MarkStaleAsync(
+            await EfCaseReportGenerationStore.MarkWorkStaleAsync(
                 context,
                 caseId,
+                workId,
                 freshness.ReasonCode!,
                 now,
                 cancellationToken);
