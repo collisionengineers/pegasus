@@ -216,7 +216,7 @@ public sealed class StaffMailSendTests
     }
 
     [Fact]
-    public async Task FinalReadinessFailureOccursBeforeSendingAndIsRecordedFailed()
+    public async Task FinalReadinessFailureOccursBeforeSendingAndIsReturnedFailed()
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var command = Command(actor);
@@ -228,12 +228,44 @@ public sealed class StaffMailSendTests
                 "unused", "application/octet-stream")), transport, TimeProvider.System,
             new ExecutionLock());
 
-        await Assert.ThrowsAsync<InvalidDataException>(() => send.SendValidatedAsync(
-            command, _ => throw new InvalidDataException("report changed"), CancellationToken.None));
+        var operation = await send.SendValidatedAsync(
+            command, _ => throw new InvalidDataException("report changed"), CancellationToken.None);
 
         Assert.Equal(0, transport.SendCount);
+        Assert.Equal(StaffMailState.Failed, operation.State);
+        Assert.Equal("staff_send_content_invalid", operation.FailureCode);
         Assert.Equal(StaffMailState.Failed, store.Operation!.State);
         Assert.Equal(StaffMailAttemptStage.Attach, store.Operation.AttemptStage);
+    }
+
+    /// <summary>
+    /// A provider refusal (a Graph 4xx such as a missing mailbox grant) is an
+    /// outcome: the operation is recorded Failed with the exact code and
+    /// returned, so every caller shows it as a failure rather than a fault.
+    /// </summary>
+    [Fact]
+    public async Task AProviderRefusalIsReturnedAsAFailedOperation()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var command = Command(actor);
+        var store = new Store();
+        var transport = new Transport
+        {
+            RejectCreate = new StaffMailTransportRejectedException("graph_rejected_403")
+        };
+        var send = new StaffMailSend(store,
+            new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
+            new Reader([], new(Guid.NewGuid(), Guid.NewGuid(), new string('A', 64), 1,
+                "unused", "application/octet-stream")), transport, TimeProvider.System,
+            new ExecutionLock());
+
+        var operation = await send.SendAsync(command, CancellationToken.None);
+
+        Assert.Equal(StaffMailState.Failed, operation.State);
+        Assert.Equal("graph_rejected_403", operation.FailureCode);
+        Assert.Equal(StaffMailAttemptStage.CreateDraft, operation.AttemptStage);
+        Assert.Equal(0, transport.SendCount);
+        Assert.Equal(operation, store.Operation);
     }
 
     [Fact]
@@ -377,6 +409,7 @@ public sealed class StaffMailSendTests
         public int CreateCount { get; private set; }
         public int SendCount { get; private set; }
         public bool BlockSend { get; init; }
+        public Exception? RejectCreate { get; init; }
         public TaskCompletionSource SendEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseSend { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<byte[]> Attached { get; } = [];
@@ -387,6 +420,10 @@ public sealed class StaffMailSendTests
         public Task<StaffMailDraftResult> CreateDraftAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, StaffMailSendCommand command, CancellationToken cancellationToken)
         {
             CreateCount++;
+            if (RejectCreate is { } rejection)
+            {
+                throw rejection;
+            }
             return Task.FromResult(new StaffMailDraftResult("draft"));
         }
         public async Task AttachAsync(ApprovedStaffSendMailbox mailbox, Guid operationId, string immutableDraftId, StaffMailAttachment attachment, Stream content, CancellationToken cancellationToken)

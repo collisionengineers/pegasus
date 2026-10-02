@@ -122,8 +122,10 @@ first. With no default configured, a new Compose explains what is missing
 and cannot send. It never silently picks the first mailbox.
 
 **What the composer carries.** To, Subject, Message, Case and From
-(read-only). Reply and Forward keep the retained message's reply chain and
-conversation identity. Case defaults to the Case whose correspondence the
+(read-only). Find a Case is an autocomplete list that fills as staff type;
+choosing a Case from it is the server action that fixes the Case and its
+version for the send. Reply and Forward keep the retained message's reply
+chain and conversation identity. Case defaults to the Case whose correspondence the
 Reply or Forward started from, otherwise to the message's current
 association, and may be changed before sending. A Triage outcome reply's
 Message opens with the Triage outcome template from Administration, rendered

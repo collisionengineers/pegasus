@@ -177,7 +177,8 @@ public sealed record CaseReportDeliveryPreparationRecord(
     bool GenerationIsCurrent,
     long CurrentGenerationVersion,
     IReadOnlyList<StaffMailAttachment> ConfirmedArtifacts,
-    CaseWorkSelector Work = CaseWorkSelector.Current);
+    CaseWorkSelector Work = CaseWorkSelector.Current,
+    StaffMailState? LatestSendState = null);
 
 /// <summary>
 /// The store-side input of one preparation: the guarded request plus the

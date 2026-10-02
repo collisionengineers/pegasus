@@ -286,27 +286,19 @@
                         <div class="definition-list">
                             <dl class="definition"><dt>From</dt><dd>@Model.CorrespondenceMailbox!.Address</dd></dl>
                         </div>
-                        <div class="field">
-                            <label asp-for="CorrespondenceCaseQuery">Find a Case</label>
-                            <input asp-for="CorrespondenceCaseQuery" type="search" maxlength="300" />
+                        @* Find a Case is an autocomplete: typing fetches the
+                           option list; choosing an option posts
+                           SelectCorrespondenceCase as the result buttons did. *@
+                        <div class="field case-picker" data-case-picker
+                             data-case-picker-url="@Url.Page("/Mail/Message", "CorrespondenceCaseOptions", new { id = summary.Id })">
+                            <label asp-for="CorrespondenceCaseQuery">@OperatorLabels.Upload.FindCase</label>
+                            <input asp-for="CorrespondenceCaseQuery" type="search" maxlength="300" autocomplete="off"
+                                   role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                   aria-controls="message-case-options" />
                             <span class="field-hint">Search by Case / PO, registration, claimant, claim number, or Principal.</span>
                             <span asp-validation-for="CorrespondenceCaseQuery"></span>
+                            <div id="message-case-options" class="case-picker-options" data-case-picker-options hidden></div>
                         </div>
-                        <button type="submit" asp-page-handler="SearchCorrespondenceCase" asp-route-id="@summary.Id" class="btn">Search Cases</button>
-                        @if (Model.CorrespondenceCaseResults.Count > 0)
-                        {
-                            <ul class="search-results">
-                                @foreach (var candidate in Model.CorrespondenceCaseResults)
-                                {
-                                    <li>
-                                        <button type="submit" asp-page-handler="SelectCorrespondenceCase" asp-route-id="@summary.Id"
-                                                name="SelectedCorrespondenceCaseReference" value="@candidate.Reference" class="btn">
-                                            @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")
-                                        </button>
-                                    </li>
-                                }
-                            </ul>
-                        }
                         <div class="field">
                             <label asp-for="CorrespondenceCaseReference">Case / PO</label>
                             <input asp-for="CorrespondenceCaseReference" type="text" maxlength="100" />
@@ -1100,4 +1092,7 @@
             </form>
         </section>
     </div>
+}
+@section Scripts {
+    <script src="~/js/case-picker.js" asp-append-version="true"></script>
 }

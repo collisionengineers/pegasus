@@ -351,7 +351,7 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
-    public async Task UnknownComposeOperationSurvivesCaseSearchAndSelection()
+    public async Task UnknownComposeOperationSurvivesCaseSelection()
     {
         var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -401,35 +401,19 @@ public sealed class StaffCorrespondenceWebTests
             ["SelectedAttachments"] = StableAttachmentResolver.Selection
         };
 
-        using var search = await client.PostAsync(
-            ButtonFormAction(statusHtml, "SearchCase"),
-            new FormUrlEncodedContent(draft));
-        Assert.Equal(HttpStatusCode.OK, search.StatusCode);
-        var searchHtml = await search.Content.ReadAsStringAsync();
-        Assert.Contains(selectedReference, searchHtml, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), searchHtml, StringComparison.Ordinal);
-        Assert.Contains("handler=Reconcile", searchHtml, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(draft["OperationId"], ComposeOperationId(searchHtml));
-        Assert.Equal("draft@example.invalid", InputValue(searchHtml, "To"));
-        Assert.Equal("copy@example.invalid", InputValue(searchHtml, "Cc"));
-        Assert.Equal("Draft subject", InputValue(searchHtml, "Subject"));
-        Assert.Equal("Draft message.", TextAreaValue(searchHtml, "Body"));
-        AssertSelectedAttachment(searchHtml, StableAttachmentResolver.Selection);
-
-        draft["__RequestVerificationToken"] = InputValue(searchHtml, "__RequestVerificationToken");
-        draft["OperationKey"] = InputValue(searchHtml, "OperationKey");
-        draft["OperationId"] = ComposeOperationId(searchHtml);
-        draft["ExpectedContextVersion"] = InputValue(searchHtml, "ExpectedContextVersion");
-        draft["CaseReference"] = InputValue(searchHtml, "CaseReference");
-        draft["CaseQuery"] = InputValue(searchHtml, "CaseQuery");
-        draft["To"] = InputValue(searchHtml, "To");
-        draft["Cc"] = InputValue(searchHtml, "Cc");
-        draft["Subject"] = InputValue(searchHtml, "Subject");
-        draft["Body"] = TextAreaValue(searchHtml, "Body");
+        // Typing in Find a Case fetches the option list only; the draft on
+        // the page is untouched until an option is chosen.
+        using var options = await client.GetAsync(
+            $"/Inbox/Compose?handler=CaseOptions&q={Uri.EscapeDataString(selectedReference)}");
+        Assert.Equal(HttpStatusCode.OK, options.StatusCode);
+        var optionsHtml = await options.Content.ReadAsStringAsync();
+        Assert.Contains("role=\"listbox\"", optionsHtml, StringComparison.Ordinal);
+        Assert.Contains(selectedReference, optionsHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("mail-compose-content", optionsHtml, StringComparison.Ordinal);
         draft["SelectedCaseReference"] = selectedReference;
 
         using var selection = await client.PostAsync(
-            ButtonFormAction(searchHtml, "SelectCase"),
+            ButtonFormAction(optionsHtml, "SelectCase"),
             new FormUrlEncodedContent(draft));
         Assert.Equal(HttpStatusCode.OK, selection.StatusCode);
         var selectedHtml = await selection.Content.ReadAsStringAsync();
@@ -492,70 +476,117 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(0, send.ReconcileCalls);
     }
 
+    /// <summary>
+    /// Find a Case is an autocomplete: the option list is a GET fragment of
+    /// SelectCase submit buttons, one per matching Case. A blank or oversized
+    /// term lists nothing, and no request on this path ever sends.
+    /// </summary>
     [Fact]
-    public async Task OversizedComposeCaseSearchRetainsTheDraftWithoutSending()
+    public async Task ComposeCaseOptionsListMatchingCasesAsSelectActions()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var matchingCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 OPTION MATCH", "SC08-OPTION-MATCH");
+        var otherCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 OPTION OTHER", "SC08-OPTION-OTHER");
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
-        using var get = await client.GetAsync("/Inbox/Compose");
-        var html = await get.Content.ReadAsStringAsync();
+        var matchingReference = await CaseReferenceAsync(factory, matchingCaseId);
+        var otherReference = await CaseReferenceAsync(factory, otherCaseId);
 
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=SearchCase",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["OperationKey"] = InputValue(html, "OperationKey"),
-                ["ExpectedContextVersion"] = "0",
-                ["CaseQuery"] = new string('x', 301),
-                ["To"] = "claimant@example.invalid",
-                ["Cc"] = "copy@example.invalid",
-                ["Subject"] = "Draft subject",
-                ["Body"] = "Draft message body."
-            }));
+        using var options = await client.GetAsync(
+            $"/Inbox/Compose?handler=CaseOptions&q={Uri.EscapeDataString(matchingReference)}");
+        Assert.Equal(HttpStatusCode.OK, options.StatusCode);
+        var optionsHtml = await options.Content.ReadAsStringAsync();
+        Assert.Contains("role=\"listbox\"", optionsHtml, StringComparison.Ordinal);
+        Assert.Contains("role=\"option\"", optionsHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"SelectedCaseReference\"", optionsHtml, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{matchingReference}\"", optionsHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($"value=\"{otherReference}\"", optionsHtml, StringComparison.Ordinal);
+        Assert.Contains("handler=SelectCase", ButtonFormAction(optionsHtml, "SelectCase"), StringComparison.Ordinal);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var responseHtml = await response.Content.ReadAsStringAsync();
-        Assert.Contains("300 characters or fewer", responseHtml, StringComparison.Ordinal);
-        Assert.Contains("claimant@example.invalid", responseHtml, StringComparison.Ordinal);
-        Assert.Contains("copy@example.invalid", responseHtml, StringComparison.Ordinal);
-        Assert.Contains("Draft subject", responseHtml, StringComparison.Ordinal);
-        Assert.Contains("Draft message body.", responseHtml, StringComparison.Ordinal);
+        using var blank = await client.GetAsync("/Inbox/Compose?handler=CaseOptions&q=");
+        Assert.Equal(HttpStatusCode.OK, blank.StatusCode);
+        Assert.DoesNotContain("role=\"option\"", await blank.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        using var oversized = await client.GetAsync(
+            $"/Inbox/Compose?handler=CaseOptions&q={new string('x', 301)}");
+        Assert.Equal(HttpStatusCode.OK, oversized.StatusCode);
+        Assert.DoesNotContain("role=\"option\"", await oversized.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Empty(send.Commands);
     }
 
+    /// <summary>
+    /// The composer's Send is the form's own action. Only the option buttons
+    /// name a different handler; the Send button carries no formaction, so
+    /// the overlay's fetch posts to the Send handler and never to the host
+    /// page (the defect behind "The composer could not be refreshed").
+    /// </summary>
     [Fact]
-    public async Task EmptyComposeCaseSearchRequiresATermAndDoesNotSend()
+    public async Task TheComposerSendsThroughItsOwnFormActionOnly()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
-        using var get = await client.GetAsync("/Inbox/Compose");
+
+        using var get = await client.GetAsync("/Inbox/Compose?handler=Form");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
 
+        Assert.Contains("handler=Send", FormAction(html, "Send"), StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=SearchCase", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch("<button[^>]*formaction=", html);
+        Assert.Contains("data-case-picker-url=\"/Inbox/Compose?handler=CaseOptions\"", html, StringComparison.Ordinal);
+        Assert.Contains("role=\"combobox\"", html, StringComparison.Ordinal);
+        Assert.Empty(send.Commands);
+    }
+
+    /// <summary>
+    /// A send the provider refuses is an outcome, not a fault: the redirected
+    /// GET shows the Failed state and offers the form again under a new key.
+    /// </summary>
+    [Fact]
+    public async Task AFailedComposeSendShowsItsStateAndOffersANewSend()
+    {
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Failed };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 FAILED", "SC08-COMPOSE-FAILED");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+        var (operationKey, token) = await ComposeFormTokensAsync(
+            client, $"/Inbox/Compose?caseReference={caseReference}");
+
         using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=SearchCase",
+            "/Inbox/Compose?handler=Send",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["OperationKey"] = InputValue(html, "OperationKey"),
-                ["CaseQuery"] = string.Empty,
+                ["__RequestVerificationToken"] = token,
+                ["OperationKey"] = operationKey,
+                ["CaseReference"] = caseReference,
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Draft subject",
-                ["Body"] = "Draft message body."
+                ["Subject"] = "Following up",
+                ["Body"] = "Please find the update below."
             }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(
-            "Enter a Case search term.",
-            await response.Content.ReadAsStringAsync(),
-            StringComparison.Ordinal);
-        Assert.Empty(send.Commands);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+        using var status = await client.GetAsync(response.Headers.Location);
+        var statusHtml = await status.Content.ReadAsStringAsync();
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Failed), statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Correspondence sent.", statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Reconcile", statusHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("handler=Send", FormAction(statusHtml, "Send"), StringComparison.Ordinal);
+        Assert.NotEqual(operationKey, InputValue(statusHtml, "OperationKey"));
     }
 
     [Fact]
@@ -813,45 +844,23 @@ public sealed class StaffCorrespondenceWebTests
             ["SelectedAttachments"] = StableAttachmentResolver.Selection
         };
 
-        using var searchResponse = await client.PostAsync(
-            ButtonFormAction(html, "SearchCorrespondenceCase"),
-            new FormUrlEncodedContent(draft));
-        Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
-        var searchHtml = await searchResponse.Content.ReadAsStringAsync();
-        Assert.Contains(selectedReference, searchHtml, StringComparison.Ordinal);
-        Assert.Equal("forward", InputValue(searchHtml, "compose"));
-        Assert.Equal(string.Empty, InputValue(searchHtml, "folder"));
-        Assert.Equal("2", InputValue(searchHtml, "pageNumber"));
-        Assert.Equal(string.Empty, InputValue(searchHtml, "search"));
-        Assert.Equal(string.Empty, InputValue(searchHtml, "queue"));
-        Assert.Equal("oldest", InputValue(searchHtml, "sort"));
-        Assert.Equal("selected@example.invalid", InputValue(searchHtml, "CorrespondenceTo"));
-        Assert.Equal("copy@example.invalid", InputValue(searchHtml, "CorrespondenceCc"));
-        Assert.Equal("Fwd: Source subject", InputValue(searchHtml, "CorrespondenceSubject"));
-        Assert.Equal("Forward for the selected Case.", TextAreaValue(searchHtml, "CorrespondenceBody"));
-        AssertSelectedAttachment(searchHtml, StableAttachmentResolver.Selection);
-
-        draft["__RequestVerificationToken"] = InputValue(searchHtml, "__RequestVerificationToken");
-        draft["mailbox"] = InputValue(searchHtml, "mailbox");
-        draft["folder"] = InputValue(searchHtml, "folder");
-        draft["pageNumber"] = InputValue(searchHtml, "pageNumber");
-        draft["search"] = InputValue(searchHtml, "search");
-        draft["queue"] = InputValue(searchHtml, "queue");
-        draft["sort"] = InputValue(searchHtml, "sort");
-        draft["compose"] = InputValue(searchHtml, "compose");
-        draft["CorrespondenceOperationKey"] = InputValue(searchHtml, "CorrespondenceOperationKey");
-        draft["ExpectedCorrespondenceCaseVersion"] = InputValue(
-            searchHtml, "ExpectedCorrespondenceCaseVersion");
-        draft["CorrespondenceCaseReference"] = InputValue(searchHtml, "CorrespondenceCaseReference");
-        draft["CorrespondenceCaseQuery"] = InputValue(searchHtml, "CorrespondenceCaseQuery");
-        draft["CorrespondenceTo"] = InputValue(searchHtml, "CorrespondenceTo");
-        draft["CorrespondenceCc"] = InputValue(searchHtml, "CorrespondenceCc");
-        draft["CorrespondenceSubject"] = InputValue(searchHtml, "CorrespondenceSubject");
-        draft["CorrespondenceBody"] = TextAreaValue(searchHtml, "CorrespondenceBody");
+        // Typing in Find a Case fetches the option list; the page and its
+        // draft are untouched until an option is chosen.
+        Assert.Contains(
+            $"data-case-picker-url=\"/Inbox/{seeded.MessageId:D}?handler=CorrespondenceCaseOptions\"",
+            html,
+            StringComparison.Ordinal);
+        using var options = await client.GetAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=CorrespondenceCaseOptions&q={Uri.EscapeDataString(selectedReference)}");
+        Assert.Equal(HttpStatusCode.OK, options.StatusCode);
+        var optionsHtml = await options.Content.ReadAsStringAsync();
+        Assert.Contains("role=\"listbox\"", optionsHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"SelectedCorrespondenceCaseReference\"", optionsHtml, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{selectedReference}\"", optionsHtml, StringComparison.Ordinal);
         draft["SelectedCorrespondenceCaseReference"] = selectedReference;
 
         using var selectionResponse = await client.PostAsync(
-            ButtonFormAction(searchHtml, "SelectCorrespondenceCase"),
+            ButtonFormAction(optionsHtml, "SelectCorrespondenceCase"),
             new FormUrlEncodedContent(draft));
         Assert.Equal(HttpStatusCode.OK, selectionResponse.StatusCode);
         var selectedHtml = await selectionResponse.Content.ReadAsStringAsync();

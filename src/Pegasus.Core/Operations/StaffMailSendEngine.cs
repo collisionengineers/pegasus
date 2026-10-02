@@ -249,22 +249,24 @@ public sealed class StaffMailSend(
             await MarkUnknownAsync(command.Actor.SubjectId, operation, CancellationToken.None);
             throw;
         }
+        // A known refusal is an outcome, not a fault: the operation is
+        // recorded Failed with its exact code and returned, so every caller
+        // shows the failure through the same state mapping as Submitted or
+        // Sent. Only an ambiguous provider outcome, recorded Unknown, is
+        // re-thrown: it must be reconciled, never read as a plain failure.
         catch (StaffMailTransportRejectedException exception)
         {
-            await MarkFailedAsync(command.Actor.SubjectId, operation, exception.FailureCode, cancellationToken);
-            throw;
+            return await MarkFailedAsync(command.Actor.SubjectId, operation, exception.FailureCode, cancellationToken);
         }
         catch (UnauthorizedAccessException)
         {
-            await MarkFailedAsync(
+            return await MarkFailedAsync(
                 command.Actor.SubjectId, operation, "staff_send_authorization_lost", cancellationToken);
-            throw;
         }
         catch (InvalidDataException)
         {
-            await MarkFailedAsync(command.Actor.SubjectId, operation,
+            return await MarkFailedAsync(command.Actor.SubjectId, operation,
                 "staff_send_content_invalid", cancellationToken);
-            throw;
         }
         catch
         {
@@ -455,11 +457,11 @@ public sealed class StaffMailSend(
             operation.ObservedSentAtUtc, "provider_outcome_unknown", cancellationToken);
     }
 
-    private async Task MarkFailedAsync(
+    private async Task<StaffMailOperation> MarkFailedAsync(
         string actorSubjectId, StaffMailOperation operation, string failureCode,
         CancellationToken cancellationToken)
     {
-        await store.TransitionAsync(
+        return await store.TransitionAsync(
             actorSubjectId, operation.Id, operation.Version, StaffMailState.Failed,
             operation.AttemptStage, null, operation.SubmittedAtUtc,
             operation.ObservedSentAtUtc, failureCode, cancellationToken);
