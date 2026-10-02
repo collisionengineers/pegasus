@@ -624,7 +624,7 @@ tbody tr:hover{background:#f3f6f7}
 .received-source-details>summary{cursor:pointer;padding:10px 14px;font-weight:650}
 .received-source-details-body{padding:0 14px 14px}
 .mail-compose-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(19,20,21,.62)}
-.dialog.mail-compose-dialog{width:min(660px,calc(100vw - 32px));height:min(660px,calc(100vh - 40px));max-height:none;display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
+.dialog.mail-compose-dialog{width:min(660px,calc(100vw - 32px));height:min(700px,calc(100vh - 40px));max-height:none;display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
 .mail-compose-dialog .dialog-head{padding:10px 16px}
 .mail-compose-dialog .dialog-head .eyebrow{margin:0 0 2px;font-size:10px}
 .mail-compose-dialog .dialog-head h1{font-size:18px}
@@ -632,7 +632,10 @@ tbody tr:hover{background:#f3f6f7}
 .mail-compose-body>.notice,.mail-compose-body>.validation-summary,.mail-compose-status{flex:none}
 .mail-compose-status{display:grid;gap:4px;padding:8px 10px;border:1px solid var(--line);background:var(--surface-2)}
 .mail-compose-form{display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0;flex:1;gap:0}
-.mail-compose-form-fields{display:grid;align-content:start;gap:9px;min-height:0;overflow-y:auto;padding-right:2px}
+/* The fields scroll only when the viewport is too short for their minimum heights; the Message box absorbs any spare height. The 6px padding, pulled back by the matching negative margin, keeps the 5px focus ring inside the scroll clip. */
+.mail-compose-form-fields{display:flex;flex-direction:column;gap:9px;min-height:0;overflow-y:auto;padding:6px;margin:-6px}
+.mail-compose-form-fields>*{flex:none}
+.mail-compose-form-fields>.mail-compose-message{flex:1 1 auto;min-height:0}
 .case-picker{position:relative}
 .case-picker-options{position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:2px;background:#fff;border:1px solid var(--line);box-shadow:0 6px 18px rgba(19,20,21,.14)}
 .case-picker-options .command-results{max-height:240px;padding:4px}
@@ -640,7 +643,7 @@ tbody tr:hover{background:#f3f6f7}
 .mail-compose-form-fields .case-picker{margin:0}
 .mail-compose-addresses{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 .mail-compose-addresses .field,.mail-compose-case-reference,.mail-compose-subject,.mail-compose-message{margin:0}
-.mail-compose-message textarea{height:clamp(120px,20vh,168px);min-height:120px;resize:vertical}
+.mail-compose-message textarea{flex:1 1 auto;height:auto;min-height:96px;resize:vertical}
 .mail-compose-attachments{margin:0;max-height:104px;overflow:auto}
 .mail-compose-footer{display:flex;justify-content:flex-end;gap:8px;margin:9px -16px -12px;padding:10px 16px;border-top:1px solid var(--line);background:var(--surface-2)}
 .mail-compose-status h2{font-size:14px}

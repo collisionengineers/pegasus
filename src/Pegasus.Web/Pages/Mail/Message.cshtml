@@ -244,6 +244,11 @@
                 <div class="panel-head"><h2>Send status</h2></div>
                 <div class="panel-body fact-grid">
                     <dl class="fact"><dt>State</dt><dd>@OperatorLabels.StaffMail.State(mailOperation.State)</dd></dl>
+                    @if (mailOperation.State == Pegasus.Core.Operations.StaffMailState.Failed
+                        && mailOperation.FailureCode is { Length: > 0 } failureCode)
+                    {
+                        <dl class="fact"><dt>Reason</dt><dd>@OperatorLabels.StaffMail.Failure(failureCode)</dd></dl>
+                    }
                     @if (mailOperation.State is Pegasus.Core.Operations.StaffMailState.Submitted
                         or Pegasus.Core.Operations.StaffMailState.Unknown)
                     {
