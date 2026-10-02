@@ -268,6 +268,62 @@ public sealed class ReportRequirementOwnershipTests
     }
 
     /// <summary>
+    /// The aside lists the blockers in the order the Case page shows what
+    /// clears them (operator, 2 October 2026): section by section down the
+    /// page, those no section clears last, and every field a blocker names
+    /// has its place within its section.
+    /// </summary>
+    [Fact]
+    public void ReportBlockersReadDownThePage()
+    {
+        var sectionKeys = OperatorLabels.CaseWorkspace.Sections.Select(section => section.Key).ToList();
+        foreach (var input in ReportBlockerTriggers())
+        {
+            var ranks = CaseWorkspaceLabels.Report.InPageOrder(CaseReportReadiness.Evaluate(input).Reasons)
+                .Select(item => CaseWorkspaceLabels.Report.BlockerSection(item) is { } key
+                    ? sectionKeys.IndexOf(key)
+                    : int.MaxValue)
+                .ToArray();
+            Assert.Equal(ranks.Order().ToArray(), ranks);
+        }
+
+        var fields = ReportBlockerTriggers()
+            .SelectMany(input => CaseReportReadiness.Evaluate(input).Reasons)
+            .Select(item => item.Field)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal);
+        Assert.All(fields, field => Assert.Contains(field, CaseWorkspaceLabels.Report.PageFieldOrder));
+    }
+
+    [Fact]
+    public void ReportBlockersWithinASectionFollowItsFields()
+    {
+        static AssessmentReadinessItem Named(string field) =>
+            new("Requirement " + field, "Source", "Why outstanding", "How to resolve", field);
+
+        // Each list is in Core's order; the page draws them otherwise.
+        AssertPageOrder(
+            [Named(AssessmentVocabulary.AgreedFee), Named(AssessmentVocabulary.ReportDate), Named(AssessmentVocabulary.ReportValuationCommentaryText)],
+            [Named(AssessmentVocabulary.ReportDate), Named(AssessmentVocabulary.ReportValuationCommentaryText), Named(AssessmentVocabulary.AgreedFee)]);
+        AssertPageOrder(
+            [Named(AssessmentVocabulary.ImpactSeverity), Named(AssessmentVocabulary.ImpactLocation), Named(AssessmentVocabulary.DamageUnrelated)],
+            [Named(AssessmentVocabulary.ImpactLocation), Named(AssessmentVocabulary.ImpactSeverity), Named(AssessmentVocabulary.DamageUnrelated)]);
+        AssertPageOrder(
+            [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason), Named(AssessmentVocabulary.SalvageCategory)],
+            [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.SalvageCategory), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason)]);
+        AssertPageOrder(
+            [Named(CaseDataFieldNames.InspectionMode), Named(CaseDataFieldNames.InspectionDate)],
+            [Named(CaseDataFieldNames.InspectionDate), Named(CaseDataFieldNames.InspectionMode)]);
+        // Sign-off Engineer names no field and sits below them on Case details.
+        AssertPageOrder(
+            [CaseReportReadiness.SignOffEngineerNotChosen, Named(CaseDataFieldNames.ClaimNumber), Named(CaseDataFieldNames.IncidentDate)],
+            [Named(CaseDataFieldNames.ClaimNumber), Named(CaseDataFieldNames.IncidentDate), CaseReportReadiness.SignOffEngineerNotChosen]);
+
+        static void AssertPageOrder(AssessmentReadinessItem[] given, AssessmentReadinessItem[] expected) =>
+            Assert.Equal(expected, CaseWorkspaceLabels.Report.InPageOrder(given));
+    }
+
+    /// <summary>
     /// Engine capacity, fuel, colour, tax expiry and MOT expiry are the
     /// DVLA/DVSA lookup's alone (operator, 24 September 2026): no Case editor,
     /// automation write or field save records one, each answer sets all of
