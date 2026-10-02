@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
 
@@ -102,6 +103,32 @@ public sealed class RecentCasesPersistenceTests
 
         Assert.Empty(page.Items);
         Assert.Equal(12, page.TotalCount);
+    }
+
+    /// <summary>
+    /// A row its Case was dismissed at or after (FRD-15) is neither listed nor
+    /// counted; a change made after the dismissal still is.
+    /// </summary>
+    [Fact]
+    public async Task ARowItsCaseWasDismissedAtOrAfterIsNeitherListedNorCounted()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var ids = await SeedAsync(database);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        await using var scope = database.CreateAsyncScope();
+        var dismissals = scope.ServiceProvider.GetRequiredService<IWorkCentreDismissalStore>();
+        // At the moment it was created, after its change, and before its change.
+        await dismissals.DismissAsync(ids.Mail, Since.AddMinutes(50), staff, CancellationToken.None);
+        await dismissals.DismissAsync(ids.Note, Since.AddMinutes(56), staff, CancellationToken.None);
+        await dismissals.DismissAsync(ids.Audited, Since.AddMinutes(52), staff, CancellationToken.None);
+        var page = await scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>()
+            .ListAsync(Since, 1, 50, CancellationToken.None);
+
+        Assert.Equal(4, page.TotalCount);
+        Assert.Equal(
+            [ids.InitialEdit, ids.Audited, ids.Guidance, ids.Replacement],
+            page.Items.Select(item => item.CaseId));
     }
 
     private static async Task SeedTiesAsync(LocalDbTestDatabase database)

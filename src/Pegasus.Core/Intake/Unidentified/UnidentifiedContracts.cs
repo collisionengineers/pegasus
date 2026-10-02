@@ -123,7 +123,11 @@ public sealed record UnidentifiedQueueRow(
     string? EmailSender,
     DateTimeOffset ReceivedAtUtc,
     UnidentifiedReasonCode ReasonCode,
-    string? ResolutionReason);
+    string? ResolutionReason)
+{
+    /// <summary>When the item last became Open: registered, or reopened after it was resolved.</summary>
+    public DateTimeOffset? OpenedAtUtc { get; init; }
+}
 
 public sealed record UnidentifiedOrigin(UnidentifiedOriginKind Kind, Guid Id)
 {

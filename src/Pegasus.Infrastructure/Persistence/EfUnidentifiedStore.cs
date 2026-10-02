@@ -444,6 +444,7 @@ public sealed class EfUnidentifiedStore(
         }
 
         return await ReadQueueRowsAsync(
+            context,
             joined.OrderBy(row => row.Item.CreatedAtUtc).ThenBy(row => row.Item.Sequence),
             cancellationToken);
     }
@@ -476,6 +477,7 @@ public sealed class EfUnidentifiedStore(
         }
 
         return await ReadQueueRowsAsync(
+            context,
             joined
                 .OrderByDescending(row => row.Item.ResolvedAtUtc)
                 .ThenByDescending(row => row.Item.Sequence)
@@ -526,6 +528,7 @@ public sealed class EfUnidentifiedStore(
         // One extra row beyond the page: its presence is what says another page
         // exists, without a second count query that could disagree with it.
         var rows = await ReadQueueRowsAsync(
+            context,
             joined
                 .OrderBy(row => row.Item.CreatedAtUtc)
                 .ThenBy(row => row.Item.Id)
@@ -629,10 +632,13 @@ public sealed class EfUnidentifiedStore(
     /// column is read for an e-mail row only.
     /// </summary>
     private static async Task<IReadOnlyList<UnidentifiedQueueRow>> ReadQueueRowsAsync(
+        PegasusDbContext context,
         IQueryable<UnidentifiedQueueJoin> ordered,
         CancellationToken cancellationToken)
     {
         var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
+        var reopened = UnidentifiedState.Open.ToString();
+        var history = context.Set<UnidentifiedHistoryEntity>().AsNoTracking();
         var rows = await ordered
             .Select(row => new QueueRowSource(
                 row.Item.Id,
@@ -646,7 +652,10 @@ public sealed class EfUnidentifiedStore(
                 row.Receipt == null || row.Receipt.SourceChannel != mailbox
                     ? null
                     : row.Receipt.EvidenceJson,
-                row.Route == null ? null : row.Route.EffectiveSenderAddress))
+                row.Route == null ? null : row.Route.EffectiveSenderAddress,
+                history
+                    .Where(entry => entry.UnidentifiedItemId == row.Item.Id && entry.NewState == reopened)
+                    .Max(entry => (DateTimeOffset?)entry.OccurredAtUtc)))
             .ToArrayAsync(cancellationToken);
         return rows.Select(MapQueueRow).ToArray();
     }
@@ -665,7 +674,8 @@ public sealed class EfUnidentifiedStore(
         string? MediaType,
         string? SourceFileName,
         string? EvidenceJson,
-        string? EffectiveSenderAddress);
+        string? EffectiveSenderAddress,
+        DateTimeOffset? OpenedAtUtc);
 
     /// <summary>
     /// <c>image/</c> with every letter as a two-case character class, so the
@@ -710,7 +720,10 @@ public sealed class EfUnidentifiedStore(
             emailSender,
             row.CreatedAtUtc,
             Enum.Parse<UnidentifiedReasonCode>(row.ReasonCode),
-            row.ResolutionReason);
+            row.ResolutionReason)
+        {
+            OpenedAtUtc = row.OpenedAtUtc
+        };
     }
 
     public async Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(Guid unidentifiedItemId, CancellationToken cancellationToken = default)

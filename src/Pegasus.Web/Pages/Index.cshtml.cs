@@ -43,12 +43,11 @@ public partial class IndexModel(
     IEditScopeLeases editScopes,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IConfirmAiJob confirmAiJob,
+    IListWorkCentreAiJobs listAiJobs,
+    IDismissWorkCentreItem dismissItem,
     TimeProvider timeProvider,
     ILogger<IndexModel> logger) : StaffPageModel
 {
-    /// <summary>How far back the AI jobs section reads for Failed jobs; the window is the New cases window.</summary>
-    private const int RecentJobWindow = 200;
-
     public const string AttentionTab = "attention";
     public const string NewCasesTab = "new-cases";
     public const string AiJobsTab = "ai-jobs";
@@ -379,6 +378,36 @@ public partial class IndexModel(
     }
 
     /// <summary>
+    /// Dismiss on any row (FRD-15): the record's rows leave every tab, for
+    /// everyone, until it next qualifies. The row's leaving is the only notice.
+    /// </summary>
+    public async Task<IActionResult> OnPostDismissAsync(
+        Guid recordId,
+        string? returnUrl,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await dismissItem.ExecuteAsync(new DismissWorkCentreItemRequest(recordId, actor), cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            return BadRequest();
+        }
+
+        return LocalRedirect(SafeReturnUrl(returnUrl));
+    }
+
+    /// <summary>
     /// This page's address with the given state changed and the rest kept. The
     /// search term and tab travel with every address unless cleared or named.
     /// </summary>
@@ -512,7 +541,7 @@ public partial class IndexModel(
         var sharedRead = ReadSharedAiInputsAsync(cancellationToken);
         var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, sharedRead, cancellationToken);
         var newCasesRead = ReadNewCasesAsync(actor, markSeen: NewCasesPage == 1 && !refresh, cancellationToken);
-        var aiJobsRead = ReadAiJobsAsync(clientId, sharedRead, cancellationToken);
+        var aiJobsRead = ReadAiJobsAsync(actor, clientId, sharedRead, cancellationToken);
         try
         {
             await Task.WhenAll(attentionRead, newCasesRead, aiJobsRead);
@@ -712,47 +741,26 @@ public partial class IndexModel(
         return await listRecentCases.ExecuteAsync(actor, NewCasesPage, markSeen, cancellationToken, NowUtc);
     }
 
-    /// <summary>
-    /// The office's unfinished AI work (D9): Queued, Taken and Draft ready from
-    /// the open ledger, and the jobs that failed within the New cases window.
-    /// Market research never waits for a person and is not listed.
-    /// </summary>
+    /// <summary>The AI jobs section (D9): Core's rows, each with who started it.</summary>
     private async Task<IReadOnlyList<WorkCentreAiJobRow>> ReadAiJobsAsync(
+        ActionActor actor,
         string? clientId,
         Task<SharedAiInputs> sharedRead,
         CancellationToken cancellationToken)
     {
         using var timing = DocumentReadTelemetry.Start("web.workcentre.aijobs");
         var shared = await sharedRead;
-        var open = shared.OpenJobs;
-        var drafts = AiDraftPolicy.Drafts(open, shared.Configuration.AiDraftTargetDays)
-            .ToDictionary(draft => draft.Job.JobId);
-        var windowStart = RecentCasesPolicy.WindowStart(NowUtc);
-        var failed = (await aiJobQueries.ListRecentAsync(RecentJobWindow, cancellationToken))
-            .Where(job => job.State == AiJobState.Failed && (job.ClosedAtUtc ?? job.CreatedAtUtc) >= windowStart);
-        var jobs = open
-            .Where(job => job.State is AiJobState.Queued or AiJobState.Taken or AiJobState.DraftReady)
-            .Concat(failed)
-            .Where(job => job.Kind != AiJobKind.MarketResearch)
-            .DistinctBy(job => job.JobId)
-            .OrderBy(job => job.State switch
-            {
-                AiJobState.DraftReady => 0,
-                AiJobState.Taken => 1,
-                AiJobState.Queued => 2,
-                _ => 3
-            })
-            .ThenByDescending(job => job.CreatedAtUtc)
-            .ToArray();
+        var jobs = await listAiJobs.ExecuteAsync(
+            actor, shared.OpenJobs, shared.Configuration.AiDraftTargetDays, NowUtc, cancellationToken);
         var names = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
-            AiJobActions.StaffCreatorIds(jobs),
+            AiJobActions.StaffCreatorIds(jobs.Select(row => row.Job)),
             cancellationToken);
         return jobs
-            .Select(job => new WorkCentreAiJobRow(
-                job,
-                drafts.GetValueOrDefault(job.JobId),
-                AiJobActions.StartedBy(job, names, clientId)))
+            .Select(row => new WorkCentreAiJobRow(
+                row.Job,
+                row.Draft,
+                AiJobActions.StartedBy(row.Job, names, clientId)))
             .ToArray();
     }
 

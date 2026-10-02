@@ -223,6 +223,7 @@ public sealed class GetOperationsSnapshot(
     IUnidentifiedStore unidentifiedStore,
     IStaffAccountQueries staffAccounts,
     ICaseWorkflowConfiguration workflowConfiguration,
+    IWorkCentreDismissalStore dismissals,
     TimeProvider timeProvider,
     IAiJobQueries? aiJobs = null,
     ICaseWorkflowQueries? workflows = null) : IGetOperationsSnapshot, IGetAttentionRows
@@ -252,6 +253,8 @@ public sealed class GetOperationsSnapshot(
         staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
     private readonly ICaseWorkflowConfiguration workflowConfiguration =
         workflowConfiguration ?? throw new ArgumentNullException(nameof(workflowConfiguration));
+    private readonly IWorkCentreDismissalStore dismissals =
+        dismissals ?? throw new ArgumentNullException(nameof(dismissals));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -518,7 +521,9 @@ public sealed class GetOperationsSnapshot(
                 Source: null,
                 Attempts: null)
             {
-                Route = StaffNotificationPolicy.CaseRoute(work.CaseId)
+                Route = StaffNotificationPolicy.CaseRoute(work.CaseId),
+                // Each chase is its own occurrence; a due row always has its chase instant.
+                QualifiedAtUtc = work.NextChaseAtUtc ?? DateTimeOffset.MinValue
             });
         }
 
@@ -541,7 +546,8 @@ public sealed class GetOperationsSnapshot(
                 Received: held.ReceivedAtUtc)
             {
                 OwnerStaffId = held.EngineerId,
-                Route = StaffNotificationPolicy.CaseRoute(held.CaseId)
+                Route = StaffNotificationPolicy.CaseRoute(held.CaseId),
+                QualifiedAtUtc = held.HeldAtUtc ?? held.StateEnteredAtUtc ?? held.CreatedAtUtc
             });
         }
 
@@ -564,7 +570,8 @@ public sealed class GetOperationsSnapshot(
                 Received: review.ReceivedAtUtc)
             {
                 OwnerStaffId = review.EngineerId,
-                Route = StaffNotificationPolicy.CaseRoute(review.CaseId, "review")
+                Route = StaffNotificationPolicy.CaseRoute(review.CaseId, "review"),
+                QualifiedAtUtc = review.StateEnteredAtUtc ?? review.CreatedAtUtc
             });
         }
 
@@ -586,7 +593,8 @@ public sealed class GetOperationsSnapshot(
                 Attempts: null,
                 Received: unassigned.ReceivedAtUtc)
             {
-                Route = StaffNotificationPolicy.CaseRoute(unassigned.CaseId, "assign")
+                Route = StaffNotificationPolicy.CaseRoute(unassigned.CaseId, "assign"),
+                QualifiedAtUtc = unassigned.StateEnteredAtUtc ?? unassigned.CreatedAtUtc
             });
         }
 
@@ -608,7 +616,8 @@ public sealed class GetOperationsSnapshot(
                 Attempts: null,
                 Received: row.ReceivedAtUtc)
             {
-                Route = StaffNotificationPolicy.UnidentifiedRoute(row.Id)
+                Route = StaffNotificationPolicy.UnidentifiedRoute(row.Id),
+                QualifiedAtUtc = row.OpenedAtUtc ?? row.ReceivedAtUtc
             });
         }
 
@@ -631,7 +640,8 @@ public sealed class GetOperationsSnapshot(
                 Received: record.CreatedAtUtc)
             {
                 OwnerStaffId = record.AssigneeId,
-                Route = $"/Cases/{record.CaseId:D}"
+                Route = $"/Cases/{record.CaseId:D}",
+                QualifiedAtUtc = record.StateEnteredAtUtc ?? record.CreatedAtUtc
             });
         }
 
@@ -654,7 +664,8 @@ public sealed class GetOperationsSnapshot(
                 Received: draft.DraftWrittenAtUtc)
             {
                 OwnerStaffId = owner,
-                Route = draft.Route ?? string.Empty
+                Route = draft.Route ?? string.Empty,
+                QualifiedAtUtc = WorkCentreDismissalPolicy.AiJobQualifiedAt(draft.Job)
             });
         }
 
@@ -676,13 +687,19 @@ public sealed class GetOperationsSnapshot(
                 Received: paired.ImagesRegisteredAtUtc)
             {
                 OwnerStaffId = paired.EngineerId,
-                Route = StaffNotificationPolicy.CaseRoute(paired.CaseId)
+                Route = StaffNotificationPolicy.CaseRoute(paired.CaseId),
+                QualifiedAtUtc = paired.PairedAtUtc
             });
         }
 
-        return NeedsAttentionPolicy.Order(
-                items.GroupBy(item => (item.Kind, item.Id)).Select(group => group.First()))
-            .ToArray();
+        // Dismissed rows leave before the chips, counts and pages are taken.
+        var shown = await WorkCentreDismissalPolicy.WithoutDismissedAsync(
+            dismissals,
+            items.GroupBy(item => (item.Kind, item.Id)).Select(group => group.First()).ToArray(),
+            item => item.Id,
+            item => item.QualifiedAtUtc,
+            cancellationToken);
+        return NeedsAttentionPolicy.Order(shown).ToArray();
     }
 
     /// <summary>The Case's engineer for each draft on a Case, so Mine can find it (P2).</summary>

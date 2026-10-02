@@ -83,6 +83,11 @@
 /* New cases: the shared row list, its divider and paging. */
 .wc-list .row-button { text-decoration: none; padding: 16px 20px; }
 .wc-list .row-button:hover { text-decoration: none; }
+/* A row and its Dismiss share one line and one rule beneath. */
+.wc-new-case { display: grid; grid-template-columns: minmax(0, 1fr) auto; border-bottom: 1px solid var(--line); }
+.wc-new-case:last-child { border-bottom: 0; }
+.wc-new-case > .row-button { border-bottom: 0; }
+.wc-new-case > form { display: flex; align-items: center; margin: 0; padding-right: 12px; }
 .wc-divider { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
 .wc-divider span { font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .wc-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
@@ -96,7 +101,8 @@
 .wc-job-meta { grid-column: 1 / -1; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 10px; color: var(--muted); }
 .wc-job-meta .mono a { color: var(--ink); }
 .wc-failed { color: var(--danger); }
-.wc-job-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+/* Actions keep the last column, with or without a lease or failure note beside them. */
+.wc-job-actions { grid-column: -2; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
 .wc-job-actions form { margin: 0; }
 
 .work-centre .wc-search input:focus-visible { outline-offset: 2px; }
