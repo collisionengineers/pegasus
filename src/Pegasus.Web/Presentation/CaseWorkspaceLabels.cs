@@ -45,15 +45,11 @@ public static class CaseWorkspaceLabels
         public const string Editing = "Editing";
         public const string Archived = "Archived";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
-        /// <summary>The Inspection view's section heads once the Case has its Audit (v29 P3).</summary>
-        public const string ReadOnlyAuditCreated = "Read-only · Audit created";
         /// <summary>The aside's Views card and its two rows, present once the Case has its Audit (v29 option 4).</summary>
         public const string Views = "Views";
         public const string InspectionView = "Inspection";
         public const string AuditView = "Audit";
         public const string Sent = "Sent";
-        /// <summary>The Audit view's sent Inspection report line links to its own view (v29 P4).</summary>
-        public const string InspectionViewLink = "Inspection view";
         /// <summary>The Create audit dialog's facts (v29 P5).</summary>
         public const string AuditDialogCase = "Case";
         public const string AuditReference = "Audit reference";
@@ -451,6 +447,58 @@ public static class CaseWorkspaceLabels
             item == CaseReportReadiness.RepairerVatStatusUnknown ? "#estimate-vat-status"
             : item == CaseReportReadiness.RepairerVatHandPicked ? "[data-vat-reset]"
             : null;
+
+        /// <summary>
+        /// The report blockers in the order the Case page shows what clears
+        /// them (operator, 2 October 2026), so working down the list moves
+        /// down the page: by <see cref="BlockerSection"/> in section order,
+        /// then by <see cref="PageFieldOrder"/> within it. A blocker naming no
+        /// field follows its section's fields; one no section clears comes
+        /// last. Ties keep Core's order.
+        /// </summary>
+        public static IReadOnlyList<AssessmentReadinessItem> InPageOrder(IReadOnlyList<AssessmentReadinessItem> items) =>
+        [
+            // A rank is the count of entries before a match, so no match
+            // (no section, no field) ranks after every entry.
+            .. items
+                .OrderBy(item => OperatorLabels.CaseWorkspace.Sections
+                    .TakeWhile(section => section.Key != BlockerSection(item)).Count())
+                .ThenBy(item => PageFieldOrder.TakeWhile(field => field != item.Field).Count())
+        ];
+
+        /// <summary>
+        /// Every field a report blocker names, in the order the Case
+        /// sections draw the control that records it. Only the order within
+        /// one section is read.
+        /// </summary>
+        internal static readonly IReadOnlyList<string> PageFieldOrder =
+        [
+            CaseDataFieldNames.ClaimNumber,
+            CaseDataFieldNames.IncidentDate,
+            CaseDataFieldNames.ClaimantName,
+            CaseDataFieldNames.InspectionDate,
+            CaseDataFieldNames.InspectionMode,
+            CaseDataFieldNames.InspectionAddress,
+            CaseDataFieldNames.VehicleRegistration,
+            AssessmentVocabulary.VehicleType,
+            AssessmentVocabulary.VehicleCondition,
+            AssessmentVocabulary.HistoryCheck,
+            AssessmentVocabulary.ImpactLocation,
+            AssessmentVocabulary.ImpactSeverity,
+            AssessmentVocabulary.DamageUnrelated,
+            AssessmentVocabulary.ValueRetail,
+            AssessmentVocabulary.ValueTrade,
+            AssessmentVocabulary.ValueEngineer,
+            AssessmentVocabulary.Outcome,
+            AssessmentVocabulary.SalvageCategory,
+            AssessmentVocabulary.SalvageValue,
+            AssessmentVocabulary.LegalStatus,
+            AssessmentVocabulary.UnroadworthyReason,
+            AssessmentVocabulary.SettlementContractSum,
+            AssessmentVocabulary.ReportDate,
+            AssessmentVocabulary.ReportValuationCommentaryText,
+            AssessmentVocabulary.AgreedFee
+        ];
     }
 
     /// <summary>

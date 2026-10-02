@@ -433,7 +433,7 @@
         selectTab(all[nextIndex].getAttribute('data-section-link'));
     });
     document.addEventListener('click', function (event) {
-        // An empty jump (the Inspection view's Next action) is an ordinary link.
+        // An empty jump is an ordinary link.
         var jump = event.target.closest('[data-section-jump]:not([data-section-jump=""])');
         if (!jump || !record.contains(jump)) {
             return;
@@ -1278,13 +1278,6 @@
             return false;
         }
         if (form.hasAttribute('data-glass-window')) {
-            return false;
-        }
-        // A write lands on the default view (v29), so one posted from the
-        // Inspection view navigates rather than swapping that view in place.
-        // Razor renders the attribute empty on every other Case, so its value
-        // decides, not its presence.
-        if (record.getAttribute('data-case-view') && (form.getAttribute('method') || 'get').toLowerCase() === 'post') {
             return false;
         }
         var dialogs = document.querySelector('[data-case-dialogs]');

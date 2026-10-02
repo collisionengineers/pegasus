@@ -214,12 +214,11 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
 
     /// <summary>
     /// The Inspection report of a Case that has its Audit is prepared on its
-    /// own work while it awaits sending; once sent it is never prepared again,
-    /// though the preparation already made still replays (operator,
-    /// 1 October 2026).
+    /// own work, and once sent it is prepared again for another send; the
+    /// preparation already made still replays (operator, 2 October 2026).
     /// </summary>
     [Fact]
-    public async Task TheInspectionReportSentAfterTheAuditIsNeverPreparedAgain()
+    public async Task TheInspectionReportSentAfterTheAuditIsPreparedAgain()
     {
         await using var harness = await Harness.CreateAsync();
         await CaseReportGenerationPersistenceTests.GiveAuditAsync(harness.Factory, harness.CaseId, StartUtc);
@@ -232,10 +231,9 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         var replay = await harness.Store.PrepareAsync(command, CancellationToken.None);
         Assert.Equal(prepared.Preparation.Id, replay.Preparation.Id);
         var again = command with { Request = command.Request with { OperationKey = "prepare-delivery-2" } };
-        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => harness.Store.PrepareAsync(again, CancellationToken.None));
-        Assert.Equal("The case report generation is unavailable.", refusal.Message);
-        Assert.Equal(1, await harness.IntentCountAsync());
+        var second = await harness.Store.PrepareAsync(again, CancellationToken.None);
+        Assert.NotEqual(prepared.Preparation.Id, second.Preparation.Id);
+        Assert.Equal(2, await harness.IntentCountAsync());
     }
 
     [Fact]

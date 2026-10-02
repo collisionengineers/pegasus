@@ -188,12 +188,12 @@ The Audit report's reference is its Our Ref, its file name (for example
 `A_QDOS26001_assessment.pdf`) and its email subject, and its re-sends are
 counted among Audit sends only. It has its own fee note and fee, counted
 separately. Report image choices are shared, because they belong to the
-Case's files. Once the Audit exists, an Inspection report already sent can be
-opened and downloaded but never generated again or sent again. An Inspection
-report not yet sent at Create audit is still generated, prepared, sent and
-marked sent from the Inspection view, on the Inspection's own work and
-without changing the Case's state, which is the Audit's (operator,
-1 October 2026); a delivery prepared for it before Create audit is refused at
+Case's files. Once the Audit exists, the Inspection report is generated,
+prepared, sent and marked sent from the Inspection view, on the Inspection's
+own work and without changing the Case's state, which is the Audit's
+(operator, 1 October 2026), and a sent Inspection report may be generated
+and sent again when needed, counted among Inspection sends (operator,
+2 October 2026); a delivery prepared for it before Create audit is refused at
 send, because Create audit changed the Case. The Audit report never
 overwrites or reissues the Inspection report.
 
@@ -292,7 +292,9 @@ or longer than 5000 characters. The report's name and that message are frozen
 with the preparation, so what was reviewed is what is sent. Send uses only the
 frozen message, and custody keeps its own name for the same bytes. A send is a
 staff send that actually left the approved mailbox; a prepared-but-unsent
-delivery is not one. The subject stays the Case or Audit reference.
+delivery is not one. The subject stays the Case or Audit reference. A send the
+mailbox provider refuses is shown as a failed send; that preparation is spent,
+and Prepare delivery is offered again so a fresh preparation can be sent.
 
 **Report and fee note.** They are separately addressable files in custody.
 The operator generating the report chooses whether the fee note is a separate

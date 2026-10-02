@@ -474,7 +474,7 @@ public sealed class AiJobTests
         CaseLifecycleState state,
         string? engineerValue) : ICaseAssessmentStore
     {
-        public Task<CaseAssessmentProjection?> GetAsync(Guid id, CancellationToken cancellationToken)
+        public Task<CaseAssessmentProjection?> GetAsync(Guid id, CaseWorkSelector work, CancellationToken cancellationToken)
         {
             if (id != caseId)
             {

@@ -79,6 +79,7 @@ never renumbered or reused.
 | [ADR-0059](0059-native-mcp-file-content-and-consolidated-tool-inventory.md) | Native MCP file content and a consolidated tool inventory | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0060](0060-glass-valuation-account-and-valuation-report.md) | Glass's valuation through a Key Vault-held account, with its report filed on the Case | accepted | — | EXT-13 |
 | [ADR-0061](0061-ocr-every-scanned-document-page.md) | OCR every scanned document page; a full-page raster is a document or a photograph by its colour | accepted | — | INT-16, AI-04 |
+| [ADR-0062](0062-glass-placeholder-vehicle-for-unknown-plates.md) | A plate Glass's does not know launches its estimate on a placeholder vehicle | accepted | — | EXT-06 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

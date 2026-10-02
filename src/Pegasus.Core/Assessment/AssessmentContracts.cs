@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -495,7 +496,7 @@ public sealed record SaveAssessmentRequest(
 
 public interface ICaseAssessmentStore
 {
-    Task<CaseAssessmentProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken);
+    Task<CaseAssessmentProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 
     Task<CaseAssessmentProjection> SaveAsync(
         SaveAssessmentRequest request,

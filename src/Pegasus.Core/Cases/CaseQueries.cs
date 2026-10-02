@@ -181,7 +181,10 @@ public sealed record CaseRecordNotes(string? PrincipalNotes, string? ClaimSource
     public static readonly CaseRecordNotes None = new(null, null);
 }
 
-public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);
+public sealed record GetCaseQuery(
+    Guid CaseId,
+    ActionActor Actor,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 
 /// <summary>
 /// A bounded read of a case: its identity, workflow and lease, with the
@@ -478,7 +481,7 @@ public sealed class GetCaseEditBasis(
             return null;
         }
 
-        var data = await caseDataQueries.GetAsync(query.CaseId, CaseWorkSelector.Current, cancellationToken)
+        var data = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         if (data.Identity.CaseId != frame.Workflow.CaseId)
         {

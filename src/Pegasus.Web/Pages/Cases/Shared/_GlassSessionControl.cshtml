@@ -55,6 +55,7 @@
                           asp-route-id="@caseId" asp-route-section="estimate" class="glass-close-form" data-glass-close-form>
                         <input type="hidden" name="sessionId" value="@glassSession.Id" />
                         <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
+                        <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <div class="fc">
                             <label for="glass-close-reason">@GlassLabels.CloseReason</label>
                             <input id="glass-close-reason" class="fi" name="reason" maxlength="2000" required aria-required="true" />

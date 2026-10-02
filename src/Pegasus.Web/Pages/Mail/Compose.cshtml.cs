@@ -78,8 +78,6 @@ public sealed class ComposeModel(
 
     public ApprovedMailbox? DefaultMailbox { get; private set; }
 
-    public IReadOnlyList<CaseSearchItem> CaseResults { get; private set; } = [];
-
     public bool StaffMailAvailable => staffMailSend is not UnavailableStaffMailSend;
 
     public CaseSearchItem? Case { get; private set; }
@@ -130,6 +128,32 @@ public sealed class ComposeModel(
         return Partial("Shared/_ComposeForm", this);
     }
 
+    /// <summary>
+    /// Find a Case: the option list the composer's picker fetches as staff
+    /// type. Choosing an option posts <c>SelectCase</c>, the same server
+    /// action the earlier result buttons performed.
+    /// </summary>
+    public async Task<IActionResult> OnGetCaseOptionsAsync(string? q, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        if (!StaffMailAvailable)
+        {
+            return NotFound();
+        }
+
+        return Partial(
+            "/Pages/Shared/_CaseOptions.cshtml",
+            new Pegasus.Web.Presentation.CaseOptions(
+                await SearchCasesAsync(actor, q, cancellationToken),
+                Url.Page("/Mail/Compose", "SelectCase")!,
+                nameof(SelectedCaseReference),
+                "mail-compose-case-option"));
+    }
+
     public async Task<IActionResult> OnPostSendAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -168,11 +192,6 @@ public sealed class ComposeModel(
         if (details is null)
         {
             ModelState.AddModelError(nameof(CaseReference), "Choose one Case by its Case / PO reference.");
-            if (!string.IsNullOrWhiteSpace(CaseReference))
-            {
-                CaseQuery = CaseReference;
-                CaseResults = await SearchCasesAsync(actor, CaseQuery, cancellationToken);
-            }
         }
 
         IReadOnlyList<StaffMailAttachment> attachments = [];
@@ -239,34 +258,6 @@ public sealed class ComposeModel(
             SendNotice = "Correspondence sent.";
         }
         return RedirectToPage(new { caseReference = details.Summary.Reference, operationId = Operation.Id });
-    }
-
-    public async Task<IActionResult> OnPostSearchCaseAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (!StaffMailAvailable)
-        {
-            return NotFound();
-        }
-
-        await LoadDefaultMailboxAsync(cancellationToken);
-        await LoadOperationAsync(actor, cancellationToken);
-        await LoadSelectedCaseAsync(actor, cancellationToken);
-        if (!TryNormalizeCaseQuery(out var query) || string.IsNullOrWhiteSpace(query))
-        {
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                ModelState.AddModelError(nameof(CaseQuery), "Enter a Case search term.");
-            }
-            return Page();
-        }
-
-        CaseQuery = query;
-        CaseResults = await SearchCasesAsync(actor, query, cancellationToken);
-        return Page();
     }
 
     public async Task<IActionResult> OnPostSelectCaseAsync(CancellationToken cancellationToken)
@@ -387,12 +378,6 @@ public sealed class ComposeModel(
 
     private async Task LoadCaseContextAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        if (TryNormalizeCaseQuery(out var query) && query is not null)
-        {
-            CaseQuery = query;
-            CaseResults = await SearchCasesAsync(actor, query, cancellationToken);
-        }
-
         var details = await ResolveCaseAsync(actor, CaseReference, cancellationToken);
         if (details is null)
         {
@@ -453,24 +438,10 @@ public sealed class ComposeModel(
             new(actor, new CaseSearchFilters(Query: value), PageSize: 10), cancellationToken)).Items;
     }
 
-    private bool TryNormalizeCaseQuery(out string? query)
-    {
-        if (TryNormalizeCaseQueryValue(CaseQuery, out query))
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(CaseQuery))
-        {
-            ModelState.AddModelError(nameof(CaseQuery), "Case searches must be 300 characters or fewer.");
-        }
-        return false;
-    }
-
     private static bool TryNormalizeCaseQueryValue(string? value, out string? normalized)
     {
         normalized = value?.Trim();
-        return string.IsNullOrWhiteSpace(normalized) || normalized.Length <= 300;
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 300;
     }
 
     private static bool TryNormalizeCaseReference(string? value, out string? normalized)

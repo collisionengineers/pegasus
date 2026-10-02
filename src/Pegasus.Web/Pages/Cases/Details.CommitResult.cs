@@ -73,8 +73,8 @@ public sealed partial class DetailsModel
     /// <summary>
     /// Loads only what <c>_CaseCommitResult</c> draws: the frame, with the
     /// access answer its workflow gives, and the workspace; the lease; the
-    /// report's readiness and current generation, which the aside's Next action
-    /// reads; the assigned Engineer, the EVA handoff and the lease holder,
+    /// viewed work's report readiness and current generation, which the aside's
+    /// Next action reads; the assigned Engineer, the EVA handoff and the lease holder,
     /// which the ribbon and the dialogs read; the AI drafts; the calculation
     /// the valuation calculator now opens on; and, when the commit recorded
     /// staged crops or rotations, Files.
@@ -123,10 +123,10 @@ public sealed partial class DetailsModel
         using (DocumentReadTelemetry.Start("web.case.engineer-sections"))
         {
             var readiness = AssessmentCanOpen
-                ? reads.Start(token => reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, reuse, token))
+                ? reads.Start(token => reportSnapshotSource.GetAsync(id, actor, work, reuse, token))
                 : null;
             var generation = reads.Start(token =>
-                reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, token));
+                reportGenerations.GetCurrentAsync(actor, id, work, token));
             var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
             var configuration = reads.Start(token => workflowConfiguration.GetCurrentAsync(token));
             var holder = activeLease is { } lease && !viewerHoldsLease
@@ -191,7 +191,7 @@ public sealed partial class DetailsModel
                 LeaseToken);
             var extras = reads.Start(token => ReadWorkspaceExtrasAsync(extrasInputs, token));
             var delivery = CurrentReportGeneration is not null
-                ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, token))
+                ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, work, token))
                 : null;
             await reads.WhenAllAsync();
 
