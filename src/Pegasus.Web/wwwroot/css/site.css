@@ -171,12 +171,16 @@ strong{font-weight:650}
 .btn .icon{width:16px;height:16px}
 .btn.is-disabled,.btn:disabled{opacity:.45;background:var(--surface-3);color:var(--muted);border-color:var(--line);pointer-events:none;cursor:not-allowed}
 /* Action feedback (site.js pegasusBusy). The pressed control keeps its own
-   colours and says what it is doing beside a ring; the form's other submit
-   buttons stand aside. Busy is not disabled: it must not read as broken. */
+   colours and says what it is doing beside the turning loader glyph, the
+   Refresh icon's spin at the Refresh icon's speed; the form's other submit
+   buttons stand aside. Busy is not disabled: it must not read as broken.
+   An action answered in place that succeeded holds a tick and its done word
+   for a moment in the confirmed green; a page that reloads shows its notice. */
 [data-busy]{pointer-events:none;cursor:progress}
 [data-busy-aside]{opacity:.45;pointer-events:none;cursor:not-allowed}
-.busy-ring{display:inline-block;flex:none;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:pegasus-spin .75s linear infinite}
-.btn--small .busy-ring{width:12px;height:12px}
+.busy-spin{animation:pegasus-spin 1s linear infinite}
+[data-busy-complete]{pointer-events:none;color:var(--success-fg);border-color:var(--success)}
+.btn--primary[data-busy-complete],.btn--dark[data-busy-complete]{background:var(--success);border-color:var(--success);color:#fff;box-shadow:none}
 .input,.select,.textarea,input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="date"],input[type="month"],input[type="datetime-local"],input[type="number"],input[type="password"],input[type="time"],.field select,.fc select,td select,textarea{width:100%;min-height:var(--control);border:1px solid var(--line-strong);background:#fff;padding:6px 9px;border-radius:var(--radius)}
 .textarea,textarea{min-height:96px;resize:vertical}
 .input::placeholder,input::placeholder,textarea::placeholder{color:#8a8985}
@@ -1997,12 +2001,12 @@ table tfoot th {
 .is-refreshing .icon--spin { animation: pegasus-spin 1s linear infinite; }
 
 /* The product's one spin. It decorates feedback the words already carry —
-   the Refresh label, an action button's busy label, a loading viewer — so
-   reduced motion, which stops it, loses nothing. */
+   the Refresh label, an action button's busy label beside its loader glyph,
+   a loading viewer — so reduced motion, which stops it, loses nothing. */
 @keyframes pegasus-spin { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .is-refreshing .icon--spin, .busy-ring { animation: none; }
+  .is-refreshing .icon--spin, .busy-spin { animation: none; }
 }
 
 

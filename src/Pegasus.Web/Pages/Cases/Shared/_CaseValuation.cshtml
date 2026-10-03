@@ -245,7 +245,7 @@
                         <div class="entry-actions">
                             @if (connected)
                             {
-                                <button type="button" class="btn btn--small" data-valuation-get data-busy-label="@OperatorLabels.Busy.LookingUp" data-valuation-source="@slug"
+                                <button type="button" class="btn btn--small" data-valuation-get data-busy-label="@OperatorLabels.Busy.LookingUp" data-busy-done="@OperatorLabels.Busy.Done.Valued" data-valuation-source="@slug"
                                         data-valuation-url="@GetValuationAction(source)"><span>@ValuationLabels.GetValuation</span></button>
                             }
                             <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>@ValuationLabels.UseThisValue</span></button>

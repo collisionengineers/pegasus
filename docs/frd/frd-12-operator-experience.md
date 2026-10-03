@@ -265,11 +265,15 @@ only where its Core use case permits it for the current state and account.
 
 Every button or link that asks the server to do something shows that it is
 working from the press until the result arrives. It says what it is doing
-("Saving…", "Sending…", "Generating…") beside a turning ring. The form's
-other buttons stand aside, and a second press is refused. This covers
+("Saving…", "Sending…", "Generating…") beside the turning loader glyph, the
+same spin as Refresh. After five seconds the words say "Still saving…". The
+form's other buttons stand aside, and a second press is refused. This covers
 actions answered in place, slow document previews and file downloads. A
 download stays busy until the file arrives, and a refusal shows its reason.
-Busy is not disabled: the pressed button keeps its colours.
+Busy is not disabled: the pressed button keeps its colours. An action
+answered in place that succeeds shows a brief tick and its done word
+("Saved", "Downloaded") on the button that was pressed; a failure shows
+none, and a page that reloads shows its usual notice instead.
 
 ## Edge cases and fail-closed behaviour
 

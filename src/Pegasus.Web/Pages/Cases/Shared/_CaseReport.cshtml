@@ -161,7 +161,7 @@
                             <span>@ReportLabels.IncludeFeeNote</span>
                         </label>
                     }
-                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn btn--small btn--primary">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" data-busy-done="@OperatorLabels.Busy.Done.Generated" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                         <span>@ReportLabels.GenerateReport</span>
                     </button>
@@ -223,7 +223,7 @@
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
                                 <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn" data-generate-repair-spec>
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" data-busy-done="@OperatorLabels.Busy.Done.Generated" class="btn" data-generate-repair-spec>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                                     <span>@ReportLabels.GenerateRepairSpec</span>
                                 </button>
