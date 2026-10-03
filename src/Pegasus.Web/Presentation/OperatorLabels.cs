@@ -446,10 +446,16 @@ public static class OperatorLabels
     /// What an action button says while its request runs (site.js
     /// <c>pegasusBusy</c>). A button names its word in
     /// <c>data-busy-label</c>; one without it says <see cref="Working"/>,
-    /// which the layouts render as the page default.
+    /// which the layouts render as the page default. Every word here is a
+    /// capitalised "-ing" phrase ending in an ellipsis: after five seconds the
+    /// script prefixes <see cref="Still"/> and lowercases the first letter
+    /// ("Still saving…"), which the architecture test pins.
     /// </summary>
     public static class Busy
     {
+        /// <summary>The word a press that is taking a while gains in front of its busy word.</summary>
+        public const string Still = "Still";
+
         public const string Working = "Working…";
         public const string Adding = "Adding…";
         public const string Applying = "Applying…";
@@ -516,6 +522,21 @@ public static class OperatorLabels
 
         /// <summary>What a fetched download says when the file did not arrive and the server gave no reason.</summary>
         public const string DownloadFailed = "The file could not be downloaded. Try again.";
+
+        /// <summary>
+        /// What a button answered in place says beside its tick for a moment
+        /// after its action succeeded (<c>data-busy-done</c>). A button without
+        /// one shows the tick beside its own label. A press that reloads the
+        /// page names none: the page's notice is its result.
+        /// </summary>
+        public static class Done
+        {
+            public const string Saved = "Saved";
+            public const string Generated = "Generated";
+            public const string Downloaded = "Downloaded";
+            public const string Exported = "Exported";
+            public const string Valued = "Valuation received";
+        }
     }
 
     /// <summary>The shell's own words (v26 shell): the rail foot and the bell.</summary>

@@ -64,7 +64,7 @@ else
               data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed">
             <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
             <input type="hidden" name="view" value="@Model.View" />
-            <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Exporting">
+            <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Exporting" data-busy-done="@OperatorLabels.Busy.Done.Exported">
                 <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                 <span>Export EVA ZIP</span>
             </button>
