@@ -107,10 +107,12 @@
 
     // Action feedback: the Refresh button's twin for every action. From the
     // press until the result arrives, the pressed control says what it is
-    // doing (its data-busy-label, or the page's default from the layout), a
-    // ring takes the place of its icon, and the form's other submit buttons
-    // stand aside. The words are the signal and the ring decorates them, so
-    // reduced motion and forced colours lose nothing.
+    // doing (its data-busy-label, or the page's default from the layout), the
+    // loader glyph turns in place of its icon with the Refresh icon's own
+    // spin, and the form's other submit buttons stand aside. The words are
+    // the signal and the glyph decorates them, so reduced motion and forced
+    // colours lose nothing. A press still waiting after five seconds says
+    // "Still …" (the layout's data-busy-still word in front of its own).
     //
     // The pressed button is never disabled: a disabled submitter drops its
     // name and value from the post. A busy form refuses another submit
@@ -119,13 +121,33 @@
     // A full-page post ends with its navigation. A script that answers a
     // press in place (case-workspace.js, mail-compose.js, upload.js) prevents
     // the default, so this listener leaves it alone, and the script starts
-    // and ends the state itself through window.pegasusBusy.
+    // and ends the state itself through window.pegasusBusy. Such a script
+    // ends a success with { done: true }: the button holds a tick and its
+    // data-busy-done word (or its own label) for a moment. A page that
+    // reloads shows its usual notice instead, so no full-page post is done.
     var busyContents = new WeakMap();
     var busyForms = new WeakMap();
+    var busyHolds = new WeakMap();
     var busyStatus = null;
+    var STILL_AFTER_MS = 5000;
+    var DONE_FOR_MS = 1400;
     function busyWords(control) {
         return control.getAttribute('data-busy-label')
             || document.documentElement.getAttribute('data-busy-label') || '';
+    }
+    // "Saving…" becomes "Still saving…"; every busy word opens with its verb.
+    function stillWords(words) {
+        var still = document.documentElement.getAttribute('data-busy-still') || '';
+        return still && words ? still + ' ' + words.charAt(0).toLowerCase() + words.slice(1) : '';
+    }
+    function glyph(name, className) {
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', className);
+        svg.setAttribute('aria-hidden', 'true');
+        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#' + name);
+        svg.appendChild(use);
+        return svg;
     }
     function announceBusy(words) {
         if (!busyStatus) {
@@ -144,12 +166,10 @@
     function defaultSubmitter(form) {
         return Array.prototype.find.call(form.elements, isSubmitControl) || null;
     }
-    function startControl(control, words) {
-        if (!control || busyContents.has(control)) {
-            return;
-        }
-        words = words || busyWords(control);
-        var saved = { ariaLabel: control.getAttribute('aria-label'), value: null, nodes: null };
+    // Takes the control's own content away and shows a glyph and words in its
+    // place. What comes back restores it.
+    function takeOver(control, iconName, iconClass, words) {
+        var saved = { ariaLabel: control.getAttribute('aria-label'), value: null, nodes: null, label: null, timer: null, form: control.form || null };
         if (control instanceof HTMLSelectElement) {
             // A choice that posts keeps its options; it only stands still.
         } else if (control instanceof HTMLInputElement) {
@@ -161,32 +181,31 @@
             while (control.firstChild) {
                 saved.nodes.appendChild(control.firstChild);
             }
-            var ring = document.createElement('span');
-            ring.className = 'busy-ring';
-            ring.setAttribute('aria-hidden', 'true');
-            control.appendChild(ring);
+            control.appendChild(glyph(iconName, iconClass));
             if (hasText) {
-                var label = document.createElement('span');
-                label.textContent = words;
-                control.appendChild(label);
+                saved.label = document.createElement('span');
+                saved.label.textContent = words;
+                control.appendChild(saved.label);
             } else {
                 control.setAttribute('aria-label', words);
             }
         }
-        busyContents.set(control, saved);
-        control.setAttribute('data-busy', '');
-        control.setAttribute('aria-busy', 'true');
-        if (control instanceof HTMLAnchorElement) {
-            control.setAttribute('aria-disabled', 'true');
+        return saved;
+    }
+    function reword(control, saved, words) {
+        if (saved.label) {
+            saved.label.textContent = words;
+        } else if (saved.value !== null) {
+            control.value = words;
+        } else if (!(control instanceof HTMLSelectElement)) {
+            control.setAttribute('aria-label', words);
         }
         announceBusy(words);
     }
-    function endControl(control) {
-        var saved = control ? busyContents.get(control) : null;
-        if (!saved) {
-            return;
+    function giveBack(control, saved) {
+        if (saved.timer !== null) {
+            window.clearTimeout(saved.timer);
         }
-        busyContents.delete(control);
         if (saved.nodes) {
             control.textContent = '';
             control.appendChild(saved.nodes);
@@ -198,11 +217,103 @@
         } else {
             control.setAttribute('aria-label', saved.ariaLabel);
         }
+    }
+    function startControl(control, words) {
+        if (!control) {
+            return;
+        }
+        // A press during the tick is a new action: the tick gives way.
+        if (busyHolds.has(control)) {
+            finishHold(control);
+        }
+        if (busyContents.has(control)) {
+            return;
+        }
+        words = words || busyWords(control);
+        var saved = takeOver(control, 'icon-loader', 'icon busy-spin', words);
+        var still = stillWords(words);
+        if (still && !(control instanceof HTMLSelectElement)) {
+            saved.timer = window.setTimeout(function () {
+                saved.timer = null;
+                reword(control, saved, still);
+            }, STILL_AFTER_MS);
+        }
+        busyContents.set(control, saved);
+        control.setAttribute('data-busy', '');
+        control.setAttribute('aria-busy', 'true');
+        if (control instanceof HTMLAnchorElement) {
+            control.setAttribute('aria-disabled', 'true');
+        }
+        announceBusy(words);
+    }
+    function endControl(control, options) {
+        var saved = control ? busyContents.get(control) : null;
+        if (!saved) {
+            return;
+        }
+        busyContents.delete(control);
+        giveBack(control, saved);
         control.removeAttribute('data-busy');
         control.removeAttribute('aria-busy');
         if (control instanceof HTMLAnchorElement) {
             control.removeAttribute('aria-disabled');
         }
+        if (options && options.done) {
+            showDone(control.isConnected ? control : replacementFor(control, saved.form), control);
+        }
+    }
+    // The pressed control drawn afresh: a Case action redraws the Case, so
+    // the result shows on the button that took the pressed one's place. Most
+    // Case forms have no id, so a form is also found by its action.
+    function replacementFor(control, form) {
+        if (!form) {
+            return null;
+        }
+        var next = (form.id && document.getElementById(form.id)) || null;
+        var action = form.getAttribute('action');
+        if (!next && action) {
+            next = Array.prototype.find.call(document.forms, function (candidate) {
+                return candidate.getAttribute('action') === action;
+            }) || null;
+        }
+        if (!(next instanceof HTMLFormElement) || next === form) {
+            return null;
+        }
+        var formaction = control.getAttribute('formaction');
+        return Array.prototype.find.call(next.elements, function (element) {
+            return isSubmitControl(element) && element.name === control.name && element.value === control.value
+                && element.getAttribute('formaction') === formaction;
+        }) || null;
+    }
+    // The tick: the control says its done word (data-busy-done), or keeps its
+    // own label, beside the check glyph for a moment, then is itself again.
+    function showDone(target, source) {
+        if (!target || !target.isConnected || busyContents.has(target) || busyHolds.has(target)
+            || target instanceof HTMLSelectElement) {
+            return;
+        }
+        // An icon-only control's own words are its accessible name.
+        var own = target instanceof HTMLInputElement
+            ? target.value
+            : target.textContent.trim() || target.getAttribute('aria-label') || '';
+        var words = target.getAttribute('data-busy-done') || source.getAttribute('data-busy-done') || own;
+        var saved = takeOver(target, 'icon-check', 'icon busy-done', words);
+        saved.timer = window.setTimeout(function () {
+            saved.timer = null;
+            finishHold(target);
+        }, DONE_FOR_MS);
+        busyHolds.set(target, saved);
+        target.setAttribute('data-busy-complete', '');
+        announceBusy(words);
+    }
+    function finishHold(control) {
+        var saved = control ? busyHolds.get(control) : null;
+        if (!saved) {
+            return;
+        }
+        busyHolds.delete(control);
+        giveBack(control, saved);
+        control.removeAttribute('data-busy-complete');
     }
     // words overrides the control's own, for a control that stands in for
     // another: a menu's button while the item pressed inside it loads.
@@ -226,7 +337,9 @@
             }
         });
     }
-    function endBusy(target) {
+    // options.done: the action succeeded and the page stayed put, so the
+    // control shows its tick. Without it the control is simply itself again.
+    function endBusy(target, options) {
         if (!target) {
             return;
         }
@@ -240,10 +353,14 @@
                     element.removeAttribute('data-busy-aside');
                 }
             });
-            endControl(control);
+            endControl(control, options);
             return;
         }
-        endControl(target);
+        if (busyHolds.has(target)) {
+            finishHold(target);
+            return;
+        }
+        endControl(target, options);
     }
     window.pegasusBusy = { start: startBusy, end: endBusy, isBusy: function (form) { return busyForms.has(form); } };
     // A post made with form.submit() fires no submit event: the pressed
@@ -291,6 +408,7 @@
         }
         document.querySelectorAll('[data-busy-form]').forEach(endBusy);
         document.querySelectorAll('[data-busy]').forEach(endBusy);
+        document.querySelectorAll('[data-busy-complete]').forEach(endBusy);
         document.querySelectorAll('[data-refresh-form]').forEach(resetRefresh);
     });
 
@@ -310,6 +428,7 @@
     }
     function busyDownload(control, form, url, init) {
         startBusy(control, form);
+        var done = false;
         var failed = (control && control.getAttribute('data-busy-download-failed'))
             || (form && form.getAttribute('data-busy-download-failed')) || '';
         init.credentials = 'same-origin';
@@ -330,6 +449,7 @@
                 document.body.appendChild(save);
                 save.click();
                 save.remove();
+                done = true;
                 window.setTimeout(function () { URL.revokeObjectURL(href); }, 60000);
             });
         }).catch(function (error) {
@@ -339,7 +459,7 @@
                 window.pegasusToast(error && error.refusal || failed, 'danger');
             }
         }).finally(function () {
-            endBusy(form || control);
+            endBusy(form || control, { done: done });
         });
     }
     document.addEventListener('click', function (event) {
