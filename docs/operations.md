@@ -17,6 +17,26 @@ The operator enabled staff-send on `instructions@collisionengineers.co.uk` at 13
 | Code change | PR 1006 (Release 82) already shows a refused send as Failed. PR `task/compose-send-feedback` adds the reason in operator words under that state on both composers, logs each refusal with its operation id and failure code, and corrects the Compose dialog: the focus ring stays inside the scroll area and the Message box absorbs spare height instead of scrolling. |
 | Still owed | Release 82 is live with the grant in place, so the PR 1006 proof can run now: one Compose send to `digital@collisionengineers.co.uk` reaching `Submitted` and then `Sent` with the Sent item linked to its Case. After this PR's release: the dialog screenshots at 1580×1000 and a smaller desktop height. |
 
+## Release 84 — 3 October 2026 (deployment live)
+
+Release 84 deployed [PR 1012](https://github.com/collisionengineers/pegasus/pull/1012), the operator's option D for busy buttons:
+
+- The busy spinner is the Refresh icon's mechanism: the Lucide `icon-loader` glyph turned by the one `pegasus-spin` keyframe at 1 s, in place of the Release 83 border ring, which the operator saw sitting still as a half-circle while Refresh turned.
+- After five seconds the busy words gain the Still word ("Still saving…").
+- An action answered in place that succeeds holds a tick and its done word (Saved, Generated, Downloaded, Exported, Valuation received) or its own label for 1.4 s on the pressed button, or on the button drawn in its place when the Case redraws. Failures and pages that reload show no tick.
+
+The route was the normal App Service route with the migration identity unchanged, run from the Windows workstation; no SQL step ran. Web and Worker are Running on the approved release, and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `389484dfd9029c2719ab32d28bfea1409722b181` (the merge of PR 1012 into `dev`). Promoted atomically to both `dev` and `main` at 11:44:34Z; `main` was `be444d33b`. Manifest schema 3 SHA-256 `2B035E69C0BC3063B815BEDCC4DF4ADE975EA877934BE3642C2A93A34D60BC55`. `web.zip` SHA-256 `56F89500CCAC4AB5A20A4B34D2367FC4BDD6D10140BC141C3CF8F67B8F07810D`, 106,939,409 bytes. `worker.zip` SHA-256 `F46B23DF0ECDEEAEB27CE594668363DC9FD1D9C3431476E73524A573C26314B0`. Windows `efbundle.exe` SHA-256 `6A51DAC6627A0F4E34C7152FC04AA559619DFCA2482389330442BA0CFAE1D61C`, built and not run. |
+| Review and verification | PR 1012 passed every CI job at its head `8dc401dd8` (changes, invariants, unit, six SQL shards and coverage). Before the PR, a headless-Chrome harness over the real `site.js` and `site.css` with virtual time (32 checks, retained at ignored `artifacts/0310-busy-option-d`) showed the glyph's `pegasus-spin` running at 1 s, no animation under forced reduced motion, the Still words at 5 s, the tick on the pressed and on a redrawn id-less form's button, restore after the hold, and an icon-only button keeping its accessible name. The Local, Artifact, PreDeploy and PreProvision gates passed. The operator ordered the merge to `dev` and the release in one message (3 October 2026). |
+| Schema and grants | Unchanged. The manifest identity `20261002105641_WorkCentreDismissals` equals the deployed head; no migration or bootstrap ran. |
+| Web and Worker deployment | Provision ended at 11:54:01Z and changed nothing: B1 quota in `uksouth` read 3, the six-name `Disabled` census stayed `false`. `az webapp deploy` (OneDeploy `b1b50429-f478-411b-8991-57873ffac24f`, package `20261003115412.zip`) started 11:55:32Z; the site started after 226 s and the exact SHA answered `/health/ready` and `/diagnostics/version` at 11:59:39Z on the first read. The Worker ZIP was deployed at 12:02:58Z (deployment `cf10ab2f-82d6-467f-b74b-44149a6327a7`). |
+| Production smoke | Passed at 12:06:49Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20261003115412.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-10-03T12:05:00Z`; the active Graph subscription expires `2026-10-08T13:10:00Z`. |
+| Still owed | The operator's live walk of option D: Generate report, a Send and a Reports download, watching the glyph turn, the Still words on a slow action and the tick on success; and a DevTools look at why the Release 83 ring looked still on the operator's machine, since its CSS carried the same keyframe. The Release 81 to 83 proofs remain owed. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-84-389484df`; the build and deploy drivers and their logs at `artifacts/releases/release-84-driver`. |
+
 ## Release 83 — 2 October 2026 (deployment live)
 
 Release 83 deployed [PR 1011](https://github.com/collisionengineers/pegasus/pull/1011), which merged two PRs into `dev` together with the fixes their reviews found:
