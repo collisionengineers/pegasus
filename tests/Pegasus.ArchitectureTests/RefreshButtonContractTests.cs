@@ -63,7 +63,7 @@ public sealed class RefreshButtonContractTests
     [Fact]
     public void TheSpinIsDeclaredExactlyOnce()
     {
-        // The Refresh icon, an action's busy ring and a loading viewer share
+        // The Refresh icon, an action's busy loader glyph and a loading viewer share
         // the one spin; no stylesheet declares a second turning keyframe.
         var siteCss = Read("src/Pegasus.Web/wwwroot/css/site.css");
 

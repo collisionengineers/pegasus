@@ -934,8 +934,10 @@
             || (form.hasAttribute('data-estimate-import-form') ? form.querySelector('[data-estimate-import-picker]') : null);
         window.pegasusBusy.start(control, form);
     }
-    function idle(form) {
-        if (window.pegasusBusy) { window.pegasusBusy.end(form); }
+    // done: the action succeeded and the Case stayed on screen, so the pressed
+    // button (or the one drawn in its place) shows its tick for a moment.
+    function idle(form, done) {
+        if (window.pegasusBusy) { window.pegasusBusy.end(form, done ? { done: true } : undefined); }
     }
     function submitInPlace(form, submitter) {
         // A section-head Edit keeps its own section where it is on screen.
@@ -952,6 +954,7 @@
         var isCommit = !!command && command.editor === 'case-edit-form'
             && record.getAttribute('data-case-editing') === 'true';
         if (isCommit) { commitInFlight = true; setCommitStatus('saving'); }
+        var done = false;
         var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
         var method = ((submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get').toUpperCase();
         var request = { method: method, credentials: 'same-origin', redirect: 'follow', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' } };
@@ -1003,9 +1006,11 @@
             if (!swap(html, command, preferred)) {
                 throw new Error('The server did not return the Case.');
             }
+            done = true;
             if (editKey && editFocus) { focusControl(editKey, editFocus); }
             if (form.hasAttribute('data-glass-close-form')) { return refreshGlassControls(); }
         }).catch(function (error) {
+            done = false;
             var failure = isImport
                 ? error.message + ' Import completion was not confirmed. Reload the Case before retrying. If the source was already stored, it will be reused.'
                 : isCommit
@@ -1016,7 +1021,7 @@
         }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
-            idle(form);
+            idle(form, done);
             resetRefresh(form);
             if (importSection && importSection.isConnected) {
                 importSection.removeAttribute('data-estimate-importing');
@@ -1062,6 +1067,7 @@
         var tileId = tile ? tile.getAttribute('data-image-tile') : null;
         var toReport = form.hasAttribute('data-image-in-report-form');
         form.setAttribute('aria-busy', 'true');
+        var done = false;
         var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
         return fetch(action, {
             method: 'POST', body: body, credentials: 'same-origin', redirect: 'follow',
@@ -1089,12 +1095,14 @@
                 if (changesTile) { redrawImageTile(parsed, tileId, toReport); } else { redrawTagPickers(parsed, tileId); }
             }
             announceNotices();
+            done = true;
         }).catch(function (error) {
+            done = false;
             showActionError(error.message + ' Your last change is still on the page.');
         }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
-            idle(form);
+            idle(form, done);
             submitting = false;
             settleQueue();
         });
@@ -2635,6 +2643,7 @@
                 }
                 showNotice(notice, false);
                 if (window.pegasusBusy) { window.pegasusBusy.start(button); }
+                var done = false;
                 fetch(url, {
                     method: 'POST',
                     body: body,
@@ -2655,6 +2664,7 @@
                         if (basis && basis.checked) {
                             basis.dispatchEvent(new CustomEvent('pegasus:valuation-basis-refilled', { bubbles: true }));
                         }
+                        done = true;
                         return;
                     }
                     // A source that does not value a vehicle of this age says
@@ -2667,7 +2677,7 @@
                 }).catch(function () {
                     showNotice(notice, true, null);
                 }).then(function () {
-                    if (window.pegasusBusy) { window.pegasusBusy.end(button); }
+                    if (window.pegasusBusy) { window.pegasusBusy.end(button, { done: done }); }
                 });
             });
         });
