@@ -842,6 +842,28 @@ public static class OperatorLabels
         public const string Previous = "Previous";
         public const string Next = "Next";
 
+        /// <summary>The Activity panel (v32 item I): the figures head the columns, Today and This week the rows.</summary>
+        public const string Activity = "Activity";
+        public const string Today = "Today";
+        public const string ThisWeek = "This week";
+        public const string SentToEngineer = "Sent to Engineer";
+        public const string ReportsSent = "Reports sent";
+        public const string Completed = "Completed";
+        public const string EmailsReceived = "E-mails received";
+        public const string ActivityUnavailable = "Activity is unavailable.";
+
+        /// <summary>The ledgers' column heads (v32 A).</summary>
+        public const string ActionColumn = "Action";
+        public const string CaseColumn = "Case";
+        public const string DetailColumn = "Detail";
+        public const string ArrivalColumn = "Arrival";
+        public const string JobColumn = "Job";
+        public const string StateColumn = "State";
+        public const string InstructionColumn = "Instruction";
+        public const string RecordColumn = "Record";
+        public const string StartedColumn = "Started";
+        public const string NoteColumn = "Note";
+
         public static string Updated(DateTimeOffset value) => $"Updated {OfficeClock(value)}";
 
         public static string Items(int count) => count == 1 ? "1 item" : string.Create(CultureInfo.InvariantCulture, $"{count} items");
@@ -859,7 +881,8 @@ public static class OperatorLabels
         public static string NewCasesPaging(int page, int pages) =>
             string.Create(CultureInfo.InvariantCulture, $"Page {page} of {pages} · newest first");
 
-        public static string LeaseExpires(DateTimeOffset value) => $"Lease expires {OfficeTime(value)}";
+        /// <summary>A Taken job's note (v32 item K): the time its turn ends, in the office clock.</summary>
+        public static string TakenUntil(DateTimeOffset value) => $"Taken until {OfficeClock(value)}";
 
         public static string StartedBy(string name) => $"Started by {name}";
 

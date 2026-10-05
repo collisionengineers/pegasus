@@ -31,4 +31,4 @@ Every state is also reachable by query string: `state=`, `role=`, `opt=dismiss:t
 
 ## Status
 
-As of 5 October 2026, Stage 1 is delivered and waiting for the operator's choice of design (item A) and the settlement of items B to P in [v32-notes.md](v32-notes.md). Stage 2 does not start until then.
+On 5 October 2026 the operator chose design A and confirmed items B to P ([v32-notes.md](v32-notes.md), section 8). Stage 2, the Razor implementation of A, was delivered in the same pull request; FRD-15 owns the behaviour from then on. This folder is historical reference.

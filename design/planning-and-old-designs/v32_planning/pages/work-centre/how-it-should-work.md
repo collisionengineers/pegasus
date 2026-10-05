@@ -31,3 +31,14 @@ Decided with the operator on 5 October 2026 (the brief and the two answers); the
 - `docs/capabilities.md` UI-04 and `docs/open-decisions.md` UI-04 close.
 - `docs/design/README.md`: the Work Centre reflow line and the component map.
 - CONTEXT.md: "First sent to Engineer", "New cases today" and the metric names re-confirmed.
+
+## Decided 5 October 2026
+
+The operator chose design A (Even ledger) and confirmed items B to P. The rules above become:
+
+- **D4.** Every row of Needs attention, New cases and AI jobs ends in an icon-only Dismiss named "Dismiss {reference}"; the open row carries none.
+- **D5.** After a dismissal the page returns to the next row of the same list, or the list's heading.
+- **D6.** An Activity panel sits under the five counts: New cases (today), Sent to Engineer (today, this week), Reports sent (today, this week), Completed (this week), E-mails received (today); London day, Monday week; first export; sent report e-mails as MI-01 counts them; Cases entering Complete including later reopened; office-wide; own unavailable notice; drawn even when there is no work to show; New cases links to the New cases tab.
+- **D7.** One "Updated HH:MM" in the header.
+- **D8.** "Taken until HH:MM".
+- **D9.** The tabs and the kind chips stay. Needs attention gains an Action column with the next action as a button and a Dismiss column; New cases and AI jobs become tables with the same row end; the AI job cards go.

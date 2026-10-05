@@ -82,3 +82,7 @@ Shot numbers: `01`–`05` default (A–E), `06`–`10` Mine, `11`–`15` Held + 
 - **Paging** is drawn as "Page 1 of 1"; no design has more than one page of fixture rows.
 - **Fonts** are inlined from the checkout; a missing glyph falls back to the system font.
 - **Links that leave the page** show a "Mockup destination" dialog; that dialog is demo control, not product UI.
+
+## 8. Approval — 5 October 2026
+
+The operator chose **A · Even ledger** ("Select option A") and confirmed every item B to P as written ("confirmed on all of the items"). For A that settles: the icon-only X at the end of every row with focus moving to the next row (B); the seven figures and the new labels A uses (C, C2); London day and Monday week (D); first export (E); the MI-01 source for Reports sent (F); no Triage Cases in New cases today (G); reopened Cases still counted as Completed (H); office-wide plain figures in the Activity panel under the counts, New cases linking to its tab (I); one Updated clock (J); "Taken until" (K); the tabs and chips stay, AI job cards become a table (L5), the next action is a row button (M); N does not apply to A; the figures still show on an all-empty page (O); the documentation changes (P). Stage 2 starts from this commit.

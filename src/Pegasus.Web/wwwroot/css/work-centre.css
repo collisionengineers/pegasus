@@ -1,5 +1,5 @@
-/* Work Centre (v30 B, "Office ledger"): page-specific rules composed on the
-   shared shell tokens. Linked from Pages/Index.cshtml only. */
+/* Work Centre (v32 A, "Even ledger", over v30 B): page-specific rules composed
+   on the shared shell tokens. Linked from Pages/Index.cshtml only. */
 
 .work-centre .page-header { margin-bottom: 18px; align-items: center; }
 .work-centre .page-header h1 { font-size: 25px; letter-spacing: -.035em; font-weight: 650; }
@@ -17,6 +17,21 @@
 .work-centre .wc-metrics .metric-label { font-size: 12px; font-weight: 650; color: var(--ink); }
 .work-centre .wc-metrics .metric-value { font-size: 28px; font-weight: 650; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
 
+/* Activity (v32, item I): a panel under the counts, the figures heading the
+   columns, Today and This week the rows. A half that is not defined is not drawn. */
+.wc-activity { margin-bottom: 18px; overflow: hidden; }
+.wc-activity .panel-head h2 { font-size: 13px; font-weight: 650; }
+.wc-activity-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+.wc-activity-table th, .wc-activity-table td { border-left: 1px solid var(--line); padding: 8px 16px; }
+.wc-activity-table th:first-child, .wc-activity-table td:first-child { border-left: 0; width: 110px; }
+.wc-activity-table thead th { height: 36px; text-align: left; font-size: 12px; font-weight: 650; color: var(--ink); background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-activity-table thead th a { color: inherit; text-decoration: none; }
+.wc-activity-table thead th a:hover { text-decoration: underline; }
+.wc-activity-table tbody th { text-align: left; font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.wc-activity-table tbody tr:first-child td, .wc-activity-table tbody tr:first-child th { border-bottom: 1px solid var(--line); }
+.wc-activity-table td { height: 44px; text-align: left; font-size: 22px; font-weight: 650; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.wc-activity .notice { margin: 12px; }
+
 .wc-nothing { margin: 28px 0; color: var(--muted); font-size: 13px; }
 
 /* The one panel and its section tabs (WD). */
@@ -30,6 +45,7 @@
 .wc-section-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 13px 16px; border-bottom: 1px solid var(--line); }
 .wc-section-head h2 { font-size: 14px; font-weight: 650; flex: 1 1 auto; }
 .wc-section-head .meta { font-size: 11px; color: var(--muted); }
+.wc-section-head h2:focus-visible, .wc-toolbar h2:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 
 /* Needs attention toolbar: title, count, Office / Mine and Find (WB). */
 .wc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
@@ -46,17 +62,27 @@
 
 .wc-filters { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
 
-/* The ledger: five fixed columns, a group row per populated due group, the
-   open row followed by its facts and next action. */
+/* The three ledgers share one table: a group row per populated group, the
+   open row followed by its facts and next action, and one row end (v32 item
+   B): the action, then the Dismiss. */
 .wc-table { overflow: auto; }
 .wc-ledger-table { table-layout: fixed; font-size: 12px; }
 .wc-ledger-table th { position: static; font-size: 9px; letter-spacing: .06em; padding: 10px 14px; height: auto; }
 .wc-ledger-table td { padding: 10px 14px; height: 54px; vertical-align: top; }
-.wc-col-task { width: 25%; }
-.wc-col-record { width: 29%; }
-.wc-col-owner { width: 14%; }
-.wc-col-due { width: 17%; }
-.wc-col-received { width: 15%; }
+.wc-col-task { width: 24%; }
+.wc-col-record { width: 26%; }
+.wc-col-owner { width: 12%; }
+.wc-col-due { width: 12%; }
+.wc-col-received { width: 10%; }
+.wc-col-action { width: 150px; }
+.wc-col-dismiss { width: 44px; }
+.wc-ledger-table td.wc-col-action, .wc-ledger-table td.wc-col-dismiss { vertical-align: middle; text-align: right; padding-left: 0; }
+.wc-ledger-table td.wc-col-action > .btn { width: 100%; justify-content: flex-start; }
+.wc-dismiss { margin: 0; display: inline-flex; }
+.wc-dismiss .btn--icon { min-width: 32px; min-height: 32px; padding: 0; }
+.wc-dismiss .btn--icon .icon { width: 15px; height: 15px; }
+.wc-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
+.wc-row-actions form { margin: 0; }
 .wc-ledger-table tr[aria-selected="true"] td { background: var(--navy-bg); }
 .wc-ledger-table tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--red); }
 .wc-ledger-table small { display: block; color: var(--muted); font-size: 10px; line-height: 1.6; margin-top: 3px; }
@@ -68,6 +94,7 @@
 .wc-due--overdue { color: var(--danger); }
 .wc-due--today { color: var(--amber); }
 .wc-none { padding: 34px 20px; text-align: center; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.wc-fold { display: none; }
 
 .wc-inline-detail td { padding: 0; height: auto; background: var(--surface-2); }
 .wc-context { display: grid; grid-template-columns: minmax(220px, .75fr) minmax(0, 1.6fr); gap: 16px 28px; padding: 20px 24px; border-left: 3px solid var(--red); }
@@ -80,30 +107,20 @@
 .wc-context-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .wc-context-actions form { margin: 0; }
 
-/* New cases: the shared row list, its divider and paging. */
-.wc-list .row-button { text-decoration: none; padding: 16px 20px; }
-.wc-list .row-button:hover { text-decoration: none; }
-/* A row and its Dismiss share one line and one rule beneath. */
-.wc-new-case { display: grid; grid-template-columns: minmax(0, 1fr) auto; border-bottom: 1px solid var(--line); }
-.wc-new-case:last-child { border-bottom: 0; }
-.wc-new-case > .row-button { border-bottom: 0; }
-.wc-new-case > form { display: flex; align-items: center; margin: 0; padding-right: 12px; }
-.wc-divider { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
-.wc-divider span { font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
-.wc-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+/* New cases: the same table, a divider row where "Since you last looked" falls. */
+.wc-new-cases-table .wc-col-ref { width: 22%; }
+.wc-new-cases-table .wc-col-arrival { width: 16%; }
+.wc-new-cases-table .wc-col-time { width: 18%; }
 
-/* AI jobs: compact rows. */
-.wc-job { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(200px, 1fr); gap: 8px 20px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
-.wc-job:last-child { border-bottom: 0; }
-.wc-job-top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.wc-job-top strong { font-size: 12px; font-weight: 650; }
-.wc-job-instruction, .wc-job-note { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
-.wc-job-meta { grid-column: 1 / -1; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 10px; color: var(--muted); }
-.wc-job-meta .mono a { color: var(--ink); }
+/* AI jobs: the same table, the state in its own column, the actions on one line. */
+.wc-jobs-table .wc-col-job { width: 14%; }
+.wc-jobs-table .wc-col-state { width: 10%; }
+.wc-jobs-table .wc-col-instruction { width: 22%; }
+.wc-jobs-table .wc-col-record { width: 11%; }
+.wc-jobs-table .wc-col-started { width: 14%; }
+.wc-jobs-table .wc-col-note { width: 13%; }
+.wc-jobs-table .wc-col-action { width: 232px; }
 .wc-failed { color: var(--danger); }
-/* Actions keep the last column, with or without a lease or failure note beside them. */
-.wc-job-actions { grid-column: -2; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
-.wc-job-actions form { margin: 0; }
 
 .work-centre .wc-search input:focus-visible { outline-offset: 2px; }
 
@@ -116,14 +133,20 @@
     .work-centre .wc-metrics .metric { padding: 14px 10px; grid-template-columns: 1fr; gap: 10px; border-bottom: 0; }
     .work-centre .wc-metrics .metric:last-child { grid-column: auto; }
     .work-centre .wc-metrics .metric-value { font-size: 25px; }
+    .wc-activity-table th, .wc-activity-table td { padding: 6px 10px; }
+    .wc-activity-table td { font-size: 18px; }
+    .wc-activity-table th:first-child, .wc-activity-table td:first-child { width: 80px; }
     .wc-toolbar { padding: 12px; }
     .wc-filters { padding: 9px 12px; }
     .wc-ledger-table td, .wc-ledger-table th { padding: 9px; font-size: 11px; }
     .wc-col-record { width: 28%; }
     .wc-col-owner { width: 15%; }
+    .wc-col-action { width: 120px; }
+    .wc-jobs-table .wc-col-action { width: 180px; }
+    /* Owner and Received fold into the task cell (v32 A). */
+    .wc-table--fold .wc-col-owner, .wc-table--fold .wc-col-received { display: none; }
+    .wc-table--fold .wc-fold { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
     .wc-context { grid-template-columns: 1fr; }
-    .wc-job { grid-template-columns: 1fr; }
-    .wc-job-actions { justify-content: flex-start; }
 }
 
 @media (max-width: 599px) {
@@ -132,6 +155,8 @@
     .work-centre .wc-metrics .metric:nth-child(3), .work-centre .wc-metrics .metric:nth-child(5) { border-right: 0; }
     .work-centre .wc-metrics .metric-label { font-size: 11px; }
     .work-centre .page-header { align-items: flex-start; flex-direction: column; gap: 12px; }
+    .wc-activity { overflow: auto; }
+    .wc-activity-table { min-width: 560px; }
     .wc-tabs { padding: 0 4px; }
     .wc-tabs .tab { padding: 0 10px; font-size: 11px; }
     .wc-toolbar .wc-search { width: 100%; }
@@ -145,6 +170,6 @@
 
 @media (forced-colors: active) {
     .wc-ledger-table tr[aria-selected="true"] td, .wc-tabs .tab[aria-selected="true"], .wc-switch a[aria-current="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
-    .wc-metrics, .wc-context { border: 1px solid CanvasText; }
+    .wc-metrics, .wc-context, .wc-activity { border: 1px solid CanvasText; }
     .wc-due { color: CanvasText !important; }
 }
