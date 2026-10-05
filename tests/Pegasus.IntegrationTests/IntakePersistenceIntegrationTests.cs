@@ -212,7 +212,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261001100000_MergeChasingSubtypes",
                 "20261001110000_StaffNotificationCancellationCause",
                 "20261002105641_WorkCentreDismissals",
-                "20261005090000_CorrespondenceSentEvent"
+                "20261005090000_CorrespondenceSentEvent",
+                "20261005120000_GrantWorkerCaseManualChases"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
