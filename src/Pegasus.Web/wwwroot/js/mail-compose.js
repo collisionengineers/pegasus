@@ -41,10 +41,9 @@
             });
     }
 
-    function focusComposer(preferResults) {
+    function focusComposer() {
         var content = host.querySelector("#mail-compose-content");
-        var initial = preferResults && host.querySelector("[data-mail-compose-results] button")
-            || host.querySelector("[data-dialog-initial-focus]")
+        var initial = host.querySelector("[data-dialog-initial-focus]")
             || host.querySelector("input, select, textarea, button");
         if (initial || content) {
             (initial || content).focus();
@@ -71,7 +70,7 @@
     function openComposer(trigger) {
         opener = trigger || opener;
         if (!host.hidden) {
-            focusComposer(false);
+            focusComposer();
             return;
         }
         host.hidden = false;
@@ -79,12 +78,12 @@
         releaseBackground = inertOutside(host);
         document.addEventListener("keydown", trapFocus, true);
         setExpanded(true);
-        focusComposer(false);
+        focusComposer();
     }
 
     function trapFocus(event) {
         if (event.key === "Escape") {
-            // An open Find a Case list takes the first Escape and closes
+            // An open Case / PO option list takes the first Escape and closes
             // itself; the composer closes on the next one.
             if (host.querySelector("[data-case-picker-options]:not([hidden])")) {
                 return;
@@ -116,14 +115,14 @@
         return documentResponse.getElementById("mail-compose-content");
     }
 
-    function render(markup, preferResults) {
+    function render(markup) {
         var content = contentFrom(markup);
         if (!content) {
             throw new Error("The composer response did not contain its form.");
         }
         host.replaceChildren(content);
         bindContent();
-        focusComposer(preferResults);
+        focusComposer();
     }
 
     function showFailure(sendMayBeUncertain) {
@@ -158,7 +157,7 @@
                 recover.textContent = "Recover send";
                 recover.setAttribute("data-busy-label", form ? form.getAttribute("data-mail-compose-recovering") || "" : "");
                 recover.addEventListener("click", function () {
-                    request(pendingSend.action, pendingSend.options, false, true, recover);
+                    request(pendingSend.action, pendingSend.options, true, recover);
                 });
                 status.after(recover);
             }
@@ -168,7 +167,7 @@
 
     // The pressed button shows its busy word until the composer answers
     // (site.js pegasusBusy); a rendered answer replaces the button anyway.
-    function request(url, options, preferResults, sendMayBeUncertain, control, form) {
+    function request(url, options, sendMayBeUncertain, control, form) {
         loading = true;
         if (window.pegasusBusy && control) {
             window.pegasusBusy.start(control, form || null);
@@ -176,7 +175,7 @@
         return window.fetch(url, options)
             .then(function (response) { return response.text(); })
             .then(function (markup) {
-                render(markup, preferResults);
+                render(markup);
                 pendingSend = null;
             })
             .catch(function () { showFailure(sendMayBeUncertain); })
@@ -213,7 +212,6 @@
                 var action = submitter && submitter.hasAttribute("formaction")
                     ? submitter.formAction
                     : form.action;
-                var preferResults = submitter && /handler=SearchCase/i.test(action);
                 var formData = new FormData(form);
                 // FormData(form) deliberately excludes the successful submit
                 // button. Case selection carries its selected reference on
@@ -234,7 +232,7 @@
                     // uncertainty into a separately addressed send.
                     pendingSend = { action: action, options: options };
                 }
-                request(action, options, preferResults, isSend, submitter || null, form);
+                request(action, options, isSend, submitter || null, form);
             });
         });
     }
@@ -260,7 +258,7 @@
             request(trigger.getAttribute("data-mail-compose-url") || trigger.href, {
                 credentials: "same-origin",
                 headers: { "X-Requested-With": "XMLHttpRequest" }
-            }, false);
+            }, false, null);
         });
     });
 }());

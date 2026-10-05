@@ -1,4 +1,5 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
@@ -560,6 +561,104 @@ public sealed class PollSentEvidenceTests
         Assert.Equal(NowUtc, staffStore.ObservedAtUtc);
     }
 
+    /// <summary>
+    /// The provider keeps the Message-ID Pegasus assigned where it drops the
+    /// custom X- headers (5 October 2026: both live sends read as Unmatched).
+    /// An operation named by the Message-ID alone, with no frozen markers,
+    /// is matched against the lease's mailbox and generation and its
+    /// attachment hashes, and the operation is marked Sent.
+    /// </summary>
+    [Fact]
+    public async Task AMessageIdMarkerWithoutHeaderMarkersMarksTheOperationSent()
+    {
+        var lease = Lease();
+        var operationId = Guid.NewGuid();
+        var contextId = Guid.NewGuid();
+        var operation = new StaffMailOperation(
+            operationId, StaffMailState.Submitted, StaffMailAttemptStage.ObserveSent, 5,
+            NowUtc.AddMinutes(-5), NowUtc.AddMinutes(-2), null, null,
+            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null,
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null);
+        var staffStore = new ObservationStore(new StaffMailExecution(
+            Guid.NewGuid().ToString("D"), operation, "draft", [],
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null));
+        var template = Item("staff-message-id", "sent-items", "cursor", [], []);
+        var item = template with
+        {
+            Provenance = template.Provenance! with
+            {
+                InternetMessageIdentity = $"<{StaffMailCorrelationHeaders.MessageId(operationId)}>",
+                StaffMailOperationId = StaffMailCorrelationHeaders.TryReadOperationId(
+                    $"<{StaffMailCorrelationHeaders.MessageId(operationId)}>"),
+                AttachmentSha256 = []
+            }
+        };
+        var pollStore = new RecordingPollStore(lease);
+        var poll = CreateUseCase(
+            pollStore,
+            new SequencedSource(new ApprovedSentPage([item], "cursor", false)),
+            new ResponsePort(), new ReportPort(), staffMailStore: staffStore);
+
+        await poll.ExecuteAsync(1, 10, ActionActor.SystemWorker("test"), CancellationToken.None);
+
+        Assert.Equal(operationId, item.Provenance!.StaffMailOperationId);
+        Assert.Equal(1, staffStore.TransitionCount);
+        Assert.Equal(SentEvidencePollOutcomeKind.Unmatched, Assert.Single(pollStore.OutcomeAttempts).Kind);
+    }
+
+    [Theory]
+    [InlineData("<not-an-operation@pegasus.invalid>")]
+    [InlineData("<e101bc7b9d6b4c519594a4c74b4c1e91@example.test>")]
+    [InlineData("")]
+    public void AMessageIdThatIsNotPegasusOwnNamesNoOperation(string messageId) =>
+        Assert.Null(StaffMailCorrelationHeaders.TryReadOperationId(messageId));
+
+    /// <summary>
+    /// Every Discovered Sent item is the Sent Items scope's row, written once:
+    /// a replay retains nothing new, and a Moved or Deleted observation or a
+    /// malformed item retains nothing at all.
+    /// </summary>
+    [Fact]
+    public async Task EveryDiscoveredSentItemIsRetainedOnceUnderTheSentScope()
+    {
+        var lease = Lease();
+        var discovered = Item("retained-1", "sent-items", "cursor-1", [], []) with
+        {
+            RetainedMetadata = new(
+                "sent-items", "conversation-retained-1", "<message-retained-1@example.test>",
+                "instructions@example.test", "Instructions", ["claimant@example.invalid"], [], [],
+                "Following up", "Please find the update below.", [], IsRead: true),
+            SourceLength = 2048
+        };
+        var moved = Item("moved-1", "elsewhere", "cursor-2", [], []) with
+        {
+            ObservationKind = ApprovedSentItemObservationKind.Moved
+        };
+        var malformed = new ApprovedSentItem(
+            "malformed-1", new string('B', 64), "sent-items",
+            ApprovedSentItemObservationKind.Discovered, null, "graph_sent_mime_invalid", "cursor-3");
+        var page = new ApprovedSentPage([discovered, moved, malformed], "cursor-3", HasMore: false);
+        var retained = new RetainedStore();
+        var poll = CreateUseCase(
+            new RecordingPollStore(lease, lease),
+            new SequencedSource(page, page),
+            new ResponsePort(), new ReportPort(), retainedMessages: retained);
+
+        await poll.ExecuteAsync(3, 10, WorkerActor);
+        await poll.ExecuteAsync(3, 10, WorkerActor);
+
+        var row = Assert.Single(retained.Messages);
+        Assert.Equal(MailFolderScope.Sent, row.Folder);
+        Assert.Equal(lease.ApprovedMailboxId, row.MailboxId);
+        Assert.Equal(lease.MailboxAddress, row.MailboxAddress);
+        Assert.Equal(discovered.Provenance!.ImmutableItemIdentity, row.ImmutableMessageId);
+        Assert.Equal(discovered.SourceOccurrenceIdentity, row.ExternalReceiptToken);
+        Assert.Equal(discovered.Provenance.SentAtUtc, row.ReceivedAtUtc);
+        Assert.Equal(2048, row.SourceLength);
+        Assert.Equal("Following up", row.Metadata.Subject);
+        Assert.Equal(2, retained.RetainCalls);
+    }
+
     [Fact]
     public async Task BatchContinuesToSecondMailboxAfterFirstSourceFailure()
     {
@@ -596,7 +695,8 @@ public sealed class PollSentEvidenceTests
         TimeProvider? timeProvider = null,
         AutoLinkPort? autoLinkPort = null,
         IApprovedMailboxPolicy? policy = null,
-        IStaffMailSendStore? staffMailStore = null) => new(
+        IStaffMailSendStore? staffMailStore = null,
+        IRetainedMailboxMessageStore? retainedMessages = null) => new(
         pollStore,
         source,
         policy ?? new ApprovedPolicy(),
@@ -605,7 +705,30 @@ public sealed class PollSentEvidenceTests
         reportPort,
         autoLinkPort ?? AutoLinkPort.NotLinked(),
         timeProvider ?? new AdjustableTimeProvider(NowUtc),
+        retainedMessages ?? new RetainedStore(),
         staffMailStore);
+
+    /// <summary>The Sent Items scope's writer, keyed as the store is: one row per mailbox and item identity.</summary>
+    private sealed class RetainedStore : IRetainedMailboxMessageStore
+    {
+        private readonly Dictionary<string, RetainedMailboxMessage> rows = new(StringComparer.Ordinal);
+
+        public int RetainCalls { get; private set; }
+
+        public IReadOnlyCollection<RetainedMailboxMessage> Messages => rows.Values;
+
+        public Task RetainAsync(RetainedMailboxMessage message, CancellationToken cancellationToken)
+        {
+            RetainCalls++;
+            rows.TryAdd($"{message.MailboxId:N}:{message.ImmutableMessageId}", message);
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> HasRetainedMessageAsync(
+            Guid mailboxId, string immutableMessageId, string canonicalInternetMessageIdentity,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(rows.ContainsKey($"{mailboxId:N}:{immutableMessageId}"));
+    }
 
     private static ApprovedSentPollLease Lease() => new(
         "instructions",

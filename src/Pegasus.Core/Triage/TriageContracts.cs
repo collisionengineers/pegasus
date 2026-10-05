@@ -428,6 +428,13 @@ public sealed record TriageDetail(
 
     /// <summary>The Box folder of the Triage Case once custody confirmed it.</summary>
     public string? CustodyFolderRemoteId { get; init; }
+
+    /// <summary>
+    /// The Triage Case's Correspondence tab: the request e-mail it was opened
+    /// from and every retained e-mail associated with it, newest first, as the
+    /// Case record's Files section lists them.
+    /// </summary>
+    public IReadOnlyList<CaseCorrespondenceEmail> Correspondence { get; init; } = [];
 }
 
 /// <summary>

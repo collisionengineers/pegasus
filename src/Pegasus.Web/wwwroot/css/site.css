@@ -2285,3 +2285,6 @@ th a:hover { text-decoration: underline; }
 
 /* A mail subject is the record title and wraps; an ellipsis read as clipping. */
 .record__head h1.wrap { overflow: visible; white-space: normal; text-overflow: clip; }
+/* Files tabs and Correspondence, shared by the Case record and the Triage Case (site.js bindFileTabs). */
+[data-file-tabs-wrap].is-tabbed .tab-panel-title{display:none}
+.correspondence{display:grid;gap:8px}

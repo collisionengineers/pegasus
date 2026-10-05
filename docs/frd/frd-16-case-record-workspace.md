@@ -267,6 +267,16 @@ to Engineer needs no session. The rules behind each action are in
 - **Correct principal**, which records Created in error and creates the
   replacement Case
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+- **Send chaser**, on any open Case where staff mail is composed in
+  (operator, 5 October 2026). It is a link, not a dialog, and needs no lease:
+  it opens the composer with this Case chosen, To addressed to the sender of
+  the Case's instruction and the sender of each image-intake e-mail paired to
+  the Case and the repairer's directory e-mail, Subject the registration and
+  claimant, and Message the Case chaser template rendered from the Case
+  ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+  When its Sent evidence arrives on a Not ready Case with a scheduled chase,
+  the chase is recorded and the next one scheduled
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
 - **Create audit**, after Correct principal, listed on every Inspection +
   Audit Case and live while the Case is in work, whether or not its
   Inspection report is sent; when refused it is greyed out and its hover
@@ -623,14 +633,18 @@ Crop happens on the viewer stage. Opening a document brings the viewer into
 view. A crop is a stored rectangle: the tile and the report show the cropped region
 and Download returns the original.
 
-Images on a vehicle-images record, a Triage Case or an Unidentified item
-carry the same crop, rotation and tags. Their rules are
-in [FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces).
+Images on a vehicle-images record or an Unidentified item carry the same
+crop, rotation and tags. Their rules are
+in [FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces). A
+Triage Case takes no crop and no tag
+([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)).
 
 **Correspondence** lists every email linked to the Case, whatever its
 classification: the email the Case was created from, received mail
-associated with it later and uploaded `.eml` files, newest first
-([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)). Each row's
+associated with it later, uploaded `.eml` files and the Sent items of mail
+Pegasus sent for the Case once the Sent-evidence poll has observed them,
+newest first ([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)).
+A Sent item's classification cell reads **Sent**. Each row's
 **Open message** shows that message in a dialog over the Case: sender,
 received time, recipients, its text and attachment names. The dialog changes
 nothing. Where the record offers **Reply**, **Reply all** and **Forward**, the
@@ -645,11 +659,15 @@ on Documents.
 ### Notes
 
 Notes merges Case notes, business events, chase outcomes and AI events,
-newest first, each with date, time and actor. **Add Case note** sits at the
-top and needs no edit session. **Record chase** is a dialog, offered while a
+newest first, each with date, time and actor. A general correspondence send
+appears here once its Sent item is observed, as the staff sender,
+**Correspondence sent** and the subject; the message body is never history
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+**Add Case note** sits at the top and needs no edit session. **Record chase** is a dialog, offered while a
 chase is scheduled and the lease is held
-([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)). There
-is no Case tasks panel.
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)); a
+chaser sent from the Actions menu records its chase here by itself once its
+Sent evidence arrives. There is no Case tasks panel.
 
 The workspace keeps the missing-material reason, next chase, last recorded
 outcome and next permitted action together. A Triage Case's due target and
