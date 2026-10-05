@@ -103,10 +103,11 @@
                 </div>
             }
             <div class="field">
-                @* A Deleted Items view has no categories; the select stays so switching
-                   folders never submits a category the deleted view refuses. *@
+                @* Sent and Deleted Items views have no categories: nothing there was
+                   classified as received work. The select stays so switching folders
+                   never submits a category those views refuse. *@
                 <label for="queue-filter">@OperatorLabels.Inbox.Category</label>
-                <select id="queue-filter" name="queue" disabled="@(Model.Folder == MailFolderScope.DeletedItems)">
+                <select id="queue-filter" name="queue" disabled="@(Model.Folder is MailFolderScope.DeletedItems or MailFolderScope.Sent)">
                     <option value="" selected="@(Model.QueueFilter is null)">@OperatorLabels.Inbox.AllCategories</option>
                     <optgroup label="@OperatorLabels.Inbox.DestinationGroup">
                         @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.AggregateViews)
@@ -224,6 +225,11 @@
                             @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.
                             Only received mail is retained.
                         </p>
+                    }
+                    else if (Model.Folder != MailFolderScope.Inbox)
+                    {
+                        @* The received-mail sentences below are the Inbox's; an empty
+                           Sent Items scope has only its message count. *@
                     }
                     else if (Model.Results.HasUnretainedHistory)
                     {

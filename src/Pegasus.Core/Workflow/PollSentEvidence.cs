@@ -196,8 +196,8 @@ public sealed class PollSentEvidence(
     IRetainApprovedMailboxReportSentEvidence retainReportEvidence,
     IAutoLinkReportEvidence autoLinkReportEvidence,
     TimeProvider timeProvider,
-    IStaffMailSendStore? staffMailSendStore = null,
-    IRetainedMailboxMessageStore? retainedMessages = null)
+    IRetainedMailboxMessageStore retainedMessages,
+    IStaffMailSendStore? staffMailSendStore = null)
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromSeconds(30);
@@ -493,8 +493,9 @@ public sealed class PollSentEvidence(
         // Every Sent item the approved mailbox holds is the Sent Items scope's
         // row (FRD-20), written before the outcome so a refused write leaves the
         // cursor unadvanced and the item is read again. Retention is a no-op
-        // for an item already held.
-        if (retainedMessages is not null)
+        // for the same Sent item already held; one whose identities contradict
+        // the held row is quarantined rather than holding the cursor.
+        try
         {
             await retainedMessages.RetainAsync(
                 new RetainedMailboxMessage(
@@ -521,6 +522,20 @@ public sealed class PollSentEvidence(
                     nowUtc,
                     MailFolderScope.Sent),
                 cancellationToken);
+        }
+        catch (InvalidDataException exception)
+        {
+            await RecordOutcomeAsync(
+                lease,
+                item,
+                outcomeId,
+                SentEvidencePollOutcomeKind.MalformedQuarantined,
+                relatedEvidenceId: null,
+                FailureCode(exception),
+                nowUtc,
+                operationKey,
+                cancellationToken);
+            return new(SentEvidencePollOutcomeKind.MalformedQuarantined, ReportEvidenceRetained: false);
         }
 
         IReadOnlyList<ExactEmailResponseEvidenceCandidate> candidates =

@@ -69,9 +69,11 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.SourceSha256).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.DismissedBySubjectId).HasMaxLength(200);
             // One row per message per mailbox: the poll inserts if absent and a
-            // redelivery is refused here, not judged in application code.
+            // redelivery is refused here, not judged in application code. The
+            // Inbox and Sent copies of one message are two mailbox items, so the
+            // Message-ID is unique per folder.
             entity.HasIndex(item => new { item.MailboxId, item.ImmutableMessageId }).IsUnique();
-            entity.HasIndex(item => new { item.MailboxId, item.CanonicalInternetMessageIdentity })
+            entity.HasIndex(item => new { item.MailboxId, item.FolderScope, item.CanonicalInternetMessageIdentity })
                 .IsUnique()
                 .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
             entity.HasIndex(item => new { item.ReceivedAtUtc, item.Id }).IsDescending(true, false);
@@ -84,7 +86,7 @@ internal static class MailboxModelConfiguration
             }).IsDescending(false, false, true, false);
             entity.HasIndex(item => item.ConversationIdentity);
             entity.HasIndex(item => item.ExternalReceiptToken);
-            entity.HasOne<ApprovedInboxPollStateEntity>()
+            entity.HasOne<ApprovedMailboxEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.MailboxId)
                 .OnDelete(DeleteBehavior.Restrict);
