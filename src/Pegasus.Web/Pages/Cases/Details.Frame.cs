@@ -22,9 +22,6 @@ public sealed partial class DetailsModel
     /// <summary>The Case's Draft ready AI jobs, oldest first, for the Next action panel.</summary>
     public IReadOnlyList<AiDraft> AiDrafts { get; private set; } = [];
 
-    /// <summary>Whether this staff member may take the unassigned Case for themself (P8).</summary>
-    public bool CanAssignToMe { get; private set; }
-
     /// <summary>
     /// The lease is this browser's and the Case is not archived: the page-wide
     /// edit session is open. A Completed or Query Case offers no session of

@@ -671,56 +671,6 @@ public static class CaseLifecycleRules
         }
     }
 
-    /// <summary>
-    /// Whether the Case is in a state where a staff member may be assigned at all:
-    /// today that is Review only, the one place <see cref="AssignCaseEngineer"/>
-    /// accepts an assignment.
-    /// </summary>
-    public static bool AllowsEngineerAssignment(CaseLifecycleState state) =>
-        state == CaseLifecycleState.Review;
-
-    /// <summary>
-    /// "Assign to me" is offered on a Case with no assigned staff member, in a state where
-    /// assignment is allowed. A Case that already has a staff member is reassigned
-    /// through the ordinary dialog, never taken.
-    /// </summary>
-    public static bool CanAssignToSelf(CaseWorkflowRecord current) =>
-        current.AssignedEngineerId is null
-        && current.Archive is null
-        && !IsTerminal(current.State)
-        && AllowsEngineerAssignment(current.State);
-
-    public static void RequireSelfAssignmentAllowed(CaseWorkflowRecord current)
-    {
-        ArgumentNullException.ThrowIfNull(current);
-        if (current.AssignedEngineerId is not null)
-        {
-            throw new InvalidOperationException("The case already has an assigned staff member.");
-        }
-
-        if (!CanAssignToSelf(current))
-        {
-            throw new InvalidOperationException("A staff member can be assigned only while the case is in Review.");
-        }
-    }
-
-    /// <summary>
-    /// The staff identity an actor assigns to themself. The account must be
-    /// enabled when the assignment is checked.
-    /// </summary>
-    public static Guid RequireSelfAssigningStaff(ActionActor actor)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        if (actor.Kind != ActorKind.Staff
-            || !Guid.TryParse(actor.SubjectId, out var staffId)
-            || staffId == Guid.Empty)
-        {
-            throw new InvalidOperationException("Only authenticated staff can assign a case to themself.");
-        }
-
-        return staffId;
-    }
-
     public static void ValidateAssignment(
         AssignCaseEngineerRequest request,
         CaseWorkflowConfiguration configuration)

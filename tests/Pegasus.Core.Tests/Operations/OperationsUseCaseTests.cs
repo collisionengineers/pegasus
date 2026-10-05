@@ -22,6 +22,16 @@ public sealed class OperationsUseCaseTests
     }
 
     [Fact]
+    public void OwnerTextNamesAPersonOrTheEmptySlot()
+    {
+        Assert.Equal("Alex", NeedsAttentionPolicy.OwnerText("Alex", hasPersonSlot: true));
+        Assert.Equal("Alex", NeedsAttentionPolicy.OwnerText("Alex", hasPersonSlot: false));
+        Assert.Equal("Unassigned", NeedsAttentionPolicy.OwnerText(null, hasPersonSlot: true));
+        Assert.Equal("Unassigned", NeedsAttentionPolicy.OwnerText("  ", hasPersonSlot: true));
+        Assert.Equal("No owner", NeedsAttentionPolicy.OwnerText(null, hasPersonSlot: false));
+    }
+
+    [Fact]
     public void PairedVehicleImagesAreNotWorkToTake()
     {
         Assert.False(NeedsAttentionPolicy.CanTake(

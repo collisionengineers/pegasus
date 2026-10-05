@@ -246,7 +246,7 @@ to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
 - **Hand to Engineer**, in Review. Its dialog selects an
-  eligible enabled staff account or **Assign to me**. The one handoff assigns them and
+  eligible enabled staff account. The one handoff assigns them and
   enters With Engineer. There is no reviewed checkbox and no separate start
   action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#hand-to-engineer)).
 - **Send to EVA**, when the Principal's report-generation policy offers it.

@@ -428,7 +428,7 @@ internal static partial class CaseWebTestSupport
             new(taskId, CaseId, description, assigneeId, state, version, CaseVersion + 1);
     }
 
-    internal sealed partial class RecordingCaseDetailsStore : IAssignCaseToMe
+    internal sealed partial class RecordingCaseDetailsStore
     {
         /// <summary>The Case type the summary reports; a plain Inspection unless a test says otherwise.</summary>
         public CaseType SummaryCaseType { get; init; } = CaseType.Inspection;
@@ -441,18 +441,6 @@ internal static partial class CaseWebTestSupport
 
         /// <summary>The hold's review date the workflow reports.</summary>
         public DateOnly? HoldReviewOn { get; set; }
-
-        public List<AssignCaseToMeRequest> SelfAssignments { get; } = [];
-
-        Task<CaseWorkflowRecord> IAssignCaseToMe.ExecuteAsync(
-            AssignCaseToMeRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            SelfAssignments.Add(request);
-            ConsumeLease();
-            return Task.FromResult(CreateWorkflow() with { AssignedEngineerId = Guid.NewGuid() });
-        }
     }
 
     internal sealed partial class RecordingCaseDetailsStore : IRequestVehicleLookup
