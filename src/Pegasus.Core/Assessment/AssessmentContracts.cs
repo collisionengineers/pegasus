@@ -346,6 +346,47 @@ public static class EstimateLineCodes
 }
 
 /// <summary>
+/// The one table that says what a Glass's paint level is: the export's
+/// (<c>PaintMatKind</c>, <c>PaintLevel</c>) pair, the level the calculation
+/// sheet prints for it, and the estimate line type it lands as. Both Glass's
+/// readers use it, so the same row lands as the same line whichever document
+/// it came from. The legend is the sheet's own: <c>I</c> new part, <c>B</c>
+/// adjacent panel blend, <c>III</c> repair up to 50%, <c>IV</c> repair over
+/// 50%, <c>SP</c> spot-repair, <c>II</c> inner surface (a repair of an
+/// existing panel; operator reading, 5 October 2026), and for plastic
+/// <c>K1R</c>, <c>K1N</c> and <c>K1G</c> raw or primed parts (new) and
+/// <c>K2</c> surface spraying (repair). A pair or printed level outside the
+/// table is unknown, and each reader refuses the document.
+/// </summary>
+public static class GlassPaintLevels
+{
+    private sealed record Level(string MaterialKind, int Number, string Printed, string LineType);
+
+    private static readonly Level[] Levels =
+    [
+        new("B", 3, "I", "paint_new"),
+        new("B", 4, "B", "paint_blend"),
+        new("B", 1, "III", "paint_repair"),
+        new("B", 2, "IV", "paint_repair"),
+        new("B", 6, "SP", "paint_repair"),
+        new("B", 0, "II", "paint_repair"),
+        new("K", 2, "K1R", "paint_new"),
+        new("K", 3, "K1N", "paint_new"),
+        new("K", 4, "K1G", "paint_new"),
+        new("K", 0, "K2", "paint_repair"),
+    ];
+
+    /// <summary>The line type of an export's paint level, or null when the pair is not in the table.</summary>
+    public static string? LineTypeOfExport(string? materialKind, int level) => Levels
+        .FirstOrDefault(entry => string.Equals(entry.MaterialKind, materialKind, StringComparison.Ordinal)
+            && entry.Number == level)?.LineType;
+
+    /// <summary>The line type of a level as the calculation sheet prints it, or null when it is not in the table.</summary>
+    public static string? LineTypeOfPrinted(string? printed) => Levels
+        .FirstOrDefault(entry => string.Equals(entry.Printed, printed, StringComparison.Ordinal))?.LineType;
+}
+
+/// <summary>
 /// One caller-supplied estimate line. A save that carries lines replaces the
 /// whole ordered collection, matching the screen's estimate-section save; the
 /// permanent history keeps the collection it replaced.
