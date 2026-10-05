@@ -188,8 +188,9 @@ from the Dismissed scope brings it back. Both are always allowed. An open
 Unidentified item stays open, and the message keeps its evidence,
 associations and history. Dismiss is Pegasus data only: the Outlook item
 does not move and no Graph call is made
-([ADR-0052](../adr/0052-dismiss-by-logical-folder.md)). There is no flag,
-no delete and no Deleted Items move on any surface
+([ADR-0052](../adr/0052-dismiss-by-logical-folder.md)). There is no flag and
+no delete control. The only Deleted Items move is the automatic one after a
+confirmed report send
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 
 Both acts write only the message's dismissed-at and dismissed-by cells and one

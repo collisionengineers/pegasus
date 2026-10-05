@@ -320,4 +320,4 @@ mailbox and Graph subscription states are owned by
   [ADR-0044](../adr/0044-mail-occurrence-and-business-identity.md) (mail identity
   separation), [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md)
   (approved mailbox sending),
-  [ADR-0052](../adr/0052-dismiss-by-logical-folder.md) (no deletion).
+  [ADR-0052](../adr/0052-dismiss-by-logical-folder.md) (no Delete control).

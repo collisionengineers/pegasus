@@ -1,6 +1,6 @@
 # FRD-21: Outbound correspondence and Sent evidence
 
-> Owner capabilities: MAIL-12, MAIL-14 to MAIL-16, MAIL-19 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-12, MAIL-14 to MAIL-16, MAIL-19, MAIL-25 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -14,7 +14,9 @@
   submitted, not sent. The Sent item that Graph later writes is the evidence.
 - A report sent through EVA is detected from the Sent mailbox, not asserted.
   If the match is unclear, the item waits for staff to link it.
-- Nothing here deletes or flags a mailbox item.
+- Staff have no Delete or Flag control. The one automatic move is the answered
+  instruction going to Deleted Items after its report send is confirmed.
+  It is recoverable.
 
 ## Purpose
 
@@ -65,6 +67,22 @@ read it, that the content was right, or that the Case is complete. Preparing,
 viewing, copying or acknowledging a chaser or any other message is not
 evidence of sending. A staff note that says "sent" stays an assertion unless
 the exact external evidence is retained.
+
+**Tidying the answered instruction.** A report send that replied to a retained
+instruction is due for one move once its Sent item is confirmed. The Worker
+moves that instruction to the Deleted Items folder of the mailbox it sits in,
+within about five minutes, through the same recovery run as the Inbox poll.
+It records what happened on the send: moved, already in Deleted Items, no
+longer in the mailbox, or failed. A move writes the Case history event
+`instruction_moved_to_deleted_items`; each failure writes
+`instruction_move_failed` with a failure code, and after three failures
+Pegasus stops and leaves the instruction where it is. The tidy never moves
+anything but that instruction, never deletes it permanently, never runs for a
+send that is not a report, a send that is not confirmed Sent, or a report
+sent without a retained instruction, and never changes the Case, its state or
+the retained message's evidence. Web cannot perform it, and an environment
+without the Worker's mailbox access leaves the instruction where it is
+(`mailbox_not_permitted`).
 
 Triage completion is based on the recorded outcome, under
 [FRD-03](frd-03-triage.md). Its optional Reply with finding is a staff send
@@ -168,10 +186,13 @@ correspondence was sent, with the subject
 until that Sent item exists. A send that Graph refuses leaves no evidence and
 shows as a failure on the composer, never as sent.
 
-**No Flag, no Delete.** There is no flag control, no delete control and no
-move to Deleted Items on any surface. No surface, action or tool removes a
-mailbox item at all ([ADR-0052](../adr/0052-dismiss-by-logical-folder.md)).
-Dismissing a message is Pegasus data only and is defined in
+**No Flag, no Delete control. One automatic move.** There is no flag control,
+no delete control and no staff action that moves a message to Deleted Items,
+on any surface. The one exception is not a control: after a report send is
+confirmed, Pegasus moves the instruction it answered to Deleted Items
+([ADR-0063](../adr/0063-move-answered-instruction-to-deleted-items.md)). No
+surface, action or tool deletes a mailbox item permanently. Dismissing a
+message is Pegasus data only and is defined in
 [FRD-20](frd-20-mailbox-workspace.md#dismiss).
 
 Local development and every test profile use the unavailable implementation
@@ -225,6 +246,8 @@ document never moves a Case by itself.
 - Outlook later moves or deletes a confirmed Sent item: the confirmed event
   stays final.
 - A mailbox that fails to poll: other Sent mailboxes carry on.
+- The answered instruction cannot be moved (permission refused, Graph error):
+  three attempts, each in Case history, then it stays where it is.
 
 ## Acceptance evidence
 
@@ -239,7 +262,7 @@ document never moves a Case by itself.
 
 ## Links
 
-- Capabilities: `MAIL-12`, `MAIL-14`–`MAIL-16`, `MAIL-19` in
+- Capabilities: `MAIL-12`, `MAIL-14`–`MAIL-16`, `MAIL-19`, `MAIL-25` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-08](frd-08-email-mailbox-and-background-processing.md)
   (inbound mail and classification),
@@ -250,5 +273,8 @@ document never moves a Case by itself.
 - Technical constraints:
   [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md) (outbound
   mail via an approved mailbox),
-  [ADR-0052](../adr/0052-dismiss-by-logical-folder.md) (no deletion),
+  [ADR-0052](../adr/0052-dismiss-by-logical-folder.md) (dismiss by logical
+  folder),
+  [ADR-0063](../adr/0063-move-answered-instruction-to-deleted-items.md)
+  (answered instruction to Deleted Items),
   [ADR-0044](../adr/0044-mail-occurrence-and-business-identity.md) (mail identity).
