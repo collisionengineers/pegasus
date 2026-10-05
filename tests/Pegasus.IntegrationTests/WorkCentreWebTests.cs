@@ -426,7 +426,7 @@ public sealed class WorkCentreWebTests
         Assert.Equal(1, Regex.Count(html, "handler=CompleteAiJob"));
         Assert.Contains("name=\"returnUrl\" value=\"/?scope=office&amp;tab=ai-jobs\"", html, StringComparison.Ordinal);
         Assert.Contains("wc-col-started", html, StringComparison.Ordinal);
-        Assert.Matches("Taken until \d\d:\d\d", html);
+        Assert.Matches("Taken until \\d\\d:\\d\\d", html);
         Assert.Contains("The client refused the job: the estimate lines could not be read", html, StringComparison.Ordinal);
         Assert.Contains($"data-wc-job=\"{failed.JobId}\"", html, StringComparison.Ordinal);
         // Market research never waits for a person.
