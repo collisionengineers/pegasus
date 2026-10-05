@@ -835,7 +835,6 @@ public static class OperatorLabels
         public const string AiJobsUnavailable = "AI jobs are unavailable.";
         public const string NoReasonRecorded = "No reason recorded";
         public const string OpenCase = "Open Case";
-        public const string NoOwner = "No owner";
         public const string Previous = "Previous";
         public const string Next = "Next";
 

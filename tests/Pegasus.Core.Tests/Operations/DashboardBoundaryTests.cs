@@ -434,6 +434,30 @@ public sealed class DashboardBoundaryTests
     }
 
     [Fact]
+    public async Task AnAssignedReviewRowNamesItsEngineer()
+    {
+        var engineerId = Guid.NewGuid();
+        var review = ReviewCase(Guid.NewGuid(), "C/2026/OWNED", enteredAtUtc: NowUtc.AddDays(-1)) with
+        {
+            EngineerId = engineerId
+        };
+        var snapshot = await new GetOperationsSnapshot(
+            new StubListTriage(),
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries(),
+            new StubSearchCases { Items = [review] },
+            new StubUnidentifiedQueue(),
+            new NamedStaffAccounts(engineerId, "Alex"),
+            new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new InMemoryWorkCentreDismissals(),
+            new FixedTimeProvider(NowUtc)).ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
+
+        var row = Assert.Single(snapshot.NeedsAttention);
+        Assert.Equal(NeedsAttentionKind.ReviewCase, row.Kind);
+        Assert.Equal("Alex", row.Owner);
+    }
+
+    [Fact]
     public async Task KindChipsCountTheScopeBeforeTheKindFilter()
     {
         var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
@@ -808,7 +832,7 @@ public sealed class DashboardBoundaryTests
             recorder,
             searchCases ?? new StubSearchCases(),
             unidentified ?? new StubUnidentifiedQueue(),
-            new NoStaffAccounts(),
+            new UnknownStaffAccounts(),
             new FixedWorkflowConfiguration(workflowConfiguration ?? new("case-workflow", 1)),
             dismissals ?? new InMemoryWorkCentreDismissals(),
             timeProvider);
@@ -1136,7 +1160,8 @@ public sealed class DashboardBoundaryTests
             throw new NotSupportedException("Not used by these tests.");
     }
 
-    private sealed class NoStaffAccounts : IStaffAccountQueries
+    /// <summary>Resolves the one named staff member it holds.</summary>
+    private sealed class NamedStaffAccounts(Guid staffId, string userName) : IStaffAccountQueries
     {
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,
@@ -1150,7 +1175,10 @@ public sealed class DashboardBoundaryTests
         public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
             IReadOnlyCollection<Guid> staffIds,
             CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
+            Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
+                staffIds.Contains(staffId)
+                    ? [new StaffAccountSummary(staffId, userName, IsEnabled: true, MustChangePassword: false, StaffRole.Engineer)]
+                    : []);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>

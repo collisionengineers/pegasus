@@ -136,7 +136,7 @@ public sealed record NeedsAttentionItem(
     string? Detail,
     string Reason,
     NeedsAttentionPriority Priority,
-    string? Owner,
+    string Owner,
     DateTimeOffset? Due,
     string? LastOutcome,
     string? Source,
