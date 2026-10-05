@@ -1363,6 +1363,17 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Following up on your claim", sent, StringComparison.Ordinal);
         Assert.DoesNotContain($"Message 0 from {FirstMailboxId}", sent, StringComparison.Ordinal);
         Assert.DoesNotContain("not kept in Pegasus yet", sent, StringComparison.Ordinal);
+        // A Sent item is not received work: no processing chip on the row or
+        // the pane, and its preview JSON carries no state to repaint one.
+        Assert.DoesNotContain("Not yet processed", sent, StringComparison.Ordinal);
+        var previewUrl = Regex.Match(sent, "data-mail-preview-url=\"([^\"]+)\"").Groups[1].Value;
+        Assert.NotEmpty(previewUrl);
+        using var previewResponse = await client.GetAsync(System.Net.WebUtility.HtmlDecode(previewUrl));
+        Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+        using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
+        Assert.Equal(JsonValueKind.Null, preview.RootElement.GetProperty("state").ValueKind);
+        Assert.Equal(Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue, preview.RootElement.GetProperty("classification").GetString());
+        Assert.Equal("Sent", preview.RootElement.GetProperty("folder").GetString());
         Assert.Contains("Deleted items messages are not kept in Pegasus yet.", deleted, StringComparison.Ordinal);
         // MAIL-010: this used to assert the sentence that told the operator to
         // search. The sentence was a field hint and is gone; what mattered was

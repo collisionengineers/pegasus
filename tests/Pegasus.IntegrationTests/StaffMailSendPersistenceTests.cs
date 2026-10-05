@@ -631,8 +631,10 @@ public sealed class StaffMailSendPersistenceTests
         var mailboxId = Guid.NewGuid();
         var retainedMessageId = Guid.NewGuid();
         await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        // The fixture's receipt stays unassociated: only the Sent item is
+        // this Case's correspondence here.
         var fixture = await SeedPostReportQueryAsync(
-            database, mailboxId, retainedMessageId, isQueryReceipt: false, isAssociated: true);
+            database, mailboxId, retainedMessageId, isQueryReceipt: false, isAssociated: false);
         await using var scope = database.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
         var command = ReplyCommand(mailboxId, retainedMessageId, "noted-correspondence") with

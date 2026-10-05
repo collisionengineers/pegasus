@@ -11,6 +11,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// records itself in the Case history at the Case's current version, as an
 /// operator note does, so it is exempt from the per-Case, per-version
 /// uniqueness index.
+///
+/// The same poll now retains every Sent item under the Sent Items scope
+/// (FRD-20). A retained message's mailbox was keyed to the Inbox poll state,
+/// which only a mailbox with inbound intake has; a Sent-only mailbox could
+/// never retain. The approved mailbox itself is the message's owner, so the
+/// key moves to <c>ApprovedMailboxes</c>. Nothing is dropped but the key.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
 [Migration("20261005090000_CorrespondenceSentEvent")]
@@ -18,6 +24,18 @@ public partial class CorrespondenceSentEvent : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropForeignKey(
+            name: "FK_RetainedMailboxMessages_ApprovedInboxPollStates_MailboxId",
+            table: "RetainedMailboxMessages");
+
+        migrationBuilder.AddForeignKey(
+            name: "FK_RetainedMailboxMessages_ApprovedMailboxes_MailboxId",
+            table: "RetainedMailboxMessages",
+            column: "MailboxId",
+            principalTable: "ApprovedMailboxes",
+            principalColumn: "Id",
+            onDelete: ReferentialAction.Restrict);
+
         migrationBuilder.DropIndex(
             name: "IX_CaseWorkflowEvents_CaseId_AfterVersion",
             table: "CaseWorkflowEvents");
@@ -32,6 +50,18 @@ public partial class CorrespondenceSentEvent : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropForeignKey(
+            name: "FK_RetainedMailboxMessages_ApprovedMailboxes_MailboxId",
+            table: "RetainedMailboxMessages");
+
+        migrationBuilder.AddForeignKey(
+            name: "FK_RetainedMailboxMessages_ApprovedInboxPollStates_MailboxId",
+            table: "RetainedMailboxMessages",
+            column: "MailboxId",
+            principalTable: "ApprovedInboxPollStates",
+            principalColumn: "ApprovedMailboxId",
+            onDelete: ReferentialAction.Restrict);
+
         migrationBuilder.DropIndex(
             name: "IX_CaseWorkflowEvents_CaseId_AfterVersion",
             table: "CaseWorkflowEvents");
