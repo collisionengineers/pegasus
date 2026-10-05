@@ -289,6 +289,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             [AssessmentVocabulary.EngineerSignature] = "a_engineer",
             [AssessmentVocabulary.AgreedFee] = "120.00"
         };
+        // The accepted Case already holds its Principal's default fee.
+        var paths = values.Keys.ToArray();
+        context.CaseAssessmentFields.RemoveRange(await context.CaseAssessmentFields
+            .Where(field => field.WorkId == caseId && paths.Contains(field.FieldPath))
+            .ToArrayAsync());
         context.CaseAssessmentFields.AddRange(values.Select(value =>
             new CaseAssessmentFieldEntity
             {
