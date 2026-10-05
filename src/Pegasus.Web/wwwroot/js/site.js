@@ -2612,12 +2612,12 @@ window.pegasusPreferences = (function () {
         var box = event.target instanceof Element ? event.target : null;
         var form = box ? box.closest('form') : null;
         if (!form) { return; }
-        if (box.matches('[data-triage-reply-tick]') && box.checked) {
-            var complete = form.querySelector('[data-triage-complete-tick]');
+        if (box.matches('[data-triage-tick-reply]') && box.checked) {
+            var complete = form.querySelector('[data-triage-tick-complete]');
             if (complete) { complete.checked = true; }
         }
-        if (box.matches('[data-triage-complete-tick]') && !box.checked) {
-            var reply = form.querySelector('[data-triage-reply-tick]');
+        if (box.matches('[data-triage-tick-complete]') && !box.checked) {
+            var reply = form.querySelector('[data-triage-tick-reply]');
             if (reply) { reply.checked = false; }
         }
     });
