@@ -8,6 +8,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Persistence;
@@ -18,7 +19,7 @@ namespace Pegasus.ArchitectureTests;
 /// <summary>
 /// The one-minute recovery timer also runs the due-work sweep and the approved-inbox
 /// recovery on every fifth minute, so they use its warm instance. Each test names the
-/// ports the four steps read first, so the order of the steps is the order of the calls.
+/// ports the five steps read first, so the order of the steps is the order of the calls.
 /// A step that throws never stops the others, and after all have run it fails the
 /// invocation, so the failed request reaches the exception alert.
 /// </summary>
@@ -29,6 +30,7 @@ public sealed class PendingWorkRecoveryFunctionTests
     private const string DueWorkSweep = "ICaseDueChaserQueries.GetDueAsync";
     private const string SubscriptionMaintenance = "IApprovedMailboxSubscriptionStore.ListMaintenanceCandidatesAsync";
     private const string InboxPoll = "IApprovedIntakeMailboxes.ListPollableAsync";
+    private const string InstructionTidy = "ISentReportInstructionTidyStore.ListDueAsync";
 
     [Fact]
     public void InfrastructureRegistersOneScopedDueChaserStoreAndCoreUseCase()
@@ -55,14 +57,14 @@ public sealed class PendingWorkRecoveryFunctionTests
     [InlineData(5)]
     [InlineData(10)]
     [InlineData(55)]
-    public async Task EveryFifthMinuteRunsDispatchThenSweepThenSubscriptionsThenInboxPoll(int minute)
+    public async Task EveryFifthMinuteRunsDispatchThenSweepThenSubscriptionsThenInboxPollThenInstructionTidy(int minute)
     {
         using var rig = new Rig(minute);
 
         await rig.Function.RunAsync(null!, default);
 
         Assert.Equal(
-            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll],
+            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll, InstructionTidy],
             rig.Calls);
     }
 
@@ -107,7 +109,7 @@ public sealed class PendingWorkRecoveryFunctionTests
 
         Assert.Equal("sweep failed", failure.Message);
         Assert.Equal(
-            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll],
+            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll, InstructionTidy],
             rig.Calls);
         Assert.Contains(rig.Logger.Entries, entry =>
             entry.Level == LogLevel.Error
@@ -126,7 +128,7 @@ public sealed class PendingWorkRecoveryFunctionTests
 
         Assert.Equal("Graph is down", failure.Message);
         Assert.Equal(
-            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll],
+            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll, InstructionTidy],
             rig.Calls);
         Assert.Contains(rig.Logger.Entries, entry =>
             entry.Level == LogLevel.Error
@@ -149,7 +151,7 @@ public sealed class PendingWorkRecoveryFunctionTests
             first => Assert.Equal("sweep failed", first.Message),
             second => Assert.Equal("Graph is down", second.Message));
         Assert.Equal(
-            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll],
+            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll, InstructionTidy],
             rig.Calls);
     }
 
@@ -164,7 +166,7 @@ public sealed class PendingWorkRecoveryFunctionTests
             () => rig.Function.RunAsync(null!, default));
 
         Assert.Equal("queue is down", failure.Message);
-        Assert.Equal([IntakeDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll], rig.Calls);
+        Assert.Equal([IntakeDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll, InstructionTidy], rig.Calls);
         Assert.Contains(rig.Logger.Entries, entry =>
             entry.Level == LogLevel.Error
             && entry.Exception is InvalidOperationException { Message: "sweep failed" });
@@ -238,7 +240,7 @@ public sealed class PendingWorkRecoveryFunctionTests
         Assert.Contains("approved-inbox recovery", failure.Message, StringComparison.Ordinal);
         Assert.Contains("60 second budget", failure.Message, StringComparison.Ordinal);
         Assert.Equal(
-            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll],
+            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll, InstructionTidy],
             rig.Calls);
         Assert.Contains(rig.Logger.Entries, entry =>
             entry.Level == LogLevel.Warning
@@ -256,7 +258,7 @@ public sealed class PendingWorkRecoveryFunctionTests
             () => rig.Function.RunAsync(null!, default));
 
         Assert.Equal("queue is down", failure.Message);
-        Assert.Equal([IntakeDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll], rig.Calls);
+        Assert.Equal([IntakeDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll, InstructionTidy], rig.Calls);
     }
 
     [Fact]
@@ -277,6 +279,41 @@ public sealed class PendingWorkRecoveryFunctionTests
         Assert.DoesNotContain(rig.Logger.Entries, entry => entry.Level >= LogLevel.Warning);
     }
 
+    [Fact]
+    public async Task AFailingInstructionTidyFailsTheInvocationAfterEveryOtherStepHasRun()
+    {
+        using var rig = new Rig(5);
+        FailInstructionTidy(rig);
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => rig.Function.RunAsync(null!, default));
+
+        Assert.Equal("tidy failed", failure.Message);
+        Assert.Equal(
+            [IntakeDispatch, ExternalDispatch, DueWorkSweep, SubscriptionMaintenance, InboxPoll, InstructionTidy],
+            rig.Calls);
+        Assert.Contains(rig.Logger.Entries, entry =>
+            entry.Level == LogLevel.Error
+            && entry.Exception is InvalidOperationException { Message: "tidy failed" }
+            && entry.Message.Contains("sent-report instruction tidy", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AFailingSweepAndAFailingInstructionTidyAreRethrownTogetherInJobOrder()
+    {
+        using var rig = new Rig(5);
+        FailSweep(rig);
+        FailInstructionTidy(rig);
+
+        var failure = await Assert.ThrowsAsync<AggregateException>(
+            () => rig.Function.RunAsync(null!, default));
+
+        Assert.Collection(
+            failure.InnerExceptions,
+            first => Assert.Equal("sweep failed", first.Message),
+            second => Assert.Equal("tidy failed", second.Message));
+    }
+
     private static void FailDispatch(Rig rig) =>
         rig.IntakeWork.Answer("ClaimDispatchAsync", _ =>
             Task.FromException<IntakeWorkItem?>(new InvalidOperationException("queue is down")));
@@ -289,6 +326,10 @@ public sealed class PendingWorkRecoveryFunctionTests
         rig.Mailboxes.Answer("ListPollableAsync", _ =>
             Task.FromException<IReadOnlyList<ApprovedIntakeMailbox>>(new InvalidOperationException("Graph is down")));
 
+    private static void FailInstructionTidy(Rig rig) =>
+        rig.TidyStore.Answer("ListDueAsync", _ =>
+            Task.FromException<IReadOnlyList<SentReportInstructionCandidate>>(new InvalidOperationException("tidy failed")));
+
     private static async Task<IReadOnlyList<TItem>> WaitUntilCancelled<TItem>(
         object?[] args,
         TaskCompletionSource started)
@@ -300,7 +341,7 @@ public sealed class PendingWorkRecoveryFunctionTests
     }
 
     /// <summary>
-    /// The four steps built over recording ports. Nothing is answered except an empty
+    /// The steps built over recording ports. Nothing is answered except an empty
     /// result, so each step's first port read is the whole of its work.
     /// </summary>
     private sealed class Rig : IDisposable
@@ -310,6 +351,7 @@ public sealed class PendingWorkRecoveryFunctionTests
         public readonly PortRecorder IntakeWork;
         public readonly PortRecorder DueQueries;
         public readonly PortRecorder Mailboxes;
+        public readonly PortRecorder TidyStore;
         public readonly RecordingLogger<PendingWorkRecoveryFunction> Logger = new();
         public readonly PendingWorkRecoveryFunction Function;
         private readonly HttpClient graphClient = new(new RefusingHandler());
@@ -323,6 +365,7 @@ public sealed class PendingWorkRecoveryFunctionTests
             var dueStore = PortRecorder.Of<ICaseDueChaserStore>(Log, out _);
             var subscriptions = PortRecorder.Of<IApprovedMailboxSubscriptionStore>(Log, out _);
             var mailboxes = PortRecorder.Of<IApprovedIntakeMailboxes>(Log, out Mailboxes);
+            var tidyStore = PortRecorder.Of<ISentReportInstructionTidyStore>(Log, out TidyStore);
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -348,6 +391,7 @@ public sealed class PendingWorkRecoveryFunctionTests
                     NullLogger<MaintainMailboxChangeSubscriptions>.Instance),
                 new PollApprovedInbox(
                     mailboxes, null!, null!, null!, null!, null!, null!, null!, Clock),
+                new TidySentReportInstructions(tidyStore, new AvailableMover(), Clock),
                 Clock,
                 Logger);
         }
@@ -355,6 +399,21 @@ public sealed class PendingWorkRecoveryFunctionTests
         public string[] Calls => Log.Snapshot();
 
         public void Dispose() => graphClient.Dispose();
+    }
+
+    /// <summary>A reachable mailbox: the tidy reads its store, which is empty, so nothing moves.</summary>
+    private sealed class AvailableMover : IRetainedMailFolderMover
+    {
+        public bool IsAvailable => true;
+
+        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>A clock stopped at one minute past ten on a fixed day, whose timers fire when a test says.</summary>

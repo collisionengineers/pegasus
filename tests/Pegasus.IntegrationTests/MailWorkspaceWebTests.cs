@@ -3170,6 +3170,9 @@ public sealed class MailWorkspaceWebTests
             return Task.CompletedTask;
         }
 
+        public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+            Task.FromResult("deleted-items");
+
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(moved ? Coordinates?.DestinationFolderId : "inbox");
     }
@@ -3216,6 +3219,9 @@ public sealed class MailWorkspaceWebTests
             MoveCalls++;
             throw new InvalidOperationException("The provider response was interrupted.");
         }
+
+        public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+            Task.FromResult("deleted-items");
 
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(parents.Count == 0 ? recoveredParent : parents.Dequeue());

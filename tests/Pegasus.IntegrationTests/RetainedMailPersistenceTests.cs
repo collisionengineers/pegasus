@@ -2598,6 +2598,9 @@ public sealed class RetainedMailPersistenceTests
             currentFolder = coordinates.DestinationFolderId;
         }
 
+        public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+            Task.FromResult("deleted-items");
+
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken)
         {
             ParentCalls++;
@@ -2619,6 +2622,9 @@ public sealed class RetainedMailPersistenceTests
             currentFolder = coordinates.DestinationFolderId;
             return Task.CompletedTask;
         }
+
+        public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+            Task.FromResult("deleted-items");
 
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken)
         {
@@ -2644,6 +2650,9 @@ public sealed class RetainedMailPersistenceTests
             return Task.CompletedTask;
         }
 
+        public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+            Task.FromResult("deleted-items");
+
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(currentFolder);
     }
@@ -2663,6 +2672,9 @@ public sealed class RetainedMailPersistenceTests
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
+
+        public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+            Task.FromResult("deleted-items");
 
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken)
         {
@@ -2734,6 +2746,9 @@ public sealed class RetainedMailPersistenceTests
             moved = true;
             return Task.CompletedTask;
         }
+
+        public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+            Task.FromResult("deleted-items");
 
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(moved ? parentFolderId : "inbox");

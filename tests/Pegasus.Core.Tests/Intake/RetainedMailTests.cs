@@ -1138,6 +1138,9 @@ public sealed class RetainedMailTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Viewing a suggestion must not execute a move.");
 
+        public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+            Task.FromResult("deleted-items");
+
         public Task<string?> GetParentFolderIdAsync(
             string mailboxId,
             string immutableMessageId,
