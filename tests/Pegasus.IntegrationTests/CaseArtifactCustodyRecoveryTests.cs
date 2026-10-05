@@ -531,10 +531,13 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
     private sealed class PdfReport : IGuideValuationReport
     {
+        // Built once: a second fetch of the same report must answer the same
+        // bytes, as the provider's file does, or the replay is a different file.
+        private readonly byte[] _content = IntakeTestEvidence.CreatePdf("Vehicle Valuation Report - AB12CDE");
+
         public string Identity => "glass-stock:33636950";
 
-        public Task<byte[]> FetchPdfAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(IntakeTestEvidence.CreatePdf("Vehicle Valuation Report - AB12CDE"));
+        public Task<byte[]> FetchPdfAsync(CancellationToken cancellationToken) => Task.FromResult(_content);
     }
 
     /// <summary>
