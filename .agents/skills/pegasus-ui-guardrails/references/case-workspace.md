@@ -155,6 +155,9 @@ offered while a colleague holds it. Typical entries include:
 - Mark completed;
 - Return to Review / Return to Engineer;
 - Archive;
+- Send chaser, on any open Case where staff mail is composed in (operator, 5 October 2026): a
+  link to the composer (`/Inbox/Compose?caseReference=…&purpose=chaser`), no dialog, no lease,
+  no reason; the composer pre-fills To, Subject and Message and staff edit them there;
 - Place on Hold / Release Hold;
 - Correct principal;
 - Create audit, the one item always listed (on an Inspection + Audit Case, in every state): when

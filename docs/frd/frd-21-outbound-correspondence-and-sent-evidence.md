@@ -131,7 +131,15 @@ association, and may be changed before sending. A Triage outcome reply's
 Message opens with the Triage outcome template from Administration, rendered
 from the Triage's registration and finding
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)); staff edit it
-before Send.
+before Send. A Case chaser opened from the Case's Actions menu is a staff
+send with purpose `CaseChaser`: To is the sender of the Case's instruction,
+the sender of each image-intake e-mail paired to the Case and the repairer's
+directory e-mail, each once; Subject is the registration and claimant; Message
+is the Case chaser template rendered from the Case
+([FRD-16](frd-16-case-record-workspace.md#actions-menu)). Staff edit all
+three before Send. Its exact Sent evidence is recorded like any other send,
+and on a Not ready Case it records the chase
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is
