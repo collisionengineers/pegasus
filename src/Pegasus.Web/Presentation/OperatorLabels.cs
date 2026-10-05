@@ -818,7 +818,6 @@ public static class OperatorLabels
         public const string Owner = "Owner";
         public const string Due = "Due";
         public const string Received = "Received";
-        public const string AssignToMe = "Assign to me";
         public const string AssignEngineer = "Assign Engineer";
         public const string Assign = "Assign";
         public const string Reassign = "Reassign";
@@ -836,7 +835,6 @@ public static class OperatorLabels
         public const string AiJobsUnavailable = "AI jobs are unavailable.";
         public const string NoReasonRecorded = "No reason recorded";
         public const string OpenCase = "Open Case";
-        public const string NoEngineer = "No Engineer";
         public const string NoOwner = "No owner";
         public const string Previous = "Previous";
         public const string Next = "Next";
@@ -1009,11 +1007,8 @@ public static class OperatorLabels
             _ => AiJobs.Review
         };
 
-        public const string AssignedToYou = "The Case was assigned to you.";
         public const string Assigned = "The Case was assigned.";
-        public const string TriageAssignedToYou = "The Triage was assigned to you.";
         public const string AssignRefused = "The Case was not assigned because it changed, someone is editing it, or the action is not permitted.";
-        public const string TriageAssignRefused = "The Triage was not assigned because it changed, someone is editing it, or the action is not permitted.";
         public const string JobCompleted = "The AI job was completed.";
         public const string JobRefused = "The AI job changed before it could be completed. Refresh and try again.";
 

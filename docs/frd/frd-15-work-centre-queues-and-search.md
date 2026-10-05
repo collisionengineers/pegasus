@@ -127,7 +127,11 @@ toolbar and says "No work matches these filters."
 kind beneath), Record / detail (the reference, with the subject beneath),
 Owner, Due, Received, the next action as a button (v32 item M) and
 **Dismiss**, an icon-only control named "Dismiss {reference}" (v32 item B).
-Below 980px Owner and Received fold into the task cell. Rows are grouped under **Overdue (n)**, **Due today
+Owner is the person's name. A Held, Review, Unassigned, Vehicle images
+paired or Triage row with an empty person slot says **Unassigned**. A Case
+chase, an Unidentified item, or an AI draft with no person says **No owner**.
+Find matches that word. Below 980px Owner and Received fold into the task
+cell. Rows are grouped under **Overdue (n)**, **Due today
 (n)** and **Later (n)**; a group with no rows is not drawn. Order is by due
 instant, earliest first and undated last, then received, then reference. The
 due text is in words ("2 days overdue", "Due today", "Due Fri", "Due 24 Sep")
@@ -143,9 +147,7 @@ owner, due, received) and a next action that does the action. Choosing the
 open task again closes it; nothing opens by itself. Assign Engineer opens the
 assignment dialog on the Work Centre. Review Case opens the Case, and so
 does Open Case on a Vehicle images paired item. Open Triage opens the Triage
-Case page. An AI draft offers its per-kind action. **Assign
-to me** is offered to every enabled staff role on an Unassigned item and on
-a Triage item without an assignee, where Core would accept it. The open row
+Case page. An AI draft offers its per-kind action. The open row
 repeats no Dismiss; the row's own control is the one.
 
 **New cases.** Every Case except a Triage Case created in the last 7 calendar

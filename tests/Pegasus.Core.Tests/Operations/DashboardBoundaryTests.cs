@@ -134,6 +134,11 @@ public sealed class DashboardBoundaryTests
                 NeedsAttentionKind.Triage
             },
             snapshot.NeedsAttention.Select(item => item.Kind).ToArray());
+        var owners = snapshot.NeedsAttention.ToDictionary(item => item.Kind, item => item.Owner);
+        Assert.Equal("No owner", owners[NeedsAttentionKind.CaseChase]);
+        Assert.Equal("Unassigned", owners[NeedsAttentionKind.HeldDecision]);
+        Assert.Equal("No owner", owners[NeedsAttentionKind.Unidentified]);
+        Assert.Equal("Unassigned", owners[NeedsAttentionKind.Triage]);
     }
 
     /// <summary>
@@ -163,6 +168,7 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(registeredAt, item.Received);
         Assert.Equal(NeedsAttentionPriority.Overdue, item.Priority);
         Assert.Null(item.OwnerStaffId);
+        Assert.Equal("Unassigned", item.Owner);
         Assert.Equal($"/Cases/{caseId:D}", item.Route);
     }
 
@@ -203,9 +209,12 @@ public sealed class DashboardBoundaryTests
             item.Kind == NeedsAttentionKind.ReviewCase
             && item.Id == reviewId
             && item.Title == "KP68 ABC"
-            && item.Detail == "QDOS");
+            && item.Detail == "QDOS"
+            && item.Owner == "Unassigned");
         Assert.Contains(snapshot.NeedsAttention, item =>
-            item.Kind == NeedsAttentionKind.UnassignedEngineer && item.Id == unassignedId);
+            item.Kind == NeedsAttentionKind.UnassignedEngineer
+            && item.Id == unassignedId
+            && item.Owner == "Unassigned");
         Assert.DoesNotContain(snapshot.NeedsAttention, item =>
             item.Kind == NeedsAttentionKind.ReviewCase && item.Id == unassignedId);
         Assert.Equal(
