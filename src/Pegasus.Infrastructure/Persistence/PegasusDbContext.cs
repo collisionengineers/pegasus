@@ -529,6 +529,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 table.HasCheckConstraint(
                     "CK_Principals_InspectionMode",
                     "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
+                table.HasCheckConstraint("CK_Principals_DefaultFee", "[DefaultFee] > 0");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Code).HasMaxLength(20).IsRequired();
@@ -543,6 +544,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DefaultInspectionSourceRecordId).HasMaxLength(200);
             entity.Property(item => item.ReportGenerationPolicy).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ReportRecipientAddressesJson).IsRequired();
+            entity.Property(item => item.DefaultFee)
+                .HasPrecision(18, 2)
+                .HasDefaultValue(Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Code).IsUnique();
             entity.HasIndex(item => item.PredecessorId).IsUnique();
@@ -1257,6 +1261,7 @@ internal sealed class PrincipalEntity
     public bool IncludeOriginalInstructionSender { get; set; }
     public string ReportRecipientAddressesJson { get; set; } = "[]";
     public string? SalvageMatrixJson { get; set; }
+    public decimal DefaultFee { get; set; } = Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard;
     public long Version { get; set; }
     public List<ContactPrincipalLinkEntity> ContactLinks { get; set; } = [];
     public List<CaseEntity> Cases { get; set; } = [];

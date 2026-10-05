@@ -119,9 +119,7 @@ public static class NeedsAttentionPresentation
     }
 
     public static string OwnerLabel(NeedsAttentionItem item) =>
-        item.Owner ?? (item.Kind is NeedsAttentionKind.Unidentified or NeedsAttentionKind.AiDraft
-            ? Labels.NoOwner
-            : Labels.NoEngineer);
+        item.Owner;
 
     public static string DueTone(NeedsAttentionPriority priority) => priority switch
     {

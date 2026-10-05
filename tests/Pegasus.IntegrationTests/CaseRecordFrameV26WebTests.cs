@@ -321,42 +321,22 @@ public sealed class CaseRecordFrameV26WebTests
     }
 
     /// <summary>
-    /// P8: a User on a Review Case with no assignee gets Assign to me in the
-    /// assignment dialog, as its own form, and the post reaches the
-    /// self-assignment command with the session's envelope.
+    /// Hand to Engineer on a Review Case is the select. Assign to me is not a
+    /// second way to take the Case.
     /// </summary>
     [Fact]
-    public async Task AssignToMeIsOfferedToAUserAndPostsTheSelfAssignment()
+    public async Task HandToEngineerDoesNotOfferAssignToMe()
     {
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<IStaffAccountQueries>(services, new StubStaffAccounts(Guid.NewGuid(), "User", StaffRole.User));
-            Substitute<IAssignCaseToMe>(services, store);
         }, StaffRole.User);
         var leased = await workspace.GetWorkspaceAsync();
         var dialog = Section(leased, "case-handoff-dialog-title");
-        Assert.Contains("handler=AssignToMe", dialog, StringComparison.Ordinal);
-        Assert.Contains("data-assign-to-me", dialog, StringComparison.Ordinal);
-        Assert.Contains(CaseWorkspaceLabels.Frame.AssignToMe, dialog, StringComparison.Ordinal);
-
-        const string operationKey = "5a5b5c5d5e5f50515253545556575859";
-        using var response = await workspace.PostAsync(
-            "Workflow?handler=AssignToMe",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", operationKey),
-                ("editLeaseToken", store.LeaseToken)));
-        AssertPrg(response, store.CaseId);
-        var assignment = Assert.Single(store.SelfAssignments);
-        AssertClaimant(workspace, assignment.Actor);
-        Assert.Equal(store.CaseId, assignment.CaseId);
-        Assert.Equal(store.CaseVersion, assignment.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, assignment.EditLeaseToken);
-        Assert.Equal(operationKey, assignment.OperationKey);
-        Assert.Contains("The case was assigned to you.", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
+        Assert.Contains("handler=AssignEngineer", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=AssignToMe", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("Assign to me", dialog, StringComparison.Ordinal);
     }
 
     /// <summary>

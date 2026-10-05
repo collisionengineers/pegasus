@@ -24,7 +24,9 @@ public sealed record Principal(
     // load the organisation.
     string? NotesOnEveryCase = null,
     // The Principal's salvage matrix (29 September 2026); null when it has none.
-    SalvageMatrix? SalvageMatrix = null);
+    SalvageMatrix? SalvageMatrix = null,
+    // The agreed fee a new Case of this Principal starts with (5 October 2026).
+    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard);
 
 public enum CaseType
 {
@@ -252,6 +254,7 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     string? Reason,
     PrincipalReportGenerationPolicy ReportGenerationPolicy,
     PrincipalReportRecipientSettings ReportRecipients,
+    decimal DefaultFee,
     long ExpectedContactVersion,
     string? NotesOnEveryCase = null);
 

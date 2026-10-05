@@ -246,7 +246,7 @@ to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
 - **Hand to Engineer**, in Review. Its dialog selects an
-  eligible enabled staff account or **Assign to me**. The one handoff assigns them and
+  eligible enabled staff account. The one handoff assigns them and
   enters With Engineer. There is no reviewed checkbox and no separate start
   action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#hand-to-engineer)).
 - **Send to EVA**, when the Principal's report-generation policy offers it.
@@ -740,8 +740,11 @@ carries **Send to AI**, which creates an `AI-10` `Estimate` job
 disabled without an Engineer's Value. The Report section reads in two tabs (v28 P24): **Report**, everything the
 report itself carries, and **Fee**, the fee note the agreed fee makes: the
 agreed fee, the VAT the report charges on it and their total in one row, the
-description lines below, and the generated fee note to download. Without
-script both panes stand.
+description lines below, and the generated fee note to download. The agreed
+fee opens with the Principal's default fee, tagged Principal, until staff
+change it
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+Without script both panes stand.
 
 The Report tab carries **Report wording** (v28 P30): every narrative block
 the report prints, in print order, each with its heading, its wording and

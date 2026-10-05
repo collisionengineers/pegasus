@@ -6043,6 +6043,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<decimal>("DefaultFee")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(180m);
+
                     b.Property<string>("DefaultInspectionAddress")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -6127,6 +6133,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("Principals", null, t =>
                         {
                             t.HasCheckConstraint("CK_Principals_Code", "[Code] <> ''");
+
+                            t.HasCheckConstraint("CK_Principals_DefaultFee", "[DefaultFee] > 0");
 
                             t.HasCheckConstraint("CK_Principals_InspectionMode", "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
 

@@ -2257,11 +2257,14 @@ public sealed class CaseWorkspacePersistenceTests
             .LongCountAsync(item => item.CaseId == harness.CaseId && item.EventType == eventType);
     }
 
+    // The rows a save wrote: the agreed fee the Case took from its Principal
+    // at creation is not one.
     private static async Task<long> AssessmentFieldCountAsync(Harness harness)
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
         return await context.CaseAssessmentFields.AsNoTracking()
-            .LongCountAsync(item => item.WorkId == harness.CaseId);
+            .LongCountAsync(item => item.WorkId == harness.CaseId
+                && item.RecordedBy != PrincipalDefaultFeePolicy.RecorderId);
     }
 
     private static async Task<Dictionary<string, CaseAssessmentFieldEntity>> AssessmentFieldsAsync(Harness harness)
