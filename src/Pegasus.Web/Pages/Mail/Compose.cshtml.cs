@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Tasks;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Web.Presentation;
 
@@ -36,16 +37,27 @@ public sealed class ComposeModel(
     IStaffMailSend staffMailSend,
     IApprovedMailboxStore approvedMailboxes,
     IGetCaseHeader getCaseHeader,
-    IListCaseReferences listCaseReferences,
     ISearchCases searchCases,
     IStaffMailAttachmentResolver attachmentResolver,
+    RenderEmailTemplate renderTemplate,
+    ICaseChaserRecipientQueries chaserRecipients,
     ILogger<ComposeModel> logger) : StaffPageModel
 {
+    /// <summary>The <see cref="Purpose"/> the Case ribbon's Send chaser opens the composer with.</summary>
+    public const string ChaserPurpose = "chaser";
+
+    /// <summary>
+    /// The one Case / PO field: it searches as staff type and takes a typed
+    /// reference as it is. Choosing a Case from its list fixes that Case and
+    /// its version (<see cref="FixedCaseReference"/>, <see cref="ExpectedContextVersion"/>);
+    /// a reference typed in full sends against the Case's current version.
+    /// </summary>
     [BindProperty(SupportsGet = true, Name = "caseReference")]
     public string? CaseReference { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "caseQuery")]
-    public string? CaseQuery { get; set; }
+    /// <summary>The reference whose version <see cref="ExpectedContextVersion"/> fixed; null when none was chosen.</summary>
+    [BindProperty]
+    public string? FixedCaseReference { get; set; }
 
     [BindProperty]
     public long ExpectedContextVersion { get; set; }
@@ -55,6 +67,15 @@ public sealed class ComposeModel(
 
     [BindProperty(SupportsGet = true)]
     public Guid? OperationId { get; set; }
+
+    /// <summary>
+    /// <see cref="ChaserPurpose"/> when the composer was opened as a Case
+    /// chaser; it rides the form so the send is recorded as one.
+    /// </summary>
+    [BindProperty(SupportsGet = true)]
+    public string? Purpose { get; set; }
+
+    public bool IsChaser => string.Equals(Purpose, ChaserPurpose, StringComparison.OrdinalIgnoreCase);
 
     [BindProperty]
     public string? To { get; set; }
@@ -100,7 +121,8 @@ public sealed class ComposeModel(
         }
 
         await LoadDefaultMailboxAsync(cancellationToken);
-        await LoadCaseContextAsync(actor, cancellationToken);
+        var details = await LoadCaseContextAsync(actor, cancellationToken);
+        await PrefillChaserAsync(actor, details, cancellationToken);
 
         await LoadOperationAsync(actor, cancellationToken);
 
@@ -122,7 +144,8 @@ public sealed class ComposeModel(
         if (StaffMailAvailable)
         {
             await LoadDefaultMailboxAsync(cancellationToken);
-            await LoadCaseContextAsync(actor, cancellationToken);
+            var details = await LoadCaseContextAsync(actor, cancellationToken);
+            await PrefillChaserAsync(actor, details, cancellationToken);
             await LoadOperationAsync(actor, cancellationToken);
         }
 
@@ -130,9 +153,8 @@ public sealed class ComposeModel(
     }
 
     /// <summary>
-    /// Find a Case: the option list the composer's picker fetches as staff
-    /// type. Choosing an option posts <c>SelectCase</c>, the same server
-    /// action the earlier result buttons performed.
+    /// The Case / PO field's option list, fetched as staff type. Choosing an
+    /// option posts <c>SelectCase</c>, which fixes the Case and its version.
     /// </summary>
     public async Task<IActionResult> OnGetCaseOptionsAsync(string? q, CancellationToken cancellationToken)
     {
@@ -211,7 +233,10 @@ public sealed class ComposeModel(
                 ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
             }
 
-            if (ExpectedContextVersion < 0 || details.Workflow.Version != ExpectedContextVersion)
+            // A chosen Case was fixed with its version, so a change since then
+            // is refused. A reference typed in full was never fixed: it sends
+            // against the Case as it is now.
+            if (IsFixedCase(details) && (ExpectedContextVersion < 0 || details.Workflow.Version != ExpectedContextVersion))
             {
                 ModelState.AddModelError(
                     string.Empty,
@@ -232,7 +257,7 @@ public sealed class ComposeModel(
                     actor,
                     DefaultMailbox.Id,
                     DefaultMailbox.Generation,
-                    StaffMailPurpose.GeneralCorrespondence,
+                    IsChaser ? StaffMailPurpose.CaseChaser : StaffMailPurpose.GeneralCorrespondence,
                     details.Summary.CaseId,
                     details.Workflow.Version,
                     StaffMailComposeMode.New,
@@ -262,7 +287,7 @@ public sealed class ComposeModel(
         {
             StaffMailSendLog.Refused(logger, Operation.Id, DefaultMailbox.Id, Operation.FailureCode);
         }
-        return RedirectToPage(new { caseReference = details.Summary.Reference, operationId = Operation.Id });
+        return RedirectToPage(new { caseReference = details.Summary.Reference, operationId = Operation.Id, purpose = Purpose });
     }
 
     public async Task<IActionResult> OnPostSelectCaseAsync(CancellationToken cancellationToken)
@@ -287,66 +312,24 @@ public sealed class ComposeModel(
 
         Case = details.Summary;
         ModelState.Remove(nameof(CaseReference));
+        ModelState.Remove(nameof(FixedCaseReference));
         ModelState.Remove(nameof(ExpectedContextVersion));
-        CaseReference = details.Summary.Reference;
-        ExpectedContextVersion = details.Workflow.Version;
+        FixCase(details);
         AvailableAttachments = await attachmentResolver.ListCaseAsync(
             actor, details.Summary.CaseId, cancellationToken);
         return Page();
     }
 
-    public async Task<IActionResult> OnPostReconcileAsync(
-        Guid operationId,
-        long expectedOperationVersion,
-        CancellationToken cancellationToken)
+    private void FixCase(CaseHeader details)
     {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        if (!StaffMailAvailable)
-        {
-            return NotFound();
-        }
-
-        if (operationId == Guid.Empty || expectedOperationVersion < 0)
-        {
-            SendNotice = "The send status request was incomplete. Reload the correspondence and try again.";
-            return RedirectToPage();
-        }
-
-        try
-        {
-            Operation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
-            if (Operation is null)
-            {
-                SendNotice = "That send status is no longer available. Reload the correspondence and try again.";
-                return RedirectToPage();
-            }
-            Operation = await staffMailSend.ReconcileAsync(actor, operationId, expectedOperationVersion, cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (ArgumentException)
-        {
-            SendNotice = "The send status request was invalid. Reload the correspondence and try again.";
-            return RedirectToPage();
-        }
-        catch (InvalidOperationException)
-        {
-            SendNotice = "The send status could not be reconciled. Reload the correspondence and try again.";
-            return RedirectToPage();
-        }
-
-        var references = await listCaseReferences.ExecuteAsync(
-            new(actor, [Operation.ContextId]), cancellationToken);
-        return references.TryGetValue(Operation.ContextId, out var reference)
-            ? RedirectToPage(new { caseReference = reference, operationId = Operation.Id })
-            : NotFound();
+        CaseReference = details.Summary.Reference;
+        FixedCaseReference = details.Summary.Reference;
+        ExpectedContextVersion = details.Workflow.Version;
     }
+
+    private bool IsFixedCase(CaseHeader details) =>
+        TryNormalizeCaseReference(FixedCaseReference, out var fixedReference)
+        && string.Equals(details.Summary.Reference, fixedReference, StringComparison.OrdinalIgnoreCase);
 
     private static StaffMailRecipient[] ParseRecipients(string? value) =>
         (value ?? string.Empty)
@@ -381,33 +364,57 @@ public sealed class ComposeModel(
         }
     }
 
-    private async Task LoadCaseContextAsync(ActionActor actor, CancellationToken cancellationToken)
+    private async Task<CaseHeader?> LoadCaseContextAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         var details = await ResolveCaseAsync(actor, CaseReference, cancellationToken);
         if (details is null)
         {
-            return;
+            return null;
         }
 
         Case = details.Summary;
-        CaseReference = details.Summary.Reference;
-        ExpectedContextVersion = details.Workflow.Version;
+        FixCase(details);
         AvailableAttachments = await attachmentResolver.ListCaseAsync(
             actor, details.Summary.CaseId, cancellationToken);
+        return details;
     }
 
-    private async Task LoadSelectedCaseAsync(ActionActor actor, CancellationToken cancellationToken)
+    /// <summary>
+    /// A chaser opens addressed, titled and worded from the Case (operator,
+    /// 5 October 2026); staff change any of it before sending. Only a field
+    /// still empty is filled, and nothing is filled once a send has happened:
+    /// the page then shows that send's status.
+    /// </summary>
+    private async Task PrefillChaserAsync(
+        ActionActor actor,
+        CaseHeader? details,
+        CancellationToken cancellationToken)
     {
-        var details = await ResolveCaseAsync(actor, CaseReference, cancellationToken);
-        if (details is null)
+        if (!IsChaser || details is null || OperationId is not null)
         {
             return;
         }
 
-        Case = details.Summary;
-        CaseReference = details.Summary.Reference;
-        AvailableAttachments = await attachmentResolver.ListCaseAsync(
-            actor, details.Summary.CaseId, cancellationToken);
+        var facts = new CaseChaserFacts(
+            details.Summary.Registration,
+            details.Workflow.DueWork?.MissingMaterialReason,
+            details.Summary.Principal,
+            details.Summary.Claimant);
+        if (string.IsNullOrWhiteSpace(To))
+        {
+            var recipients = await chaserRecipients.GetAsync(details.Summary.CaseId, cancellationToken)
+                ?? CaseChaserRecipients.None;
+            To = string.Join("; ", CaseChaserAddressing.To(recipients));
+        }
+        if (string.IsNullOrWhiteSpace(Subject))
+        {
+            Subject = facts.Subject();
+        }
+        if (string.IsNullOrWhiteSpace(Body))
+        {
+            Body = await renderTemplate.ExecuteAsync(
+                actor, EmailTemplatePurpose.CaseChaser, facts.Values(), cancellationToken);
+        }
     }
 
     private async Task<CaseHeader?> ResolveCaseAsync(

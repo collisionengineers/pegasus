@@ -1581,7 +1581,6 @@ public sealed partial class DetailsModel(
         var jobs = await caseAiJobs;
         AiDrafts = AiDraftPolicy.Drafts(jobs, (await configuration).AiDraftTargetDays);
         PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
-        CanAssignToMe = CaseLifecycleRules.CanAssignToSelf(details.Workflow);
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(

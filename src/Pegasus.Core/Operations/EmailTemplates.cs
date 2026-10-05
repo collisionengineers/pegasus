@@ -7,7 +7,7 @@ namespace Pegasus.Core.Operations;
 /// The staff message whose body an Administrator may edit (FRD-17 E-mail
 /// templates). Each purpose has its own placeholder set and built-in body.
 /// </summary>
-public enum EmailTemplatePurpose { TriageOutcomeReply, CaseReportDelivery }
+public enum EmailTemplatePurpose { TriageOutcomeReply, CaseReportDelivery, CaseChaser }
 
 /// <summary>
 /// One purpose's body as it stands: the saved text, or the built-in body at
@@ -34,7 +34,8 @@ public sealed record UpdateEmailTemplateRequest(
 /// <remarks>
 /// A placeholder with no value renders nothing, and a line whose placeholders
 /// are all empty is left out, so a fact that was not recorded does not appear.
-/// The subject is never templated: a reply keeps "Re: {original subject}".
+/// The subject is never templated: a reply keeps "Re: {original subject}",
+/// and a chaser opens with the registration and claimant.
 /// </remarks>
 public static partial class EmailTemplates
 {
@@ -48,6 +49,8 @@ public static partial class EmailTemplates
     public const string Outcome = "outcome";
     public const string PrincipalName = "principal name";
     public const string SupersededReportDate = "superseded report date";
+    public const string OutstandingMaterial = "outstanding material";
+    public const string Claimant = "claimant";
 
     private static readonly string[] TriageOutcomeReplyPlaceholders =
         [Registration, Roadworthiness, RepairOutcome, FindingReason];
@@ -86,10 +89,29 @@ public static partial class EmailTemplates
         + "Kind regards\n"
         + "Collision Engineers";
 
+    /// <summary>
+    /// The Case chaser carries no Case/PO reference: it is internal and means
+    /// nothing to the party chased (operator, 5 October 2026).
+    /// </summary>
+    private static readonly string[] CaseChaserPlaceholders =
+        [Registration, OutstandingMaterial, PrincipalName, Claimant];
+
+    /// <summary>
+    /// The Case chaser's built-in body: the one sentence the due-chaser sweep
+    /// has always written, without the reference. <c>{principal name}</c> and
+    /// <c>{claimant}</c> are available but not used.
+    /// </summary>
+    private const string CaseChaserDefault =
+        "Please provide the outstanding material for {registration}: {outstanding material}.\n"
+        + "\n"
+        + "Kind regards\n"
+        + "Collision Engineers";
+
     public static IReadOnlyList<string> Placeholders(EmailTemplatePurpose purpose) => purpose switch
     {
         EmailTemplatePurpose.TriageOutcomeReply => TriageOutcomeReplyPlaceholders,
         EmailTemplatePurpose.CaseReportDelivery => CaseReportDeliveryPlaceholders,
+        EmailTemplatePurpose.CaseChaser => CaseChaserPlaceholders,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 
@@ -97,6 +119,7 @@ public static partial class EmailTemplates
     {
         EmailTemplatePurpose.TriageOutcomeReply => TriageOutcomeReplyDefault,
         EmailTemplatePurpose.CaseReportDelivery => CaseReportDeliveryDefault,
+        EmailTemplatePurpose.CaseChaser => CaseChaserDefault,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 

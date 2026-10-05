@@ -4128,110 +4128,6 @@
         img.style.transform = 'rotate(' + rot + 'deg) ' + (zoom ? 'scale(2)' : 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px) scale(' + k.toFixed(4) + ')');
     }
 
-    // ---- Files tabs --------------------------------------------------------------
-    // Both panels are rendered, so with no script the section is the lists one
-    // after the other; script turns the strip on and shows one at a time. The
-    // chosen tab rides in the URL hash (`#case-files-<tab>`), which the Custody
-    // redirects name too, so a tag/untag/create lands back on Images.
-    function bindFileTabs(root) {
-        all(root, '[data-file-tabs-wrap]').forEach(function (wrap) {
-            if (wrap.dataset.fileTabsBound === 'true') { return; }
-            var strip = wrap.querySelector('[data-file-tabs]');
-            var panels = all(wrap, '[data-file-tab-panel]');
-            var buttons = strip ? all(strip, '[data-file-tab]') : [];
-            if (!strip || !panels.length || !buttons.length) { return; }
-            wrap.dataset.fileTabsBound = 'true';
-            function show(name, remember) {
-                panels.forEach(function (panel) { panel.hidden = panel.getAttribute('data-file-tab-panel') !== name; });
-                buttons.forEach(function (button) { button.setAttribute('aria-selected', button.getAttribute('data-file-tab') === name ? 'true' : 'false'); });
-                wrap.setAttribute('data-file-tabs-active', name);
-                if (remember && window.history && window.history.replaceState) {
-                    window.history.replaceState(null, '', '#case-files-' + name);
-                }
-            }
-            buttons.forEach(function (button) {
-                button.addEventListener('click', function () { show(button.getAttribute('data-file-tab'), true); });
-            });
-            strip.hidden = false;
-            wrap.classList.add('is-tabbed');
-            var fromHash = (window.location.hash || '').replace('#case-files-', '');
-            show(buttons.some(function (button) { return button.getAttribute('data-file-tab') === fromHash; })
-                ? fromHash
-                : buttons[0].getAttribute('data-file-tab'), false);
-        });
-    }
-
-    // ---- Correspondence: a message in a dialog -----------------------------------
-    // Open message opens its row's dialog through the shell's dialog binding;
-    // the first open fetches the message from the Inbox record's Content
-    // handler, and the record's Reply, Reply all and Forward, where it offers
-    // them, join the dialog's foot. A failure says so and the next open tries
-    // again. Both listeners are on the document, so a lazily mounted or
-    // swapped Files section needs no binding of its own.
-    function messageSpinner() {
-        var spinner = document.createElement('div');
-        spinner.className = 'spinner';
-        spinner.setAttribute('aria-hidden', 'true');
-        return spinner;
-    }
-    document.addEventListener('pegasus:dialog-open', function (event) {
-        var dialog = event.target;
-        if (!(dialog instanceof Element) || !dialog.matches('[data-case-message-dialog]')) { return; }
-        var state = dialog.dataset.caseMessageState;
-        var body = dialog.querySelector('[data-case-message-body]');
-        var url = dialog.getAttribute('data-case-message-url');
-        if (state === 'loading' || state === 'loaded' || !body || !url) { return; }
-        dialog.dataset.caseMessageState = 'loading';
-        body.setAttribute('aria-busy', 'true');
-        body.replaceChildren(messageSpinner());
-        fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
-            .then(function (response) {
-                if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
-                    throw new Error('message: ' + response.status);
-                }
-                return response.text();
-            })
-            .then(function (html) {
-                var fragment = new DOMParser().parseFromString(html, 'text/html');
-                var content = fragment.querySelector('[data-message-content]');
-                if (!content) { throw new Error('message: no content'); }
-                body.replaceChildren(document.importNode(content, true));
-                var actions = fragment.querySelector('[data-message-actions]');
-                var foot = dialog.querySelector('[data-case-message-foot]');
-                if (actions && foot) { foot.prepend(document.importNode(actions, true)); }
-                body.removeAttribute('aria-busy');
-                dialog.dataset.caseMessageState = 'loaded';
-            })
-            .catch(function () {
-                var status = document.createElement('p');
-                status.className = 'muted';
-                status.setAttribute('role', 'status');
-                status.textContent = 'Preview unavailable';
-                body.replaceChildren(status);
-                body.removeAttribute('aria-busy');
-                delete dialog.dataset.caseMessageState;
-            });
-    });
-    // Capture, ahead of the shell's dialog opener and the edit session's
-    // unsaved-changes guard. A modified click on Open message stays a link
-    // click (a new tab or window) rather than opening the dialog. A link to
-    // the record (Open full message, Reply, Reply all, Forward) closes the
-    // dialog first, so that question is not left behind this dialog's inert
-    // backdrop.
-    document.addEventListener('click', function (event) {
-        var target = event.target instanceof Element ? event.target : null;
-        if (!target) { return; }
-        var modified = event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey;
-        if (modified && target.closest('[data-correspondence] a[data-dialog-open]')) {
-            event.stopPropagation();
-            return;
-        }
-        var link = target.closest('[data-case-message-record]');
-        if (!link || modified) { return; }
-        var dialog = link.closest('[data-case-message-dialog]');
-        if (dialog && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
-    }, true);
-
     // ---- preparation staging ------------------------------------------------------
     // One state per image occurrence, seeded from the [data-preparation-card]
     // attributes and kept on the Case form element, so an in-place swap (a
@@ -5015,7 +4911,6 @@
 
     function bind(root) {
         bindViewer(root);
-        bindFileTabs(root);
         bindPreparationCards(root);
     }
     bind(document);

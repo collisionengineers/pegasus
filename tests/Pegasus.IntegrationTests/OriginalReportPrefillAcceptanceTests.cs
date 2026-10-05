@@ -106,8 +106,10 @@ public sealed class OriginalReportPrefillAcceptanceTests
             .Where(item => item.OriginIntakeReceiptId == receiptId)
             .Select(item => item.Id)
             .SingleAsync();
+        // The Original report cells only: the agreed fee the Case took from
+        // its Principal is not the reading's.
         return await context.CaseAssessmentFields
-            .Where(item => item.WorkId == caseId)
+            .Where(item => item.WorkId == caseId && item.FieldPath != AssessmentVocabulary.AgreedFee)
             .ToListAsync();
     }
 

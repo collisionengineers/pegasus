@@ -1015,6 +1015,8 @@ public sealed class EfTriageStore(
         // The Triage Case's files are its standard Case documents, read by the
         // same projection the Case record's Files section uses.
         var documents = await EfCaseQueryStore.ReadDocumentsAsync(context, caseId, cancellationToken);
+        var correspondence = await EfCaseQueryStore.ReadCorrespondenceEmailsAsync(
+            context, caseId, cancellationToken, entity.OriginReceiptId);
         return new TriageDetail(
             Map(entity),
             entity.CreatedAtUtc,
@@ -1025,6 +1027,7 @@ public sealed class EfTriageStore(
             entity.Case.Principal.Code)
         {
             Documents = documents,
+            Correspondence = correspondence,
             CustodyState = EfCaseQueryStore.ParseCustodyState(entity.Case.CustodyState),
             CustodyFolderRemoteId = entity.Case.CustodyRootRemoteId
         };

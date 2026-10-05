@@ -8,7 +8,6 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
-using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
@@ -22,6 +21,8 @@ namespace Pegasus.Web.Pages;
 /// ledger (grouped by due day, Office/Mine, kind chips and Find, the selected
 /// row expanding to its facts and next action in place), New cases and AI jobs.
 /// A tab is omitted when its section is empty and kept when it is unavailable.
+/// Under the counts sits the Activity panel (v32 A, 5 October 2026): the
+/// day and week figures, read beside the three sections with its own outcome.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -34,17 +35,13 @@ public partial class IndexModel(
     IStaffAccountQueries staffAccounts,
     IGetCaseHeader getCaseHeader,
     IGetCaseEditBasis getCaseEditBasis,
-    IGetTriage getTriage,
     IAcquireCaseEditLease acquireLease,
     IReleaseCaseEditLease releaseLease,
     IAssignCaseEngineer assignEngineer,
-    IAssignCaseToMe assignCaseToMe,
-    IAssignTriageToMe assignTriageToMe,
-    IEditScopeLeases editScopes,
-    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IConfirmAiJob confirmAiJob,
     IListWorkCentreAiJobs listAiJobs,
     IDismissWorkCentreItem dismissItem,
+    IGetWorkCentreActivity getActivity,
     TimeProvider timeProvider,
     ILogger<IndexModel> logger) : StaffPageModel
 {
@@ -84,8 +81,6 @@ public partial class IndexModel(
     public WorkCentreMetrics? Metrics { get; private set; }
 
     public NeedsAttentionItem? Selected { get; private set; }
-
-    public bool CanTakeSelected { get; private set; }
 
     public WorkCentreAssignment? Assignment { get; private set; }
 
@@ -138,13 +133,20 @@ public partial class IndexModel(
 
     public bool AiJobsUnavailable { get; private set; }
 
+    /// <summary>The Activity figures (FRD-15): null until read, and never drawn as zero when the read failed.</summary>
+    public WorkCentreActivity? Activity { get; private set; }
+
+    public bool ActivityUnavailable { get; private set; }
+
+    public bool ActivityFailed => ActivityUnavailable || Activity is null;
+
     /// <summary>True when one or more independently rendered live sections could not be read.</summary>
-    public bool HasReadFailure => IsUnavailable || NewCasesUnavailable || AiJobsUnavailable;
+    public bool HasReadFailure => IsUnavailable || NewCasesUnavailable || AiJobsUnavailable || ActivityUnavailable;
 
     /// <summary>The fragment outcome is failed only when no independently rendered section was read.</summary>
     public string RefreshOutcome => !HasReadFailure
         ? "current"
-        : IsUnavailable && NewCasesUnavailable && AiJobsUnavailable ? "failed" : "partial";
+        : IsUnavailable && NewCasesUnavailable && AiJobsUnavailable && ActivityUnavailable ? "failed" : "partial";
 
     /// <summary>The head's freshness words: "Updated HH:MM" (FRD-15) unless a section failed.</summary>
     public string RefreshOutcomeLabel => RefreshOutcome switch
@@ -216,7 +218,7 @@ public partial class IndexModel(
             return refusal;
         }
 
-        LogRefreshOutcome(logger, !IsUnavailable, !NewCasesUnavailable, !AiJobsUnavailable);
+        LogRefreshOutcome(logger, !IsUnavailable, !NewCasesUnavailable, !AiJobsUnavailable, !ActivityUnavailable);
         return Partial("_WorkCentreBody", this);
     }
 
@@ -261,81 +263,6 @@ public partial class IndexModel(
             },
             Labels.Assigned,
             cancellationToken);
-
-    /// <summary>Assign to me on an Unassigned Engineer row (P8).</summary>
-    public Task<IActionResult> OnPostAssignToMeAsync(
-        Guid caseId,
-        string operationKey,
-        string? returnUrl,
-        CancellationToken cancellationToken) =>
-        WithCaseLeaseAsync(
-            caseId,
-            returnUrl,
-            "assign_to_me",
-            (actor, _, lease) => assignCaseToMe.ExecuteAsync(
-                new AssignCaseToMeRequest(caseId, lease.Version, actor, operationKey, lease.Token),
-                cancellationToken),
-            Labels.AssignedToYou,
-            cancellationToken);
-
-    /// <summary>
-    /// Assign to me on a Triage without an assignee (P8). The Triage edit scope
-    /// is claimed for this one save and ends with it (<see cref="TriageWriteAuthority"/>).
-    /// </summary>
-    public async Task<IActionResult> OnPostAssignTriageToMeAsync(
-        Guid triageId,
-        string operationKey,
-        string? returnUrl,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            var detail = await getTriage.ExecuteAsync(new GetTriageQuery(triageId, actor), cancellationToken)
-                ?? throw new KeyNotFoundException("The Triage was not found.");
-            await TriageWriteAuthority.ExecuteAsync(
-                editScopes,
-                triageId,
-                detail.Record.Version,
-                actor,
-                operationKey,
-                logger,
-                token => assignTriageToMe.ExecuteAsync(
-                    new AssignTriageToMeRequest(triageId, detail.Record.Version, actor, operationKey)
-                    {
-                        EditLeaseToken = token
-                    },
-                    cancellationToken),
-                cancellationToken);
-            StatusMessage = Labels.TriageAssignedToYou;
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (EditScopeConflictException)
-        {
-            // Held by an Automation session or a colleague's save: say who,
-            // as the Triage page does.
-            ErrorMessage = await TriageWriteAuthority.DescribeHeldAsync(
-                editScopes,
-                describeEditAuthorityHolder,
-                triageId,
-                actor,
-                cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCommandFailed(logger, "assign_triage_to_me", triageId, exception);
-            ErrorMessage = Labels.TriageAssignRefused;
-        }
-
-        return LocalRedirect(SafeReturnUrl(returnUrl));
-    }
 
     /// <summary>Complete job on a Draft ready Query response or queue pass (D9).</summary>
     public async Task<IActionResult> OnPostCompleteAiJobAsync(
@@ -542,9 +469,10 @@ public partial class IndexModel(
         var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, sharedRead, cancellationToken);
         var newCasesRead = ReadNewCasesAsync(actor, markSeen: NewCasesPage == 1 && !refresh, cancellationToken);
         var aiJobsRead = ReadAiJobsAsync(actor, clientId, sharedRead, cancellationToken);
+        var activityRead = ReadActivityAsync(actor, cancellationToken);
         try
         {
-            await Task.WhenAll(attentionRead, newCasesRead, aiJobsRead);
+            await Task.WhenAll(attentionRead, newCasesRead, aiJobsRead, activityRead);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -592,6 +520,16 @@ public partial class IndexModel(
             AiJobsUnavailable = true;
         }
 
+        try
+        {
+            Activity = await activityRead;
+        }
+        catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
+        {
+            LogSectionFailed(logger, "activity", exception);
+            ActivityUnavailable = true;
+        }
+
         // A named tab whose section is omitted falls back to the first shown.
         var visible = VisibleTabs;
         if (!visible.Contains(Tab))
@@ -607,7 +545,6 @@ public partial class IndexModel(
         int Page,
         OperationsSnapshot Snapshot,
         NeedsAttentionItem? Selected,
-        bool CanTakeSelected,
         WorkCentreAssignment? Assignment,
         bool OpenAssignment);
 
@@ -659,18 +596,16 @@ public partial class IndexModel(
         var selectedItem = selected is { } id ? items.FirstOrDefault(item => item.Id == id) : null;
         if (selectedItem is null)
         {
-            return new(page, snapshot, null, false, null, false);
+            return new(page, snapshot, null, null, false);
         }
 
-        var canTake = selectedItem.OwnerStaffId is null
-            && NeedsAttentionPolicy.CanTake(selectedItem.Kind, actor);
         WorkCentreAssignment? assignment = null;
         if (selectedItem.Kind == NeedsAttentionKind.UnassignedEngineer)
         {
             assignment = await ReadAssignmentAsync(actor, selectedItem.Id, cancellationToken);
         }
 
-        return new(page, snapshot, selectedItem, canTake, assignment, assign && assignment is not null);
+        return new(page, snapshot, selectedItem, assignment, assign && assignment is not null);
     }
 
     private void ApplyAttention(AttentionRead read)
@@ -687,7 +622,6 @@ public partial class IndexModel(
         // Core counts the chips over the scope before the kind filter: one read.
         KindCounts = read.Snapshot.Attention.KindCounts;
         Selected = read.Selected;
-        CanTakeSelected = read.CanTakeSelected;
         Assignment = read.Assignment;
         OpenAssignment = read.OpenAssignment;
     }
@@ -721,8 +655,7 @@ public partial class IndexModel(
                 header.Summary.Claimant,
                 header.Summary.Principal,
                 current,
-                engineers,
-                CaseLifecycleRules.CanAssignToSelf(header.Workflow));
+                engineers);
         }
         catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
         {
@@ -739,6 +672,13 @@ public partial class IndexModel(
     {
         using var timing = DocumentReadTelemetry.Start("web.workcentre.newcases");
         return await listRecentCases.ExecuteAsync(actor, NewCasesPage, markSeen, cancellationToken, NowUtc);
+    }
+
+    /// <summary>The Activity panel: the day and week figures as of this load.</summary>
+    private async Task<WorkCentreActivity> ReadActivityAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.activity");
+        return await getActivity.ExecuteAsync(actor, NowUtc, cancellationToken);
     }
 
     /// <summary>The AI jobs section (D9): Core's rows, each with who started it.</summary>
@@ -813,8 +753,8 @@ public partial class IndexModel(
     [LoggerMessage(Level = LogLevel.Warning, Message = "Work Centre section {Section} could not be read.")]
     private static partial void LogSectionFailed(ILogger logger, string section, Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Work Centre refresh sections: attention={Attention}, newCases={NewCases}, aiJobs={AiJobs}.")]
-    private static partial void LogRefreshOutcome(ILogger logger, bool attention, bool newCases, bool aiJobs);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Work Centre refresh sections: attention={Attention}, newCases={NewCases}, aiJobs={AiJobs}, activity={Activity}.")]
+    private static partial void LogRefreshOutcome(ILogger logger, bool attention, bool newCases, bool aiJobs, bool activity);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Work Centre command {CommandName} failed for {RecordId}.")]
     private static partial void LogCommandFailed(ILogger logger, string commandName, Guid recordId, Exception exception);
@@ -830,8 +770,7 @@ public sealed record WorkCentreAssignment(
     string? Claimant,
     string? Principal,
     string? EngineerName,
-    IReadOnlyList<WorkCentreEngineer> Engineers,
-    bool CanAssignToMe);
+    IReadOnlyList<WorkCentreEngineer> Engineers);
 
 /// <summary>One AI jobs row: the job, its draft (route and action) when Draft ready, and who started it.</summary>
 public sealed record WorkCentreAiJobRow(AiJobRecord Job, AiDraft? Draft, string StartedBy)

@@ -6,6 +6,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
@@ -320,42 +321,22 @@ public sealed class CaseRecordFrameV26WebTests
     }
 
     /// <summary>
-    /// P8: a User on a Review Case with no assignee gets Assign to me in the
-    /// assignment dialog, as its own form, and the post reaches the
-    /// self-assignment command with the session's envelope.
+    /// Hand to Engineer on a Review Case is the select. Assign to me is not a
+    /// second way to take the Case.
     /// </summary>
     [Fact]
-    public async Task AssignToMeIsOfferedToAUserAndPostsTheSelfAssignment()
+    public async Task HandToEngineerDoesNotOfferAssignToMe()
     {
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<IStaffAccountQueries>(services, new StubStaffAccounts(Guid.NewGuid(), "User", StaffRole.User));
-            Substitute<IAssignCaseToMe>(services, store);
         }, StaffRole.User);
         var leased = await workspace.GetWorkspaceAsync();
         var dialog = Section(leased, "case-handoff-dialog-title");
-        Assert.Contains("handler=AssignToMe", dialog, StringComparison.Ordinal);
-        Assert.Contains("data-assign-to-me", dialog, StringComparison.Ordinal);
-        Assert.Contains(CaseWorkspaceLabels.Frame.AssignToMe, dialog, StringComparison.Ordinal);
-
-        const string operationKey = "5a5b5c5d5e5f50515253545556575859";
-        using var response = await workspace.PostAsync(
-            "Workflow?handler=AssignToMe",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", operationKey),
-                ("editLeaseToken", store.LeaseToken)));
-        AssertPrg(response, store.CaseId);
-        var assignment = Assert.Single(store.SelfAssignments);
-        AssertClaimant(workspace, assignment.Actor);
-        Assert.Equal(store.CaseId, assignment.CaseId);
-        Assert.Equal(store.CaseVersion, assignment.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, assignment.EditLeaseToken);
-        Assert.Equal(operationKey, assignment.OperationKey);
-        Assert.Contains("The case was assigned to you.", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
+        Assert.Contains("handler=AssignEngineer", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=AssignToMe", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("Assign to me", dialog, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -539,6 +520,58 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Equal(store.LeaseToken, saved.EditLeaseToken);
         Assert.Equal("Handler prefers e-mail.", saved.Overview!.PrincipalNotes);
         Assert.Equal("Quote the claim source's reference.", saved.Overview.ClaimSourceNotes);
+    }
+
+    /// <summary>
+    /// Send chaser is offered on any open Case while staff mail is available
+    /// (operator, 5 October 2026): a link to the composer opened as this
+    /// Case's chaser, with no dialog and no lease. A closed Case, archived or
+    /// not, and a host without staff mail offer none.
+    /// </summary>
+    [Fact]
+    public async Task SendChaserIsOfferedOnAnOpenCaseWhileStaffMailIsAvailable()
+    {
+        static void Mail(IServiceCollection services) =>
+            Substitute<IStaffMailSend>(services, new OfferedStaffMailSend());
+
+        var open = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore(), Mail));
+        var link = Regex.Match(open, "<a[^>]*data-send-chaser[^>]*>");
+        Assert.True(link.Success, "Send chaser is not offered on an open Case.");
+        Assert.Contains(
+            "href=\"/Inbox/Compose?caseReference=QDOS3100042&amp;purpose=chaser\"",
+            link.Value,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open", link.Value, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.SendChaser, open, StringComparison.Ordinal);
+
+        var closed = RecordBar(await ReadCaseAsync(
+            new RecordingCaseDetailsStore { State = CaseLifecycleState.PrincipalCancelled }, Mail));
+        Assert.DoesNotContain("data-send-chaser", closed, StringComparison.Ordinal);
+
+        var offline = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore()));
+        Assert.DoesNotContain("data-send-chaser", offline, StringComparison.Ordinal);
+    }
+
+    /// <summary>A staff mail sender the page reads as available; the frame never sends.</summary>
+    private sealed class OfferedStaffMailSend : IStaffMailSend
+    {
+        public Task<StaffMailOperation> SendAsync(StaffMailSendCommand command, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<StaffMailOperation?> GetAsync(ActionActor actor, Guid operationId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<StaffMailOperation?> GetLatestForOriginalAsync(
+            ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<StaffMailOperation> ReconcileAsync(
+            ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<StaffMailOperation> CancelAsync(
+            ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>The store's own Case data with this Case's notes recorded on it.</summary>

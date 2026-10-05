@@ -47,11 +47,15 @@ public sealed class OrganizationAdministrationPersistenceTests
             "Confirm contact-owned report settings",
             changedPolicy,
             PrincipalReportRecipientSettings.None,
+            205.00m,
             contactVersion);
 
         var updated = await update.ExecuteAsync(
             Request(principal.Version, principal.ContactVersion, "principal:report-settings:direct"), default);
         Assert.Equal(principal.Version + 1, updated.Version);
+        Assert.Equal(205.00m, updated.DefaultFee);
+        Assert.Equal(205.00m, await factory.Database.ScalarAsync<decimal>(
+            $"SELECT DefaultFee FROM Principals WHERE Id = '{principal.Id:D}';"));
         Assert.Equal(
             principal.ContactVersion + 1,
             await factory.Database.ScalarAsync<long>(
@@ -88,6 +92,9 @@ public sealed class OrganizationAdministrationPersistenceTests
         await using var seedContext = await contextFactory.CreateDbContextAsync();
         var predecessor = await seedContext.Principals.AsNoTracking()
             .SingleAsync(item => item.Code == QdosPrincipal.Code);
+        await seedContext.Principals
+            .Where(item => item.Id == predecessor.Id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.DefaultFee, 210.00m));
         var initialContactVersion = await seedContext.Organizations.AsNoTracking()
             .Where(item => item.Id == predecessor.OrganizationId)
             .Select(item => item.Version)
@@ -163,6 +170,7 @@ public sealed class OrganizationAdministrationPersistenceTests
                 persistedSuccessor.DefaultInspectionSourceVersion));
         Assert.Equal(salvageMatrix, persistedSuccessor.SalvageMatrix);
         Assert.Equal(salvageMatrix, persistedPredecessor.SalvageMatrix);
+        Assert.Equal(210.00m, persistedSuccessor.DefaultFee);
         var caseMatrices = scope.ServiceProvider.GetRequiredService<IPrincipalSalvageMatrixQueries>();
         Assert.Equal(salvageMatrix, await caseMatrices.GetForCaseAsync(accepted.Identity.CaseId, default));
         Assert.Null(await caseMatrices.GetForCaseAsync(Guid.NewGuid(), default));

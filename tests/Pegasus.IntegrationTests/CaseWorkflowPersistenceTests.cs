@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -2312,6 +2313,7 @@ public sealed class CaseWorkflowPersistenceTests
                 .SingleAsync(item => item.Code == "QDOS");
             principal.Organization.GuidanceTemplate = "Contact the repairer before finalising.";
             principal.Organization.GuidanceTemplateVersion = 1;
+            principal.DefaultFee = 195.00m;
             context.CaseSequences.Add(new CaseSequenceEntity
             {
                 SequenceLineageId = principal.SequenceLineageId,
@@ -2372,6 +2374,14 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(
             allocated.Identity.Reference,
             await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
+        // The replacement starts with its corrected Principal's default fee.
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var fee = await context.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>
+                item.WorkId == allocated.Identity.CaseId && item.FieldPath == AssessmentVocabulary.AgreedFee);
+            Assert.Equal("195.00", fee.Value);
+            Assert.Equal(PrincipalDefaultFeePolicy.RecorderId, fee.RecordedBy);
+        }
         // A standalone Audit's a. prefix is on its own Case/PO; it never
         // carries an Audit report reference.
         Assert.Null(await harness.ReadAuditReferenceAsync(allocated.Identity.CaseId));

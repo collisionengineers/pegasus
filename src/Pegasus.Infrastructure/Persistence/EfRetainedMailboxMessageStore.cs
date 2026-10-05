@@ -118,12 +118,15 @@ internal sealed class EfRetainedMailboxMessageStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(immutableMessageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalInternetMessageIdentity);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The canonical id is unique in the mailbox, so this reads at most one row.
-        // The item id is compared here, exactly, as the wake compares it: the column
-        // takes the database's collation, which can ignore case, and Graph ids do not.
+        // The canonical id is unique in the mailbox's Inbox, so this reads at most
+        // one row. The item id is compared here, exactly, as the wake compares it:
+        // the column takes the database's collation, which can ignore case, and
+        // Graph ids do not.
+        var inbox = ToCode(MailFolderScope.Inbox);
         var retainedImmutableMessageId = await context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.MailboxId == mailboxId
+                && item.FolderScope == inbox
                 && item.CanonicalInternetMessageIdentity == canonicalInternetMessageIdentity)
             .Select(item => item.ImmutableMessageId)
             .SingleOrDefaultAsync(cancellationToken);
@@ -954,13 +957,17 @@ internal sealed class EfRetainedMailboxMessageStore(
         RetainedMailboxMessage message,
         CancellationToken cancellationToken)
     {
+        // The Message-ID is unique per folder: the Sent copy of a message the
+        // mailbox also received is its own item, not the Inbox row.
         var canonicalIdentity = CanonicalInternetMessageIdentity(message);
+        var folder = ToCode(message.Folder);
         return await context.RetainedMailboxMessages
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 item => item.MailboxId == message.MailboxId
                     && (item.ImmutableMessageId == message.ImmutableMessageId
                         || (canonicalIdentity != null
+                            && item.FolderScope == folder
                             && item.CanonicalInternetMessageIdentity == canonicalIdentity)),
                 cancellationToken);
     }
@@ -1000,19 +1007,40 @@ internal sealed class EfRetainedMailboxMessageStore(
         MailWorkspaceScope scope,
         CancellationToken cancellationToken)
     {
-        if (scope.Folder != MailFolderScope.Inbox)
+        if (scope.Folder is not (MailFolderScope.Inbox or MailFolderScope.Sent))
         {
             return false;
+        }
+
+        var retained = context.RetainedMailboxMessages.AsNoTracking()
+            .Where(item => item.FolderScope == ToCode(scope.Folder));
+        if (scope.MailboxId is { } mailboxId)
+        {
+            retained = retained.Where(item => item.MailboxId == mailboxId);
+        }
+        if (scope.Folder == MailFolderScope.Sent)
+        {
+            // The Sent poll keys its state by the provider's mailbox identity;
+            // the approved mailbox row joins the two.
+            var completedSentPolls = context.ApprovedSentPollStates
+                .AsNoTracking()
+                .Where(item => item.LastCompletedAtUtc != null);
+            if (scope.MailboxId is { } sentMailboxId)
+            {
+                completedSentPolls = completedSentPolls.Where(item =>
+                    context.ApprovedMailboxes.Any(mailbox =>
+                        mailbox.Id == sentMailboxId && mailbox.Address == item.MailboxAddress));
+            }
+            return await completedSentPolls.AnyAsync(cancellationToken)
+                && !await retained.AnyAsync(cancellationToken);
         }
 
         var completedPolls = context.ApprovedInboxPollStates
             .AsNoTracking()
             .Where(item => item.LastCompletedAtUtc != null);
-        var retained = context.RetainedMailboxMessages.AsNoTracking();
-        if (scope.MailboxId is { } mailboxId)
+        if (scope.MailboxId is { } inboxMailboxId)
         {
-            completedPolls = completedPolls.Where(item => item.ApprovedMailboxId == mailboxId);
-            retained = retained.Where(item => item.MailboxId == mailboxId);
+            completedPolls = completedPolls.Where(item => item.ApprovedMailboxId == inboxMailboxId);
         }
 
         return await completedPolls.AnyAsync(cancellationToken)
@@ -1250,7 +1278,17 @@ internal sealed class EfRetainedMailboxMessageStore(
         {
             matches = matches.Where(item => !item.IsRead);
         }
-        if (searchTerm is not null)
+        if (searchTerm is not null && scope.Folder == MailFolderScope.Sent)
+        {
+            // A Sent item has no intake receipt to search, so its own retained
+            // subject, sender and text are what the search reads.
+            matches = matches.Where(item =>
+                item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))
+                || (item.Subject != null && item.Subject.Contains(searchTerm))
+                || (item.SenderAddress != null && item.SenderAddress.Contains(searchTerm))
+                || (item.BodyPlainText != null && item.BodyPlainText.Contains(searchTerm)));
+        }
+        else if (searchTerm is not null)
         {
             matches = matches.Where(item =>
                 item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))

@@ -4,8 +4,10 @@
 
 ## Short version
 
-- The Work Centre (`/`) shows the whole office's work: five counts, then one
-  panel whose tabs hold the Needs attention ledger, New cases and AI jobs.
+- The Work Centre (`/`) shows the whole office's work: five counts, the
+  Activity figures, then one panel whose tabs hold the Needs attention ledger,
+  New cases and AI jobs, each a table whose rows end in the next action and
+  one Dismiss.
 - Every count comes from a Core query. A failed read shows "unavailable",
   never `0`.
 - `/Cases` is one page of queues grouped as Workflow, Pre-Case work and
@@ -27,8 +29,8 @@ record is owned by [FRD-16](frd-16-case-record-workspace.md).
 ### Work Centre
 
 The Work Centre (`/`) shows office-wide work in one ledger (v30 design B,
-25 September 2026). Its head reads "Updated HH:MM" with **Refresh** and
-**Create Case**; the utility bar's New case is omitted on this page and only
+25 September 2026; v32 design A, 5 October 2026). Its head reads "Updated
+HH:MM", the page's one clock, with **Refresh** and **Create Case**; the utility bar's New case is omitted on this page and only
 this page, so the action has one home. The page refreshes itself only while
 its browser tab is visible: every five minutes, and when the tab regains focus
 after 30 seconds away. It never refreshes while a dialog is open or a field has
@@ -40,6 +42,28 @@ link to its Cases tab (`/Cases?tab=…`) and counts everything regardless of
 paging. Triages counts the Triage Cases that are Open, Awaiting information or
 Finding recorded; Completed and Cancelled are not counted. A failed read shows
 no figure and the section's unavailable notice, never `0`.
+
+**Activity** (v32 A, operator 5 October 2026). Under the counts, a panel
+headed Activity holds a table: the figures head the columns and the rows are
+**Today** and **This week**. The figures are New cases (today), Sent to
+Engineer (today and this week), Reports sent (today and this week),
+Completed (this week) and E-mails received (today); a half that is not
+defined is not drawn. Today runs from midnight Europe/London and This week
+from Monday 00:00 Europe/London, both to the instant of the read. Every
+figure is office-wide and plain text; New cases opens the New cases tab
+when that tab is shown. The definitions:
+
+| Figure | Counts |
+| --- | --- |
+| New cases | Cases created in the window, excluding Triage Cases, as the New cases list counts them |
+| Sent to Engineer | `First sent to Engineer` events (the once-per-Case handoff proxy, [FRD-07](frd-07-eva-and-external-engineering-handoff.md)); a re-export is not counted |
+| Reports sent | Sent report e-mails, as the Engineer activity report MI-01 counts them ([FRD-17](frd-17-administration-workspace.md#reports)), so the two agree for the same week |
+| Completed | Cases that entered Complete in the window, including one reopened since |
+| E-mails received | Mailbox receipts; an upload is also a receipt and is not counted |
+
+The figures are their own section with their own refresh state: a failed
+read shows "Activity is unavailable." and no figure, never `0`. The panel is
+drawn whether or not there is work to show. A dismissal changes no figure.
 
 **Sections.** Below the strip one panel carries three tabs: **Needs
 attention**, **New cases** and **AI jobs**, each with its count. A tab is
@@ -99,9 +123,15 @@ term travels with every address on the page. **Clear filters** appears when a
 kind or a term is on and clears both. A filter that matches nothing keeps the
 toolbar and says "No work matches these filters."
 
-**The ledger.** A table with five columns: Next action (the task, with its
+**The ledger.** A table with seven columns: Next action (the task, with its
 kind beneath), Record / detail (the reference, with the subject beneath),
-Owner, Due and Received. Rows are grouped under **Overdue (n)**, **Due today
+Owner, Due, Received, the next action as a button (v32 item M) and
+**Dismiss**, an icon-only control named "Dismiss {reference}" (v32 item B).
+Owner is the person's name. A Held, Review, Unassigned, Vehicle images
+paired or Triage row with an empty person slot says **Unassigned**. A Case
+chase, an Unidentified item, or an AI draft with no person says **No owner**.
+Find matches that word. Below 980px Owner and Received fold into the task
+cell. Rows are grouped under **Overdue (n)**, **Due today
 (n)** and **Later (n)**; a group with no rows is not drawn. Order is by due
 instant, earliest first and undated last, then received, then reference. The
 due text is in words ("2 days overdue", "Due today", "Due Fri", "Due 24 Sep")
@@ -117,10 +147,8 @@ owner, due, received) and a next action that does the action. Choosing the
 open task again closes it; nothing opens by itself. Assign Engineer opens the
 assignment dialog on the Work Centre. Review Case opens the Case, and so
 does Open Case on a Vehicle images paired item. Open Triage opens the Triage
-Case page. An AI draft offers its per-kind action. **Assign
-to me** is offered to every enabled staff role on an Unassigned item and on
-a Triage item without an assignee, where Core would accept it. **Dismiss**
-follows the next action on every open row.
+Case page. An AI draft offers its per-kind action. The open row
+repeats no Dismiss; the row's own control is the one.
 
 **New cases.** Every Case except a Triage Case created in the last 7 calendar
 days, newest first, whatever created it: reference, registration, claimant,
@@ -128,16 +156,18 @@ principal and an arrival chip (Manual, E-mail, Principal API, Automation). A
 "Since you last looked" divider marks what is new for this person. Opening the
 Work Centre records the look. A change the Automation actor makes to an
 existing Case appears as a "Changed by automation" row naming the change. The
-section is paged. Each row ends with an icon-only **Dismiss** naming its Case.
+section is a table (v32 A): Case, Detail (registration, claimant, principal
+and the change), Arrival, Received and **Dismiss**; the "Since you last
+looked" divider is a group row. The section is paged.
 
 **AI jobs.** The office's unfinished AI jobs (Queued, Taken with its lease
 expiry, Draft ready) and those that failed in the same 7 days, excluding
-Market research, as compact rows: kind and state, the instruction, the
-record, who started it and when, then the lease expiry or failure reason and
-the Draft ready action defined per kind in
+Market research, as a table (v32 A): Job, State, Instruction, Record, Started
+(who and when), Note (a Taken job reads "Taken until HH:MM", v32 item K; a
+failed job its reason), then the Draft ready action defined per kind in
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
-(Review estimate, Open query, Review, Complete job). A failed job shows its
-reason with Open Case. Every job ends with **Dismiss**. There is no Cancel
+(Review estimate, Open query, Review, Complete job) and **Dismiss**. A failed
+job shows its reason with Open Case. There is no Cancel
 here; an Administrator stops a job on Administration AI jobs.
 
 **Dismiss** (2 October 2026) takes a row off the Work Centre without
@@ -161,8 +191,11 @@ dismissal shows again:
 
 Due dates play no part, so a target change never brings a dismissed row back.
 The section counts, kind chips, groups and pages leave dismissed rows out;
-the five metrics count records and do not change. There is no undo and no
-list of dismissed rows, and no notice: the row's leaving is the answer.
+the five metrics and the Activity figures count records and do not change.
+There is no undo and no list of dismissed rows, and no notice: the row's
+leaving is the answer. Every row of every section ends in the same
+icon-only Dismiss (v32 item B); after a dismissal the page returns to the next
+row of that list, or to the list's heading when none is left.
 
 ### Cases: queues and filters
 
@@ -273,57 +306,82 @@ each action posts once and holds the record for its one save
 of the Case record's sections, and has no Set principal.
 
 **Ribbon.** The `t.` Case/PO, registration, Principal, source, opened date
-and time, the assignee with one **Assign** button, the linked Case (its
-Case/PO as a link, or None) and the state chip.
+and time, the assignee, the linked Case (its Case/PO as a link, or None) and
+the state chip. Then the state's next step as the one primary button, and one
+**Actions** menu holding every other action the state permits, Cancel Triage
+last in red (operator, 5 October 2026).
 
-**Record bar.** **Open message** when the request came by e-mail, otherwise
-**Open file**; a Triage made with Create case has neither. **Link case** or
-**Unlink case**. Nothing else.
-
-**Determinations** is the one main panel: roadworthiness, repair outcome and
-reason, then only the buttons the state permits.
-
-| State | Primary button | Other buttons |
+| State | Primary button | Actions menu |
 | --- | --- | --- |
-| Open | Save determinations | Await information, Cancel Triage |
-| Awaiting information | Save determinations | Cancel Triage |
-| Finding recorded | Complete Triage | Save determinations (a correction), Await information, Cancel Triage |
-| Completed | Reply with outcome, when a reply can be sent | Record correction, Reopen |
-| Cancelled | Reopen | none |
+| Open | Record finding | Assign, Send chaser, Open file, Link case, Cancel Triage |
+| Awaiting information | Record finding | Assign, Send chaser, Open file, Link case, Cancel Triage |
+| Finding recorded | Complete Triage | Assign, Record finding (a correction), Send chaser, Open file, Link case, Cancel Triage |
+| Completed | Reply with finding, when a reply can be sent | Record correction, Open file, Reopen |
+| Cancelled | Reopen | Open file |
 
-On a Completed or Cancelled Triage the two determinations are greyed boxes
-in the same places. A correction is still offered on Completed: **Record
-correction** below the boxes opens the same determinations form in a
-dialog, and the correction supersedes the finding
+Send chaser and Reply with finding appear only when a reply can be sent and
+no send is in flight. Open file appears only when the request did not come
+by e-mail. Assign appears while staff can be chosen. Link case becomes
+Unlink case once a Case is linked. There is no Open message: the request
+e-mail is the first row of the Correspondence tab.
+
+**Tab row.** Under the ribbon, and staying with it as the page scrolls, are
+the tabs **Images** (only when the request carried photographs), **Files** and
+**Notes**, each with its count, and the finding read-only: Roadworthiness and
+Repair outcome, or Not recorded. Without script the three panels follow one
+another under their headings.
+
+**Images** is the request's photographs at contact-sheet size, each opening
+the image viewer. A Triage takes no crop and no tag.
+
+**Files** shows the Box case folder's state chip, **Add evidence** (which
+opens Upload for this Case,
+[FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) and More ›
+Open in Box, over two tabs. **Documents** lists the documents with view and
+download, or the empty state. **Correspondence** is the Case record's
+Correspondence table: the request e-mail and every retained e-mail
+associated with the Triage, each opened in the message dialog. Above it are
+the latest send status (with Reconcile status when it is Unknown), the
+in-flight notice when a send has not finished, and the Send chaser or Reply
+with finding button. Exact response evidence, when there is any to show or
+link, follows the table.
+
+**Notes** merges durable events with append-only attributable notes in time
+order. A correction is a new note. There is no note edit and no note delete.
+
+**Record finding** opens one dialog: Roadworthiness, Repair outcome and the
+required reason, then two tickboxes. **Complete Triage** completes the Triage
+in the same post, as a second save on the version the finding left.
+**Reply with finding**, offered only when a reply can be sent, opens the
+composer on the reply once the Triage completes; ticking it ticks Complete
+Triage. A repeated post replays both saves. With several active findings
+the dialog is withheld and the page names the reconciliation needed.
+
+On a Completed or Cancelled Triage the finding stays read-only. A correction
+is still offered on Completed: **Record correction** opens the same fields in
+a dialog, and the correction supersedes the finding
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
-Complete and Await information act on the click and ask no reason. Cancel
-Triage, Reopen, Link case and Unlink case keep their reason dialogs, as does
-the determination reason.
-Each action shows its own notice. The completion notice links to Reply with
-outcome when a reply can be sent.
+Complete acts on the click and asks no reason. Cancel Triage, Reopen, Link
+case and Unlink case keep their reason dialogs, as does the finding reason.
+Each action shows its own notice. The completion notice opens Reply with
+finding when a reply can be sent.
 
 **Assign** opens one dialog. It lists eligible staff with the signed-in
 person first as "Name (you)". Nothing is preselected. Its buttons are
 Unassign (when assigned), Cancel and Assign. Neither asks a reason.
 
-Below Determinations come the linked vehicle images, the correspondence
-panel, the exact response evidence when there is any, the Case's **Files**
-panel and `Notes`. Files shows the Box case folder's state chip, **Add
-evidence** (which opens Upload for this Case,
-[FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)), and the
-documents with view and download, or the empty state. `Notes` merges durable
-events with append-only attributable notes in time order. A correction is a
-new note. There is no note edit and no note delete.
-
-**Correspondence.** The panel renders only when the Triage came by e-mail and
-its approved mailbox may send. It holds one reply form. Before Completed it
-is the chaser FRD-03 offers. Once Completed it is **Reply with outcome**: the
-same To, the subject "Re: {original subject}" and a body rendered from the
-Triage outcome template
+**Composer.** Send chaser and Reply with finding open the Inbox composer's
+frame over the page: From (the approved mailbox), To, Cc, Subject, Message
+and the request's own files as attachments. It is offered only when the
+Triage came by e-mail and its approved mailbox may send. Before Completed it
+sends the chaser FRD-03 offers. Once Completed it is **Reply with finding**:
+the same To, the subject "Re: {original subject}" and a body rendered from
+the Triage outcome template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which staff
-edit before Send. The server decides which it
-is. The sent correspondence attaches to the Triage and is never a completion
-gate. Server-side transitions stay reachable where a handler exists.
+edit before Send. The server decides which it is. A refused send opens the
+composer again on what was posted, with the reasons. The sent
+correspondence attaches to the Triage and is never a completion gate.
+Server-side transitions stay reachable where a handler exists.
 
 ### Search
 
@@ -367,14 +425,10 @@ business fact instead enters permanent business history with the responsible
 actor, source and version, before and after values, time, and reason where
 required.
 
-`New cases today` counts every instructed Case created in the current
-Europe/London calendar day, including one later completed, cancelled or
-rejected that day. It excludes vehicle-images records, Triage Cases, which
-have their own Triages count, and Unidentified. The Unidentified count is the
-exact count of open Unidentified items and links to that queue. These are
-separate from `Due today`, `Sent to Engineer` and `Reports sent`. `Due by` and
-overdue or chaser work stay a separate operational view from `New cases
-today`.
+The Activity figures are defined under [Work Centre](#work-centre). The
+Unidentified count is the exact count of open Unidentified items and links to
+that queue. `Due by` and overdue or chaser work stay a separate operational
+view from the Activity figures.
 
 ## States and transitions
 
@@ -398,7 +452,8 @@ permits it ([FRD-13](frd-13-case-lifecycle-and-workflow.md)).
 
 Acceptance covers every rail route and its count, the `/Unidentified`
 redirect, `/Triage` and `/Triage/{id}` answering Not found, the Cases rail
-groups and filters, the five Work Centre counts and the Needs attention kinds
+groups and filters, the five Work Centre counts, the Activity figures and
+their unavailable state, the Needs attention kinds
 against Core queries, the Triage Case page in its read, edit, conflict,
 Completed and Cancelled states, and the Search filters with the two entries
 of an Inspection + Audit Case and Triage rows. Authenticated Web tests

@@ -112,8 +112,7 @@ staff account. In one operation, under a Case edit lease — the session's, or
 one claimed for the action ([FRD-16](frd-16-case-record-workspace.md#actions-menu))
 — and the current version, Pegasus assigns the Engineer, sets the Sign-off
 Engineer, and moves the Case
-to With Engineer. Any enabled staff member may use **Assign to me** wherever the same
-assignment would be accepted. A headless start command can hand a Review Case
+to With Engineer. A headless start command can hand a Review Case
 to its already-assigned eligible staff member; it is not a second screen step.
 
 Replaying the same request does not hand off twice. A request that is
@@ -287,6 +286,18 @@ delivered. Each chaser keeps its recipient, channel, prepared draft or draft
 reference, staff disposition and timestamps. Free-text notes may sit beside a
 chaser without implying it was sent or answered.
 
+**Send chaser** on the Case record opens the composer with the Case chaser
+template ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) and
+the Case's recorded addresses, and staff send it
+([FRD-16](frd-16-case-record-workspace.md#actions-menu)). When that send's
+exact Sent evidence is observed and the Case is Not ready with a chase
+scheduled, Pegasus records the chase itself — channel E-mail, the addresses
+sent to, outcome Sent, at the provider's sent time, by the staff member who
+sent it — and schedules the next chase at the interval; in any other state
+the Sent item is correspondence evidence and no chase is recorded (operator,
+5 October 2026). Submitted is not Sent: nothing is recorded until the
+evidence exists.
+
 **What staff see.** For each item awaiting material, the work view shows the
 missing-material reason, Due by, the next chase, the most recent channel and
 outcome, an optional note, and the next permitted action. Prepared or copied
@@ -328,7 +339,7 @@ away clears the row. The Case's state still changes only by a staff action.
 | From | To | Trigger |
 | --- | --- | --- |
 | Not ready | Review | Every required item present (automatic) |
-| Review | With Engineer | Hand to Engineer, Assign to me, or the headless start command |
+| Review | With Engineer | Hand to Engineer, or the headless start command |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
 | With Engineer | Completed | Mark completed |

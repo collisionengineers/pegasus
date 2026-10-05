@@ -54,6 +54,8 @@ public sealed partial class QdosTriageIntegrationTests
         // receipt — not copied anywhere, and not a second custody of the same
         // bytes.
         Assert.Contains($"/Received/{receiptId:D}/Asset/", html, StringComparison.Ordinal);
+        // A Triage takes no crop or tag (operator, 5 October 2026).
+        Assert.DoesNotContain("data-precase-asset", html, StringComparison.Ordinal);
 
         // Nothing is recorded on either photograph, yet each tile is a
         // rendering at tile size, not the 4032 by 3024 original; the viewer's

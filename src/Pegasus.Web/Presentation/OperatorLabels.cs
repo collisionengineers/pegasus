@@ -205,7 +205,6 @@ public static class OperatorLabels
         public const string Completed = "Triage completed.";
         public static string AssignedTo(string name) => $"Assigned to {name}.";
         public const string Unassigned = "Unassigned.";
-        public const string AwaitingInformation = "Now awaiting information.";
         public const string Cancelled = "Triage cancelled.";
         public const string Reopened = "Triage reopened.";
         public const string CaseLinked = "Case linked.";
@@ -228,19 +227,19 @@ public static class OperatorLabels
         public const string OpenCase = "Open the case";
         public const string Cancel = "Cancel";
 
-        public const string Determinations = "Determinations";
-        public const string SaveDeterminations = "Save determinations";
+        public const string RecordFinding = "Record finding";
+        public const string Finding = "Finding";
         public const string RecordCorrection = "Record correction";
         public const string CompleteTriage = "Complete Triage";
-        public const string AwaitInformation = "Await information";
         public const string CancelTriage = "Cancel Triage";
+        public const string OpenFile = "Open file";
+        public const string VehicleImages = "Vehicle images";
+        public const string Notes = "Notes";
         public const string Reopen = "Reopen";
 
-        public const string ReplyWithOutcome = "Reply with outcome";
-        public const string ChaserCorrespondence = "Chaser correspondence";
+        public const string ReplyWithFinding = "Reply with finding";
         public const string SendChaser = "Send chaser";
         public const string SendReply = "Send reply";
-        public const string ReconcileStatus = "Reconcile status";
         public const string NoReplyWhenCancelled = "A cancelled Triage has no reply to send.";
         public const string ReplyNeedsEmail = "A reply can only be sent for a Triage that came by e-mail.";
 
@@ -289,6 +288,7 @@ public static class OperatorLabels
         {
             EmailTemplatePurpose.TriageOutcomeReply => "Triage outcome reply",
             EmailTemplatePurpose.CaseReportDelivery => "Case report delivery",
+            EmailTemplatePurpose.CaseChaser => "Case chaser",
             _ => throw new InvalidOperationException($"Unknown e-mail template purpose '{(int)purpose}'.")
         };
     }
@@ -492,7 +492,6 @@ public static class OperatorLabels
         public const string Placing = "Placing on hold…";
         public const string Preparing = "Preparing…";
         public const string Publishing = "Publishing…";
-        public const string Reconciling = "Reconciling…";
         public const string Recording = "Recording…";
         public const string Refreshing = "Refreshing…";
         public const string Refusing = "Refusing…";
@@ -819,7 +818,6 @@ public static class OperatorLabels
         public const string Owner = "Owner";
         public const string Due = "Due";
         public const string Received = "Received";
-        public const string AssignToMe = "Assign to me";
         public const string AssignEngineer = "Assign Engineer";
         public const string Assign = "Assign";
         public const string Reassign = "Reassign";
@@ -837,10 +835,30 @@ public static class OperatorLabels
         public const string AiJobsUnavailable = "AI jobs are unavailable.";
         public const string NoReasonRecorded = "No reason recorded";
         public const string OpenCase = "Open Case";
-        public const string NoEngineer = "No Engineer";
-        public const string NoOwner = "No owner";
         public const string Previous = "Previous";
         public const string Next = "Next";
+
+        /// <summary>The Activity panel (v32 item I): the figures head the columns, Today and This week the rows.</summary>
+        public const string Activity = "Activity";
+        public const string Today = "Today";
+        public const string ThisWeek = "This week";
+        public const string SentToEngineer = "Sent to Engineer";
+        public const string ReportsSent = "Reports sent";
+        public const string Completed = "Completed";
+        public const string EmailsReceived = "E-mails received";
+        public const string ActivityUnavailable = "Activity is unavailable.";
+
+        /// <summary>The ledgers' column heads (v32 A).</summary>
+        public const string ActionColumn = "Action";
+        public const string CaseColumn = "Case";
+        public const string DetailColumn = "Detail";
+        public const string ArrivalColumn = "Arrival";
+        public const string JobColumn = "Job";
+        public const string StateColumn = "State";
+        public const string InstructionColumn = "Instruction";
+        public const string RecordColumn = "Record";
+        public const string StartedColumn = "Started";
+        public const string NoteColumn = "Note";
 
         public static string Updated(DateTimeOffset value) => $"Updated {OfficeClock(value)}";
 
@@ -859,7 +877,8 @@ public static class OperatorLabels
         public static string NewCasesPaging(int page, int pages) =>
             string.Create(CultureInfo.InvariantCulture, $"Page {page} of {pages} · newest first");
 
-        public static string LeaseExpires(DateTimeOffset value) => $"Lease expires {OfficeTime(value)}";
+        /// <summary>A Taken job's note (v32 item K): the time its turn ends, in the office clock.</summary>
+        public static string TakenUntil(DateTimeOffset value) => $"Taken until {OfficeClock(value)}";
 
         public static string StartedBy(string name) => $"Started by {name}";
 
@@ -987,11 +1006,8 @@ public static class OperatorLabels
             _ => AiJobs.Review
         };
 
-        public const string AssignedToYou = "The Case was assigned to you.";
         public const string Assigned = "The Case was assigned.";
-        public const string TriageAssignedToYou = "The Triage was assigned to you.";
         public const string AssignRefused = "The Case was not assigned because it changed, someone is editing it, or the action is not permitted.";
-        public const string TriageAssignRefused = "The Triage was not assigned because it changed, someone is editing it, or the action is not permitted.";
         public const string JobCompleted = "The AI job was completed.";
         public const string JobRefused = "The AI job changed before it could be completed. Refresh and try again.";
 
@@ -1692,13 +1708,15 @@ public static class OperatorLabels
     /// <summary>
     /// The source tag of a recorded assessment value: the vehicle lookup's
     /// writes read Lookup, an Original report cell filled from the filed report
-    /// Extracted, any other Automation actor's AI, a Pegasus worker's
-    /// Automatic; a staff value carries none.
+    /// Extracted, the agreed fee a new Case took from its Principal Principal,
+    /// any other Automation actor's AI, a Pegasus worker's Automatic; a staff
+    /// value carries none.
     /// </summary>
     public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
     {
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
         ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
+        ActorKind.Automation when field.RecordedBy == PrincipalDefaultFeePolicy.RecorderId => SourceTagWord.Principal,
         ActorKind.Automation => SourceTagWord.Ai,
         ActorKind.SystemWorker => SourceTagWord.Automatic,
         _ => null
@@ -1871,13 +1889,12 @@ public static class OperatorLabels
     /// whether it is on its way, delivered, or needs attention — the internal
     /// attempt-stage vocabulary (draft creation, attaching, sending) is
     /// writer detail, not a distinction the operator acts on differently.
-    /// "Unknown" is the one state that ever offers Reconcile rather than a
-    /// resend: a resend from an unknown outcome could double-send a message
-    /// that already reached Outlook.
+    /// Neither Submitted nor Unknown offers a resend: the Worker's Sent poll
+    /// settles them, and a resend from an unknown outcome could double-send a
+    /// message that already reached Outlook.
     /// </summary>
     public static class StaffMail
     {
-        public const string Reconcile = "Reconcile";
         public const string Reply = "Reply";
         public const string ReplyAll = "Reply all";
         public const string Forward = "Forward";
@@ -1934,6 +1951,7 @@ public static class OperatorLabels
         public const string AddSalvageBand = "Add band";
         public const string RemoveSalvageBand = "Remove";
         public const string SaveSalvageMatrix = "Save salvage matrix";
+        public const string DefaultFee = "Default fee (£)";
 
         /// <summary>A salvage category as the Case names it: "Cat S".</summary>
         public static string SalvageCategory(string code) => $"Cat {code}";

@@ -308,7 +308,7 @@ public sealed class IndexModel(
                 out var normalizedQueue,
                 out var destination,
                 out var detailedClassification)
-            || (folder == MailFolderScope.DeletedItems && normalizedQueue is not null))
+            || (folder is MailFolderScope.DeletedItems or MailFolderScope.Sent && normalizedQueue is not null))
         {
             return false;
         }
@@ -340,7 +340,7 @@ public sealed class IndexModel(
             }
 
             var summary = detail.Summary;
-            var state = MessageModel.OutcomeLabel(summary);
+            var state = StateValue(detail);
             return new JsonResult(new
             {
                 id = summary.Id,
@@ -350,7 +350,7 @@ public sealed class IndexModel(
                 received = $"{OperatorLabels.OfficeDate(summary.ReceivedAtUtc)} {OperatorLabels.OfficeClock(summary.ReceivedAtUtc)}",
                 mailbox = summary.MailboxAddress,
                 state,
-                stateTone = OperatorLabels.StatusTone(state),
+                stateTone = state is null ? null : OperatorLabels.StatusTone(state),
                 excerpt = summary.BodyExcerpt ?? "No excerpt available",
                 attachments = OperatorLabels.Inbox.Attachments(detail.Attachments),
                 classification = ClassificationValue(detail),
@@ -494,11 +494,21 @@ public sealed class IndexModel(
             ? MailLogicalFolders.Definition(currentFolderType).Label
             : FolderLabel(preview.Folder);
 
-    /// <summary>The preview's Classification cell: the current decision's label, else "Not yet processed".</summary>
+    /// <summary>
+    /// The preview's Classification cell: the current decision's label, else
+    /// "Not yet processed" for received mail. A Sent item is never processed;
+    /// with no decision its cell says the value is not recorded.
+    /// </summary>
     public static string ClassificationValue(RetainedMailPreview preview) =>
         preview.Classification is { } current
             ? MessageModel.DecisionLabel(current)
-            : MessageModel.ClassificationLabel(null);
+            : preview.Folder == MailFolderScope.Sent
+                ? OperatorLabels.CaseWorkspace.AbsentValue
+                : MessageModel.ClassificationLabel(null);
+
+    /// <summary>The preview's processing chip: received mail's outcome; a Sent item carries none.</summary>
+    public static string? StateValue(RetainedMailPreview preview) =>
+        preview.Folder == MailFolderScope.Sent ? null : MessageModel.OutcomeLabel(preview.Summary);
 
     public static string FreshnessStatus(MailFreshnessState state) => state switch
     {
