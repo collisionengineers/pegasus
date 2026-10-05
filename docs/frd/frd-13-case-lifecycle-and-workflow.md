@@ -287,6 +287,18 @@ delivered. Each chaser keeps its recipient, channel, prepared draft or draft
 reference, staff disposition and timestamps. Free-text notes may sit beside a
 chaser without implying it was sent or answered.
 
+**Send chaser** on the Case record opens the composer with the Case chaser
+template ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) and
+the Case's recorded addresses, and staff send it
+([FRD-16](frd-16-case-record-workspace.md#actions-menu)). When that send's
+exact Sent evidence is observed and the Case is Not ready with a chase
+scheduled, Pegasus records the chase itself — channel E-mail, the addresses
+sent to, outcome Sent, at the provider's sent time, by the staff member who
+sent it — and schedules the next chase at the interval; in any other state
+the Sent item is correspondence evidence and no chase is recorded (operator,
+5 October 2026). Submitted is not Sent: nothing is recorded until the
+evidence exists.
+
 **What staff see.** For each item awaiting material, the work view shows the
 missing-material reason, Due by, the next chase, the most recent channel and
 outcome, an optional note, and the next permitted action. Prepared or copied

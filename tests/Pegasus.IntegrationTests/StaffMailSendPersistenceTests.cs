@@ -9,6 +9,7 @@ using Pegasus.Core.Workflow;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
@@ -1153,6 +1154,154 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     [Fact]
+    public async Task CaseChaserReachingSentRecordsTheChaseOnTheCase()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedChaserCaseAsync(database, CaseLifecycleState.NotReady);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var command = ChaserCommand(caseId, "case-chaser-sent",
+            [new("instruction@example.invalid", null), new("repairer@example.invalid", "Repairer")]);
+        var operation = await MoveToSubmittedAsync(
+            store, command, new DateTimeOffset(2026, 9, 10, 9, 0, 0, TimeSpan.Zero));
+        var observedAtUtc = new DateTimeOffset(2026, 9, 10, 9, 5, 0, TimeSpan.Zero);
+        var sentAtUtc = observedAtUtc.AddMinutes(-1);
+
+        await store.TransitionObservedSentAsync(
+            ActionActor.SystemWorker("sent-evidence-poll"),
+            operation.Id, operation.Version, "chaser-sent-item",
+            sentAtUtc, observedAtUtc, CancellationToken.None);
+
+        await using var verify = database.CreateAsyncScope();
+        var factory = verify.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        var chase = Assert.Single(await db.CaseManualChases.Where(item => item.CaseId == caseId).ToListAsync());
+        Assert.Equal($"chaser-sent:{operation.Id:N}", chase.OperationKey);
+        Assert.Equal("E-mail", chase.Channel);
+        Assert.Equal("Sent", chase.Outcome);
+        Assert.Equal(sentAtUtc, chase.AttemptedAtUtc);
+        Assert.Equal("instruction@example.invalid; repairer@example.invalid", chase.TargetPartyOrAddress);
+        Assert.Equal(nameof(ActorKind.Staff), chase.ActorKind);
+        Assert.Equal(command.Actor.SubjectId, chase.ActorSubjectId);
+        var interval = (await EfWorkflowConfigurationStore.ReadAsync(db, CancellationToken.None)).ChaseIntervalDays;
+        var due = await db.CaseDueWork.SingleAsync(item => item.CaseId == caseId);
+        Assert.Equal("Sent", due.MostRecentOutcome);
+        Assert.Equal("E-mail", due.MostRecentChannel);
+        Assert.Equal(CaseChaseSchedule.NextChaseAt(sentAtUtc, interval), due.NextChaseAtUtc);
+        Assert.Equal(1L, due.Version);
+        var workflow = await db.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+        Assert.Equal(1L, workflow.Version);
+        Assert.Equal(nameof(CaseLifecycleState.NotReady), workflow.State);
+        var recorded = Assert.Single(await db.CaseWorkflowEvents
+            .Where(item => item.CaseId == caseId && item.EventType == "chaser_sent")
+            .ToListAsync());
+        Assert.Equal(0L, recorded.BeforeVersion);
+        Assert.Equal(1L, recorded.AfterVersion);
+        Assert.Equal("E-mail to instruction@example.invalid; repairer@example.invalid: Sent", recorded.Reason);
+        Assert.Equal(StaffMailState.Sent,
+            (await db.Set<StaffMailSendOperationEntity>().SingleAsync(item => item.Id == operation.Id)).State);
+    }
+
+    [Fact]
+    public async Task CaseChaserSentOutsideNotReadyRecordsNoChase()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedChaserCaseAsync(database, CaseLifecycleState.Review);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var operation = await MoveToSubmittedAsync(
+            store,
+            ChaserCommand(caseId, "case-chaser-review", [new("instruction@example.invalid", null)]),
+            new DateTimeOffset(2026, 9, 10, 9, 0, 0, TimeSpan.Zero));
+        var observedAtUtc = new DateTimeOffset(2026, 9, 10, 9, 5, 0, TimeSpan.Zero);
+
+        await store.TransitionObservedSentAsync(
+            ActionActor.SystemWorker("sent-evidence-poll"),
+            operation.Id, operation.Version, "chaser-review-sent-item",
+            observedAtUtc.AddMinutes(-1), observedAtUtc, CancellationToken.None);
+
+        await using var verify = database.CreateAsyncScope();
+        var factory = verify.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        Assert.Equal(StaffMailState.Sent,
+            (await db.Set<StaffMailSendOperationEntity>().SingleAsync(item => item.Id == operation.Id)).State);
+        Assert.Empty(await db.CaseManualChases.Where(item => item.CaseId == caseId).ToListAsync());
+        Assert.Equal(0L, (await db.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+        Assert.Null((await db.CaseDueWork.SingleAsync(item => item.CaseId == caseId)).MostRecentOutcome);
+    }
+
+    [Fact]
+    public async Task CaseChaserSentObservedAgainRecordsOneChase()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedChaserCaseAsync(database, CaseLifecycleState.NotReady);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var operation = await MoveToSubmittedAsync(
+            store,
+            ChaserCommand(caseId, "case-chaser-replay", [new("instruction@example.invalid", null)]),
+            new DateTimeOffset(2026, 9, 10, 9, 0, 0, TimeSpan.Zero));
+        var observedAtUtc = new DateTimeOffset(2026, 9, 10, 9, 5, 0, TimeSpan.Zero);
+        var observer = ActionActor.SystemWorker("sent-evidence-poll");
+        await using var secondScope = database.CreateAsyncScope();
+        var secondStore = secondScope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+
+        await Task.WhenAll(
+            store.TransitionObservedSentAsync(observer, operation.Id, operation.Version,
+                "chaser-replay-sent-item", observedAtUtc.AddMinutes(-1), observedAtUtc,
+                CancellationToken.None),
+            secondStore.TransitionObservedSentAsync(observer, operation.Id, operation.Version,
+                "chaser-replay-sent-item", observedAtUtc.AddMinutes(-1), observedAtUtc,
+                CancellationToken.None));
+        await store.TransitionObservedSentAsync(observer, operation.Id, operation.Version,
+            "chaser-replay-sent-item", observedAtUtc.AddMinutes(-1), observedAtUtc,
+            CancellationToken.None);
+
+        await using var verify = database.CreateAsyncScope();
+        var factory = verify.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        Assert.Single(await db.CaseManualChases.Where(item => item.CaseId == caseId).ToListAsync());
+        Assert.Single(await db.CaseWorkflowEvents
+            .Where(item => item.CaseId == caseId && item.EventType == "chaser_sent")
+            .ToListAsync());
+        Assert.Equal(1L, (await db.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+    }
+
+    [Fact]
+    public async Task CaseChaserToManyAddressesStoresABoundedTarget()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedChaserCaseAsync(database, CaseLifecycleState.NotReady);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        StaffMailRecipient[] recipients =
+        [
+            .. Enumerable.Range(1, 30).Select(index => new StaffMailRecipient(
+                $"recipient-{index:D2}-with-a-long-mailbox-name@example.invalid", null))
+        ];
+        Assert.True(string.Join("; ", recipients.Select(value => value.Address)).Length > 500);
+        var operation = await MoveToSubmittedAsync(
+            store,
+            ChaserCommand(caseId, "case-chaser-many", recipients),
+            new DateTimeOffset(2026, 9, 10, 9, 0, 0, TimeSpan.Zero));
+        var observedAtUtc = new DateTimeOffset(2026, 9, 10, 9, 5, 0, TimeSpan.Zero);
+
+        await store.TransitionObservedSentAsync(
+            ActionActor.SystemWorker("sent-evidence-poll"),
+            operation.Id, operation.Version, "chaser-many-sent-item",
+            observedAtUtc.AddMinutes(-1), observedAtUtc, CancellationToken.None);
+
+        await using var verify = database.CreateAsyncScope();
+        var factory = verify.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        Assert.Equal(StaffMailState.Sent,
+            (await db.Set<StaffMailSendOperationEntity>().SingleAsync(item => item.Id == operation.Id)).State);
+        var chase = Assert.Single(await db.CaseManualChases.Where(item => item.CaseId == caseId).ToListAsync());
+        Assert.True(chase.TargetPartyOrAddress.Length <= 500);
+        Assert.Equal($"{recipients[0].Address} +29 more", chase.TargetPartyOrAddress);
+    }
+
+    [Fact]
     public async Task ReplicaExecutionLockExcludesConcurrentAttachmentFlowAndReleases()
     {
         await using var database = await CreateDatabaseAsync();
@@ -1292,6 +1441,52 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     private sealed record QueryReplyFixture(Guid CaseId, Guid ReceiptId, long WorkflowVersion);
+
+    // A Case in the given state with scheduled due work and nothing linked.
+    private static async Task<Guid> SeedChaserCaseAsync(
+        LocalDbTestDatabase database,
+        CaseLifecycleState state)
+    {
+        var organizationId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        var principalId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var nowUtc = new DateTimeOffset(2026, 9, 10, 8, 0, 0, TimeSpan.Zero);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Chaser test organization"}, {0L})");
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {nowUtc})");
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"CHS"}, {lineageId}, {true}, {0L})");
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {1}, {"CHS260001"}, {"inspection"}, {"review"}, {"pending"}, {true}, {true}, {nowUtc}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(db);
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {state.ToString()}, {0L}, {Guid.NewGuid()})");
+        db.CaseDueWork.Add(new()
+        {
+            CaseId = caseId,
+            MissingMaterialReason = "Waiting for images",
+            State = nameof(CaseDueWorkState.Scheduled),
+            NextChaseAtUtc = nowUtc.AddDays(1),
+            Version = 0
+        });
+        await db.SaveChangesAsync();
+        return caseId;
+    }
+
+    private static StaffMailSendCommand ChaserCommand(
+        Guid caseId, string operationKey, IReadOnlyList<StaffMailRecipient> to) => Command() with
+    {
+        Purpose = StaffMailPurpose.CaseChaser,
+        ContextId = caseId,
+        ExpectedContextVersion = 1,
+        To = to,
+        OperationKey = operationKey
+    };
 
     // A second received post-report receipt, linked by staff to the same Case.
     private static async Task SeedSecondLinkedPostReportReceiptAsync(

@@ -2,6 +2,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
@@ -11,6 +12,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Web.Authentication;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -359,6 +361,40 @@ public sealed class CasesIndexWebTests
         Assert.DoesNotMatch($"<tr[^>]*data-select-id=\"{search.TriageCaseId:D}\"[^>]*data-select-view=\"[^\"]", html);
         // A Triage Case has no Case completeness requirements.
         Assert.DoesNotContain("Outstanding (", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A standalone Audit Case lists by its <c>a.</c> reference alone: no
+    /// Audit pill beside it, as no Inspection or Triage row carries one
+    /// (operator, 5 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AStandaloneAuditCaseListsByItsReferenceWithNoTypePill()
+    {
+        // The list's quick detail reads the selected Case, so the row is a
+        // real Case: an instruction Case recorded as a standalone Audit.
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AU46 DIT", "STANDALONE-AUDIT-46");
+        string reference;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            var created = await context.Cases.SingleAsync(item => item.Id == caseId);
+            created.Type = CaseTypeCodes.Audit;
+            created.Reference = $"a.{created.Reference}";
+            reference = created.Reference;
+            await context.SaveChangesAsync();
+        }
+
+        using var response = await client.GetAsync($"/Cases?tab=review&selected={caseId:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"href=\"/Cases/{caseId:D}\">{reference}</a>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-cases-type", html, StringComparison.Ordinal);
     }
 
     [Fact]
