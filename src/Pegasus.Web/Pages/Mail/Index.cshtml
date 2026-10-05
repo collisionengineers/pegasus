@@ -298,7 +298,11 @@
                         }
                         <span class="row-top">
                             <span class="cluster">
-                                <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
+                                @* A Sent item is not received work: it has no processing outcome to chip. *@
+                                @if (Model.Folder != MailFolderScope.Sent)
+                                {
+                                    <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
+                                }
                                 @if (item.Classification is { } classification)
                                 {
                                     <span class="row-meta">
@@ -422,7 +426,12 @@
                                         <span data-mail-preview-mailbox>@summary.MailboxAddress</span>
                                     </div>
                                 </div>
-                                <span data-mail-preview-state><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)" /></span>
+                                <span data-mail-preview-state>
+                                    @if (Model.Folder != MailFolderScope.Sent)
+                                    {
+                                        <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)" />
+                                    }
+                                </span>
                             </div>
                         </div>
                         @* The sender's text with its line breaks; the first lines, then an ellipsis. *@
