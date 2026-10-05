@@ -394,14 +394,14 @@ internal static partial class CaseWebTestSupport
             return Task.FromResult(TaskRecord(request.TaskId, "task", null, CaseTaskState.Cancelled, request.ExpectedTaskVersion + 1));
         }
 
-        Task<CaseWorkflowRecord> ILinkReportEvidence.ExecuteAsync(
+        Task<LinkReportEvidenceResult> ILinkReportEvidence.ExecuteAsync(
             LinkReportEvidenceRequest request,
             CancellationToken cancellationToken)
         {
             ThrowNextFailure();
             EvidenceLinks.Add(request);
             ConsumeLease();
-            return Task.FromResult(CreateWorkflow());
+            return Task.FromResult(new LinkReportEvidenceResult(CreateWorkflow(), []));
         }
 
         Task<CaseWorkflowRecord> IUnlinkReportEvidence.ExecuteAsync(
@@ -545,5 +545,18 @@ internal static partial class CaseWebTestSupport
             }
             return Task.FromResult(new CaseReportGenerationResult(Outcome, null, []));
         }
+    }
+
+    internal sealed partial class RecordingCaseDetailsStore : IGetCaseTasksSection
+    {
+        /// <summary>The tasks the Tasks section reads, in the order the store lists them.</summary>
+        public List<CaseTaskRecord> Tasks { get; } = [];
+
+        Task<CaseTasksSection?> IGetCaseTasksSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseTasksSection?>(query.CaseId == CaseId
+                ? new(query.Frame ?? FocusedFrame(), [.. Tasks], new Dictionary<Guid, string>())
+                : null);
     }
 }

@@ -254,9 +254,10 @@ public sealed class CreateAuditPersistenceTests
         // The refusal left the lease held at the same version, so the second
         // link reuses it: a fresh take-over writes its event at the version
         // Create audit already occupies (#826).
-        var linked = await harness.Workflows.LinkReportEvidenceAsync(
+        var linkedResult = await harness.Workflows.LinkReportEvidenceAsync(
             olderLink with { OperationKey = "link-newer", EvidenceId = newer.EvidenceId },
             default);
+        var linked = linkedResult.Workflow;
 
         Assert.Equal(CaseLifecycleState.PostReport, linked.State);
         Assert.Equal(newer.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
@@ -282,9 +283,10 @@ public sealed class CreateAuditPersistenceTests
         var evidence = await retain.ExecuteAsync(Evidence("inspection", now.AddHours(-2), now.AddHours(-1)), default);
 
         var link = await harness.LinkRequestAsync("link-inspection", evidence.EvidenceId);
-        var linked = await harness.Workflows.LinkReportEvidenceAsync(
+        var linkedResult = await harness.Workflows.LinkReportEvidenceAsync(
             link with { Work = CaseWorkSelector.Primary },
             default);
+        var linked = linkedResult.Workflow;
 
         Assert.Equal(CaseLifecycleState.ReportPreparation, linked.State);
         Assert.Null(linked.ReportSentEvidence);

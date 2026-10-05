@@ -78,7 +78,7 @@ exclusion.
 | CASE-17 | Due-by date extraction and overdue display | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
-| CASE-20 | General Case tasks (back end only, no screen; deferred) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
+| CASE-20 | General Case tasks: a Tasks section on the Case record, and after-send tasks created from the delivery's frozen list when Report sent is recorded (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
 | CASE-21 | Replay-safe EVA export history and First sent to Engineer | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) |
 | CASE-24 | Post-report completion, Principal cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |
@@ -100,7 +100,7 @@ exclusion.
 | UI-11 | Accounts, Contacts, mailbox allowlist, and configuration workspace | [Administration](frd/frd-17-administration-workspace.md#administration) |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Operator experience](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-16 | Operations Workspace shell: rail, counts, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
-| UI-17 | Case record: Scroll and Tabs modes over ten sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
+| UI-17 | Case record: Scroll and Tabs modes over eleven sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-18 | Awaiting instruction pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | ENG-03 | Damage record: zones with severity and note, tyres, belts, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |

@@ -858,6 +858,50 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
+    /// The Tasks section (FRD-16, CASE-20): what is still to do on the Case. Complete, Cancel
+    /// and Add task are edit-session actions with one fixed recorded reason each, so the
+    /// section carries no reason box.
+    /// </summary>
+    public static class Tasks
+    {
+        public const string Title = "Tasks";
+        public const string Description = "Task";
+        public const string Assignee = "Assignee";
+        public const string State = "State";
+        public const string Actions = "Actions";
+        public const string Unassigned = "Unassigned";
+        public const string None = "No tasks";
+        public const string Open = "Open";
+        public const string Completed = "Completed";
+        public const string Cancelled = "Cancelled";
+        public const string Complete = "Complete";
+        public const string Cancel = "Cancel task";
+        public const string NewTask = "New task";
+        public const string AddTask = "Add task";
+        public const string StillToDo = "Still to do";
+        public const string CompletedNotice = "The task was completed.";
+        public const string CancelledNotice = "The task was cancelled.";
+        public const string AddedNotice = "The task was added.";
+        public const string CompleteReason = "Completed from the Tasks section";
+        public const string CancelReason = "Cancelled from the Tasks section";
+        public const string AddReason = "Added from the Tasks section";
+
+        public static string StateText(Pegasus.Core.Tasks.CaseTaskState state) => state switch
+        {
+            Pegasus.Core.Tasks.CaseTaskState.Open => Open,
+            Pegasus.Core.Tasks.CaseTaskState.Completed => Completed,
+            _ => Cancelled
+        };
+
+        public static string StateTone(Pegasus.Core.Tasks.CaseTaskState state) => state switch
+        {
+            Pegasus.Core.Tasks.CaseTaskState.Open => "status--amber",
+            Pegasus.Core.Tasks.CaseTaskState.Completed => "status--green",
+            _ => "status--neutral"
+        };
+    }
+
+    /// <summary>
     /// The estimate totals block's row labels (B04). The five printed
     /// components, the net and the gross are what the canonical breakdown
     /// carries, so the block names them rather than the flat pre-B04 rows;

@@ -2312,7 +2312,8 @@ public static class OperatorLabels
             new("settlement", "Decisions", "icon-check-circle"),
             new("report", "Report", "icon-file"),
             new("files", "Files", "icon-folder"),
-            new("notes", "Notes", "icon-history")
+            new("notes", "Notes", "icon-history"),
+            new("tasks", "Tasks", "icon-check-square")
         ];
 
         /// <summary>The section a <c>?section=</c> value the record does not own selects.</summary>

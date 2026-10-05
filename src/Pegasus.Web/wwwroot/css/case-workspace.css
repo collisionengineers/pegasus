@@ -610,9 +610,9 @@ body.has-viewer{overflow:hidden}
 
 /* ==== notes ==== */
 /* ---- Notes ---------------------------------------------------------------- */
-#section-notes .note-form{display:grid;gap:6px}
+#section-notes .note-form,#section-tasks .note-form{display:grid;gap:6px}
 #section-notes .note-form textarea{min-height:64px;padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;resize:vertical}
-#section-notes .note-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+#section-notes .note-form .lbl,#section-tasks .note-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
 .notes-timeline{display:grid}
 .notes-timeline .note{display:grid;grid-template-columns:118px 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
 .notes-timeline .note:last-child{border-bottom:0}

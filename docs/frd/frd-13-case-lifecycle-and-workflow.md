@@ -304,12 +304,25 @@ missing-material reason, Due by, the next chase, the most recent channel and
 outcome, an optional note, and the next permitted action. Prepared or copied
 text always looks different from sent, delivered, answered or completed work.
 
-**General Case tasks are unfinished (`CASE-20`).** `Pegasus.Core` holds a
-Case task record with Open, Completed and Cancelled states, an optional
-assignee, and create, assign, complete and cancel use cases. No screen shows
-or uses them, which is why the Case record has no tasks panel
-([FRD-16](frd-16-case-record-workspace.md)). A task has no due date, and
-there are no reminders. Chasing above is the only due work staff see today.
+**General Case tasks (`CASE-20`).** A Case task has a description, an
+optional assignee and the states Open, Completed and Cancelled. Staff add,
+complete and cancel tasks in the Tasks section of the Case record, in the edit
+session and under its lease
+([FRD-16](frd-16-case-record-workspace.md#tasks)). A Case with an open task
+cannot be completed or archived until each task is completed or cancelled. A
+task has no due date yet, and there are no reminders.
+
+**After-send tasks.** When a report delivery is prepared it freezes the list of
+after-send task descriptions that the Principal's sending rules produce.
+When Report sent is recorded, by the Worker's automatic link or by staff Mark
+report sent, and the linked Sent item is a Pegasus report send, one open,
+unassigned task per description is created in the same transaction that
+records the link, with a `case_task_created` event each. The task ids come
+from the Sent evidence and the position in the list, so a replay creates none
+more. A Mark report sent on a Sent item that is not a Pegasus report send
+creates none. These tasks bypass the edit lease by design: they are a
+consequence of a recorded Sent item, not a staff edit, and the Worker's link
+holds no lease. Chasing above is the only due work.
 
 ### Cancellation messages
 

@@ -1,6 +1,7 @@
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Lifecycle;
@@ -299,7 +300,7 @@ public sealed class LinkReportEvidence(ICaseWorkflowStore store) : ILinkReportEv
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
-    public async Task<CaseWorkflowRecord> ExecuteAsync(
+    public async Task<LinkReportEvidenceResult> ExecuteAsync(
         LinkReportEvidenceRequest request,
         CancellationToken cancellationToken)
     {
@@ -321,7 +322,33 @@ public sealed class LinkReportEvidence(ICaseWorkflowStore store) : ILinkReportEv
                 "Exact report-Sent evidence can enter post-report work only from Report preparation.");
         }
 
-        return await _store.LinkReportEvidenceAsync(request, cancellationToken);
+        var result = await _store.LinkReportEvidenceAsync(request, cancellationToken)
+            ?? throw new InvalidDataException("The report-evidence store returned no result.");
+        ReportSentTasks.RequireCreatedFor(request.CaseId, result.TasksCreated);
+        return result;
+    }
+}
+
+/// <summary>
+/// The tasks a recorded Sent item creates (CASE-20). They are created by the store in the
+/// transaction that records the Sent item, from the after-send list the delivery froze, so a
+/// result may carry only open, unassigned tasks of the Case it linked. The edit lease is
+/// bypassed on purpose: the tasks are a consequence of a recorded Sent item, not a staff edit.
+/// </summary>
+internal static class ReportSentTasks
+{
+    public static void RequireCreatedFor(Guid caseId, IReadOnlyList<CaseTaskRecord>? tasks)
+    {
+        if (tasks is null
+            || tasks.Any(task => task is null
+                || task.CaseId != caseId
+                || task.State != CaseTaskState.Open
+                || task.AssigneeId is not null
+                || string.IsNullOrWhiteSpace(task.Description)))
+        {
+            throw new InvalidDataException(
+                "The report-evidence store returned invalid tasks for the recorded Sent item.");
+        }
     }
 }
 
@@ -386,7 +413,14 @@ public sealed class AutoLinkReportEvidence(IAutoLinkReportEvidenceStore store)
                     "The automatic report-evidence store returned an invalid committed link.");
             }
 
+            ReportSentTasks.RequireCreatedFor(request.CaseId, result.TasksCreated);
             return;
+        }
+
+        if (result.TasksCreated is not { Count: 0 })
+        {
+            throw new InvalidDataException(
+                "The automatic report-evidence store returned tasks for a Sent item it did not link.");
         }
 
         if (result.Link is not null

@@ -4,7 +4,7 @@
 
 ## Short version
 
-- A Case is one page at `/Cases/{id}` with ten sections. You scroll it, or
+- A Case is one page at `/Cases/{id}` with eleven sections. You scroll it, or
   switch to tabs. Every section can always be read.
 - Editing is one page-wide session over one lease. Edit Case and, while
   editing, Done sit in the ribbon. Every change is saved as it is made: a
@@ -29,7 +29,7 @@
 ## Purpose
 
 This document says how the Case record page behaves: its ribbon, edit
-session, Actions menu, ten sections and the Engineer workbench. Lifecycle
+session, Actions menu, eleven sections and the Engineer workbench. Lifecycle
 rules are owned by [FRD-13](frd-13-case-lifecycle-and-workflow.md). Edit
 leases are owned by [FRD-14](frd-14-record-edit-leases.md). Visual and
 component rules are owned by [design](../design/README.md).
@@ -173,9 +173,9 @@ a composite's typing included; without script the ribbon's **Save now** is
 the save.
 Pressing a section's Edit enters edit mode in place: the section stays where
 it was on the screen. Selecting a tab also updates the section that Refresh
-submits; after a refresh its active lazy body loads. While editing, Files and
-Notes still load when they come into view, because neither has a field in
-the one Save. Every other section renders with the page.
+submits; after a refresh its active lazy body loads. While editing, Files,
+Notes and Tasks still load when they come into view, because none has a field
+in the one Save. Every other section renders with the page.
 
 Reading and editing show the same fields in the same places (operator, 23
 September 2026): every value is a box, greyed where it cannot be edited and a
@@ -199,7 +199,7 @@ corrections and a return to engineering record a reason.
 **Sections**, in order: **Case details**, **Claim**, **Original report** (an
 Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
 **Valuation** inside it, each its own foldable panel under the Vehicle link),
-**Repair Spec**, **Decisions**, **Report**, **Files**, **Notes**.
+**Repair Spec**, **Decisions**, **Report**, **Files**, **Notes**, **Tasks**.
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
@@ -235,7 +235,7 @@ in the Audit view, under the one Case edit lease, and every change saved
 there writes the Inspection's own values, before and after its report is
 sent. Such a save changes nothing of the Case's own: its state, due date,
 completeness and matching are the Audit's. Files and Notes are shared by
-both views. The Inspection view's Report section generates the Inspection
+both views; so is Tasks, which belongs to the Case. The Inspection view's Report section generates the Inspection
 report, prepares and sends its delivery, and the Actions menu's Mark report
 sent takes its evidence, all on the Inspection's own work and without
 changing the Case's state (operator, 1 October 2026); a sent Inspection
@@ -579,6 +579,10 @@ that report opens in the viewer by itself, once. A report still being filed
 shows the warning notice "The report is still being filed to Box." in amber,
 never as a confirmation.
 
+**Still to do.** Once the shown report has been sent, the Report section lists
+the Case's open tasks under its delivery result, read-only, with a link to
+Tasks, which owns them. It shows nothing while no task is open.
+
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
 In the Audit view the report card's status begins with the Audit reference
@@ -699,7 +703,29 @@ appears here once its Sent item is observed, as the staff sender,
 chase is scheduled and the lease is held
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)); a
 chaser sent from the Actions menu records its chase here by itself once its
-Sent evidence arrives. There is no Case tasks panel.
+Sent evidence arrives. Case tasks are not here: they have their own section,
+after Notes.
+
+### Tasks
+
+Tasks lists what is still to do on the Case (`CASE-20`), after Notes, as a
+dense table: the task, its assignee, and a state chip (Open, Completed or
+Cancelled), open tasks first. Tasks belong to the Case, so both views of an
+Inspection + Audit Case show the same list. Like Files and Notes the section
+loads when it comes into view and acts through its own posts.
+
+In the edit session an open task offers **Complete** and **Cancel task**, and
+the head of the list has an **Add task** field. Each posts under the session's
+lease with one fixed recorded reason, so there is no reason box, and the
+session carries on. A Completed or Query Case, and a Case a colleague is editing,
+show the list without these. There is no due date yet, and the section does
+not assign a task.
+
+Tasks also appear here without anyone adding them: when Report sent is
+recorded, the after-send tasks the delivery froze are created as open,
+unassigned tasks
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
+An open task stops the Case being completed or archived.
 
 The workspace keeps the missing-material reason, next chase, last recorded
 outcome and next permitted action together. A Triage Case's due target and
@@ -834,7 +860,7 @@ The page offers a transition only where its Core use case permits it for the
 current state and account ([FRD-13](frd-13-case-lifecycle-and-workflow.md)).
 Section editability by state:
 
-| State | Overview, Inspection, Vehicle, Files, Notes | Engineer sections |
+| State | Overview, Inspection, Vehicle, Files, Notes, Tasks | Engineer sections |
 | --- | --- | --- |
 | Not ready, Review, With Engineer | Editable under the lease | Editable with `PerformCasework` |
 | Held | Read-only | Read-only |
@@ -868,7 +894,7 @@ Inspection's values only.
 
 ## Acceptance evidence
 
-Acceptance covers the ten sections and the `?section=` jump, the Report
+Acceptance covers the eleven sections and the `?section=` jump, the Report
 readiness list in the Next action linking each blocker to its section,
 the read-only rule in Completed, the Actions menu per state, and save as
 you go: a save keeps the session and returns the authority the next one

@@ -1,0 +1,24 @@
+@*
+    Still to do (CASE-20): the Case's open tasks, read-only, in the Report section once the
+    shown report has been sent, linking to Tasks, which owns them. Included from the Report
+    section by one line after its delivery block. It renders nothing while no task is open.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Web.Presentation
+@using TaskLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Tasks
+@if (Model.StillToDo.Count > 0 && Model.CurrentWorkflow is { } stillWorkflow)
+{
+    <dl class="detail-list" data-report-still-to-do>
+        <div>
+            <dt>@TaskLabels.StillToDo</dt>
+            <dd>
+                @foreach (var task in Model.StillToDo)
+                {
+                    <div>@task.Description</div>
+                }
+                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@stillWorkflow.CaseId" asp-route-section="tasks"
+                   asp-route-view="@Model.ViewRoute" asp-fragment="section-tasks" data-section-jump="tasks">@TaskLabels.Title</a>
+            </dd>
+        </div>
+    </dl>
+}
