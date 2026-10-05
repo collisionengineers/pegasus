@@ -45,11 +45,10 @@ public sealed class CaseChaserTests
             "office@repairer.example"));
 
         Assert.Equal(
-            new[]
-            {
+            [
                 "instructions@principal.example", "images@repairer.example",
                 "photos@garage.example", "office@repairer.example"
-            },
+            ],
             to);
     }
 
@@ -61,7 +60,7 @@ public sealed class CaseChaserTests
             [" office@repairer.example ", "images@repairer.example"],
             "OFFICE@REPAIRER.EXAMPLE"));
 
-        Assert.Equal(new[] { "Office@Repairer.example", "images@repairer.example" }, to);
+        Assert.Equal(["Office@Repairer.example", "images@repairer.example"], to);
     }
 
     [Fact]
@@ -72,7 +71,7 @@ public sealed class CaseChaserTests
             ["", "images@repairer.example", "   "],
             null));
 
-        Assert.Equal(new[] { "images@repairer.example" }, to);
+        Assert.Equal(["images@repairer.example"], to);
     }
 
     [Fact]
