@@ -122,6 +122,13 @@ The Principal section of a Contact carries:
   Configured additional recipients and the optional original instruction
   sender are the only delivery suggestions. The Claim Source is never copied
   in by default;
+- the default fee (operator, 5 October 2026), saved with the report
+  settings. Every Principal has one: more than £0 with two decimal places at
+  most, the agreed fee's own rule. Every Principal was seeded at £180.00, a
+  new Principal starts at £180.00, and a successor code inherits its
+  predecessor's. A new Case starts with its Principal's default fee as its
+  agreed fee
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness));
 - the salvage matrix (operator, 29 September 2026): for each salvage
   category (A, B, S and N) the bands of Engineer's Value, From £ to To £
   inclusive, and the percentage of that value paid. It fills the Case's

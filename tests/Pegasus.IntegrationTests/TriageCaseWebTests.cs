@@ -576,34 +576,6 @@ public sealed partial class TriageCaseWebTests
     }
 
     /// <summary>
-    /// Work Centre Assign to me on a Triage claims the Triage hold for its one
-    /// save, so it assigns (F10).
-    /// </summary>
-    [Fact]
-    public async Task WorkCentreAssignToMeAssignsATriage()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var triage = await CreateManualTriageAsync(factory.Services, "work-centre-assign-to-me");
-        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-
-        using var response = await client.PostAsync(
-            "/?handler=AssignTriageToMe",
-            Form(
-                antiforgery,
-                ("triageId", triage.CaseId.ToString("D")),
-                ("operationKey", Guid.NewGuid().ToString("N")),
-                ("returnUrl", "/")));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
-        Assert.Equal(DevelopmentOfflineIdentity.AdministratorId, detail.Record.AssigneeId);
-        Assert.Equal(1, detail.Record.Version);
-        Assert.Equal("triage_assigned", detail.History[^1].EventType);
-        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
-    }
-
-    /// <summary>
     /// An Automation session holding the Triage record refuses a staff save
     /// with the "is editing" wording; the page still renders and nothing
     /// changes.
@@ -717,41 +689,6 @@ public sealed partial class TriageCaseWebTests
         Assert.Contains("Only failed custody work can be retried.", files, StringComparison.Ordinal);
         Assert.Equal(0, (await GetTriageAsync(factory.Services, triage.CaseId)).Record.Version);
         await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
-    }
-
-    /// <summary>
-    /// Work Centre Assign to me on a Triage an Automation session holds names
-    /// the holder, as the Triage page does, instead of the catch-all refusal.
-    /// </summary>
-    [Fact]
-    public async Task WorkCentreAssignToMeNamesWhoHoldsTheTriage()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var triage = await CreateManualTriageAsync(factory.Services, "work-centre-automation-holds-triage");
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-                new(EditScopeKind.Triage, triage.CaseId, 0, ActionActor.Automation("triage-test-client"), "work-centre-automation-holds-triage-edit"),
-                CancellationToken.None);
-        }
-        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-
-        using var response = await client.PostAsync(
-            "/?handler=AssignTriageToMe",
-            Form(
-                antiforgery,
-                ("triageId", triage.CaseId.ToString("D")),
-                ("operationKey", Guid.NewGuid().ToString("N")),
-                ("returnUrl", "/")));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var workCentre = await GetHtmlAsync(client, "/");
-        Assert.Contains("AI is editing this Triage record.", workCentre, StringComparison.Ordinal);
-        Assert.DoesNotContain(Pegasus.Web.Presentation.OperatorLabels.WorkCentre.TriageAssignRefused, workCentre, StringComparison.Ordinal);
-        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
-        Assert.Null(detail.Record.AssigneeId);
-        Assert.Equal(0, detail.Record.Version);
     }
 
     /// <summary>

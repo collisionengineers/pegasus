@@ -375,8 +375,8 @@ else
                                                     </div>
                                                 }
                                             </dl>
-                                            @* The open row's actions: the next action and Assign to me. The row's
-                                               own Dismiss is the one; it is not repeated here (v32 item B). *@
+                                            @* The open row's action. The row's own Dismiss is the one;
+                                               it is not repeated here (v32 item B). *@
                                             <div class="wc-context-actions" data-wc-actions>
                                                 @if (item.Kind == NeedsAttentionKind.UnassignedEngineer && Model.Assignment is not null)
                                                 {
@@ -391,26 +391,6 @@ else
                                                         <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
                                                         <span>@NeedsAttentionPresentation.ActionLabel(item)</span>
                                                     </a>
-                                                }
-                                                @if (Model.CanTakeSelected)
-                                                {
-                                                    var takeHandler = item.Kind == NeedsAttentionKind.Triage ? "AssignTriageToMe" : "AssignToMe";
-                                                    <form method="post" asp-page="/Index" asp-page-handler="@takeHandler" data-wc-take>
-                                                        @if (item.Kind == NeedsAttentionKind.Triage)
-                                                        {
-                                                            <input type="hidden" name="triageId" value="@item.Id" />
-                                                        }
-                                                        else
-                                                        {
-                                                            <input type="hidden" name="caseId" value="@item.Id" />
-                                                        }
-                                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                                        <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                                        <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Assigning">
-                                                            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-                                                            <span>@Labels.AssignToMe</span>
-                                                        </button>
-                                                    </form>
                                                 }
                                             </div>
                                         </div>
@@ -471,20 +451,8 @@ else
                                 </select>
                             </div>
                         </form>
-                        @if (assignment.CanAssignToMe)
-                        {
-                            <form method="post" asp-page="/Index" asp-page-handler="AssignToMe" id="wc-assign-me-form">
-                                <input type="hidden" name="caseId" value="@assignment.CaseId" />
-                                <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                <input type="hidden" name="returnUrl" value="@returnUrl" />
-                            </form>
-                        }
                     </div>
                     <div class="dialog-foot">
-                        @if (assignment.CanAssignToMe)
-                        {
-                            <button type="submit" form="wc-assign-me-form" class="btn" data-busy-label="@OperatorLabels.Busy.Assigning">@Labels.AssignToMe</button>
-                        }
                         <button type="button" class="btn" data-dialog-close>Cancel</button>
                         <button type="submit" form="wc-assign-form" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Assigning">@(assignment.EngineerName is null ? Labels.Assign : Labels.Reassign)</button>
                     </div>

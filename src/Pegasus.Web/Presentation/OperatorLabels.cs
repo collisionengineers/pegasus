@@ -818,7 +818,6 @@ public static class OperatorLabels
         public const string Owner = "Owner";
         public const string Due = "Due";
         public const string Received = "Received";
-        public const string AssignToMe = "Assign to me";
         public const string AssignEngineer = "Assign Engineer";
         public const string Assign = "Assign";
         public const string Reassign = "Reassign";
@@ -836,8 +835,6 @@ public static class OperatorLabels
         public const string AiJobsUnavailable = "AI jobs are unavailable.";
         public const string NoReasonRecorded = "No reason recorded";
         public const string OpenCase = "Open Case";
-        public const string NoEngineer = "No Engineer";
-        public const string NoOwner = "No owner";
         public const string Previous = "Previous";
         public const string Next = "Next";
 
@@ -1009,11 +1006,8 @@ public static class OperatorLabels
             _ => AiJobs.Review
         };
 
-        public const string AssignedToYou = "The Case was assigned to you.";
         public const string Assigned = "The Case was assigned.";
-        public const string TriageAssignedToYou = "The Triage was assigned to you.";
         public const string AssignRefused = "The Case was not assigned because it changed, someone is editing it, or the action is not permitted.";
-        public const string TriageAssignRefused = "The Triage was not assigned because it changed, someone is editing it, or the action is not permitted.";
         public const string JobCompleted = "The AI job was completed.";
         public const string JobRefused = "The AI job changed before it could be completed. Refresh and try again.";
 
@@ -1714,13 +1708,15 @@ public static class OperatorLabels
     /// <summary>
     /// The source tag of a recorded assessment value: the vehicle lookup's
     /// writes read Lookup, an Original report cell filled from the filed report
-    /// Extracted, any other Automation actor's AI, a Pegasus worker's
-    /// Automatic; a staff value carries none.
+    /// Extracted, the agreed fee a new Case took from its Principal Principal,
+    /// any other Automation actor's AI, a Pegasus worker's Automatic; a staff
+    /// value carries none.
     /// </summary>
     public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
     {
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
         ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
+        ActorKind.Automation when field.RecordedBy == PrincipalDefaultFeePolicy.RecorderId => SourceTagWord.Principal,
         ActorKind.Automation => SourceTagWord.Ai,
         ActorKind.SystemWorker => SourceTagWord.Automatic,
         _ => null
@@ -1955,6 +1951,7 @@ public static class OperatorLabels
         public const string AddSalvageBand = "Add band";
         public const string RemoveSalvageBand = "Remove";
         public const string SaveSalvageMatrix = "Save salvage matrix";
+        public const string DefaultFee = "Default fee (£)";
 
         /// <summary>A salvage category as the Case names it: "Cat S".</summary>
         public static string SalvageCategory(string code) => $"Cat {code}";

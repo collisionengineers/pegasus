@@ -119,6 +119,7 @@ public sealed class EfManualCaseCreationStore(
             Version = 0
         };
         context.Cases.Add(caseEntity);
+        PrincipalDefaultFeeWriter.Apply(context, caseId, principal, now);
 
         var snapshot = CaseDataSnapshotFactory.CreateManual(
             caseEntity, evaluation, now);

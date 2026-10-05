@@ -247,6 +247,7 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.Cases.Add(caseEntity);
+        PrincipalDefaultFeeWriter.Apply(context, caseId, principal, acceptedAtUtc);
         if (standaloneAuditEvidence is not null)
         {
             // A standalone Audit is created with its Original report cells

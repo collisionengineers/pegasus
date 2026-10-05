@@ -8,7 +8,6 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
-using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
@@ -36,14 +35,9 @@ public partial class IndexModel(
     IStaffAccountQueries staffAccounts,
     IGetCaseHeader getCaseHeader,
     IGetCaseEditBasis getCaseEditBasis,
-    IGetTriage getTriage,
     IAcquireCaseEditLease acquireLease,
     IReleaseCaseEditLease releaseLease,
     IAssignCaseEngineer assignEngineer,
-    IAssignCaseToMe assignCaseToMe,
-    IAssignTriageToMe assignTriageToMe,
-    IEditScopeLeases editScopes,
-    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IConfirmAiJob confirmAiJob,
     IListWorkCentreAiJobs listAiJobs,
     IDismissWorkCentreItem dismissItem,
@@ -87,8 +81,6 @@ public partial class IndexModel(
     public WorkCentreMetrics? Metrics { get; private set; }
 
     public NeedsAttentionItem? Selected { get; private set; }
-
-    public bool CanTakeSelected { get; private set; }
 
     public WorkCentreAssignment? Assignment { get; private set; }
 
@@ -271,81 +263,6 @@ public partial class IndexModel(
             },
             Labels.Assigned,
             cancellationToken);
-
-    /// <summary>Assign to me on an Unassigned Engineer row (P8).</summary>
-    public Task<IActionResult> OnPostAssignToMeAsync(
-        Guid caseId,
-        string operationKey,
-        string? returnUrl,
-        CancellationToken cancellationToken) =>
-        WithCaseLeaseAsync(
-            caseId,
-            returnUrl,
-            "assign_to_me",
-            (actor, _, lease) => assignCaseToMe.ExecuteAsync(
-                new AssignCaseToMeRequest(caseId, lease.Version, actor, operationKey, lease.Token),
-                cancellationToken),
-            Labels.AssignedToYou,
-            cancellationToken);
-
-    /// <summary>
-    /// Assign to me on a Triage without an assignee (P8). The Triage edit scope
-    /// is claimed for this one save and ends with it (<see cref="TriageWriteAuthority"/>).
-    /// </summary>
-    public async Task<IActionResult> OnPostAssignTriageToMeAsync(
-        Guid triageId,
-        string operationKey,
-        string? returnUrl,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            var detail = await getTriage.ExecuteAsync(new GetTriageQuery(triageId, actor), cancellationToken)
-                ?? throw new KeyNotFoundException("The Triage was not found.");
-            await TriageWriteAuthority.ExecuteAsync(
-                editScopes,
-                triageId,
-                detail.Record.Version,
-                actor,
-                operationKey,
-                logger,
-                token => assignTriageToMe.ExecuteAsync(
-                    new AssignTriageToMeRequest(triageId, detail.Record.Version, actor, operationKey)
-                    {
-                        EditLeaseToken = token
-                    },
-                    cancellationToken),
-                cancellationToken);
-            StatusMessage = Labels.TriageAssignedToYou;
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (EditScopeConflictException)
-        {
-            // Held by an Automation session or a colleague's save: say who,
-            // as the Triage page does.
-            ErrorMessage = await TriageWriteAuthority.DescribeHeldAsync(
-                editScopes,
-                describeEditAuthorityHolder,
-                triageId,
-                actor,
-                cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCommandFailed(logger, "assign_triage_to_me", triageId, exception);
-            ErrorMessage = Labels.TriageAssignRefused;
-        }
-
-        return LocalRedirect(SafeReturnUrl(returnUrl));
-    }
 
     /// <summary>Complete job on a Draft ready Query response or queue pass (D9).</summary>
     public async Task<IActionResult> OnPostCompleteAiJobAsync(
@@ -628,7 +545,6 @@ public partial class IndexModel(
         int Page,
         OperationsSnapshot Snapshot,
         NeedsAttentionItem? Selected,
-        bool CanTakeSelected,
         WorkCentreAssignment? Assignment,
         bool OpenAssignment);
 
@@ -680,18 +596,16 @@ public partial class IndexModel(
         var selectedItem = selected is { } id ? items.FirstOrDefault(item => item.Id == id) : null;
         if (selectedItem is null)
         {
-            return new(page, snapshot, null, false, null, false);
+            return new(page, snapshot, null, null, false);
         }
 
-        var canTake = selectedItem.OwnerStaffId is null
-            && NeedsAttentionPolicy.CanTake(selectedItem.Kind, actor);
         WorkCentreAssignment? assignment = null;
         if (selectedItem.Kind == NeedsAttentionKind.UnassignedEngineer)
         {
             assignment = await ReadAssignmentAsync(actor, selectedItem.Id, cancellationToken);
         }
 
-        return new(page, snapshot, selectedItem, canTake, assignment, assign && assignment is not null);
+        return new(page, snapshot, selectedItem, assignment, assign && assignment is not null);
     }
 
     private void ApplyAttention(AttentionRead read)
@@ -708,7 +622,6 @@ public partial class IndexModel(
         // Core counts the chips over the scope before the kind filter: one read.
         KindCounts = read.Snapshot.Attention.KindCounts;
         Selected = read.Selected;
-        CanTakeSelected = read.CanTakeSelected;
         Assignment = read.Assignment;
         OpenAssignment = read.OpenAssignment;
     }
@@ -742,8 +655,7 @@ public partial class IndexModel(
                 header.Summary.Claimant,
                 header.Summary.Principal,
                 current,
-                engineers,
-                CaseLifecycleRules.CanAssignToSelf(header.Workflow));
+                engineers);
         }
         catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
         {
@@ -858,8 +770,7 @@ public sealed record WorkCentreAssignment(
     string? Claimant,
     string? Principal,
     string? EngineerName,
-    IReadOnlyList<WorkCentreEngineer> Engineers,
-    bool CanAssignToMe);
+    IReadOnlyList<WorkCentreEngineer> Engineers);
 
 /// <summary>One AI jobs row: the job, its draft (route and action) when Draft ready, and who started it.</summary>
 public sealed record WorkCentreAiJobRow(AiJobRecord Job, AiDraft? Draft, string StartedBy)

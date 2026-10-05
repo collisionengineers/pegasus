@@ -43,7 +43,8 @@ public sealed record PrincipalAdministrationSummary(
     Guid? DefaultInspectionSourceRecordId = null,
     long? DefaultInspectionSourceVersion = null,
     string? NotesOnEveryCase = null,
-    SalvageMatrix? SalvageMatrix = null);
+    SalvageMatrix? SalvageMatrix = null,
+    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard);
 
 public sealed record PrincipalAdministrationDetails(
     string Name,
@@ -251,7 +252,8 @@ public static class OrganizationAdministrationPolicy
                 predecessor.InspectionMode,
                 predecessor.ReportGenerationPolicy,
                 predecessor.ReportRecipients,
-                SalvageMatrix: predecessor.SalvageMatrix));
+                SalvageMatrix: predecessor.SalvageMatrix,
+                DefaultFee: predecessor.DefaultFee));
     }
 
     public static void RequireUniquePrincipalCode(bool alreadyExists)
@@ -270,6 +272,7 @@ public static class OrganizationAdministrationPolicy
         RequireAdministrator(request.Actor);
         RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
         RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
+        PrincipalDefaultFeePolicy.Require(request.DefaultFee, nameof(request.DefaultFee));
         return request with
         {
             NotesOnEveryCase = NormalizeOptionalText(
@@ -362,15 +365,16 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// The report route and suggested recipients change, and nothing else
-    /// does. The code, the organization, the lineage and the allocation
-    /// history are untouched.
+    /// The report route, suggested recipients and default fee change, and
+    /// nothing else does. The code, the organization, the lineage and the
+    /// allocation history are untouched.
     /// </summary>
     public static Principal PlanPrincipalReportSettingsUpdate(
         Principal current,
         long expectedVersion,
         PrincipalReportGenerationPolicy reportGenerationPolicy,
         PrincipalReportRecipientSettings reportRecipients,
+        decimal defaultFee,
         string? notesOnEveryCase = null)
     {
         ArgumentNullException.ThrowIfNull(current);
@@ -395,16 +399,19 @@ public static class OrganizationAdministrationPolicy
         {
             throw new ArgumentOutOfRangeException(nameof(reportGenerationPolicy));
         }
+        PrincipalDefaultFeePolicy.Require(defaultFee, nameof(defaultFee));
         var normalizedRecipients = PrincipalReportRecipientSettings.Normalize(
             reportRecipients.IncludeOriginalInstructionSender,
             reportRecipients.AdditionalAddresses);
         var changed = current.ReportGenerationPolicy != reportGenerationPolicy
             || !Equals(current.ReportRecipients ?? PrincipalReportRecipientSettings.None, normalizedRecipients)
+            || current.DefaultFee != defaultFee
             || !string.Equals(current.NotesOnEveryCase, notesOnEveryCase, StringComparison.Ordinal);
         return current with
         {
             ReportGenerationPolicy = reportGenerationPolicy,
             ReportRecipients = normalizedRecipients,
+            DefaultFee = defaultFee,
             NotesOnEveryCase = notesOnEveryCase,
             Version = changed ? checked(current.Version + 1) : current.Version
         };

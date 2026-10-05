@@ -494,6 +494,10 @@ public sealed partial class AssessmentReportDraftWebTests
                 $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportPreparation)} WHERE CaseId = {harness.CaseId}");
             // Arrange already accepted assessment inputs; this field-edit test must
             // not pretend that a workspace save can adopt an Engineer's Value.
+            // The accepted Case already holds its Principal's default fee.
+            context.CaseAssessmentFields.RemoveRange(await context.CaseAssessmentFields
+                .Where(field => field.WorkId == harness.CaseId)
+                .ToArrayAsync());
             context.CaseAssessmentFields.AddRange(existing.Assessment.Fields.Select(field => new CaseAssessmentFieldEntity
             {
                 WorkId = harness.CaseId,

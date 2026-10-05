@@ -264,7 +264,7 @@ public sealed class AutomationAssessmentIngressTests
         using var document = await ReadJsonRpcAsync(response);
         Assert.Contains("derived from damage.impacts", document.RootElement.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
 
         using var estimateResponse = await PostMcpAsync(client, token, ToolCallPayload(42,
             "pegasus_assessment_update", new
@@ -366,7 +366,7 @@ public sealed class AutomationAssessmentIngressTests
             using var document = await ReadJsonRpcAsync(response);
             Assert.Contains(refusal, document.RootElement.ToString(), StringComparison.Ordinal);
             Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
+                $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
         }
 
         // The Inspection section records the recovery charge, so automation
@@ -386,7 +386,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(lease.CaseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
         }
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseAssessmentFields
@@ -495,11 +495,13 @@ public sealed class AutomationAssessmentIngressTests
             var fields = structured.GetProperty("fields").EnumerateArray().ToArray();
         }
 
-        // Stored values carry the automation provenance.
+        // Stored values carry the automation provenance. The agreed fee the
+        // Case took from its Principal at creation is not this save's.
         Assert.Equal(2, await factory.Database.ScalarAsync<int>(
-            """
+            $"""
             SELECT COUNT(*) FROM CaseAssessmentFields
             WHERE RecordedByKind = N'Automation'
+              AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'
             """));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM CaseEstimateLines WHERE RecordedByKind = N'Automation'"));
