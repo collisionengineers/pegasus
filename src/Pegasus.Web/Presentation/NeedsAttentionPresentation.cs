@@ -119,7 +119,7 @@ public static class NeedsAttentionPresentation
     }
 
     public static string OwnerLabel(NeedsAttentionItem item) =>
-        item.Owner ?? Labels.NoOwner;
+        item.Owner;
 
     public static string DueTone(NeedsAttentionPriority priority) => priority switch
     {

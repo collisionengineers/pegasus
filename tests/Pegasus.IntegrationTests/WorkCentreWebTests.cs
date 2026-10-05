@@ -600,7 +600,7 @@ public sealed class WorkCentreWebTests
             "QDOS",
             kind.ToString(),
             priority,
-            Owner: null,
+            Owner: NeedsAttentionPolicy.NoPersonOwner,
             due,
             LastOutcome: null,
             Source: null,
