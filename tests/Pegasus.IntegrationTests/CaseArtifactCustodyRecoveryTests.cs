@@ -17,6 +17,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.IntegrationTests.Support;
 
@@ -505,7 +506,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
         var lease = await new AcquireCaseEditLease(new EfCaseWorkflowStore(factory, TimeProvider.System))
             .ExecuteAsync(new(caseId, 0, actor, "lease-valuation"), default);
         var filing = new FileGuideValuationReport(
-            new EfCaseArtifactCustody(factory, new SuccessfulContentStore(), new MemoryArtifactStore(), TimeProvider.System));
+            new EfCaseArtifactCustody(factory, new SuccessfulContentStore(), new MemoryArtifactStore(), TimeProvider.System),
+            new PdfPigPageTextExtractor());
         var request = new FileGuideValuationReportRequest(
             actor, caseId, ValuationSource.Glasses, "AB12CDE", new DateOnly(2031, 4, 1), new PdfReport());
 
@@ -532,7 +534,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         public string Identity => "glass-stock:33636950";
 
         public Task<byte[]> FetchPdfAsync(CancellationToken cancellationToken) =>
-            Task.FromResult("%PDF-1.4\n% synthetic valuation report\n%%EOF\n"u8.ToArray());
+            Task.FromResult(IntakeTestEvidence.CreatePdf("Vehicle Valuation Report - AB12CDE"));
     }
 
     /// <summary>
