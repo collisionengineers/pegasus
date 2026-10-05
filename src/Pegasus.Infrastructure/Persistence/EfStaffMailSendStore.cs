@@ -599,7 +599,15 @@ internal sealed class EfStaffMailSendStore(
 
         var recipients = JsonSerializer.Deserialize<Recipients>(mail.RecipientsJson);
         var target = ChaseTarget(recipients?.To?.Select(value => value.Address).ToArray() ?? []);
-        var roles = (await CurrentRoleNamesAsync(db, mail.ActorSubjectId, cancellationToken))
+        // The Worker observes the send, so the chase carries the roles the
+        // prepared send recorded; the Worker does not read the staff role tables.
+        var preparedRoles = await db.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "StaffMailSend"
+                && item.AggregateId == mail.Id.ToString("D")
+                && item.EventKind == "staff-mail-prepared")
+            .Select(item => item.ActorRolesJson)
+            .FirstOrDefaultAsync(cancellationToken);
+        var roles = (preparedRoles is null ? [] : JsonSerializer.Deserialize<string[]>(preparedRoles) ?? [])
             .Select(name => Enum.TryParse<StaffRole>(name, ignoreCase: false, out var role) ? (StaffRole?)role : null)
             .OfType<StaffRole>()
             .ToHashSet();
