@@ -22,7 +22,6 @@ public sealed class WorkflowModel(
     IReleaseCase releaseCase,
     ITransitionCase transitionCase,
     IAssignCaseEngineer assignEngineer,
-    IAssignCaseToMe assignToMe,
     ISetCaseSignOffEngineer setSignOffEngineer,
     ICreateLinkedReplacement createLinkedReplacement,
     ILogger<WorkflowModel> logger) : CaseMutationPageModel(logger)
@@ -131,26 +130,6 @@ public sealed class WorkflowModel(
                         evidenceReference)),
                 cancellationToken),
             "The case was handed to the Engineer.");
-
-    /// <summary>
-    /// "Assign to me" (P8): the ordinary assignment with the actor as the
-    /// Engineer, from the assignment dialog. Core decides eligibility.
-    /// </summary>
-    public Task<IActionResult> OnPostAssignToMeAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string? editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandUnderLeaseAsync(
-            id,
-            expectedVersion,
-            editLeaseToken,
-            "assign_to_me",
-            (actor, lease) => assignToMe.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, lease),
-                cancellationToken),
-            "The case was assigned to you.");
 
     public Task<IActionResult> OnPostSetSignOffEngineerAsync(
         Guid id,

@@ -112,8 +112,7 @@ staff account. In one operation, under a Case edit lease — the session's, or
 one claimed for the action ([FRD-16](frd-16-case-record-workspace.md#actions-menu))
 — and the current version, Pegasus assigns the Engineer, sets the Sign-off
 Engineer, and moves the Case
-to With Engineer. Any enabled staff member may use **Assign to me** wherever the same
-assignment would be accepted. A headless start command can hand a Review Case
+to With Engineer. A headless start command can hand a Review Case
 to its already-assigned eligible staff member; it is not a second screen step.
 
 Replaying the same request does not hand off twice. A request that is
@@ -340,7 +339,7 @@ away clears the row. The Case's state still changes only by a staff action.
 | From | To | Trigger |
 | --- | --- | --- |
 | Not ready | Review | Every required item present (automatic) |
-| Review | With Engineer | Hand to Engineer, Assign to me, or the headless start command |
+| Review | With Engineer | Hand to Engineer, or the headless start command |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
 | With Engineer | Completed | Mark completed |

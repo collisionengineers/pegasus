@@ -201,7 +201,7 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
-    public async Task TheOpenRowShowsItsFactsAndOffersAssignToMeWithoutScript()
+    public async Task TheOpenRowShowsItsFactsWithoutAssignToMe()
     {
         var unassigned = Item(NeedsAttentionKind.UnassignedEngineer, "QDOS26005", NeedsAttentionPriority.Today, Now.AddHours(3)) with
         {
@@ -225,10 +225,10 @@ public sealed class WorkCentreWebTests
         // The chip's tone follows the fixture's due group; its words follow the host clock.
         Assert.Contains("class=\"status status--amber\">", html, StringComparison.Ordinal);
         Assert.Contains("<dt>Vehicle</dt>", html, StringComparison.Ordinal);
-        // An enabled User may take an unowned row in place (P8).
-        Assert.Contains("data-wc-take", html, StringComparison.Ordinal);
-        Assert.Contains("handler=AssignToMe", html, StringComparison.Ordinal);
-        Assert.Contains($"name=\"caseId\" value=\"{unassigned.Id}\"", html, StringComparison.Ordinal);
+        Assert.Contains("Assign Engineer", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=AssignToMe", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Assign to me", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-wc-take", html, StringComparison.Ordinal);
     }
 
     /// <summary>
