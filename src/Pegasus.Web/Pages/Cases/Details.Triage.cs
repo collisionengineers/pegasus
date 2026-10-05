@@ -82,6 +82,9 @@ public sealed class TriageCaseView(TriageDetail triage)
     /// <summary>A refused send's reasons belong to the composer, not the page.</summary>
     public bool ReplyRefused { get; set; }
 
+    /// <summary>The refused send's reasons show in the composer when it is offered, otherwise on the page.</summary>
+    public bool ReasonsInComposer => ReplyRefused && OffersComposer;
+
     public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; set; } = [];
 
     public IReadOnlyList<string> SelectedAttachments { get; set; } = [];

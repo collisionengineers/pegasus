@@ -160,7 +160,7 @@
     </div>
 </header>
 
-@if (!view.ReplyRefused)
+@if (!view.ReasonsInComposer)
 {
     <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
 }
@@ -619,10 +619,10 @@
                 <div class="dialog-body stack">
                     <partial name="Cases/Shared/_TriageDeterminationFields" model="view" />
                     <div>
-                        <label class="check"><input type="checkbox" name="completeTriage" value="true" data-triage-complete-tick /> @Labels.CompleteTriage</label>
+                        <label class="check"><input type="checkbox" name="completeTriage" value="true" data-triage-tick-complete /> @Labels.CompleteTriage</label>
                         @if (view.CanSendReply && !view.ReplyOperationBlocked)
                         {
-                            <label class="check"><input type="checkbox" name="replyWithFinding" value="true" data-triage-reply-tick /> @Labels.ReplyWithFinding</label>
+                            <label class="check"><input type="checkbox" name="replyWithFinding" value="true" data-triage-tick-reply /> @Labels.ReplyWithFinding</label>
                         }
                     </div>
                 </div>
@@ -685,7 +685,7 @@
                 </button>
             </header>
             <div class="dialog-body mail-compose-body">
-                @if (view.ReplyRefused)
+                @if (view.ReasonsInComposer)
                 {
                     <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
                 }
