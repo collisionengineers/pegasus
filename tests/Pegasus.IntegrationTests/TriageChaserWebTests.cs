@@ -34,8 +34,12 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("Chaser correspondence", html, StringComparison.Ordinal);
+        // The chaser is sent from the composer over the record (v31), and
+        // the request e-mail is the Correspondence tab's row.
+        Assert.Contains("data-dialog=\"triage-compose-dialog\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-triage-reply-form", html, StringComparison.Ordinal);
         Assert.Contains("Send chaser", html, StringComparison.Ordinal);
+        Assert.Contains("data-correspondence-row=", html, StringComparison.Ordinal);
         Assert.Contains("reply@example.invalid", html, StringComparison.Ordinal);
         Assert.Contains("Re: Originating triage subject", html, StringComparison.Ordinal);
         Assert.Equal(0, send.SendCalls);
@@ -55,7 +59,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.DoesNotContain("Chaser correspondence", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("triage-compose-dialog", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Send chaser", html, StringComparison.Ordinal);
         Assert.Equal(0, send.SendCalls);
     }
@@ -650,10 +654,10 @@ public sealed partial class QdosTriageIntegrationTests
     }
 
     /// <summary>
-    /// Reply with outcome (plan 01): once Completed, the one reply form keeps
-    /// the same To and the "Re:" subject and opens with the outcome template
-    /// rendered from the recorded finding. The purpose is the state's, decided
-    /// on the server, and the completion notice links to the panel.
+    /// Reply with finding: once Completed, the composer keeps the same To and
+    /// the "Re:" subject and opens with the outcome template rendered from the
+    /// recorded finding. The purpose is the state's, decided on the server,
+    /// and the completion notice opens the composer.
     /// </summary>
     [Fact]
     public async Task ACompletedTriageRepliesWithOutcomeFromTheTemplate()
@@ -687,7 +691,7 @@ public sealed partial class QdosTriageIntegrationTests
 
         Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, completed, StringComparison.Ordinal);
         Assert.Contains(
-            $"<a href=\"#triage-correspondence\" data-triage-reply-link>{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithOutcome}</a>",
+            $"data-dialog-open=\"triage-compose-dialog\" data-triage-reply-link>{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithFinding}</button>",
             completed,
             StringComparison.Ordinal);
 
@@ -695,10 +699,10 @@ public sealed partial class QdosTriageIntegrationTests
         var page = await pageResponse.Content.ReadAsStringAsync();
         Assert.Contains("data-triage-correspondence=\"TriageOutcomeReply\"", page, StringComparison.Ordinal);
         Assert.Contains(
-            $">{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithOutcome}</h2>",
+            $"<h2 id=\"triage-compose-title\" tabindex=\"-1\">{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithFinding}</h2>",
             page,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("Chaser correspondence", page, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Send chaser</span>", page, StringComparison.Ordinal);
         Assert.Contains("value=\"reply@example.invalid\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"Re: Originating triage subject\"", page, StringComparison.Ordinal);
         // No template has been saved, so the reply opens with the built-in body.
@@ -832,18 +836,60 @@ public sealed partial class QdosTriageIntegrationTests
 
         Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, completed, StringComparison.Ordinal);
         Assert.DoesNotContain("data-triage-reply-link", completed, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"triage-correspondence\"", completed, StringComparison.Ordinal);
-        Assert.DoesNotContain(Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithOutcome, completed, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"triage-compose-dialog\"", completed, StringComparison.Ordinal);
+        Assert.DoesNotContain(Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithFinding, completed, StringComparison.Ordinal);
         Assert.Equal(0, send.SendCalls);
     }
 
     /// <summary>
-    /// While a send is in flight, Reply with outcome is not offered: neither
-    /// the Determinations button nor the completion notice link, only the
-    /// in-flight notice in the correspondence panel.
+    /// Record finding with Complete Triage and Reply with finding ticked
+    /// records, completes and opens the composer on the reply as the page
+    /// loads, instead of the notice's link (operator, 5 October 2026).
     /// </summary>
     [Fact]
-    public async Task ReplyWithOutcomeIsNotOfferedWhileASendIsInFlight()
+    public async Task RecordFindingWithBothTicksCompletesAndOpensTheReplyComposer()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        using (var pageResponse = await client.GetAsync($"/Cases/{fixture.TriageCaseId}"))
+        {
+            var page = await pageResponse.Content.ReadAsStringAsync();
+            Assert.Contains("name=\"replyWithFinding\" value=\"true\"", page, StringComparison.Ordinal);
+        }
+
+        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        var completed = await PostActionAsync(
+            client,
+            fixture.TriageCaseId,
+            antiforgery,
+            fixture.Version,
+            "record_finding",
+            "Reviewed the request images",
+            KeyValuePair.Create("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)),
+            KeyValuePair.Create("completeTriage", "true"),
+            KeyValuePair.Create("replyWithFinding", "true"));
+
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, completed, StringComparison.Ordinal);
+        Assert.Contains("data-dialog=\"triage-compose-dialog\" data-dialog-open-on-load=\"true\"", completed, StringComparison.Ordinal);
+        Assert.Contains("data-triage-correspondence=\"TriageOutcomeReply\"", completed, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-triage-reply-link", completed, StringComparison.Ordinal);
+        Assert.Equal(0, send.SendCalls);
+    }
+
+    /// <summary>
+    /// While a send is in flight, Reply with finding is not offered: neither
+    /// the composer nor the completion notice link, only the in-flight notice
+    /// in the Correspondence tab.
+    /// </summary>
+    [Fact]
+    public async Task ReplyWithFindingIsNotOfferedWhileASendIsInFlight()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
