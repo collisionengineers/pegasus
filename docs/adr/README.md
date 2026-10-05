@@ -69,7 +69,7 @@ never renumbered or reused.
 | [ADR-0049](0049-host-web-on-app-service-code-deploy.md) | Host Pegasus Web on an App Service Web App by code deployment | accepted | — | EXT-08 |
 | [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02 |
 | [ADR-0051](0051-linked-audit-case-identity-and-custody.md) | Linked Audit Case identity and custody | superseded | ADR-0056 | — |
-| [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | — | — |
+| [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | ADR-0063 | — |
 | [ADR-0053](0053-personal-staff-notification-store.md) | Personal staff notification store | accepted | — | — |
 | [ADR-0054](0054-release-notes-authored-in-the-application.md) | Release notes are authored in the application by an Administrator | accepted | — | — |
 | [ADR-0055](0055-github-issues-as-the-problem-report-sink.md) | GitHub issues as the problem-report sink | accepted | — | — |
@@ -80,6 +80,7 @@ never renumbered or reused.
 | [ADR-0060](0060-glass-valuation-account-and-valuation-report.md) | Glass's valuation through a Key Vault-held account, with its report filed on the Case | accepted | — | EXT-13 |
 | [ADR-0061](0061-ocr-every-scanned-document-page.md) | OCR every scanned document page; a full-page raster is a document or a photograph by its colour | accepted | — | INT-16, AI-04 |
 | [ADR-0062](0062-glass-placeholder-vehicle-for-unknown-plates.md) | A plate Glass's does not know launches its estimate on a placeholder vehicle | accepted | — | EXT-06 |
+| [ADR-0063](0063-move-answered-instruction-to-deleted-items.md) | Move the answered instruction to Deleted Items after a confirmed report send | accepted | — | MAIL-25 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
