@@ -1000,19 +1000,40 @@ internal sealed class EfRetainedMailboxMessageStore(
         MailWorkspaceScope scope,
         CancellationToken cancellationToken)
     {
-        if (scope.Folder != MailFolderScope.Inbox)
+        if (scope.Folder is not (MailFolderScope.Inbox or MailFolderScope.Sent))
         {
             return false;
+        }
+
+        var retained = context.RetainedMailboxMessages.AsNoTracking()
+            .Where(item => item.FolderScope == ToCode(scope.Folder));
+        if (scope.MailboxId is { } mailboxId)
+        {
+            retained = retained.Where(item => item.MailboxId == mailboxId);
+        }
+        if (scope.Folder == MailFolderScope.Sent)
+        {
+            // The Sent poll keys its state by the provider's mailbox identity;
+            // the approved mailbox row joins the two.
+            var completedSentPolls = context.ApprovedSentPollStates
+                .AsNoTracking()
+                .Where(item => item.LastCompletedAtUtc != null);
+            if (scope.MailboxId is { } sentMailboxId)
+            {
+                completedSentPolls = completedSentPolls.Where(item =>
+                    context.ApprovedMailboxes.Any(mailbox =>
+                        mailbox.Id == sentMailboxId && mailbox.Address == item.MailboxAddress));
+            }
+            return await completedSentPolls.AnyAsync(cancellationToken)
+                && !await retained.AnyAsync(cancellationToken);
         }
 
         var completedPolls = context.ApprovedInboxPollStates
             .AsNoTracking()
             .Where(item => item.LastCompletedAtUtc != null);
-        var retained = context.RetainedMailboxMessages.AsNoTracking();
-        if (scope.MailboxId is { } mailboxId)
+        if (scope.MailboxId is { } inboxMailboxId)
         {
-            completedPolls = completedPolls.Where(item => item.ApprovedMailboxId == mailboxId);
-            retained = retained.Where(item => item.MailboxId == mailboxId);
+            completedPolls = completedPolls.Where(item => item.ApprovedMailboxId == inboxMailboxId);
         }
 
         return await completedPolls.AnyAsync(cancellationToken)

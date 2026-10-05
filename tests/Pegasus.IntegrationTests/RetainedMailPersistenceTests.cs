@@ -2006,22 +2006,48 @@ public sealed class RetainedMailPersistenceTests
             new(null, MailFolderScope.Inbox, "estimate"), 2, 1, CancellationToken.None)).Items);
     }
 
+    /// <summary>
+    /// The Sent poll retains every Sent item under its own scope (FRD-20):
+    /// a sent row lists and counts under Sent Items and nowhere else; the
+    /// Inbox scopes never show it. Deleted Items still holds nothing.
+    /// </summary>
     [Fact]
-    public async Task SentAndDeletedScopesHoldNothingAndDoNotClaimUnretainedHistory()
+    public async Task ASentRowListsUnderSentOnlyAndDeletedHoldsNothing()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await SeedPollStateAsync(database);
         await RetainAsync(database, Message("message-1"));
+        await RetainAsync(database, Message(
+            "sent-1",
+            subject: "Following up",
+            senderAddress: MailboxAddress,
+            senderDisplayName: null,
+            internetMessageIdentity: "<2d08186697a64b43b4dd7295e3832298@pegasus.invalid>") with
+        {
+            Folder = MailFolderScope.Sent
+        });
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
 
-        foreach (var folder in new[] { MailFolderScope.Sent, MailFolderScope.DeletedItems })
-        {
-            var page = await queries.ListAsync(new(null, folder), 1, 25, CancellationToken.None);
-            Assert.Empty(page.Items);
-            Assert.False(page.HasUnretainedHistory);
-        }
+        var sent = await queries.ListAsync(new(null, MailFolderScope.Sent), 1, 25, CancellationToken.None);
+        var row = Assert.Single(sent.Items);
+        Assert.Equal("Following up", row.Subject);
+        Assert.Equal(MailboxAddress, row.SenderAddress);
+        Assert.False(sent.HasUnretainedHistory);
+        Assert.Equal(1, await queries.CountAsync(new(null, MailFolderScope.Sent), CancellationToken.None));
+
+        var inbox = await queries.ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
+        Assert.Equal("message-1", Assert.Single(inbox.Items.Select(item => item.Id).Select(id =>
+            sent.Items.Any(sentItem => sentItem.Id == id) ? "sent" : "message-1")));
+
+        var deleted = await queries.ListAsync(new(null, MailFolderScope.DeletedItems), 1, 25, CancellationToken.None);
+        Assert.Empty(deleted.Items);
+        Assert.False(deleted.HasUnretainedHistory);
+
+        var detail = await queries.GetAsync(row.Id, CancellationToken.None);
+        Assert.NotNull(detail);
+        Assert.Equal(MailFolderScope.Sent, detail!.Folder);
     }
 
     [Fact]

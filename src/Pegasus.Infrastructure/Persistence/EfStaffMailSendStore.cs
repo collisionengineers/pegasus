@@ -385,9 +385,76 @@ internal sealed class EfStaffMailSendStore(
             observedAtUtc, entity.OperationKey, null, null, Map(entity)));
         await FreezeSentReportSpecificationAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
         await CompletePostReportQueryAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
+        await RecordCorrespondenceSentAsync(db, entity, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// The Case's Notes line for a general correspondence send, written once
+    /// the Sent item is observed (FRD-16 Notes, FRD-21): the staff sender, the
+    /// provider's sent time and the subject. The body is never history. A
+    /// report send already records its evidence link; a Triage send keeps
+    /// Triage history. The event carries the Case's current version without
+    /// bumping it, as an operator note does.
+    /// </summary>
+    private static async Task RecordCorrespondenceSentAsync(
+        PegasusDbContext db,
+        StaffMailSendOperationEntity mail,
+        CancellationToken cancellationToken)
+    {
+        if (mail.Purpose != StaffMailPurpose.GeneralCorrespondence
+            || mail.ProviderSentAtUtc is not { } sentAtUtc)
+        {
+            return;
+        }
+        var workflow = await db.CaseWorkflows.SingleOrDefaultAsync(
+            item => item.CaseId == mail.ContextId, cancellationToken);
+        if (workflow is null)
+        {
+            return;
+        }
+        var operationKey = $"correspondence-sent:{mail.Id:N}";
+        if (await db.CaseWorkflowEvents.AnyAsync(
+                item => item.CaseId == workflow.CaseId && item.OperationKey == operationKey,
+                cancellationToken))
+        {
+            return;
+        }
+        var roles = await db.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "StaffMailSend"
+                && item.AggregateId == mail.Id.ToString("D")
+                && item.EventKind == "staff-mail-prepared")
+            .Select(item => item.ActorRolesJson)
+            .FirstOrDefaultAsync(cancellationToken);
+        db.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = workflow.CaseId,
+            Workflow = workflow,
+            EventType = CorrespondenceSentEventType,
+            OperationKey = operationKey,
+            RequestHash = mail.PayloadHash,
+            ActorKind = ActorKind.Staff.ToString(),
+            ActorSubjectId = mail.ActorSubjectId,
+            ActorRolesJson = roles ?? "[]",
+            Reason = mail.Subject,
+            OccurredAtUtc = sentAtUtc,
+            BeforeVersion = workflow.Version,
+            AfterVersion = workflow.Version,
+            ResultJson = JsonSerializer.Serialize(new CorrespondenceSentValue(
+                mail.Id, mail.ObservedSentImmutableMessageId, sentAtUtc, mail.ObservedSentAtUtc))
+        });
+    }
+
+    /// <summary>The Notes event a general correspondence send leaves once its Sent item is observed.</summary>
+    internal const string CorrespondenceSentEventType = "correspondence_sent";
+
+    private sealed record CorrespondenceSentValue(
+        Guid OperationId,
+        string? SentImmutableMessageId,
+        DateTimeOffset ProviderSentAtUtc,
+        DateTimeOffset? ObservedAtUtc);
 
     private static async Task FreezeSentReportSpecificationAsync(
         PegasusDbContext db,

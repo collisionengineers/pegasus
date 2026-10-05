@@ -218,7 +218,7 @@
                     {
                         <p>No dismissed messages.</p>
                     }
-                    else if (Model.Folder != MailFolderScope.Inbox)
+                    else if (Model.Folder == MailFolderScope.DeletedItems)
                     {
                         <p>
                             @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.

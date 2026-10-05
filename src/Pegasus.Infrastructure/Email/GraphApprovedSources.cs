@@ -1004,7 +1004,7 @@ internal sealed class GraphApprovedInboxSource(
     /// a sender wrote is not evidence about them. The body, recipients and
     /// attachments come from the MIME because Graph was never asked for them.
     /// </remarks>
-    private static async Task<RetainedMailboxMessageMetadata?> ReadRetainedMetadataAsync(
+    internal static async Task<RetainedMailboxMessageMetadata?> ReadRetainedMetadataAsync(
         byte[] mime,
         GraphDeltaItem item,
         string inboxFolderId,
@@ -1358,11 +1358,17 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
             {
                 return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash, "graph_sent_operation_marker_invalid", nextCursor);
             }
-            var operationId = operationMarkers.Length == 0 ? (Guid?)null : Guid.Parse(operationMarkers[0]);
+            // The provider keeps the Message-ID Pegasus assigned where it drops
+            // the custom X- headers, so the Message-ID names the operation when
+            // the header is absent. It carries no frozen mailbox, generation or
+            // payload marker; the poll checks those against its lease instead.
+            var operationId = operationMarkers.Length == 0
+                ? StaffMailCorrelationHeaders.TryReadOperationId(messageId)
+                : Guid.Parse(operationMarkers[0]);
             Guid? markerMailboxId = null;
             long? markerGeneration = null;
             string? markerPayloadHash = null;
-            if (operationId is not null)
+            if (operationMarkers.Length == 1)
             {
                 var mailboxMarkers = HeaderValues(message, StaffMailCorrelationHeaders.MailboxId);
                 var generationMarkers = HeaderValues(message, StaffMailCorrelationHeaders.MailboxGeneration);
@@ -1417,7 +1423,14 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
                     markerGeneration,
                     markerPayloadHash),
                 null,
-                nextCursor);
+                nextCursor)
+            {
+                // The Sent Items scope's row, read the way the Inbox poll reads
+                // its own: Graph's identities, the MIME's display content.
+                RetainedMetadata = await GraphApprovedInboxSource.ReadRetainedMetadataAsync(
+                    mime, item, lease.SentFolderIdentity, cancellationToken),
+                SourceLength = mime.LongLength
+            };
         }
         catch (FormatException)
         {

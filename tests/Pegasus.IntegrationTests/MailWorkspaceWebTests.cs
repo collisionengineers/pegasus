@@ -1317,17 +1317,53 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("No mail has been received.", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Sent Items lists the Sent items the Sent poll retained (FRD-20), and
+    /// only those; a received message stays out of it. Deleted Items is still
+    /// not kept.
+    /// </summary>
     [Fact]
-    public async Task SentNamesWhatIsNotKeptAndDeletedListsNothingUntilItIsSearched()
+    public async Task SentListsTheRetainedSentItemsAndDeletedListsNothingUntilItIsSearched()
     {
         using var factory = new IntakeWebApplicationFactory();
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
+                new(
+                    TestMailboxId.From(FirstMailboxId),
+                    FirstMailboxAddress,
+                    "sent-item-1",
+                    $"{FirstMailboxId.Length}:{FirstMailboxId}sent-item-1",
+                    NowUtc.AddMinutes(-2),
+                    1024,
+                    new string('B', 64),
+                    new(
+                        "sent-items",
+                        $"conversation-{FirstMailboxId}-sent",
+                        "<e101bc7b9d6b4c519594a4c74b4c1e91@pegasus.invalid>",
+                        FirstMailboxAddress,
+                        null,
+                        ["claimant@example.invalid"],
+                        [],
+                        [],
+                        "Following up on your claim",
+                        "Please find the update below.",
+                        [],
+                        IsRead: true),
+                    NowUtc,
+                    MailFolderScope.Sent),
+                CancellationToken.None);
+        }
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var sent = await GetHtmlAsync(client, "/Inbox?folder=sent");
         var deleted = await GetHtmlAsync(client, "/Inbox?folder=deleted");
 
-        Assert.Contains("Sent messages are not kept in Pegasus yet.", sent, StringComparison.Ordinal);
+        Assert.Contains("Following up on your claim", sent, StringComparison.Ordinal);
+        Assert.DoesNotContain($"Message 0 from {FirstMailboxId}", sent, StringComparison.Ordinal);
+        Assert.DoesNotContain("not kept in Pegasus yet", sent, StringComparison.Ordinal);
+        Assert.Contains("Deleted items messages are not kept in Pegasus yet.", deleted, StringComparison.Ordinal);
         // MAIL-010: this used to assert the sentence that told the operator to
         // search. The sentence was a field hint and is gone; what mattered was
         // always the behaviour it described, so assert that instead — Deleted

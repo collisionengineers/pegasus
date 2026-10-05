@@ -629,8 +629,10 @@ in [FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces).
 
 **Correspondence** lists every email linked to the Case, whatever its
 classification: the email the Case was created from, received mail
-associated with it later and uploaded `.eml` files, newest first
-([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)). Each row's
+associated with it later, uploaded `.eml` files and the Sent items of mail
+Pegasus sent for the Case once the Sent-evidence poll has observed them,
+newest first ([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)).
+A Sent item's classification cell reads **Sent**. Each row's
 **Open message** shows that message in a dialog over the Case: sender,
 received time, recipients, its text and attachment names. The dialog changes
 nothing. Where the record offers **Reply**, **Reply all** and **Forward**, the
@@ -645,8 +647,11 @@ on Documents.
 ### Notes
 
 Notes merges Case notes, business events, chase outcomes and AI events,
-newest first, each with date, time and actor. **Add Case note** sits at the
-top and needs no edit session. **Record chase** is a dialog, offered while a
+newest first, each with date, time and actor. A general correspondence send
+appears here once its Sent item is observed, as the staff sender,
+**Correspondence sent** and the subject; the message body is never history
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+**Add Case note** sits at the top and needs no edit session. **Record chase** is a dialog, offered while a
 chase is scheduled and the lease is held
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)). There
 is no Case tasks panel.
