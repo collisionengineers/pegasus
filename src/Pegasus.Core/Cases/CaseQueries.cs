@@ -286,6 +286,15 @@ public sealed record CaseNotesSection(
     IReadOnlyList<CaseHistoryEntry> History);
 
 /// <summary>
+/// The Tasks body source (CASE-20): the Case's tasks, open ones first, and the operator-facing
+/// names of the staff they are assigned to.
+/// </summary>
+public sealed record CaseTasksSection(
+    CaseSectionFrame Frame,
+    IReadOnlyList<CaseTaskRecord> Tasks,
+    IReadOnlyDictionary<Guid, string> AssigneeNames);
+
+/// <summary>
 /// The Files body source. Documents and correspondence belong together because
 /// the section renders them together; history, tasks and unrelated Case bodies do not.
 /// </summary>
@@ -526,6 +535,11 @@ public interface IGetCaseNotesSection
     Task<CaseNotesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
 }
 
+public interface IGetCaseTasksSection
+{
+    Task<CaseTasksSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
+}
+
 public interface IGetCaseFilesSection
 {
     Task<CaseFilesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
@@ -635,6 +649,29 @@ public sealed class GetCaseNotesSection(
                 ? ActorDisplayNames.Resolve(kind, entry.Actor, names)
                 : ActorDisplayNames.UnknownStaff
         }).ToArray());
+    }
+}
+
+public sealed class GetCaseTasksSection(
+    ICaseQueryStore store,
+    ICaseTaskQueries tasks,
+    IStaffAccountQueries staffAccounts) : IGetCaseTasksSection
+{
+    public async Task<CaseTasksSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
+    {
+        CaseSectionQueries.Validate(query);
+        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        if (frame is null)
+        {
+            return null;
+        }
+
+        var listed = await tasks.ListAsync(query.CaseId, cancellationToken);
+        var names = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccounts,
+            listed.Where(task => task.AssigneeId is not null).Select(task => task.AssigneeId!.Value),
+            cancellationToken);
+        return new(frame, listed, names);
     }
 }
 

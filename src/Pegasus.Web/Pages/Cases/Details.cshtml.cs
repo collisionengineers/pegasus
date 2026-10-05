@@ -44,6 +44,11 @@ public sealed partial class DetailsModel(
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
+    IGetCaseTasksSection getCaseTasksSection,
+    Pegasus.Core.Tasks.ICreateCaseTask createCaseTask,
+    Pegasus.Core.Tasks.ICompleteCaseTask completeCaseTask,
+    Pegasus.Core.Tasks.ICancelCaseTask cancelCaseTask,
+    Pegasus.Core.Tasks.ICaseTaskQueries caseTaskQueries,
     IGetCaseFilesSection getCaseFilesSection,
     ICaseDocumentQueries caseDocuments,
     IListCaseReferences listCaseReferences,
@@ -270,16 +275,17 @@ public sealed partial class DetailsModel(
             ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
             ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
-            ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml"
+            ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml",
+            ["tasks"] = "/Pages/Cases/Shared/_CaseTasks.cshtml"
         };
 
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
     /// first response. The addressed section is always rendered, so
-    /// <c>?section=</c> works over plain HTTP. Files and Notes have no fields
-    /// in the record's single Save form, so they remain deferred while editing
-    /// without replacing entered values elsewhere; their bodies act through
-    /// their own posts with the render lease token.
+    /// <c>?section=</c> works over plain HTTP. Files, Notes and Tasks have no
+    /// fields in the record's single Save form, so they remain deferred while
+    /// editing without replacing entered values elsewhere; their bodies act
+    /// through their own posts with the render lease token.
     /// </summary>
     public bool SectionIsDeferred(string key) =>
         !string.Equals(key, Section, StringComparison.Ordinal)
@@ -287,7 +293,7 @@ public sealed partial class DetailsModel(
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
-        && (LeaseToken is null || key is "files" or "notes");
+        && (LeaseToken is null || key is "files" or "notes" or "tasks");
 
     /// <summary>
     /// A lease token supplied only for rendering an asynchronously mounted
@@ -358,11 +364,13 @@ public sealed partial class DetailsModel(
     public CaseVehicleSection? VehicleSection { get; private set; }
     public CaseValuationSection? ValuationSection { get; private set; }
     public CaseNotesSection? NotesSection { get; private set; }
+    public CaseTasksSection? TasksSection { get; private set; }
     public CaseFilesSection? FilesSection { get; private set; }
 
     public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
         ?? ValuationSection?.Frame
         ?? NotesSection?.Frame
+        ?? TasksSection?.Frame
         ?? FilesSection?.Frame;
 
     public CaseWorkflowRecord? CurrentWorkflow => Case?.Workflow ?? SectionFrame?.Workflow;
@@ -1334,6 +1342,13 @@ public sealed partial class DetailsModel(
                         return FragmentNotFound();
                     }
                     break;
+                case "tasks":
+                    TasksSection = await getCaseTasksSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (TasksSection is null)
+                    {
+                        return FragmentNotFound();
+                    }
+                    break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (FilesSection is null)
@@ -1449,6 +1464,9 @@ public sealed partial class DetailsModel(
         var notes = rendered.Contains("notes")
             ? reads.Start(token => getCaseNotesSection.ExecuteAsync(query, token))
             : null;
+        var tasks = rendered.Contains("tasks")
+            ? reads.Start(token => getCaseTasksSection.ExecuteAsync(query, token))
+            : null;
         // Report Preview is part of the initial Case response even when the
         // heavier Files gallery is deferred.
         var preparations = reads.Start(token => caseAssetPreparationQueries.ListForCaseAsync(id, token));
@@ -1478,6 +1496,11 @@ public sealed partial class DetailsModel(
         {
             NotesSection = await notes
                 ?? throw new InvalidOperationException("The Case notes section is unavailable.");
+        }
+        if (tasks is not null)
+        {
+            TasksSection = await tasks
+                ?? throw new InvalidOperationException("The Case tasks section is unavailable.");
         }
         AssetPreparations = await preparations;
         if (valuationReads is not null)
@@ -1530,6 +1553,10 @@ public sealed partial class DetailsModel(
             : null;
         var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
         var configuration = reads.Start(token => workflowConfiguration.GetCurrentAsync(token));
+        // The Report section's Still to do: only a Case whose shown report was sent has any.
+        var stillToDo = ShownReportSentEvidence is not null
+            ? reads.Start(token => ReadStillToDoAsync(id, token))
+            : null;
         await reads.WhenAllAsync();
 
         if (claimSources is not null)
@@ -1558,8 +1585,12 @@ public sealed partial class DetailsModel(
             ViewerHoldsEditAuthority = viewerHoldsLease;
             EditAuthorityHolder = holder is null ? CaseEditAuthorityHolder.Unnamed : await holder;
         }
+        if (stillToDo is not null)
+        {
+            StillToDo = await stillToDo;
+        }
         var jobs = await caseAiJobs;
-        AiDrafts = AiDraftPolicy.Drafts(jobs, (await configuration).AiDraftTargetDays);
+        AiDrafts =AiDraftPolicy.Drafts(jobs, (await configuration).AiDraftTargetDays);
         PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
     }
 

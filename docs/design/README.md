@@ -151,7 +151,7 @@ section links, Refresh and the Scroll/Tabs switch. Scroll is the default in
 every state; a Tabs choice lasts for the browser session. The section row
 links Case details, Claim, Original report on Audit Cases, Inspection details,
 Vehicle (with Damage and Valuation inside), Repair Spec, Decisions, Report,
-Files and Notes. Each is a foldable panel whose head carries its own Edit
+Files, Notes and Tasks. Each is a foldable panel whose head carries its own Edit
 (entering the one page-wide edit session), one availability label when the
 state does not allow editing, and the fold chevron. The aside holds Figures
 and Next action and folds into a two-up strip above the sections below 1441px.

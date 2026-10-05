@@ -197,6 +197,66 @@ public sealed class EfCaseTaskStore(
             cancellationToken);
     }
 
+    /// <summary>
+    /// Adds one open, unassigned task and its <c>case_task_created</c> event inside the
+    /// caller's transaction, for a task that is a consequence of a recorded fact (Report
+    /// sent) rather than a staff edit. It takes no edit lease and no expected version on
+    /// purpose: the caller has already authorised and versioned the recorded fact, and the
+    /// task moves the Case's version on once, like any task creation. The caller owns the
+    /// replay check, the commit and the Case's own guards.
+    /// </summary>
+    internal static CaseTaskRecord AddConsequenceTask(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        Guid taskId,
+        string description,
+        string operationKey,
+        string reason,
+        DateTimeOffset occurredAtUtc)
+    {
+        const string eventKind = "case_task_created";
+        var beforeCaseVersion = workflow.Version;
+        var requestHash = RequestHash(
+            eventKind,
+            workflow.CaseId,
+            taskId,
+            beforeCaseVersion,
+            expectedTaskVersion: null,
+            actor,
+            operationKey,
+            reason,
+            editLeaseToken: "consequence-of-recorded-fact",
+            description,
+            assigneeId: null);
+        var task = new CaseTaskEntity
+        {
+            Id = taskId,
+            CaseId = workflow.CaseId,
+            Workflow = workflow,
+            Description = description.Trim(),
+            AssigneeId = null,
+            State = nameof(CaseTaskState.Open),
+            Version = 0
+        };
+        context.CaseTasks.Add(task);
+        workflow.Version = checked(workflow.Version + 1);
+        var result = Map(task, workflow.Version);
+        AddHistory(
+            context,
+            workflow,
+            actor,
+            operationKey,
+            reason,
+            eventKind,
+            requestHash,
+            beforeCaseVersion,
+            result,
+            before: null,
+            occurredAtUtc);
+        return result;
+    }
+
     private async Task<CaseTaskRecord> MutateAsync<TRequest>(
         TRequest request,
         string eventKind,

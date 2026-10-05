@@ -1,0 +1,117 @@
+@*
+    Tasks (FRD-16, CASE-20): what is still to do on the Case, after Notes. A dense
+    table of the Case's tasks, open ones first; the tasks Report sent creates from
+    the Principal's sending rules and the ones staff add read the same. Complete,
+    Cancel and Add task are offered in the edit session only, each posting under the
+    session's lease with one fixed recorded reason, so there is no reason box. The
+    section is fetched like Files and Notes and acts through its own posts with the
+    render lease token. There is no due date yet.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Web.Presentation
+@using TaskLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Tasks
+@{
+    var section = Model.TasksSection;
+    var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
+    var tasks = section?.Tasks ?? [];
+    var names = section?.AssigneeNames;
+    var leaseToken = Model.RenderLeaseToken;
+    var mayChange = Model.CanEditCaseData && !Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(workflow.State);
+}
+
+<section class="record-section panel @Model.CollapsedClass("case.tasks") @Model.ActiveTabClass("tasks") @(Model.IsEditing && !Model.SectionIsEditable("tasks") ? "is-locked" : null)" id="section-tasks" data-section="tasks" data-collapse="case.tasks" aria-labelledby="section-tasks-title">
+    <div class="panel-head">
+        <h2 id="section-tasks-title">@TaskLabels.Title</h2>
+        <div class="panel-actions">
+            <partial name="Cases/Shared/_CaseSectionHeadTools" model='new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "tasks")' />
+        </div>
+    </div>
+    <div class="panel-body stack">
+        @if (mayChange)
+        {
+            <form method="post" asp-page="/Cases/Details" asp-page-handler="CreateCaseTask" asp-route-id="@workflow.CaseId"
+                  class="note-form" data-case-task-form>
+                <input type="hidden" name="id" value="@workflow.CaseId" />
+                <input type="hidden" name="taskId" value="@(Guid.NewGuid().ToString("D"))" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <label class="lbl" for="case-task-description">@TaskLabels.NewTask</label>
+                <input id="case-task-description" name="description" required maxlength="500" />
+                <div class="button-row">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>@TaskLabels.AddTask</span>
+                    </button>
+                </div>
+            </form>
+        }
+
+        @if (tasks.Count == 0)
+        {
+            <div class="empty">
+                <svg class="icon" aria-hidden="true"><use href="#icon-check-square" /></svg>
+                <h3>@TaskLabels.None</h3>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table table--compact" data-case-tasks>
+                    <thead>
+                        <tr>
+                            <th>@TaskLabels.Description</th>
+                            <th>@TaskLabels.Assignee</th>
+                            <th>@TaskLabels.State</th>
+                            @if (mayChange)
+                            {
+                                <th><span class="sr-only">@TaskLabels.Actions</span></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var task in tasks)
+                        {
+                            var assignee = task.AssigneeId is { } assigneeId && names is not null && names.TryGetValue(assigneeId, out var assigneeName)
+                                ? assigneeName
+                                : task.AssigneeId is null ? TaskLabels.Unassigned : Pegasus.Core.Actors.ActorDisplayNames.FormerStaff;
+                            <tr data-case-task="@task.Id" data-task-state="@task.State">
+                                <td>@task.Description</td>
+                                <td>@assignee</td>
+                                <td><span class="status status--plain @TaskLabels.StateTone(task.State)">@TaskLabels.StateText(task.State)</span></td>
+                                @if (mayChange)
+                                {
+                                    <td>
+                                        @if (task.State == Pegasus.Core.Tasks.CaseTaskState.Open)
+                                        {
+                                            <div class="button-row">
+                                                @foreach (var action in new[] { "CompleteCaseTask", "CancelCaseTask" })
+                                                {
+                                                    var completing = action == "CompleteCaseTask";
+                                                    <form method="post" asp-page="/Cases/Details" asp-page-handler="@action" asp-route-id="@workflow.CaseId">
+                                                        <input type="hidden" name="id" value="@workflow.CaseId" />
+                                                        <input type="hidden" name="taskId" value="@task.Id" />
+                                                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                                                        <input type="hidden" name="expectedTaskVersion" value="@task.Version" />
+                                                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                                                        <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                                                        <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                                        <button type="submit" data-busy-label="@(completing ? OperatorLabels.Busy.Completing : OperatorLabels.Busy.Working)" class="btn btn--small @(completing ? null : "btn--danger")">
+                                                            <svg class="icon" aria-hidden="true"><use href="#@(completing ? "icon-check" : "icon-x")" /></svg>
+                                                            <span>@(completing ? TaskLabels.Complete : TaskLabels.Cancel)</span>
+                                                        </button>
+                                                    </form>
+                                                }
+                                            </div>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>

@@ -182,3 +182,13 @@ public interface ICancelCaseTask
         CancelCaseTaskRequest request,
         CancellationToken cancellationToken);
 }
+
+/// <summary>The recorded reasons for tasks that Pegasus creates rather than staff.</summary>
+public static class CaseTaskReasons
+{
+    /// <summary>
+    /// The reason on a task created when Report sent is recorded, from the after-send list
+    /// the delivery froze from the Principal's sending rules.
+    /// </summary>
+    public const string ReportSent = "Report sent: after-send task from the Principal's sending rules";
+}
