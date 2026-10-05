@@ -366,7 +366,7 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(StaffMailPurpose.CaseChaser, command.Purpose);
         Assert.Equal(caseId, command.ContextId);
         Assert.Equal(
-            new[] { "instructions@principal.example", "images@repairer.example", "office@repairer.example" },
+            ["instructions@principal.example", "images@repairer.example", "office@repairer.example"],
             command.To.Select(recipient => recipient.Address));
 
         // The status page the send lands on fills nothing in again.
