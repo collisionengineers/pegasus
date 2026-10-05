@@ -169,10 +169,6 @@ else
                                         case IndexModel.CellKind.Link:
                                             <td class="mono nowrap">
                                                 <a class="table-row-link" href="@row.DetailHref">@cell.Text</a>
-                                                @if (row.Kind == IndexModel.RowKind.Case && row.Notice is { } typeChip)
-                                                {
-                                                    <span class="status status--navy" data-cases-type>@typeChip</span>
-                                                }
                                             </td>
                                             break;
                                         case IndexModel.CellKind.Mono:
