@@ -1151,6 +1151,21 @@ it stopped.
   after it). After a start the portal locks the control with the profile that
   started the estimate selected, so a Resume or Fetch again expects exactly
   that.
+- `glass.details.identity` carries `control=id`, `natcode`, `registration` or
+  `mileage` (the first control that failed) and `state=absent` (no usable
+  control of that name), `contradictory` (its repeats disagree) or `different`
+  (it names another vehicle); `state=duplicate` is an attribute stated twice on
+  a control, with the control named when the tag had named one. A value is
+  never logged. A launch reads the vehicle once more 500 ms later and settles
+  on the second refusal, which ends `reread=1`; a Resume or Fetch again reads
+  once. Two of 28 launches on 2 October 2026 failed here and succeeded moments
+  later, each leaving an orphan stock vehicle at Glass's.
+- `glass.login.rejected` (`Failed`) means the portal redirected the sign-in to
+  its "Login failed" page: the account's credential was refused. Nothing signs
+  in again, so correct the credential before the next launch or Get valuation;
+  repeated failed sign-ins on a shared account risk a lockout. It is shown as
+  the raw code. `glass.login.landing` is a signed-in redirect whose landing
+  page was not the stock list.
 - `glass.start.ere_id` with `Unknown` on Resume means the provider answered
   the reopening start (`ere_id` 0) with an estimate that is not one of the
   session's own; the warning gives `expected_ids` and the `answered` id. A
