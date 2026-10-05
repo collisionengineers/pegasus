@@ -68,7 +68,7 @@ A Case type for an assessment request that is not a definitive instruction.
 Its Case/PO is `t.` plus the next number from the Principal's shared sequence
 (for example `t.QDOS26003`), allocated only once its Principal and
 registration are established. It follows its own Triage states; completion
-records a decided outcome, and Reply with outcome is optional editable email.
+records a decided outcome, and Reply with finding is optional editable email.
 A later definitive instruction is a separate Case with its own number, which
 the Triage may link to ([FRD-03](docs/frd/frd-03-triage.md)).
 _Avoid_: pre-Case Triage record, T-reference

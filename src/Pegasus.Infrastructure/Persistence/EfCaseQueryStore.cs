@@ -608,11 +608,18 @@ public sealed class EfCaseQueryStore(
     /// channels an email arrives through are read, since a receipt token is
     /// unique only within its channel.
     /// </summary>
-    private static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadCorrespondenceEmailsAsync(
+    /// <summary>
+    /// The retained e-mails associated with the Case, newest first. A Triage
+    /// Case passes the receipt it was opened from, which stands as its
+    /// request e-mail without an intake association of its own.
+    /// </summary>
+    internal static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadCorrespondenceEmailsAsync(
         PegasusDbContext context,
         Guid caseId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? originReceiptId = null)
     {
+        var originReceiptIds = originReceiptId is { } origin ? new[] { origin } : [];
         var associatedReceiptIds = context.IntakeManualAssociations.AsNoTracking()
             .Where(item => item.CaseId == caseId)
             .Select(item => item.IntakeReceiptId)
@@ -620,7 +627,7 @@ public sealed class EfCaseQueryStore(
                 .Where(item => item.CaseId == caseId)
                 .Select(item => item.IntakeReceiptId));
         var associatedReceipts = await context.IntakeReceipts.AsNoTracking()
-            .Where(item => associatedReceiptIds.Contains(item.Id)
+            .Where(item => (associatedReceiptIds.Contains(item.Id) || originReceiptIds.Contains(item.Id))
                 && (item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
                     || item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload)))
             .Select(item => new
@@ -634,7 +641,8 @@ public sealed class EfCaseQueryStore(
         var associations = await CurrentIntakeAssociations.ReadAsync(
             context, associatedReceipts.Select(item => item.Id).ToArray(), cancellationToken);
         var linkedReceipts = associatedReceipts
-            .Where(item => associations.Current.TryGetValue(item.Id, out var association) && association.CaseId == caseId)
+            .Where(item => originReceiptIds.Contains(item.Id)
+                || (associations.Current.TryGetValue(item.Id, out var association) && association.CaseId == caseId))
             .ToArray();
         var tokens = linkedReceipts.Select(item => item.ExternalReceiptToken).Distinct(StringComparer.Ordinal).ToArray();
         var messages = tokens.Length == 0

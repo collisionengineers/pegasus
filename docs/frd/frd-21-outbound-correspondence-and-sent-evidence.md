@@ -67,7 +67,7 @@ evidence of sending. A staff note that says "sent" stays an assertion unless
 the exact external evidence is retained.
 
 Triage completion is based on the recorded outcome, under
-[FRD-03](frd-03-triage.md). Its optional Reply with outcome is a staff send
+[FRD-03](frd-03-triage.md). Its optional Reply with finding is a staff send
 with purpose `TriageOutcomeReply`: a reply to the Triage's origin message
 that opens with a preset outcome body. Its Sent item links to the Triage
 Case as response evidence, like any exact reply to that message, when the
@@ -226,7 +226,7 @@ document never moves a Case by itself.
   (inbound mail and classification),
   [FRD-20](frd-20-mailbox-workspace.md) (mail screens),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md) (Case states),
-  [FRD-03](frd-03-triage.md) (Reply with outcome),
+  [FRD-03](frd-03-triage.md) (Reply with finding),
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md) (EVA handoff).
 - Technical constraints:
   [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md) (outbound

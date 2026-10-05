@@ -623,9 +623,11 @@ Crop happens on the viewer stage. Opening a document brings the viewer into
 view. A crop is a stored rectangle: the tile and the report show the cropped region
 and Download returns the original.
 
-Images on a vehicle-images record, a Triage Case or an Unidentified item
-carry the same crop, rotation and tags. Their rules are
-in [FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces).
+Images on a vehicle-images record or an Unidentified item carry the same
+crop, rotation and tags. Their rules are
+in [FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces). A
+Triage Case takes no crop and no tag
+([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)).
 
 **Correspondence** lists every email linked to the Case, whatever its
 classification: the email the Case was created from, received mail

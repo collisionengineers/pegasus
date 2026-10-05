@@ -1,0 +1,12 @@
+{
+  "recordedUtc": "2026-10-05T09:24:31.143006+00:00",
+  "scope": "Offline Triage Case mockups only; not application evidence",
+  "selfcheck": {
+    "fail": [],
+    "okCount": 1783
+  },
+  "screenshots": 96,
+  "fullPage": 3,
+  "consoleErrors": [],
+  "externalRequests": []
+}
