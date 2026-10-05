@@ -33,7 +33,8 @@ internal sealed class GlassMvaStageException(
     /// What the provider's own answer said, in numbers and flags only, for
     /// the host log, or the export reader's reason after
     /// <see cref="GlassReaderReason"/> has cut it to position numbers, field
-    /// names and code values. Never a registration, a body, a token or a URL.
+    /// names and code values, or <c>regex=timeout</c> when the adapter's own
+    /// read budget ran out. Never a registration, a body, a token or a URL.
     /// </summary>
     public string? Detail { get; } = detail;
 }
@@ -193,6 +194,14 @@ internal sealed partial class GlassMvaClient(
     /// </summary>
     private const int MaximumTextBytes = 4 * 1024 * 1024;
 
+    /// <summary>
+    /// How long any one pattern below may take to match. Every pattern is
+    /// bounded, so this guards against a stalled host, not against
+    /// backtracking: the 100 ms it replaced ran out on the sign-in page's
+    /// first read after a restart (issue 1021, 5 October 2026).
+    /// </summary>
+    private const int MatchTimeoutMilliseconds = 1000;
+
     /// <summary>The grid every stock and export stage addresses.</summary>
     private const string Grid = "stocklistGrid";
 
@@ -214,7 +223,7 @@ internal sealed partial class GlassMvaClient(
         var login = options.MarketValueAssessor("login/index");
         var page = await TextAsync(
             new HttpRequestMessage(HttpMethod.Get, login), ajax: false, GlassFailure.LoginRequest, cancellationToken);
-        var csrf = CsrfToken().Match(page);
+        var csrf = Matched(() => CsrfToken().Match(page), GlassFailure.LoginCsrf);
         if (!csrf.Success)
         {
             throw new GlassMvaStageException(GlassFailure.LoginCsrf);
@@ -325,7 +334,7 @@ internal sealed partial class GlassMvaClient(
             ajax: true,
             GlassFailure.ReportRequest,
             cancellationToken);
-        var links = Links(answer, ReportLink());
+        var links = Links(answer, ReportLink(), GlassFailure.ReportRequest);
         return links.Count switch
         {
             1 when options.IsMarketValueAssessor(links[0]) => links[0],
@@ -501,10 +510,10 @@ internal sealed partial class GlassMvaClient(
             ajax: true,
             GlassFailure.DetailsRequest,
             cancellationToken);
-        try
+        // Only named controls establish identity. Scripts, comments and unrelated
+        // text in the page can contain the right numbers for the wrong vehicle.
+        return Matched(() =>
         {
-            // Only named controls establish identity. Scripts, comments and unrelated
-            // text in the page can contain the right numbers for the wrong vehicle.
             var controls = InertHtml().Replace(value, string.Empty);
             var inputs = InputControl().Matches(controls).Cast<Match>()
                 .Select(match => Attributes(match.Groups[1].Value)).ToArray();
@@ -521,11 +530,7 @@ internal sealed partial class GlassMvaClient(
             }
 
             return inputs;
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
-        }
+        }, GlassFailure.DetailsIdentity);
     }
 
     /// <summary>
@@ -692,7 +697,7 @@ internal sealed partial class GlassMvaClient(
                 ajax: true,
                 GlassFailure.ExportRequest,
                 cancellationToken);
-            var links = Links(grid, ExportLink());
+            var links = Links(grid, ExportLink(), GlassFailure.ExportRequest);
             if (links.Count == 1)
             {
                 return options.IsMarketValueAssessor(links[0])
@@ -753,7 +758,7 @@ internal sealed partial class GlassMvaClient(
             throw new GlassMvaStageException(GlassFailure.StartUrl, outcomeUnknown: true);
         }
 
-        var callerMatch = CallbackPath().Match(stated["caller"]);
+        var callerMatch = Matched(() => CallbackPath().Match(stated["caller"]), GlassFailure.StartCaller, outcomeUnknown: true);
         if (!Uri.TryCreate(stated["caller"], UriKind.Absolute, out var caller)
             || !callerMatch.Success
             || !options.IsMarketValueAssessor(caller)
@@ -855,16 +860,13 @@ internal sealed partial class GlassMvaClient(
                 detail: detail);
         }
 
-        try
+        return Matched(() =>
         {
             var html = InertHtml().Replace(body, string.Empty);
             var boxes = ValueBox().Matches(html);
-            return new(Figure(html, boxes, "three_phase_transacted"), Figure(html, boxes, "three_phase_glass_trade"));
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new GlassMvaStageException(GlassFailure.ValuationUnreadable);
-        }
+            return new GlassGuideFigures(
+                Figure(html, boxes, "three_phase_transacted"), Figure(html, boxes, "three_phase_glass_trade"));
+        }, GlassFailure.ValuationUnreadable);
     }
 
     private static decimal Figure(string html, MatchCollection boxes, string boxId)
@@ -983,14 +985,14 @@ internal sealed partial class GlassMvaClient(
     private static int CandidateOrdinal(JsonElement candidates, string natCode)
     {
         var html = Text(candidates, "html") ?? string.Empty;
-        var blocks = CandidateBlock().Matches(html);
+        var blocks = Matched(() => CandidateBlock().Matches(html).ToArray(), GlassFailure.CandidatesRequest);
         var matched = 0;
         var ordinal = 0;
-        for (var index = 0; index < blocks.Count; index++)
+        for (var index = 0; index < blocks.Length; index++)
         {
             var candidate = blocks[index];
             var position = int.Parse(candidate.Groups[1].Value, CultureInfo.InvariantCulture);
-            var end = index + 1 < blocks.Count ? blocks[index + 1].Index : html.Length;
+            var end = index + 1 < blocks.Length ? blocks[index + 1].Index : html.Length;
             if (html.AsSpan(candidate.Index, end - candidate.Index).Contains(natCode, StringComparison.Ordinal))
             {
                 matched++;
@@ -1054,12 +1056,36 @@ internal sealed partial class GlassMvaClient(
     }
 
     /// <summary>Every download link of one kind a page offers, as absolute addresses.</summary>
-    private List<Uri> Links(string html, Regex link) =>
-        [.. link.Matches(html)
-            .Select(match => Absolute(
-                new Uri(WebUtility.HtmlDecode(match.Groups[1].Value), UriKind.RelativeOrAbsolute),
-                options.MarketValueAssessorBaseUri))
-            .Distinct()];
+    private List<Uri> Links(string html, Regex link, string failureCode) =>
+        Matched(
+            () => link.Matches(html)
+                .Select(match => Absolute(
+                    new Uri(WebUtility.HtmlDecode(match.Groups[1].Value), UriKind.RelativeOrAbsolute),
+                    options.MarketValueAssessorBaseUri))
+                .Distinct()
+                .ToList(),
+            failureCode);
+
+    /// <summary>
+    /// One read of a provider page by a pattern. The patterns below are
+    /// bounded, so their match budget guards against a stalled host, not
+    /// against backtracking; a budget that runs out is the stage's own
+    /// refusal, with <c>regex=timeout</c> as its detail, and never a
+    /// transport failure. A stage that may already have acted at the
+    /// provider says so, as it does for any other refusal.
+    /// </summary>
+    internal static T Matched<T>(Func<T> match, string failureCode, bool outcomeUnknown = false)
+    {
+        ArgumentNullException.ThrowIfNull(match);
+        try
+        {
+            return match();
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            throw new GlassMvaStageException(failureCode, outcomeUnknown, "regex=timeout");
+        }
+    }
 
     /// <summary>
     /// The month Glass's values against, in Europe/London — the provider's own
@@ -1237,64 +1263,64 @@ internal sealed partial class GlassMvaClient(
             : null;
 
     [GeneratedRegex(@"<!--.*?-->|<(script|style)\b[^>]*>.*?</\1\s*>",
-        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex InertHtml();
 
     [GeneratedRegex("<input\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex InputControl();
 
     [GeneratedRegex("<select\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>(.*?)</select\\s*>",
-        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex SelectControl();
 
     [GeneratedRegex("<option\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex OptionControl();
 
     [GeneratedRegex("([a-zA-Z_:][a-zA-Z0-9_:.-]*)(?:\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+)))?",
-        RegexOptions.CultureInvariant, 100)]
+        RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex HtmlAttribute();
 
     [GeneratedRegex(
         @"name=""csrf_token""[^>]{0,200}?value=""([0-9a-fA-F]{32})""",
         RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex CsrfToken();
 
     [GeneratedRegex(
         @"^https://[^/]+/ere/ere-callback/ere_id/(\d+)/ere_session/([^/?]+)$",
         RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex CallbackPath();
 
     [GeneratedRegex(
         @"class=""three_phase_car_info car(\d+)""",
         RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex CandidateBlock();
 
     [GeneratedRegex(
         @"href=""([^""]{0,400}?/ndp_download/[^""]{0,200}?\.xml)""",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex ExportLink();
 
     [GeneratedRegex(
         @"href=""([^""]{0,400}?/ndp_download/[^""]{0,200}?\.pdf)""",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex ReportLink();
 
     [GeneratedRegex(
         @"<div\b[^>]*\bid=""(three_phase_[a-z_]+)""[^>]*\bclass=""three_phase_value_box""",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex ValueBox();
 
     [GeneratedRegex(
         @"class=""three_phase_value_text""\s*>([^<]*)<",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex ValueText();
 }
