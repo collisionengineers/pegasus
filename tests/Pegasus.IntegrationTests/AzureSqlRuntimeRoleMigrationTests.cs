@@ -1084,6 +1084,27 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         }
     }
 
+    // 20261005120000_GrantWorkerCaseManualChases: a Case chaser that reaches
+    // Sent is recorded as a chase by the Worker's Sent poll, which held no
+    // permission on the chase table. Nothing else caught it because the tests
+    // run full-privilege; this asserts the grant itself.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerTheCaseChaseRecord()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        Assert.Equal(
+            ["CaseManualChases:INSERT", "CaseManualChases:SELECT"],
+            granted
+                .Where(value => value.StartsWith("CaseManualChases:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Contains("CaseManualChases", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+    }
+
     // 20260929091000_GrantWebRetainedMailDismissal: Inbox Dismiss and Restore
     // write the dismissal cells of the retained message row as the Web role,
     // which held SELECT only. The grant is table-level; the exact list below
