@@ -20,6 +20,10 @@ internal static class V1FoundationModelConfiguration
             var stages = string.Join(", ", Enum.GetNames<Pegasus.Core.Operations.StaffMailAttemptStage>().Select(x => $"'{x}'"));
             e.ToTable("StaffMailSendOperations", t => { t.HasCheckConstraint("CK_StaffMailSendOperations_State", $"[State] IN ({states})"); t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", $"[AttemptStage] IS NULL OR [AttemptStage] IN ({stages})"); }); e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.ActorSubjectId, x.MailboxId, x.OperationKey }).IsUnique();
+            e.HasIndex(x => new { x.Purpose, x.State }).HasFilter("[InstructionMoveState] IS NULL");
+            e.Property(x => x.InstructionMoveState).HasMaxLength(20);
+            e.Property(x => x.InstructionMoveFailureCode).HasMaxLength(100);
+            e.Property(x => x.InstructionMoveAttempts).HasDefaultValue(0);
             e.Property(x => x.ActorSubjectId).HasMaxLength(200); e.Property(x => x.OperationKey).HasMaxLength(100);
             e.Property(x => x.PayloadHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.CorrelationMarker).HasMaxLength(100);
             e.Property(x => x.ObservedSentImmutableMessageId).HasMaxLength(500);

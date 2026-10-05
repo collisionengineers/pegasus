@@ -10,6 +10,7 @@ using Pegasus.Core.Notifications;
 using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Transport;
 using Pegasus.Infrastructure.Custody;
@@ -25,12 +26,13 @@ namespace Pegasus.Worker;
 /// Every fifth minute the same run also does the two jobs that once had their
 /// own five-minute timers, so they use this timer's warm instance instead of
 /// starting a cold one: the due-work sweep, then the approved-inbox fallback
-/// poll (Graph subscription maintenance first).
+/// poll (Graph subscription maintenance first), then the sent-report instruction
+/// tidy (ADR-0063), a third job that was never on its own timer.
 /// </summary>
 /// <remarks>
-/// The dispatch runs first and nothing below delays it. Each of the two jobs
+/// The dispatch runs first and nothing below delays it. Each folded job
 /// has its own time budget and its own failure handling, so one failing or
-/// slow job never stops the other, and a failing dispatch does not stop them
+/// slow job never stops the others, and a failing dispatch does not stop them
 /// either. A job that passes its budget is cancelled, logged as a warning and
 /// counted as a failed step, with a <see cref="TimeoutException"/> naming the
 /// job: a hung poll used to run until the function timed out, and that was a
@@ -38,8 +40,8 @@ namespace Pegasus.Worker;
 /// invocation, as the retired one-per-job timers did, so the failed request
 /// reaches the exception alert on the first failure. The dispatch failure is the one rethrown when
 /// there is one. Otherwise a single folded failure is rethrown as it is, and
-/// two are rethrown together in an <see cref="AggregateException"/>, sweep
-/// first. Host shutdown during a folded job propagates as cancellation, unless
+/// more than one are rethrown together in an <see cref="AggregateException"/>, in
+/// job order. Host shutdown during a folded job propagates as cancellation, unless
 /// the dispatch had already failed: then the dispatch failure is rethrown. The
 /// minute comes from the clock, not from the timer's schedule status: the
 /// timer keeps no monitor state.
@@ -49,6 +51,7 @@ public sealed partial class PendingWorkRecoveryFunction(
     RunDueChasers runDueChasers,
     MaintainMailboxChangeSubscriptions maintainMailboxChangeSubscriptions,
     PollApprovedInbox pollApprovedInbox,
+    TidySentReportInstructions tidySentReportInstructions,
     TimeProvider timeProvider,
     ILogger<PendingWorkRecoveryFunction> logger)
 {
@@ -59,6 +62,9 @@ public sealed partial class PendingWorkRecoveryFunction(
 
     private static readonly ActionActor InboxPollActor =
         ActionActor.SystemWorker("approved-inbox-poller");
+
+    private static readonly ActionActor InstructionTidyActor =
+        ActionActor.SystemWorker("sent-report-instruction-tidy");
 
     [Function(nameof(PendingWorkRecoveryFunction))]
     public async Task RunAsync(
@@ -87,6 +93,7 @@ public sealed partial class PendingWorkRecoveryFunction(
             {
                 await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, foldedFailures, cancellationToken);
                 await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);
+                await RunFoldedJobAsync("sent-report instruction tidy", RunInstructionTidyAsync, foldedFailures, cancellationToken);
             }
             catch (Exception) when (dispatchFailure is not null && cancellationToken.IsCancellationRequested)
             {
@@ -129,6 +136,20 @@ public sealed partial class PendingWorkRecoveryFunction(
             InboxPollActor,
             cancellationToken);
         LogApprovedInboxPoll(logger, handled);
+    }
+
+    private async Task RunInstructionTidyAsync(CancellationToken cancellationToken)
+    {
+        var result = await tidySentReportInstructions.ExecuteAsync(
+            50,
+            InstructionTidyActor,
+            cancellationToken);
+        LogInstructionTidy(
+            logger,
+            result.MovedCount,
+            result.AlreadyMovedCount,
+            result.MessageMissingCount,
+            result.FailedCount);
     }
 
     private async Task RunFoldedJobAsync(
@@ -183,6 +204,16 @@ public sealed partial class PendingWorkRecoveryFunction(
     private static partial void LogApprovedInboxPoll(
         ILogger logger,
         int approvedInboxMessageCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Sent-report instruction tidy: {MovedCount} moved to Deleted Items, {AlreadyMovedCount} already there, {MessageMissingCount} no longer in the mailbox, {FailedCount} failed.")]
+    private static partial void LogInstructionTidy(
+        ILogger logger,
+        int movedCount,
+        int alreadyMovedCount,
+        int messageMissingCount,
+        int failedCount);
 
     [LoggerMessage(
         Level = LogLevel.Error,

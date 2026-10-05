@@ -987,6 +987,9 @@ public static class DependencyInjection
             provider.GetRequiredService<TokenCredential>(),
             provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
+        // The Worker alone may move a retained message: it tidies the instruction a
+        // confirmed report send answered (ADR-0063). Web keeps the unavailable mover.
+        services.Replace(ServiceDescriptor.Singleton<IRetainedMailFolderMover, GraphRetainedMailFolderMover>());
         AddStaffMailSending(services);
         services.AddSingleton<GraphMailboxChangeSubscriptions>();
         services.AddSingleton<IApprovedInboxSource, GraphApprovedInboxSource>();
@@ -1000,6 +1003,19 @@ public static class DependencyInjection
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(DvlaDvsaProductionAdapter)),
             provider.GetRequiredService<TimeProvider>()));
+        return services;
+    }
+
+    /// <summary>
+    /// The Worker's tidy of a sent report's answered instruction (ADR-0063). It runs
+    /// in both Worker profiles; the offline profile has the unavailable mover, so
+    /// the use case does nothing there.
+    /// </summary>
+    public static IServiceCollection AddSentReportInstructionTidy(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddScoped<ISentReportInstructionTidyStore, EfSentReportInstructionTidyStore>();
+        services.AddScoped<TidySentReportInstructions>();
         return services;
     }
 
