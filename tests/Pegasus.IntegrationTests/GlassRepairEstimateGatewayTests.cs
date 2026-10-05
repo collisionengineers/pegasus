@@ -818,8 +818,9 @@ public sealed class GlassRepairEstimateGatewayTests
             // The landing page is never fetched and nothing signs in again:
             // the login page and the one post are the only requests.
             Assert.Equal(0, harness.Mva.Count("GET /index"));
-            Assert.Equal(new[] { "GET /login/index", "POST /login/index" },
-                harness.Mva.Requests.Select(request => $"{request.Method} {request.Path}"));
+            string[] expectedRequests = ["GET /login/index", "POST /login/index"];
+            Assert.Equal(expectedRequests,
+                harness.Mva.Requests.Select(request => $"{request.Method} {request.Path}").ToArray());
         }
     }
 
