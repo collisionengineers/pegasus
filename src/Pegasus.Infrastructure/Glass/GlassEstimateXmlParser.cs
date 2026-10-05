@@ -88,12 +88,20 @@ public sealed record GlassEstimateExport(
 /// materials and its time is paint time. That is what the document's own
 /// statistics say — <c>TotalAmountParts</c> is the sum of the <c>Part_*</c>
 /// prices and <c>TotalAmountPaint</c> the sum of the <c>Paint_*</c> prices.
+/// A <c>Paint_Part</c> row's line type is its paint level, not its repair
+/// kind: <see cref="GlassPaintLevels"/> maps the row's <c>PaintMatKind</c>
+/// and <c>PaintLevel</c>, the same table the calculation PDF reader maps its
+/// printed level with. <c>Paint_PreparationScratchResistantClearCoatWork</c>
+/// and <c>Paint_ClearVarnish</c> are paint preparation, like the four
+/// preparation rows before them, and <c>PaintMatExtraAppl</c> is the sheet's
+/// printed <c>Z</c> flag, noted as markup material.
 /// </para>
 ///
 /// <para><b>Additional operations.</b> Glass's writes a user-defined
 /// additional operation — a road test, a sundries charge, a collection — as a
 /// <c>Free_Part</c> row, read the same way as a part row, whose
-/// <c>RepairKind</c> is <c>Extra costs</c>. It is a Specialist line, as EVA
+/// <c>RepairKind</c> is <c>Extra costs</c>. Its own set-up time is the
+/// <c>Part_SetUpTime</c> row of the same kind. It is a Specialist line, as EVA
 /// files it: a row with hours costs them at the estimate's rate, and a row
 /// without prices a fixed Specialist amount. Glass's counts those amounts in
 /// <c>TotalAmountParts</c>; Pegasus does not.
@@ -111,7 +119,10 @@ public sealed record GlassEstimateExport(
 /// <c>Result</c> are returned as <see cref="ParsedEstimate.SourceTotals"/> and
 /// never reconciled against the rows: Pegasus costs the estimate from its own
 /// rows at its own rate, discounts and VAT categories. The import stores none
-/// of them.
+/// of them. A discount, surcharge, small-material, sourcing, disposal or
+/// environmental-fee value the <c>Rate</c> or <c>Result</c> block prints as
+/// anything but zero changes no line and no total; it is noted on the first
+/// line that has room, so the staff member sees that Glass's applied it.
 /// </para>
 ///
 /// <para><b>Zero positions.</b> An ERE calculation saved before any damage was
@@ -124,7 +135,8 @@ public sealed record GlassEstimateExport(
 /// <see cref="XmlReader"/> with DTDs prohibited, no resolver and explicit
 /// entity and document caps, so no external entity, no DTD and no entity
 /// expansion can be reached. An unknown <c>PosType</c>, an unknown
-/// <c>RepairKind</c>, an unreadable number, an over-long document and an
+/// <c>RepairKind</c>, a paint level outside <see cref="GlassPaintLevels"/>, an
+/// unreadable number, an over-long document and an
 /// attachment that is not a PDF each reject the whole import with
 /// <see cref="EstimateParseRejectedException"/> — nothing is guessed and no
 /// partial line set is ever returned.
@@ -155,12 +167,60 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     /// <summary>A user-defined operation, read the same way as a part row.</summary>
     private const string FreePosition = "Free_Part";
 
+    /// <summary>Glass's own set-up time: an <c>Extra costs</c> row, read the same way as a part row.</summary>
+    private const string SetUpTimePosition = "Part_SetUpTime";
+
+    /// <summary>The paint row whose level and material kind choose its line type.</summary>
+    private const string PaintPosition = "Paint_Part";
+
+    /// <summary>The note a paint row carries when Glass's marked up its paint material (the sheet's <c>Z</c>).</summary>
+    private const string MarkupMaterialNote = "Markup material";
+
     /// <summary>
     /// A general entity cannot be declared without a DTD, which is prohibited
     /// above; the cap is stated anyway so the reader refuses expansion even if
     /// that ever changes.
     /// </summary>
     private const long MaximumEntityCharacters = 1024;
+
+    /// <summary>The adjustments one note lists before it summarizes the rest.</summary>
+    private const int MaximumListedAdjustments = 8;
+
+    /// <summary>
+    /// The <c>Rate</c> block's discounts, surcharges and fees: its child
+    /// block, the element, the words the note uses, and the element naming
+    /// its unit where it has one.
+    /// </summary>
+    private static readonly (string Block, string Element, string Label, string? Specifier)[] RateAdjustments =
+    [
+        ("Discount", "DiscMatPart", "parts material discount", "DiscMatPartSpecifier"),
+        ("Discount", "DiscMatPaint", "paint material discount", "DiscMatPaintSpecifier"),
+        ("Discount", "DiscWorkPart", "parts labour discount", "DiscWorkPartSpecifier"),
+        ("Discount", "DiscWorkPaint", "paint labour discount", "DiscWorkPaintSpecifier"),
+        ("Discount", "DiscOverall", "overall discount", null),
+        ("SurCharge", "SurChargeMatPart", "parts material surcharge", "SurChargeMatPartSpecifier"),
+        ("SurCharge", "SurChargeMatPaint", "paint material surcharge", "SurChargeMatPaintSpecifier"),
+        ("SurCharge", "SurChargeWorkPart", "parts labour surcharge", "SurChargeWorkPartSpecifier"),
+        ("SurCharge", "SurChargeWorkPaint", "paint labour surcharge", "SurChargeWorkPaintSpecifier"),
+        ("Other", "SmallMaterial", "small materials", "SmallMaterialSpecifier"),
+        ("Other", "SourcingCostPCNT", "sourcing cost (percent)", null),
+        ("Other", "DisposalCostPCNT", "disposal cost (percent)", null),
+        ("Other", "EnvironmentalFee", "environmental fee", null),
+    ];
+
+    /// <summary>The <c>Result</c> block's discount and surcharge amounts: the element and the words the note uses.</summary>
+    private static readonly (string Element, string Label)[] ResultAdjustments =
+    [
+        ("DiscMatParts", "parts material discount"),
+        ("DiscMatPaint", "paint material discount"),
+        ("DiscWorkParts", "parts labour discount"),
+        ("DiscWorkPaint", "paint labour discount"),
+        ("SurChargeMatParts", "parts material surcharge"),
+        ("SurChargeMatPaint", "paint material surcharge"),
+        ("SurChargeWorkParts", "parts labour surcharge"),
+        ("SurChargeWorkPaint", "paint labour surcharge"),
+        ("DiscOverall", "overall discount"),
+    ];
 
     private const int MoneyDecimals = 2;
     private const int MaximumDescriptionLength = 300;
@@ -229,8 +289,10 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             }
         }
 
+        var totals = ReadTotals(calculation);
+        NoteAdjustments(lines, calculation, totals?.Net);
         return new GlassEstimateExport(
-            new ParsedEstimate(SourceVersion(root, calculation), lines, ProviderName, RepairSpecificationSourceRoute.Glasses, ReadTotals(calculation)),
+            new ParsedEstimate(SourceVersion(root, calculation), lines, ProviderName, RepairSpecificationSourceRoute.Glasses, totals),
             ReadIdentity(root),
             ReadAttachment(root));
     }
@@ -319,7 +381,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         var price = Money(position.Element("Price"), ordinal, "price");
         var time = Hours(position.Element("Time"), ordinal, "time") ?? 0m;
         var hours = ChargeableHours(position, time, posType, ordinal);
-        var (type, charge) = LineShape(posType, operation, hours, ordinal);
+        var (type, charge) = LineShape(position, posType, operation, hours, ordinal);
         var guideCode = Bounded(Text(position.Element("MCode")), MaximumGuideCodeLength, ordinal, "MCode");
         var isPaint = charge == Charge.Paint;
         var isPart = charge == Charge.Part;
@@ -339,7 +401,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             Betterment: null,
             // The Audatex report's own evidence label, because this is the same claim.
             EvidenceLabel: "case",
-            Justification: Note(position, ordinal, charge == Charge.Included, parent, time, price),
+            Justification: Note(position, ordinal, charge == Charge.Included, isPaint, parent, time, price),
             PaintWorkUnits: isPaint ? hours : null,
             Quantity: null,
             Materials: isPaint ? price : null,
@@ -357,7 +419,8 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     }
 
     /// <summary>The line's note; see the class remarks. The markers are written true or false.</summary>
-    private static string? Note(XElement position, int ordinal, bool included, int? parent, decimal time, decimal? price)
+    private static string? Note(
+        XElement position, int ordinal, bool included, bool paint, int? parent, decimal time, decimal? price)
     {
         List<string> notes = [];
         if (included)
@@ -365,6 +428,10 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             notes.Add(parent is { } row
                 ? string.Create(CultureInfo.InvariantCulture, $"Included in row {row}; no separate charge.")
                 : "Included; no separate charge.");
+        }
+        if (paint && Marked(position.Element("PaintMatExtraAppl")))
+        {
+            notes.Add(MarkupMaterialNote);
         }
         if (Marked(position.Element("TimeMarker")))
         {
@@ -423,17 +490,32 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     /// guessed at in either answer.
     /// </summary>
     private static (string Type, Charge Charge) LineShape(
-        string posType, EstimateOperation operation, decimal hours, int ordinal) => posType switch
+        XElement position, string posType, EstimateOperation operation, decimal hours, int ordinal) => posType switch
     {
-        "Part_SparePart" or FreePosition => (EstimateOperations.ToLineType(operation, hours), Charge.Part),
+        "Part_SparePart" or FreePosition or SetUpTimePosition =>
+            (EstimateOperations.ToLineType(operation, hours), Charge.Part),
         InclusivePosition => (EstimateOperations.ToLineType(EstimateOperation.Other), Charge.Included),
-        // Painting a replaced panel and painting a repaired one are the same
-        // operation at different labels; the repair kind chooses between them.
-        "Paint_Part" => (operation == EstimateOperation.Replace ? "paint_new" : "paint_repair", Charge.Paint),
+        // The paint level, not the repair kind, says what the paint work is
+        // (every observed Paint_Part is a Replace); the sheet's own table maps it.
+        PaintPosition => (PaintPartType(position, ordinal), Charge.Paint),
         "Paint_PreparationMetal" or "Paint_PreparationPlastic"
-            or "Paint_ColourMixing" or "Paint_ColourSample" => ("paint_prep", Charge.Paint),
+            or "Paint_ColourMixing" or "Paint_ColourSample"
+            or "Paint_PreparationScratchResistantClearCoatWork" or "Paint_ClearVarnish" =>
+            ("paint_prep", Charge.Paint),
         _ => throw Reject(ordinal, $"carries the unknown position type '{posType}'"),
     };
+
+    /// <summary>The line type of a paint row's level; a pair outside <see cref="GlassPaintLevels"/> is refused.</summary>
+    private static string PaintPartType(XElement position, int ordinal)
+    {
+        var kind = Text(position.Element("PaintMatKind"));
+        var stated = Text(position.Element("PaintLevel"));
+        var level = int.TryParse(stated, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : int.MinValue;
+        return GlassPaintLevels.LineTypeOfExport(kind, level)
+            ?? throw Reject(ordinal, $"carries the unknown paint level (material '{kind}', level '{stated}')");
+    }
 
     private static EstimateOperation Operation(string? repairKind, int ordinal) => repairKind switch
     {
@@ -468,6 +550,65 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             Net: Money(exclusive?.Element("TotRepCostExclVat"), 0, "net total"),
             Vat: Vat(inclusive),
             Gross: Money(inclusive?.Element("GrandTotal"), 0, "gross total"));
+    }
+
+    /// <summary>
+    /// A discount, surcharge, small-material, sourcing, disposal or
+    /// environmental-fee value Glass's printed as anything but zero. The
+    /// record has no estimate-level note, so the note joins the first line's
+    /// own (the line note is the one existing note slot) when it fits the
+    /// note bound; nothing changes any line or total.
+    /// </summary>
+    private static void NoteAdjustments(List<EstimateLineInput> lines, XElement calculation, decimal? net)
+    {
+        var rate = calculation.Element("Rate");
+        var result = calculation.Element("Result")?.Element("ExclVatResults");
+        List<string> found = [];
+        foreach (var (block, element, label, specifier) in RateAdjustments)
+        {
+            var parent = rate?.Element(block);
+            AddAdjustment(found, parent?.Element(element), label, specifier is null ? null : parent?.Element(specifier));
+        }
+        foreach (var (element, label) in ResultAdjustments)
+        {
+            AddAdjustment(found, result?.Element(element), $"{label} amount", null);
+        }
+        if (found.Count == 0 || lines.Count == 0)
+        {
+            return;
+        }
+
+        List<string> listed = found.Count > MaximumListedAdjustments
+            ? [.. found.Take(MaximumListedAdjustments), string.Create(CultureInfo.InvariantCulture, $"and {found.Count - MaximumListedAdjustments} more")]
+            : found;
+        var note = $"Glass's printed adjustments, not applied here: {string.Join(", ", listed)}."
+            + (net is { } printed
+                ? string.Create(CultureInfo.InvariantCulture, $" Glass's net {printed:0.00} GBP.")
+                : string.Empty);
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var own = lines[index].Justification;
+            var joined = own is null ? note : $"{own} {note}";
+            if (joined.Length <= MaximumNoteLength)
+            {
+                lines[index] = lines[index] with { Justification = joined };
+                return;
+            }
+        }
+    }
+
+    /// <summary>Adds a printed value that is not zero. A value that cannot be read as a number is not known to be zero, so it is listed as printed.</summary>
+    private static void AddAdjustment(List<string> found, XElement? value, string label, XElement? specifier)
+    {
+        var stated = Text(value);
+        if (stated is null
+            || (decimal.TryParse(stated, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign,
+                CultureInfo.InvariantCulture, out var parsed) && parsed == 0m))
+        {
+            return;
+        }
+        var unit = Text(specifier);
+        found.Add(unit is null ? $"{label} {stated}" : $"{label} {stated} {unit}");
     }
 
     /// <summary>Glass's prints VAT split by material and labour; the record holds one figure.</summary>

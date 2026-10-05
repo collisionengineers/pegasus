@@ -188,6 +188,25 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Equal(185.00m, tyre.Price);
     }
 
+    /// <summary>
+    /// Glass's adds its own set-up time as a <c>Part_SetUpTime</c> row whose
+    /// repair kind is <c>Extra costs</c> (a.QDOS26066, 5 October 2026): the
+    /// same Specialist line as a user-defined additional operation.
+    /// </summary>
+    [Fact]
+    public void GlassesOwnSetUpTimeIsASpecialistLine()
+    {
+        var line = Assert.Single(Parse(GlassExport.BuildXml(
+            positions: GlassExport.Position("Part_SetUpTime", "Extra costs", "Set-up time", time: "0.20", materialCode: "20"))).Lines);
+
+        Assert.Equal("specialist_wu", line.Type);
+        Assert.Equal("Set-up time", line.Description);
+        Assert.Equal(0.20m, line.WorkUnits);
+        Assert.Equal(0.00m, line.Price);
+        Assert.Equal("20", line.GuideCode);
+        Assert.Null(line.Materials);
+    }
+
     [Fact]
     public void AnAdditionalOperationWithAnUnknownRepairKindIsStillRefused()
     {
@@ -210,7 +229,7 @@ public sealed class GlassEstimateXmlParserTests
             GlassExport.Position("Part_SparePart", "Replace", "Front Bumper Side Support",
                 price: "31.16", time: "0.80", overlapTime: "0.60", place: "R"),
             GlassExport.Position("Paint_Part", "Replace", "Front Bumper Towing Hook Cover      ",
-                price: "0.68", time: "0.10", place: "L"))));
+                price: "0.68", time: "0.10", place: "L", paintMatKind: "K", paintLevel: "2"))));
 
         Assert.Equal(
             ["Front Bumper Side Support (L)", "Front Bumper Side Support (R)", "Front Bumper Towing Hook Cover (L)"],
@@ -370,6 +389,106 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Equal(GlassExport.PrintedPartsTotal, result.Lines.Sum(line => line.Price ?? 0m));
     }
 
+    /// <summary>The rate block of the 5 October 2026 export of forty positions: every adjustment is zero.</summary>
+    private const string ZeroRateBlocks = """
+        <Discount>
+          <DiscMatPart>0.00</DiscMatPart><DiscMatPartSpecifier>%</DiscMatPartSpecifier>
+          <DiscMatPaint>0.00</DiscMatPaint><DiscMatPaintSpecifier>%</DiscMatPaintSpecifier>
+          <DiscWorkPart>0.00</DiscWorkPart><DiscWorkPartSpecifier>%</DiscWorkPartSpecifier>
+          <DiscWorkPaint>0.00</DiscWorkPaint><DiscWorkPaintSpecifier>%</DiscWorkPaintSpecifier>
+          <DiscOverall>0.00</DiscOverall>
+        </Discount>
+        <SurCharge>
+          <SurChargeMatPart>0.00</SurChargeMatPart><SurChargeMatPartSpecifier>%</SurChargeMatPartSpecifier>
+          <SurChargeMatPaint>0.00</SurChargeMatPaint><SurChargeMatPaintSpecifier>%</SurChargeMatPaintSpecifier>
+          <SurChargeWorkPart>0.00</SurChargeWorkPart><SurChargeWorkPartSpecifier>%</SurChargeWorkPartSpecifier>
+          <SurChargeWorkPaint>0.00</SurChargeWorkPaint><SurChargeWorkPaintSpecifier>%</SurChargeWorkPaintSpecifier>
+        </SurCharge>
+        """;
+
+    private const string ZeroOtherRates =
+        "<SmallMaterial>0.00</SmallMaterial><SmallMaterialSpecifier>%</SmallMaterialSpecifier>"
+        + "<SourcingCostPCNT>0.00</SourcingCostPCNT><DisposalCostPCNT>0.00</DisposalCostPCNT>"
+        + "<EnvironmentalFee>0.00</EnvironmentalFee>";
+
+    private const string ZeroResultAdjustments =
+        "<DiscMatParts>0.00</DiscMatParts><DiscMatPaint>0.00</DiscMatPaint><DiscWorkParts>0.00</DiscWorkParts>"
+        + "<DiscWorkPaint>0.00</DiscWorkPaint><SurChargeMatParts>0.00</SurChargeMatParts>"
+        + "<SurChargeMatPaint>0.00</SurChargeMatPaint><SurChargeWorkParts>0.00</SurChargeWorkParts>"
+        + "<SurChargeWorkPaint>0.00</SurChargeWorkPaint><DiscOverall>0.00</DiscOverall>";
+
+    [Fact]
+    public void AnAllZeroAdjustmentBlockAddsNoNote()
+    {
+        var result = Parse(GlassExport.BuildXml(
+            rateBlocks: ZeroRateBlocks, otherRates: ZeroOtherRates, resultAdjustments: ZeroResultAdjustments));
+
+        Assert.Null(result.Lines[0].Justification);
+        Assert.Equal(Parse(GlassExport.BuildXml()).Lines, result.Lines);
+    }
+
+    /// <summary>
+    /// Operator ruling, 5 October 2026: import and note. A printed discount
+    /// changes no line and no total (Pegasus costs the estimate from its own
+    /// rows); the note says Glass's applied it, beside Glass's own net.
+    /// </summary>
+    [Fact]
+    public void ANonZeroDiscountIsNotedAndChangesNeitherALineNorATotal()
+    {
+        var plain = Parse(GlassExport.BuildXml());
+        var result = Parse(GlassExport.BuildXml(
+            rateBlocks: "<Discount><DiscMatPart>10.00</DiscMatPart><DiscMatPartSpecifier>%</DiscMatPartSpecifier></Discount>"));
+
+        Assert.Equal(
+            "Glass's printed adjustments, not applied here: parts material discount 10.00 %. Glass's net 1058.00 GBP.",
+            result.Lines[0].Justification);
+        Assert.Equal(plain.Lines.Skip(1), result.Lines.Skip(1));
+        Assert.Equal(plain.Lines[0] with { Justification = result.Lines[0].Justification }, result.Lines[0]);
+        Assert.Equal(plain.SourceTotals, result.SourceTotals);
+    }
+
+    [Theory]
+    [InlineData("<SurCharge><SurChargeWorkPaint>5.00</SurChargeWorkPaint><SurChargeWorkPaintSpecifier>%</SurChargeWorkPaintSpecifier></SurCharge>", "", "", "paint labour surcharge 5.00 %")]
+    [InlineData("", "<SmallMaterial>3.00</SmallMaterial><SmallMaterialSpecifier>%</SmallMaterialSpecifier>", "", "small materials 3.00 %")]
+    [InlineData("", "<SourcingCostPCNT>2.50</SourcingCostPCNT>", "", "sourcing cost (percent) 2.50")]
+    [InlineData("", "<DisposalCostPCNT>1.00</DisposalCostPCNT>", "", "disposal cost (percent) 1.00")]
+    [InlineData("", "<EnvironmentalFee>4.00</EnvironmentalFee>", "", "environmental fee 4.00")]
+    [InlineData("<Discount><DiscOverall>7.00</DiscOverall></Discount>", "", "", "overall discount 7.00")]
+    [InlineData("", "", "<DiscMatParts>123.45</DiscMatParts>", "parts material discount amount 123.45")]
+    [InlineData("", "", "<SurChargeWorkParts>6.78</SurChargeWorkParts>", "parts labour surcharge amount 6.78")]
+    public void EachPrintedAdjustmentIsNotedWhenItIsNotZero(
+        string rateBlocks, string otherRates, string resultAdjustments, string expected)
+    {
+        var note = Parse(GlassExport.BuildXml(
+            rateBlocks: rateBlocks, otherRates: otherRates, resultAdjustments: resultAdjustments)).Lines[0].Justification;
+
+        Assert.NotNull(note);
+        Assert.Contains(expected, note, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnAdjustmentNoteJoinsTheLinesOwnNoteAndSummarizesLongLists()
+    {
+        var result = Parse(GlassExport.BuildXml(
+            positions: GlassExport.Position("Part_SparePart", "Replace", "Front Bumper Lining",
+                price: "560.47", time: "0.90", overlapTime: "0.40", guideTime: "0.50", timeMarker: true),
+            rateBlocks: """
+                <Discount><DiscMatPart>1.00</DiscMatPart><DiscMatPaint>1.00</DiscMatPaint>
+                  <DiscWorkPart>1.00</DiscWorkPart><DiscWorkPaint>1.00</DiscWorkPaint><DiscOverall>1.00</DiscOverall></Discount>
+                <SurCharge><SurChargeMatPart>1.00</SurChargeMatPart><SurChargeMatPaint>1.00</SurChargeMatPaint>
+                  <SurChargeWorkPart>1.00</SurChargeWorkPart><SurChargeWorkPaint>1.00</SurChargeWorkPaint></SurCharge>
+                """,
+            otherRates: "<EnvironmentalFee>4.00</EnvironmentalFee>"));
+
+        var note = Assert.Single(result.Lines).Justification;
+
+        Assert.NotNull(note);
+        Assert.StartsWith("Modified source value: time 0.90 h, guide 0.50 h. Glass's printed adjustments, not applied here: ",
+            note, StringComparison.Ordinal);
+        Assert.Contains("and 2 more.", note, StringComparison.Ordinal);
+        Assert.Contains("Glass's net 1058.00 GBP.", note, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// An ERE calculation saved before any damage was costed exports no
     /// position, no attachment and statistics printed to six places.
@@ -517,6 +636,91 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Equal(14, parser.Parse(content.ToArray()).Lines.Count);
     }
 
+    /// <summary>
+    /// The one table of paint levels (Core's <see cref="GlassPaintLevels"/>):
+    /// the export's material kind and level choose the line type, never the
+    /// repair kind. Every observed <c>Paint_Part</c> is a Replace, so a Repair
+    /// row must land the same way.
+    /// </summary>
+    [Theory]
+    [InlineData("B", "3", "paint_new")]
+    [InlineData("B", "4", "paint_blend")]
+    [InlineData("B", "1", "paint_repair")]
+    [InlineData("B", "2", "paint_repair")]
+    [InlineData("B", "6", "paint_repair")]
+    [InlineData("B", "0", "paint_repair")]
+    [InlineData("K", "2", "paint_new")]
+    [InlineData("K", "3", "paint_new")]
+    [InlineData("K", "4", "paint_new")]
+    [InlineData("K", "0", "paint_repair")]
+    public void APaintRowsLevelChoosesItsLineType(string materialKind, string level, string expected)
+    {
+        foreach (var repairKind in new[] { "Replace", "Repair" })
+        {
+            var line = Assert.Single(Parse(GlassExport.BuildXml(positions: GlassExport.Position(
+                "Paint_Part", repairKind, "Panel", price: "10.00", time: "1.00",
+                paintMatKind: materialKind, paintLevel: level))).Lines);
+
+            Assert.Equal(expected, line.Type);
+            Assert.Equal(1.00m, line.PaintWorkUnits);
+            Assert.Equal(10.00m, line.Materials);
+        }
+    }
+
+    [Theory]
+    [InlineData("K", "1")]
+    [InlineData("K", "6")]
+    [InlineData("B", "5")]
+    [InlineData("B", "-1")]
+    [InlineData("X", "3")]
+    [InlineData("", "3")]
+    [InlineData("B", "three")]
+    [InlineData("B", "")]
+    public void APaintLevelOutsideTheTableIsRefusedAndNeverGuessed(string materialKind, string level)
+    {
+        var rejected = Assert.Throws<EstimateParseRejectedException>(() => Parse(GlassExport.BuildXml(
+            positions: GlassExport.Position("Paint_Part", "Replace", "Panel", price: "10.00", time: "1.00",
+                paintMatKind: materialKind, paintLevel: level))));
+
+        Assert.Contains("Position 1", rejected.Message, StringComparison.Ordinal);
+        Assert.Contains("unknown paint level", rejected.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Paint_PreparationScratchResistantClearCoatWork", "Surcharge scratch-resistant clear coat", "0.00", "0.10")]
+    [InlineData("Paint_ClearVarnish", "First Colour/Clear tinted coat", "169.86", "0.20")]
+    public void ScratchResistantClearCoatAndClearVarnishArePaintPreparation(
+        string posType, string text, string price, string time)
+    {
+        var line = Assert.Single(Parse(GlassExport.BuildXml(
+            positions: GlassExport.Position(posType, "Replace", text, price: price, time: time))).Lines);
+
+        Assert.Equal("paint_prep", line.Type);
+        Assert.Equal(decimal.Parse(time, CultureInfo.InvariantCulture), line.PaintWorkUnits);
+        Assert.Equal(decimal.Parse(price, CultureInfo.InvariantCulture), line.Materials);
+        Assert.Null(line.WorkUnits);
+    }
+
+    /// <summary>
+    /// <c>PaintMatExtraAppl</c> is the sheet's printed <c>Z</c> flag, so both
+    /// routes note it the same way; it means nothing on a part row.
+    /// </summary>
+    [Fact]
+    public void ThePaintMaterialSurchargeFlagIsNotedAsMarkupMaterial()
+    {
+        var result = Parse(GlassExport.BuildXml(positions: string.Concat(
+            GlassExport.Position("Paint_Part", "Replace", "Marked", price: "10.00", time: "1.00",
+                paintMatKind: "B", paintLevel: "0", paintMatExtra: true),
+            GlassExport.Position("Paint_Part", "Replace", "Plain", price: "10.00", time: "1.00",
+                paintMatKind: "B", paintLevel: "0"),
+            GlassExport.Position("Part_SparePart", "Replace", "Part", price: "10.00", time: "1.00",
+                paintMatExtra: true))));
+
+        Assert.Equal("Markup material", result.Lines[0].Justification);
+        Assert.Null(result.Lines[1].Justification);
+        Assert.Null(result.Lines[2].Justification);
+    }
+
     [Theory]
     [InlineData("Part_Wheel")]
     [InlineData("Paint_Blend")]
@@ -627,7 +831,10 @@ public sealed class GlassEstimateXmlParserTests
             string netTotal = "1058.00",
             string vatMaterial = "211.60",
             string vatLabour = "0.00",
-            string grossTotal = "1269.60") =>
+            string grossTotal = "1269.60",
+            string rateBlocks = "",
+            string otherRates = "",
+            string resultAdjustments = "") =>
             $"""
             <?xml version="1.0" encoding="UTF-8"?>
             <Estimation>
@@ -664,7 +871,8 @@ public sealed class GlassEstimateXmlParserTests
                     <Painter>{LabourRate.ToString("0.00", CultureInfo.InvariantCulture)}</Painter>
                   </LabourRate>
                   <Vat><VATMaterial>20.00</VATMaterial><VATLabour>20.00</VATLabour></Vat>
-                  <Other><PartIndex>1.00</PartIndex><TimeUnit>{timeUnit}</TimeUnit></Other>
+                  <Other><PartIndex>1.00</PartIndex><TimeUnit>{timeUnit}</TimeUnit>{otherRates}</Other>
+                  {rateBlocks}
                 </Rate>
                 <Criteria />
                 {positions ?? DefaultPositions}
@@ -674,6 +882,7 @@ public sealed class GlassEstimateXmlParserTests
                     <TotRepCostExclVat>{netTotal}</TotRepCostExclVat>
                     <DiscOverall>0.00</DiscOverall>
                     <PrevDamDeduct>0.00</PrevDamDeduct>
+                    {resultAdjustments}
                   </ExclVatResults>
                   <InclVatResults>
                     <VatMat>{vatMaterial}</VatMat>
@@ -720,7 +929,10 @@ public sealed class GlassEstimateXmlParserTests
             string? guideTime = null,
             bool priceMarker = false,
             bool timeMarker = false,
-            string reason = "") =>
+            string reason = "",
+            string paintMatKind = "",
+            string paintLevel = "-1",
+            bool paintMatExtra = false) =>
             $"""
             <Position>
               <PosType>{posType}</PosType>
@@ -742,8 +954,10 @@ public sealed class GlassEstimateXmlParserTests
               <TimeMarker>{(timeMarker ? "true" : "false")}</TimeMarker>
               <AlterMarker>false</AlterMarker>
               <UserPosMarker />
+              <PaintMatKind>{paintMatKind}</PaintMatKind>
               <PaintKind>-1</PaintKind>
-              <PaintLevel>-1</PaintLevel>
+              <PaintLevel>{paintLevel}</PaintLevel>
+              <PaintMatExtraAppl>{(paintMatExtra ? "true" : "false")}</PaintMatExtraAppl>
               <PaintTreatment>0</PaintTreatment>
               <PaintMethod>0</PaintMethod>
               <OperationNr />
@@ -779,8 +993,10 @@ public sealed class GlassEstimateXmlParserTests
             Position("Part_SparePart", "Air out", "Bleed Brake System", time: "0.20", materialCode: "7028820"),
             Position("Part_InclusiveSparePart", "Replace", "Radiator Air Guide",
                 time: "0.50", materialCode: "6093340"),
-            Position("Paint_Part", "Replace", "Bonnet", price: "200.00", time: "2.00", materialCode: "1640"),
-            Position("Paint_Part", "Repair", "Front Wing", price: "50.00", time: "1.00", materialCode: "1240"),
+            Position("Paint_Part", "Replace", "Bonnet", price: "200.00", time: "2.00", materialCode: "1640",
+                paintMatKind: "B", paintLevel: "3"),
+            Position("Paint_Part", "Repair", "Front Wing", price: "50.00", time: "1.00", materialCode: "1240",
+                paintMatKind: "B", paintLevel: "1"),
             Position("Paint_PreparationMetal", "Replace", "Preparation, metal",
                 price: "30.00", time: "0.50", materialCode: "2"),
             Position("Paint_PreparationPlastic", "Replace", "Preparation, synthetics",
@@ -827,11 +1043,12 @@ public sealed class GlassEstimateXmlParserTests
             Position("Free_Part", "Extra costs", "Load / Unload vehicle to ramp", time: "0.40", materialCode: "134"),
             Position("Free_Part", "Extra costs", "Older vehicle allowance", time: "1.00", materialCode: "144"),
             Position("Free_Part", "Extra costs", "Second man lift", time: "0.20", materialCode: "171"),
-            Position("Paint_Part", "Replace", "Front Bumper k    ", price: "529.30", time: "1.50", materialCode: "1010"),
+            Position("Paint_Part", "Replace", "Front Bumper k    ", price: "529.30", time: "1.50", materialCode: "1010",
+                paintMatKind: "K", paintLevel: "3"),
             Position("Paint_Part", "Replace", "Front Bumper Reinforcement      ", price: "77.20", time: "0.60",
-                materialCode: "1051"),
+                materialCode: "1051", paintMatKind: "B", paintLevel: "3"),
             Position("Paint_Part", "Replace", "Front Bumper Towing Hook Cover      ", price: "0.68", time: "0.10",
-                materialCode: "1056", place: "L"),
+                materialCode: "1056", place: "L", paintMatKind: "K", paintLevel: "2"),
             Position("Paint_PreparationMetal", "Replace", "Prep. metal (on vehicle without pre-painting)",
                 price: "120.16", time: "0.70", materialCode: "2", guidePrice: "0.00", guideTime: "0.00"),
             Position("Paint_PreparationPlastic", "Replace", "Prep. synthetics (combined-operation work)",
