@@ -30,4 +30,24 @@ This log records how the round came about. It is not design authority.
 - B · Inspection split: a persistent viewer beside a status aside.
 - C · Contact sheet: tabs with a large-thumbnail grid.
 
-**Items raised.** A–F in [v31-notes.md](v31-notes.md#lettered-sign-off-items).
+**Items raised.** A–F in [v31-notes.md](v31-notes.md#5-lettered-sign-off-items).
+
+## Round 2 — 5 October 2026
+
+**Operator's words (verbatim):**
+
+> They do not need: 1. Crop 2. Tag. These are for real cases. Triage doesnt need these options.
+> "Await Information" - cant even see what this is supposed to do/be for. Likely just a removal candidate.
+> Change "Determination" to "Record Finding"
+> "Record Finding" dialogue window should have: Tickbox for complete triage, Tickbox for reply with finding
+> Prefer option C for the design
+> Make the changes to option C, finalize it, and implement and submit on a PR
+
+**Changes made**
+- Crop, Tag, tag chips and the Cropped badge are removed from every design's images and viewer.
+- Await information is removed from the Actions menu.
+- "Determinations" becomes **Record finding** (menu item, dialog title and submit). The dialog gains **Complete Triage** and **Reply with finding** tickboxes. Ticking Reply with finding ticks Complete Triage, and unticking Complete Triage clears it. Reply with finding is offered only where a reply can be sent.
+- The page-wide term "Reply with outcome" becomes **Reply with finding**.
+- C is final and was implemented in the Stage 2 PR from this branch. The self-check gave 1783/0.
+
+**Items closed:** A (C), D (C's placement: response evidence in the Correspondence tab). Items B, C, E and F were not answered and were implemented as proposed; see [v31-notes.md](v31-notes.md#8-decided-5-october-2026).

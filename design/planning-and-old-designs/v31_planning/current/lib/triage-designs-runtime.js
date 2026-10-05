@@ -51,12 +51,11 @@
     const d = derived();
     const items = [];
     if (d.mutable) items.push({ key: 'assign', label: s.assignee ? 'Reassign' : 'Assign', glyph: 'user', dialog: 'triage-assign-dialog' });
-    if (d.mutable) items.push({ key: 'determinations', label: 'Determinations', glyph: 'clipboard-list', dialog: 'triage-determinations-dialog' });
+    if (d.mutable) items.push({ key: 'determinations', label: 'Record finding', glyph: 'clipboard-list', dialog: 'triage-determinations-dialog' });
     if (d.correction) items.push({ key: 'correction', label: 'Record correction', glyph: 'save', dialog: 'triage-correction-dialog' });
     if (s.state === 'Finding recorded') items.push({ key: 'complete', label: 'Complete Triage', glyph: 'check', post: 'complete' });
-    if (s.state === 'Open' || s.state === 'Finding recorded') items.push({ key: 'await', label: 'Await information', glyph: 'clock', post: 'await' });
     if (d.canSend) items.push(d.purpose === 'outcome'
-      ? { key: 'reply', label: 'Reply with outcome', glyph: 'reply', composer: true }
+      ? { key: 'reply', label: 'Reply with finding', glyph: 'reply', composer: true }
       : { key: 'chaser', label: 'Send chaser', glyph: 'send', composer: true });
     if (d.mutable) items.push(s.linkedCase
       ? { key: 'unlink', label: 'Unlink case', glyph: 'unlink', dialog: 'triage-unlink-case-dialog' }
@@ -94,13 +93,12 @@
   }
 
   /* ---------- Sections ---------- */
-  const tagChips = (img) => img.tags.length ? `<span class="precase-tags">${img.tags.map(([n, c]) => `<span class="tag-chip tag-chip--${c}">${esc(n)}</span>`).join('')}</span>` : '';
-  const caption = (img) => `<span class="gallery-caption"><strong>${esc(img.file)}</strong>${img.cropped ? '<small class="precase-badge">Cropped</small>' : ''}${tagChips(img)}</span>`;
+  const caption = (img) => `<span class="gallery-caption"><strong>${esc(img.file)}</strong></span>`;
 
   function readout(compact) {
     const v = (label, value) => `<div class="fc ro"><span class="lbl">${label}</span><div class="fv${value ? '' : ' empty'}">${esc(value || 'Not recorded')}</div></div>`;
     const body = `<div class="fg g2" data-triage-readout>${v('Roadworthiness', s.finding?.road)}${v('Repair outcome', s.finding?.repair)}</div>`;
-    return compact ? body : `<section class="panel section-gap" aria-labelledby="triage-determinations-title"><div class="panel-head"><h2 id="triage-determinations-title">Determinations</h2></div><div class="panel-body">${body}</div></section>`;
+    return compact ? body : `<section class="panel section-gap" aria-labelledby="triage-determinations-title"><div class="panel-head"><h2 id="triage-determinations-title">Finding</h2></div><div class="panel-body">${body}</div></section>`;
   }
 
   function stageA() {
@@ -113,7 +111,7 @@
         <button type="button" class="tv-nav tv-nav--prev" data-step="-1" aria-label="Previous image">${icon('chevron-left')}</button>
         <button type="button" class="tv-nav tv-nav--next" data-step="1" aria-label="Next image">${icon('chevron-right')}</button>
       </div>
-      <div class="tv-stage-caption"><strong>${esc(img.file)}</strong>${img.cropped ? '<small class="precase-badge">Cropped</small>' : ''}${tagChips(img)}<span class="tv-spacer"></span><button type="button" class="btn btn--small" data-viewer-open="${s.imageIndex}">${icon('crop')}<span>Crop</span></button><button type="button" class="btn btn--small" data-viewer-open="${s.imageIndex}">${icon('tag')}<span>Tag</span></button></div>
+      <div class="tv-stage-caption"><strong>${esc(img.file)}</strong></div>
       <ul class="tv-strip" data-evidence-set>${s.images.map((im, i) => `<li><button type="button" class="tv-thumb${i === s.imageIndex ? ' is-current' : ''}" data-pick="${i}" aria-label="${esc(im.file)}" aria-current="${i === s.imageIndex}"><img src="${im.src}" alt=""></button></li>`).join('')}</ul>
     </section>`;
   }
@@ -122,16 +120,13 @@
     const img = s.images[s.imageIndex];
     return `<section class="panel tv-viewer-panel" aria-labelledby="triage-images-title" data-vehicle-images>
       <div class="panel-head"><h2 id="triage-images-title">Vehicle images</h2><span class="muted tv-count">${s.imageIndex + 1} / ${s.images.length}</span>
-        <div class="panel-actions"><label class="sr-only" for="tv-inline-tag">Tag</label><select id="tv-inline-tag" class="tv-tag-select" data-tag-select><option value="">Add a tag</option>${cfg.tagVocabulary.map(([n]) => `<option${img.tags.some((t) => t[0] === n) ? ' disabled' : ''}>${esc(n)}</option>`).join('')}</select>
-        <button type="button" class="btn btn--small" data-crop-toggle aria-pressed="${!!s.cropping}">${icon('crop')}<span>Crop</span></button>
-        <button type="button" class="btn btn--small btn--icon" data-viewer-open="${s.imageIndex}" aria-label="Full screen" title="Full screen">${icon('zoom-in')}</button></div></div>
+        <div class="panel-actions"><button type="button" class="btn btn--small btn--icon" data-viewer-open="${s.imageIndex}" aria-label="Full screen" title="Full screen">${icon('zoom-in')}</button></div></div>
       <div class="tv-viewer-frame">
         <img src="${img.src}" alt="${esc(img.file)}">
-        ${s.cropping ? `<div class="tv-crop" aria-hidden="true"></div><div class="tv-crop-bar"><span>Drag across the image to frame it</span><button type="button" class="btn btn--small" data-crop-cancel>Cancel</button><button type="button" class="btn btn--small btn--primary" data-crop-apply>Apply</button></div>` : ''}
         <button type="button" class="tv-nav tv-nav--prev" data-step="-1" aria-label="Previous image">${icon('chevron-left')}</button>
         <button type="button" class="tv-nav tv-nav--next" data-step="1" aria-label="Next image">${icon('chevron-right')}</button>
       </div>
-      <div class="tv-viewer-caption"><strong>${esc(img.file)}</strong><small class="muted">${fileSize(img.size)}</small>${img.cropped ? '<small class="precase-badge">Cropped</small>' : ''}${img.tags.map(([n, c]) => `<span class="tag-chip tag-chip--${c}">${esc(n)}<button type="button" class="tv-chip-x" data-untag="${esc(n)}" aria-label="Remove ${esc(n)}">${icon('x')}</button></span>`).join('')}</div>
+      <div class="tv-viewer-caption"><strong>${esc(img.file)}</strong><small class="muted">${fileSize(img.size)}</small></div>
       <ul class="tv-grid" data-evidence-set>${s.images.map((im, i) => `<li><button type="button" class="tv-thumb${i === s.imageIndex ? ' is-current' : ''}" data-pick="${i}" aria-label="${esc(im.file)}" aria-current="${i === s.imageIndex}"><img src="${im.src}" alt=""></button></li>`).join('')}</ul>
     </section>`;
   }
@@ -154,7 +149,7 @@
     const rows = correspondenceRows();
     const status = s.send ? `<div class="notice" role="status" data-send-status>${icon('mail')}<span>Latest send: ${esc(s.send)}</span>${s.send === 'Unknown' ? `<button type="button" class="btn btn--small" data-reconcile>${icon('history')}<span>Reconcile status</span></button>` : ''}</div>` : '';
     const blocked = s.blocked && s.send !== 'Unknown' ? `<div class="notice notice--warning" role="alert">${icon('alert-triangle')}<span>The existing correspondence operation must finish or be resolved before another action.</span></div>` : '';
-    const compose = d.canSend ? `<div class="button-row"><button type="button" class="btn btn--small" data-composer-open>${icon(d.purpose === 'outcome' ? 'reply' : 'send')}<span>${d.purpose === 'outcome' ? 'Reply with outcome' : 'Send chaser'}</span></button></div>` : '';
+    const compose = d.canSend ? `<div class="button-row"><button type="button" class="btn btn--small" data-composer-open>${icon(d.purpose === 'outcome' ? 'reply' : 'send')}<span>${d.purpose === 'outcome' ? 'Reply with finding' : 'Send chaser'}</span></button></div>` : '';
     const table = rows.length ? `<div class="table-wrap"><table class="table table--compact"><thead><tr><th>Received</th><th>Sender</th><th>Subject</th><th>Classification</th><th><span class="sr-only">Action</span></th></tr></thead><tbody>${rows.map((r) => `<tr data-correspondence-row="${r.id}"><td><time>${r.when}</time></td><td>${esc(r.from)}</td><td>${esc(r.subject)}</td><td>${esc(r.cls)}</td><td class="row-actions nowrap"><button type="button" class="btn btn--small" data-message-open="${r.id}">Open message</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted" data-correspondence-empty>No retained correspondence is associated with this Case.</p>';
     return `<div class="correspondence stack" data-correspondence>${status}${blocked}${compose}${table}</div>`;
   }
@@ -201,7 +196,7 @@
     const rows = correspondenceRows();
     const last = rows[rows.length - 1];
     if (!s.email) return '';
-    return `<section class="panel" aria-labelledby="tv-corr-card-title" data-correspondence-card><div class="panel-head"><h2 id="tv-corr-card-title">Correspondence</h2>${d.canSend ? `<div class="panel-actions"><button type="button" class="btn btn--small" data-composer-open>${icon(d.purpose === 'outcome' ? 'reply' : 'send')}<span>${d.purpose === 'outcome' ? 'Reply with outcome' : 'Send chaser'}</span></button></div>` : ''}</div><div class="panel-body stack">
+    return `<section class="panel" aria-labelledby="tv-corr-card-title" data-correspondence-card><div class="panel-head"><h2 id="tv-corr-card-title">Correspondence</h2>${d.canSend ? `<div class="panel-actions"><button type="button" class="btn btn--small" data-composer-open>${icon(d.purpose === 'outcome' ? 'reply' : 'send')}<span>${d.purpose === 'outcome' ? 'Reply with finding' : 'Send chaser'}</span></button></div>` : ''}</div><div class="panel-body stack">
       ${s.send ? `<div class="tv-line">${icon('mail')}<span>Latest send: ${esc(s.send)}</span>${s.send === 'Unknown' ? `<button type="button" class="btn btn--small" data-reconcile>${icon('history')}<span>Reconcile status</span></button>` : ''}</div>` : ''}
       ${last ? `<button type="button" class="tv-last-message" data-message-open="${last.id}"><small>${last.when} · ${esc(last.from)}</small><strong>${esc(last.subject)}</strong></button>` : ''}
       <button type="button" class="tv-link" data-goto-correspondence>Correspondence · ${rows.length}</button></div></section>`;
@@ -210,7 +205,7 @@
   /* ---------- Page ---------- */
   function notices() {
     if (!s.notice) return '';
-    const reply = s.notice.reply && derived().canSend ? `<button type="button" class="tv-link" data-composer-open>Reply with outcome</button>` : '';
+    const reply = s.notice.reply && derived().canSend ? `<button type="button" class="tv-link" data-composer-open>Reply with finding</button>` : '';
     return `<div class="notice notice--${s.notice.tone || 'info'} mb-2" role="status" aria-live="polite" data-notice tabindex="-1">${icon(s.notice.tone === 'success' ? 'check' : 'info')}<span>${esc(s.notice.text)}</span>${reply}<button type="button" class="dismiss" data-dismiss aria-label="Dismiss">${icon('x')}</button></div>`;
   }
 
@@ -219,13 +214,13 @@
       return `<div class="record-body">${stageA()}${readout(false)}${response(false)}${filesPanel()}${notes(false)}</div>`;
     }
     if (cfg.id === 'b') {
-      return `<div class="record-body"><div class="tv-split${s.images.length ? '' : ' tv-split--no-images'}">${s.images.length ? viewerB() : ''}<aside class="tv-aside stack" aria-label="Triage status"><section class="panel" aria-labelledby="triage-determinations-title"><div class="panel-head"><h2 id="triage-determinations-title">Determinations</h2></div><div class="panel-body">${readout(true)}</div></section>${correspondenceCard()}${response(false).replace('panel section-gap', 'panel')}${notes(true)}</aside></div>${filesPanel()}</div>`;
+      return `<div class="record-body"><div class="tv-split${s.images.length ? '' : ' tv-split--no-images'}">${s.images.length ? viewerB() : ''}<aside class="tv-aside stack" aria-label="Triage status"><section class="panel" aria-labelledby="triage-determinations-title"><div class="panel-head"><h2 id="triage-determinations-title">Finding</h2></div><div class="panel-body">${readout(true)}</div></section>${correspondenceCard()}${response(false).replace('panel section-gap', 'panel')}${notes(true)}</aside></div>${filesPanel()}</div>`;
     }
     const rows = correspondenceRows().length;
     const docs = fx.documents.filter((doc) => s.email || !doc.mail).length;
     const tab = (key, label) => `<button type="button" class="tab" role="tab" id="tv-tab-${key}" aria-selected="${s.tab === key}" aria-controls="tv-panel-${key}" tabindex="${s.tab === key ? 0 : -1}" data-page-tab="${key}">${label}</button>`;
     const fact = (label, value) => `<div class="tv-fact"><span class="ribbon-label">${label}</span><span class="${value ? '' : 'tv-empty'}">${esc(value || 'Not recorded')}</span></div>`;
-    return `<div class="tv-tabrow"><div class="tabs" role="tablist" aria-label="Triage record">${s.images.length ? tab('images', `Images · ${s.images.length}`) : ''}${tab('files', `Files · ${docs + rows}`)}${tab('notes', `Notes · ${s.history.length}`)}</div><div class="tv-facts" aria-label="Determinations" data-triage-readout>${fact('Roadworthiness', s.finding?.road)}${fact('Repair outcome', s.finding?.repair)}</div></div>
+    return `<div class="tv-tabrow"><div class="tabs" role="tablist" aria-label="Triage record">${s.images.length ? tab('images', `Images · ${s.images.length}`) : ''}${tab('files', `Files · ${docs + rows}`)}${tab('notes', `Notes · ${s.history.length}`)}</div><div class="tv-facts" aria-label="Finding" data-triage-readout>${fact('Roadworthiness', s.finding?.road)}${fact('Repair outcome', s.finding?.repair)}</div></div>
       <div class="record-body">
         ${s.images.length ? `<div id="tv-panel-images" role="tabpanel" aria-labelledby="tv-tab-images"${s.tab === 'images' ? '' : ' hidden'}>${sheetC()}</div>` : ''}
         <div id="tv-panel-files" role="tabpanel" aria-labelledby="tv-tab-files"${s.tab === 'files' ? '' : ' hidden'}>${filesPanel(false)}</div>
@@ -254,7 +249,7 @@
     const out = [];
     if (d.mutable) {
       out.push(backdrop('triage-assign-dialog', 'Assign', `<form data-form="assign"><div class="dialog-body"><div class="field"><label class="req" for="triage-assignee">Assignee</label><select id="triage-assignee" required data-dialog-initial-focus><option value=""></option>${fx.roster.map((r) => `<option value="${esc(r.replace(' (you)', ''))}">${esc(r)}</option>`).join('')}</select></div></div><div class="dialog-foot">${s.assignee ? '<button type="button" class="btn" data-unassign>Unassign</button>' : ''}<button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Assign</button></div></form>`, 'dialog--compact'));
-      out.push(backdrop('triage-determinations-dialog', 'Determinations', `<form data-form="determinations"><div class="dialog-body stack">${findingFields('triage-det')}</div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">${icon('save')}<span>Save determinations</span></button></div></form>`));
+      out.push(backdrop('triage-determinations-dialog', 'Record finding', `<form data-form="determinations"><div class="dialog-body stack">${findingFields('triage-det')}<div><label class="check"><input type="checkbox" id="triage-det-complete" data-complete-tick> Complete Triage</label>${s.email && !s.blocked ? '<label class="check"><input type="checkbox" id="triage-det-reply" data-reply-tick> Reply with finding</label>' : ''}</div></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">${icon('save')}<span>Record finding</span></button></div></form>`));
       out.push(reasonDialog('triage-cancel-dialog', 'Cancel Triage', 'cancel', 'Cancelled Triage can be reopened with a reason.'));
       out.push(s.linkedCase
         ? reasonDialog('triage-unlink-case-dialog', 'Unlink case', 'unlink_case')
@@ -273,7 +268,7 @@
   function composer() {
     const d = derived();
     const outcome = d.purpose === 'outcome';
-    const title = outcome ? 'Reply with outcome' : 'Send chaser';
+    const title = outcome ? 'Reply with finding' : 'Send chaser';
     const atts = [...s.images.map((i) => i.file), ...fx.documents.filter((doc) => doc.mail).map((doc) => doc.name)];
     return `<div class="mail-compose-backdrop" data-composer hidden><section class="dialog mail-compose-dialog" role="dialog" aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1">
       <header class="dialog-head"><div><p class="eyebrow">Triage · ${esc(fx.reference)}</p><h1 id="mail-compose-title">${title}</h1></div><button type="button" class="dialog-close" data-composer-close aria-label="Close composer">${icon('x')}</button></header>
@@ -286,7 +281,7 @@
   }
 
   function viewer() {
-    return `<div class="tv-viewer" data-viewer role="dialog" aria-modal="true" aria-labelledby="tv-viewer-title" hidden><div class="tv-viewer-bar"><h2 id="tv-viewer-title" tabindex="-1" data-viewer-title></h2><span class="tv-viewer-count" data-viewer-count></span><span class="tv-spacer"></span><label class="sr-only" for="tv-viewer-tag">Tag</label><select id="tv-viewer-tag" class="tv-tag-select" data-viewer-tag><option value="">Add a tag</option>${cfg.tagVocabulary.map(([n]) => `<option>${esc(n)}</option>`).join('')}</select><button type="button" class="btn btn--small" data-viewer-crop>${icon('crop')}<span>Crop</span></button><a class="btn btn--small btn--icon" href="#" data-boundary="Downloads the image." aria-label="Download" title="Download">${icon('download')}</a><button type="button" class="btn btn--small btn--icon" data-viewer-close aria-label="Close viewer">${icon('x')}</button></div><div class="tv-viewer-stage"><button type="button" class="tv-nav tv-nav--prev" data-viewer-step="-1" aria-label="Previous image">${icon('chevron-left')}</button><img alt="" data-viewer-img><div class="tv-crop" data-viewer-crop-frame hidden></div><button type="button" class="tv-nav tv-nav--next" data-viewer-step="1" aria-label="Next image">${icon('chevron-right')}</button></div><div class="tv-viewer-tags" data-viewer-tags></div></div>`;
+    return `<div class="tv-viewer" data-viewer role="dialog" aria-modal="true" aria-labelledby="tv-viewer-title" hidden><div class="tv-viewer-bar"><h2 id="tv-viewer-title" tabindex="-1" data-viewer-title></h2><span class="tv-viewer-count" data-viewer-count></span><span class="tv-spacer"></span><a class="btn btn--small btn--icon" href="#" data-boundary="Downloads the image." aria-label="Download" title="Download">${icon('download')}</a><button type="button" class="btn btn--small btn--icon" data-viewer-close aria-label="Close viewer">${icon('x')}</button></div><div class="tv-viewer-stage"><button type="button" class="tv-nav tv-nav--prev" data-viewer-step="-1" aria-label="Previous image">${icon('chevron-left')}</button><img alt="" data-viewer-img><button type="button" class="tv-nav tv-nav--next" data-viewer-step="1" aria-label="Next image">${icon('chevron-right')}</button></div></div>`;
   }
 
   /* ---------- Behaviour ---------- */
@@ -349,8 +344,6 @@
     el.querySelector('[data-viewer-img]').alt = img.file;
     el.querySelector('[data-viewer-title]').textContent = img.file;
     el.querySelector('[data-viewer-count]').textContent = `${s.imageIndex + 1} / ${s.images.length}`;
-    el.querySelector('[data-viewer-tags]').innerHTML = `${img.cropped ? '<small class="precase-badge">Cropped</small>' : ''}${img.tags.map(([n, c]) => `<span class="tag-chip tag-chip--${c}">${esc(n)}</span>`).join('')}`;
-    el.querySelector('[data-viewer-crop-frame]').hidden = true;
   }
 
   function closeMenus(except) { document.querySelectorAll('details[data-menu][open]').forEach((m) => { if (m !== except) m.open = false; }); }
@@ -360,7 +353,6 @@
     const stamp = (ev, reason) => s.history.unshift(['05/10/2026', '10:15', 'alex', ev, reason]);
     switch (kind) {
       case 'complete': s.state = 'Completed'; stamp('Completed', 'Complete.'); say('Triage completed.', { reply: true }); break;
-      case 'await': s.state = 'Awaiting information'; stamp('Awaiting information', 'Awaiting information.'); say('Now awaiting information.'); break;
       default: break;
     }
     closeLayer(false);
@@ -385,6 +377,8 @@
         if (kind === 'determinations' && s.state !== 'Completed') s.state = 'Finding recorded';
         stamp(kind === 'correction' ? 'Finding superseded' : 'Finding recorded', reason);
         text = 'Finding recorded.';
+        if (form.querySelector('[data-complete-tick]')?.checked) { s.state = 'Completed'; stamp('Completed', reason); text = 'Triage completed.'; }
+        if (form.querySelector('[data-reply-tick]')?.checked && derived().canSend) { s.notice = { text, tone: 'info' }; closeLayer(false); render(); live.textContent = text; openComposer(root.querySelector('[data-triage-actions] summary')); return; }
         break;
       }
       case 'cancel': s.state = 'Cancelled'; stamp('Cancelled', reason); text = 'Triage cancelled.'; break;
@@ -438,11 +432,6 @@
     if (t.dataset.viewerOpen !== undefined && t.dataset.viewerOpen !== '') { showViewer(Number(t.dataset.viewerOpen), t); return; }
     if (t.dataset.viewerStep) { s.imageIndex = (s.imageIndex + Number(t.dataset.viewerStep) + s.images.length) % s.images.length; paintViewer(); return; }
     if (t.hasAttribute('data-viewer-close')) { closeLayer(false); render(); returnFocus?.isConnected ? returnFocus.focus() : root.querySelector('[data-vehicle-images] button')?.focus(); return; }
-    if (t.hasAttribute('data-viewer-crop')) { const f = dialogHost.querySelector('[data-viewer-crop-frame]'); if (f.hidden) { f.hidden = false; } else { f.hidden = true; s.images[s.imageIndex].cropped = true; paintViewer(); live.textContent = 'The crop was saved.'; } return; }
-    if (t.hasAttribute('data-crop-toggle')) { s.cropping = !s.cropping; render('[data-crop-toggle]'); return; }
-    if (t.hasAttribute('data-crop-cancel')) { s.cropping = false; render('[data-crop-toggle]'); return; }
-    if (t.hasAttribute('data-crop-apply')) { s.cropping = false; s.images[s.imageIndex].cropped = true; live.textContent = 'The crop was saved.'; render('[data-crop-toggle]'); return; }
-    if (t.dataset.untag) { const img = s.images[s.imageIndex]; img.tags = img.tags.filter((x) => x[0] !== t.dataset.untag); live.textContent = 'The tag was removed.'; render('[data-tag-select]'); return; }
     if (t.dataset.messageOpen) { openDialog(`case-message-${t.dataset.messageOpen}`, t); return; }
     if (t.hasAttribute('data-goto-correspondence')) { s.filesTab = 'correspondence'; render('[data-files-tab="correspondence"]'); document.getElementById('section-files').scrollIntoView({ block: 'start' }); return; }
     if (t.dataset.filesTab) { s.filesTab = t.dataset.filesTab; render(`[data-files-tab="${s.filesTab}"]`); return; }
@@ -450,15 +439,11 @@
   });
 
   document.addEventListener('change', (e) => {
-    const sel = e.target;
-    const addTag = (name) => {
-      const img = s.images[s.imageIndex];
-      const entry = cfg.tagVocabulary.find(([n]) => n === name);
-      if (entry && !img.tags.some((x) => x[0] === name)) img.tags.push([...entry]);
-      live.textContent = 'The tag was added.';
-    };
-    if (sel.matches('[data-tag-select]') && sel.value) { addTag(sel.value); render('[data-tag-select]'); }
-    if (sel.matches('[data-viewer-tag]') && sel.value) { addTag(sel.value); sel.value = ''; paintViewer(); }
+    const box = e.target;
+    const form = box.closest?.('form');
+    if (!form) return;
+    if (box.matches('[data-reply-tick]') && box.checked) form.querySelector('[data-complete-tick]').checked = true;
+    if (box.matches('[data-complete-tick]') && !box.checked) { const reply = form.querySelector('[data-reply-tick]'); if (reply) reply.checked = false; }
   });
 
   document.addEventListener('keydown', (e) => {

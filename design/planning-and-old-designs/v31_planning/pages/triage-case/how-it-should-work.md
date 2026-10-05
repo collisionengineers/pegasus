@@ -27,6 +27,6 @@ Proposed on 5 October 2026 and pending the operator's sign-off: items A–F in [
 - **B · Inspection split:** a persistent viewer with inline Tag and Crop and a thumbnail grid. Beside it is an aside with Determinations, a Correspondence card, Exact response evidence and Notes. Files runs below.
 - **C · Contact sheet:** a sticky ribbon and tab row (Images, Files, Notes) with the determinations at the row's end. Images is a large-thumbnail grid.
 
-## Decided
+## Decided, 5 October 2026
 
-Nothing yet.
+C · Contact sheet, implemented: no Crop or Tag, no Await information, Record finding with Complete Triage and Reply with finding tickboxes, and Reply with finding as the reply's name. See [v31-notes.md](../../current/v31-notes.md#8-decided-5-october-2026).

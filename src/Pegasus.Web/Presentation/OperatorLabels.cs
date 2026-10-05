@@ -205,7 +205,6 @@ public static class OperatorLabels
         public const string Completed = "Triage completed.";
         public static string AssignedTo(string name) => $"Assigned to {name}.";
         public const string Unassigned = "Unassigned.";
-        public const string AwaitingInformation = "Now awaiting information.";
         public const string Cancelled = "Triage cancelled.";
         public const string Reopened = "Triage reopened.";
         public const string CaseLinked = "Case linked.";
@@ -228,16 +227,17 @@ public static class OperatorLabels
         public const string OpenCase = "Open the case";
         public const string Cancel = "Cancel";
 
-        public const string Determinations = "Determinations";
-        public const string SaveDeterminations = "Save determinations";
+        public const string RecordFinding = "Record finding";
+        public const string Finding = "Finding";
         public const string RecordCorrection = "Record correction";
         public const string CompleteTriage = "Complete Triage";
-        public const string AwaitInformation = "Await information";
         public const string CancelTriage = "Cancel Triage";
+        public const string OpenFile = "Open file";
+        public const string VehicleImages = "Vehicle images";
+        public const string Notes = "Notes";
         public const string Reopen = "Reopen";
 
-        public const string ReplyWithOutcome = "Reply with outcome";
-        public const string ChaserCorrespondence = "Chaser correspondence";
+        public const string ReplyWithFinding = "Reply with finding";
         public const string SendChaser = "Send chaser";
         public const string SendReply = "Send reply";
         public const string ReconcileStatus = "Reconcile status";

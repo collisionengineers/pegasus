@@ -67,3 +67,16 @@ Each rule is listed with the source it comes from:
 - **Actions are simulated:** each action changes only the page and lands a fixed result. There is no concurrency conflict, lease or failed send.
 - **Viewer:** Crop draws a fixed frame rather than a dragged one.
 - **Fonts:** the Inter font is inlined from the checkout. A missing glyph falls back to the system font.
+
+## 8. Decided, 5 October 2026
+
+The operator chose **C · Contact sheet** and asked for four changes: no Crop or Tag (a Triage takes neither), Await information removed, "Determinations" renamed **Record finding**, and Record finding gaining **Complete Triage** and **Reply with finding** tickboxes. C was finalised (self-check 1783/0) and implemented in the Stage 2 PR.
+
+- **A.** *C · Contact sheet (operator, 5 October 2026).*
+- **B.** *Not answered; implemented as proposed: the state's next step beside Actions.*
+- **C.** *Not answered; Open file kept as an Actions item for a Triage that did not come by e-mail, so the original stays one click away.*
+- **D.** *C's placement: Exact response evidence in the Correspondence tab.*
+- **E.** *Not answered; implemented as proposed: the composer keeps the Triage chaser's purpose and attachments, posting to the existing send handler.*
+- **F.** *Reply with outcome becomes Reply with finding. It opens the same composer, from the notice, the Actions menu, the Correspondence tab or Record finding's tickbox.*
+- **New, G.** *Await information leaves the page only. The `Awaiting information` state stays in Core because the MCP tools (Automation) can still set it and records may be in it. Removing the state itself is a separate decision.*
+- **New, H.** *Reply with finding answers a completed Triage, so ticking it ticks Complete Triage.*

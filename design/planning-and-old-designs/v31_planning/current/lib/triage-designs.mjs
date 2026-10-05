@@ -83,7 +83,7 @@ export const presets = [
   ['assigned', 'Open · assigned'],
   ['awaiting', 'Awaiting information · chaser sent'],
   ['finding', 'Finding recorded'],
-  ['completed', 'Completed · reply with outcome'],
+  ['completed', 'Completed · reply with finding'],
   ['replied', 'Completed · reply sent · Case linked'],
   ['cancelled', 'Cancelled'],
   ['upload', 'Open · uploaded (no e-mail)'],

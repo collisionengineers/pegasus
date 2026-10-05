@@ -27,4 +27,4 @@ Every state is also reachable by query string: `state=`, `opt=primary:on|off`, `
 
 ## Status
 
-As of 5 October 2026, Stage 1 is delivered and waiting for the operator's choice of design (item A) and the settlement of items B–F in [v31-notes.md](v31-notes.md). Stage 2 does not start until then.
+On 5 October 2026 the operator chose C, which was finalised and implemented in the Stage 2 PR (see Part 8 of [v31-notes.md](v31-notes.md)). This folder is kept as the record of that decision until the operator says otherwise.

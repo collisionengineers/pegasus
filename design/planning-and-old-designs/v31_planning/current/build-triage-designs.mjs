@@ -12,8 +12,8 @@ const filename = (id) => `pegasus_triage_case_${id}_v31.html`;
 const images = buildImages(20);
 const tagVocabulary = [['Damage', 'red'], ['Overview', 'blue'], ['Odometer', 'green'], ['Interior', 'amber']];
 const dialogOptions = [
-  ['', 'Open a dialog…'], ['menu', 'Actions menu'], ['triage-assign-dialog', 'Assign'], ['triage-determinations-dialog', 'Determinations'],
-  ['triage-correction-dialog', 'Record correction'], ['composer', 'Composer (Send chaser / Reply with outcome)'], ['triage-link-case-dialog', 'Link case'],
+  ['', 'Open a dialog…'], ['menu', 'Actions menu'], ['triage-assign-dialog', 'Assign'], ['triage-determinations-dialog', 'Record finding'],
+  ['triage-correction-dialog', 'Record correction'], ['composer', 'Composer (Send chaser / Reply with finding)'], ['triage-link-case-dialog', 'Link case'],
   ['triage-unlink-case-dialog', 'Unlink case'], ['triage-cancel-dialog', 'Cancel Triage'], ['triage-reopen-dialog', 'Reopen'], ['case-message-m1', 'Message'], ['viewer', 'Image viewer'],
 ];
 
