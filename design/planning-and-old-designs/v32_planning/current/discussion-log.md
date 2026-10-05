@@ -38,3 +38,11 @@ The operator opened design A as it was built and sent three remarks with screens
 - Design E gained the kind chips above its lanes so a kind filter is visible there too, and its all-empty page keeps the four lane heads so the zero counts and figures still show.
 
 **Items raised.** None new; item I now compares the panel table with each design's own placement.
+
+## Round 3 — 5 October 2026
+
+The operator, on the in-row action buttons of A and D: "the buttons all being different sizes looks very jarring".
+
+**What changed.** Every in-row action button fills the Action column, so Open Case, Assign Engineer, Open Triage, Open query and Review Case share one width with the label aligned left. The AI jobs table's two-button cell is unchanged.
+
+**Items raised.** None new.

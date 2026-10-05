@@ -2667,6 +2667,8 @@ th a:hover { text-decoration: underline; }
 .wc-jobs-table .wc-col-note { width: 13%; }
 .wc-jobs-table .wc-col-action { width: 232px; }
 .wc-ledger-table .wc-row-actions { flex-wrap: nowrap; }
+/* Operator, 5 Oct (round 3): one width for every in-row action button. */
+.wc-ledger-table td.wc-col-action > .btn { width: 100%; justify-content: flex-start; }
 
 /* Designs B and C: the ledger beside a rail. */
 .wc-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
