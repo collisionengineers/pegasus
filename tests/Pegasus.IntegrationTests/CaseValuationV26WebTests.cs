@@ -934,7 +934,7 @@ public sealed class CaseValuationV26WebTests
         Assert.Equal("AB12CDE", filed.Registration);
         Assert.Equal(new DateOnly(2026, 8, 1), filed.GuideMonth);
         Assert.Equal("glass-stock:" + GlassProviderFixture.VehicleId, filed.Report.Identity);
-        Assert.Equal(GlassProviderFixture.ReportPdf, System.Text.Encoding.UTF8.GetString(pdf));
+        Assert.Equal(GlassProviderFixture.ReportPdf, pdf);
         Assert.Empty(store.Saves);
     }
 

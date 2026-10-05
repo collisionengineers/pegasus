@@ -1,5 +1,9 @@
 using System.Net;
 using System.Text;
+using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 
 namespace Pegasus.IntegrationTests;
 
@@ -103,8 +107,24 @@ internal static class GlassProviderFixture
     public const string StockedVehicleId = "33636950";
     public const string ReportPath = "/ndp_download/18390/pdf_v34638_20261001152551.pdf";
 
-    /// <summary>A valuation report: only its PDF signature is ever read.</summary>
-    public const string ReportPdf = "%PDF-1.4\n% synthetic valuation report\n%%EOF\n";
+    /// <summary>The valuation report for the fixture's own vehicle: a real PDF that names its plate.</summary>
+    public static byte[] ReportPdf { get; } = ValuationReport(Registration);
+
+    /// <summary>
+    /// A one-page "Values Only" report in the captured shape, whose text names
+    /// the vehicle's plate as Glass's prints it, so the filing's registration
+    /// check reads it as it reads the portal's own.
+    /// </summary>
+    public static byte[] ValuationReport(string registration)
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        var page = builder.AddPage(PageSize.A4);
+        page.AddText("Vehicle Valuation Report", 12, new PdfPoint(36, 780), font);
+        page.AddText("Synthetic Sportage 1.6 Station Wagon 5d", 10, new PdfPoint(36, 760), font);
+        page.AddText("- " + registration, 10, new PdfPoint(36, 745), font);
+        return builder.Build();
+    }
 
     /// <summary>
     /// The valuation page in the captured shape: a script first, the Glass's
@@ -205,7 +225,8 @@ internal static class GlassProviderFixture
             ContentType: "application/xml"));
         mva.Set("GET /pdf-print/storess/template/0/printaction/vehicle-valuation/vehicles/", new(
             HttpStatusCode.OK, ReportLink()));
-        mva.Set("GET /ndp_download/18390/", new(HttpStatusCode.OK, ReportPdf, ContentType: "application/pdf"));
+        mva.Set("GET /ndp_download/18390/", new(
+            HttpStatusCode.OK, string.Empty, ContentType: "application/pdf", Bytes: ReportPdf));
     }
 
     /// <summary>
@@ -268,7 +289,8 @@ public sealed record Reply(
     string Body,
     string? Location = null,
     string? SetCookie = null,
-    string ContentType = "text/html");
+    string ContentType = "text/html",
+    byte[]? Bytes = null);
 
 /// <summary>What one request carried, for the assertions that read it back.</summary>
 internal sealed record Recorded(
@@ -343,7 +365,7 @@ internal sealed class ScriptedGlass : HttpMessageHandler
 
         var response = new HttpResponseMessage(reply.Status)
         {
-            Content = new ByteArrayContent(Encoding.UTF8.GetBytes(reply.Body)),
+            Content = new ByteArrayContent(reply.Bytes ?? Encoding.UTF8.GetBytes(reply.Body)),
         };
         response.Content.Headers.TryAddWithoutValidation("Content-Type", reply.ContentType);
         if (reply.Location is not null)
