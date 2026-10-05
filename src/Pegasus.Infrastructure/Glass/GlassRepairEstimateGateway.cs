@@ -289,19 +289,19 @@ public sealed partial class GlassRepairEstimateGateway(
             if (provider.Placeholder)
             {
                 provider.NatCode = await StageAsync(session, "RequirePlaceholder", () => client.RequirePlaceholderAsync(
-                    provider.MvaVehicleId, provider.NatCode, cancellationToken));
+                    provider.MvaVehicleId, provider.NatCode, estimateStarted: false, cancellationToken));
             }
             else
             {
                 await StageAsync(session, "RequireVehicle", () => client.RequireVehicleAsync(provider.MvaVehicleId, provider.NatCode!,
-                    provider.Registration, provider.MileageMiles, cancellationToken));
+                    provider.Registration, provider.MileageMiles, estimateStarted: false, cancellationToken));
             }
             await StageAsync(session, "SelectOnly", () => client.SelectOnlyAsync(provider.MvaVehicleId, cancellationToken));
             provider.EstimateStartAttempted = true;
             session = await WriteAsync(session, GlassRepairEstimateSessionState.Launching,
                 null, provider, digest, null, cancellationToken);
             var launch = await StageAsync(session, "EstimatorUrlIssued", () => client.StartEstimateAsync(
-                "0", new Uri(provider.PegasusCallback!, UriKind.Absolute), cancellationToken));
+                "0", new Uri(provider.PegasusCallback!, UriKind.Absolute), expectedEstimateIds: null, cancellationToken));
             Record(provider, launch);
             return await WriteAsync(session with { ProviderEstimateId = launch.EreId },
                 GlassRepairEstimateSessionState.Active, null, provider, digest, null, CancellationToken.None);
@@ -330,8 +330,9 @@ public sealed partial class GlassRepairEstimateGateway(
     /// <summary>
     /// Reopens a live estimate at the provider: fresh cookies, the grid
     /// selection re-asserted because it is server-side session state, and the
-    /// calculation restarted against its existing estimate id under the
-    /// callback this session already minted.
+    /// calculation restarted as the portal restarts one — <c>ere_id</c> 0 on
+    /// the vehicle — under the callback this session already minted. Only an
+    /// answer naming one of the session's own estimates is opened.
     /// </summary>
     private async Task<GlassRepairEstimateSession> ReopenAsync(
         GlassRepairEstimateSession session, ProviderState provider,
@@ -351,7 +352,11 @@ public sealed partial class GlassRepairEstimateGateway(
             await StageAsync(session, "SignIn", () => client.SignInAsync(credential.Username, credential.Password, cancellationToken));
             await RequireSessionVehicleAsync(session, provider, client, vehicleId, cancellationToken);
             await StageAsync(session, "SelectOnly", () => client.SelectOnlyAsync(vehicleId, cancellationToken));
-            var launch = await StageAsync(session, "EstimatorUrlIssued", () => client.StartEstimateAsync(ereId, callback, cancellationToken));
+            // The portal reopens an estimate by starting with id 0 on the
+            // vehicle, never with the id itself (issue 1026, operator 5 October
+            // 2026); the answer must be one of this session's own estimates.
+            var launch = await StageAsync(session, "EstimatorUrlIssued", () => client.StartEstimateAsync(
+                "0", callback, EstimateIdsOf(provider, ereId), cancellationToken));
             Record(provider, launch);
             return await WriteAsync(
                 session with { ProviderEstimateId = launch.EreId },
@@ -371,9 +376,35 @@ public sealed partial class GlassRepairEstimateGateway(
         catch (Exception failure)
             when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
-            return await WriteAsync(session, GlassRepairEstimateSessionState.Unknown,
-                AsFailure(failure).FailureCode, provider, digest, results, CancellationToken.None);
+            return await SettleUnknownAsync(
+                session, AsFailure(failure), provider, digest, results, CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// A resume's or a lookup's refusal: whatever stopped it, the session is
+    /// Unknown and keeps the account, because the provider may already have
+    /// acted. The stage's own numbers and flags are logged first, as
+    /// <see cref="SettleAsync"/> does, so the host log says why.
+    /// </summary>
+    private Task<GlassRepairEstimateSession> SettleUnknownAsync(
+        GlassRepairEstimateSession session,
+        GlassMvaStageException failure,
+        ProviderState provider,
+        string callbackDigest,
+        Results? results,
+        CancellationToken cancellationToken)
+    {
+        LogSettled(logger, session.Id, session.CaseId, GlassRepairEstimateSessionState.Unknown,
+            failure.FailureCode, failure.Detail ?? string.Empty);
+        return WriteAsync(
+            session,
+            GlassRepairEstimateSessionState.Unknown,
+            failure.FailureCode,
+            provider,
+            callbackDigest,
+            results,
+            cancellationToken);
     }
 
     public Task<GlassRepairEstimateSession> CloseAsync(
@@ -756,8 +787,8 @@ public sealed partial class GlassRepairEstimateGateway(
         catch (Exception failure)
             when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
-            return await WriteAsync(session, GlassRepairEstimateSessionState.Unknown,
-                AsFailure(failure).FailureCode, provider, callbackDigest, results, cancellationToken);
+            return await SettleUnknownAsync(
+                session, AsFailure(failure), provider, callbackDigest, results, cancellationToken);
         }
 
         return await ExportAsync(
@@ -813,16 +844,21 @@ public sealed partial class GlassRepairEstimateGateway(
     /// Re-proves the vehicle a session already recorded before it is selected
     /// again: a placeholder by the placeholder rule, under the type number the
     /// launch recorded; any other vehicle by the launch's registration,
-    /// mileage and type number.
+    /// mileage and type number. A session that has an estimate is proved as
+    /// the portal shows a vehicle that has one: its repair-profile control
+    /// locked, with the configured profile selected.
     /// </summary>
     private Task RequireSessionVehicleAsync(
         GlassRepairEstimateSession session, ProviderState provider, GlassMvaClient client,
-        string vehicleId, CancellationToken cancellationToken) =>
-        provider.Placeholder
+        string vehicleId, CancellationToken cancellationToken)
+    {
+        var estimateStarted = provider.EreId is not null;
+        return provider.Placeholder
             ? StageAsync(session, "RequirePlaceholder", () => client.RequirePlaceholderAsync(
-                vehicleId, provider.NatCode, cancellationToken))
+                vehicleId, provider.NatCode, estimateStarted, cancellationToken))
             : StageAsync(session, "RequireVehicle", () => client.RequireVehicleAsync(vehicleId, provider.NatCode!,
-                provider.Registration, provider.MileageMiles, cancellationToken));
+                provider.Registration, provider.MileageMiles, estimateStarted, cancellationToken));
+    }
 
     /// <summary>
     /// A session past Prepared whose provider identities were not all recorded:
@@ -1413,9 +1449,10 @@ public sealed partial class GlassRepairEstimateGateway(
     }
 
     /// <summary>
-    /// Every estimate id this session has been launched under. Reopening an
-    /// existing estimate can answer a launch URL that names it differently,
-    /// and the provider's return may carry either, so none is forgotten.
+    /// Every estimate id this session has been launched under, and the only
+    /// ones a reopen or a return may name: a reopen's answer outside this set
+    /// is refused (<see cref="GlassFailure.StartEreId"/>), so the set only
+    /// grows when a launch's own answer is recorded and none is forgotten.
     /// </summary>
     private static HashSet<string> EstimateIdsOf(ProviderState provider, string current) =>
         new(provider.EstimateIds, StringComparer.Ordinal) { current };

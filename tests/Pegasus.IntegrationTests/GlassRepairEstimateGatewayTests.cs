@@ -502,6 +502,10 @@ public sealed class GlassRepairEstimateGatewayTests
 
         Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
         Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        // The lookup re-proved the vehicle after the start, as the portal
+        // shows it then (issue 1026), and started nothing.
+        Assert.Equal(2, harness.Mva.Count("GET /index/vehicle-details-value/"));
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Single(harness.Import.Requests);
     }
 
@@ -1075,10 +1079,14 @@ public sealed class GlassRepairEstimateGatewayTests
 
         Assert.Equal(GlassRepairEstimateSessionState.Active, reopened.State);
         Assert.Equal(2, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(
+            "0",
+            QueryOf(harness.Mva.Requests.Last(request => request.Path == "/ere/start-ere").Body!)["ere_id"]);
         Assert.Equal(1, harness.Mva.Count(PlaceholderInsert));
         Assert.Equal(2, harness.Mva.Count("GET /index/vehicle-details-value/"));
 
-        harness.Mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, PlaceholderDetail(natCode: "49206")));
+        harness.Mva.Set(
+            "GET /index/vehicle-details-value/", new(HttpStatusCode.OK, PlaceholderDetail(natCode: "49206", locked: true)));
         var refused = await harness.ResumeAsync(
             new(harness.Engineer, reopened.Id, reopened.Version, Harness.CaseVersion, Harness.LeaseToken));
 
@@ -1567,6 +1575,9 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(starts, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Equal(relays, harness.Mva.Count("GET /ere/ere-callback/"));
         Assert.Equal(signIns + 1, harness.Mva.Count("POST /login/index"));
+        // Issue 1026: the vehicle is proved again as the portal shows it
+        // once it has an estimate, locked, without a second launch of it.
+        Assert.Equal(2, harness.Mva.Count("GET /index/vehicle-details-value/"));
         Assert.Single(harness.Import.Requests);
         Assert.Contains(
             harness.Custody.Retained,
@@ -1803,14 +1814,19 @@ public sealed class GlassRepairEstimateGatewayTests
     [InlineData("profile")]
     public async Task ResumeProvesNamedProviderFieldsBeforeSelectingOrStarting(string mismatch)
     {
-        var harness = Harness.Create();
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
         var session = await harness.LaunchAsync();
+        // After a start the portal locks the profile control, so every page
+        // here is the locked one except the profile row, whose control is
+        // still enabled: a vehicle that shows no estimate is not this one.
         var detail = GlassProviderFixture.VehicleDetail(
             registration: mismatch == "registration" ? "XY99ZZZ" : Registration,
             mileage: mismatch == "mileage" ? MileageMiles + 1 : MileageMiles,
             vehicleId: mismatch == "vehicle" ? "9999" : VehicleId,
             natCode: mismatch == "natcode" ? "9999" : NatCode,
-            profile: mismatch == "profile" ? "9999" : GlassProviderFixture.ProfileId);
+            profile: GlassProviderFixture.ProfileId,
+            locked: mismatch != "profile");
         if (mismatch == "missing") { detail = detail.Replace("name=\"mileage\"", "name=\"other\"", StringComparison.Ordinal); }
         if (mismatch == "contradictory") { detail += "<input name='id' value='9999'>"; }
         if (mismatch == "script") { detail = "<!--" + detail + "--><script>" + detail + "</script>"; }
@@ -1821,10 +1837,117 @@ public sealed class GlassRepairEstimateGatewayTests
             new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken), default);
         Assert.Equal(GlassRepairEstimateSessionState.Unknown, resumed.State);
         Assert.Equal(mismatch is "profile" or "script" ? GlassFailure.DetailsProfile : GlassFailure.DetailsIdentity, resumed.FailureCode);
+        // The refusal is logged with the flag the control showed, never a value.
+        var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Unknown", StringComparison.Ordinal));
+        if (mismatch is "profile" or "script")
+        {
+            Assert.Contains(
+                mismatch == "profile" ? "glass.details.profile profile=enabled" : "glass.details.profile profile=absent",
+                settledLine,
+                StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("profile=", settledLine, StringComparison.Ordinal);
+        }
         Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Equal(1, harness.Mva.Count("GET /index/get-selected-vehicle-count"));
         Assert.Equal(1, harness.Mva.Count("GET /index/create-new-vehicle"));
         Assert.Empty(harness.Import.Requests);
+    }
+
+    /// <summary>
+    /// Issue 1026: once an estimate exists the repair-profile control must be
+    /// exactly one disabled select whose one selected option is the configured
+    /// profile. Anything else leaves the session Unknown, and the host log
+    /// says which flag the control showed, never a value.
+    /// </summary>
+    [Theory]
+    [InlineData("other-profile", "option")]
+    [InlineData("nothing-selected", "option")]
+    [InlineData("two-selected", "option")]
+    [InlineData("enabled", "enabled")]
+    [InlineData("absent", "absent")]
+    [InlineData("two-controls", "multiple")]
+    public async Task AResumeRequiresTheLockedProfileToSelectTheConfiguredProfile(string page, string flag)
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        var session = await harness.LaunchAsync();
+        var locked = GlassProviderFixture.VehicleDetail(locked: true);
+        var served = page switch
+        {
+            "other-profile" => GlassProviderFixture.VehicleDetail(profile: "9999", locked: true),
+            "nothing-selected" => locked.Replace(" selected=\"selected\"", string.Empty, StringComparison.Ordinal),
+            "two-selected" => locked.Replace(
+                "</select>", "<option value=\"9999\" selected=\"selected\">Other</option></select>", StringComparison.Ordinal),
+            "enabled" => GlassProviderFixture.VehicleDetail(),
+            "absent" => locked.Replace("name=\"ere_profile\"", "name=\"other_control\"", StringComparison.Ordinal),
+            _ => locked + "<select name=\"ere_profile\" disabled=\"1\"><option value=\""
+                + GlassProviderFixture.ProfileId + "\" selected=\"selected\">Repair profile</option></select>",
+        };
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, served));
+
+        var resumed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken), default);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, resumed.State);
+        Assert.Equal(GlassFailure.DetailsProfile, resumed.FailureCode);
+        var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Unknown", StringComparison.Ordinal));
+        Assert.Contains($"glass.details.profile profile={flag}", settledLine, StringComparison.Ordinal);
+        Assert.DoesNotContain("profile=9999", settledLine, StringComparison.Ordinal);
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(1, harness.Mva.Count("GET /index/get-selected-vehicle-count"));
+    }
+
+    /// <summary>
+    /// Before a start the rule is today's: a control the portal already shows
+    /// locked belongs to a vehicle that has an estimate, which a launch never
+    /// starts on, so nothing is selected or started.
+    /// </summary>
+    [Fact]
+    public async Task ALaunchOnAVehicleThatAlreadyShowsALockedProfileIsRefusedBeforeAnyStart()
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(
+            HttpStatusCode.OK, GlassProviderFixture.VehicleDetail(locked: true)));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, session.State);
+        Assert.Equal(GlassFailure.DetailsProfile, session.FailureCode);
+        Assert.Contains(
+            logger.Messages,
+            message => message.Contains("settled Failed at glass.details.profile profile=disabled", StringComparison.Ordinal));
+        Assert.Equal(0, harness.Mva.Count("POST /ere/start-ere"));
+    }
+
+    /// <summary>
+    /// Issue 1026: Fetch again re-proves the vehicle after a start too, and
+    /// its refusal settles Unknown through the same log line as every other
+    /// settled stage, so the host log carries the flag.
+    /// </summary>
+    [Fact]
+    public async Task AFetchAgainThatCannotProveTheLockedVehicleSettlesUnknownAndLogsWhy()
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK, "<Estimation><GlobalSetting /></Estimation>", ContentType: "application/xml"));
+        var failed = await harness.CompleteAsync(session);
+        Assert.True(GlassRepairEstimateSessionPolicy.CanRefetchExport(failed.State, failed.FailureCode));
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, GlassProviderFixture.VehicleDetail()));
+
+        var resumed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, failed.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, resumed.State);
+        Assert.Equal(GlassFailure.DetailsProfile, resumed.FailureCode);
+        var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Unknown", StringComparison.Ordinal));
+        Assert.Contains("glass.details.profile profile=enabled", settledLine, StringComparison.Ordinal);
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
     }
 
     [Fact]
@@ -1944,22 +2067,30 @@ public sealed class GlassRepairEstimateGatewayTests
             harness.Engineer, session.Id, CancellationToken.None);
         Assert.Equal(QueryOf(estimator!)["caller"], QueryOf(reopened!)["caller"]);
         // The grid selection is server-side state, so it is re-asserted, and the
-        // existing estimate is resumed rather than a second one started.
+        // existing estimate is reopened as the portal reopens one — ere_id 0 on
+        // the vehicle, never the stored id (issue 1026) — not a second one started.
         Assert.Equal(2, harness.Mva.Count("GET /index/get-selected-vehicle-count/grid/stocklistGrid"));
         Assert.Equal(
-            EreId,
+            "0",
             QueryOf(harness.Mva.Requests.Last(request => request.Path == "/ere/start-ere").Body!)["ere_id"]);
+        // The launch's own start did the same, and the vehicle was proved
+        // again after it, locked, with the configured profile selected.
+        Assert.Equal(2, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(2, harness.Mva.Count("GET /index/vehicle-details-value/"));
     }
 
     /// <summary>
-    /// Reopening an existing estimate can answer a launch URL naming it
-    /// differently. Both ids stay with the session and the provider's return
-    /// may carry either.
+    /// A resume follows the portal and starts with <c>ere_id</c> 0, then
+    /// accepts only an answer naming one of the session's own estimates
+    /// (issue 1026, operator 5 October 2026). Another id may be an estimate
+    /// that start created, so the session is Unknown, the estimator is not
+    /// opened, and the stage's own flags are logged.
     /// </summary>
     [Fact]
-    public async Task AResumedEstimateKeepsEveryIdItWasLaunchedUnderAndReturnsUnderTheFirst()
+    public async Task AResumeThatTheProviderAnswersWithAnotherEstimateIsUnknownAndNeverOpened()
     {
-        var harness = Harness.Create();
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
         var session = await harness.LaunchAsync();
         harness.Mva.Set("POST /ere/start-ere", new(HttpStatusCode.OK, GlassProviderFixture.StartEre(
             GlassProviderFixture.LaunchUrl(
@@ -1968,12 +2099,20 @@ public sealed class GlassRepairEstimateGatewayTests
         var resumed = await harness.ResumeAsync(
             new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken),
             CancellationToken.None);
-        Assert.Equal("53768", resumed.ProviderEstimateId);
 
-        // The scripted relay names the first id; the session still accepts it.
-        var completed = await harness.CompleteAsync(resumed);
-
-        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, resumed.State);
+        Assert.Equal(GlassFailure.StartEreId, resumed.FailureCode);
+        Assert.Equal(EreId, resumed.ProviderEstimateId);
+        Assert.Null(await harness.Gateway.GetEstimatorUrlAsync(harness.Engineer, session.Id, CancellationToken.None));
+        // The launch's start and the resume's, and nothing after the refusal.
+        Assert.Equal(2, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Contains(
+            logger.Messages,
+            message => message.Contains("stage EstimatorUrlIssued outcome glass.start.ere_id", StringComparison.Ordinal));
+        var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Unknown", StringComparison.Ordinal));
+        Assert.Contains("glass.start.ere_id expected_ids=1 answered=53768", settledLine, StringComparison.Ordinal);
+        Assert.DoesNotContain(EreSession, settledLine, StringComparison.Ordinal);
+        Assert.Empty(harness.Import.Requests);
     }
 
     /// <summary>
