@@ -2,6 +2,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
@@ -11,6 +12,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Web.Authentication;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -369,16 +371,29 @@ public sealed class CasesIndexWebTests
     [Fact]
     public async Task AStandaloneAuditCaseListsByItsReferenceWithNoTypePill()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var search = new RecordingSearchCases { WithStandaloneAudit = true };
-        using var factory = Configure(baseFactory, search);
-        using var client = CreateClient(factory);
+        // The list's quick detail reads the selected Case, so the row is a
+        // real Case: an instruction Case recorded as a standalone Audit.
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AU46 DIT", "STANDALONE-AUDIT-46");
+        string reference;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            var created = await context.Cases.SingleAsync(item => item.Id == caseId);
+            created.Type = CaseTypeCodes.Audit;
+            created.Reference = $"a.{created.Reference}";
+            reference = created.Reference;
+            await context.SaveChangesAsync();
+        }
 
-        using var response = await client.GetAsync("/Cases?tab=review");
+        using var response = await client.GetAsync($"/Cases?tab=review&selected={caseId:D}");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains($"href=\"/Cases/{search.StandaloneAuditCaseId:D}\">a.QDOS3100046</a>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{caseId:D}\">{reference}</a>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-cases-type", html, StringComparison.Ordinal);
     }
 
@@ -496,9 +511,6 @@ public sealed class CasesIndexWebTests
         /// <summary>A Triage Case, listed with its own Triage state.</summary>
         public Guid TriageCaseId { get; } = Guid.NewGuid();
 
-        /// <summary>A standalone Audit Case, whose own reference is its <c>a.</c> reference.</summary>
-        public Guid StandaloneAuditCaseId { get; } = Guid.NewGuid();
-
         public List<SearchCasesQuery> Queries { get; } = [];
 
         public bool ReturnEmpty { get; set; }
@@ -508,9 +520,6 @@ public sealed class CasesIndexWebTests
         /// <summary>Answers with <see cref="AuditCaseId"/> and <see cref="TriageCaseId"/> instead of the default pair.</summary>
         public bool WithAuditAndTriage { get; set; }
 
-        /// <summary>Answers with <see cref="StandaloneAuditCaseId"/> alone instead of the default pair.</summary>
-        public bool WithStandaloneAudit { get; set; }
-
         public Task<SearchCasesResult> ExecuteAsync(
             SearchCasesQuery query,
             CancellationToken cancellationToken)
@@ -519,29 +528,6 @@ public sealed class CasesIndexWebTests
             if (ThrowUnavailable)
             {
                 throw new InvalidOperationException("sensitive store failure");
-            }
-
-            if (WithStandaloneAudit)
-            {
-                var received = new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero);
-                IReadOnlyList<CaseSearchItem> audit =
-                [
-                    new(
-                        StandaloneAuditCaseId,
-                        "a.QDOS3100046",
-                        null,
-                        CaseType.Audit,
-                        "QDOS",
-                        CaseLifecycleState.Review,
-                        null,
-                        "AU46DIT",
-                        "Claimant",
-                        "CLM46",
-                        received,
-                        "Email",
-                        received)
-                ];
-                return Task.FromResult(new SearchCasesResult(audit, query.Page, query.PageSize, false, false));
             }
 
             if (WithAuditAndTriage)
