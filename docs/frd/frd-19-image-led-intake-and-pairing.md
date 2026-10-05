@@ -341,9 +341,11 @@ the record takes a record-scoped edit lease
 registration and use the named states Awaiting instruction, Merged into
 Instruction-initiated Case, and Staff-closed.
 
-**Crop and tag.** Images on an image record, a Triage Case or an
-Unidentified item carry the same stored crop, rotation, and tags as Case
-images, editable there with the casework right and the image's own version.
+**Crop and tag.** Images on an image record or an Unidentified item carry
+the same stored crop, rotation, and tags as Case images, editable there with
+the casework right and the image's own version. A Triage Case's page offers
+no crop and no tag
+([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)).
 The viewer offers Crop (Apply, Clear, Cancel) and the Tag select; the tile
 shows the cropped region with a Cropped badge and its tag chips; the viewer
 draws the recorded region over the original. A pre-Case image tile is a

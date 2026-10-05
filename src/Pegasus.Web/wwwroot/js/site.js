@@ -2492,7 +2492,8 @@ window.pegasusPreferences = (function () {
     // redirects name too, so a tag/untag/create lands back on Images. A tab
     // set may hold another (the Triage Case's Files inside its page tabs):
     // each strip and panel belongs to its nearest wrap, and a wrap may name
-    // its own hash prefix.
+    // its own hash prefix. An inner wrap's prefix extends its outer tab's
+    // (`#triage-files-<tab>`), so a reload opens the outer tab as well.
     function bindFileTabs(root) {
         Array.prototype.slice.call((root || document).querySelectorAll('[data-file-tabs-wrap]')).forEach(function (wrap) {
             if (wrap.dataset.fileTabsBound === 'true') { return; }
@@ -2522,9 +2523,9 @@ window.pegasusPreferences = (function () {
             wrap.classList.add('is-tabbed');
             var hash = window.location.hash || '';
             var fromHash = hash.indexOf(prefix) === 0 ? hash.slice(prefix.length) : '';
-            show(buttons.some(function (button) { return button.getAttribute('data-file-tab') === fromHash; })
-                ? fromHash
-                : buttons[0].getAttribute('data-file-tab'), false);
+            var named = buttons.map(function (button) { return button.getAttribute('data-file-tab'); })
+                .filter(function (name) { return fromHash === name || fromHash.indexOf(name + '-') === 0; })[0];
+            show(named || buttons[0].getAttribute('data-file-tab'), false);
         });
     }
 
