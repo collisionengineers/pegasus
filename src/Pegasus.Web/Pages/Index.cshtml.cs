@@ -22,6 +22,8 @@ namespace Pegasus.Web.Pages;
 /// ledger (grouped by due day, Office/Mine, kind chips and Find, the selected
 /// row expanding to its facts and next action in place), New cases and AI jobs.
 /// A tab is omitted when its section is empty and kept when it is unavailable.
+/// Under the counts sits the Activity panel (v32 A, 5 October 2026): the
+/// day and week figures, read beside the three sections with its own outcome.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -45,6 +47,7 @@ public partial class IndexModel(
     IConfirmAiJob confirmAiJob,
     IListWorkCentreAiJobs listAiJobs,
     IDismissWorkCentreItem dismissItem,
+    IGetWorkCentreActivity getActivity,
     TimeProvider timeProvider,
     ILogger<IndexModel> logger) : StaffPageModel
 {
@@ -138,13 +141,20 @@ public partial class IndexModel(
 
     public bool AiJobsUnavailable { get; private set; }
 
+    /// <summary>The Activity figures (FRD-15): null until read, and never drawn as zero when the read failed.</summary>
+    public WorkCentreActivity? Activity { get; private set; }
+
+    public bool ActivityUnavailable { get; private set; }
+
+    public bool ActivityFailed => ActivityUnavailable || Activity is null;
+
     /// <summary>True when one or more independently rendered live sections could not be read.</summary>
-    public bool HasReadFailure => IsUnavailable || NewCasesUnavailable || AiJobsUnavailable;
+    public bool HasReadFailure => IsUnavailable || NewCasesUnavailable || AiJobsUnavailable || ActivityUnavailable;
 
     /// <summary>The fragment outcome is failed only when no independently rendered section was read.</summary>
     public string RefreshOutcome => !HasReadFailure
         ? "current"
-        : IsUnavailable && NewCasesUnavailable && AiJobsUnavailable ? "failed" : "partial";
+        : IsUnavailable && NewCasesUnavailable && AiJobsUnavailable && ActivityUnavailable ? "failed" : "partial";
 
     /// <summary>The head's freshness words: "Updated HH:MM" (FRD-15) unless a section failed.</summary>
     public string RefreshOutcomeLabel => RefreshOutcome switch
@@ -216,7 +226,7 @@ public partial class IndexModel(
             return refusal;
         }
 
-        LogRefreshOutcome(logger, !IsUnavailable, !NewCasesUnavailable, !AiJobsUnavailable);
+        LogRefreshOutcome(logger, !IsUnavailable, !NewCasesUnavailable, !AiJobsUnavailable, !ActivityUnavailable);
         return Partial("_WorkCentreBody", this);
     }
 
@@ -542,9 +552,10 @@ public partial class IndexModel(
         var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, sharedRead, cancellationToken);
         var newCasesRead = ReadNewCasesAsync(actor, markSeen: NewCasesPage == 1 && !refresh, cancellationToken);
         var aiJobsRead = ReadAiJobsAsync(actor, clientId, sharedRead, cancellationToken);
+        var activityRead = ReadActivityAsync(actor, cancellationToken);
         try
         {
-            await Task.WhenAll(attentionRead, newCasesRead, aiJobsRead);
+            await Task.WhenAll(attentionRead, newCasesRead, aiJobsRead, activityRead);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -590,6 +601,16 @@ public partial class IndexModel(
         {
             LogSectionFailed(logger, "ai_jobs", exception);
             AiJobsUnavailable = true;
+        }
+
+        try
+        {
+            Activity = await activityRead;
+        }
+        catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
+        {
+            LogSectionFailed(logger, "activity", exception);
+            ActivityUnavailable = true;
         }
 
         // A named tab whose section is omitted falls back to the first shown.
@@ -741,6 +762,13 @@ public partial class IndexModel(
         return await listRecentCases.ExecuteAsync(actor, NewCasesPage, markSeen, cancellationToken, NowUtc);
     }
 
+    /// <summary>The Activity panel: the day and week figures as of this load.</summary>
+    private async Task<WorkCentreActivity> ReadActivityAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.activity");
+        return await getActivity.ExecuteAsync(actor, NowUtc, cancellationToken);
+    }
+
     /// <summary>The AI jobs section (D9): Core's rows, each with who started it.</summary>
     private async Task<IReadOnlyList<WorkCentreAiJobRow>> ReadAiJobsAsync(
         ActionActor actor,
@@ -813,8 +841,8 @@ public partial class IndexModel(
     [LoggerMessage(Level = LogLevel.Warning, Message = "Work Centre section {Section} could not be read.")]
     private static partial void LogSectionFailed(ILogger logger, string section, Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Work Centre refresh sections: attention={Attention}, newCases={NewCases}, aiJobs={AiJobs}.")]
-    private static partial void LogRefreshOutcome(ILogger logger, bool attention, bool newCases, bool aiJobs);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Work Centre refresh sections: attention={Attention}, newCases={NewCases}, aiJobs={AiJobs}, activity={Activity}.")]
+    private static partial void LogRefreshOutcome(ILogger logger, bool attention, bool newCases, bool aiJobs, bool activity);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Work Centre command {CommandName} failed for {RecordId}.")]
     private static partial void LogCommandFailed(ILogger logger, string commandName, Guid recordId, Exception exception);

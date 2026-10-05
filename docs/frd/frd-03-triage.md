@@ -105,11 +105,11 @@ Notes do not apply to it.
 
 **Files.** A Triage Case has standard Case custody: a Box case folder, as for
 any Case, holding the retained request source and its attachments and any
-staff uploads. Its Files panel shows the folder's state, **Add evidence**
+staff uploads. Its Files tab shows the folder's state, **Add evidence**
 (which opens Upload for this Triage Case, the destination declared before
 the upload, [FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)),
-the Case Files header's Open Box case folder, and the documents, each with
-view and download. A failed custody job is retried as any Case's is. Staff
+the Case Files header's Open Box case folder, the documents, each with
+view and download, and the Correspondence tab. A failed custody job is retried as any Case's is. Staff
 may link uploaded material to a Triage Case in any state
 ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)). Vehicle
 images linked to the Triage are shown with it. A Triage created with Create
@@ -139,9 +139,14 @@ and keeps the earlier decision and correspondence. Recording the corrected
 outcome can complete the Triage without sending another message.
 
 **Completion.** Completion records the outcome, actor and time. It asks no
-reason. Marking a Triage Awaiting information asks no reason either.
-**Reply with outcome** is optional. The completion notice offers it when the
-Triage came by e-mail and its mailbox may send. It opens the reply with the
+reason. Record finding may complete the Triage in the same post (its
+Complete Triage tickbox,
+[FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)).
+Marking a Triage Awaiting information asks no reason either; the Triage Case
+page does not offer it.
+**Reply with finding** is optional. The completion notice and Record
+finding's Reply with finding tickbox offer it when the Triage came by e-mail
+and its mailbox may send. It opens the composer with the
 Triage outcome template from Administration
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which the
 user can edit. A sent reply is linked to the
@@ -164,8 +169,9 @@ calendar days with default 1
 ([FRD-17](frd-17-administration-workspace.md#workflow-configuration)), and
 appears in Needs attention until then
 ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Staff may
-send a **chaser**: a reply to the Triage's origin message from its approved
-mailbox, offered when the Triage came by e-mail and that mailbox may send.
+send a **chaser** from the composer: a reply to the Triage's origin message
+from its approved mailbox, offered when the Triage came by e-mail and that
+mailbox may send.
 The chaser is manual, never automatic and never a completion gate. Its exact
 Sent evidence is recorded under the normal rules
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
@@ -211,7 +217,7 @@ authority, reason and current Case edit lease.
 | From | To | Trigger |
 | --- | --- | --- |
 | (none) | `Open` | Classification, Principal declaration, Open the Triage or Create case, with an established Principal and a known registration |
-| `Open`, `Finding recorded` | `Awaiting information` | Staff mark it waiting, with no reason |
+| `Open`, `Finding recorded` | `Awaiting information` | Automation marks it waiting, with no reason; the Triage Case page does not offer it |
 | `Open`, `Awaiting information` | `Finding recorded` | A finding with at least one dimension is recorded |
 | `Finding recorded` | `Completed` | The authorised actor records the outcome, with no reason |
 | any open state | `Cancelled` | Cancel with a reason |

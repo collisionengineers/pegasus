@@ -485,8 +485,6 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-files .tab{flex:0 0 auto;min-height:36px;padding:7px 11px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--ink);font-size:11px;font-weight:760;cursor:pointer}
 #section-files .tab[aria-selected="true"]{border-bottom-color:var(--red);color:var(--red)}
 #section-files .tab-panel-title{margin:4px 0 0;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-#section-files [data-file-tabs-wrap].is-tabbed .tab-panel-title,
-[data-file-tabs-wrap].is-tabbed .tab-panel-title{display:none}
 .doc-list{gap:6px}
 .doc-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto auto;gap:9px;align-items:center;padding:7px 9px;border:1px solid var(--line);border-radius:3px;font-size:12px}
 .doc-row>.icon{color:var(--muted);width:18px;height:18px}
@@ -495,7 +493,6 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .doc-row small{color:var(--muted);font-size:10.5px}
 .doc-row-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .doc-row-actions{display:flex;align-items:center;gap:4px}
-.correspondence{display:grid;gap:8px}
 
 /* Image tiles, shared by Files and the Report strip. */
 .thumbs{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;list-style:none;margin:0;padding:0}

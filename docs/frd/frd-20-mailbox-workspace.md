@@ -37,7 +37,10 @@ and **Category**, which lists destinations and approved categories.
 The default view is the incoming Inbox across all approved mailboxes, newest
 received first. Folder, mailbox, queue and search views are explicit
 refinements of that view. Sent mail and read-only Deleted Items search are
-separate folder scopes.
+separate folder scopes. Sent Items lists every Sent item the Sent-evidence
+poll ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md)) has read
+from an approved mailbox, newest sent first, whether Pegasus, EVA or Outlook
+sent it; a row opens the message record the same way a received one does.
 
 There is no historical backfill. The workspace shows retained mail from each
 approved mailbox's genuine retention start, names that boundary, and says
@@ -174,8 +177,8 @@ Reply all and Forward appear there where the record offers them and open the
 record's composer with that Case chosen
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 The full message record is one link away for every other action
-([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox browsing and
-reconciliation stay in this mailbox workspace.
+([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox browsing
+stays in this mailbox workspace.
 
 ### Dismiss
 

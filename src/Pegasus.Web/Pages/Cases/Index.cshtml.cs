@@ -759,11 +759,7 @@ public sealed class IndexModel(
             $"/Cases/{item.CaseId:D}",
             [],
             Chip: chip,
-            ChipTone: null) with
-        {
-            // An Audit Case (a.) reads its type beside its reference.
-            Notice = item.CaseType == CaseType.Audit ? OperatorLabels.CaseTypeName(CaseType.Audit) : null
-        };
+            ChipTone: null);
     }
 
     private QueueRow ImageRow(ImageIntakeSummary item, int chaseIntervalDays)

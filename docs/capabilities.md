@@ -50,12 +50,12 @@ exclusion.
 | MAIL-14 | Detect an exact Outlook Sent item as report-sent evidence | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-15 | Manually link, unlink, or relink an exact Sent item with a reason | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-16 | Automatically match the exact report Sent item to its case | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
-| MAIL-18 | Generate copyable chaser messages for staff to send manually | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
+| MAIL-18 | Chaser messages for staff to send: the Case chaser template and Send chaser, and the copyable due-chaser text | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | TRI-01 | Distinct inbox Triage label; Triage as a Case type with a `t.` Case/PO and its own workflow | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-02 | Vehicle-registration gate and Triage-specific missing-registration behavior | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-03 | Open, Awaiting information, Finding recorded, Completed, and Cancelled states | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-04 | Roadworthiness and Assessment findings, each optional, corrected by superseding | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
-| TRI-05 | Outcome-based completion and optional Reply with outcome correspondence | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
+| TRI-05 | Outcome-based completion and optional Reply with finding correspondence | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-06 | Reopen and superseding-finding behavior with permanent history | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-07 | Optional later case link, unlink, and relink | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-08 | Dedicated Triage queue and the Triage Case page at `/Cases/{id}` | [The Triage Case page](frd/frd-15-work-centre-queues-and-search.md#the-triage-case-page) |
@@ -90,7 +90,7 @@ exclusion.
 | CASE-34 | Inspect at fast-update choices and Case storage location | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | UI-02 | Case queues for Not ready, Review, and Held | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-03 | E-mail activity for Unidentified, including closed and could-not-be-read items | [Pre-Case records](frd/frd-15-work-centre-queues-and-search.md#pre-case-records) |
-| UI-04 | New cases today, Sent to Engineer, and Reports sent day/week activity | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
+| UI-04 | Activity: New cases today, Sent to Engineer and Reports sent today and this week, Completed this week, E-mails received today | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-05 | Click-through filtered work queues | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | [Dashboard freshness and reconciliation](frd/frd-15-work-centre-queues-and-search.md#dashboard-freshness-and-reconciliation) |
 | UI-07 | Search and filter across Cases and pre-Case records | [Search](frd/frd-15-work-centre-queues-and-search.md#search) |

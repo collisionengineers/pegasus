@@ -260,6 +260,7 @@ public static class DependencyInjection
         services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
         services.AddScoped<IAutomaticEvaReviewSubmissionStore, EfAutomaticEvaReviewSubmissionStore>();
         services.AddScoped<IReportRecipientSuggestionQueries, EfReportRecipientSuggestionQueries>();
+        services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
         services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
         services.AddScoped<EfStaffAccountAdministration>();
@@ -375,6 +376,8 @@ public static class DependencyInjection
         services.AddScoped<IWorkCentreDismissalStore, EfWorkCentreDismissalStore>();
         services.AddScoped<IDismissWorkCentreItem, DismissWorkCentreItem>();
         services.AddScoped<IListWorkCentreAiJobs, ListWorkCentreAiJobs>();
+        services.AddScoped<IWorkCentreActivityQueries, EfWorkCentreActivityQueries>();
+        services.AddScoped<IGetWorkCentreActivity, GetWorkCentreActivity>();
         services.AddScoped<IIntakeLogQueries, EfIntakeLogQueries>();
         services.AddScoped<IListIntakeLog, ListIntakeLog>();
         services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
@@ -784,8 +787,6 @@ public static class DependencyInjection
         services.AddSingleton<IApprovedSentSource, LocalDurableApprovedSentSource>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollSentEvidence>();
-        services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
-            provider.GetRequiredService<PollSentEvidence>());
         return services;
     }
 
@@ -998,8 +999,6 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
-        services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
-            provider.GetRequiredService<PollSentEvidence>());
         services.AddSingleton(VehicleLookupAvailability.ProductionLive);
         services.AddSingleton<IVehicleLookupAdapter>(provider => new DvlaDvsaProductionAdapter(
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),
@@ -1036,11 +1035,8 @@ public static class DependencyInjection
             provider.GetRequiredService<TokenCredential>(),
             baseUri,
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
-        services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
-        services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
-        services.AddScoped<PollSentEvidence>();
-        services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
-            provider.GetRequiredService<PollSentEvidence>());
+        // Web sends and reads; the Sent-evidence poll that settles Submitted
+        // into Sent is the Worker's alone (AddProductionExternalAdapters).
         AddStaffMailSending(services);
         services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;

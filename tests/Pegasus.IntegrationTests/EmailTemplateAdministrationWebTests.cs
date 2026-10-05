@@ -150,6 +150,35 @@ public sealed class EmailTemplateAdministrationWebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The Case chaser template is one more row of the same area: its own
+    /// built-in body and placeholders, none of them the Case/PO reference
+    /// (operator, 5 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task TheCaseChaserTemplateIsARowWithItsOwnBodyAndPlaceholders()
+    {
+        const EmailTemplatePurpose chaser = EmailTemplatePurpose.CaseChaser;
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Page);
+
+        Assert.Contains($"data-email-template=\"{chaser}\"", html, StringComparison.Ordinal);
+        Assert.Equal("Case chaser", OperatorLabels.EmailTemplates.Name(chaser));
+        Assert.Contains(OperatorLabels.EmailTemplates.Name(chaser), html, StringComparison.Ordinal);
+        var dialog = Dialog(html, chaser);
+        Assert.Contains(
+            EmailTemplates.DefaultBody(chaser),
+            WebUtility.HtmlDecode(dialog).Replace("\r\n", "\n", StringComparison.Ordinal),
+            StringComparison.Ordinal);
+        Assert.Equal(4, EmailTemplates.Placeholders(chaser).Count);
+        foreach (var placeholder in EmailTemplates.Placeholders(chaser))
+        {
+            Assert.Contains($"data-insert-placeholder=\"{{{placeholder}}}\"", dialog, StringComparison.Ordinal);
+        }
+        Assert.DoesNotContain("data-insert-placeholder=\"{case reference}\"", dialog, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AStaleSaveIsRefusedAndAsksToReload()
     {

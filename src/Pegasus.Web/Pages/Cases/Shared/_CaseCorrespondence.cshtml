@@ -1,23 +1,24 @@
-@model Pegasus.Web.Pages.Cases.DetailsModel
+@model Pegasus.Web.Pages.Cases.CaseCorrespondenceView
 @using Pegasus.Core.Intake
 @using Pegasus.Web.Presentation
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
-    var emails = Model.FilesSection?.CorrespondenceEmails ?? [];
-    var summary = Model.CurrentSummary!;
+    var emails = Model.Emails;
 }
 
 @* The Files section's Correspondence tab: every retained email
-   associated with the Case - polled mail and uploaded .eml files - and
-   Compose where staff mail is available. Open message shows the message in
+   associated with the Case - polled mail, uploaded .eml files and the Sent
+   items of mail Pegasus sent for it - and Compose where staff mail is
+   available. Open message shows the message in
    a dialog over the Case, its content fetched from the Inbox record on
    first open, with the record's Reply, Reply all and Forward for this Case
-   where the record offers them; without script the link opens that record. *@
+   where the record offers them; without script the link opens that record.
+   The Case record and the Triage Case both draw it. *@
 <div class="correspondence" data-correspondence>
-    @if (Model.StaffMailAvailable)
+    @if (Model.OffersCompose)
     {
         <div class="button-row">
-            <a class="btn btn--small" asp-page="/Mail/Compose" asp-route-caseReference="@summary.Reference" data-compose>
+            <a class="btn btn--small" asp-page="/Mail/Compose" asp-route-caseReference="@Model.CaseReference" data-compose>
                 <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                 <span>@FilesLabels.Compose</span>
             </a>
@@ -47,7 +48,13 @@
                             <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
                             <td>@(row.EffectiveSenderAddress ?? row.SenderDisplayName ?? row.SenderAddress)</td>
                             <td>@row.Subject</td>
-                            <td>@(row.Classification is { } classification ? OperatorLabels.MailClassification(classification) : OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                            @* A Sent item carries no received classification; the
+                               scope's own word names its direction instead. *@
+                            <td>@(row.Classification is { } classification
+                                ? OperatorLabels.MailClassification(classification)
+                                : row.Direction == MailDirection.Sent
+                                    ? Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(MailFolderScope.Sent)
+                                    : OperatorLabels.CaseWorkspace.AbsentValue)</td>
                             <td class="row-actions nowrap"><a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-dialog-open="case-message-@row.RetainedMessageId.ToString("N")">@OperatorLabels.CaseWorkspace.OpenMessage</a></td>
                         </tr>
                     }
@@ -58,7 +65,7 @@
         {
             var dialogId = $"case-message-{row.RetainedMessageId:N}";
             <div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" data-case-message-dialog
-                 data-case-message-url="@Url.Page("/Mail/Message", "Content", new { id = row.RetainedMessageId, correspondenceCaseReference = summary.Reference })" hidden>
+                 data-case-message-url="@Url.Page("/Mail/Message", "Content", new { id = row.RetainedMessageId, correspondenceCaseReference = Model.CaseReference })" hidden>
                 <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="@dialogId-title">
                     <div class="dialog-head">
                         <h2 id="@dialogId-title" class="wrap" tabindex="-1">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(row.Subject)</h2>
