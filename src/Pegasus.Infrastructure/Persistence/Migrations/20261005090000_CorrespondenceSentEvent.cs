@@ -16,7 +16,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// (FRD-20). A retained message's mailbox was keyed to the Inbox poll state,
 /// which only a mailbox with inbound intake has; a Sent-only mailbox could
 /// never retain. The approved mailbox itself is the message's owner, so the
-/// key moves to <c>ApprovedMailboxes</c>. Nothing is dropped but the key.
+/// key moves to <c>ApprovedMailboxes</c>. The Sent copy of a message the
+/// mailbox also received is a second mailbox item with the same Message-ID, so
+/// that identity becomes unique per folder. Nothing is dropped but the keys.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
 [Migration("20261005090000_CorrespondenceSentEvent")]
@@ -35,6 +37,17 @@ public partial class CorrespondenceSentEvent : Migration
             principalTable: "ApprovedMailboxes",
             principalColumn: "Id",
             onDelete: ReferentialAction.Restrict);
+
+        migrationBuilder.DropIndex(
+            name: "IX_RetainedMailboxMessages_MailboxId_CanonicalInternetMessageIdentity",
+            table: "RetainedMailboxMessages");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_RetainedMailboxMessages_MailboxId_FolderScope_CanonicalInternetMessageIdentity",
+            table: "RetainedMailboxMessages",
+            columns: new[] { "MailboxId", "FolderScope", "CanonicalInternetMessageIdentity" },
+            unique: true,
+            filter: "[CanonicalInternetMessageIdentity] IS NOT NULL");
 
         migrationBuilder.DropIndex(
             name: "IX_CaseWorkflowEvents_CaseId_AfterVersion",
@@ -61,6 +74,17 @@ public partial class CorrespondenceSentEvent : Migration
             principalTable: "ApprovedInboxPollStates",
             principalColumn: "ApprovedMailboxId",
             onDelete: ReferentialAction.Restrict);
+
+        migrationBuilder.DropIndex(
+            name: "IX_RetainedMailboxMessages_MailboxId_FolderScope_CanonicalInternetMessageIdentity",
+            table: "RetainedMailboxMessages");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_RetainedMailboxMessages_MailboxId_CanonicalInternetMessageIdentity",
+            table: "RetainedMailboxMessages",
+            columns: new[] { "MailboxId", "CanonicalInternetMessageIdentity" },
+            unique: true,
+            filter: "[CanonicalInternetMessageIdentity] IS NOT NULL");
 
         migrationBuilder.DropIndex(
             name: "IX_CaseWorkflowEvents_CaseId_AfterVersion",

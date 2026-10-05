@@ -1354,11 +1354,50 @@ public sealed class MailWorkspaceWebTests
                     NowUtc,
                     MailFolderScope.Sent),
                 CancellationToken.None);
+            // The Sent copy of a message the mailbox also received (here, Inbox
+            // message 0) is its own Sent row, not a contradiction of the Inbox row.
+            await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
+                new(
+                    TestMailboxId.From(FirstMailboxId),
+                    FirstMailboxAddress,
+                    "sent-copy-of-inbox-0",
+                    $"{FirstMailboxId.Length}:{FirstMailboxId}sent-copy-of-inbox-0",
+                    NowUtc.AddMinutes(-3),
+                    1024,
+                    new string('C', 64),
+                    new(
+                        "sent-items",
+                        $"conversation-{FirstMailboxId}",
+                        $"<{FirstMailboxId}-0@example.invalid>",
+                        FirstMailboxAddress,
+                        null,
+                        ["intake@collisionengineers.co.uk"],
+                        [],
+                        [],
+                        "Sent copy of the received message",
+                        "Please inspect the vehicle at the address supplied.",
+                        [],
+                        IsRead: true),
+                    NowUtc,
+                    MailFolderScope.Sent),
+                CancellationToken.None);
         }
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var sent = await GetHtmlAsync(client, "/Inbox?folder=sent");
+        var inbox = await GetHtmlAsync(client, "/Inbox");
         var deleted = await GetHtmlAsync(client, "/Inbox?folder=deleted");
+
+        Assert.Contains("Sent copy of the received message", sent, StringComparison.Ordinal);
+        Assert.Contains($"Message 0 from {FirstMailboxId}", inbox, StringComparison.Ordinal);
+        // Sent search reads the retained subject, sender and text; Sent has no
+        // categories, as Deleted Items has none.
+        var searched = await GetHtmlAsync(client, "/Inbox?folder=sent&search=Following");
+        Assert.Contains("Following up on your claim", searched, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sent copy of the received message", searched, StringComparison.Ordinal);
+        Assert.Matches("<select id=\"queue-filter\" name=\"queue\" disabled=\"disabled\"", sent);
+        using var categorised = await client.GetAsync("/Inbox?folder=sent&queue=triage");
+        Assert.Equal(HttpStatusCode.NotFound, categorised.StatusCode);
 
         Assert.Contains("Following up on your claim", sent, StringComparison.Ordinal);
         Assert.DoesNotContain($"Message 0 from {FirstMailboxId}", sent, StringComparison.Ordinal);

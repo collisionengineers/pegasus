@@ -308,7 +308,7 @@ public sealed class IndexModel(
                 out var normalizedQueue,
                 out var destination,
                 out var detailedClassification)
-            || (folder == MailFolderScope.DeletedItems && normalizedQueue is not null))
+            || (folder is MailFolderScope.DeletedItems or MailFolderScope.Sent && normalizedQueue is not null))
         {
             return false;
         }

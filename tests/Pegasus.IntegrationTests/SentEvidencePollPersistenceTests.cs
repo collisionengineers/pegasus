@@ -312,7 +312,8 @@ public sealed class SentEvidencePollPersistenceTests
             scopedServices.GetRequiredService<IRecordEmailResponseEvidence>(),
             scopedServices.GetRequiredService<IRetainApprovedMailboxReportSentEvidence>(),
             scopedServices.GetRequiredService<IAutoLinkReportEvidence>(),
-            scopedServices.GetRequiredService<TimeProvider>());
+            scopedServices.GetRequiredService<TimeProvider>(),
+            scopedServices.GetRequiredService<IRetainedMailboxMessageStore>());
 
         var first = await poll.ExecuteAsync(
             1,

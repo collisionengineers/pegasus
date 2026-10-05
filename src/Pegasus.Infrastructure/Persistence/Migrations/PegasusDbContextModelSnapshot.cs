@@ -6738,16 +6738,16 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ExternalReceiptToken");
 
-                    b.HasIndex("MailboxId", "CanonicalInternetMessageIdentity")
-                        .IsUnique()
-                        .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
-
                     b.HasIndex("MailboxId", "ImmutableMessageId")
                         .IsUnique()
                         .HasFilter("[MailboxId] IS NOT NULL");
 
                     b.HasIndex("ReceivedAtUtc", "Id")
                         .IsDescending(true, false);
+
+                    b.HasIndex("MailboxId", "FolderScope", "CanonicalInternetMessageIdentity")
+                        .IsUnique()
+                        .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
 
                     b.HasIndex("MailboxId", "FolderScope", "ReceivedAtUtc", "Id")
                         .IsDescending(false, false, true, false);
@@ -9212,7 +9212,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity", b =>
                 {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedInboxPollStateEntity", null)
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", null)
                         .WithMany()
                         .HasForeignKey("MailboxId")
                         .OnDelete(DeleteBehavior.Restrict);

@@ -1442,6 +1442,12 @@ public sealed class MessageModel(
             && !Detail.Summary.IsTriageCase)
         {
             CorrespondenceCaseReference = Detail.Summary.CaseReference;
+            // The message's own Case is not a reference staff typed, so a
+            // send against it holds to the version the page showed.
+            if (!initializeForm)
+            {
+                FixedCorrespondenceCaseReference = Detail.Summary.CaseReference;
+            }
         }
         CorrespondenceCase = await ResolveCaseAsync(
             actor, CorrespondenceCaseReference, cancellationToken);
