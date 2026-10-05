@@ -447,7 +447,7 @@ prototype's effective media queries:
 
 | Max width | Reflow |
 | --- | --- |
-| 1360px | `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns. The Work Centre ledger keeps its five columns to 600px, tightening its padding below 980px |
+| 1360px | `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns. The Work Centre ledgers keep their columns to 600px, tightening their padding and folding Owner and Received into the task cell below 980px |
 | 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
 | 980px | The rail lies down into a horizontal bar; `admin-nav` becomes a horizontal scroller; `--content-max` is released |
@@ -850,7 +850,7 @@ deleted in wave 5.
 | `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (dismiss, section fold) |
 | `freshness`, `freshness-status`, `health-dot`, `refresh-button` (`Shared/_RefreshButton`) | Page freshness line and the one Refresh control every surface composes; the label becomes "Refreshing" and the icon spins while a refresh runs (`prefers-reduced-motion` keeps the label and disabled state) |
 | `busy-spin`, `busy-done`, `[data-busy]`, `[data-busy-aside]`, `[data-busy-complete]`, `data-busy-label`, `data-busy-still`, `data-busy-done`, `data-busy-download` | Action feedback (site.js `pegasusBusy`): from the press until the result arrives the pressed button or link shows the turning `icon-loader` glyph and its busy words (`OperatorLabels.Busy`), keeping its colours; after five seconds the words say "Still …" (the layout's `data-busy-still` word); the form's other submit buttons stand aside. An action answered in place that succeeds holds the `icon-check` glyph and its `data-busy-done` word (`OperatorLabels.Busy.Done`, or its own label) in the confirmed green for 1.4 s; a page that reloads shows its notice instead. A download link or form fetches its file and stays busy until it arrives |
-| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line |
+| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line; under it the `wc-activity` panel holds the day and week figures as a table, the figures across and Today / This week down |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |

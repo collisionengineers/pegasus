@@ -4,8 +4,10 @@
 
 ## Short version
 
-- The Work Centre (`/`) shows the whole office's work: five counts, then one
-  panel whose tabs hold the Needs attention ledger, New cases and AI jobs.
+- The Work Centre (`/`) shows the whole office's work: five counts, the
+  Activity figures, then one panel whose tabs hold the Needs attention ledger,
+  New cases and AI jobs, each a table whose rows end in the next action and
+  one Dismiss.
 - Every count comes from a Core query. A failed read shows "unavailable",
   never `0`.
 - `/Cases` is one page of queues grouped as Workflow, Pre-Case work and
@@ -27,8 +29,8 @@ record is owned by [FRD-16](frd-16-case-record-workspace.md).
 ### Work Centre
 
 The Work Centre (`/`) shows office-wide work in one ledger (v30 design B,
-25 September 2026). Its head reads "Updated HH:MM" with **Refresh** and
-**Create Case**; the utility bar's New case is omitted on this page and only
+25 September 2026; v32 design A, 5 October 2026). Its head reads "Updated
+HH:MM", the page's one clock, with **Refresh** and **Create Case**; the utility bar's New case is omitted on this page and only
 this page, so the action has one home. The page refreshes itself only while
 its browser tab is visible: every five minutes, and when the tab regains focus
 after 30 seconds away. It never refreshes while a dialog is open or a field has
@@ -40,6 +42,28 @@ link to its Cases tab (`/Cases?tab=…`) and counts everything regardless of
 paging. Triages counts the Triage Cases that are Open, Awaiting information or
 Finding recorded; Completed and Cancelled are not counted. A failed read shows
 no figure and the section's unavailable notice, never `0`.
+
+**Activity** (v32 A, operator 5 October 2026). Under the counts, a panel
+headed Activity holds a table: the figures head the columns and the rows are
+**Today** and **This week**. The figures are New cases (today), Sent to
+Engineer (today and this week), Reports sent (today and this week),
+Completed (this week) and E-mails received (today); a half that is not
+defined is not drawn. Today runs from midnight Europe/London and This week
+from Monday 00:00 Europe/London, both to the instant of the read. Every
+figure is office-wide and plain text; New cases opens the New cases tab
+when that tab is shown. The definitions:
+
+| Figure | Counts |
+| --- | --- |
+| New cases | Cases created in the window, excluding Triage Cases, as the New cases list counts them |
+| Sent to Engineer | `First sent to Engineer` events (the once-per-Case handoff proxy, [FRD-07](frd-07-eva-and-external-engineering-handoff.md)); a re-export is not counted |
+| Reports sent | Sent report e-mails, as the Engineer activity report MI-01 counts them ([FRD-17](frd-17-administration-workspace.md#reports)), so the two agree for the same week |
+| Completed | Cases that entered Complete in the window, including one reopened since |
+| E-mails received | Mailbox receipts; an upload is also a receipt and is not counted |
+
+The figures are their own section with their own refresh state: a failed
+read shows "Activity is unavailable." and no figure, never `0`. The panel is
+drawn whether or not there is work to show. A dismissal changes no figure.
 
 **Sections.** Below the strip one panel carries three tabs: **Needs
 attention**, **New cases** and **AI jobs**, each with its count. A tab is
@@ -99,9 +123,11 @@ term travels with every address on the page. **Clear filters** appears when a
 kind or a term is on and clears both. A filter that matches nothing keeps the
 toolbar and says "No work matches these filters."
 
-**The ledger.** A table with five columns: Next action (the task, with its
+**The ledger.** A table with seven columns: Next action (the task, with its
 kind beneath), Record / detail (the reference, with the subject beneath),
-Owner, Due and Received. Rows are grouped under **Overdue (n)**, **Due today
+Owner, Due, Received, the next action as a button (v32 item M) and
+**Dismiss**, an icon-only control named "Dismiss {reference}" (v32 item B).
+Below 980px Owner and Received fold into the task cell. Rows are grouped under **Overdue (n)**, **Due today
 (n)** and **Later (n)**; a group with no rows is not drawn. Order is by due
 instant, earliest first and undated last, then received, then reference. The
 due text is in words ("2 days overdue", "Due today", "Due Fri", "Due 24 Sep")
@@ -119,8 +145,8 @@ assignment dialog on the Work Centre. Review Case opens the Case, and so
 does Open Case on a Vehicle images paired item. Open Triage opens the Triage
 Case page. An AI draft offers its per-kind action. **Assign
 to me** is offered to every enabled staff role on an Unassigned item and on
-a Triage item without an assignee, where Core would accept it. **Dismiss**
-follows the next action on every open row.
+a Triage item without an assignee, where Core would accept it. The open row
+repeats no Dismiss; the row's own control is the one.
 
 **New cases.** Every Case except a Triage Case created in the last 7 calendar
 days, newest first, whatever created it: reference, registration, claimant,
@@ -128,16 +154,18 @@ principal and an arrival chip (Manual, E-mail, Principal API, Automation). A
 "Since you last looked" divider marks what is new for this person. Opening the
 Work Centre records the look. A change the Automation actor makes to an
 existing Case appears as a "Changed by automation" row naming the change. The
-section is paged. Each row ends with an icon-only **Dismiss** naming its Case.
+section is a table (v32 A): Case, Detail (registration, claimant, principal
+and the change), Arrival, Received and **Dismiss**; the "Since you last
+looked" divider is a group row. The section is paged.
 
 **AI jobs.** The office's unfinished AI jobs (Queued, Taken with its lease
 expiry, Draft ready) and those that failed in the same 7 days, excluding
-Market research, as compact rows: kind and state, the instruction, the
-record, who started it and when, then the lease expiry or failure reason and
-the Draft ready action defined per kind in
+Market research, as a table (v32 A): Job, State, Instruction, Record, Started
+(who and when), Note (a Taken job reads "Taken until HH:MM", v32 item K; a
+failed job its reason), then the Draft ready action defined per kind in
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
-(Review estimate, Open query, Review, Complete job). A failed job shows its
-reason with Open Case. Every job ends with **Dismiss**. There is no Cancel
+(Review estimate, Open query, Review, Complete job) and **Dismiss**. A failed
+job shows its reason with Open Case. There is no Cancel
 here; an Administrator stops a job on Administration AI jobs.
 
 **Dismiss** (2 October 2026) takes a row off the Work Centre without
@@ -161,8 +189,11 @@ dismissal shows again:
 
 Due dates play no part, so a target change never brings a dismissed row back.
 The section counts, kind chips, groups and pages leave dismissed rows out;
-the five metrics count records and do not change. There is no undo and no
-list of dismissed rows, and no notice: the row's leaving is the answer.
+the five metrics and the Activity figures count records and do not change.
+There is no undo and no list of dismissed rows, and no notice: the row's
+leaving is the answer. Every row of every section ends in the same
+icon-only Dismiss (v32 item B); after a dismissal the page returns to the next
+row of that list, or to the list's heading when none is left.
 
 ### Cases: queues and filters
 
@@ -367,14 +398,10 @@ business fact instead enters permanent business history with the responsible
 actor, source and version, before and after values, time, and reason where
 required.
 
-`New cases today` counts every instructed Case created in the current
-Europe/London calendar day, including one later completed, cancelled or
-rejected that day. It excludes vehicle-images records, Triage Cases, which
-have their own Triages count, and Unidentified. The Unidentified count is the
-exact count of open Unidentified items and links to that queue. These are
-separate from `Due today`, `Sent to Engineer` and `Reports sent`. `Due by` and
-overdue or chaser work stay a separate operational view from `New cases
-today`.
+The Activity figures are defined under [Work Centre](#work-centre). The
+Unidentified count is the exact count of open Unidentified items and links to
+that queue. `Due by` and overdue or chaser work stay a separate operational
+view from the Activity figures.
 
 ## States and transitions
 
@@ -398,7 +425,8 @@ permits it ([FRD-13](frd-13-case-lifecycle-and-workflow.md)).
 
 Acceptance covers every rail route and its count, the `/Unidentified`
 redirect, `/Triage` and `/Triage/{id}` answering Not found, the Cases rail
-groups and filters, the five Work Centre counts and the Needs attention kinds
+groups and filters, the five Work Centre counts, the Activity figures and
+their unavailable state, the Needs attention kinds
 against Core queries, the Triage Case page in its read, edit, conflict,
 Completed and Cancelled states, and the Search filters with the two entries
 of an Inspection + Audit Case and Triage rows. Authenticated Web tests

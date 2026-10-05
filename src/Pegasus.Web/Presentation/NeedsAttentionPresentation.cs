@@ -67,10 +67,13 @@ public static class NeedsAttentionPresentation
     /// The row's reference. A queue pass names no record, so its Core subject
     /// token is printed as the operator's words for the queue.
     /// </summary>
-    public static string ReferenceLabel(NeedsAttentionItem item) =>
-        item.Reference == Pegasus.Core.AiWork.AiJobPolicy.QueueSubjectReference
+    public static string ReferenceLabel(NeedsAttentionItem item) => ReferenceLabel(item.Reference);
+
+    /// <summary>The same rule for any row that names a record by reference, such as an AI job's subject.</summary>
+    public static string ReferenceLabel(string reference) =>
+        reference == Pegasus.Core.AiWork.AiJobPolicy.QueueSubjectReference
             ? OperatorLabels.AiJobs.QueueRecord
-            : item.Reference;
+            : reference;
 
     /// <summary>
     /// The recorded title. An AI draft records its kind as the Core enum name,

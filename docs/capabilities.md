@@ -90,7 +90,7 @@ exclusion.
 | CASE-34 | Inspect at fast-update choices and Case storage location | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | UI-02 | Case queues for Not ready, Review, and Held | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-03 | E-mail activity for Unidentified, including closed and could-not-be-read items | [Pre-Case records](frd/frd-15-work-centre-queues-and-search.md#pre-case-records) |
-| UI-04 | New cases today, Sent to Engineer, and Reports sent day/week activity | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
+| UI-04 | Activity: New cases today, Sent to Engineer and Reports sent today and this week, Completed this week, E-mails received today | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-05 | Click-through filtered work queues | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | [Dashboard freshness and reconciliation](frd/frd-15-work-centre-queues-and-search.md#dashboard-freshness-and-reconciliation) |
 | UI-07 | Search and filter across Cases and pre-Case records | [Search](frd/frd-15-work-centre-queues-and-search.md#search) |

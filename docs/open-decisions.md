@@ -44,7 +44,6 @@ for each: write it into the named owner, or drop it.
 | CASE-11 | Typed claim, accident, contact and inspection data named in the Case identity FRD | FRD-01, FRD-23 |
 | CASE-17 | Overdue display beside Due by | FRD-13, FRD-15 |
 | CASE-31 | Addendum, query document, invoice input and statistics as consumers of the one accepted record | FRD-11 |
-| UI-04 | Definitions of Sent to Engineer and Reports sent, and a week window | FRD-15 |
 | UI-13 | A contrast requirement | FRD-12 |
 | UI-15 | Inspection, vehicle, media, salvage, text and administration as workbench parts | FRD-16 |
 | DOC-07 | A document export action | FRD-05 |
