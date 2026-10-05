@@ -396,7 +396,7 @@ internal static class GlassEstimatePdfParser
             var codes = Null(Cell(row, 200, 580));
             // A wrapped position name completes a known main-table name.
             var pending = positionDescription;
-            if (pending is not null && !MainRows().Any(item => item.Fit(pending) >= 0))
+            if (pending is not null && Continues(pending, description, codes))
             {
                 if (codes is not null) throw Reject("The position appendix is ambiguous");
                 var combined = pending + " " + description;
@@ -415,6 +415,22 @@ internal static class GlassEstimatePdfParser
                 }
                 positionDescription = description; positionCodes = codes;
             }
+        }
+
+        /// <summary>
+        /// Whether a position name read so far goes on over this appendix row.
+        /// It does not when it already equals a main row's whole name. A name
+        /// that equals only the first lines of a row (the rest being text Glass's
+        /// prints under it) is complete only if the next row cannot extend it
+        /// to a name; a name that fits no row is wrapped, as it always was.
+        /// </summary>
+        private bool Continues(string pending, string description, string? codes)
+        {
+            var fits = MainRows().Select(item => (Lines: item.Fit(pending), Count: item.Wrapped.Count))
+                .Where(fit => fit.Lines >= 0).ToArray();
+            if (fits.Length == 0) return true;
+            if (fits.Any(fit => fit.Lines == fit.Count)) return false;
+            return codes is null && MainRows().Any(item => item.Fit(pending + " " + description) >= 0);
         }
 
         private IEnumerable<Row> MainRows() =>
