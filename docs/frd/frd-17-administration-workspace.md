@@ -74,7 +74,8 @@ and the secret is write-only
 
 Contacts is the one directory for Principals, Claim Sources, Repairers,
 Storage and Third Party Engineers. Principal-specific settings are part of
-that Contact record. The Salvage matrix panel follows Report generation: one
+that Contact record. Report generation carries the Default fee (£) box above
+Save report settings. The Salvage matrix panel follows Report generation: one
 table per salvage category, with From (£), To (£) and Percentage paid (%)
 columns, a Remove button per row, one spare blank row, an Add band button,
 and one Save salvage matrix. The list filters live as the operator types, 300

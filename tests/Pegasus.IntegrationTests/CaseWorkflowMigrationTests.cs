@@ -445,7 +445,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261001110000_StaffNotificationCancellationCause",
                 "20261002105641_WorkCentreDismissals",
                 "20261005090000_CorrespondenceSentEvent",
-                "20261005120000_GrantWorkerCaseManualChases"
+                "20261005120000_GrantWorkerCaseManualChases",
+                "20261005150000_PrincipalDefaultFee"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

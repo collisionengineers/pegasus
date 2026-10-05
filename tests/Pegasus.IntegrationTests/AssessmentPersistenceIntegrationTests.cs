@@ -289,6 +289,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             [AssessmentVocabulary.EngineerSignature] = "a_engineer",
             [AssessmentVocabulary.AgreedFee] = "120.00"
         };
+        // The accepted Case already holds its Principal's default fee.
+        var paths = values.Keys.ToArray();
+        context.CaseAssessmentFields.RemoveRange(await context.CaseAssessmentFields
+            .Where(field => field.WorkId == caseId && paths.Contains(field.FieldPath))
+            .ToArrayAsync());
         context.CaseAssessmentFields.AddRange(values.Select(value =>
             new CaseAssessmentFieldEntity
             {
@@ -451,7 +456,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
 
         Assert.Equal(1, saved.CaseVersion);
-        Assert.Equal(3, saved.Fields.Count);
+        // The three this save wrote, beside the agreed fee the Case took from
+        // its Principal at creation.
+        Assert.Equal(3, saved.Fields.Count(field => field.Path != AssessmentVocabulary.AgreedFee));
         Assert.All(saved.Fields, field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
         // An assessment save writes fields only; the lines are the Current
         // repair spec's, and none is in use yet.
