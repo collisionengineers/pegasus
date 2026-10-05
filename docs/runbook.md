@@ -1143,6 +1143,17 @@ it stopped.
 - `glass.export.unreadable` means the reader refused the export. The warning
   names the position or field, the rejected XML is on the Case in Files, and
   **Fetch again** reads the same estimate once the reader is fixed.
+- `glass.identity.registration`, `glass.identity.mileage`,
+  `glass.identity.natcode` and `glass.export.empty` mean the export came back
+  for another vehicle or with no estimate in it. The XML is kept on the Case in
+  Files as a rejected export, and there is no **Fetch again**.
+- `glass.export.request`, `glass.export.ambiguous`, `glass.export.off_origin`,
+  `glass.download.request` and `glass.download.oversize` (`Failed`) mean the
+  relay succeeded and the export could not be fetched, for example a sign-in
+  redirect at the export grid. The estimate is saved at Glass's, and **Fetch
+  again** looks it up with a fresh sign-in. A relay answered by a redirect
+  settles `Unknown` at `glass.relay.request` instead, and Resume looks the
+  export up without relaying again.
 - `glass.details.profile` carries one flag, `profile=absent` or `multiple`
   (not exactly one `ere_profile` control), `disabled` (a launch found the
   control already locked), `enabled` (a Resume or Fetch again found it
