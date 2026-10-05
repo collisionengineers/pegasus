@@ -8,9 +8,9 @@
 @using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
-    // The Triage Case's record on /Cases/{id}. There is no Edit step: each
-    // control posts once and the save claims and releases the Triage edit
-    // scope itself (TriageWriteAuthority).
+    // The Triage Case's record on /Cases/{id} (v31 C, Contact sheet). There
+    // is no Edit step: each control posts once and the save claims and
+    // releases the Triage edit scope itself (TriageWriteAuthority).
     var view = Model.TriageCase!;
     var record = view.Record;
     var reference = record.Reference;
@@ -18,33 +18,132 @@
     var mutable = record.State is not (TriageState.Completed or TriageState.Cancelled);
     var activeFindings = view.ActiveFindings;
     var currentFinding = view.CurrentFinding;
-    // One form, two postings: with no active finding it records a new one;
-    // with the single active finding it supersedes it, so a correction never
-    // overwrites history. While mutable it sits in the Determinations panel.
-    // On a Completed record the determinations are greyed boxes and Record
-    // correction opens the same form in a dialog (FRD-03, FRD-15). Cancelled
+    // Record finding records a new finding when there is none and supersedes
+    // the single active one otherwise, so a change never overwrites history.
+    // On a Completed record Record correction opens the same fields. Cancelled
     // triage must be reopened first (Core). Multiple active findings need
     // reconciliation first.
     var correction = record.State == TriageState.Completed && currentFinding is not null;
-    var showsForm = mutable && (currentFinding is not null || activeFindings.Count == 0);
-    // The state table (plan 01): Save determinations leads until a finding
-    // is recorded, then Complete Triage; on Completed, Reply with outcome.
-    var savePrimary = record.State is TriageState.Open or TriageState.AwaitingInformation;
-    var offersReply = view.OffersReply;
+    var offersFinding = mutable && (currentFinding is not null || activeFindings.Count == 0);
     var canLinkCase = mutable && view.CaseAssociationUnavailableReason is null;
     var canAssign = mutable && view.EngineerChoices.Count > 0;
+    var offersOpenFile = !view.SourceIsEmail && view.OpenFileHref is not null;
     var hiddenBase = new Dictionary<string, string?>
     {
         ["expectedVersion"] = record.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
         ["operationKey"] = view.OperationKey
     };
     var actionUrl = Url.Page("/Cases/Details", "TriageAction", new { id = record.CaseId });
+    var replyLabel = view.IsOutcomeReply ? Labels.ReplyWithFinding : Labels.SendChaser;
+
+    // The state's next step stands beside the Actions menu; every other
+    // action the state allows is in the menu.
+    var lead = record.State switch
+    {
+        TriageState.Open or TriageState.AwaitingInformation when offersFinding => "finding",
+        TriageState.FindingRecorded => "complete",
+        TriageState.Completed when view.OffersReply => "compose",
+        TriageState.Cancelled => "reopen",
+        _ => null
+    };
+    var menu = new List<string>();
+    if (canAssign) { menu.Add("assign"); }
+    if (offersFinding) { menu.Add("finding"); }
+    if (correction) { menu.Add("correction"); }
+    if (record.State == TriageState.FindingRecorded) { menu.Add("complete"); }
+    if (view.OffersComposer) { menu.Add("compose"); }
+    if (offersOpenFile) { menu.Add("open-file"); }
+    if (canLinkCase) { menu.Add(record.LinkedInstructionCaseId is null ? "link" : "unlink"); }
+    menu.Remove(lead ?? string.Empty);
+    var end = mutable ? "cancel" : "reopen";
+    var endInMenu = end != lead;
 
     var custodyState = view.Triage.CustodyState;
     var custodyFolderRemoteId = view.Triage.CustodyFolderRemoteId;
     var custodyConfirmed = custodyState == CaseCustodyState.Confirmed
         && !string.IsNullOrWhiteSpace(custodyFolderRemoteId);
     var files = view.Files;
+    var correspondence = view.Triage.Correspondence;
+    var showsResponse = view.Triage.ResponseEvidence.Count > 0 || (mutable && view.Triage.ResponseEvidenceCandidates.Count > 0);
+    var history = view.Triage.History.OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
+    var hasImages = view.EvidenceImages.Count > 0 && record.Origin is not null;
+}
+@functions {
+    // One Actions control, drawn the same in the menu and as the lead.
+    private static string ControlClass(bool primary, bool danger = false) =>
+        primary ? "btn btn--primary" : danger ? "btn btn--danger" : "btn";
+}
+@{
+    async Task ActionControl(string key, bool primary)
+    {
+        switch (key)
+        {
+            case "assign":
+                <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-assign-dialog" data-triage-action="assign">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                    <span>@(record.AssigneeId is null ? Labels.Assign : Labels.Reassign)</span>
+                </button>
+                break;
+            case "finding":
+                <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-finding-dialog" data-triage-action="record-finding">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-clipboard-list" /></svg>
+                    <span>@Labels.RecordFinding</span>
+                </button>
+                break;
+            case "correction":
+                <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-correction-dialog" data-triage-correction>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                    <span>@Labels.RecordCorrection</span>
+                </button>
+                break;
+            case "complete":
+                <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId">
+                    <input type="hidden" name="expectedVersion" value="@record.Version" />
+                    <input type="hidden" name="operationKey" value="@view.OperationKey" />
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Completing" name="actionName" value="complete" class="@ControlClass(primary)" data-triage-complete>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                        <span>@Labels.CompleteTriage</span>
+                    </button>
+                </form>
+                break;
+            case "compose":
+                <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-compose-dialog" data-triage-action="compose">
+                    <svg class="icon" aria-hidden="true"><use href="#@(view.IsOutcomeReply ? "icon-reply" : "icon-send")" /></svg>
+                    <span>@replyLabel</span>
+                </button>
+                break;
+            case "open-file":
+                <a class="@ControlClass(primary)" href="@view.OpenFileHref" target="_blank" rel="noopener" data-triage-action="open-file">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                    <span>@Labels.OpenFile</span>
+                </a>
+                break;
+            case "link":
+                <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-link-case-dialog" data-triage-action="link-case">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                    <span>Link case</span>
+                </button>
+                break;
+            case "unlink":
+                <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-unlink-case-dialog" data-triage-action="unlink-case">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-unlink" /></svg>
+                    <span>Unlink case</span>
+                </button>
+                break;
+            case "cancel":
+                <button type="button" class="@ControlClass(primary, danger: true)" data-dialog-open="triage-cancel-dialog" data-triage-action="cancel">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <span>@Labels.CancelTriage</span>
+                </button>
+                break;
+            case "reopen":
+                <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-reopen-dialog" data-triage-action="reopen">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg>
+                    <span>@Labels.Reopen</span>
+                </button>
+                break;
+        }
+    }
 }
 
 <header class="page-header">
@@ -61,7 +160,10 @@
     </div>
 </header>
 
-<div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+@if (!view.ReplyRefused)
+{
+    <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+}
 
 @if (!string.IsNullOrWhiteSpace(view.Message))
 {
@@ -70,7 +172,7 @@
         <span>@view.Message</span>
         @if (view.NoticeOffersReply)
         {
-            <a href="#triage-correspondence" data-triage-reply-link>@Labels.ReplyWithOutcome</a>
+            <button type="button" class="link-button" data-dialog-open="triage-compose-dialog" data-triage-reply-link>@Labels.ReplyWithFinding</button>
         }
         <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
     </div>
@@ -80,6 +182,13 @@
     <div class="notice notice--warning mb-2" role="status">
         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
         <span>@unavailableReason</span>
+    </div>
+}
+@if (mutable && !offersFinding)
+{
+    <div class="notice notice--warning mb-2" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>Multiple active findings require reconciliation before another finding can be recorded.</span>
     </div>
 }
 @* The one-time notice a write elsewhere leaves for this record (Upload's
@@ -96,496 +205,350 @@
 </div>
 
 <article class="record triage-record" data-triage-record data-triage-state="@record.State">
-    <div class="ribbon triage-ribbon" aria-label="Triage identity">
-        <div class="ribbon-facts">
-            <div class="ribbon-item ribbon-ref"><span class="ribbon-label">@OperatorLabels.TriageReference</span><span class="ribbon-value mono">@reference</span></div>
-            <div class="ribbon-item"><span class="ribbon-label">Registration</span><span class="ribbon-value mono">@record.NormalizedVehicleRegistration</span></div>
-            <div class="ribbon-item"><span class="ribbon-label">@OperatorLabels.Principal</span><span class="ribbon-value">@(view.Triage.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</span></div>
-            <div class="ribbon-item"><span class="ribbon-label">Source</span><span class="ribbon-value">@view.SourceLabel</span></div>
-            <div class="ribbon-item"><span class="ribbon-label">Opened</span><span class="ribbon-value">@OperatorLabels.OfficeTime(view.Triage.CreatedAtUtc)</span></div>
-            <div class="ribbon-item">
-                <span class="ribbon-label">@Labels.Assignee</span>
-                <span class="ribbon-value">
-                    <span>@(view.AssigneeName ?? Labels.NoAssignee)</span>
-                    @if (canAssign)
-                    {
-                        <button type="button" class="btn btn--small" data-dialog-open="triage-assign-dialog" data-triage-assign>@(record.AssigneeId is null ? Labels.Assign : Labels.Reassign)</button>
-                    }
-                </span>
-            </div>
-            <div class="ribbon-item">
-                <span class="ribbon-label">@Labels.Case</span>
-                <span class="ribbon-value">
-                    @if (record.LinkedInstructionCaseId is { } linkedCaseId)
-                    {
-                        <a asp-page="/Cases/Details" asp-route-id="@linkedCaseId" data-triage-linked-case>@(view.LinkedCaseReference ?? Labels.OpenCase)</a>
-                    }
-                    else
-                    {
-                        <span>@Labels.NoCase</span>
-                    }
-                </span>
-            </div>
-        </div>
-        <div class="ribbon-chips"><partial name="Shared/_StatusChip" model="@TriageCaseView.StateLabel(record.State)" /></div>
-    </div>
-
-    @* The record bar: the retained source and the Case link, nothing else. *@
-    @if (view.SourceMessageId is not null || (!view.SourceIsEmail && view.OpenFileHref is not null) || canLinkCase)
-    {
-        <div class="record-bar triage-record-actions">
-            @if (view.SourceMessageId is { } sourceMessageId)
-            {
-                <a class="btn" href="/Inbox/@sourceMessageId.ToString("D")" data-triage-action="open-message">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
-                    <span>Open message</span>
-                </a>
-            }
-            @if (!view.SourceIsEmail && view.OpenFileHref is { } openFileHref)
-            {
-                <a class="btn" href="@openFileHref" target="_blank" rel="noopener" data-triage-action="open-file">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                    <span>Open file</span>
-                </a>
-            }
-            @if (canLinkCase)
-            {
-                <div class="record-bar-end">
-                    @if (record.LinkedInstructionCaseId is null)
-                    {
-                        <button type="button" class="btn" data-dialog-open="triage-link-case-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                            <span>Link case</span>
-                        </button>
-                    }
-                    else
-                    {
-                        <button type="button" class="btn" data-dialog-open="triage-unlink-case-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-unlink" /></svg>
-                            <span>Unlink case</span>
-                        </button>
-                    }
-                </div>
-            }
-        </div>
-    }
-
-    <div class="record-body">
-        <section class="panel triage-resolution-panel" aria-labelledby="triage-determinations-title">
-            <div class="panel-head">
-                <h2 id="triage-determinations-title">@Labels.Determinations</h2>
-            </div>
-            <div class="panel-body stack">
-                @* The two determinations keep one geometry in every state: white
-                   controls while a finding can be recorded, greyed boxes once
-                   the record is settled. *@
-                @if (showsForm)
-                {
-                    <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" class="stack" data-triage-determinations>
-                        <input type="hidden" name="expectedVersion" value="@record.Version" />
-                        <input type="hidden" name="operationKey" value="@view.OperationKey" />
-                        @if (currentFinding is not null)
-                        {
-                            <input type="hidden" name="supersedesFindingId" value="@currentFinding.Id" />
-                        }
-                        <partial name="Cases/Shared/_TriageDeterminationFields" model="view" />
-                        <div class="button-row">
-                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" name="actionName"
-                                    value="@(currentFinding is null ? "record_finding" : "supersede_finding")"
-                                    class="btn @(savePrimary ? "btn--primary" : string.Empty)">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                                <span>@Labels.SaveDeterminations</span>
-                            </button>
-                        </div>
-                    </form>
-                }
-                else if (mutable)
-                {
-                    <div class="notice notice--warning" role="alert">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                        <span>Multiple active findings require reconciliation before another finding can be recorded.</span>
-                    </div>
-                }
-                else if (activeFindings.Count <= 1)
-                {
-                    <div class="fg g2">
-                        <div class="fc ro">
-                            <span class="lbl">Roadworthiness</span>
-                            <div class="fv @(currentFinding?.Roadworthiness is null ? "empty" : string.Empty)">@(currentFinding?.Roadworthiness is { } roadworthiness
-                                ? TriageCaseView.RoadworthinessLabel(roadworthiness) : "Not recorded")</div>
-                        </div>
-                        <div class="fc ro">
-                            <span class="lbl">Repair outcome</span>
-                            <div class="fv @(currentFinding?.Assessment is null ? "empty" : string.Empty)">@(currentFinding?.Assessment is { } assessment
-                                ? TriageCaseView.AssessmentLabel(assessment) : "Not recorded")</div>
-                        </div>
-                    </div>
-                }
-
-                @* The transitions the state permits. Complete and Await
-                   information post on the click; Cancel and Reopen keep their
-                   reason dialogs (FRD-03). *@
-                <div class="button-row" data-triage-transitions>
-                    @if (record.State == TriageState.FindingRecorded)
-                    {
-                        <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId">
-                            <input type="hidden" name="expectedVersion" value="@record.Version" />
-                            <input type="hidden" name="operationKey" value="@view.OperationKey" />
-                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Completing" name="actionName" value="complete" class="btn btn--primary" data-triage-complete>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                                <span>@Labels.CompleteTriage</span>
-                            </button>
-                        </form>
-                    }
-                    @if (offersReply)
-                    {
-                        <a class="btn btn--primary" href="#triage-correspondence" data-triage-reply-link>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
-                            <span>@Labels.ReplyWithOutcome</span>
-                        </a>
-                    }
-                    @if (correction)
-                    {
-                        <button type="button" class="btn" data-dialog-open="triage-correction-dialog" data-triage-correction>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                            <span>@Labels.RecordCorrection</span>
-                        </button>
-                    }
-                    @if (record.State is TriageState.Open or TriageState.FindingRecorded)
-                    {
-                        <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId">
-                            <input type="hidden" name="expectedVersion" value="@record.Version" />
-                            <input type="hidden" name="operationKey" value="@view.OperationKey" />
-                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" name="actionName" value="await_information" class="btn" data-triage-await>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
-                                <span>@Labels.AwaitInformation</span>
-                            </button>
-                        </form>
-                    }
-                    @if (mutable)
-                    {
-                        <button type="button" class="btn btn--danger" data-dialog-open="triage-cancel-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                            <span>@Labels.CancelTriage</span>
-                        </button>
-                    }
-                    else
-                    {
-                        <button type="button" class="btn @(record.State == TriageState.Cancelled ? "btn--primary" : string.Empty)" data-dialog-open="triage-reopen-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg>
-                            <span>@Labels.Reopen</span>
-                        </button>
-                    }
-                </div>
-            </div>
-        </section>
-
-        @if (view.EvidenceImages.Count > 0 && record.Origin is { } origin)
-        {
-            <section class="section-gap triage-evidence-panel" aria-labelledby="triage-images-title">
-                <div class="blockhead"><h2 id="triage-images-title">Vehicle images</h2></div>
-                @{
-                    var triageGallery = view.EvidenceImages
-                        .Select(asset =>
-                        {
-                            // A retained receipt asset is already served inline, so
-                            // preview and download are the same authorised URL --
-                            // the coincidence GalleryImage documents.
-                            var href = Url.Page(
-                                "/Intake/Asset",
-                                new { id = origin.ReceiptId, assetId = asset.Id, v = asset.ContentHash })!;
-                            return new Pegasus.Web.Presentation.GalleryImage(
-                                href,
-                                href,
-                                asset.FileName,
-                                asset.MediaType,
-                                IntakeAssetId: asset.Id,
-                                IntakeReceiptId: origin.ReceiptId,
-                                Preparation: view.Preparations.GetValueOrDefault(asset.Id),
-                                ContentHash: asset.ContentHash);
-                        })
-                        .ToArray();
-                    ViewData["PreCaseImageTags"] = view.ImageTags;
-                }
-                <partial name="Shared/_ImageGallery" model="triageGallery" />
-            </section>
-        }
-
-        @* The one reply form (FRD-03, FRD-21): the chaser until the outcome
-           is recorded, Reply with outcome once Completed. It renders only when
-           the Triage came by e-mail and its approved mailbox may send. *@
-        @if (view.CanSendReply && (view.ReplyPurpose is not null || view.ReplyOperation is not null))
-        {
-            <section class="panel section-gap" id="triage-correspondence" aria-labelledby="triage-correspondence-title" data-triage-correspondence="@(view.ReplyPurpose?.ToString() ?? string.Empty)">
-                <div class="panel-head"><h2 id="triage-correspondence-title">@(view.IsOutcomeReply ? Labels.ReplyWithOutcome : Labels.ChaserCorrespondence)</h2></div>
-                <div class="panel-body stack">
-                    @if (view.ReplyOperation is { } replyOperation)
-                    {
-                        <div class="notice mb-2" role="status">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
-                            <span>@Labels.LatestSendStatus(replyOperation.State)</span>
-                        </div>
-                        @if (replyOperation.State == Pegasus.Core.Operations.StaffMailState.Unknown)
-                        {
-                            <form method="post" asp-page-handler="TriageReconcileReply" asp-route-id="@record.CaseId" class="mb-2">
-                                <input type="hidden" name="operationId" value="@replyOperation.Id" />
-                                <input type="hidden" name="expectedOperationVersion" value="@replyOperation.Version" />
-                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Reconciling" class="btn btn--small">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
-                                    <span>@Labels.ReconcileStatus</span>
-                                </button>
-                            </form>
-                        }
-                    }
-                    @if (view.ReplyPurpose is not null && !view.ReplyOperationBlocked)
-                    {
-                        <form method="post" asp-page-handler="TriageSendReply" asp-route-id="@record.CaseId" class="stack" data-triage-reply-form>
-                            <input type="hidden" name="expectedVersion" value="@record.Version" />
-                            <input type="hidden" name="operationKey" value="@view.ReplyOperationKey" />
-                            <div class="field">
-                                <label class="req" for="triage-reply-to">To</label>
-                                <input id="triage-reply-to" name="to" value="@view.ReplyTo" required maxlength="500" />
-                            </div>
-                            <div class="field">
-                                <label for="triage-reply-cc">Cc</label>
-                                <input id="triage-reply-cc" name="cc" value="@view.ReplyCc" maxlength="500" />
-                            </div>
-                            <div class="field">
-                                <label class="req" for="triage-reply-subject">Subject</label>
-                                <input id="triage-reply-subject" name="subject" value="@view.ReplySubject" required maxlength="500" />
-                            </div>
-                            <div class="field">
-                                <label class="req" for="triage-reply-body">Message</label>
-                                <textarea id="triage-reply-body" name="body" rows="@(view.IsOutcomeReply ? 8 : 4)" required maxlength="5000">@view.ReplyBody</textarea>
-                            </div>
-                            @if (view.AvailableAttachments.Count > 0)
+    @* The page's tabs: Images, Files and Notes. Every panel is rendered, so
+       with no script the record is the three one after the other, each under
+       its own heading; site.js turns the strip on. *@
+    <div data-file-tabs-wrap data-file-tabs-hash="triage-">
+        <div class="triage-sticky">
+            <div class="ribbon triage-ribbon" aria-label="Triage identity">
+                <div class="ribbon-facts">
+                    <div class="ribbon-item ribbon-ref"><span class="ribbon-label">@OperatorLabels.TriageReference</span><span class="ribbon-value mono">@reference</span></div>
+                    <div class="ribbon-item"><span class="ribbon-label">Registration</span><span class="ribbon-value mono">@record.NormalizedVehicleRegistration</span></div>
+                    <div class="ribbon-item"><span class="ribbon-label">@OperatorLabels.Principal</span><span class="ribbon-value">@(view.Triage.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</span></div>
+                    <div class="ribbon-item"><span class="ribbon-label">Source</span><span class="ribbon-value">@view.SourceLabel</span></div>
+                    <div class="ribbon-item"><span class="ribbon-label">Opened</span><span class="ribbon-value">@OperatorLabels.OfficeTime(view.Triage.CreatedAtUtc)</span></div>
+                    <div class="ribbon-item"><span class="ribbon-label">@Labels.Assignee</span><span class="ribbon-value" data-triage-assignee>@(view.AssigneeName ?? Labels.NoAssignee)</span></div>
+                    <div class="ribbon-item">
+                        <span class="ribbon-label">@Labels.Case</span>
+                        <span class="ribbon-value">
+                            @if (record.LinkedInstructionCaseId is { } linkedCaseId)
                             {
-                                <fieldset class="field">
-                                    <legend>Attachments</legend>
-                                    @foreach (var attachment in view.AvailableAttachments)
-                                    {
-                                        <label>
-                                            <input type="checkbox" name="selectedAttachments" value="@attachment.Selection"
-                                                   checked="@view.SelectedAttachments.Contains(attachment.Selection)" />
-                                            @attachment.FileName
-                                        </label>
-                                    }
-                                </fieldset>
+                                <a asp-page="/Cases/Details" asp-route-id="@linkedCaseId" data-triage-linked-case>@(view.LinkedCaseReference ?? Labels.OpenCase)</a>
                             }
-                            <div class="button-row">
-                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                                    <span>@(view.IsOutcomeReply ? Labels.SendReply : Labels.SendChaser)</span>
-                                </button>
-                            </div>
-                        </form>
-                    }
-                    else if (view.ReplyOperationBlocked)
-                    {
-                        <div class="notice notice--warning" role="alert">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>The existing correspondence operation must finish or be resolved before another action.</span>
-                        </div>
-                    }
-                </div>
-            </section>
-        }
-
-        @* Exact response evidence keeps its handlers; the panel renders only
-           when there is something linked or something to link — both can be
-           true at once. *@
-        @if (view.Triage.ResponseEvidence.Count > 0 || (mutable && view.Triage.ResponseEvidenceCandidates.Count > 0))
-        {
-            <section class="panel section-gap" aria-labelledby="triage-response-title">
-                <div class="panel-head"><h2 id="triage-response-title">Exact response evidence</h2></div>
-                <div class="panel-body stack">
-                    @if (view.Triage.ResponseEvidence.Count > 0)
-                    {
-                        <div class="timeline">
-                            @foreach (var evidence in view.Triage.ResponseEvidence)
+                            else
                             {
-                                <div class="timeline-item">
-                                    <div class="timeline-title">@OperatorLabels.OfficeTime(evidence.LinkedAtUtc)</div>
-                                    <div class="timeline-text">@evidence.Reason</div>
-                                </div>
+                                <span>@Labels.NoCase</span>
                             }
-                        </div>
-                        @if (mutable)
-                        {
-                            var linkedResponse = view.Triage.ResponseEvidence[0];
-                            <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" class="stack">
-                                <input type="hidden" name="expectedVersion" value="@record.Version" />
-                                <input type="hidden" name="operationKey" value="@view.OperationKey" />
-                                <input type="hidden" name="sentEvidenceId" value="@linkedResponse.SentEvidenceId" />
-                                <div class="field">
-                                    <label class="req" for="triage-unlink-response-reason">Reason</label>
-                                    <textarea id="triage-unlink-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
-                                </div>
-                                <div class="button-row">
-                                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Unlinking" name="actionName" value="unlink_response" class="btn">
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                                        <span>Unlink response</span>
-                                    </button>
-                                </div>
-                            </form>
-                        }
-                    }
-                    @if (mutable && view.Triage.ResponseEvidenceCandidates.Count > 0)
-                    {
-                        <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" class="stack">
-                            <input type="hidden" name="expectedVersion" value="@record.Version" />
-                            <input type="hidden" name="operationKey" value="@view.OperationKey" />
-                            <div class="field">
-                                <label class="req" for="triage-response-candidate">Approved-mailbox reply</label>
-                                <select id="triage-response-candidate" name="responseCandidate" required>
-                                    <option value="">Select exact response evidence</option>
-                                    @foreach (var candidate in view.Triage.ResponseEvidenceCandidates)
-                                    {
-                                        <option value="@candidate.PollOutcomeId|@candidate.SentEvidenceId">
-                                            @OperatorLabels.OfficeTime(candidate.SentAtUtc) —
-                                            @candidate.MailboxAddress —
-                                            message @candidate.InternetMessageIdentity —
-                                            Sent evidence @candidate.SentEvidenceId
-                                        </option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="field">
-                                <label class="req" for="triage-response-reason">Reason</label>
-                                <textarea id="triage-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
-                            </div>
-                            <div class="button-row">
-                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Linking" name="actionName" value="link_response" class="btn btn--dark">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                                    <span>Record and link exact response</span>
-                                </button>
-                            </div>
-                        </form>
-                    }
+                        </span>
+                    </div>
                 </div>
-            </section>
-        }
-
-        @* Files (v29 p7): the Triage Case's standard Case files — its custody
-           folder, Add evidence to /Upload, the Case Files head's More menu
-           and its documents —
-           before Notes, drawn as the Case Files section draws them. *@
-        <section class="panel section-gap" id="section-files" aria-labelledby="section-files-title">
-            <div class="panel-head">
-                <h2 id="section-files-title">@OperatorLabels.CaseWorkspace.FilesPanel</h2>
-                @if (custodyConfirmed)
-                {
-                    <span class="status status--green status--plain" data-custody-chip>@FilesLabels.BoxConfirmed</span>
-                }
-                else
-                {
-                    <span class="status @(custodyState == CaseCustodyState.Failed ? "status--red" : "status--amber") status--plain" data-custody-chip>@OperatorLabels.CustodyFolderState(custodyState)</span>
-                }
-                <div class="panel-actions">
-                    <a class="btn btn--small btn--primary" asp-page="/Upload" asp-route-caseId="@record.CaseId" data-add-evidence>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                        <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
-                    </a>
-                    @if (custodyConfirmed)
+                <div class="ribbon-chips"><partial name="Shared/_StatusChip" model="@TriageCaseView.StateLabel(record.State)" /></div>
+                <div class="ribbon-actions">
+                    @if (lead is not null)
                     {
-                        <details class="menu" data-menu data-files-menu>
-                            <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                        await ActionControl(lead, primary: true);
+                    }
+                    @if (menu.Count > 0 || endInMenu)
+                    {
+                        <details class="menu" data-menu data-triage-actions>
+                            <summary class="btn"><span>@CaseWorkspaceLabels.Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
                             <div class="menu-body">
-                                <a class="btn" href="https://app.box.com/folder/@custodyFolderRemoteId" target="_blank" rel="noopener" data-open-in-box>
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
-                                    <span>@FilesLabels.OpenInBox</span>
-                                </a>
+                                @foreach (var key in menu)
+                                {
+                                    await ActionControl(key, primary: false);
+                                }
+                                @if (endInMenu)
+                                {
+                                    if (menu.Count > 0)
+                                    {
+                                        <div class="menu-sep"></div>
+                                    }
+                                    await ActionControl(end, primary: false);
+                                }
                             </div>
                         </details>
                     }
                 </div>
             </div>
-            <div class="panel-body stack">
-                <h3 class="tab-panel-title">@TagLabels.DocumentsTab</h3>
-                @if (files.Count == 0)
-                {
-                    <p class="muted" data-documents-empty>@FilesLabels.NoDocuments</p>
-                }
-                else
-                {
-                    <div class="doc-list stack" data-document-list>
-                        @foreach (var entry in files)
-                        {
-                            var occurrence = entry.Occurrence;
-                            var version = entry.Version;
-                            var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
-                            var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
-                                || occurrence.Source == DocumentSource.ExternalCorrespondence;
-                            <div class="doc-row" data-document-row="@occurrence.Id">
-                                <svg class="icon" aria-hidden="true"><use href="#@(isMail ? "icon-mail" : "icon-file-text")" /></svg>
-                                <div class="doc-row-name">
-                                    <b>@version.FileName</b>
-                                    <small>@OperatorLabels.DocumentOrigin(occurrence.Source) · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc) · @OperatorLabels.FileSize(version.ContentLength)</small>
-                                </div>
-                                <span class="doc-row-tags">
-                                    <span class="src-tag">@OperatorLabels.DocumentRole(occurrence.SemanticRole)</span>
-                                    @if (!mayRead)
-                                    {
-                                        <span class="status @(version.CustodyStatus == DocumentCustodyStatus.Failed ? "status--red" : "status--amber") status--plain">@(version.CustodyStatus == DocumentCustodyStatus.Failed ? FilesLabels.StorageNotReady : OperatorLabels.CustodyState(version.CustodyStatus))</span>
-                                    }
-                                </span>
-                                <span class="doc-row-actions">
-                                    @if (mayRead)
-                                    {
-                                        <a class="btn btn--small btn--icon" href="@view.DownloadUrl(entry)" download title="@OperatorLabels.CaseWorkspace.SaveAs" aria-label="@OperatorLabels.CaseWorkspace.SaveAs @version.FileName">
-                                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                                        </a>
-                                    }
-                                </span>
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
-        </section>
-
-        @* The panel is "Notes". Its entries are still the one
-           permanent, attributed, versioned history: an operator note is an
-           entry in that stream, not a second, editable record beside it. The
-           entry shape (Date/Time/ID + text) is unchanged. *@
-        <section class="panel section-gap" aria-labelledby="triage-history-title">
-            <div class="panel-head"><h2 id="triage-history-title">Notes</h2></div>
-            <div class="panel-body">
-                @if (mutable)
-                {
-                    <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" class="stack">
-                        <input type="hidden" name="actionName" value="note" />
-                        <input type="hidden" name="expectedVersion" value="@record.Version" />
-                        <input type="hidden" name="operationKey" value="@view.OperationKey" />
-                        <div class="field">
-                            <label class="req" for="triage-note">Note</label>
-                            @* The bound is Core's, so the form cannot offer
-                               more than the history entry accepts. *@
-                            <textarea id="triage-note" name="note" rows="3" required maxlength="@TriageNotes.MaximumLength"></textarea>
-                        </div>
-                        <div class="button-row">
-                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn btn--dark">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                                <span>Add note</span>
-                            </button>
-                        </div>
-                    </form>
-                }
-                <div class="notes-list">
-                    @foreach (var entry in view.Triage.History.OrderByDescending(history => history.OccurredAtUtc))
+            <div class="triage-tabrow">
+                <div class="tabs" role="tablist" aria-label="@reference" data-file-tabs hidden>
+                    @if (hasImages)
                     {
-                        <div class="note-entry">
-                            <div class="note-meta">
-                                <span>Date @OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span>
-                                <span>Time @OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span>
-                                <span>ID @entry.ActorDisplayName</span>
-                            </div>
-                            <div>@TriageCaseView.EventLabel(entry.EventType): @entry.Reason</div>
-                        </div>
+                        <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="triage-images" data-file-tab="images">@TagLabels.ImagesTab · @view.EvidenceImages.Count</button>
                     }
+                    <button type="button" class="tab" role="tab" aria-selected="@(hasImages ? "false" : "true")" aria-controls="triage-files" data-file-tab="files">@OperatorLabels.CaseWorkspace.FilesPanel · @(files.Count + correspondence.Count)</button>
+                    <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="triage-notes" data-file-tab="notes">@Labels.Notes · @history.Length</button>
                 </div>
+                @* The finding, read-only; Record finding and Record correction change it. *@
+                <dl class="triage-finding" aria-label="@Labels.Finding" data-triage-finding>
+                    <div><dt>Roadworthiness</dt><dd class="@(currentFinding?.Roadworthiness is null ? "is-empty" : null)">@(currentFinding?.Roadworthiness is { } roadworthiness ? TriageCaseView.RoadworthinessLabel(roadworthiness) : "Not recorded")</dd></div>
+                    <div><dt>Repair outcome</dt><dd class="@(currentFinding?.Assessment is null ? "is-empty" : null)">@(currentFinding?.Assessment is { } assessment ? TriageCaseView.AssessmentLabel(assessment) : "Not recorded")</dd></div>
+                </dl>
             </div>
-        </section>
+        </div>
+
+        <div class="record-body">
+            @if (hasImages)
+            {
+                var origin = record.Origin!;
+                <section id="triage-images" role="tabpanel" data-file-tab-panel="images" aria-labelledby="triage-images-title" class="triage-images">
+                    <h2 class="tab-panel-title" id="triage-images-title">@Labels.VehicleImages</h2>
+                    @{
+                        // The request's photographs at contact-sheet size. A
+                        // retained receipt asset is already served inline, so
+                        // preview and download are the same authorised URL; the
+                        // tile is the asset route's tile rendering. Triage takes
+                        // no crop or tag.
+                        var triageGallery = view.EvidenceImages
+                            .Select(asset =>
+                            {
+                                var href = Url.Page(
+                                    "/Intake/Asset",
+                                    new { id = origin.ReceiptId, assetId = asset.Id, v = asset.ContentHash })!;
+                                var tile = CaseDocumentThumbnails.IsThumbnailable(asset.MediaType)
+                                    ? IntakeImageAddress.Tile(
+                                        origin.ReceiptId,
+                                        asset.Id,
+                                        asset.ContentHash,
+                                        Pegasus.Core.ImageIntake.PreCaseImagePreparation.NoPreparationVersion)
+                                    : null;
+                                return new GalleryImage(href, href, asset.FileName, asset.MediaType, ThumbnailHref: tile);
+                            })
+                            .ToArray();
+                    }
+                    <partial name="Shared/_ImageGallery" model="triageGallery" />
+                </section>
+            }
+
+            <section id="triage-files" role="tabpanel" data-file-tab-panel="files" aria-labelledby="section-files-title">
+                <div class="panel" id="section-files">
+                    <div class="panel-head">
+                        <h2 id="section-files-title">@OperatorLabels.CaseWorkspace.FilesPanel</h2>
+                        @if (custodyConfirmed)
+                        {
+                            <span class="status status--green status--plain" data-custody-chip>@FilesLabels.BoxConfirmed</span>
+                        }
+                        else
+                        {
+                            <span class="status @(custodyState == CaseCustodyState.Failed ? "status--red" : "status--amber") status--plain" data-custody-chip>@OperatorLabels.CustodyFolderState(custodyState)</span>
+                        }
+                        <div class="panel-actions">
+                            <a class="btn btn--small btn--primary" asp-page="/Upload" asp-route-caseId="@record.CaseId" data-add-evidence>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                                <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
+                            </a>
+                            @if (custodyConfirmed)
+                            {
+                                <details class="menu" data-menu data-files-menu>
+                                    <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                                    <div class="menu-body">
+                                        <a class="btn" href="https://app.box.com/folder/@custodyFolderRemoteId" target="_blank" rel="noopener" data-open-in-box>
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                                            <span>@FilesLabels.OpenInBox</span>
+                                        </a>
+                                    </div>
+                                </details>
+                            }
+                        </div>
+                    </div>
+                    <div class="panel-body stack" data-file-tabs-wrap>
+                        <div class="tabs" role="tablist" aria-label="@OperatorLabels.CaseWorkspace.FilesPanel" data-file-tabs hidden>
+                            <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="triage-files-documents" data-file-tab="documents">@TagLabels.DocumentsTab · @files.Count</button>
+                            <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="triage-files-correspondence" data-file-tab="correspondence">@FilesLabels.CorrespondenceTab · @correspondence.Count</button>
+                        </div>
+                        <div id="triage-files-documents" role="tabpanel" data-file-tab-panel="documents">
+                            <h3 class="tab-panel-title">@TagLabels.DocumentsTab</h3>
+                            @if (files.Count == 0)
+                            {
+                                <p class="muted" data-documents-empty>@FilesLabels.NoDocuments</p>
+                            }
+                            else
+                            {
+                                <div class="doc-list stack" data-document-list>
+                                    @foreach (var entry in files)
+                                    {
+                                        var occurrence = entry.Occurrence;
+                                        var version = entry.Version;
+                                        var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
+                                        var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
+                                            || occurrence.Source == DocumentSource.ExternalCorrespondence;
+                                        <div class="doc-row" data-document-row="@occurrence.Id">
+                                            <svg class="icon" aria-hidden="true"><use href="#@(isMail ? "icon-mail" : "icon-file-text")" /></svg>
+                                            <div class="doc-row-name">
+                                                <b>@version.FileName</b>
+                                                <small>@OperatorLabels.DocumentOrigin(occurrence.Source) · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc) · @OperatorLabels.FileSize(version.ContentLength)</small>
+                                            </div>
+                                            <span class="doc-row-tags">
+                                                <span class="src-tag">@OperatorLabels.DocumentRole(occurrence.SemanticRole)</span>
+                                                @if (!mayRead)
+                                                {
+                                                    <span class="status @(version.CustodyStatus == DocumentCustodyStatus.Failed ? "status--red" : "status--amber") status--plain">@(version.CustodyStatus == DocumentCustodyStatus.Failed ? FilesLabels.StorageNotReady : OperatorLabels.CustodyState(version.CustodyStatus))</span>
+                                                }
+                                            </span>
+                                            <span class="doc-row-actions">
+                                                @if (mayRead)
+                                                {
+                                                    <a class="btn btn--small btn--icon" href="@view.DownloadUrl(entry)" download title="@OperatorLabels.CaseWorkspace.SaveAs" aria-label="@OperatorLabels.CaseWorkspace.SaveAs @version.FileName">
+                                                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                                                    </a>
+                                                }
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        <div id="triage-files-correspondence" role="tabpanel" data-file-tab-panel="correspondence" data-triage-correspondence="@(view.ReplyPurpose?.ToString() ?? string.Empty)">
+                            <h3 class="tab-panel-title">@FilesLabels.CorrespondenceTab</h3>
+                            @if (view.CanSendReply && view.ReplyOperation is { } replyOperation)
+                            {
+                                <div class="notice mb-2" role="status" data-triage-send-status>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+                                    <span>@Labels.LatestSendStatus(replyOperation.State)</span>
+                                </div>
+                                @if (replyOperation.State == Pegasus.Core.Operations.StaffMailState.Unknown)
+                                {
+                                    <form method="post" asp-page-handler="TriageReconcileReply" asp-route-id="@record.CaseId" class="mb-2">
+                                        <input type="hidden" name="operationId" value="@replyOperation.Id" />
+                                        <input type="hidden" name="expectedOperationVersion" value="@replyOperation.Version" />
+                                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Reconciling" class="btn btn--small">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
+                                            <span>@Labels.ReconcileStatus</span>
+                                        </button>
+                                    </form>
+                                }
+                            }
+                            @if (view.CanSendReply && view.ReplyPurpose is not null && view.ReplyOperationBlocked)
+                            {
+                                <div class="notice notice--warning mb-2" role="alert">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                                    <span>The existing correspondence operation must finish or be resolved before another action.</span>
+                                </div>
+                            }
+                            @if (view.OffersComposer)
+                            {
+                                <div class="button-row">
+                                    <button type="button" class="btn btn--small" data-dialog-open="triage-compose-dialog">
+                                        <svg class="icon" aria-hidden="true"><use href="#@(view.IsOutcomeReply ? "icon-reply" : "icon-send")" /></svg>
+                                        <span>@replyLabel</span>
+                                    </button>
+                                </div>
+                            }
+                            <partial name="Cases/Shared/_CaseCorrespondence" model="@(new CaseCorrespondenceView(correspondence, reference, OffersCompose: false))" />
+
+                            @* Exact response evidence keeps its handlers; it renders
+                               only when there is something linked or something to
+                               link — both can be true at once. *@
+                            @if (showsResponse)
+                            {
+                                <div class="triage-response" aria-labelledby="triage-response-title">
+                                    <h3 id="triage-response-title">Exact response evidence</h3>
+                                    <div class="stack">
+                                        @if (view.Triage.ResponseEvidence.Count > 0)
+                                        {
+                                            <div class="timeline">
+                                                @foreach (var evidence in view.Triage.ResponseEvidence)
+                                                {
+                                                    <div class="timeline-item">
+                                                        <div class="timeline-title">@OperatorLabels.OfficeTime(evidence.LinkedAtUtc)</div>
+                                                        <div class="timeline-text">@evidence.Reason</div>
+                                                    </div>
+                                                }
+                                            </div>
+                                            @if (mutable)
+                                            {
+                                                var linkedResponse = view.Triage.ResponseEvidence[0];
+                                                <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" class="stack">
+                                                    <input type="hidden" name="expectedVersion" value="@record.Version" />
+                                                    <input type="hidden" name="operationKey" value="@view.OperationKey" />
+                                                    <input type="hidden" name="sentEvidenceId" value="@linkedResponse.SentEvidenceId" />
+                                                    <div class="field">
+                                                        <label class="req" for="triage-unlink-response-reason">Reason</label>
+                                                        <textarea id="triage-unlink-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                                                    </div>
+                                                    <div class="button-row">
+                                                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Unlinking" name="actionName" value="unlink_response" class="btn">
+                                                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                                            <span>Unlink response</span>
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            }
+                                        }
+                                        @if (mutable && view.Triage.ResponseEvidenceCandidates.Count > 0)
+                                        {
+                                            <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" class="stack">
+                                                <input type="hidden" name="expectedVersion" value="@record.Version" />
+                                                <input type="hidden" name="operationKey" value="@view.OperationKey" />
+                                                <div class="field">
+                                                    <label class="req" for="triage-response-candidate">Approved-mailbox reply</label>
+                                                    <select id="triage-response-candidate" name="responseCandidate" required>
+                                                        <option value="">Select exact response evidence</option>
+                                                        @foreach (var candidate in view.Triage.ResponseEvidenceCandidates)
+                                                        {
+                                                            <option value="@candidate.PollOutcomeId|@candidate.SentEvidenceId">
+                                                                @OperatorLabels.OfficeTime(candidate.SentAtUtc) —
+                                                                @candidate.MailboxAddress —
+                                                                message @candidate.InternetMessageIdentity —
+                                                                Sent evidence @candidate.SentEvidenceId
+                                                            </option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                                <div class="field">
+                                                    <label class="req" for="triage-response-reason">Reason</label>
+                                                    <textarea id="triage-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                                                </div>
+                                                <div class="button-row">
+                                                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Linking" name="actionName" value="link_response" class="btn btn--dark">
+                                                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                                                        <span>Record and link exact response</span>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            @* Notes: the one permanent, attributed, versioned history. An
+               operator note is an entry in that stream, not a second, editable
+               record beside it. *@
+            <section id="triage-notes" role="tabpanel" data-file-tab-panel="notes" aria-labelledby="triage-history-title">
+                <div class="panel">
+                    <div class="panel-head"><h2 id="triage-history-title">@Labels.Notes</h2></div>
+                    <div class="panel-body">
+                        @if (mutable)
+                        {
+                            <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" class="stack">
+                                <input type="hidden" name="actionName" value="note" />
+                                <input type="hidden" name="expectedVersion" value="@record.Version" />
+                                <input type="hidden" name="operationKey" value="@view.OperationKey" />
+                                <div class="field">
+                                    <label class="req" for="triage-note">Note</label>
+                                    @* The bound is Core's, so the form cannot offer
+                                       more than the history entry accepts. *@
+                                    <textarea id="triage-note" name="note" rows="3" required maxlength="@TriageNotes.MaximumLength"></textarea>
+                                </div>
+                                <div class="button-row">
+                                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn btn--dark">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                        <span>Add note</span>
+                                    </button>
+                                </div>
+                            </form>
+                        }
+                        <div class="notes-list">
+                            @foreach (var entry in history)
+                            {
+                                <div class="note-entry">
+                                    <div class="note-meta">
+                                        <span>Date @OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span>
+                                        <span>Time @OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span>
+                                        <span>ID @entry.ActorDisplayName</span>
+                                    </div>
+                                    <div>@TriageCaseView.EventLabel(entry.EventType): @entry.Reason</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
     </div>
 </article>
 
@@ -632,10 +595,53 @@
     </div>
 }
 
+@if (offersFinding)
+{
+    @* Record finding: the two findings and the reason, with Complete Triage
+       to complete on the same save and Reply with finding to open the reply
+       composer once it completes (operator, 5 October 2026). Reply with
+       finding is offered only where a reply can be sent. *@
+    <div class="dialog-backdrop" data-dialog="triage-finding-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="triage-finding-dialog-title">
+            <div class="dialog-head">
+                <h2 id="triage-finding-dialog-title" tabindex="-1">@Labels.RecordFinding</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" data-triage-determinations>
+                <input type="hidden" name="expectedVersion" value="@record.Version" />
+                <input type="hidden" name="operationKey" value="@view.OperationKey" />
+                @if (currentFinding is not null)
+                {
+                    <input type="hidden" name="supersedesFindingId" value="@currentFinding.Id" />
+                }
+                <div class="dialog-body stack">
+                    <partial name="Cases/Shared/_TriageDeterminationFields" model="view" />
+                    <div>
+                        <label class="check"><input type="checkbox" name="completeTriage" value="true" data-triage-complete-tick /> @Labels.CompleteTriage</label>
+                        @if (view.CanSendReply && !view.ReplyOperationBlocked)
+                        {
+                            <label class="check"><input type="checkbox" name="replyWithFinding" value="true" data-triage-reply-tick /> @Labels.ReplyWithFinding</label>
+                        }
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>@Labels.Cancel</button>
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" name="actionName"
+                            value="@(currentFinding is null ? "record_finding" : "supersede_finding")" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                        <span>@Labels.RecordFinding</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
 @if (correction)
 {
-    @* Record correction on a Completed Triage: the same determinations form
-       the panel draws while mutable, opened from the greyed boxes. The
+    @* Record correction on a Completed Triage: the Record finding fields. The
        correction supersedes the current finding; history keeps both. *@
     <div class="dialog-backdrop" data-dialog="triage-correction-dialog" hidden>
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="triage-correction-dialog-title">
@@ -657,6 +663,81 @@
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Recording" name="actionName" value="supersede_finding" class="btn btn--primary">@Labels.RecordCorrection</button>
                 </div>
             </form>
+        </section>
+    </div>
+}
+
+@if (view.OffersComposer)
+{
+    @* The composer (FRD-03, FRD-21): the Inbox composer's frame over the
+       record, sending the chaser until the finding is recorded and Reply with
+       finding once Completed, as a reply to the request e-mail. A refused
+       send opens it again on what was posted, with the reasons. *@
+    <div class="dialog-backdrop" data-dialog="triage-compose-dialog" data-dialog-open-on-load="@(view.ComposerOpensOnLoad ? "true" : null)" hidden>
+        <section class="dialog mail-compose-dialog" role="dialog" aria-modal="true" aria-labelledby="triage-compose-title">
+            <header class="dialog-head">
+                <div>
+                    <p class="eyebrow">Triage · @reference</p>
+                    <h2 id="triage-compose-title" tabindex="-1">@replyLabel</h2>
+                </div>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </header>
+            <div class="dialog-body mail-compose-body">
+                @if (view.ReplyRefused)
+                {
+                    <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+                }
+                <form method="post" asp-page-handler="TriageSendReply" asp-route-id="@record.CaseId" class="mail-compose-form" data-triage-reply-form>
+                    <input type="hidden" name="expectedVersion" value="@record.Version" />
+                    <input type="hidden" name="operationKey" value="@view.ReplyOperationKey" />
+                    <div class="mail-compose-form-fields">
+                        <div class="mail-compose-addresses">
+                            <div class="field mail-compose-from">
+                                <label for="triage-reply-from">From</label>
+                                <input id="triage-reply-from" value="@view.ReplyMailbox?.Address" readonly />
+                            </div>
+                            <div class="field mail-compose-to">
+                                <label class="req" for="triage-reply-to">To</label>
+                                <input id="triage-reply-to" name="to" value="@view.ReplyTo" required maxlength="500" data-dialog-initial-focus />
+                            </div>
+                            <div class="field mail-compose-cc">
+                                <label for="triage-reply-cc">Cc</label>
+                                <input id="triage-reply-cc" name="cc" value="@view.ReplyCc" maxlength="500" />
+                            </div>
+                        </div>
+                        <div class="field mail-compose-subject">
+                            <label class="req" for="triage-reply-subject">Subject</label>
+                            <input id="triage-reply-subject" name="subject" value="@view.ReplySubject" required maxlength="500" />
+                        </div>
+                        <div class="field mail-compose-message">
+                            <label class="req" for="triage-reply-body">Message</label>
+                            <textarea id="triage-reply-body" name="body" rows="8" required maxlength="5000">@view.ReplyBody</textarea>
+                        </div>
+                        @if (view.AvailableAttachments.Count > 0)
+                        {
+                            <fieldset class="field mail-compose-attachments">
+                                <legend>Attachments</legend>
+                                @foreach (var attachment in view.AvailableAttachments)
+                                {
+                                    <label>
+                                        <input type="checkbox" name="selectedAttachments" value="@attachment.Selection"
+                                               checked="@view.SelectedAttachments.Contains(attachment.Selection)" />
+                                        @attachment.FileName
+                                    </label>
+                                }
+                            </fieldset>
+                        }
+                    </div>
+                    <footer class="mail-compose-footer">
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                            <span>@(view.IsOutcomeReply ? Labels.SendReply : Labels.SendChaser)</span>
+                        </button>
+                    </footer>
+                </form>
+            </div>
         </section>
     </div>
 }

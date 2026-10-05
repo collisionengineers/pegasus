@@ -273,57 +273,82 @@ each action posts once and holds the record for its one save
 of the Case record's sections, and has no Set principal.
 
 **Ribbon.** The `t.` Case/PO, registration, Principal, source, opened date
-and time, the assignee with one **Assign** button, the linked Case (its
-Case/PO as a link, or None) and the state chip.
+and time, the assignee, the linked Case (its Case/PO as a link, or None) and
+the state chip. Then the state's next step as the one primary button, and one
+**Actions** menu holding every other action the state permits, Cancel Triage
+last in red (operator, 5 October 2026).
 
-**Record bar.** **Open message** when the request came by e-mail, otherwise
-**Open file**; a Triage made with Create case has neither. **Link case** or
-**Unlink case**. Nothing else.
-
-**Determinations** is the one main panel: roadworthiness, repair outcome and
-reason, then only the buttons the state permits.
-
-| State | Primary button | Other buttons |
+| State | Primary button | Actions menu |
 | --- | --- | --- |
-| Open | Save determinations | Await information, Cancel Triage |
-| Awaiting information | Save determinations | Cancel Triage |
-| Finding recorded | Complete Triage | Save determinations (a correction), Await information, Cancel Triage |
-| Completed | Reply with outcome, when a reply can be sent | Record correction, Reopen |
-| Cancelled | Reopen | none |
+| Open | Record finding | Assign, Send chaser, Open file, Link case, Cancel Triage |
+| Awaiting information | Record finding | Assign, Send chaser, Open file, Link case, Cancel Triage |
+| Finding recorded | Complete Triage | Assign, Record finding (a correction), Send chaser, Open file, Link case, Cancel Triage |
+| Completed | Reply with finding, when a reply can be sent | Record correction, Open file, Reopen |
+| Cancelled | Reopen | Open file |
 
-On a Completed or Cancelled Triage the two determinations are greyed boxes
-in the same places. A correction is still offered on Completed: **Record
-correction** below the boxes opens the same determinations form in a
-dialog, and the correction supersedes the finding
+Send chaser and Reply with finding appear only when a reply can be sent and
+no send is in flight. Open file appears only when the request did not come
+by e-mail. Assign appears while staff can be chosen. Link case becomes
+Unlink case once a Case is linked. There is no Open message: the request
+e-mail is the first row of the Correspondence tab.
+
+**Tab row.** Under the ribbon, and staying with it as the page scrolls, are
+the tabs **Images** (only when the request carried photographs), **Files** and
+**Notes**, each with its count, and the finding read-only: Roadworthiness and
+Repair outcome, or Not recorded. Without script the three panels follow one
+another under their headings.
+
+**Images** is the request's photographs at contact-sheet size, each opening
+the image viewer. A Triage takes no crop and no tag.
+
+**Files** shows the Box case folder's state chip, **Add evidence** (which
+opens Upload for this Case,
+[FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) and More ›
+Open in Box, over two tabs. **Documents** lists the documents with view and
+download, or the empty state. **Correspondence** is the Case record's
+Correspondence table: the request e-mail and every retained e-mail
+associated with the Triage, each opened in the message dialog. Above it are
+the latest send status (with Reconcile status when it is Unknown), the
+in-flight notice when a send has not finished, and the Send chaser or Reply
+with finding button. Exact response evidence, when there is any to show or
+link, follows the table.
+
+**Notes** merges durable events with append-only attributable notes in time
+order. A correction is a new note. There is no note edit and no note delete.
+
+**Record finding** opens one dialog: Roadworthiness, Repair outcome and the
+required reason, then two tickboxes. **Complete Triage** completes the Triage
+in the same post, as a second save on the version the finding left.
+**Reply with finding**, offered only when a reply can be sent, opens the
+composer on the reply once the Triage completes; ticking it ticks Complete
+Triage. A repeated post replays both saves. With several active findings
+the dialog is withheld and the page names the reconciliation needed.
+
+On a Completed or Cancelled Triage the finding stays read-only. A correction
+is still offered on Completed: **Record correction** opens the same fields in
+a dialog, and the correction supersedes the finding
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
-Complete and Await information act on the click and ask no reason. Cancel
-Triage, Reopen, Link case and Unlink case keep their reason dialogs, as does
-the determination reason.
-Each action shows its own notice. The completion notice links to Reply with
-outcome when a reply can be sent.
+Complete acts on the click and asks no reason. Cancel Triage, Reopen, Link
+case and Unlink case keep their reason dialogs, as does the finding reason.
+Each action shows its own notice. The completion notice opens Reply with
+finding when a reply can be sent.
 
 **Assign** opens one dialog. It lists eligible staff with the signed-in
 person first as "Name (you)". Nothing is preselected. Its buttons are
 Unassign (when assigned), Cancel and Assign. Neither asks a reason.
 
-Below Determinations come the linked vehicle images, the correspondence
-panel, the exact response evidence when there is any, the Case's **Files**
-panel and `Notes`. Files shows the Box case folder's state chip, **Add
-evidence** (which opens Upload for this Case,
-[FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)), and the
-documents with view and download, or the empty state. `Notes` merges durable
-events with append-only attributable notes in time order. A correction is a
-new note. There is no note edit and no note delete.
-
-**Correspondence.** The panel renders only when the Triage came by e-mail and
-its approved mailbox may send. It holds one reply form. Before Completed it
-is the chaser FRD-03 offers. Once Completed it is **Reply with outcome**: the
-same To, the subject "Re: {original subject}" and a body rendered from the
-Triage outcome template
+**Composer.** Send chaser and Reply with finding open the Inbox composer's
+frame over the page: From (the approved mailbox), To, Cc, Subject, Message
+and the request's own files as attachments. It is offered only when the
+Triage came by e-mail and its approved mailbox may send. Before Completed it
+sends the chaser FRD-03 offers. Once Completed it is **Reply with finding**:
+the same To, the subject "Re: {original subject}" and a body rendered from
+the Triage outcome template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which staff
-edit before Send. The server decides which it
-is. The sent correspondence attaches to the Triage and is never a completion
-gate. Server-side transitions stay reachable where a handler exists.
+edit before Send. The server decides which it is. A refused send opens the
+composer again on what was posted, with the reasons. The sent
+correspondence attaches to the Triage and is never a completion gate.
+Server-side transitions stay reachable where a handler exists.
 
 ### Search
 
