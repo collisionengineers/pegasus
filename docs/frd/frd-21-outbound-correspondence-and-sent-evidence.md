@@ -90,11 +90,15 @@ settles it.
 
 **Submitted is not Sent.** Graph `202 Accepted` means Submitted. Sent needs
 the retained-MIME pipeline to match the immutable item, the operation marker,
-the mailbox generation and the attachment hashes. The provider's sent time
+the mailbox generation and the attachment hashes. The operation marker is the
+Message-ID Pegasus assigns to every send (`<operation id>@pegasus.invalid`),
+or the X-Pegasus headers where the provider keeps them; the mailbox and its
+generation are the ones the Sent item was read from. The provider's sent time
 and the time Pegasus observed the item stay separate facts. Each enabled Sent
 mailbox has its own cursor and activation boundary. Old items move the cursor
 forward but are not backfilled. One failing mailbox does not block the
-others.
+others. The composer shows Submitted until the Worker's Sent-evidence poll
+observes the item; there is no staff action that re-checks or re-sends.
 
 **Report sends are rechecked at the last moment.** Immediately before the
 provider call, Pegasus revalidates the Case's persisted report readiness, the
@@ -121,10 +125,12 @@ default, or removing a capability it needs, requires choosing a replacement
 first. With no default configured, a new Compose explains what is missing
 and cannot send. It never silently picks the first mailbox.
 
-**What the composer carries.** To, Subject, Message, Case and From
-(read-only). Find a Case is an autocomplete list that fills as staff type;
-choosing a Case from it is the server action that fixes the Case and its
-version for the send. Reply and Forward keep the retained message's reply
+**What the composer carries.** To, Subject, Message, Case / PO and From
+(read-only). The one Case / PO field searches as staff type, by Case / PO,
+registration, claimant, claim number or Principal; choosing a Case from its
+list is the server action that fixes the Case and its version for the send,
+and a Case / PO reference typed in full sends against that Case as it stands.
+Reply and Forward keep the retained message's reply
 chain and conversation identity. Case defaults to the Case whose correspondence the
 Reply or Forward started from, otherwise to the message's current
 association, and may be changed before sending. A Triage outcome reply's
@@ -144,10 +150,15 @@ deliberate staff choice.
 
 **What is retained.** The immutable Sent item that Graph writes is the
 evidence. The Sent-evidence poll retains it under the rules in
-[Outbound correspondence evidence](#outbound-correspondence-evidence) and
-links it to the Case named at send time. Draft text is not evidence until
-that Sent item exists. A send that Graph refuses leaves no evidence and shows
-as a failure on the composer, never as sent.
+[Outbound correspondence evidence](#outbound-correspondence-evidence), lists
+it under the Inbox's Sent Items scope
+([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) and links it
+to the Case named at send time: the Case's Correspondence shows it as a Sent
+item and, for a general correspondence send, its Notes record that the
+correspondence was sent, with the subject
+([FRD-16](frd-16-case-record-workspace.md#files)). Draft text is not evidence
+until that Sent item exists. A send that Graph refuses leaves no evidence and
+shows as a failure on the composer, never as sent.
 
 **No Flag, no Delete.** There is no flag control, no delete control and no
 move to Deleted Items on any surface. No surface, action or tool removes a

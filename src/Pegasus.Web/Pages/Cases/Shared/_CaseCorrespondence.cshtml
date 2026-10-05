@@ -8,8 +8,9 @@
 }
 
 @* The Files section's Correspondence tab: every retained email
-   associated with the Case - polled mail and uploaded .eml files - and
-   Compose where staff mail is available. Open message shows the message in
+   associated with the Case - polled mail, uploaded .eml files and the Sent
+   items of mail Pegasus sent for it - and Compose where staff mail is
+   available. Open message shows the message in
    a dialog over the Case, its content fetched from the Inbox record on
    first open, with the record's Reply, Reply all and Forward for this Case
    where the record offers them; without script the link opens that record. *@
@@ -47,7 +48,13 @@
                             <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
                             <td>@(row.EffectiveSenderAddress ?? row.SenderDisplayName ?? row.SenderAddress)</td>
                             <td>@row.Subject</td>
-                            <td>@(row.Classification is { } classification ? OperatorLabels.MailClassification(classification) : OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                            @* A Sent item carries no received classification; the
+                               scope's own word names its direction instead. *@
+                            <td>@(row.Classification is { } classification
+                                ? OperatorLabels.MailClassification(classification)
+                                : row.Direction == MailDirection.Sent
+                                    ? Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(MailFolderScope.Sent)
+                                    : OperatorLabels.CaseWorkspace.AbsentValue)</td>
                             <td class="row-actions nowrap"><a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-dialog-open="case-message-@row.RetainedMessageId.ToString("N")">@OperatorLabels.CaseWorkspace.OpenMessage</a></td>
                         </tr>
                     }

@@ -36,16 +36,22 @@ public sealed class ComposeModel(
     IStaffMailSend staffMailSend,
     IApprovedMailboxStore approvedMailboxes,
     IGetCaseHeader getCaseHeader,
-    IListCaseReferences listCaseReferences,
     ISearchCases searchCases,
     IStaffMailAttachmentResolver attachmentResolver,
     ILogger<ComposeModel> logger) : StaffPageModel
 {
+    /// <summary>
+    /// The one Case / PO field: it searches as staff type and takes a typed
+    /// reference as it is. Choosing a Case from its list fixes that Case and
+    /// its version (<see cref="FixedCaseReference"/>, <see cref="ExpectedContextVersion"/>);
+    /// a reference typed in full sends against the Case's current version.
+    /// </summary>
     [BindProperty(SupportsGet = true, Name = "caseReference")]
     public string? CaseReference { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "caseQuery")]
-    public string? CaseQuery { get; set; }
+    /// <summary>The reference whose version <see cref="ExpectedContextVersion"/> fixed; null when none was chosen.</summary>
+    [BindProperty]
+    public string? FixedCaseReference { get; set; }
 
     [BindProperty]
     public long ExpectedContextVersion { get; set; }
@@ -130,9 +136,8 @@ public sealed class ComposeModel(
     }
 
     /// <summary>
-    /// Find a Case: the option list the composer's picker fetches as staff
-    /// type. Choosing an option posts <c>SelectCase</c>, the same server
-    /// action the earlier result buttons performed.
+    /// The Case / PO field's option list, fetched as staff type. Choosing an
+    /// option posts <c>SelectCase</c>, which fixes the Case and its version.
     /// </summary>
     public async Task<IActionResult> OnGetCaseOptionsAsync(string? q, CancellationToken cancellationToken)
     {
@@ -211,7 +216,10 @@ public sealed class ComposeModel(
                 ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
             }
 
-            if (ExpectedContextVersion < 0 || details.Workflow.Version != ExpectedContextVersion)
+            // A chosen Case was fixed with its version, so a change since then
+            // is refused. A reference typed in full was never fixed: it sends
+            // against the Case as it is now.
+            if (IsFixedCase(details) && (ExpectedContextVersion < 0 || details.Workflow.Version != ExpectedContextVersion))
             {
                 ModelState.AddModelError(
                     string.Empty,
@@ -287,66 +295,24 @@ public sealed class ComposeModel(
 
         Case = details.Summary;
         ModelState.Remove(nameof(CaseReference));
+        ModelState.Remove(nameof(FixedCaseReference));
         ModelState.Remove(nameof(ExpectedContextVersion));
-        CaseReference = details.Summary.Reference;
-        ExpectedContextVersion = details.Workflow.Version;
+        FixCase(details);
         AvailableAttachments = await attachmentResolver.ListCaseAsync(
             actor, details.Summary.CaseId, cancellationToken);
         return Page();
     }
 
-    public async Task<IActionResult> OnPostReconcileAsync(
-        Guid operationId,
-        long expectedOperationVersion,
-        CancellationToken cancellationToken)
+    private void FixCase(CaseHeader details)
     {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        if (!StaffMailAvailable)
-        {
-            return NotFound();
-        }
-
-        if (operationId == Guid.Empty || expectedOperationVersion < 0)
-        {
-            SendNotice = "The send status request was incomplete. Reload the correspondence and try again.";
-            return RedirectToPage();
-        }
-
-        try
-        {
-            Operation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
-            if (Operation is null)
-            {
-                SendNotice = "That send status is no longer available. Reload the correspondence and try again.";
-                return RedirectToPage();
-            }
-            Operation = await staffMailSend.ReconcileAsync(actor, operationId, expectedOperationVersion, cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (ArgumentException)
-        {
-            SendNotice = "The send status request was invalid. Reload the correspondence and try again.";
-            return RedirectToPage();
-        }
-        catch (InvalidOperationException)
-        {
-            SendNotice = "The send status could not be reconciled. Reload the correspondence and try again.";
-            return RedirectToPage();
-        }
-
-        var references = await listCaseReferences.ExecuteAsync(
-            new(actor, [Operation.ContextId]), cancellationToken);
-        return references.TryGetValue(Operation.ContextId, out var reference)
-            ? RedirectToPage(new { caseReference = reference, operationId = Operation.Id })
-            : NotFound();
+        CaseReference = details.Summary.Reference;
+        FixedCaseReference = details.Summary.Reference;
+        ExpectedContextVersion = details.Workflow.Version;
     }
+
+    private bool IsFixedCase(CaseHeader details) =>
+        TryNormalizeCaseReference(FixedCaseReference, out var fixedReference)
+        && string.Equals(details.Summary.Reference, fixedReference, StringComparison.OrdinalIgnoreCase);
 
     private static StaffMailRecipient[] ParseRecipients(string? value) =>
         (value ?? string.Empty)
@@ -390,22 +356,7 @@ public sealed class ComposeModel(
         }
 
         Case = details.Summary;
-        CaseReference = details.Summary.Reference;
-        ExpectedContextVersion = details.Workflow.Version;
-        AvailableAttachments = await attachmentResolver.ListCaseAsync(
-            actor, details.Summary.CaseId, cancellationToken);
-    }
-
-    private async Task LoadSelectedCaseAsync(ActionActor actor, CancellationToken cancellationToken)
-    {
-        var details = await ResolveCaseAsync(actor, CaseReference, cancellationToken);
-        if (details is null)
-        {
-            return;
-        }
-
-        Case = details.Summary;
-        CaseReference = details.Summary.Reference;
+        FixCase(details);
         AvailableAttachments = await attachmentResolver.ListCaseAsync(
             actor, details.Summary.CaseId, cancellationToken);
     }

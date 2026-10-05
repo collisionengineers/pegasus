@@ -249,18 +249,6 @@
                     {
                         <dl class="fact"><dt>Reason</dt><dd>@OperatorLabels.StaffMail.Failure(failureCode)</dd></dl>
                     }
-                    @if (mailOperation.State is Pegasus.Core.Operations.StaffMailState.Submitted
-                        or Pegasus.Core.Operations.StaffMailState.Unknown)
-                    {
-                        <form method="post" asp-page-handler="ReconcileCorrespondence" asp-route-id="@summary.Id">
-                            <input type="hidden" name="mailOperationId" value="@mailOperation.Id" />
-                            <input type="hidden" name="expectedOperationVersion" value="@mailOperation.Version" />
-                            <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Reconciling">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
-                                <span>@OperatorLabels.StaffMail.Reconcile</span>
-                            </button>
-                        </form>
-                    }
                 </div>
             </section>
         }
@@ -288,27 +276,23 @@
                         <input type="hidden" name="compose" value="@correspondenceMode" />
                         <input type="hidden" asp-for="CorrespondenceOperationKey" />
                         <input type="hidden" asp-for="ExpectedCorrespondenceCaseVersion" />
+                        <input type="hidden" asp-for="FixedCorrespondenceCaseReference" />
                         <div class="definition-list">
                             <dl class="definition"><dt>From</dt><dd>@Model.CorrespondenceMailbox!.Address</dd></dl>
                         </div>
-                        @* Find a Case is an autocomplete: typing fetches the
-                           option list; choosing an option posts
-                           SelectCorrespondenceCase as the result buttons did. *@
+                        @* Case / PO searches as staff type: choosing an option
+                           posts SelectCorrespondenceCase, which fixes the Case
+                           and its version. A reference typed in full is sent
+                           as it is. *@
                         <div class="field case-picker" data-case-picker
                              data-case-picker-url="@Url.Page("/Mail/Message", "CorrespondenceCaseOptions", new { id = summary.Id })">
-                            <label asp-for="CorrespondenceCaseQuery">@OperatorLabels.Upload.FindCase</label>
-                            <input asp-for="CorrespondenceCaseQuery" type="search" maxlength="300" autocomplete="off"
+                            <label asp-for="CorrespondenceCaseReference">Case / PO</label>
+                            <input asp-for="CorrespondenceCaseReference" type="text" maxlength="100" autocomplete="off"
                                    role="combobox" aria-autocomplete="list" aria-expanded="false"
                                    aria-controls="message-case-options" />
                             <span class="field-hint">Search by Case / PO, registration, claimant, claim number, or Principal.</span>
-                            <span asp-validation-for="CorrespondenceCaseQuery"></span>
-                            <div id="message-case-options" class="case-picker-options" data-case-picker-options hidden></div>
-                        </div>
-                        <div class="field">
-                            <label asp-for="CorrespondenceCaseReference">Case / PO</label>
-                            <input asp-for="CorrespondenceCaseReference" type="text" maxlength="100" />
-                            <span class="field-hint">Enter the Case / PO reference, or find it above.</span>
                             <span asp-validation-for="CorrespondenceCaseReference"></span>
+                            <div id="message-case-options" class="case-picker-options" data-case-picker-options hidden></div>
                         </div>
                         @if (correspondenceMode == "forward")
                         {

@@ -168,7 +168,8 @@ public sealed record CaseCorrespondenceEmail(
     string? SenderAddress,
     string? Subject,
     MailCategory? Classification,
-    string? SourceSha256 = null);
+    string? SourceSha256 = null,
+    MailDirection Direction = MailDirection.Received);
 
 /// <summary>
 /// The record-level notes shown read-only on a Case's Overview beside the Case's own:

@@ -162,11 +162,17 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "mailOperationId")]
     public Guid? CorrespondenceOperationId { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "correspondenceCaseQuery")]
-    public string? CorrespondenceCaseQuery { get; set; }
-
+    /// <summary>
+    /// The one Case / PO field of the Reply/Forward composer: it searches as
+    /// staff type and takes a typed reference as it is. Choosing a Case from
+    /// its list fixes that Case and its version.
+    /// </summary>
     [BindProperty(SupportsGet = true, Name = "correspondenceCaseReference")]
     public string? CorrespondenceCaseReference { get; set; }
+
+    /// <summary>The reference whose version <see cref="ExpectedCorrespondenceCaseVersion"/> fixed; null when none was chosen.</summary>
+    [BindProperty]
+    public string? FixedCorrespondenceCaseReference { get; set; }
 
     [BindProperty]
     public string? SelectedCorrespondenceCaseReference { get; set; }
@@ -597,8 +603,8 @@ public sealed class MessageModel(
         SendCorrespondenceAsync(id, StaffMailComposeMode.Forward, cancellationToken);
 
     /// <summary>
-    /// Find a Case for Reply/Forward: the option list the picker fetches as
-    /// staff type. Choosing an option posts <c>SelectCorrespondenceCase</c>.
+    /// The Case / PO field's option list for Reply/Forward, fetched as staff
+    /// type. Choosing an option posts <c>SelectCorrespondenceCase</c>.
     /// </summary>
     public async Task<IActionResult> OnGetCorrespondenceCaseOptionsAsync(
         Guid id,
@@ -630,62 +636,24 @@ public sealed class MessageModel(
             return result;
         }
         ModelState.Remove(nameof(CorrespondenceCaseReference));
+        ModelState.Remove(nameof(FixedCorrespondenceCaseReference));
         ModelState.Remove(nameof(ExpectedCorrespondenceCaseVersion));
+        FixedCorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
         ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
         return result;
     }
 
-    public async Task<IActionResult> OnPostReconcileCorrespondenceAsync(
-        Guid id,
-        Guid mailOperationId,
-        long expectedOperationVersion,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-            return Forbid();
-        if (!StaffMailAvailable)
-            return NotFound();
-        if (mailOperationId == Guid.Empty || expectedOperationVersion < 0)
-        {
-            CorrespondenceNotice = "The send status request was incomplete. Reload the correspondence and try again.";
-            return RedirectToMessage(id);
-        }
-        try
-        {
-            if (await staffMailSend.GetAsync(actor, mailOperationId, cancellationToken) is null)
-            {
-                CorrespondenceNotice = "That send status is no longer available. Reload the correspondence and try again.";
-                return RedirectToMessage(id);
-            }
-            await staffMailSend.ReconcileAsync(actor, mailOperationId, expectedOperationVersion, cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (ArgumentException)
-        {
-            CorrespondenceNotice = "The send status request was invalid. Reload the correspondence and try again.";
-            return RedirectToMessage(id);
-        }
-        catch (InvalidOperationException)
-        {
-            CorrespondenceNotice = "The send status could not be reconciled. Reload the correspondence and try again.";
-            return RedirectToMessage(id);
-        }
-        return RedirectToPage(new
-        {
-            id,
-            mailbox = MailboxFilter,
-            folder = FolderRouteValue,
-            pageNumber = PageRouteValue,
-            search = SearchTerm,
-            queue = QueueFilter,
-            sort = OldestFirst ? "oldest" : null,
-            compose = CorrespondenceMode,
-            mailOperationId
-        });
-    }
+    /// <summary>
+    /// Whether the Case the composer resolved is the one a selection fixed,
+    /// so its fixed version applies. A reference typed in full was never
+    /// fixed and sends against the Case as it is now.
+    /// </summary>
+    private bool IsFixedCorrespondenceCase(CaseHeader details) =>
+        !string.IsNullOrWhiteSpace(FixedCorrespondenceCaseReference)
+        && string.Equals(
+            details.Summary.Reference,
+            FixedCorrespondenceCaseReference.Trim(),
+            StringComparison.OrdinalIgnoreCase);
 
     public async Task<IActionResult> OnPostCreateQueryResponseAsync(
         Guid id,
@@ -1293,8 +1261,9 @@ public sealed class MessageModel(
                 nameof(CorrespondenceCaseReference),
                 "Choose one Case by its Case / PO reference.");
         }
-        else if (ExpectedCorrespondenceCaseVersion < 0
-            || CorrespondenceCase.Workflow.Version != ExpectedCorrespondenceCaseVersion)
+        else if (IsFixedCorrespondenceCase(CorrespondenceCase)
+            && (ExpectedCorrespondenceCaseVersion < 0
+                || CorrespondenceCase.Workflow.Version != ExpectedCorrespondenceCaseVersion))
         {
             ModelState.AddModelError(
                 string.Empty,
@@ -1481,6 +1450,7 @@ public sealed class MessageModel(
             CorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
             if (initializeForm)
             {
+                FixedCorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
                 ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
             }
             AvailableAttachments = await attachmentResolver.ListCaseAsync(
