@@ -6907,6 +6907,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("DraftImmutableId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("InstructionMoveAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("InstructionMoveFailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("InstructionMoveState")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("InstructionMovedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateTimeOffset?>("LastAttemptAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -6993,6 +7009,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ActorSubjectId", "MailboxId", "OperationKey")
                         .IsUnique();
+
+                    b.HasIndex("Purpose", "State")
+                        .HasFilter("[InstructionMoveState] IS NULL");
 
                     b.ToTable("StaffMailSendOperations", null, t =>
                         {

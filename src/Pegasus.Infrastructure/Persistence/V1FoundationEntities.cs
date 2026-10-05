@@ -50,6 +50,16 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public DateTimeOffset? ObservedSentAtUtc { get; set; }
     public string? LastError { get; set; }
     public string? ReconciliationContinuation { get; set; }
+
+    /// <summary>
+    /// The tidy of the answered instruction after a confirmed report send (ADR-0063):
+    /// null while due, then Moved, AlreadyMoved, MessageMissing or Failed (the third
+    /// failed attempt).
+    /// </summary>
+    public string? InstructionMoveState { get; set; }
+    public int InstructionMoveAttempts { get; set; }
+    public DateTimeOffset? InstructionMovedAtUtc { get; set; }
+    public string? InstructionMoveFailureCode { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }
 }

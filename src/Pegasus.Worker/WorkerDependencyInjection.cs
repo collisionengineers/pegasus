@@ -166,6 +166,8 @@ public static class WorkerDependencyInjection
         services.AddScoped<DispatchPendingWork>();
         // Composed in both profiles: it does nothing when no Graph adapter is present.
         services.AddScoped<MaintainMailboxChangeSubscriptions>();
+        // Composed in both profiles; the offline mover is unavailable, so it does nothing there.
+        services.AddSentReportInstructionTidy();
         services.AddScoped<ProcessAutomaticEvaReviewSubmissions>();
         return services;
     }

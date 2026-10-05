@@ -50,6 +50,11 @@ public interface IRetainedMailFolderMover
         string mailboxId,
         string immutableMessageId,
         CancellationToken cancellationToken);
+
+    /// <summary>The mailbox's Deleted Items folder identity (ADR-0063).</summary>
+    Task<string> ResolveDeletedItemsFolderIdAsync(
+        string mailboxIdentity,
+        CancellationToken cancellationToken);
 }
 
 public interface IRetainedMailFolderMoveStore
@@ -140,4 +145,7 @@ public sealed class UnavailableRetainedMailFolderMover : IRetainedMailFolderMove
 
     public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
         Task.FromResult<string?>(null);
+
+    public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+        throw new RetainedMailFolderMoveException("Outlook folder moves are unavailable in this runtime.");
 }
