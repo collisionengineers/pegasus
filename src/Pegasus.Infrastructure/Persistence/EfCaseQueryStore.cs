@@ -6,6 +6,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -604,20 +605,81 @@ public sealed class EfCaseQueryStore(
     /// The Case's correspondence (FRD-20 § Case correspondence view): every
     /// retained email whose receipt is currently linked to the Case, whatever
     /// its classification - the email the Case was created from, polled mail
-    /// associated later, and uploaded .eml files - newest first. Only the two
-    /// channels an email arrives through are read, since a receipt token is
-    /// unique only within its channel.
-    /// </summary>
-    /// <summary>
-    /// The retained e-mails associated with the Case, newest first. A Triage
-    /// Case passes the receipt it was opened from, which stands as its
-    /// request e-mail without an intake association of its own.
+    /// associated later, and uploaded .eml files - and every Sent item of a
+    /// send Pegasus made for the Case, newest first. Only the two channels an
+    /// email arrives through are read, since a receipt token is unique only
+    /// within its channel. A Triage Case passes the receipt it was opened
+    /// from, which stands as its request e-mail without an intake association
+    /// of its own.
     /// </summary>
     internal static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadCorrespondenceEmailsAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken,
         Guid? originReceiptId = null)
+    {
+        var received = await ReadReceivedCorrespondenceAsync(context, caseId, originReceiptId, cancellationToken);
+        var sent = await ReadSentCorrespondenceAsync(context, caseId, cancellationToken);
+        return received.Concat(sent)
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .ThenBy(item => item.RetainedMessageId)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The Sent items the Sent-evidence poll retained for sends whose
+    /// observed Sent item they are, where the send named this Case: a general
+    /// correspondence or Triage send by its context, a report send by its
+    /// generation's Case (FRD-21 "links it to the Case named at send time").
+    /// </summary>
+    private static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadSentCorrespondenceAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var sentScope = EfRetainedMailboxMessageStore.ToCode(MailFolderScope.Sent);
+        var operations = context.Set<StaffMailSendOperationEntity>().AsNoTracking();
+        var generations = context.Set<CaseReportGenerationEntity>().AsNoTracking();
+        var rows = await context.RetainedMailboxMessages.AsNoTracking()
+            .Where(message => message.FolderScope == sentScope
+                && operations.Any(operation =>
+                    operation.State == StaffMailState.Sent
+                    && operation.ObservedSentImmutableMessageId == message.ImmutableMessageId
+                    && operation.MailboxId == message.MailboxId
+                    && (operation.Purpose == StaffMailPurpose.CaseReport
+                        ? generations.Any(generation =>
+                            generation.Id == operation.ContextId && generation.CaseId == caseId)
+                        : operation.ContextId == caseId)))
+            .Select(item => new
+            {
+                item.Id,
+                item.ReceivedAtUtc,
+                item.MailboxAddress,
+                item.SenderDisplayName,
+                item.SenderAddress,
+                item.Subject,
+                item.SourceSha256
+            })
+            .ToArrayAsync(cancellationToken);
+        return rows
+            .Select(item => new CaseCorrespondenceEmail(
+                item.Id,
+                item.ReceivedAtUtc,
+                item.MailboxAddress,
+                item.SenderDisplayName,
+                item.SenderAddress ?? item.MailboxAddress,
+                item.Subject,
+                Classification: null,
+                item.SourceSha256,
+                MailDirection.Sent))
+            .ToArray();
+    }
+
+    private static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadReceivedCorrespondenceAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid? originReceiptId,
+        CancellationToken cancellationToken)
     {
         var originReceiptIds = originReceiptId is { } origin ? new[] { origin } : [];
         var associatedReceiptIds = context.IntakeManualAssociations.AsNoTracking()

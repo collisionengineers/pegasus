@@ -4,6 +4,20 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## 5 October 2026 — first staff sends reach Submitted and stop; Reconcile fails
+
+With the Exchange grant in place the operator sent two Compose messages from `instructions@collisionengineers.co.uk` on Case `a.QDOS26059` (07:08:59Z and 07:12:09Z). Both arrived. Pegasus showed neither under Sent Items, under the Case's Correspondence or Notes, and the composer's Reconcile did nothing visible.
+
+| Observation | Value |
+| --- | --- |
+| Send journal (SQL) | `StaffMailSendOperations` `2d081866…` and `e101bc7b…`: `Submitted`, stage `ObserveSent`, `LastError` null, never `Sent`. `ActionHistory` holds prepared, draftcreating, draftready, sending, submitted for each. |
+| Sent poll (SQL) | `ApprovedSentPollOutcomes` holds both items (07:10:00Z and 07:14:00Z), `Discovered`, `Unmatched`, `AuthoritativeCaseIdentitiesJson = []`, `InternetMessageIdentity = <{operation id:N}@pegasus.invalid>`. The Worker ran `SentEvidencePollFunction` every minute (261 runs in 24 h to the telemetry cap at 04:04Z). |
+| Cause of Submitted never becoming Sent | `Unmatched` with no failure code is reached only when the item carries no operation marker: the `X-Pegasus-*` headers were not on the Sent item's MIME while the Message-ID Pegasus assigned was. Not read back directly (no mailbox read from the workstation); the fix reads the operation from the Message-ID as well, so it does not depend on which. |
+| Reconcile (HTTP, console) | `POST /Inbox/Compose?handler=Reconcile` at 07:09:08Z and 07:12:33Z both `500`. The Web process ran the Worker's Sent poll in-process and `EfSentEvidencePollStore.RecordOutcomeAsync` failed with SQL error 229 (INSERT denied): `pegasus_web_runtime_role` holds SELECT only on `ApprovedSentPollOutcomes` (migration 20260729183000). |
+| Sent Items and the Case | Nothing wrote `RetainedMailboxMessages.FolderScope = 'sent'`; Correspondence read intake receipts only; Notes read `CaseWorkflowEvents`, which a send never wrote. |
+| Code change | PR `task/inbox-composer-sent-evidence`: the composers' two Case fields become one Case / PO field that searches as staff type and takes a typed reference; Reconcile is removed from Compose, the message page and the Triage reply panel; the Sent poll reads the operation from the Message-ID, retains every Sent item under the Sent Items scope, and an observed general correspondence send writes `correspondence_sent` to the Case's history (migration `20261005090000_CorrespondenceSentEvent`: the index filter gains the event, and the retained message's mailbox key moves from `ApprovedInboxPollStates` to `ApprovedMailboxes`, since a Sent-only mailbox has no Inbox poll state; no data changes); Case Correspondence lists the Sent items of the Case's sends. The Inbox's Sent rows carry no processing chip and no "Not yet processed" classification. |
+| Still owed | After release: one Compose send to `digital@collisionengineers.co.uk` on `a.QDOS26059` using the one field, typed in full, reaching `Submitted` and then `Sent` within a minute, listed under Sent Items and on the Case's Correspondence and Notes. The two 5 October operations stay `Submitted`: the poll cursor has passed their items and nothing re-reads them. |
+
 ## 2 October 2026 — staff send refused by the mailbox, and the Exchange grant
 
 The operator enabled staff-send on `instructions@collisionengineers.co.uk` at 13:08:25Z (`AllowStaffSend`, `IsDefaultStaffSend`, verified limit 100,000,000 bytes) and then tried to send. Both attempts failed; the Release 80 Compose dialog could only say "No confirmation received".

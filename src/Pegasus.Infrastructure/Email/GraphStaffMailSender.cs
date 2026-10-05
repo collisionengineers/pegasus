@@ -143,7 +143,7 @@ internal sealed class GraphStaffMailSender(
         {
             Subject = command.Subject,
             Date = operation.PreparedAtUtc,
-            MessageId = $"{operation.Id:N}@pegasus.invalid"
+            MessageId = StaffMailCorrelationHeaders.MessageId(operation.Id)
         };
         foreach (var recipient in command.To)
         {

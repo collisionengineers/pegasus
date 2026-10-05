@@ -240,7 +240,6 @@ public static class OperatorLabels
         public const string ReplyWithFinding = "Reply with finding";
         public const string SendChaser = "Send chaser";
         public const string SendReply = "Send reply";
-        public const string ReconcileStatus = "Reconcile status";
         public const string NoReplyWhenCancelled = "A cancelled Triage has no reply to send.";
         public const string ReplyNeedsEmail = "A reply can only be sent for a Triage that came by e-mail.";
 
@@ -492,7 +491,6 @@ public static class OperatorLabels
         public const string Placing = "Placing on hold…";
         public const string Preparing = "Preparing…";
         public const string Publishing = "Publishing…";
-        public const string Reconciling = "Reconciling…";
         public const string Recording = "Recording…";
         public const string Refreshing = "Refreshing…";
         public const string Refusing = "Refusing…";
@@ -1894,13 +1892,12 @@ public static class OperatorLabels
     /// whether it is on its way, delivered, or needs attention — the internal
     /// attempt-stage vocabulary (draft creation, attaching, sending) is
     /// writer detail, not a distinction the operator acts on differently.
-    /// "Unknown" is the one state that ever offers Reconcile rather than a
-    /// resend: a resend from an unknown outcome could double-send a message
-    /// that already reached Outlook.
+    /// Neither Submitted nor Unknown offers a resend: the Worker's Sent poll
+    /// settles them, and a resend from an unknown outcome could double-send a
+    /// message that already reached Outlook.
     /// </summary>
     public static class StaffMail
     {
-        public const string Reconcile = "Reconcile";
         public const string Reply = "Reply";
         public const string ReplyAll = "Reply all";
         public const string Forward = "Forward";

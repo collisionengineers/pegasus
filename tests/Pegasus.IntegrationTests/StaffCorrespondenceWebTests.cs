@@ -193,6 +193,7 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
                 ["CaseReference"] = caseReference,
+                ["FixedCaseReference"] = caseReference,
                 ["ExpectedContextVersion"] = "-1",
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Test",
@@ -201,6 +202,87 @@ public sealed class StaffCorrespondenceWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Empty(send.Commands);
+    }
+
+    /// <summary>
+    /// The one Case / PO field takes a reference typed in full: no choice from
+    /// its list, no fixed version. The send goes to that Case as it is now.
+    /// </summary>
+    [Fact]
+    public async Task ATypedExactReferenceSendsWithoutChoosing()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 TYPED", "SC08-TYPED-REF");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+        var (operationKey, token) = await ComposeFormTokensAsync(client, "/Inbox/Compose");
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["OperationKey"] = operationKey,
+                ["CaseReference"] = caseReference.ToLowerInvariant(),
+                ["ExpectedContextVersion"] = "0",
+                ["To"] = "claimant@example.invalid",
+                ["Subject"] = "Typed reference",
+                ["Body"] = "Sent against the typed Case."
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.Equal(await CaseVersionAsync(factory, caseId), command.ExpectedContextVersion);
+    }
+
+    /// <summary>
+    /// A Case chosen from the list is fixed with its version; overwriting the
+    /// field with another reference sends to the typed Case, never to the
+    /// fixed one, whatever their version numbers.
+    /// </summary>
+    [Fact]
+    public async Task ATypedReferenceDifferentFromTheFixedOneSendsToTheTypedCase()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var fixedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 FIXED", "SC08-FIXED-REF");
+        var typedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 OVERWRITTEN", "SC08-OVERWRITTEN-REF");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var fixedReference = await CaseReferenceAsync(factory, fixedCaseId);
+        var typedReference = await CaseReferenceAsync(factory, typedCaseId);
+        using var get = await client.GetAsync($"/Inbox/Compose?caseReference={fixedReference}");
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.Equal(fixedReference, InputValue(html, "FixedCaseReference"));
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["OperationKey"] = InputValue(html, "OperationKey"),
+                ["CaseReference"] = typedReference,
+                ["FixedCaseReference"] = fixedReference,
+                ["ExpectedContextVersion"] = "-1",
+                ["To"] = "claimant@example.invalid",
+                ["Subject"] = "Overwritten reference",
+                ["Body"] = "Sent against the typed Case."
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(typedCaseId, command.ContextId);
+        Assert.Equal(await CaseVersionAsync(factory, typedCaseId), command.ExpectedContextVersion);
     }
 
     [Fact]
@@ -285,14 +367,15 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>
-    /// C08-R-4: an ambiguous outcome must render the Reconcile action, never
-    /// a resend and never a success banner. The redirect after send carries
-    /// the operation id forward so the GET it lands on can actually show it.
+    /// C08-R-4: an unresolved outcome shows its state and nothing else: no
+    /// success banner, no Send and no Reconcile (the Worker's Sent poll
+    /// settles it). The redirect after send carries the operation id forward
+    /// so the GET it lands on can actually show it.
     /// </summary>
     [Theory]
     [InlineData(StaffMailState.Submitted)]
     [InlineData(StaffMailState.Unknown)]
-    public async Task UnresolvedOutcomeReconcilesWithoutResendingOrClaimingSuccess(
+    public async Task UnresolvedOutcomeShowsItsStateWithoutResendOrReconcile(
         StaffMailState unresolvedState)
     {
         var send = new RecordingStaffMailSend { NextState = unresolvedState };
@@ -331,23 +414,10 @@ public sealed class StaffCorrespondenceWebTests
 
         Assert.DoesNotContain("notice--success", html, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.StaffMail.State(unresolvedState), html, StringComparison.Ordinal);
-        Assert.Contains("handler=Reconcile", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(OperatorLabels.StaffMail.Reconcile, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reconcile", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(">Send</span>", html, StringComparison.Ordinal);
         // Rendering the status panel must never itself trigger a resend.
         Assert.Equal(1, send.SendCalls);
-        Assert.Equal(0, send.ReconcileCalls);
-
-        using var reconcile = await client.PostAsync(
-            "/Inbox/Compose?handler=Reconcile",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["operationId"] = ExtractOperationId(location).ToString("D"),
-                ["expectedOperationVersion"] = "1"
-            }));
-        Assert.Equal(HttpStatusCode.Redirect, reconcile.StatusCode);
-        Assert.Equal(1, send.SendCalls);
-        Assert.Equal(1, send.ReconcileCalls);
     }
 
     [Fact]
@@ -393,7 +463,6 @@ public sealed class StaffCorrespondenceWebTests
             ["OperationId"] = ComposeOperationId(statusHtml),
             ["ExpectedContextVersion"] = InputValue(statusHtml, "ExpectedContextVersion"),
             ["CaseReference"] = oldReference,
-            ["CaseQuery"] = selectedReference,
             ["To"] = "draft@example.invalid",
             ["Cc"] = "copy@example.invalid",
             ["Subject"] = "Draft subject",
@@ -401,8 +470,8 @@ public sealed class StaffCorrespondenceWebTests
             ["SelectedAttachments"] = StableAttachmentResolver.Selection
         };
 
-        // Typing in Find a Case fetches the option list only; the draft on
-        // the page is untouched until an option is chosen.
+        // Typing in Case / PO fetches the option list only; the draft on the
+        // page is untouched until an option is chosen.
         using var options = await client.GetAsync(
             $"/Inbox/Compose?handler=CaseOptions&q={Uri.EscapeDataString(selectedReference)}");
         Assert.Equal(HttpStatusCode.OK, options.StatusCode);
@@ -423,7 +492,8 @@ public sealed class StaffCorrespondenceWebTests
             InputValue(selectedHtml, "ExpectedContextVersion"));
         Assert.Equal(draft["OperationId"], ComposeOperationId(selectedHtml));
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), selectedHtml, StringComparison.Ordinal);
-        Assert.Contains("handler=Reconcile", selectedHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Reconcile", selectedHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(selectedReference, InputValue(selectedHtml, "FixedCaseReference"));
         Assert.Equal("draft@example.invalid", InputValue(selectedHtml, "To"));
         Assert.Equal("copy@example.invalid", InputValue(selectedHtml, "Cc"));
         Assert.Equal("Draft subject", InputValue(selectedHtml, "Subject"));
@@ -436,6 +506,7 @@ public sealed class StaffCorrespondenceWebTests
         draft["OperationId"] = ComposeOperationId(selectedHtml);
         draft["ExpectedContextVersion"] = InputValue(selectedHtml, "ExpectedContextVersion");
         draft["CaseReference"] = InputValue(selectedHtml, "CaseReference");
+        draft["FixedCaseReference"] = InputValue(selectedHtml, "FixedCaseReference");
         draft["To"] = string.Empty;
         draft.Remove("SelectedCaseReference");
 
@@ -446,34 +517,12 @@ public sealed class StaffCorrespondenceWebTests
         var invalidHtml = await invalidSend.Content.ReadAsStringAsync();
         Assert.Contains("At least one recipient is required.", invalidHtml, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), invalidHtml, StringComparison.Ordinal);
-        Assert.Contains("handler=Reconcile", invalidHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Reconcile", invalidHtml, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(draft["OperationId"], ComposeOperationId(invalidHtml));
         Assert.Equal("Draft subject", InputValue(invalidHtml, "Subject"));
         Assert.Equal("Draft message.", TextAreaValue(invalidHtml, "Body"));
         AssertSelectedAttachment(invalidHtml, StableAttachmentResolver.Selection);
         Assert.Equal(1, send.SendCalls);
-    }
-
-    [Fact]
-    public async Task InvalidComposeReconcileUsesPrgWithoutCallingThePort()
-    {
-        var send = new RecordingStaffMailSend();
-        using var factory = Configure(new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true), send);
-        using var client = CreateClient(factory);
-        using var get = await client.GetAsync("/Inbox/Compose");
-        var html = await get.Content.ReadAsStringAsync();
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Reconcile",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["operationId"] = Guid.Empty.ToString("D"),
-                ["expectedOperationVersion"] = "-1"
-            }));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(0, send.ReconcileCalls);
     }
 
     /// <summary>
@@ -1062,7 +1111,7 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
-    public async Task UnknownRetainedReplyReplaysAndReconcilesWithoutResending()
+    public async Task UnknownRetainedReplyReplaysWithoutResendingOrReconcile()
     {
         var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -1106,19 +1155,51 @@ public sealed class StaffCorrespondenceWebTests
         using var status = await client.GetAsync(replay.Headers.Location);
         var statusHtml = await status.Content.ReadAsStringAsync();
         Assert.Contains("Send status", statusHtml, StringComparison.Ordinal);
-        Assert.Contains("ReconcileCorrespondence", statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reconcile", statusHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("handler=Reply\"", statusHtml, StringComparison.OrdinalIgnoreCase);
-        using var reconcile = await client.PostAsync(
-            $"/Inbox/{seeded.MessageId:D}?handler=ReconcileCorrespondence",
+        Assert.Equal(1, send.SendCalls);
+    }
+
+    /// <summary>
+    /// The retained-message composer's one Case / PO field takes a reference
+    /// typed in full: the reply goes to that Case, not to the message's own.
+    /// </summary>
+    [Fact]
+    public async Task ATypedReferenceOnTheRetainedReplySendsToThatCase()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 MSG OWN", "SC08-MSG-OWN");
+        var typedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 MSG TYPED", "SC08-MSG-TYPED");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var typedReference = await CaseReferenceAsync(factory, typedCaseId);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("CorrespondenceCaseQuery", html, StringComparison.Ordinal);
+        Assert.Contains("role=\"combobox\"", html, StringComparison.Ordinal);
+
+        using var response = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["__RequestVerificationToken"] = InputValue(statusHtml, "__RequestVerificationToken"),
-                ["mailOperationId"] = ExtractOperationId(replay.Headers.Location!).ToString("D"),
-                ["expectedOperationVersion"] = "1"
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+                ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+                ["FixedCorrespondenceCaseReference"] = InputValue(html, "FixedCorrespondenceCaseReference"),
+                ["CorrespondenceCaseReference"] = typedReference,
+                ["CorrespondenceSubject"] = "Re: Source subject",
+                ["CorrespondenceBody"] = "Reviewed response."
             }));
-        Assert.Equal(HttpStatusCode.Redirect, reconcile.StatusCode);
-        Assert.Equal(1, send.SendCalls);
-        Assert.Equal(1, send.ReconcileCalls);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(typedCaseId, command.ContextId);
+        Assert.Equal(await CaseVersionAsync(factory, typedCaseId), command.ExpectedContextVersion);
     }
 
     [Fact]
@@ -2052,8 +2133,6 @@ public sealed class StaffCorrespondenceWebTests
             get { lock (sync) return commands.Count; }
         }
 
-        public int ReconcileCalls { get; private set; }
-
         public IReadOnlyList<StaffMailSendCommand> Commands
         {
             get { lock (sync) return commands.ToArray(); }
@@ -2151,20 +2230,6 @@ public sealed class StaffCorrespondenceWebTests
                 return Task.FromResult<StaffMailOperation?>(
                     matching.LastOrDefault(operation => IsActive(operation.State))
                     ?? matching.LastOrDefault());
-            }
-        }
-
-        public Task<StaffMailOperation> ReconcileAsync(
-            ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken)
-        {
-            lock (sync)
-            {
-                ReconcileCalls++;
-                if (!byOperationId.TryGetValue(operationId, out var operation))
-                {
-                    throw new InvalidOperationException($"No recorded operation {operationId:D}.");
-                }
-                return Task.FromResult(operation);
             }
         }
 

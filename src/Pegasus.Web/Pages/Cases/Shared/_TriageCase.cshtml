@@ -396,17 +396,6 @@
                                     <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
                                     <span>@Labels.LatestSendStatus(replyOperation.State)</span>
                                 </div>
-                                @if (replyOperation.State == Pegasus.Core.Operations.StaffMailState.Unknown)
-                                {
-                                    <form method="post" asp-page-handler="TriageReconcileReply" asp-route-id="@record.CaseId" class="mb-2">
-                                        <input type="hidden" name="operationId" value="@replyOperation.Id" />
-                                        <input type="hidden" name="expectedOperationVersion" value="@replyOperation.Version" />
-                                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Reconciling" class="btn btn--small">
-                                            <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
-                                            <span>@Labels.ReconcileStatus</span>
-                                        </button>
-                                    </form>
-                                }
                             }
                             @if (view.CanSendReply && view.ReplyPurpose is not null && view.ReplyOperationBlocked)
                             {
