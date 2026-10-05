@@ -218,7 +218,7 @@ public sealed class WorkCentreWebTests
         var html = await GetOkAsync(client, $"/?selected={unassigned.Id:D}");
 
         // The open row: its chip reads amber Due today, a second click closes it.
-        Assert.Contains($"data-wc-row=\"{unassigned.Id}\" data-wc-row-kind=\"unassigned\" aria-selected=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains($"data-wc-row=\"{unassigned.Id}\" data-wc-row-kind=\"unassigned\" data-wc-record=\"{unassigned.Id}\" aria-selected=\"true\"", html, StringComparison.Ordinal);
         Assert.Contains("href=\"/?scope=office\"\n", html.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains($"aria-expanded=\"true\" aria-controls=\"wc-detail-{unassigned.Id:D}\"", html, StringComparison.Ordinal);
         Assert.Contains($"id=\"wc-detail-{unassigned.Id}\"", html, StringComparison.Ordinal);
@@ -289,7 +289,7 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-arrival>Principal API</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>Automation</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>E-mail</span>", html, StringComparison.Ordinal);
-        Assert.Contains("QDOS26101 &#xB7; Changed by automation", html, StringComparison.Ordinal);
+        Assert.Matches("QDOS26101</a>\\s*<small>Changed by automation</small>", html);
         Assert.Equal(1, Regex.Count(html, "data-wc-divider"));
         Assert.True(
             html.IndexOf("QDOS26101", StringComparison.Ordinal) < html.IndexOf("data-wc-divider", StringComparison.Ordinal)
@@ -379,7 +379,8 @@ public sealed class WorkCentreWebTests
         using var host = Host(
             new FakeSnapshot { Throw = true },
             new FakeRecentCases { Throw = true },
-            new FakeAiJobs { Throw = true });
+            new FakeAiJobs { Throw = true },
+            activity: new FakeActivity { Throw = true });
         using var client = Client(host);
 
         var html = await GetOkAsync(client, "/?handler=Refresh&refresh=true");
@@ -387,6 +388,7 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-refresh-outcome=\"failed\"", html, StringComparison.Ordinal);
         Assert.Contains(">Refresh unavailable</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"metrics\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"activity\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"attention\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"new-cases\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"ai-jobs\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
