@@ -705,8 +705,8 @@ public sealed class PollSentEvidenceTests
         reportPort,
         autoLinkPort ?? AutoLinkPort.NotLinked(),
         timeProvider ?? new AdjustableTimeProvider(NowUtc),
-        staffMailStore,
-        retainedMessages);
+        retainedMessages ?? new RetainedStore(),
+        staffMailStore);
 
     /// <summary>The Sent Items scope's writer, keyed as the store is: one row per mailbox and item identity.</summary>
     private sealed class RetainedStore : IRetainedMailboxMessageStore
