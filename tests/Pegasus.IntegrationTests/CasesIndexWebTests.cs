@@ -361,6 +361,27 @@ public sealed class CasesIndexWebTests
         Assert.DoesNotContain("Outstanding (", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A standalone Audit Case lists by its <c>a.</c> reference alone: no
+    /// Audit pill beside it, as no Inspection or Triage row carries one
+    /// (operator, 5 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AStandaloneAuditCaseListsByItsReferenceWithNoTypePill()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases { WithStandaloneAudit = true };
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync("/Cases?tab=review");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"href=\"/Cases/{search.StandaloneAuditCaseId:D}\">a.QDOS3100046</a>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-cases-type", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TheSelectedEntryOfAnAuditedCaseIsReadServerSide()
     {
@@ -475,6 +496,9 @@ public sealed class CasesIndexWebTests
         /// <summary>A Triage Case, listed with its own Triage state.</summary>
         public Guid TriageCaseId { get; } = Guid.NewGuid();
 
+        /// <summary>A standalone Audit Case, whose own reference is its <c>a.</c> reference.</summary>
+        public Guid StandaloneAuditCaseId { get; } = Guid.NewGuid();
+
         public List<SearchCasesQuery> Queries { get; } = [];
 
         public bool ReturnEmpty { get; set; }
@@ -484,6 +508,9 @@ public sealed class CasesIndexWebTests
         /// <summary>Answers with <see cref="AuditCaseId"/> and <see cref="TriageCaseId"/> instead of the default pair.</summary>
         public bool WithAuditAndTriage { get; set; }
 
+        /// <summary>Answers with <see cref="StandaloneAuditCaseId"/> alone instead of the default pair.</summary>
+        public bool WithStandaloneAudit { get; set; }
+
         public Task<SearchCasesResult> ExecuteAsync(
             SearchCasesQuery query,
             CancellationToken cancellationToken)
@@ -492,6 +519,29 @@ public sealed class CasesIndexWebTests
             if (ThrowUnavailable)
             {
                 throw new InvalidOperationException("sensitive store failure");
+            }
+
+            if (WithStandaloneAudit)
+            {
+                var received = new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero);
+                IReadOnlyList<CaseSearchItem> audit =
+                [
+                    new(
+                        StandaloneAuditCaseId,
+                        "a.QDOS3100046",
+                        null,
+                        CaseType.Audit,
+                        "QDOS",
+                        CaseLifecycleState.Review,
+                        null,
+                        "AU46DIT",
+                        "Claimant",
+                        "CLM46",
+                        received,
+                        "Email",
+                        received)
+                ];
+                return Task.FromResult(new SearchCasesResult(audit, query.Page, query.PageSize, false, false));
             }
 
             if (WithAuditAndTriage)

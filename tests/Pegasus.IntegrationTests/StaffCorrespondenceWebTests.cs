@@ -8,6 +8,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Tasks;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Presentation;
@@ -282,6 +283,120 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(StaffMailPurpose.GeneralCorrespondence, command.Purpose);
         Assert.Equal(caseId, command.ContextId);
         Assert.Equal("claimant@example.invalid", Assert.Single(command.To).Address);
+    }
+
+    private static readonly CaseChaserRecipients ChaserRecipients = new(
+        "instructions@principal.example",
+        ["images@repairer.example", " Instructions@Principal.example "],
+        "office@repairer.example");
+
+    /// <summary>
+    /// Send chaser opens the composer addressed, titled and worded from the
+    /// Case (operator, 5 October 2026): the recorded addresses, the
+    /// registration and claimant, and the Case chaser template.
+    /// </summary>
+    [Fact]
+    public async Task AChaserOpensAddressedTitledAndWordedFromTheCase()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        await SeedSendableMailboxAsync(baseFactory);
+        var recipients = new FixedChaserRecipients(ChaserRecipients);
+        using var factory = Configure(baseFactory, send, chaserRecipients: recipients);
+        using var client = CreateClient(factory);
+        var header = await CaseHeaderAsync(factory, caseId);
+        Assert.NotNull(header.Workflow.DueWork);
+        var facts = new CaseChaserFacts(
+            header.Summary.Registration,
+            header.Workflow.DueWork.MissingMaterialReason,
+            header.Summary.Principal,
+            header.Summary.Claimant);
+
+        using var response = await client.GetAsync(
+            $"/Inbox/Compose?caseReference={header.Summary.Reference}&purpose=chaser");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Equal(
+            "instructions@principal.example; images@repairer.example; office@repairer.example",
+            InputValue(html, "To"));
+        Assert.Equal(facts.Subject(), InputValue(html, "Subject"));
+        var body = TextAreaValue(html, "Body").Replace("\r\n", "\n", StringComparison.Ordinal);
+        Assert.Equal(
+            EmailTemplates.Render(EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseChaser), facts.Values()),
+            body);
+        Assert.Contains(header.Workflow.DueWork.MissingMaterialReason, body, StringComparison.Ordinal);
+        Assert.Equal("chaser", InputValue(html, "Purpose"));
+        Assert.Equal(caseId, Assert.Single(recipients.CaseIds));
+        Assert.Equal(0, send.SendCalls);
+    }
+
+    [Fact]
+    public async Task AChaserSendIsRecordedAsACaseChaser()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(
+            baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
+        using var client = CreateClient(factory);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+        using var get = await client.GetAsync($"/Inbox/Compose?caseReference={caseReference}&purpose=chaser");
+        var html = await get.Content.ReadAsStringAsync();
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["OperationKey"] = InputValue(html, "OperationKey"),
+                ["ExpectedContextVersion"] = InputValue(html, "ExpectedContextVersion"),
+                ["CaseReference"] = caseReference,
+                ["Purpose"] = InputValue(html, "Purpose"),
+                ["To"] = InputValue(html, "To"),
+                ["Subject"] = "Outstanding material",
+                ["Body"] = TextAreaValue(html, "Body")
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("purpose=chaser", response.Headers.Location!.ToString(), StringComparison.Ordinal);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailPurpose.CaseChaser, command.Purpose);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.Equal(
+            new[] { "instructions@principal.example", "images@repairer.example", "office@repairer.example" },
+            command.To.Select(recipient => recipient.Address));
+
+        // The status page the send lands on fills nothing in again.
+        using var status = await client.GetAsync(response.Headers.Location);
+        var statusHtml = await status.Content.ReadAsStringAsync();
+        Assert.Equal(string.Empty, InputValue(statusHtml, "To"));
+        Assert.Equal("chaser", InputValue(statusHtml, "Purpose"));
+    }
+
+    /// <summary>A compose opened without the chaser purpose opens empty and reads no chaser addresses.</summary>
+    [Fact]
+    public async Task APlainComposeOpensEmpty()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        await SeedSendableMailboxAsync(baseFactory);
+        var recipients = new FixedChaserRecipients(ChaserRecipients);
+        using var factory = Configure(baseFactory, send, chaserRecipients: recipients);
+        using var client = CreateClient(factory);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+
+        using var response = await client.GetAsync($"/Inbox/Compose?caseReference={caseReference}");
+
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Equal(string.Empty, InputValue(html, "To"));
+        Assert.Equal(string.Empty, InputValue(html, "Subject"));
+        Assert.Equal(string.Empty, TextAreaValue(html, "Body"));
+        Assert.Equal(string.Empty, InputValue(html, "Purpose"));
+        Assert.Empty(recipients.CaseIds);
     }
 
     /// <summary>
@@ -1580,12 +1695,18 @@ public sealed class StaffCorrespondenceWebTests
         IntakeWebApplicationFactory baseFactory,
         RecordingStaffMailSend send,
         MailboxCapability? mailboxCapability = null,
-        IStaffMailAttachmentResolver? attachmentResolver = null) =>
+        IStaffMailAttachmentResolver? attachmentResolver = null,
+        ICaseChaserRecipientQueries? chaserRecipients = null) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IStaffMailSend>();
                 services.AddSingleton<IStaffMailSend>(send);
+                if (chaserRecipients is not null)
+                {
+                    services.RemoveAll<ICaseChaserRecipientQueries>();
+                    services.AddSingleton(chaserRecipients);
+                }
                 if (attachmentResolver is not null)
                 {
                     services.RemoveAll<IStaffMailAttachmentResolver>();
@@ -2015,6 +2136,32 @@ public sealed class StaffCorrespondenceWebTests
             ActionActor actor, Guid receiptId, IReadOnlyList<string> selections,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StaffMailAttachment>>([]);
+    }
+
+    private static async Task<CaseHeader> CaseHeaderAsync(
+        WebApplicationFactory<Program> factory,
+        Guid caseId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var getCase = scope.ServiceProvider.GetRequiredService<IGetCaseHeader>();
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
+        return (await getCase.ExecuteAsync(new(caseId, actor), CancellationToken.None))!;
+    }
+
+    /// <summary>The recorded chaser addresses, the same for every Case, and the Cases asked about.</summary>
+    private sealed class FixedChaserRecipients(CaseChaserRecipients recipients) : ICaseChaserRecipientQueries
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<Guid> caseIds = new();
+
+        public IReadOnlyCollection<Guid> CaseIds => caseIds.ToArray();
+
+        public Task<CaseChaserRecipients?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            caseIds.Enqueue(caseId);
+            return Task.FromResult<CaseChaserRecipients?>(recipients);
+        }
     }
 
     private static async Task<string> CaseReferenceAsync(

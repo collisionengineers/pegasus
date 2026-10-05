@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Tasks;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Web.Presentation;
 
@@ -39,8 +40,13 @@ public sealed class ComposeModel(
     IListCaseReferences listCaseReferences,
     ISearchCases searchCases,
     IStaffMailAttachmentResolver attachmentResolver,
+    RenderEmailTemplate renderTemplate,
+    ICaseChaserRecipientQueries chaserRecipients,
     ILogger<ComposeModel> logger) : StaffPageModel
 {
+    /// <summary>The <see cref="Purpose"/> the Case ribbon's Send chaser opens the composer with.</summary>
+    public const string ChaserPurpose = "chaser";
+
     [BindProperty(SupportsGet = true, Name = "caseReference")]
     public string? CaseReference { get; set; }
 
@@ -55,6 +61,15 @@ public sealed class ComposeModel(
 
     [BindProperty(SupportsGet = true)]
     public Guid? OperationId { get; set; }
+
+    /// <summary>
+    /// <see cref="ChaserPurpose"/> when the composer was opened as a Case
+    /// chaser; it rides the form so the send is recorded as one.
+    /// </summary>
+    [BindProperty(SupportsGet = true)]
+    public string? Purpose { get; set; }
+
+    public bool IsChaser => string.Equals(Purpose, ChaserPurpose, StringComparison.OrdinalIgnoreCase);
 
     [BindProperty]
     public string? To { get; set; }
@@ -100,7 +115,8 @@ public sealed class ComposeModel(
         }
 
         await LoadDefaultMailboxAsync(cancellationToken);
-        await LoadCaseContextAsync(actor, cancellationToken);
+        var details = await LoadCaseContextAsync(actor, cancellationToken);
+        await PrefillChaserAsync(actor, details, cancellationToken);
 
         await LoadOperationAsync(actor, cancellationToken);
 
@@ -122,7 +138,8 @@ public sealed class ComposeModel(
         if (StaffMailAvailable)
         {
             await LoadDefaultMailboxAsync(cancellationToken);
-            await LoadCaseContextAsync(actor, cancellationToken);
+            var details = await LoadCaseContextAsync(actor, cancellationToken);
+            await PrefillChaserAsync(actor, details, cancellationToken);
             await LoadOperationAsync(actor, cancellationToken);
         }
 
@@ -232,7 +249,7 @@ public sealed class ComposeModel(
                     actor,
                     DefaultMailbox.Id,
                     DefaultMailbox.Generation,
-                    StaffMailPurpose.GeneralCorrespondence,
+                    IsChaser ? StaffMailPurpose.CaseChaser : StaffMailPurpose.GeneralCorrespondence,
                     details.Summary.CaseId,
                     details.Workflow.Version,
                     StaffMailComposeMode.New,
@@ -262,7 +279,7 @@ public sealed class ComposeModel(
         {
             StaffMailSendLog.Refused(logger, Operation.Id, DefaultMailbox.Id, Operation.FailureCode);
         }
-        return RedirectToPage(new { caseReference = details.Summary.Reference, operationId = Operation.Id });
+        return RedirectToPage(new { caseReference = details.Summary.Reference, operationId = Operation.Id, purpose = Purpose });
     }
 
     public async Task<IActionResult> OnPostSelectCaseAsync(CancellationToken cancellationToken)
@@ -381,12 +398,12 @@ public sealed class ComposeModel(
         }
     }
 
-    private async Task LoadCaseContextAsync(ActionActor actor, CancellationToken cancellationToken)
+    private async Task<CaseHeader?> LoadCaseContextAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         var details = await ResolveCaseAsync(actor, CaseReference, cancellationToken);
         if (details is null)
         {
-            return;
+            return null;
         }
 
         Case = details.Summary;
@@ -394,6 +411,45 @@ public sealed class ComposeModel(
         ExpectedContextVersion = details.Workflow.Version;
         AvailableAttachments = await attachmentResolver.ListCaseAsync(
             actor, details.Summary.CaseId, cancellationToken);
+        return details;
+    }
+
+    /// <summary>
+    /// A chaser opens addressed, titled and worded from the Case (operator,
+    /// 5 October 2026); staff change any of it before sending. Only a field
+    /// still empty is filled, and nothing is filled once a send has happened:
+    /// the page then shows that send's status.
+    /// </summary>
+    private async Task PrefillChaserAsync(
+        ActionActor actor,
+        CaseHeader? details,
+        CancellationToken cancellationToken)
+    {
+        if (!IsChaser || details is null || OperationId is not null)
+        {
+            return;
+        }
+
+        var facts = new CaseChaserFacts(
+            details.Summary.Registration,
+            details.Workflow.DueWork?.MissingMaterialReason,
+            details.Summary.Principal,
+            details.Summary.Claimant);
+        if (string.IsNullOrWhiteSpace(To))
+        {
+            var recipients = await chaserRecipients.GetAsync(details.Summary.CaseId, cancellationToken)
+                ?? CaseChaserRecipients.None;
+            To = string.Join("; ", CaseChaserAddressing.To(recipients));
+        }
+        if (string.IsNullOrWhiteSpace(Subject))
+        {
+            Subject = facts.Subject();
+        }
+        if (string.IsNullOrWhiteSpace(Body))
+        {
+            Body = await renderTemplate.ExecuteAsync(
+                actor, EmailTemplatePurpose.CaseChaser, facts.Values(), cancellationToken);
+        }
     }
 
     private async Task LoadSelectedCaseAsync(ActionActor actor, CancellationToken cancellationToken)
