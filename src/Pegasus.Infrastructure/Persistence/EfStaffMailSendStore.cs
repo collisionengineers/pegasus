@@ -7,6 +7,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -385,6 +386,7 @@ internal sealed class EfStaffMailSendStore(
             observedAtUtc, entity.OperationKey, null, null, Map(entity)));
         await FreezeSentReportSpecificationAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
         await CompletePostReportQueryAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
+        await RecordSentChaserAsync(db, entity, providerSentAtUtc, observedAtUtc, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -548,6 +550,95 @@ internal sealed class EfStaffMailSendStore(
             AfterJson = afterJson,
             PolicyVersion = "case-lifecycle-v1"
         });
+    }
+
+    /// <summary>
+    /// Records a Case chaser that reached Sent as the Case's chase: the due
+    /// work's most recent attempt and next chase move exactly as a recorded
+    /// manual chase would, attributed to the staff member who sent it. Runs
+    /// inside the Sent observation, so every case it does not apply to returns
+    /// rather than throws; a throw here would stall the mailbox's Sent poll.
+    /// </summary>
+    private static async Task RecordSentChaserAsync(
+        PegasusDbContext db,
+        StaffMailSendOperationEntity mail,
+        DateTimeOffset providerSentAtUtc,
+        DateTimeOffset observedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (mail.Purpose != StaffMailPurpose.CaseChaser)
+        {
+            return;
+        }
+
+        // Lock before reading: a Serializable read taken first deadlocks
+        // against a Case mutation that already holds the workflow row.
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(db, mail.ContextId, cancellationToken);
+        var operationKey = $"chaser-sent:{mail.Id:N}";
+        if (await db.CaseManualChases.AnyAsync(
+                item => item.CaseId == mail.ContextId && item.OperationKey == operationKey,
+                cancellationToken))
+        {
+            return;
+        }
+
+        var workflow = await db.CaseWorkflows.SingleOrDefaultAsync(
+            item => item.CaseId == mail.ContextId, cancellationToken);
+        var due = await db.CaseDueWork
+            .Include(item => item.Workflow)
+            .ThenInclude(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == mail.ContextId, cancellationToken);
+        if (workflow is null
+            || due is null
+            || workflow.ArchivedAtUtc is not null
+            || workflow.State != nameof(CaseLifecycleState.NotReady)
+            || due.State != nameof(CaseDueWorkState.Scheduled))
+        {
+            return;
+        }
+
+        var recipients = JsonSerializer.Deserialize<Recipients>(mail.RecipientsJson);
+        var target = ChaseTarget(recipients?.To?.Select(value => value.Address).ToArray() ?? []);
+        var roles = (await CurrentRoleNamesAsync(db, mail.ActorSubjectId, cancellationToken))
+            .Select(name => Enum.TryParse<StaffRole>(name, ignoreCase: false, out var role) ? (StaffRole?)role : null)
+            .OfType<StaffRole>()
+            .ToHashSet();
+        var interval = (await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken)).ChaseIntervalDays;
+        EfCaseWorkflowStore.ApplyChase(
+            db,
+            workflow,
+            due,
+            channel: "E-mail",
+            target,
+            attemptedAtUtc: providerSentAtUtc,
+            outcome: "Sent",
+            note: null,
+            operationKey,
+            requestHash: mail.PayloadHash,
+            ActorKind.Staff,
+            mail.ActorSubjectId,
+            roles,
+            eventType: "chaser_sent",
+            occurredAtUtc: observedAtUtc,
+            chaseIntervalDays: interval);
+    }
+
+    /// <summary>
+    /// The addresses a chaser went to, within the chase record's 500
+    /// characters: all of them, else the first and how many more, else the
+    /// first cut to fit.
+    /// </summary>
+    private static string ChaseTarget(string[] addresses)
+    {
+        const int maximumLength = 500;
+        var joined = string.Join("; ", addresses);
+        if (joined.Length <= maximumLength)
+        {
+            return joined;
+        }
+
+        var summary = $"{addresses[0]} +{addresses.Length - 1} more";
+        return summary.Length <= maximumLength ? summary : summary[..maximumLength];
     }
 
     private sealed record QueryReplyWorkflowValue(

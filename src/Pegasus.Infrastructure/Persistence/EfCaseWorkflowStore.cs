@@ -1067,52 +1067,98 @@ public sealed class EfCaseWorkflowStore(
         {
             throw new InvalidOperationException("Only scheduled due work can be chased.");
         }
-        due.MostRecentChannel = request.Channel;
-        due.MostRecentOutcome = request.Outcome;
-        due.MostRecentNote = request.Note;
-        due.NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(request.AttemptedAtUtc, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
+        ApplyChase(
+            context,
+            workflow,
+            due,
+            request.Channel,
+            request.TargetPartyOrAddress,
+            request.AttemptedAtUtc,
+            request.Outcome,
+            request.Note,
+            request.OperationKey,
+            hash,
+            request.Actor.Kind,
+            request.Actor.SubjectId,
+            request.Actor.Roles,
+            "manual_chase_recorded",
+            timeProvider.GetUtcNow(),
+            (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
+        ClearLease(workflow);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(due);
+    }
+
+    /// <summary>
+    /// Records one chase of scheduled due work: the chase row, the due work's
+    /// most recent attempt and next chase, and the Case event, each version
+    /// advanced once. The caller holds the workflow lock and has made its own
+    /// checks; the actor is passed as stored, so a send observed by the
+    /// Worker records the staff member who sent it without rebuilding them.
+    /// </summary>
+    internal static void ApplyChase(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        CaseDueWorkEntity due,
+        string channel,
+        string targetPartyOrAddress,
+        DateTimeOffset attemptedAtUtc,
+        string outcome,
+        string? note,
+        string operationKey,
+        string requestHash,
+        ActorKind actorKind,
+        string actorSubjectId,
+        IReadOnlyCollection<StaffRole> actorRoles,
+        string eventType,
+        DateTimeOffset occurredAtUtc,
+        int chaseIntervalDays)
+    {
+        due.MostRecentChannel = channel;
+        due.MostRecentOutcome = outcome;
+        due.MostRecentNote = note;
+        due.NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(attemptedAtUtc, chaseIntervalDays);
         due.Version++;
         workflow.Version++;
-        ClearLease(workflow);
         context.CaseManualChases.Add(new()
         {
             Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
-            OperationKey = request.OperationKey,
-            RequestHash = hash,
-            ActorKind = request.Actor.Kind.ToString(),
-            ActorSubjectId = request.Actor.SubjectId,
-            ActorRolesJson = RolesJson(request.Actor),
-            Channel = request.Channel,
-            TargetPartyOrAddress = request.TargetPartyOrAddress,
-            AttemptedAtUtc = request.AttemptedAtUtc,
-            Outcome = request.Outcome,
-            Note = request.Note,
+            CaseId = workflow.CaseId,
+            OperationKey = operationKey,
+            RequestHash = requestHash,
+            ActorKind = actorKind.ToString(),
+            ActorSubjectId = actorSubjectId,
+            ActorRolesJson = RolesJson(actorRoles),
+            Channel = channel,
+            TargetPartyOrAddress = targetPartyOrAddress,
+            AttemptedAtUtc = attemptedAtUtc,
+            Outcome = outcome,
+            Note = note,
             ResultingVersion = workflow.Version
         });
         AddEvent(
             context,
             workflow,
-            request.Actor,
-            request.OperationKey.Trim(),
-            ManualChaseHistoryDetail(request),
-            hash,
-            "manual_chase_recorded",
+            actorKind,
+            actorSubjectId,
+            actorRoles,
+            operationKey.Trim(),
+            ManualChaseHistoryDetail(channel, targetPartyOrAddress, outcome, note),
+            requestHash,
+            eventType,
             workflow.Version - 1,
             workflow.Version,
-            timeProvider.GetUtcNow(),
+            occurredAtUtc,
             beforeJson: null,
             afterJson: JsonSerializer.Serialize(new
             {
-                Channel = request.Channel.Trim(),
-                Recipient = request.TargetPartyOrAddress.Trim(),
-                Content = request.Note?.Trim(),
-                Outcome = request.Outcome.Trim(),
+                Channel = channel.Trim(),
+                Recipient = targetPartyOrAddress.Trim(),
+                Content = note?.Trim(),
+                Outcome = outcome.Trim(),
                 DueWork = Map(due)
             }));
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return Map(due);
     }
 
     private async Task<CaseWorkflowRecord> MutateAsync(
@@ -1801,6 +1847,37 @@ public sealed class EfCaseWorkflowStore(
         long afterVersion,
         DateTimeOffset occurredAtUtc,
         string? beforeJson,
+        string? afterJson) =>
+        AddEvent(
+            context,
+            workflow,
+            actor.Kind,
+            actor.SubjectId,
+            actor.Roles,
+            operationKey,
+            reason,
+            requestHash,
+            eventType,
+            beforeVersion,
+            afterVersion,
+            occurredAtUtc,
+            beforeJson,
+            afterJson);
+
+    private static void AddEvent(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActorKind actorKind,
+        string actorSubjectId,
+        IReadOnlyCollection<StaffRole> actorRoles,
+        string operationKey,
+        string reason,
+        string requestHash,
+        string eventType,
+        long beforeVersion,
+        long afterVersion,
+        DateTimeOffset occurredAtUtc,
+        string? beforeJson,
         string? afterJson)
     {
         context.CaseWorkflowEvents.Add(new()
@@ -1811,9 +1888,9 @@ public sealed class EfCaseWorkflowStore(
             EventType = eventType,
             OperationKey = operationKey,
             RequestHash = requestHash,
-            ActorKind = actor.Kind.ToString(),
-            ActorSubjectId = actor.SubjectId,
-            ActorRolesJson = RolesJson(actor),
+            ActorKind = actorKind.ToString(),
+            ActorSubjectId = actorSubjectId,
+            ActorRolesJson = RolesJson(actorRoles),
             Reason = reason,
             OccurredAtUtc = occurredAtUtc,
             BeforeVersion = beforeVersion,
@@ -1826,10 +1903,10 @@ public sealed class EfCaseWorkflowStore(
             AggregateType = "case",
             AggregateId = workflow.CaseId.ToString("D"),
             EventKind = eventType,
-            ActorKind = actor.Kind.ToString(),
-            ActorSubjectId = actor.SubjectId,
+            ActorKind = actorKind.ToString(),
+            ActorSubjectId = actorSubjectId,
             ActorRolesJson = JsonSerializer.Serialize(
-                actor.Roles.OrderBy(role => role).Select(role => role.ToString())),
+                actorRoles.OrderBy(role => role).Select(role => role.ToString())),
             OccurredAtUtc = occurredAtUtc,
             Outcome = "Succeeded",
             CorrelationId = operationKey,
@@ -2021,14 +2098,20 @@ public sealed class EfCaseWorkflowStore(
         string? ArchiveReason,
         long Version);
 
-    private static string RolesJson(ActionActor actor) => JsonSerializer.Serialize(actor.Roles.OrderBy(role => role));
+    private static string RolesJson(ActionActor actor) => RolesJson(actor.Roles);
 
-    private static string ManualChaseHistoryDetail(ManualChaseRecord request)
+    private static string RolesJson(IEnumerable<StaffRole> roles) => JsonSerializer.Serialize(roles.OrderBy(role => role));
+
+    private static string ManualChaseHistoryDetail(
+        string channel,
+        string targetPartyOrAddress,
+        string outcome,
+        string? note)
     {
-        var detail = $"{request.Channel.Trim()} to {request.TargetPartyOrAddress.Trim()}: {request.Outcome.Trim()}";
-        return string.IsNullOrWhiteSpace(request.Note)
+        var detail = $"{channel.Trim()} to {targetPartyOrAddress.Trim()}: {outcome.Trim()}";
+        return string.IsNullOrWhiteSpace(note)
             ? detail
-            : $"{detail} — {request.Note.Trim()}";
+            : $"{detail} — {note.Trim()}";
     }
 
     private static string RequestHash<T>(T request) => Hash(JsonSerializer.Serialize(request));
