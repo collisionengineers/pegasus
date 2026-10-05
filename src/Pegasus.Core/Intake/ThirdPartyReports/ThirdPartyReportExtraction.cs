@@ -304,7 +304,7 @@ internal static class ThirdPartySections
 public static class ThirdPartyReportExtraction
 {
     /// <summary>Versioned with the rule tables; recorded on every candidate.</summary>
-    public const string ProfileVersion = "third-party-report-extraction/3";
+    public const string ProfileVersion = "third-party-report-extraction/4";
 
     // Printed money is not always two decimals — Laird prints "£1686.7" — and
     // a two-decimal-only pattern silently dropped the tenth, which is exactly
@@ -444,6 +444,10 @@ public static class ThirdPartyReportExtraction
         new(F.PreAccidentValue, K.Money, @"Engineer's Value[ \t]+" + Money, RawWholeMatch: true),
         new(F.Retail, K.Money, @"Retail Value[ \t]+" + Money),
         new(F.Trade, K.Money, @"Trade Value[ \t]+" + Money),
+        // A total-loss report prints its salvage cells where a repairable one
+        // prints its repair cost; the category cell repeats its own label.
+        new(F.SalvageValue, K.Money, @"Salvage Value[ \t]+" + Money),
+        new(F.SalvageCategory, K.Text, @"Salvage Category[ \t]+(?:Category[ \t]+)?(?<v>[A-Z])(?![\w/])"),
         // Laird prints these two labels UNDER their value, so each rule is
         // anchored on the label in whichever order the cell was laid out. The
         // label still proves the value; only the side it sits on changes.

@@ -29,6 +29,52 @@ public sealed partial class ThirdPartyReportExtractionTests
         Email: enquiries@laird-assessors.com   Web:  www.laird-assessors.com
         """;
 
+    /// <summary>
+    /// Page 1 of a Laird total-loss report as the production reader reads it:
+    /// the salvage cells sit where a repairable report prints its repair cost.
+    /// </summary>
+    private const string LairdTotalLoss = """
+        Vehicle Details Claim Details
+        Make Hyundai
+        Model Ioniq Premium Se Ev
+        Registration FY21XPH
+        Engineer's Value £9,903.00
+        Salvage Value £990.30
+        Salvage Category Category S
+        Status Total Loss
+        Legal Status Unroadworthy
+        Impact Magnitude Moderate
+        Claimant Mr Gurnam Singh
+        Accident Date 27/09/2026
+        Our Reference
+        26-1941005/2595303
+        Your Reference
+        /REB/48982/1
+        Date
+        2nd Oct 2026
+        Total Loss Damage Assessment Report
+        Page 1 of 15
+        Email: enquiries@laird-assessors.com
+        """;
+
+    [Fact]
+    public void LairdsTotalLossReportFillsEveryOriginalReportCell()
+    {
+        var result = Read(LairdTotalLoss);
+        var reading = Cells(LairdTotalLoss);
+
+        Assert.Equal(ThirdPartyReportFamily.Laird, result.Selection.Family);
+        Assert.Single(result.Selection.Matches);
+        Assert.Equal("Laird Assessors", reading.Assessor);
+        Assert.Equal("2026-10-02", reading.ReportDate);
+        Assert.Equal("unroadworthy", reading.Roadworthiness);
+        Assert.Equal("total_loss", reading.Outcome);
+        Assert.False(reading.OutcomeUnreadable);
+        Assert.Equal("990.30", Value(result, ThirdPartyReportFields.SalvageValue, ""));
+        Assert.Equal("S", Value(result, ThirdPartyReportFields.SalvageCategory, ""));
+        Assert.Equal("REB/48982/1", Value(result, ThirdPartyReportFields.ClaimReference, "your-ref"));
+    }
+
     [Fact]
     public void TheConnexusNarrativeFillsEveryOriginalReportCell()
     {
