@@ -185,7 +185,7 @@ internal sealed record ThirdPartySourcePage(
 public static class ThirdPartyReportProfiles
 {
     /// <summary>Versioned with the signature table; recorded on every candidate.</summary>
-    public const string ProfileVersion = "third-party-report-profiles/2";
+    public const string ProfileVersion = "third-party-report-profiles/3";
 
     /// <summary>The document role recorded on a selected report's candidates.</summary>
     public const string ReportDocumentRole = "third-party-engineer-report";
@@ -238,9 +238,10 @@ public static class ThirdPartyReportProfiles
 
         // Laird's footer domain is its issuer evidence: the vehicle-history PDF
         // names "Laird Assessors" as a dealer without being a Laird report.
-        new("laird/1", "1", "Laird Assessors", ThirdPartyReportFamily.Laird,
+        // The full report's title names its outcome, repairable or total loss.
+        new("laird/2", "2", "Laird Assessors", ThirdPartyReportFamily.Laird,
             ThirdPartyDocumentRole.EngineerReport, @"laird-assessors\.com",
-            [@"(?:Repairable\s+Damage\s+Assessment\s+Report|" + SupplementaryReportTitle + ")"], []),
+            [@"(?:(?:Repairable|Total\s+Loss)\s+Damage\s+Assessment\s+Report|" + SupplementaryReportTitle + ")"], []),
 
         new("montgomery/1", "1", "Montgomery Assessors", ThirdPartyReportFamily.Montgomery,
             ThirdPartyDocumentRole.EngineerReport, @"Montgomery\s*Assessors",
