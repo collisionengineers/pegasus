@@ -768,12 +768,29 @@
         // The state chip is the _StatusChip partial's span; its tone class is
         // the one the server's tone table gave it, and the JSON carries the
         // same table's answer for a hovered row.
+        // A Sent item carries no processing chip: the span is empty and the
+        // JSON's state is null, so the chip is absent rather than blank.
         var chip = function () {
             return field('state').querySelector('.status');
         };
         var toneOf = function (element) {
             var tone = /status--([a-z]+)/.exec(element.className);
             return tone ? tone[1] : 'neutral';
+        };
+        var paintChip = function (state, tone) {
+            var existing = chip();
+            if (!state) {
+                if (existing) {
+                    existing.remove();
+                }
+                return;
+            }
+            if (!existing) {
+                existing = document.createElement('span');
+                field('state').appendChild(existing);
+            }
+            existing.textContent = state;
+            existing.className = 'status status--' + (tone || 'neutral');
         };
 
         // The pane already shows the selected message; seeding the cache from
@@ -789,8 +806,8 @@
                 received: field('received').textContent,
                 receivedAtUtc: field('received').getAttribute('datetime'),
                 mailbox: field('mailbox').textContent,
-                state: chip().textContent,
-                stateTone: toneOf(chip()),
+                state: chip() ? chip().textContent : null,
+                stateTone: chip() ? toneOf(chip()) : null,
                 excerpt: field('excerpt').textContent,
                 attachments: field('attachments').textContent,
                 classification: field('classification').textContent,
@@ -846,8 +863,7 @@
             field('received').textContent = data.received;
             field('received').setAttribute('datetime', data.receivedAtUtc);
             field('mailbox').textContent = data.mailbox;
-            chip().textContent = data.state;
-            chip().className = 'status status--' + data.stateTone;
+            paintChip(data.state, data.stateTone);
             field('excerpt').textContent = data.excerpt;
             field('attachments').textContent = data.attachments;
             field('classification').textContent = data.classification;

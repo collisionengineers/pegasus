@@ -617,6 +617,92 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Equal(observedAtUtc.AddMinutes(-1), sent.ProviderSentAtUtc);
     }
 
+    /// <summary>
+    /// FRD-16 Notes, FRD-21: a general correspondence send, once its Sent item
+    /// is observed, leaves one Notes line on its Case (the staff sender, the
+    /// provider's sent time, the subject, at the Case's current version), and
+    /// the Case's Correspondence lists the retained Sent item as Sent. A
+    /// replayed observation writes nothing more.
+    /// </summary>
+    [Fact]
+    public async Task AnObservedCorrespondenceSendIsNotedOnTheCaseAndListedAsSentCorrespondence()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        // The fixture's receipt stays unassociated: only the Sent item is
+        // this Case's correspondence here.
+        var fixture = await SeedPostReportQueryAsync(
+            database, mailboxId, retainedMessageId, isQueryReceipt: false, isAssociated: false);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var command = ReplyCommand(mailboxId, retainedMessageId, "noted-correspondence") with
+        {
+            ContextId = fixture.CaseId,
+            ExpectedContextVersion = fixture.WorkflowVersion,
+            Subject = "Following up on your claim"
+        };
+        var operation = await MoveToSubmittedAsync(
+            store, command, new DateTimeOffset(2026, 10, 5, 7, 8, 0, TimeSpan.Zero));
+        var sentAtUtc = new DateTimeOffset(2026, 10, 5, 7, 8, 59, TimeSpan.Zero);
+        var observer = ActionActor.SystemWorker("sent-evidence-poll");
+
+        await store.TransitionObservedSentAsync(
+            observer, operation.Id, operation.Version, "observed-sent-item",
+            sentAtUtc, sentAtUtc.AddMinutes(1), CancellationToken.None);
+        await store.TransitionObservedSentAsync(
+            observer, operation.Id, operation.Version, "observed-sent-item",
+            sentAtUtc, sentAtUtc.AddMinutes(1), CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<IRetainedMailboxMessageStore>().RetainAsync(
+            new RetainedMailboxMessage(
+                mailboxId,
+                "mailbox@example.invalid",
+                "observed-sent-item",
+                "sent:observed-sent-item",
+                sentAtUtc,
+                1024,
+                new string('B', 64),
+                new(
+                    "sent-items",
+                    "conversation",
+                    $"<{StaffMailCorrelationHeaders.MessageId(operation.Id)}>",
+                    "mailbox@example.invalid",
+                    null,
+                    ["recipient@example.invalid"],
+                    [],
+                    [],
+                    "Following up on your claim",
+                    "Body",
+                    [],
+                    IsRead: true),
+                sentAtUtc.AddMinutes(1),
+                MailFolderScope.Sent),
+            CancellationToken.None);
+
+        await using var verify = database.CreateAsyncScope();
+        var factory = verify.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        var noted = Assert.Single(await db.CaseWorkflowEvents
+            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "correspondence_sent")
+            .ToListAsync());
+        Assert.Equal("Following up on your claim", noted.Reason);
+        Assert.Equal(command.Actor.SubjectId, noted.ActorSubjectId);
+        Assert.Equal(nameof(ActorKind.Staff), noted.ActorKind);
+        Assert.Equal(sentAtUtc, noted.OccurredAtUtc);
+        Assert.Equal(noted.BeforeVersion, noted.AfterVersion);
+        Assert.Contains(operation.Id.ToString("D"), noted.ResultJson, StringComparison.OrdinalIgnoreCase);
+
+        var files = await verify.ServiceProvider.GetRequiredService<Pegasus.Core.Cases.ICaseQueryStore>()
+            .GetFilesSectionAsync(fixture.CaseId, includeDocuments: false, frame: null, CancellationToken.None);
+        Assert.NotNull(files);
+        var sentRow = Assert.Single(files!.CorrespondenceEmails, item => item.Direction == MailDirection.Sent);
+        Assert.Equal("Following up on your claim", sentRow.Subject);
+        Assert.Equal(sentAtUtc, sentRow.ReceivedAtUtc);
+        Assert.Equal("mailbox@example.invalid", sentRow.SenderAddress);
+        Assert.Null(sentRow.Classification);
+    }
+
     [Fact]
     public async Task ReceivedPostReportQueryAssociationMovesCompletedCaseToQuery()
     {

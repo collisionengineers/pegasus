@@ -3065,7 +3065,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CaseId", "AfterVersion")
                         .IsUnique()
-                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded' AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over' AND [EventType] <> 'market_research_attached'");
+                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded' AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over' AND [EventType] <> 'market_research_attached' AND [EventType] <> 'correspondence_sent'");
 
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
@@ -6738,16 +6738,16 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ExternalReceiptToken");
 
-                    b.HasIndex("MailboxId", "CanonicalInternetMessageIdentity")
-                        .IsUnique()
-                        .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
-
                     b.HasIndex("MailboxId", "ImmutableMessageId")
                         .IsUnique()
                         .HasFilter("[MailboxId] IS NOT NULL");
 
                     b.HasIndex("ReceivedAtUtc", "Id")
                         .IsDescending(true, false);
+
+                    b.HasIndex("MailboxId", "FolderScope", "CanonicalInternetMessageIdentity")
+                        .IsUnique()
+                        .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
 
                     b.HasIndex("MailboxId", "FolderScope", "ReceivedAtUtc", "Id")
                         .IsDescending(false, false, true, false);
@@ -9212,7 +9212,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity", b =>
                 {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedInboxPollStateEntity", null)
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", null)
                         .WithMany()
                         .HasForeignKey("MailboxId")
                         .OnDelete(DeleteBehavior.Restrict);
