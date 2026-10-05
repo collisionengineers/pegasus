@@ -4,6 +4,7 @@ using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Assessment;
+using Pegasus.Infrastructure.Glass;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
@@ -173,9 +174,477 @@ public sealed class GlassEstimatePdfParserTests
             Assert.Equal("Panel repair sundries (including body fi", bySource["A40"].Description);
     }
 
+    /// <summary>
+    /// A sheet with Body and Paint only (KY12CAB, 4 September 2026): no
+    /// Auxiliary section prints, and the blend level B is a blend.
+    /// </summary>
+    [Fact]
+    public void ABodyAndPaintSheetWithNoAuxiliarySectionIsRead()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body", new SheetRow("672201", "Rear Door Outer Handle (L)", "RP", 0.40m, 32.00m, 49.83m))],
+            [new PaintRow("Rear Door, Complete K (L)", "200", "B", 0.70m, 137.10m),
+             new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 0.70m, 120.16m)],
+            [],
+            [new PartRow("Rear Door Outer Handle", "6921102934", 49.83m)],
+            [new PositionRow("Rear Door Outer Handle", "672201")]));
+
+        Assert.Equal(["new_part", "paint_blend", "paint_prep"], parsed.Lines.Select(line => line.Type));
+        Assert.Equal("6921102934", parsed.Lines[0].PartNumber);
+        Assert.Equal(0.40m, parsed.SourceTotals!.PanelWorkUnits);
+        Assert.Equal(1.40m, parsed.SourceTotals.PaintWorkUnits);
+        Assert.Equal(451.09m, parsed.SourceTotals.Net);
+        Assert.Equal(90.22m, parsed.SourceTotals.Vat);
+        Assert.Equal(541.31m, parsed.SourceTotals.Gross);
+    }
+
+    /// <summary>
+    /// Glass's own set-up time prints as an Additional costs section
+    /// (a.QDOS26066, 5 October 2026): no guide, operation EC, hours 0.20,
+    /// labour 16.00. Total Labour hours leave it out and its cost includes it.
+    /// </summary>
+    [Fact]
+    public void AnAdditionalCostsSectionIsASpecialistLineAndItsLabourIsInTheTotal()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(SetUpTimeSheet("16.00"));
+
+        Assert.Equal(["new_part", "new_part", "paint_new", "specialist_wu"], parsed.Lines.Select(line => line.Type));
+        var setUp = parsed.Lines[3];
+        Assert.Equal("Set-up time", setUp.Description);
+        Assert.Null(setUp.GuideCode);
+        Assert.Equal(0.20m, setUp.WorkUnits);
+        Assert.Equal(0.00m, setUp.Price);
+        Assert.Null(setUp.Materials);
+        Assert.Contains("Printed operation: EC.", setUp.Justification, StringComparison.Ordinal);
+        Assert.Contains("Printed labour: 16.00 GBP.", setUp.Justification, StringComparison.Ordinal);
+        // Total Labour is 22.80 h and 1,840.00: 12.90 + 9.90 hours, and
+        // 1,032.00 + 792.00 + 16.00 of labour.
+        Assert.Equal(12.90m, parsed.SourceTotals!.PanelWorkUnits);
+        Assert.Equal(9.90m, parsed.SourceTotals.PaintWorkUnits);
+        Assert.Equal(4235.09m, parsed.SourceTotals.Net);
+        Assert.Equal(847.02m, parsed.SourceTotals.Vat);
+    }
+
+    [Fact]
+    public void AnAdditionalRowWhoseLabourIsNotItsHoursAtTheBodyRateRefusesTheWholeTable()
+    {
+        var refusal = Assert.Throws<EstimateParseRejectedException>(
+            () => GlassEstimatePdfParser.Parse(SetUpTimeSheet("17.00")));
+
+        Assert.Contains("main rows disagree", refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// MP23KTV (5 September 2026) prints Mechanical and Auxiliary work, and
+    /// operation codes the sheet's own Abbreviations name: S (Sealing) and CA
+    /// (Control and adjustment) land as check labour, as the XML's kinds do.
+    /// </summary>
+    [Fact]
+    public void MechanicalWorkAndTheSealingAndControlCodesAreRead()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body", new SheetRow("1001", "Wing (L)", "RP", 1.00m, 80.00m, 100.00m)),
+             new SectionRows("Mechanical",
+                 new SheetRow("2001", "Strut (L)", "R", 1.00m, 80.00m, 0.00m),
+                 new SheetRow("NN", "Wiper Arm Cap (R)", "CA", 0.00m, 0m, 0.00m)),
+             new SectionRows("Auxiliary work", new SheetRow("NN", "Tailgate", "S", 0.00m, 0m, 0.00m))],
+            [new PaintRow("Roof Panel, Centre", "200", "I", 1.00m, 50.00m)],
+            [],
+            [new PartRow("Wing", "PN100", 100.00m)],
+            [new PositionRow("Wing", "1001"), new PositionRow("Strut", "2001"),
+             new PositionRow("Wiper Arm Cap", null), new PositionRow("Tailgate", null)]));
+
+        Assert.Equal(
+            ["new_part", "repair", "check_labour", "check_labour", "paint_new"],
+            parsed.Lines.Select(line => line.Type));
+        Assert.Equal("mechanical:p1:r1:2001", parsed.Lines[1].SourceRowIdentity);
+        Assert.Equal("auxiliary:p1:r1:NN", parsed.Lines[3].SourceRowIdentity);
+        Assert.Contains("Printed operation: CA.", parsed.Lines[2].Justification, StringComparison.Ordinal);
+        Assert.Contains("Printed operation: S.", parsed.Lines[3].Justification, StringComparison.Ordinal);
+        // Panel work units stay Body and Auxiliary; Mechanical rows are labour lines.
+        Assert.Equal(1.00m, parsed.SourceTotals!.PanelWorkUnits);
+        Assert.Equal(390.00m, parsed.SourceTotals.Net);
+    }
+
+    /// <summary>
+    /// "Heated)" ends at x 205.25 and the number starts at 205.0, so the
+    /// extractor yields one word, name and number together: it splits at the
+    /// main row's own name, in the parts appendix and in the positions one.
+    /// </summary>
+    [Fact]
+    public void ANamePrintedWithNoGapBeforeItsNumberIsSplitAtItsMainRowsName()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(GluedSheet("Windscreen (Heat Reflecting & Heated)"));
+
+        var windscreen = parsed.Lines[0];
+        Assert.Equal("Windscreen (Heat Reflecting & Heated)", windscreen.Description);
+        Assert.Equal("LR114261", windscreen.PartNumber);
+        Assert.Contains("Position appendix: 768101", windscreen.Justification, StringComparison.Ordinal);
+        Assert.Equal(1058.77m, parsed.SourceTotals!.Net);
+    }
+
+    [Fact]
+    public void AGluedWordThatSplitsAtNoMainRowNameStillRefuses()
+    {
+        var refusal = Assert.Throws<EstimateParseRejectedException>(
+            () => GlassEstimatePdfParser.Parse(GluedSheet("Windscreen Washer Jet")));
+
+        Assert.Contains("no identity", refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The paint block of the 5 October 2026 export of forty positions: every
+    /// printed level and paint type, the Z flag, the Annotation (price) line,
+    /// and the rows with no type and no level.
+    /// </summary>
+    [Fact]
+    public void EveryPrintedPaintLevelTypeAndFlagLandsAsItsLine()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body", new SheetRow("672201", "Rear Door Outer Handle (L)", "RP", 0.40m, 32.00m, 49.83m))],
+            [new PaintRow("Front Wing, Complete (L)", "200", "III", 1.00m, 80.80m),
+             new PaintRow("Bonnet", "310", "I", 2.80m, 739.85m),
+             new PaintRow("Front Door, Upper B-C (L)", "200", "SP", 0.90m, 14.32m),
+             new PaintRow("Front Door Outer Handle (L)", "200", "K2", 0.30m, 4.10m),
+             new PaintRow("Rear Door, Complete K (L)", "200", "IV", 2.10m, 194.70m),
+             new PaintRow("Rear Door, Upper B-C (L)", "201", "II", 0.60m, 77.20m, Flag: "Z"),
+             new PaintRow("Roof Panel, Centre", "200", "B", 1.30m, 365.00m),
+             new PaintRow("Rear Side Panel, Complete K (L)", "340", "I", 3.20m, 397.70m),
+             new PaintRow("Tailgate Rear Spoiler", "410", "K1G", 1.30m, 189.10m,
+                 Annotation: "Annotation (price) Version Sport"),
+             new PaintRow("Rear Bumper k/e", "310", "K1N", 1.80m, 525.55m),
+             new PaintRow("Front Door Exterior Mirror (L)", "200", "K1R", 0.40m, 34.40m),
+             new PaintRow("Surcharge scratch-resistant clear coat", null, null, 0.10m, 0.00m),
+             new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 1.70m, 120.16m),
+             new PaintRow("First Colour/Clear tinted coat", null, null, 0.20m, 169.86m),
+             new PaintRow("Colour mixing (1)", null, null, 0.30m, 0.00m),
+             new PaintRow("Sample colour creation (1)", null, null, 0.30m, 11.62m)],
+            [],
+            [new PartRow("Rear Door Outer Handle", "6921102934", 49.83m)],
+            [new PositionRow("Rear Door Outer Handle", "672201")]));
+
+        Assert.Equal(
+            ["new_part",
+             "paint_repair", "paint_new", "paint_repair", "paint_repair", "paint_repair", "paint_repair",
+             "paint_blend", "paint_new", "paint_new", "paint_new", "paint_new",
+             "paint_prep", "paint_prep", "paint_prep", "paint_prep", "paint_prep"],
+            parsed.Lines.Select(line => line.Type));
+        Assert.Equal("310", parsed.Lines[2].GuideCode);
+        Assert.Equal("201", parsed.Lines[6].GuideCode);
+        Assert.Contains("Markup material", parsed.Lines[6].Justification, StringComparison.Ordinal);
+        Assert.Contains("Printed paint level: II.", parsed.Lines[6].Justification, StringComparison.Ordinal);
+        Assert.Contains("Annotation (price) Version Sport", parsed.Lines[9].Justification, StringComparison.Ordinal);
+        Assert.Contains("Printed labour: 8.00 GBP.", parsed.Lines[12].Justification, StringComparison.Ordinal);
+        Assert.Null(parsed.Lines[12].GuideCode);
+        Assert.Equal(0.10m, parsed.Lines[12].PaintWorkUnits);
+    }
+
+    [Theory]
+    [InlineData("200", "K3")]
+    [InlineData("200", "K1")]
+    [InlineData("200", "SP2")]
+    [InlineData("20", "I")]
+    [InlineData("2000", "I")]
+    [InlineData("2OO", "I")]
+    public void APaintTypeOrLevelOutsideTheTableRefusesTheWholeTable(string type, string level)
+    {
+        var refusal = Assert.Throws<EstimateParseRejectedException>(() => GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body", new SheetRow("672201", "Rear Door Outer Handle (L)", "RP", 0.40m, 32.00m, 49.83m))],
+            [new PaintRow("Panel", type, level, 1.00m, 10.00m)],
+            [],
+            [new PartRow("Rear Door Outer Handle", "6921102934", 49.83m)],
+            [new PositionRow("Rear Door Outer Handle", "672201")])));
+
+        Assert.Contains("paint type or level is unsupported", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void APaintRowWithNoLevelAndNoPreparationDescriptionRefuses()
+    {
+        var refusal = Assert.Throws<EstimateParseRejectedException>(() => GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body", new SheetRow("672201", "Rear Door Outer Handle (L)", "RP", 0.40m, 32.00m, 49.83m))],
+            [new PaintRow("Mystery coat", null, null, 1.00m, 10.00m)],
+            [],
+            [new PartRow("Rear Door Outer Handle", "6921102934", 49.83m)],
+            [new PositionRow("Rear Door Outer Handle", "672201")])));
+
+        Assert.Contains("has no level", refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A work description Glass's prints under a row ("Adjust headlamps", at
+    /// the description's x) is not part of the row's name: the appendix names
+    /// the row, and what it does not name under it is the row's note.
+    /// </summary>
+    [Fact]
+    public void ATextLineUnderARowThatTheAppendixDoesNotNameIsItsNoteAndNotItsName()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body",
+                new SheetRow("T0301ARX", "Xenon Headlamp (with", "RP", 0.00m, 0m, 450.07m,
+                    Wrapped: ["Indicator) (L)", "Adjust headlamps", "Annotation (time): Time includes adjustment"],
+                    Overlap: 0.60m),
+                new SheetRow("S0503XRX", "Bonnet", "RP", 0.60m, 48.00m, 361.74m, Wrapped: ["Adjust bonnet catch"]))],
+            [new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 1.00m, 0.00m)],
+            [],
+            [new PartRow("Xenon Headlamp (with Indicator)", "BR0C51041B", 450.07m),
+             new PartRow("Bonnet", "BPYK5231XB", 361.74m)],
+            [new PositionRow("Xenon Headlamp (with Indicator)", "T0301ARX"), new PositionRow("Bonnet", "S0503XRX")]));
+
+        var headlamp = parsed.Lines[0];
+        Assert.Equal("Xenon Headlamp (with Indicator) (L)", headlamp.Description);
+        Assert.Equal("BR0C51041B", headlamp.PartNumber);
+        Assert.Contains("Adjust headlamps", headlamp.Justification, StringComparison.Ordinal);
+        Assert.Contains("Annotation (time): Time includes adjustment", headlamp.Justification, StringComparison.Ordinal);
+        var bonnet = parsed.Lines[1];
+        Assert.Equal("Bonnet", bonnet.Description);
+        Assert.Equal("BPYK5231XB", bonnet.PartNumber);
+        Assert.Contains("Adjust bonnet catch", bonnet.Justification, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// FRD-25's same-spec rule, run: the XML export and the calculation sheet
+    /// for the same rows give the same line types and the same printed net,
+    /// whichever paint level the row carries. (The export's embedded sheet is
+    /// the document the PDF reader is given; Pegasus does not read the XML's
+    /// attachment, so the rows are built once for each reader.)
+    /// </summary>
+    [Theory]
+    [InlineData("B", "3", "I", "paint_new")]
+    [InlineData("B", "4", "B", "paint_blend")]
+    [InlineData("B", "1", "III", "paint_repair")]
+    [InlineData("B", "2", "IV", "paint_repair")]
+    [InlineData("B", "6", "SP", "paint_repair")]
+    [InlineData("B", "0", "II", "paint_repair")]
+    [InlineData("K", "2", "K1R", "paint_new")]
+    [InlineData("K", "3", "K1N", "paint_new")]
+    [InlineData("K", "4", "K1G", "paint_new")]
+    [InlineData("K", "0", "K2", "paint_repair")]
+    public void BothGlassesReadersLandTheSameRowsAsTheSameLines(
+        string materialKind, string level, string printedLevel, string expectedPaintType)
+    {
+        var sheet = GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body", new SheetRow("1001", "Body panel", "RP", 1.00m, 80.00m, 100.00m))],
+            [new PaintRow("Paint row", "200", printedLevel, 1.00m, 50.00m),
+             new PaintRow("Surcharge scratch-resistant clear coat", null, null, 0.10m, 0.00m),
+             new PaintRow("First Colour/Clear tinted coat", null, null, 0.20m, 10.00m)],
+            [new SheetRow("", "Set-up time", "EC", 0.20m, 16.00m, 0.00m)],
+            [new PartRow("Body panel", "PN1234", 100.00m)],
+            [new PositionRow("Body panel", "1001")]));
+        var export = GlassEstimateXmlParser.Read(Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml(
+            positions: string.Concat(
+                GlassEstimateXmlParserTests.GlassExport.Position(
+                    "Part_SparePart", "Replace", "Body panel", price: "100.00", time: "1.00", materialCode: "1001"),
+                GlassEstimateXmlParserTests.GlassExport.Position(
+                    "Paint_Part", "Replace", "Paint row", price: "50.00", time: "1.00",
+                    paintMatKind: materialKind, paintLevel: level),
+                GlassEstimateXmlParserTests.GlassExport.Position(
+                    "Paint_PreparationScratchResistantClearCoatWork", "Replace",
+                    "Surcharge scratch-resistant clear coat", time: "0.10"),
+                GlassEstimateXmlParserTests.GlassExport.Position(
+                    "Paint_ClearVarnish", "Replace", "First Colour/Clear tinted coat", price: "10.00", time: "0.20"),
+                GlassEstimateXmlParserTests.GlassExport.Position(
+                    "Part_SetUpTime", "Extra costs", "Set-up time", time: "0.20", materialCode: "20")),
+            netTotal: "360.00", vatMaterial: "72.00", grossTotal: "432.00"))).Estimate;
+
+        string[] expected = ["new_part", expectedPaintType, "paint_prep", "paint_prep", "specialist_wu"];
+        Assert.Equal(expected, sheet.Lines.Select(line => line.Type));
+        Assert.Equal(expected, export.Lines.Select(line => line.Type));
+        Assert.Equal(360.00m, sheet.SourceTotals!.Net);
+        Assert.Equal(sheet.SourceTotals.Net, export.SourceTotals!.Net);
+    }
+
     private static string? Blank(string value) => value == "-" ? null : value;
     private static decimal? Number(string value) => value == "-" ? null
         : decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture);
+
+    /// <summary>One printed operation row; no operation prints an included row, which has no amounts.</summary>
+    private sealed record SheetRow(
+        string Guide, string Description, string? Operation, decimal Hours, decimal Labour, decimal Material,
+        string[]? Wrapped = null, decimal? Overlap = null);
+
+    private sealed record SectionRows(string Label, params SheetRow[] Rows);
+
+    /// <summary>One paint row at the Glass's rate of 80.00 an hour.</summary>
+    private sealed record PaintRow(
+        string Description, string? Type, string? Level, decimal Hours, decimal Material,
+        string? Flag = null, string? Annotation = null)
+    {
+        public decimal Labour => Hours * 80m;
+    }
+
+    private sealed record PartRow(string Name, string Number, decimal Amount, bool Glued = false);
+
+    private sealed record PositionRow(string Name, string? Codes, bool Glued = false);
+
+    private static string Money(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);
+
+    /// <summary>A name's words at the sheet's pitch; the last carries the number it touches when glued.</summary>
+    private static (double X, string Text)[] NameWords(string name, string? glued)
+    {
+        var words = name.Split(' ');
+        var placed = new (double X, string Text)[words.Length];
+        var x = 28d;
+        for (var index = 0; index < words.Length; index++)
+        {
+            placed[index] = (x, index == words.Length - 1 && glued is not null ? words[index] + glued : words[index]);
+            x += (words[index].Length + 1) * 4.5;
+        }
+        return placed;
+    }
+
+    /// <summary>
+    /// A Glass's calculation sheet at the real x positions of the sheets CE's
+    /// own account printed (guide 28, description 92, operation 247, hours 318,
+    /// overlap 382, labour 467, material 526; paint type 253, level 312, hours
+    /// 383, labour 457, material 527, flag 557; appendix number 205). Section
+    /// totals, the summary and the document totals are computed from the rows
+    /// at the rate of 80.00, with Total Labour hours leaving Additional costs
+    /// out and its cost including it, so a test varies one thing at a time.
+    /// </summary>
+    private static PdfEstimateDocumentParser.VisualRow[] Sheet(
+        SectionRows[] sections, PaintRow[] paint, SheetRow[] additional, PartRow[] parts, PositionRow[] positions)
+    {
+        List<PdfEstimateDocumentParser.VisualRow> rows = [];
+        var y = 800d;
+        void Put(params (double X, string Text)[] words)
+        {
+            y -= 11;
+            rows.Add(new(1, y, [.. words.Select(word => new PdfEstimateDocumentParser.PlacedWord(word.X, word.Text))],
+                string.Join(' ', words.Select(word => word.Text))));
+        }
+
+        Put((28, "Vehicle Registration Number:"), (200, "AB12 CDE"));
+        Put((28, "VIN:"), (200, "TESTVIN1234567890"));
+        Put((28, "Date:"), (200, "5.10.2026"));
+        Put((28, "Database version:"), (200, "TEST"));
+        Put((28, "Labour time unit:"), (200, "1 Hour"));
+        Put((28, "Currency:"), (200, "GBP"));
+
+        decimal totalHours = 0, totalLabour = 0, totalMaterial = 0;
+        List<(string Label, decimal Hours, decimal Labour, decimal Material)> summary = [];
+        foreach (var section in sections)
+        {
+            Put((28, section.Label), (237, "Repair"), (359, "Overlap-time"));
+            Put((239, "type"), (311, "time"), (462, "costs"), (521, "costs"));
+            decimal hours = 0, labour = 0, material = 0;
+            foreach (var row in section.Rows)
+            {
+                if (row.Operation is null)
+                {
+                    Put((33.6, row.Guide), (97.6, row.Description));
+                }
+                else
+                {
+                    List<(double X, string Text)> words =
+                        [(28, row.Guide), (92, row.Description), (247, row.Operation), (318, Money(row.Hours))];
+                    if (row.Overlap is { } overlap) words.Add((382, Money(overlap)));
+                    if (row.Labour != 0m) words.Add((467, Money(row.Labour)));
+                    words.Add((526, Money(row.Material)));
+                    Put([.. words]);
+                    hours += row.Hours; labour += row.Labour; material += row.Material;
+                }
+                foreach (var line in row.Wrapped ?? Array.Empty<string>()) Put((92, line));
+            }
+            Put((28, "Labour costs"), (465, Money(labour)));
+            Put((28, "Material costs"), (530, Money(material)));
+            Put((28, "Total " + section.Label), (510, Money(labour + material)));
+            summary.Add((section.Label, hours, labour, material));
+            totalHours += hours; totalLabour += labour; totalMaterial += material;
+        }
+
+        Put((28, "Paint"), (233, "Paint type"), (304, "Paint level"), (512, "Material"));
+        Put((302, "level"), (375, "time"), (521, "costs"));
+        decimal paintHours = 0, paintLabour = 0, paintMaterial = 0;
+        foreach (var row in paint)
+        {
+            List<(double X, string Text)> words = [(28, row.Description)];
+            if (row.Type is not null) words.Add((253, row.Type));
+            if (row.Level is not null) words.Add((312, row.Level));
+            words.Add((383, Money(row.Hours)));
+            words.Add((457, Money(row.Labour)));
+            words.Add((527, Money(row.Material)));
+            if (row.Flag is not null) words.Add((557, row.Flag));
+            Put([.. words]);
+            if (row.Annotation is not null) Put((33.6, row.Annotation));
+            paintHours += row.Hours; paintLabour += row.Labour; paintMaterial += row.Material;
+        }
+        Put((28, "Labour costs"), (448, Money(paintLabour)));
+        Put((28, "Material costs"), (518, Money(paintMaterial)));
+        Put((28, "Total Paint"), (510, Money(paintLabour + paintMaterial)));
+        totalHours += paintHours; totalLabour += paintLabour; totalMaterial += paintMaterial;
+
+        decimal additionalLabour = 0, additionalMaterial = 0;
+        if (additional.Length > 0)
+        {
+            Put((28, "Additional costs"), (237, "Repair"), (359, "Overlap-time"));
+            Put((239, "type"), (311, "time"), (462, "costs"), (521, "costs"));
+            foreach (var row in additional)
+            {
+                Put((28, row.Description), (247, "EC"), (318, Money(row.Hours)), (467, Money(row.Labour)),
+                    (532, Money(row.Material)));
+                additionalLabour += row.Labour; additionalMaterial += row.Material;
+            }
+            Put((28, "Labour costs"), (465, Money(additionalLabour)));
+            Put((28, "Material costs"), (530, Money(additionalMaterial)));
+            Put((28, "Total Additional costs"), (526, Money(additionalLabour + additionalMaterial)));
+            totalLabour += additionalLabour; totalMaterial += additionalMaterial;
+        }
+
+        Put((28, "Summary"), (230, "Labour rate"));
+        foreach (var (label, hours, labour, material) in summary)
+            Put((28, label), (249, "80.00"), (395, Money(hours)), (454, Money(labour)), (515, Money(material)));
+        Put((28, "Paint"), (249, "80.00"), (395, Money(paintHours)), (454, Money(paintLabour)), (515, Money(paintMaterial)));
+        if (additional.Length > 0)
+            Put((28, "Additional costs"), (459, Money(additionalLabour)), (535, Money(additionalMaterial)));
+        var net = totalLabour + totalMaterial;
+        var vat = decimal.Round(net * 20m / 100m, 2, MidpointRounding.AwayFromZero);
+        Put((28, "Total Labour"), (387, Money(totalHours)), (441, Money(totalLabour)));
+        Put((28, "Total Material"), (511, Money(totalMaterial)));
+        Put((28, "Repair costs excl. VAT"), (511, Money(net)));
+        Put((28, "VAT"), (49, "(20.00"), (82, "%)"), (515, Money(vat)));
+        Put((28, "Repair costs incl. VAT"), (505.5, Money(net + vat)));
+
+        Put((28, "Part name"), (205, "Part no."), (334, "Previous part no."), (478, "Material costs"));
+        foreach (var part in parts)
+        {
+            List<(double X, string Text)> words = [.. NameWords(part.Name, part.Glued ? part.Number : null)];
+            if (!part.Glued) words.Add((205, part.Number));
+            words.Add((528, Money(part.Amount)));
+            Put([.. words]);
+        }
+        Put((28, "Total Parts"), (509.5, Money(parts.Sum(part => part.Amount))));
+
+        Put((28, "Part name"), (205, "Position no."));
+        foreach (var position in positions)
+        {
+            List<(double X, string Text)> words = [.. NameWords(position.Name, position.Glued ? position.Codes : null)];
+            if (!position.Glued && position.Codes is not null) words.Add((205, position.Codes));
+            Put([.. words]);
+        }
+        Put((28, "Abbreviations"), (205, "Description"));
+        return [.. rows];
+    }
+
+    /// <summary>Body, Paint and Additional costs with the set-up time row's labour as printed (a.QDOS26066).</summary>
+    private static PdfEstimateDocumentParser.VisualRow[] SetUpTimeSheet(string setUpLabour) => Sheet(
+        [new SectionRows("Body",
+            new SheetRow("671000", "Roof Panel", "RP", 12.90m, 1032.00m, 1354.76m),
+            new SheetRow("672201", "Rear Door Outer Handle (L)", "RP", 0.00m, 0m, 49.83m))],
+        [new PaintRow("Roof Panel, Centre", "200", "I", 9.90m, 990.50m)],
+        [new SheetRow("", "Set-up time", "EC", 0.20m, decimal.Parse(setUpLabour, CultureInfo.InvariantCulture), 0.00m)],
+        [new PartRow("Roof Panel", "PN-ROOF", 1354.76m), new PartRow("Rear Door Outer Handle", "6921102934", 49.83m)],
+        [new PositionRow("Roof Panel", "671000"), new PositionRow("Rear Door Outer Handle", "672201")]);
+
+    /// <summary>A windscreen whose name ends where the number column starts, in both appendices.</summary>
+    private static PdfEstimateDocumentParser.VisualRow[] GluedSheet(string partName) => Sheet(
+        [new SectionRows("Body",
+            new SheetRow("768101", "Windscreen (Heat Reflecting", "RP", 0.00m, 0m, 978.77m,
+                Wrapped: ["& Heated)"], Overlap: 1.90m))],
+        [new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 1.00m, 0.00m)],
+        [],
+        [new PartRow(partName, "LR114261", 978.77m, Glued: true)],
+        [new PositionRow("Windscreen (Heat Reflecting & Heated)", "768101", Glued: true)]);
 
     private static PdfEstimateDocumentParser.VisualRow[] RoundingDocument(string firstPaintLabour) =>
     [
