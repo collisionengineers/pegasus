@@ -1,0 +1,205 @@
+/* v32 Work Centre proposals: rules added after the live site.css and
+   work-centre.css. Every class that exists today keeps its live rule; the
+   additions are the Dismiss column, the Activity section, the split grid,
+   the merged ledger and the lanes. Tokens only; no new colours. */
+
+/* The shared row end: one Dismiss per row, always visible, never inside a disclosure. */
+.wc-col-dismiss { width: 44px; }
+.wc-col-action { width: 150px; }
+.wc-ledger-table td.wc-col-dismiss, .wc-ledger-table td.wc-col-action { vertical-align: middle; text-align: right; padding-left: 0; }
+.wc-dismiss { margin: 0; display: inline-flex; }
+.wc-dismiss .btn--icon { min-width: 32px; min-height: 32px; padding: 0; }
+.wc-dismiss .btn--icon .icon { width: 15px; height: 15px; }
+.wc-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.wc-row-actions form { margin: 0; }
+
+/* Activity: the restored day and week figures. The strip is a panel with a
+   two-row table: the figures head the columns, Today and This week are the rows. */
+.wc-activity { margin-bottom: 18px; }
+.wc-activity--strip { overflow: hidden; }
+.wc-activity-strip-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+.wc-activity-strip-table th, .wc-activity-strip-table td { border-left: 1px solid var(--line); padding: 8px 16px; }
+.wc-activity-strip-table th:first-child, .wc-activity-strip-table td:first-child { border-left: 0; width: 110px; }
+.wc-activity-strip-table thead th { height: 36px; text-align: left; font-size: 12px; font-weight: 650; color: var(--ink); background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-activity-strip-table thead th a { color: inherit; text-decoration: none; }
+.wc-activity-strip-table thead th a:hover { text-decoration: underline; }
+.wc-activity-strip-table tbody th { text-align: left; font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.wc-activity-strip-table tbody tr:first-child td, .wc-activity-strip-table tbody tr:first-child th { border-bottom: 1px solid var(--line); }
+.wc-activity-strip-table td { height: 44px; text-align: left; font-size: 22px; font-weight: 650; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.wc-activity .notice { margin: 0; border-radius: var(--radius-lg); }
+.wc-rail-link { margin-left: auto; }
+.wc-activity-table { font-size: 12px; }
+.wc-activity-table th { position: static; height: 30px; padding: 0 12px; font-size: 9px; letter-spacing: .06em; }
+.wc-activity-table th:not(:first-child), .wc-activity-table td:not(:first-child) { text-align: right; width: 72px; font-variant-numeric: tabular-nums; }
+.wc-activity-table td { height: 36px; padding: 4px 12px; }
+.wc-activity-table td:first-child { font-weight: 600; }
+.wc-activity-table td strong { font-size: 15px; font-weight: 650; letter-spacing: -.03em; }
+.wc-activity-table a { color: inherit; text-decoration: none; }
+.wc-activity-table a:hover { text-decoration: underline; }
+
+/* Section heads reused by the rail, the brief and the lanes. */
+.wc-panel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 11px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.wc-panel-head h2 { font-size: 13px; font-weight: 650; flex: 1 1 auto; margin: 0; }
+.wc-panel-head .meta { font-size: 11px; color: var(--muted); }
+.wc-panel-head .tab-count { margin-left: 0; }
+.wc-panel-head a { font-size: 11px; font-weight: 600; }
+.wc-section-head h2:focus-visible, .wc-panel-head h2:focus-visible, .wc-lane-head h2:focus-visible, .wc-toolbar h2:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+/* Compact rows (New cases and AI jobs outside a table): 40px minimum, a
+   Dismiss at the end of every row. */
+.wc-rows { display: flex; flex-direction: column; }
+.wc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 4px 10px; min-height: 40px; padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.wc-row:last-child { border-bottom: 0; }
+.wc-row-main { min-width: 0; display: grid; gap: 2px; }
+.wc-row-main .title { font-weight: 650; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wc-row-main .title a { color: var(--ink); text-decoration: none; }
+.wc-row-main .title a:hover { text-decoration: underline; }
+.wc-row-main small { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.wc-row-main .wc-failed { color: var(--danger); }
+.wc-row time { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.wc-row .status { font-size: 9px; min-height: 20px; }
+.wc-row--job .wc-row-actions { grid-column: 2; }
+.wc-rail .wc-row--job, .wc-lane .wc-row--job { grid-template-columns: minmax(0, 1fr) auto; }
+.wc-rail .wc-row--job .wc-row-main, .wc-lane .wc-row--job .wc-row-main { grid-column: 1; grid-row: 1; }
+.wc-rail .wc-row--job .wc-dismiss, .wc-lane .wc-row--job .wc-dismiss { grid-column: 2; grid-row: 1; }
+.wc-rail .wc-row--job .wc-row-actions, .wc-lane .wc-row--job .wc-row-actions { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
+.wc-rail .wc-row--job .wc-row-actions:empty, .wc-lane .wc-row--job .wc-row-actions:empty { display: none; }
+.wc-list--compact .row-button { padding: 8px 12px; min-height: 40px; }
+.wc-list--compact .row-button .title { font-size: 12px; }
+.wc-list--compact .row-button .sub { font-size: 10.5px; }
+.wc-list--compact .row-button .side .status { font-size: 9px; min-height: 20px; }
+.wc-list--compact .row-button time { font-size: 10px; }
+.wc-list--compact .wc-new-case > form { padding-right: 8px; }
+.wc-fold { display: none; }
+
+/* Design A: the activity strip under the counts, action column in every table. */
+[data-design="a"] .wc-ledger-table .wc-col-task { width: 24%; }
+[data-design="a"] .wc-ledger-table .wc-col-record { width: 26%; }
+[data-design="a"] .wc-ledger-table .wc-col-owner { width: 12%; }
+[data-design="a"] .wc-ledger-table .wc-col-due { width: 12%; }
+[data-design="a"] .wc-ledger-table .wc-col-received { width: 10%; }
+.wc-new-cases-table .wc-col-ref { width: 22%; }
+.wc-new-cases-table .wc-col-arrival { width: 16%; }
+.wc-new-cases-table .wc-col-time { width: 18%; }
+.wc-jobs-table .wc-col-job { width: 14%; }
+.wc-jobs-table .wc-col-state { width: 10%; }
+.wc-jobs-table .wc-col-instruction { width: 22%; }
+.wc-jobs-table .wc-col-record { width: 11%; }
+.wc-jobs-table .wc-col-started { width: 14%; }
+.wc-jobs-table .wc-col-note { width: 13%; }
+.wc-jobs-table .wc-col-action { width: 232px; }
+.wc-ledger-table .wc-row-actions { flex-wrap: nowrap; }
+
+/* Designs B and C: the ledger beside a rail. */
+.wc-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+[data-design="b"] .wc-grid { grid-template-columns: minmax(0, 1fr) 340px; }
+.wc-rail { display: grid; gap: 18px; min-width: 0; }
+.wc-rail .panel { overflow: hidden; }
+.wc-rail .pagination { font-size: 10px; }
+[data-design="c"] .wc-ledger-table .wc-col-task { width: 30%; }
+[data-design="c"] .wc-ledger-table .wc-col-record { width: 34%; }
+[data-design="c"] .wc-ledger-table .wc-col-owner { width: 15%; }
+[data-design="c"] .wc-ledger-table .wc-col-due { width: 21%; }
+.wc-due-received { display: grid; gap: 2px; }
+.wc-due-received small { display: block; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.page-header .wc-switch { margin-right: 6px; }
+.wc-kind-select { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.wc-kind-select select { width: auto; min-width: 150px; min-height: var(--control); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); padding: 0 28px 0 10px; font-size: 12px; }
+
+/* Design D: one strip, one toolbar, one list. */
+.wc-combined { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0; margin-bottom: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.wc-combined .wc-metrics { margin: 0; border: 0; border-radius: 0; }
+.wc-combined .wc-metrics .metric:last-child { border-right: 1px solid var(--line); border-radius: 0; }
+.wc-combined .wc-metrics .metric:first-child { border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
+.wc-activity--block { margin: 0; padding: 8px 14px; display: grid; align-items: center; }
+.wc-activity--block table { border-collapse: collapse; font-size: 11px; }
+.wc-activity--block th { font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 650; padding: 2px 10px; text-align: right; white-space: nowrap; }
+.wc-activity--block th:first-child { text-align: left; padding-left: 0; }
+.wc-activity--block td { padding: 2px 10px; text-align: right; font-weight: 650; font-size: 15px; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.wc-activity--block td:first-child { text-align: left; padding-left: 0; font-size: 11px; font-weight: 600; letter-spacing: 0; }
+.wc-activity--block .notice { font-size: 12px; padding: 8px 10px; }
+.wc-merged .wc-ledger-table .wc-col-task { width: 22%; }
+.wc-merged .wc-ledger-table .wc-col-record { width: 28%; }
+.wc-merged .wc-ledger-table .wc-col-owner { width: 12%; }
+.wc-merged .wc-ledger-table .wc-col-due { width: 14%; }
+.wc-merged .wc-ledger-table .wc-col-received { width: 10%; }
+.wc-group-row h3 button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
+.wc-group-row h3 button .icon { width: 12px; height: 12px; transition: transform .14s ease; }
+.wc-group-row h3 button[aria-expanded="false"] .icon { transform: rotate(-90deg); }
+.wc-group-row h3 button:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+/* Design E: four lanes, dense rows, the counts in the lane heads. */
+.wc-lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.wc-lane { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); min-width: 0; overflow: hidden; }
+.wc-lane-head { padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); display: grid; gap: 8px; }
+.wc-lane-head .wc-lane-title { display: flex; align-items: center; gap: 8px; }
+.wc-lane-head h2 { font-size: 13px; font-weight: 650; margin: 0; flex: 1 1 auto; }
+.wc-lane-head .tab-count { margin: 0; }
+.wc-lane-figures { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 10.5px; color: var(--muted); }
+.wc-lane-figures a { color: var(--ink); text-decoration: none; font-weight: 600; }
+.wc-lane-figures a:hover { text-decoration: underline; }
+.wc-lane-figures strong { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+.wc-lane .wc-row { grid-template-columns: minmax(0, 1fr) auto; padding: 8px 8px 8px 12px; }
+.wc-lane .wc-row-main .meta-line { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 10.5px; color: var(--muted); }
+.wc-lane .wc-task-link { font-size: 12px; }
+.wc-lane .wc-context { grid-template-columns: 1fr; padding: 12px 14px; gap: 10px; border-bottom: 1px solid var(--line); }
+.wc-lane .wc-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wc-lane .wc-context h3 { font-size: 14px; }
+.wc-lane-sub { padding: 6px 12px; background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.wc-lane-out { padding: 6px 0; }
+.wc-lane-out .wc-activity-table td { height: 40px; }
+.wc-lane .wc-none { padding: 22px 12px; }
+.wc-lanes-toolbar { margin-bottom: 14px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+
+/* The live baseline keeps work-centre.css as it is. */
+
+/* Mockup controls: demo control, not product UI. */
+.wc-mock { position: fixed; left: 14px; bottom: 14px; z-index: 2000; width: 320px; max-width: calc(100vw - 28px); background: var(--nav); color: var(--nav-text); border-radius: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 11px; }
+.wc-mock summary { padding: 10px 14px; cursor: pointer; font-weight: 650; list-style: none; }
+.wc-mock summary::-webkit-details-marker { display: none; }
+.wc-mock-body { padding: 0 14px 14px; display: grid; gap: 9px; max-height: 70vh; overflow: auto; }
+.wc-mock nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.wc-mock nav a { display: inline-grid; place-items: center; min-width: 30px; height: 28px; padding: 0 8px; border: 1px solid rgba(255,255,255,.3); border-radius: 3px; color: inherit; text-decoration: none; font-weight: 650; }
+.wc-mock nav a[aria-current="page"] { background: var(--red); border-color: var(--red); }
+.wc-mock label { display: grid; gap: 4px; font-weight: 600; color: var(--nav-muted); }
+.wc-mock select { min-height: 30px; border: 1px solid rgba(255,255,255,.3); border-radius: 3px; background: var(--nav-2); color: var(--nav-text); padding: 0 8px; font-size: 11px; }
+.wc-mock p { margin: 0; color: var(--nav-muted); line-height: 1.5; }
+.wc-mock a.plain { color: var(--nav-text); text-decoration: underline; }
+.wc-mock[hidden] { display: none; }
+
+/* Reflow. */
+@media (max-width: 1500px) {
+  .wc-combined { grid-template-columns: 1fr; }
+  .wc-combined .wc-metrics .metric:last-child { border-right: 0; }
+  .wc-activity--block { border-top: 1px solid var(--line); }
+}
+@media (max-width: 1200px) {
+  .wc-grid, [data-design="b"] .wc-grid { grid-template-columns: 1fr; }
+  .wc-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wc-rail .panel:first-child { grid-column: 1 / -1; }
+  .wc-lanes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 979px) {
+  .wc-activity-strip-table th, .wc-activity-strip-table td { padding: 6px 10px; }
+  .wc-activity-strip-table td { font-size: 18px; }
+  .wc-activity-strip-table th:first-child, .wc-activity-strip-table td:first-child { width: 80px; }
+  .wc-jobs-table .wc-col-action { width: 180px; }
+  .wc-rail { grid-template-columns: 1fr; }
+  .wc-lanes { grid-template-columns: 1fr; }
+  .wc-col-action { width: 120px; }
+  .wc-table--fold .wc-col-owner, .wc-table--fold .wc-col-received { display: none; }
+  .wc-table--fold .wc-fold { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
+}
+@media (max-width: 599px) {
+  .wc-activity--strip { overflow: auto; }
+  .wc-activity-strip-table { min-width: 560px; }
+  .wc-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .wc-row--job .wc-row-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .page-header .wc-switch { margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wc-group-row h3 button .icon { transition: none; }
+}
+@media (forced-colors: active) {
+  .wc-lane, .wc-combined { border: 1px solid CanvasText; }
+}
