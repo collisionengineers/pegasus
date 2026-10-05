@@ -26,6 +26,8 @@ public sealed class EditModel(
     IUpdatePrincipalReportSettings updatePrincipalReportSettings,
     IUpdatePrincipalDefaultInspectionLocation updatePrincipalDefaultInspectionLocation,
     IUpdatePrincipalSalvageMatrix updatePrincipalSalvageMatrix,
+    IUpdatePrincipalReportSending updatePrincipalReportSending,
+    IApprovedMailboxStore approvedMailboxes,
     IReplacePrincipal replacePrincipal) : AdministrationPageModel
 {
     public ContactDirectoryRecord? Contact { get; private set; }
@@ -68,6 +70,13 @@ public sealed class EditModel(
     // The salvage matrix rows as shown: the stored bands, or what was typed
     // when a save was refused.
     public IReadOnlyList<SalvageMatrixEntry> SalvageRows { get; private set; } = [];
+    [BindProperty] public string? ReportSendingOperationKey { get; set; } = NewOperationKey();
+    // The report sending rules as shown: the stored rules, or what was typed
+    // when a save was refused.
+    public PrincipalReportSendingRules ReportSendingRules { get; private set; } = PrincipalReportSendingRules.Default;
+    public IReadOnlyList<string> SendFromChoices { get; private set; } = [];
+    public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
+    public IReadOnlyList<ContactDirectoryRecord> RepairerChoices { get; private set; } = [];
     [BindProperty] public bool LocationIsImageBasedAssessment { get; set; }
     [BindProperty, StringLength(200)] public string? LocationLabel { get; set; }
     [BindProperty, StringLength(500)] public string? LocationAddress { get; set; }
@@ -91,6 +100,7 @@ public sealed class EditModel(
         CopyFrom(Contact);
         await LoadPrincipalAsync(actor, cancellationToken);
         InitializePrincipalSettings();
+        await LoadReportSendingChoicesAsync(actor, cancellationToken);
         PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
         return Page();
     }
@@ -207,6 +217,40 @@ public sealed class EditModel(
         await PopulateAsync(actor, cancellationToken);
         // What was typed stays; the blank spare rows are drawn again anyway.
         SalvageRows = [.. posted.Where(row => !row.IsBlank)];
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostUpdateReportSendingAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (id == Guid.Empty) return BadRequest();
+        ContactId = id;
+        ClearModelStatePreservingErrors(
+            nameof(PrincipalExpectedVersion),
+            nameof(ExpectedVersion),
+            nameof(ReportSendingOperationKey));
+        var expectedVersion = PrincipalExpectedVersion;
+        var posted = PostedReportSending();
+        if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
+        if (!IsOperationKeyValid(ReportSendingOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                await updatePrincipalReportSending.ExecuteAsync(new(
+                    Principal!.Id, expectedVersion, actor, ReportSendingOperationKey!,
+                    posted, ExpectedVersion), cancellationToken);
+                TempData["AdministrationStatus"] = "The principal's report sending rules were updated.";
+                return RedirectToPage(new { id = ContactId });
+            }
+            catch (ReportSendingRulesException exception) { ModelState.AddModelError(string.Empty, ReportSendingRulesErrorMessage(exception)); }
+            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
+            catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The settings were not accepted."); }
+            catch (StaffAuthorizationException) { return Forbid(); }
+        }
+        await PopulateAsync(actor, cancellationToken);
+        // What was typed stays.
+        ReportSendingRules = posted;
         return Page();
     }
 
@@ -347,8 +391,22 @@ public sealed class EditModel(
             if (copyContactFields) CopyFrom(Contact);
             await LoadPrincipalAsync(actor, cancellationToken);
             InitializePrincipalSettings();
+            await LoadReportSendingChoicesAsync(actor, cancellationToken);
         }
         PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
+    }
+
+    // The mailboxes a new message may leave from and the contacts a rule may name.
+    private async Task LoadReportSendingChoicesAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (Principal is not { IsActive: true }) return;
+        SendFromChoices = (await approvedMailboxes.ListAsync(cancellationToken))
+            .Where(mailbox => mailbox.State == ApprovedMailboxState.Approved)
+            .Select(mailbox => mailbox.Address)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        ClaimSourceChoices = await contacts.ListByRoleAsync(actor, ContactRole.ClaimSource, cancellationToken);
+        RepairerChoices = await contacts.ListByRoleAsync(actor, ContactRole.Repairer, cancellationToken);
     }
 
     private void ClearModelStatePreservingErrors(params string[] fieldNames)
@@ -402,6 +460,7 @@ public sealed class EditModel(
         LocationAddress = Principal.DefaultInspectionAddress;
         LocationPostcode = Principal.DefaultInspectionPostcode;
         CredentialVersion = Credential?.Version ?? 0;
+        ReportSendingRules = Principal.ReportSending ?? PrincipalReportSendingRules.Default;
         SalvageRows = (Principal.SalvageMatrix?.Bands ?? [])
             .Select(band => new SalvageMatrixEntry(
                 band.Category,
@@ -427,6 +486,77 @@ public sealed class EditModel(
                 index < to.Count ? to[index] : null,
                 index < percentage.Count ? percentage[index] : null))
             .ToArray();
+    }
+
+    // The panel posts plain fields: repeated inputs for the lists, and one
+    // numbered group of fields per rule, read in the order the RuleIndex
+    // fields list them. Nothing is checked here; Normalize refuses what is wrong.
+    private PrincipalReportSendingRules PostedReportSending()
+    {
+        var form = Request.Form;
+        string? Text(string name) => form[name].ToString() is { Length: > 0 } value && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
+        string[] Many(string name) => [.. form[name].Select(value => value ?? string.Empty)];
+        bool Flag(string name) => form.ContainsKey(name);
+        static string[] Split(string? value, params char[] separators) =>
+            (value ?? string.Empty).Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        char[] addressSeparators = [',', ';', ' ', '\r', '\n'];
+        char[] textSeparators = [',', ';', '\r', '\n'];
+
+        var rules = new List<ReportSendingRule>();
+        foreach (var rawIndex in form["RuleIndex"])
+        {
+            if (!int.TryParse(rawIndex, NumberStyles.None, CultureInfo.InvariantCulture, out var index)) continue;
+            var prefix = $"Rule{index}";
+            var conditions = new List<ReportSendingCondition>();
+            for (var slot = 0; form.ContainsKey($"{prefix}Cond{slot}Kind"); slot++)
+            {
+                var field = $"{prefix}Cond{slot}";
+                if (!Enum.TryParse<ReportSendingConditionKind>(form[$"{field}Kind"].ToString(), out var kind)
+                    || !Enum.IsDefined(kind)) continue;
+                IReadOnlyList<string> values = kind switch
+                {
+                    ReportSendingConditionKind.ClaimSource => Many($"{field}ClaimSource"),
+                    ReportSendingConditionKind.Repairer => Many($"{field}Repairer"),
+                    ReportSendingConditionKind.Outcome => Many($"{field}Outcome"),
+                    ReportSendingConditionKind.SenderNot => Split(Text($"{field}Text"), addressSeparators),
+                    _ => Split(Text($"{field}Text"), textSeparators)
+                };
+                conditions.Add(new(kind, values));
+            }
+            var actions = new ReportSendingActions(
+                Split(Text($"{prefix}CcAdd"), addressSeparators),
+                Split(Text($"{prefix}CcRemove"), addressSeparators),
+                Text($"{prefix}Remind"),
+                Text($"{prefix}Hold"),
+                Text($"{prefix}Stop"));
+            // A row left entirely blank is the spare row; it is not a rule.
+            if (conditions.Count == 0 && actions.IsEmpty) continue;
+            var match = Enum.TryParse<ReportSendingRuleMatch>(form[$"{prefix}Match"].ToString(), out var parsed)
+                && Enum.IsDefined(parsed) ? parsed : ReportSendingRuleMatch.All;
+            rules.Add(new(match, conditions, actions));
+        }
+
+        var first = Text("RsNameFirst");
+        var resend = Text("RsNameResend");
+        return new(
+            Text("RsSendFrom"),
+            Many("RsSendTo"),
+            Flag("RsSendToOnly"),
+            Flag("RsReplyAll"),
+            Many("RsCc"),
+            Many("RsNeverCc"),
+            new(
+                Flag("RsFeeNoteSeparate"),
+                Flag("RsEstimate"),
+                Flag("RsAudatex"),
+                Flag("RsReportImages"),
+                Flag("RsVehicleImagesDocument"),
+                Flag("RsFigureBreakdown")),
+            Flag("RsGarageFigures"),
+            Text("RsHold"),
+            Many("RsReminders"),
+            rules,
+            first is null && resend is null ? null : new ReportAttachmentNamePattern(first ?? string.Empty, resend ?? string.Empty));
     }
 
     private void CopyFrom(ContactDirectoryRecord contact)
@@ -460,6 +590,37 @@ public sealed class EditModel(
             SalvageMatrixRule.InvalidAmount => $"{category}: amounts must be £0.00 or more.",
             SalvageMatrixRule.InvalidPercentage => $"{category}: Percentage paid must be 0 to 100.",
             SalvageMatrixRule.Overlap => $"{category}: bands overlap ({BandRange(exception.Band!)} and {BandRange(exception.OtherBand!)}).",
+            _ => "The settings were not accepted."
+        };
+    }
+
+    private static string ReportSendingRulesErrorMessage(ReportSendingRulesException exception)
+    {
+        var where = exception.RuleIndex is { } index
+            ? $"Rule {index + 1}"
+            : exception.Field switch
+            {
+                nameof(PrincipalReportSendingRules.SendFromMailbox) => OperatorLabels.PrincipalAdministration.SendFrom,
+                nameof(PrincipalReportSendingRules.SendTo) => OperatorLabels.PrincipalAdministration.SendTo,
+                nameof(PrincipalReportSendingRules.Cc) => OperatorLabels.PrincipalAdministration.Cc,
+                nameof(PrincipalReportSendingRules.NeverCc) => OperatorLabels.PrincipalAdministration.NeverCc,
+                nameof(PrincipalReportSendingRules.Hold) => OperatorLabels.PrincipalAdministration.Hold,
+                nameof(PrincipalReportSendingRules.Reminders) => OperatorLabels.PrincipalAdministration.Reminders,
+                _ => OperatorLabels.PrincipalAdministration.AttachmentName
+            };
+        return exception.Rule switch
+        {
+            ReportSendingRulesRule.InvalidAddress => $"{where}: enter valid e-mail addresses.",
+            ReportSendingRulesRule.AddressInCcAndNeverCc => "An address cannot be in both Cc and Never cc.",
+            ReportSendingRulesRule.SendToOnlyNeedsAddresses => "Send to only needs at least one Send to address.",
+            ReportSendingRulesRule.TextRequired => $"{where}: the text is required.",
+            ReportSendingRulesRule.TextTooLong => $"{where}: keep the text to {PrincipalReportSendingRules.MaximumTextLength} characters or fewer.",
+            ReportSendingRulesRule.UnknownContact => $"{where}: choose a contact from the list.",
+            ReportSendingRulesRule.UnknownOutcome => $"{where}: choose an outcome from the list.",
+            ReportSendingRulesRule.EmptyRule => $"{where}: add at least one condition.",
+            ReportSendingRulesRule.EmptyCondition => $"{where}: a condition needs a value.",
+            ReportSendingRulesRule.EmptyActions => $"{where}: add at least one action.",
+            ReportSendingRulesRule.UnknownNameToken => "Attachment name: use only {ref}, {reg} and {outcome}.",
             _ => "The settings were not accepted."
         };
     }

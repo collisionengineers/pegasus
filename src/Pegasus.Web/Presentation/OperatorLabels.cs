@@ -1949,6 +1949,61 @@ public static class OperatorLabels
         public const string RemoveSalvageBand = "Remove";
         public const string SaveSalvageMatrix = "Save salvage matrix";
         public const string DefaultFee = "Default fee (£)";
+        public const string ReportSending = "Report sending";
+        public const string SaveReportSending = "Save report sending";
+        public const string SendFrom = "Send from";
+        public const string SendFromNone = "Not set";
+        public const string SendTo = "Send to";
+        public const string SendToHint = "Empty: the original instruction sender.";
+        public const string SendToOnly = "Send to only";
+        public const string ReplyAll = "Reply all";
+        public const string Cc = "Cc";
+        public const string NeverCc = "Never cc";
+        public const string Attach = "Attach";
+        public const string FeeNoteSeparate = "Fee note is a separate PDF";
+        public const string AttachEstimate = "Estimate";
+        public const string AttachAudatex = "Audatex";
+        public const string ReportImages = "Report carries vehicle images";
+        public const string VehicleImagesDocument = "Vehicle images document required";
+        public const string FigureBreakdown = "Figure breakdown required";
+        public const string GarageFigures = "Garage figures";
+        public const string Hold = "Hold";
+        public const string HoldHint = "Send stays off until staff tick this as done.";
+        public const string Reminders = "Reminders";
+        public const string AttachmentName = "Attachment name";
+        public const string AttachmentNameFirst = "First send";
+        public const string AttachmentNameResend = "Re-send";
+        public const string AttachmentNameHint = "Use {ref}, {reg} and {outcome}. Empty: the standard name.";
+        public const string AddAddress = "Add address";
+        public const string AddReminder = "Add reminder";
+        public const string Rules = "Rules";
+        public const string Rule = "Rule";
+        public const string AddRule = "Add rule";
+        public const string RemoveRule = "Remove rule";
+        public const string RuleMatch = "Match";
+        public const string RuleMatchAll = "All conditions";
+        public const string RuleMatchAny = "Any condition";
+        public const string Condition = "Condition";
+        public const string NoCondition = "No condition";
+        public const string ConditionValueHint = "Separate several with commas.";
+        public const string ActionCcAdd = "Cc add";
+        public const string ActionCcRemove = "Cc remove";
+        public const string ActionRemind = "Remind";
+        public const string ActionHold = "Hold";
+        public const string ActionStop = "Stop";
+        public const string ActionStopHint = "Prepare is refused; staff may override with a reason.";
+
+        /// <summary>A report sending condition as the rule row names it.</summary>
+        public static string ConditionKind(Pegasus.Core.Reports.ReportSendingConditionKind kind) => kind switch
+        {
+            Pegasus.Core.Reports.ReportSendingConditionKind.ClaimSource => "Claim Source",
+            Pegasus.Core.Reports.ReportSendingConditionKind.Repairer => "Repairer",
+            Pegasus.Core.Reports.ReportSendingConditionKind.ImagesFrom => "Images from",
+            Pegasus.Core.Reports.ReportSendingConditionKind.Mentions => "Instruction mentions",
+            Pegasus.Core.Reports.ReportSendingConditionKind.SenderNot => "Sender is not",
+            Pegasus.Core.Reports.ReportSendingConditionKind.Outcome => "Outcome",
+            _ => kind.ToString()
+        };
 
         /// <summary>A salvage category as the Case names it: "Cat S".</summary>
         public static string SalvageCategory(string code) => $"Cat {code}";

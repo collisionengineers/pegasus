@@ -55,6 +55,79 @@
         });
     }
 
+    // Report sending: Add address / Add reminder append an input to its list;
+    // Add rule clones the spare blank rule under the next number, and each
+    // condition shows only the value field its kind reads.
+    var sendingEditor = document.querySelector('[data-report-sending-editor]');
+    if (sendingEditor) {
+        var rulesHost = sendingEditor.querySelector('[data-rs-rules]');
+        var textKinds = ['ImagesFrom', 'Mentions', 'SenderNot'];
+        var syncCondition = function (condition) {
+            var kind = condition.querySelector('[data-rs-kind]').value;
+            condition.querySelectorAll('[data-rs-value]').forEach(function (field) {
+                var reads = field.getAttribute('data-rs-value');
+                field.hidden = kind === '' || (reads === 'Text' ? textKinds.indexOf(kind) < 0 : reads !== kind);
+            });
+        };
+        var syncRules = function () {
+            sendingEditor.querySelectorAll('[data-rs-condition]').forEach(syncCondition);
+        };
+        syncRules();
+
+        var blankRule = null;
+        var nextRule = 0;
+        if (rulesHost) {
+            var spareRule = rulesHost.querySelector('[data-rs-rule]:last-child');
+            if (spareRule) { blankRule = spareRule.cloneNode(true); }
+            rulesHost.querySelectorAll('input[name="RuleIndex"]').forEach(function (input) {
+                nextRule = Math.max(nextRule, parseInt(input.value, 10) + 1);
+            });
+        }
+
+        sendingEditor.addEventListener('change', function (event) {
+            var condition = event.target.closest('[data-rs-condition]');
+            if (condition && event.target.matches('[data-rs-kind]')) { syncCondition(condition); }
+        });
+        sendingEditor.addEventListener('click', function (event) {
+            var add = event.target.closest('[data-rs-add]');
+            if (add) {
+                var name = add.getAttribute('data-rs-add');
+                var list = sendingEditor.querySelector('[data-rs-items="' + name + '"]');
+                var input = document.createElement('input');
+                input.name = name;
+                input.type = add.getAttribute('data-rs-type') || 'text';
+                input.autocomplete = 'off';
+                input.setAttribute('aria-label', add.getAttribute('data-rs-label') || name);
+                list.appendChild(input);
+                input.focus();
+                return;
+            }
+            if (event.target.closest('[data-add-rs-rule]')) {
+                if (rulesHost && blankRule) {
+                    var number = nextRule++;
+                    var row = blankRule.cloneNode(true);
+                    row.querySelectorAll('[name],[id],[for]').forEach(function (element) {
+                        ['name', 'id', 'for'].forEach(function (attribute) {
+                            var value = element.getAttribute(attribute);
+                            if (value) { element.setAttribute(attribute, value.replace(/^Rule[0-9]+/, 'Rule' + number)); }
+                        });
+                    });
+                    row.querySelector('input[name="RuleIndex"]').value = String(number);
+                    rulesHost.appendChild(row);
+                    syncRules();
+                    row.querySelector('select, input:not([type="hidden"])').focus();
+                }
+                return;
+            }
+            var remove = event.target.closest('[data-remove-rs-rule]');
+            if (remove) {
+                remove.closest('[data-rs-rule]').remove();
+                var addRule = sendingEditor.querySelector('[data-add-rs-rule]');
+                if (addRule) { addRule.focus(); }
+            }
+        });
+    }
+
     var contactEditor = document.querySelector('[data-contact-editor]');
     if (contactEditor) {
         var roleInputs = contactEditor.querySelectorAll('[data-contact-role]');
