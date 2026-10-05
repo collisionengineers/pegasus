@@ -87,12 +87,12 @@ internal static class GlassFailure
     public const string RelayShape = "glass.relay.shape";
     public const string RelayEstimate = "glass.relay.ere_id";
     public const string RelayOutcome = "glass.relay.outcome";
-    public const string ExportRequest = "glass.export.request";
+    public const string ExportRequest = GlassRepairEstimateSessionPolicy.ExportRequestFailureCode;
     public const string ExportNone = "glass.export.none";
-    public const string ExportAmbiguous = "glass.export.ambiguous";
-    public const string ExportOffOrigin = "glass.export.off_origin";
-    public const string DownloadRequest = "glass.download.request";
-    public const string DownloadOversize = "glass.download.oversize";
+    public const string ExportAmbiguous = GlassRepairEstimateSessionPolicy.ExportAmbiguousFailureCode;
+    public const string ExportOffOrigin = GlassRepairEstimateSessionPolicy.ExportOffOriginFailureCode;
+    public const string DownloadRequest = GlassRepairEstimateSessionPolicy.DownloadRequestFailureCode;
+    public const string DownloadOversize = GlassRepairEstimateSessionPolicy.DownloadOversizeFailureCode;
     public const string ExportUnreadable = GlassRepairEstimateSessionPolicy.ExportUnreadableFailureCode;
     public const string ExportEmpty = "glass.export.empty";
     public const string IdentityRegistration = "glass.identity.registration";
@@ -791,7 +791,8 @@ internal sealed partial class GlassMvaClient(
         }.Uri;
         var request = new HttpRequestMessage(HttpMethod.Get, relay);
         request.Headers.Referrer = options.EstimatorBaseUri;
-        var html = await TextAsync(request, ajax: false, GlassFailure.RelayRequest, cancellationToken);
+        var html = await TextAsync(
+            request, ajax: false, GlassFailure.RelayRequest, cancellationToken, redirectOutcomeUnknown: true);
 
         var arguments = CallbackArguments(html);
         if (arguments.Count != 10)
@@ -1254,12 +1255,17 @@ internal sealed partial class GlassMvaClient(
         bool ajax,
         string failureCode,
         CancellationToken cancellationToken,
-        bool outcomeUnknown = false)
+        bool outcomeUnknown = false,
+        bool redirectOutcomeUnknown = false)
     {
         using var response = await SendAsync(request, ajax, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new GlassMvaStageException(failureCode, outcomeUnknown);
+            // A redirect where the provider's answer was expected (the sign-in
+            // page, say) leaves open whether the request was acted on first.
+            throw new GlassMvaStageException(
+                failureCode,
+                outcomeUnknown || (redirectOutcomeUnknown && (int)response.StatusCode is >= 300 and < 400));
         }
 
         var content = await ReadAsync(response, MaximumTextBytes, failureCode, outcomeUnknown, cancellationToken);
