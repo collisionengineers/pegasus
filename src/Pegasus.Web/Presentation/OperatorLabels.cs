@@ -288,6 +288,7 @@ public static class OperatorLabels
         {
             EmailTemplatePurpose.TriageOutcomeReply => "Triage outcome reply",
             EmailTemplatePurpose.CaseReportDelivery => "Case report delivery",
+            EmailTemplatePurpose.CaseChaser => "Case chaser",
             _ => throw new InvalidOperationException($"Unknown e-mail template purpose '{(int)purpose}'.")
         };
     }
