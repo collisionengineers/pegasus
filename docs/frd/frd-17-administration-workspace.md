@@ -75,7 +75,16 @@ and the secret is write-only
 Contacts is the one directory for Principals, Claim Sources, Repairers,
 Storage and Third Party Engineers. Principal-specific settings are part of
 that Contact record. Report generation carries the Default fee (£) box above
-Save report settings. The Salvage matrix panel follows Report generation: one
+Save report settings. The Report sending panel follows Report generation and
+is shown for a Principal only. Send from is a list of the approved
+mailboxes with Not set. Send to, Cc, Never cc and Reminders are repeated
+inputs with an Add button; Send to only, Reply all, Garage figures and the
+six Attach choices are ticks; Hold and the First and Re-send attachment
+names are text. Rules are repeated rows, each with Match (All or Any
+condition), three condition lines (a kind, then a Contact list, the four
+outcomes, or text), and the actions Cc add, Cc remove, Remind, Hold and
+Stop. A Remove rule button per row, one spare blank row, an Add rule button,
+and one Save report sending. The Salvage matrix panel follows it: one
 table per salvage category, with From (£), To (£) and Percentage paid (%)
 columns, a Remove button per row, one spare blank row, an Add band button,
 and one Save salvage matrix. The list filters live as the operator types, 300

@@ -6051,6 +6051,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ReportSendingRulesJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("SalvageMatrixJson")
                         .HasColumnType("nvarchar(max)");
 

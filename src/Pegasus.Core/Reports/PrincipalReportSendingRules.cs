@@ -1,4 +1,5 @@
 using System.Net.Mail;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Assessment;
 
@@ -45,6 +46,7 @@ public sealed record ReportSendingActions(
 {
     public static ReportSendingActions None { get; } = new([], []);
 
+    [JsonIgnore]
     public bool IsEmpty =>
         CcAdd.Count == 0 && CcRemove.Count == 0 && Remind is null && Hold is null && Stop is null;
 }

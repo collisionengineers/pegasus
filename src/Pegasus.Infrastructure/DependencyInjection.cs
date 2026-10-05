@@ -333,6 +333,7 @@ public static class DependencyInjection
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
         services.AddScoped<IUpdatePrincipalSalvageMatrix, UpdatePrincipalSalvageMatrix>();
+        services.AddScoped<IUpdatePrincipalReportSending, UpdatePrincipalReportSending>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());

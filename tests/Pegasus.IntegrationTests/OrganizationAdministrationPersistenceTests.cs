@@ -73,6 +73,104 @@ public sealed class OrganizationAdministrationPersistenceTests
     }
 
     [Fact]
+    public async Task ReportSendingRulesAreKeptOnceReplayedAndRecordedInHistory()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var principal = await context.Principals.AsNoTracking()
+            .Where(item => item.Code == QdosPrincipal.Code)
+            .Select(item => new { item.Id, item.Version, item.OrganizationId, ContactVersion = item.Organization.Version })
+            .SingleAsync();
+        var update = services.GetRequiredService<IUpdatePrincipalReportSending>();
+        var getPrincipal = services.GetRequiredService<IGetPrincipal>();
+        var rules = PrincipalReportSendingRules.Default with
+        {
+            SendFromMailbox = "engineers@collisionengineers.co.uk",
+            SendTo = ["to@example.com"],
+            Cc = ["cc@example.com"],
+            Attach = new(FeeNoteSeparate: false, Estimate: true),
+            Hold = "Check first.",
+            Rules =
+            [
+                new(
+                    ReportSendingRuleMatch.Any,
+                    [
+                        new(ReportSendingConditionKind.Outcome, ["repairable"]),
+                        new(ReportSendingConditionKind.Mentions, ["Luton"])
+                    ],
+                    new(["rule@example.com"], [], Stop: "Stop."))
+            ],
+            AttachmentName = new("{reg} Initial", "{reg} Supplementary")
+        };
+
+        UpdatePrincipalReportSendingRequest Request(
+            long principalVersion, long contactVersion, string operationKey, PrincipalReportSendingRules value) => new(
+            principal.Id, principalVersion, Administrator, operationKey, value, contactVersion);
+
+        // The seed gave QDOS its rules; the update replaces them.
+        var before = await getPrincipal.ExecuteAsync(Administrator, principal.Id, default);
+        Assert.NotNull(before?.Principal.ReportSending);
+
+        var request = Request(principal.Version, principal.ContactVersion, "principal:report-sending:first", rules);
+        var updated = await update.ExecuteAsync(request, default);
+        var replay = await update.ExecuteAsync(request, default);
+
+        Assert.Equal(updated, replay);
+        Assert.Equal(principal.Version + 1, updated.Version);
+        Assert.Equal(rules, updated.ReportSending);
+        Assert.Equal(
+            principal.ContactVersion + 1,
+            await factory.Database.ScalarAsync<long>(
+                $"SELECT Version FROM Organizations WHERE Id = '{principal.OrganizationId:D}';"));
+        Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                "SELECT COUNT(*) FROM OrganizationAdministrationOperations WHERE OperationKey = 'principal:report-sending:first' AND CommandKind = 'update_principal_report_sending';"));
+        Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:report-sending:first' AND EventKind = 'principal_report_sending_updated';"));
+        var after = await getPrincipal.ExecuteAsync(Administrator, principal.Id, default);
+        Assert.Equal(rules, after!.Principal.ReportSending);
+        Assert.Equal(
+            "Check first.",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.hold') FROM Principals WHERE Id = '{principal.Id:D}';"));
+
+        var conflict = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
+            update.ExecuteAsync(
+                Request(principal.Version, principal.ContactVersion, "principal:report-sending:first", rules with { Hold = "Different." }),
+                default));
+        Assert.Equal(OrganizationAdministrationError.OperationConflict, conflict.Error);
+
+        var staleContact = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
+            update.ExecuteAsync(
+                Request(updated.Version, principal.ContactVersion, "principal:report-sending:stale-contact", rules with { Hold = "Other." }),
+                default));
+        Assert.Equal(OrganizationAdministrationError.StaleVersion, staleContact.Error);
+
+        var stalePrincipal = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
+            update.ExecuteAsync(
+                Request(principal.Version, principal.ContactVersion + 1, "principal:report-sending:stale-principal", rules with { Hold = "Other." }),
+                default));
+        Assert.Equal(OrganizationAdministrationError.StaleVersion, stalePrincipal.Error);
+
+        // Saving the same rules again changes nothing about the Principal.
+        var unchanged = await update.ExecuteAsync(
+            Request(updated.Version, principal.ContactVersion + 1, "principal:report-sending:unchanged", rules), default);
+        Assert.Equal(updated.Version, unchanged.Version);
+
+        var refused = await Assert.ThrowsAsync<ReportSendingRulesException>(() =>
+            update.ExecuteAsync(
+                Request(updated.Version, principal.ContactVersion + 2, "principal:report-sending:refused", rules with { Cc = ["not an address"] }),
+                default));
+        Assert.Equal(ReportSendingRulesRule.InvalidAddress, refused.Rule);
+    }
+
+    [Fact]
     public async Task ReplacementDisablesAndLinksPredecessorWithoutChangingAllocatedCaseIdentity()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);

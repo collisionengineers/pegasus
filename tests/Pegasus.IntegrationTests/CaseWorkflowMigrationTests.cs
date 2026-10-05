@@ -448,6 +448,7 @@ public sealed class CaseWorkflowMigrationTests
                 "20261005120000_GrantWorkerCaseManualChases",
                 "20261005150000_PrincipalDefaultFee",
                 "20261006150000_DropCaseReportDeliveryIntents",
+                "20261006090000_PrincipalReportSendingRules",
                 "20261007100000_SentReportInstructionMove"
             ],
             await context.Database.GetPendingMigrationsAsync());

@@ -140,6 +140,42 @@ The Principal section of a Contact carries:
   with no bands has no matrix. A refused save names the category and the
   rule and keeps the typed rows. No Principal starts with one, and a
   successor code inherits its predecessor's;
+- the report sending rules (operator, 5 October 2026), from the Report
+  Sending SOP v5 (2 October 2026). They say where a report goes, from where,
+  who is copied, what goes with it and what holds or stops it:
+  - Send from: the approved mailbox a new message leaves from when the Case
+    has no instruction e-mail. A reply always leaves from the mailbox that
+    holds the instruction;
+  - Send to: fixed addresses that replace the original instruction sender.
+    Empty means the original sender. Send to only means those addresses and
+    no Cc at all. Reply all keeps the instruction's own Cc addresses;
+  - Cc is always copied. Never cc is always removed, even from the
+    instruction's Cc list, and removal wins;
+  - Attach: whether the fee note is a separate PDF, whether the Case's filed
+    estimate or Audatex document goes too, whether the report carries
+    vehicle images, and whether a vehicle images document or a figure
+    breakdown is required first. Garage figures reminds staff, on a
+    repairable outcome, to send the figures to the garage after sending;
+  - Hold is text staff must tick as done before Send. Reminders become tasks
+    when the report is recorded as sent. Attachment name sets the report's
+    file name with `{ref}`, `{reg}` and `{outcome}`, once for a first
+    send and once for a re-send;
+  - Rules add Cc or remove Cc, remind, hold or stop when their conditions
+    hold. A rule matches All or Any of its conditions. A condition reads the
+    Case's Claim Source or Repairer (a Contact of that type), the recorded
+    outcome, or who sent the instruction. Several values in one condition
+    are alternatives. "Images from" and "Instruction mentions" have no Case
+    fact. A rule whose fact is not yet known is undecided, and the delivery
+    form asks staff at delivery.
+
+  A refused save names the rule and the problem and keeps what was typed. A
+  Principal the SOP does not name has no rules and delivers as before. A
+  successor code inherits its predecessor's rules. The rules were imported
+  once from the SOP (the supplied
+  [report_sending_sop.v5.yaml](../principal-profiles/sop-guides/report_sending_sop.v5.yaml)),
+  with the SOP's TL thresholds, notes and open questions appended to Notes
+  on every Case. The delivery behaviour is owned by
+  [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md);
 - the Principal API credential (API-04): issue, reset, revoke, pause and
   resume. Each acts on the click and goes into permanent history with an
   optional reason. The secret is shown once, at issue or reset, and never

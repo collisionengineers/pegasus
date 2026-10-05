@@ -26,7 +26,9 @@ public sealed record Principal(
     // The Principal's salvage matrix (29 September 2026); null when it has none.
     SalvageMatrix? SalvageMatrix = null,
     // The agreed fee a new Case of this Principal starts with (5 October 2026).
-    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard);
+    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
+    // The Principal's report sending rules (Report Sending SOP v5); null when the SOP has no entry.
+    PrincipalReportSendingRules? ReportSending = null);
 
 public enum CaseType
 {
@@ -283,6 +285,25 @@ public interface IUpdatePrincipalSalvageMatrix
 {
     Task<Principal> ExecuteAsync(
         UpdatePrincipalSalvageMatrixRequest request,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Replace a principal's report sending rules with the ones an administrator
+/// entered; null rules leave the principal with the defaults.
+/// </summary>
+public sealed record UpdatePrincipalReportSendingRequest(
+    Guid PrincipalId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    PrincipalReportSendingRules? Rules,
+    long ExpectedContactVersion);
+
+public interface IUpdatePrincipalReportSending
+{
+    Task<Principal> ExecuteAsync(
+        UpdatePrincipalReportSendingRequest request,
         CancellationToken cancellationToken);
 }
 

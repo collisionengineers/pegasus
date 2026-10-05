@@ -410,6 +410,111 @@ public sealed class OrganizationAdministrationTests
         Assert.Empty(store.SalvageMatrixUpdates);
     }
 
+    [Fact]
+    public void ASuccessorInheritsItsPredecessorsReportSendingRules()
+    {
+        var predecessor = Principal(version: 3) with { ReportSending = SendingRules("one@example.com") };
+
+        var replacement = OrganizationAdministrationPolicy.PlanPrincipalReplacement(
+            predecessor,
+            3,
+            Guid.NewGuid(),
+            "NEXT",
+            codeAlreadyExists: false);
+
+        Assert.Equal(SendingRules("one@example.com"), replacement.Successor.ReportSending);
+        Assert.Equal(SendingRules("one@example.com"), replacement.Predecessor.ReportSending);
+    }
+
+    [Fact]
+    public void TheReportSendingRulesChangeInPlaceAndMoveTheVersionOnlyWhenChanged()
+    {
+        var current = Principal(version: 3);
+
+        var set = OrganizationAdministrationPolicy.PlanPrincipalReportSendingUpdate(
+            current, 3, SendingRules("one@example.com"));
+        Assert.Equal(SendingRules("one@example.com"), set.ReportSending);
+        Assert.Equal(4, set.Version);
+        Assert.Equal(current.Code, set.Code);
+        Assert.Equal(current.ReportGenerationPolicy, set.ReportGenerationPolicy);
+
+        var unchanged = OrganizationAdministrationPolicy.PlanPrincipalReportSendingUpdate(
+            set, 4, SendingRules("ONE@example.com"));
+        Assert.Equal(4, unchanged.Version);
+
+        var changed = OrganizationAdministrationPolicy.PlanPrincipalReportSendingUpdate(
+            set, 4, SendingRules("two@example.com"));
+        Assert.Equal(5, changed.Version);
+    }
+
+    [Fact]
+    public void TheReportSendingRulesAreNormalizedBeforeTheyAreKept()
+    {
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSendingUpdate(
+            Principal(version: 3),
+            3,
+            PrincipalReportSendingRules.Default with { Cc = [" one@example.com ", "", "ONE@example.com"] });
+
+        Assert.Equal("one@example.com", Assert.Single(updated.ReportSending!.Cc));
+    }
+
+    [Fact]
+    public void TheReportSendingRulesRefuseAStaleVersionAndADisabledPrincipal()
+    {
+        Assert.Equal(
+            OrganizationAdministrationError.StaleVersion,
+            Assert.Throws<OrganizationAdministrationException>(() =>
+                OrganizationAdministrationPolicy.PlanPrincipalReportSendingUpdate(
+                    Principal(version: 4), 3, SendingRules("one@example.com"))).Error);
+        Assert.Equal(
+            OrganizationAdministrationError.PrincipalInactive,
+            Assert.Throws<OrganizationAdministrationException>(() =>
+                OrganizationAdministrationPolicy.PlanPrincipalReportSendingUpdate(
+                    Principal(version: 3) with { IsActive = false }, 3, SendingRules("one@example.com"))).Error);
+    }
+
+    [Fact]
+    public void TheReportSendingRulesRefuseWhatNormalizeRefuses()
+    {
+        var error = Assert.Throws<ReportSendingRulesException>(() =>
+            OrganizationAdministrationPolicy.PlanPrincipalReportSendingUpdate(
+                Principal(version: 3), 3, SendingRules("not an address")));
+
+        Assert.Equal(ReportSendingRulesRule.InvalidAddress, error.Rule);
+    }
+
+    [Fact]
+    public async Task UpdatePrincipalReportSendingNormalizesBeforeCallingPersistence()
+    {
+        var store = new RecordingStore();
+        var command = new UpdatePrincipalReportSending(store);
+
+        await command.ExecuteAsync(
+            new(Guid.NewGuid(), 2, Administrator, " sending-op ", SendingRules(" one@example.com "), 5),
+            default);
+
+        var request = Assert.Single(store.ReportSendingUpdates);
+        Assert.Equal("sending-op", request.OperationKey);
+        Assert.Equal("one@example.com", Assert.Single(request.Rules!.SendTo));
+        Assert.Equal(5, request.ExpectedContactVersion);
+    }
+
+    [Fact]
+    public async Task UpdatePrincipalReportSendingRefusesBeforePersistence()
+    {
+        var store = new RecordingStore();
+        var command = new UpdatePrincipalReportSending(store);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
+            new(Guid.NewGuid(), 0, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), "denied", SendingRules("one@example.com"), 0),
+            default));
+        await Assert.ThrowsAsync<ReportSendingRulesException>(() => command.ExecuteAsync(
+            new(Guid.NewGuid(), 0, Administrator, "invalid", SendingRules("not an address"), 0),
+            default));
+
+        Assert.Empty(store.ReportSendingUpdates);
+    }
+
     /// <summary>
     /// EXT-04. The report policy changes in place and nothing else does — the
     /// code, the organization and the lineage are what a replacement is for.
@@ -525,6 +630,9 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(OrganizationAdministrationError.PrincipalInactive, error.Error);
     }
 
+    private static PrincipalReportSendingRules SendingRules(string sendTo) =>
+        PrincipalReportSendingRules.Default with { SendTo = [sendTo] };
+
     private static SalvageMatrix Matrix(decimal percentage) =>
         SalvageMatrix.Normalize([new("S", 0.01m, 9999999.99m, percentage)])!;
 
@@ -561,6 +669,25 @@ public sealed class OrganizationAdministrationTests
                 request.ReportGenerationPolicy,
                 request.ReportRecipients,
                 DefaultFee: request.DefaultFee));
+        }
+
+        public List<UpdatePrincipalReportSendingRequest> ReportSendingUpdates { get; } = [];
+
+        public Task<Principal> UpdatePrincipalReportSendingAsync(
+            UpdatePrincipalReportSendingRequest request,
+            CancellationToken cancellationToken)
+        {
+            ReportSendingUpdates.Add(request);
+            return Task.FromResult(new Principal(
+                request.PrincipalId,
+                Guid.NewGuid(),
+                "QDOS",
+                Guid.NewGuid(),
+                null,
+                null,
+                true,
+                request.ExpectedVersion + 1,
+                ReportSending: request.Rules));
         }
 
         public List<UpdatePrincipalSalvageMatrixRequest> SalvageMatrixUpdates { get; } = [];

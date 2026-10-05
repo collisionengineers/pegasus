@@ -1262,6 +1262,7 @@ internal sealed class PrincipalEntity
     public string ReportRecipientAddressesJson { get; set; } = "[]";
     public string? SalvageMatrixJson { get; set; }
     public decimal DefaultFee { get; set; } = Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard;
+    public string? ReportSendingRulesJson { get; set; }
     public long Version { get; set; }
     public List<ContactPrincipalLinkEntity> ContactLinks { get; set; } = [];
     public List<CaseEntity> Cases { get; set; } = [];
