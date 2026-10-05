@@ -158,6 +158,23 @@ public static class NeedsAttentionPolicy
             && kind is NeedsAttentionKind.UnassignedEngineer or NeedsAttentionKind.Triage;
     }
 
+    /// <summary>The Owner column when a row's person slot is empty.</summary>
+    public const string UnassignedOwner = "Unassigned";
+
+    /// <summary>The Owner column when the row is not held by a person.</summary>
+    public const string NoPersonOwner = "No owner";
+
+    /// <summary>
+    /// The Work Centre Owner column. A named person is that name. A row with a
+    /// person slot and nobody in it reads <see cref="UnassignedOwner"/>. A row
+    /// that is not held by a person reads <see cref="NoPersonOwner"/>. Find
+    /// searches this string.
+    /// </summary>
+    public static string OwnerText(string? name, bool hasPersonSlot) =>
+        string.IsNullOrWhiteSpace(name)
+            ? hasPersonSlot ? UnassignedOwner : NoPersonOwner
+            : name;
+
     /// <summary>
     /// Find within Needs attention (v30 WB): a case-insensitive match on the
     /// row's reference, title, detail or owner. Kinds are the chips' business,
@@ -515,7 +532,7 @@ public sealed class GetOperationsSnapshot(
                 Detail: null,
                 work.State.ToString(),
                 NeedsAttentionPolicy.Priority(due, asOfUtc, dayEndUtc),
-                Owner: null,
+                NeedsAttentionPolicy.OwnerText(name: null, hasPersonSlot: false),
                 due,
                 work.MostRecentOutcome,
                 Source: null,
@@ -538,7 +555,7 @@ public sealed class GetOperationsSnapshot(
                 held.Principal,
                 nameof(CaseLifecycleState.Held),
                 NeedsAttentionPolicy.Priority(due, asOfUtc, dayEndUtc),
-                OwnerName(held.EngineerId, staffNames),
+                NeedsAttentionPolicy.OwnerText(OwnerName(held.EngineerId, staffNames), hasPersonSlot: true),
                 due,
                 LastOutcome: null,
                 held.Origin,
@@ -562,7 +579,7 @@ public sealed class GetOperationsSnapshot(
                 review.Principal,
                 nameof(CaseLifecycleState.Review),
                 NeedsAttentionPolicy.Priority(due, asOfUtc, dayEndUtc),
-                OwnerName(review.EngineerId, staffNames),
+                NeedsAttentionPolicy.OwnerText(OwnerName(review.EngineerId, staffNames), hasPersonSlot: true),
                 due,
                 LastOutcome: null,
                 review.Origin,
@@ -586,7 +603,7 @@ public sealed class GetOperationsSnapshot(
                 unassigned.Principal,
                 "Engineer assignment required",
                 NeedsAttentionPolicy.Priority(due, asOfUtc, dayEndUtc),
-                Owner: "Unassigned",
+                NeedsAttentionPolicy.OwnerText(name: null, hasPersonSlot: true),
                 due,
                 LastOutcome: null,
                 unassigned.Origin,
@@ -609,7 +626,7 @@ public sealed class GetOperationsSnapshot(
                 row.EmailSender,
                 row.ReasonCode.ToString(),
                 NeedsAttentionPolicy.Priority(due, asOfUtc, dayEndUtc),
-                Owner: null,
+                NeedsAttentionPolicy.OwnerText(name: null, hasPersonSlot: false),
                 due,
                 LastOutcome: null,
                 row.MediaKind.ToString(),
@@ -632,7 +649,7 @@ public sealed class GetOperationsSnapshot(
                 Detail: null,
                 record.State.ToString(),
                 NeedsAttentionPolicy.Priority(due, asOfUtc, dayEndUtc),
-                OwnerName(record.AssigneeId, staffNames),
+                NeedsAttentionPolicy.OwnerText(OwnerName(record.AssigneeId, staffNames), hasPersonSlot: true),
                 due,
                 LastOutcome: null,
                 Source: null,
@@ -656,7 +673,7 @@ public sealed class GetOperationsSnapshot(
                 draft.Job.Instruction,
                 nameof(AiJobState.DraftReady),
                 NeedsAttentionPolicy.Priority(draft.DueAtUtc, asOfUtc, dayEndUtc),
-                OwnerName(owner, staffNames),
+                NeedsAttentionPolicy.OwnerText(OwnerName(owner, staffNames), hasPersonSlot: false),
                 draft.DueAtUtc,
                 LastOutcome: null,
                 Source: draft.Action.ToString(),
@@ -679,7 +696,7 @@ public sealed class GetOperationsSnapshot(
                 paired.Principal,
                 nameof(ImageInitiatedCaseState.MergedIntoInstructionCase),
                 NeedsAttentionPolicy.Priority(paired.PairedAtUtc, asOfUtc, dayEndUtc),
-                OwnerName(paired.EngineerId, staffNames),
+                NeedsAttentionPolicy.OwnerText(OwnerName(paired.EngineerId, staffNames), hasPersonSlot: true),
                 paired.PairedAtUtc,
                 LastOutcome: null,
                 Source: null,

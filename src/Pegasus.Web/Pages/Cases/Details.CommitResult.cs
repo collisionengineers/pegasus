@@ -5,7 +5,6 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
@@ -201,7 +200,6 @@ public sealed partial class DetailsModel
             EvaHandoff = workspaceExtras.EvaHandoff;
             CurrentDeliveryPreparation = delivery is null ? null : await delivery;
             AvailableClosureOutcomes = DescribeClosureOutcomes(Case.Workflow, actor);
-            CanAssignToMe = CaseLifecycleRules.CanAssignToSelf(Case.Workflow);
         }
 
         return true;

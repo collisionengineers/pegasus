@@ -185,7 +185,6 @@ public static class DependencyInjection
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
         services.AddScoped<ITriageCasePairing, TriageCasePairing>();
         services.AddScoped<IAssignTriage, AssignTriage>();
-        services.AddScoped<IAssignTriageToMe, AssignTriageToMe>();
         services.AddScoped<IAddTriageNote, AddTriageNote>();
         services.AddScoped<IUnassignTriage, UnassignTriage>();
         services.AddScoped<IAwaitTriageInformation, AwaitTriageInformation>();
@@ -596,7 +595,6 @@ public static class DependencyInjection
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
         services.AddScoped<ICaseEngineerEligibility, EfCaseEngineerEligibility>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
-        services.AddScoped<IAssignCaseToMe, AssignCaseToMe>();
         services.AddScoped<ISetCaseSignOffEngineer, SetCaseSignOffEngineer>();
         services.AddScoped<IStartCaseWork, StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();

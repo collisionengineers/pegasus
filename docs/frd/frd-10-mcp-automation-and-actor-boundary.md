@@ -162,8 +162,6 @@ session hold it for a multi-step change, and staff actions on it are refused
 while it does.
 
 Assignment names a selected staff assignee, separate from the acting principal.
-An actor-relative `Assign to me` is not part of the Automation contract and
-is not offered to it.
 
 ### AI job and estimate tools
 
