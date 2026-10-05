@@ -78,11 +78,11 @@ public static class CaseWorkspaceLabels
         public const string ReturnToReview = "Return to Review";
         public const string ReturnToEngineer = "Return to Engineer";
         public const string ArchiveCase = "Archive case";
-        public const string AssignToMe = "Assign to me";
         public const string OriginalCase = "Original case";
         public const string ReplacementCase = "Replacement case";
         public const string OutstandingRequirements = "Outstanding requirements";
         public const string UnlinkReportEvidence = "Unlink report evidence";
+        public const string SendChaser = "Send chaser";
         public const string ReviewEstimate = "Review estimate";
         public const string OpenQuery = "Open query";
         /// <summary>The Next action row an open Case shows while a linked message is a cancellation (FRD-13).</summary>

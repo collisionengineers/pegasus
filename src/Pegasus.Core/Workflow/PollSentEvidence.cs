@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 
@@ -64,7 +65,18 @@ public sealed record ApprovedSentItem(
     string NextCursor,
     string? OriginalSourceSha256 = null,
     string? ObservedSourceSha256 = null,
-    string? EvidenceMarker = null);
+    string? EvidenceMarker = null)
+{
+    /// <summary>
+    /// What the Sent Items scope renders of this item, where the source could
+    /// read it from the MIME. Null leaves the retained row with the provider's
+    /// identities and empty display fields, as the Inbox poll does.
+    /// </summary>
+    public RetainedMailboxMessageMetadata? RetainedMetadata { get; init; }
+
+    /// <summary>The MIME length the retained row records; zero where the source did not read it.</summary>
+    public long SourceLength { get; init; }
+}
 
 public sealed record ApprovedSentPage(
     IReadOnlyList<ApprovedSentItem> Items,
@@ -184,7 +196,8 @@ public sealed class PollSentEvidence(
     IRetainApprovedMailboxReportSentEvidence retainReportEvidence,
     IAutoLinkReportEvidence autoLinkReportEvidence,
     TimeProvider timeProvider,
-    IStaffMailSendStore? staffMailSendStore = null) : IStaffMailEvidenceReconciler
+    IRetainedMailboxMessageStore retainedMessages,
+    IStaffMailSendStore? staffMailSendStore = null)
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromSeconds(30);
@@ -242,18 +255,6 @@ public sealed class PollSentEvidence(
         ActionActor actor,
         CancellationToken cancellationToken = default) =>
         ExecuteCoreAsync(null, maximumPages, maximumItemsPerPage, actor, cancellationToken);
-
-    public async Task ReconcileAsync(
-        Guid approvedMailboxId, CancellationToken cancellationToken)
-    {
-        if (approvedMailboxId == Guid.Empty)
-        {
-            throw new ArgumentException("An approved mailbox is required.", nameof(approvedMailboxId));
-        }
-        _ = await ExecuteCoreAsync(
-            approvedMailboxId, 5, 50,
-            ActionActor.SystemWorker("staff-mail-sent-reconcile"), cancellationToken);
-    }
 
     private async Task<PollSentEvidenceResult> ExecuteCoreAsync(
         Guid? approvedMailboxId,
@@ -489,6 +490,54 @@ public sealed class PollSentEvidence(
             return new(kind, ReportEvidenceRetained: false);
         }
 
+        // Every Sent item the approved mailbox holds is the Sent Items scope's
+        // row (FRD-20), written before the outcome so a refused write leaves the
+        // cursor unadvanced and the item is read again. Retention is a no-op
+        // for the same Sent item already held; one whose identities contradict
+        // the held row is quarantined rather than holding the cursor.
+        try
+        {
+            await retainedMessages.RetainAsync(
+                new RetainedMailboxMessage(
+                    lease.ApprovedMailboxId,
+                    lease.MailboxAddress,
+                    provenance.ImmutableItemIdentity,
+                    item.SourceOccurrenceIdentity,
+                    provenance.SentAtUtc,
+                    item.SourceLength,
+                    item.SourceSha256,
+                    item.RetainedMetadata ?? new RetainedMailboxMessageMetadata(
+                        provenance.SentFolderIdentity,
+                        provenance.ConversationIdentity,
+                        provenance.InternetMessageIdentity,
+                        SenderAddress: lease.MailboxAddress,
+                        SenderDisplayName: null,
+                        ToAddresses: [],
+                        CcAddresses: [],
+                        ReplyToAddresses: [],
+                        Subject: null,
+                        BodyPlainText: null,
+                        Attachments: [],
+                        IsRead: true),
+                    nowUtc,
+                    MailFolderScope.Sent),
+                cancellationToken);
+        }
+        catch (InvalidDataException exception)
+        {
+            await RecordOutcomeAsync(
+                lease,
+                item,
+                outcomeId,
+                SentEvidencePollOutcomeKind.MalformedQuarantined,
+                relatedEvidenceId: null,
+                FailureCode(exception),
+                nowUtc,
+                operationKey,
+                cancellationToken);
+            return new(SentEvidencePollOutcomeKind.MalformedQuarantined, ReportEvidenceRetained: false);
+        }
+
         IReadOnlyList<ExactEmailResponseEvidenceCandidate> candidates =
             provenance.InReplyToIdentities.Count == 0
                 ? Array.Empty<ExactEmailResponseEvidenceCandidate>()
@@ -508,13 +557,20 @@ public sealed class PollSentEvidence(
         {
             staffExecution = staffMailSendStore is null ? null : await staffMailSendStore.GetExecutionForObservationAsync(
                 actor, staffOperationId, cancellationToken);
+            // The item was read from this lease's mailbox and generation, so
+            // those two facts are checked against the lease. The frozen header
+            // markers are checked only where the provider kept them; an
+            // operation named by the Message-ID alone carries none.
             if (staffExecution is null
                 || staffExecution.Operation.ApprovedMailboxId != lease.ApprovedMailboxId
                 || staffExecution.Operation.MailboxGeneration != lease.Generation
-                || provenance.StaffMailMailboxId != staffExecution.Operation.ApprovedMailboxId
-                || provenance.StaffMailMailboxGeneration != staffExecution.Operation.MailboxGeneration
-                || !string.Equals(provenance.StaffMailPayloadHash,
-                    staffExecution.Operation.PayloadHash, StringComparison.Ordinal)
+                || (provenance.StaffMailMailboxId is { } markerMailboxId
+                    && markerMailboxId != staffExecution.Operation.ApprovedMailboxId)
+                || (provenance.StaffMailMailboxGeneration is { } markerGeneration
+                    && markerGeneration != staffExecution.Operation.MailboxGeneration)
+                || (provenance.StaffMailPayloadHash is { } markerPayloadHash
+                    && !string.Equals(markerPayloadHash,
+                        staffExecution.Operation.PayloadHash, StringComparison.Ordinal))
                 || staffExecution.Operation.State is not (StaffMailState.Sending or StaffMailState.Submitted or StaffMailState.Unknown or StaffMailState.Sent)
                 || staffExecution.ContextId == Guid.Empty
                 || staffExecution.Purpose == StaffMailPurpose.CaseReport && staffExecution.CaseId is null

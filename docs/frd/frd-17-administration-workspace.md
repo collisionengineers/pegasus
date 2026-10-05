@@ -74,7 +74,8 @@ and the secret is write-only
 
 Contacts is the one directory for Principals, Claim Sources, Repairers,
 Storage and Third Party Engineers. Principal-specific settings are part of
-that Contact record. The Salvage matrix panel follows Report generation: one
+that Contact record. Report generation carries the Default fee (£) box above
+Save report settings. The Salvage matrix panel follows Report generation: one
 table per salvage category, with From (£), To (£) and Percentage paid (%)
 columns, a Remove button per row, one spare blank row, an Add band button,
 and one Save salvage matrix. The list filters live as the operator types, 300
@@ -116,9 +117,11 @@ this area; they are not an area of their own.
 the staff replies an Administrator may change. Only an Administrator may open
 it or save a template. It lists one row per template: its name, who last
 changed it and when, and **Edit**. The templates are the Triage outcome reply
-([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)) and the
+([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)), the
 Case report delivery
-([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)).
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)) and the
+Case chaser
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
 
 **Edit** opens a dialog: the body, up to 5000 characters, a row of
 placeholder buttons that insert at the cursor, and Cancel and Save. The
@@ -127,14 +130,20 @@ Triage outcome reply's placeholders are `{registration}`,
 delivery's are `{case reference}`, `{registration}`, `{outcome}`,
 `{principal name}` and `{superseded report date}`; its built-in body has a
 "This report supersedes our report dated ..." line that is left out on a first
-send. A body naming any other placeholder is refused, and the message names
-it. Save acts on the click with the rendered version. A stale save is refused
-and asks the Administrator to reload.
+send. The Case chaser's are `{registration}`, `{outstanding material}` (the
+Case's missing-material reason while it has due work), `{principal name}` and
+`{claimant}`; it has no Case/PO placeholder, since the reference is internal
+and means nothing to the party chased (operator, 5 October 2026). Its
+built-in body is the one sentence the due-chaser sweep writes, without the
+reference, and the sign-off. A body naming any other placeholder is refused,
+and the message names it. Save acts on the click with the rendered version. A
+stale save is refused and asks the Administrator to reload.
 
 A placeholder with no value renders nothing. A line whose placeholders are
 all empty is left out. The subject is not templated: a reply keeps
-"Re: {original subject}", and a report delivery keeps its Case or Audit
-reference. Until an Administrator saves a template, its built-in body is used.
+"Re: {original subject}", a report delivery keeps its Case or Audit
+reference, and a chaser opens with the registration and the claimant.
+Until an Administrator saves a template, its built-in body is used.
 Staff can edit the rendered text before it is sent or prepared. Each save
 enters the Action logs.
 

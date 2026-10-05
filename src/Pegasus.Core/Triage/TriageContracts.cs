@@ -428,6 +428,13 @@ public sealed record TriageDetail(
 
     /// <summary>The Box folder of the Triage Case once custody confirmed it.</summary>
     public string? CustodyFolderRemoteId { get; init; }
+
+    /// <summary>
+    /// The Triage Case's Correspondence tab: the request e-mail it was opened
+    /// from and every retained e-mail associated with it, newest first, as the
+    /// Case record's Files section lists them.
+    /// </summary>
+    public IReadOnlyList<CaseCorrespondenceEmail> Correspondence { get; init; } = [];
 }
 
 /// <summary>
@@ -606,23 +613,4 @@ public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidate
     Task LinkCaseAsync(TriageCaseLinkRequest request, CancellationToken cancellationToken);
 
     Task UnlinkCaseAsync(TriageCaseLinkRequest request, CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// "Assign to me" (Work Centre P8) on an unassigned Triage: the ordinary assignment
-/// with the actor as the assignee, carrying the same version, lease and operation
-/// key; the reason is fixed because the action is its own record.
-/// </summary>
-public sealed record AssignTriageToMeRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey)
-{
-    public string EditLeaseToken { get; init; } = string.Empty;
-}
-
-public interface IAssignTriageToMe
-{
-    Task<TriageRecord> ExecuteAsync(AssignTriageToMeRequest request, CancellationToken cancellationToken);
 }

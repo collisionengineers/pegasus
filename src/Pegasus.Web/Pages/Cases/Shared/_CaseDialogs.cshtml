@@ -255,9 +255,6 @@
 
 @if (canHandToEngineer)
 {
-    @* The assignment dialog, with Assign to me (P8) for an eligible Engineer
-       when the Case has no Engineer: a second form on the same dialog, so it
-       posts without script too. *@
     <div id="case-handoff-dialog" class="dialog-backdrop" data-dialog="case-handoff-dialog" hidden>
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-handoff-dialog-title">
             <div class="dialog-head">
@@ -288,26 +285,8 @@
                         </select>
                     </div>
                 </form>
-                @if (Model.CanAssignToMe)
-                {
-                    <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
-                          asp-page-handler="AssignToMe" id="case-assign-to-me-form" data-assign-to-me>
-                        <input type="hidden" name="id" value="@workflow.CaseId" />
-                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                        @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
-                        <input type="hidden" name="view" value="@Model.ViewRoute" />
-                    </form>
-                }
             </div>
             <div class="dialog-foot">
-                @if (Model.CanAssignToMe)
-                {
-                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Assigning" form="case-assign-to-me-form" class="btn">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-                        <span>@Frame.AssignToMe</span>
-                    </button>
-                }
                 <button type="submit" data-busy-label="@OperatorLabels.Busy.HandingOver" form="case-handoff-form" class="btn btn--primary">@CaseWorkspaceLabels.HandToEngineer</button>
             </div>
         </section>

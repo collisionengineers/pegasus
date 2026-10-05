@@ -61,8 +61,11 @@ public sealed partial class OrganizationDirectoryWebTests
             ["ExpectedVersion"] = InputValue(settingsAfterLocationHtml, "ExpectedVersion"),
             ["ReportGenerationPolicy"] = "EvaManualApi",
             ["IncludeOriginalInstructionSender"] = bool.TrueString,
-            ["AdditionalReportRecipients"] = "reports@example.test"
+            ["AdditionalReportRecipients"] = "reports@example.test",
+            ["DefaultFee"] = "225.50"
         };
+        // A new Principal starts at the standard default fee.
+        Assert.Equal("180.00", InputValue(settingsAfterLocationHtml, "DefaultFee"));
         using var reportSettingsPost = await client.PostAsync(
             $"{settingsPath}?handler=UpdateReportSettings",
             new FormUrlEncodedContent(reportSettingsForm));
@@ -73,7 +76,7 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND ReportGenerationPolicy = 'EvaManualApi' AND IncludeOriginalInstructionSender = 1 AND ReportRecipientAddressesJson LIKE '%reports@example.test%' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF';"));
+                $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND ReportGenerationPolicy = 'EvaManualApi' AND IncludeOriginalInstructionSender = 1 AND ReportRecipientAddressesJson LIKE '%reports@example.test%' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF' AND DefaultFee = 225.50;"));
 
         using var indexGet = await client.GetAsync("/Administration/Contacts");
         var indexHtml = await indexGet.Content.ReadAsStringAsync();
@@ -104,7 +107,8 @@ public sealed partial class OrganizationDirectoryWebTests
             ["ReportSettingsOperationKey"] = InputValue(settingsHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(settingsHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(settingsHtml, "ExpectedVersion"),
-            ["ReportGenerationPolicy"] = "EvaManualApi"
+            ["ReportGenerationPolicy"] = "EvaManualApi",
+            ["DefaultFee"] = InputValue(settingsHtml, "DefaultFee")
         };
 
         using var response = await client.PostAsync(

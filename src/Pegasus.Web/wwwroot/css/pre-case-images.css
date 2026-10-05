@@ -1,6 +1,6 @@
 /* Pre-Case image crop and tag (v26): the evidence viewer's Crop / Apply /
    Clear / Cancel and Tag select, and the gallery tile's Cropped badge and tag
-   chips. Linked from the image record, Triage and Unidentified pages. */
+   chips. Linked from the image record and Unidentified pages. */
 
 .evidence-viewer .dialog-body { position: relative; }
 

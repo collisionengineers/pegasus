@@ -62,6 +62,7 @@ public sealed class EditModel(
     [BindProperty] public PrincipalReportGenerationPolicy ReportGenerationPolicy { get; set; }
     [BindProperty] public bool IncludeOriginalInstructionSender { get; set; }
     [BindProperty] public string[] AdditionalReportRecipients { get; set; } = [];
+    [BindProperty] public decimal? DefaultFee { get; set; }
     [BindProperty] public string? ReportSettingsOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public string? SalvageMatrixOperationKey { get; set; } = NewOperationKey();
     // The salvage matrix rows as shown: the stored bands, or what was typed
@@ -144,6 +145,7 @@ public sealed class EditModel(
             nameof(ReportGenerationPolicy),
             nameof(IncludeOriginalInstructionSender),
             nameof(AdditionalReportRecipients),
+            nameof(DefaultFee),
             nameof(PrincipalExpectedVersion),
             nameof(ExpectedVersion),
             nameof(ReportSettingsOperationKey));
@@ -160,6 +162,7 @@ public sealed class EditModel(
                 await updatePrincipalReportSettings.ExecuteAsync(new(
                     Principal!.Id, expectedVersion, actor, ReportSettingsOperationKey!,
                     "Updated report settings", ReportGenerationPolicy, recipients,
+                    DefaultFee ?? 0m,
                     ExpectedVersion,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Principal.NotesOnEveryCase), cancellationToken);
                 TempData["AdministrationStatus"] = "The principal's report settings were updated.";
@@ -393,6 +396,7 @@ public sealed class EditModel(
         ReportGenerationPolicy = Principal.ReportGenerationPolicy;
         IncludeOriginalInstructionSender = (Principal.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender;
         AdditionalReportRecipients = (Principal.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses.ToArray();
+        DefaultFee = Principal.DefaultFee;
         LocationIsImageBasedAssessment = Principal.DefaultInspectionAddress is null;
         LocationLabel = Principal.DefaultInspectionLocationLabel;
         LocationAddress = Principal.DefaultInspectionAddress;

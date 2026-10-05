@@ -68,6 +68,7 @@ public sealed class ProductionCompositionTests
         "web.workcentre.attention",
         "web.workcentre.newcases",
         "web.workcentre.aijobs",
+        "web.workcentre.activity",
         "report.photos.prepare",
         "report.pdf.generate",
         "report.pdf.pagecount",

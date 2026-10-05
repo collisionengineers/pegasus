@@ -103,10 +103,11 @@
                 </div>
             }
             <div class="field">
-                @* A Deleted Items view has no categories; the select stays so switching
-                   folders never submits a category the deleted view refuses. *@
+                @* Sent and Deleted Items views have no categories: nothing there was
+                   classified as received work. The select stays so switching folders
+                   never submits a category those views refuse. *@
                 <label for="queue-filter">@OperatorLabels.Inbox.Category</label>
-                <select id="queue-filter" name="queue" disabled="@(Model.Folder == MailFolderScope.DeletedItems)">
+                <select id="queue-filter" name="queue" disabled="@(Model.Folder is MailFolderScope.DeletedItems or MailFolderScope.Sent)">
                     <option value="" selected="@(Model.QueueFilter is null)">@OperatorLabels.Inbox.AllCategories</option>
                     <optgroup label="@OperatorLabels.Inbox.DestinationGroup">
                         @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.AggregateViews)
@@ -218,12 +219,17 @@
                     {
                         <p>No dismissed messages.</p>
                     }
-                    else if (Model.Folder != MailFolderScope.Inbox)
+                    else if (Model.Folder == MailFolderScope.DeletedItems)
                     {
                         <p>
                             @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.
                             Only received mail is retained.
                         </p>
+                    }
+                    else if (Model.Folder != MailFolderScope.Inbox)
+                    {
+                        @* The received-mail sentences below are the Inbox's; an empty
+                           Sent Items scope has only its message count. *@
                     }
                     else if (Model.Results.HasUnretainedHistory)
                     {
@@ -298,7 +304,11 @@
                         }
                         <span class="row-top">
                             <span class="cluster">
-                                <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
+                                @* A Sent item is not received work: it has no processing outcome to chip. *@
+                                @if (Model.Folder != MailFolderScope.Sent)
+                                {
+                                    <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
+                                }
                                 @if (item.Classification is { } classification)
                                 {
                                     <span class="row-meta">
@@ -422,7 +432,12 @@
                                         <span data-mail-preview-mailbox>@summary.MailboxAddress</span>
                                     </div>
                                 </div>
-                                <span data-mail-preview-state><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)" /></span>
+                                <span data-mail-preview-state>
+                                    @if (Model.Folder != MailFolderScope.Sent)
+                                    {
+                                        <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)" />
+                                    }
+                                </span>
                             </div>
                         </div>
                         @* The sender's text with its line breaks; the first lines, then an ellipsis. *@

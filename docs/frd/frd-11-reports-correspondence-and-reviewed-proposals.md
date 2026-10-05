@@ -475,6 +475,14 @@ Each fact is recorded in one section of the Case record
 | Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
 | An image in the report tagged Close-up and one tagged Overview, matching their confirmed sources | Files |
 
+A new Case starts with its Principal's default fee as its agreed fee
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
+so the agreed fee is a blocker only once staff clear it. The fee is written
+once, when the Case is created, by intake acceptance, manual creation or a
+wrong-Principal replacement (from the corrected Principal), and an Audit
+copies it with the rest of the Case's values. A later change to the
+Principal's default fee leaves existing Cases alone.
+
 The Sign-off Engineer blocker has three cases (operator, 26 September
 2026). Where accounts are offered and the Case has none chosen, it says
 "Choose the Sign-off Engineer on Case details" and links there. Where no
