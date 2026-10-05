@@ -106,7 +106,8 @@ public sealed partial class OrganizationAdministrationWebTests
             ["ReportSettingsOperationKey"] = InputValue(evaSubmissionHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(evaSubmissionHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(evaSubmissionHtml, "ExpectedVersion"),
-            ["ReportGenerationPolicy"] = "EvaManualApi"
+            ["ReportGenerationPolicy"] = "EvaManualApi",
+            ["DefaultFee"] = InputValue(evaSubmissionHtml, "DefaultFee")
         };
         using var evaSubmissionPost = await client.PostAsync(
             $"{evaSubmissionPath}?handler=UpdateReportSettings",

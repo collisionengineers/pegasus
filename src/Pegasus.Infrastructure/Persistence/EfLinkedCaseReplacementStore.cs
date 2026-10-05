@@ -130,6 +130,7 @@ public sealed class EfLinkedCaseReplacementStore(
             Version = 0
         };
         context.Cases.Add(replacementCase);
+        PrincipalDefaultFeeWriter.Apply(context, replacementCaseId, replacementPrincipal, now);
         var replacementCaseData = CloneCaseDataSnapshot(originalCaseData, replacementCase);
         context.CaseDataSnapshots.Add(replacementCaseData);
         ConfirmReplacementPrincipal(replacementCaseData, request, now);

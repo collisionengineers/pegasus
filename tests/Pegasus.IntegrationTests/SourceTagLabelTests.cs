@@ -49,6 +49,10 @@ public sealed class SourceTagLabelTests
         Assert.Equal(
             new OperatorLabels.SourceTagWord("Extracted", ""),
             OperatorLabels.SourceTag(Recorded(ActorKind.Automation, OriginalReportPrefillPolicy.RecorderId)));
+        // The agreed fee a new Case took from its Principal (5 October 2026).
+        Assert.Equal(
+            new OperatorLabels.SourceTagWord("Principal", ""),
+            OperatorLabels.SourceTag(Recorded(ActorKind.Automation, PrincipalDefaultFeePolicy.RecorderId)));
         Assert.Equal(
             new OperatorLabels.SourceTagWord("AI", "ai"),
             OperatorLabels.SourceTag(Recorded(ActorKind.Automation, "pegasus-automation")));

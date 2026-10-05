@@ -121,9 +121,11 @@ public sealed class EfOrganizationAdministration(
             request.ExpectedVersion,
             request.ReportGenerationPolicy,
             request.ReportRecipients,
+            request.DefaultFee,
             request.NotesOnEveryCase);
 
         entity.ReportGenerationPolicy = result.ReportGenerationPolicy.ToString();
+        entity.DefaultFee = result.DefaultFee;
         entity.Organization.NotesOnEveryCase = result.NotesOnEveryCase;
         entity.IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender;
         entity.ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions);
@@ -397,6 +399,7 @@ public sealed class EfOrganizationAdministration(
             IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender,
             ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions),
             SalvageMatrixJson = ToSalvageMatrixJson(result.SalvageMatrix),
+            DefaultFee = result.DefaultFee,
             DefaultInspectionLocationLabel = predecessor.DefaultInspectionLocationLabel,
             DefaultInspectionAddress = predecessor.DefaultInspectionAddress,
             DefaultInspectionPostcode = predecessor.DefaultInspectionPostcode,
@@ -486,7 +489,8 @@ public sealed class EfOrganizationAdministration(
                 : null,
             entity.DefaultInspectionSourceVersion,
             notesOnEveryCase,
-            ReadSalvageMatrix(entity.SalvageMatrixJson));
+            ReadSalvageMatrix(entity.SalvageMatrixJson),
+            entity.DefaultFee);
 
     internal static Principal ToPrincipal(PrincipalEntity entity) =>
         new(
@@ -502,7 +506,8 @@ public sealed class EfOrganizationAdministration(
             Enum.Parse<PrincipalReportGenerationPolicy>(entity.ReportGenerationPolicy),
             RecipientSettings(entity),
             entity.Organization?.NotesOnEveryCase,
-            ReadSalvageMatrix(entity.SalvageMatrixJson));
+            ReadSalvageMatrix(entity.SalvageMatrixJson),
+            entity.DefaultFee);
 
     private static PrincipalReportRecipientSettings RecipientSettings(PrincipalEntity entity) =>
         PrincipalReportRecipientSettings.Normalize(
