@@ -31,7 +31,7 @@ namespace Pegasus.Infrastructure.Assessment;
 internal static class AudatexEstimatePdfParser
 {
     /// <summary>Titles the Draft an import of this document lands as.</summary>
-    public const string ProviderName = "Audatex";
+    public const string ProviderName = EstimateFormats.AudatexProvider;
 
     /// <summary>A value row sits ~1pt below its description row; the row pitch is ~11-12pt.</summary>
     private const double ValuePairingTolerance = 3.5;

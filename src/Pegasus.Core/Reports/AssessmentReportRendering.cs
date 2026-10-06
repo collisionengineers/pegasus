@@ -431,6 +431,14 @@ public sealed record AssessmentReportPresentation(
     };
 }
 
+/// <summary>
+/// The accepted facts one report prints, frozen with its generation.
+/// <see cref="IncludeVehicleImages"/> false means the report is generated
+/// with no vehicle images, as its Principal's report sending rules say
+/// (operator, 6 October 2026): the images are still pinned here, and the
+/// separate images document prints them. A snapshot frozen before the rule
+/// existed reads as true.
+/// </summary>
 public sealed record AssessmentReportSnapshot(
     string OurReference,
     string YourReference,
@@ -472,7 +480,8 @@ public sealed record AssessmentReportSnapshot(
     bool ReportDateOverridden = false,
     string PayloadVersion = AssessmentReportContract.TemplateVersion,
     string? SupplementaryStatement = null,
-    IReadOnlyList<CaseReportWording>? Wording = null)
+    IReadOnlyList<CaseReportWording>? Wording = null,
+    bool IncludeVehicleImages = true)
 {
     /// <summary>
     /// The narrative the report prints, in the Engineer's order (v28 P30):
@@ -537,7 +546,8 @@ public sealed record AssessmentReportSnapshot(
         }
         Signatory.Validate();
         AcceptedReportSource.Required(PayloadVersion, nameof(PayloadVersion));
-        if (ReportFor.Count == 0 || Photos.Count == 0 || Sources.Count == 0)
+        // A report generated without vehicle images needs none to print.
+        if (ReportFor.Count == 0 || (IncludeVehicleImages && Photos.Count == 0) || Sources.Count == 0)
         {
             throw new ReportRenderRejectedException("Report addressee, photo custody and accepted source evidence are required.");
         }

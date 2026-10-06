@@ -41,6 +41,8 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.CreatedBy).HasMaxLength(256).IsRequired();
             entity.Property(value => value.RemovalReason).HasMaxLength(2000);
             entity.Property(value => value.RemovalOperationKey).HasMaxLength(256);
+            entity.Property(value => value.RecognisedEstimateProvider)
+                .HasMaxLength(Pegasus.Core.Assessment.EstimatePolicy.MaximumNameLength);
             entity.HasIndex(value => new { value.DocumentId, value.Version }).IsUnique();
             entity.HasOne<CaseDocumentEntity>().WithMany().HasForeignKey(value => value.DocumentId).OnDelete(DeleteBehavior.Restrict);
         });

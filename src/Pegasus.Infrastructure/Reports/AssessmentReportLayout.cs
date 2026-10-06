@@ -124,11 +124,24 @@ internal static class AssessmentReportLayout
         Gap(column, SlotGap);
         column.Item()
             .ShowEntire()
-            .Element(slots => ImageSlots(
-                slots,
-                LeadSlotHeight,
-                images.Lead is null ? null : slot => Fill(slot, images.Lead),
-                slot => slot.AlignCenter().Svg(plan).FitHeight()));
+            .Element(slots =>
+            {
+                Action<IContainer> planSlot = slot => slot.AlignCenter().Svg(plan).FitHeight();
+                if (!snapshot.IncludeVehicleImages)
+                {
+                    // A report generated without vehicle images (its
+                    // Principal's rules): the lead photo slot is left out and
+                    // the plan keeps its own place and size (operator, 6
+                    // October 2026, interim ruling).
+                    RightSlotAlone(slots, LeadSlotHeight, planSlot);
+                    return;
+                }
+                ImageSlots(
+                    slots,
+                    LeadSlotHeight,
+                    images.Lead is null ? null : slot => Fill(slot, images.Lead),
+                    planSlot);
+            });
 
         // Page 2: the narrative, in the Engineer's order (v28 P30). The
         // settlement block keeps the value box that belongs to it.

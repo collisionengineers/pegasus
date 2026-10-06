@@ -39,6 +39,13 @@ namespace Pegasus.Core.Reports;
 /// a generation freezes it, or when a preview is explicitly rendered at a
 /// stated date; a persisted override wins over both.
 /// </para>
+/// <para>
+/// <see cref="IncludeVehicleImages"/> is loaded from the Case's Principal's
+/// report sending rules (<see cref="ReportSendingAttachments.ReportImages"/>),
+/// never chosen on the Generate form (operator, 6 October 2026). The preview
+/// and the generation read it alike, and it is frozen into the snapshot, so a
+/// later change to the rules does not alter a frozen generation.
+/// </para>
 /// </remarks>
 public sealed record AssessmentReportProjectionInput(
     CaseAssessmentProjection Assessment,
@@ -52,7 +59,8 @@ public sealed record AssessmentReportProjectionInput(
     ReportGuideSources? Guides = null,
     string? ValuationCommentary = null,
     IReadOnlyList<CaseReportWording>? Wording = null,
-    bool SignOffEngineersOffered = false);
+    bool SignOffEngineersOffered = false,
+    bool IncludeVehicleImages = true);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -211,7 +219,8 @@ public static class AssessmentReportProjection
             // their words as they stood and a later edit changes nothing
             // already issued. What a block they never touched says is
             // composed from the frozen facts beside it.
-            Wording: input.Wording);
+            Wording: input.Wording,
+            IncludeVehicleImages: input.IncludeVehicleImages);
 
         return new(snapshot, []);
     }

@@ -110,6 +110,13 @@ public interface IEstimateDocumentParser
 public static class EstimateFormats
 {
     /// <summary>
+    /// The provider name the Audatex estimate format reads its documents as
+    /// (<see cref="ParsedEstimate.ProviderName"/>), so a recognised filed
+    /// estimate can be told apart as Audatex.
+    /// </summary>
+    public const string AudatexProvider = "Audatex";
+
+    /// <summary>
     /// The one format that names the file, or null when none or more than
     /// one does; without one the bytes are never worth reading.
     /// </summary>
