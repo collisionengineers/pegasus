@@ -811,41 +811,39 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
     /// <summary>
     /// The same return while the staff member is back in edit mode under a
-    /// new lease: landing the estimate would overtake their unsaved edits, so
-    /// it waits, with everything the provider produced kept, until Resume
-    /// imports it.
+    /// new lease (a.QDOS26070, 6 October 2026: the Case handed on and taken
+    /// back into edit mode while the estimator was open): the launch's lease
+    /// no longer imports, so the estimate lands under the session they now
+    /// hold, as a Resume would, without ending it. Nothing waits for Resume.
     /// </summary>
     [Fact]
-    public async Task AReturnWhileTheStaffMemberHoldsTheCaseAgainWaitsUntilTheResumeImportsIt()
+    public async Task AReturnWhileTheStaffMemberHoldsTheCaseAgainLandsTheEstimateUnderTheirSession()
     {
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
         await workspace.FinishEditingAsync();
         await workspace.ClaimLeaseAsync();
+        var holder = await workspace.LeaseHolderAsync();
+        Assert.Equal(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), holder);
+        var heldVersion = await workspace.CaseVersionAsync();
 
         using (var returned = await workspace.ReturnAsync(correlation))
         {
             await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
         }
 
-        var waiting = Assert.Single(await workspace.SessionsAsync());
-        Assert.Null(waiting.FailureCode);
-        Assert.Equal(GlassRepairEstimateSessionState.AwaitingImport, waiting.State);
-        Assert.Empty(await workspace.EstimatesAsync());
-        // The provider's documents were kept, so the resume offers them again
-        // rather than asking Glass's for a second copy.
-        Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
-
-        using var resumed = await workspace.PostGlassAsync("ResumeGlass", await workspace.ResumeFormAsync());
-
-        await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
         var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Null(session.FailureCode);
         Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
         var estimate = Assert.Single(await workspace.EstimatesAsync());
         Assert.Equal(RepairSpecificationSourceRoute.Glasses, estimate.Source.Route);
         Assert.True(estimate.IsCurrent);
         Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
+        // The landing advanced the Case under the same session: the staff
+        // member still holds it, and their page catches up on the import.
+        Assert.Equal(holder, await workspace.LeaseHolderAsync());
+        Assert.Equal(heldVersion + 1, await workspace.CaseVersionAsync());
     }
 
     /// <summary>

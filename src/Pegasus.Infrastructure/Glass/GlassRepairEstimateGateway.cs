@@ -1160,7 +1160,13 @@ public sealed partial class GlassRepairEstimateGateway(
                     results.Xml.VersionId!.Value,
                     results.Xml.Sha256!,
                     $"{session.OperationKey}:import",
-                    Name: string.Empty),
+                    Name: string.Empty)
+                {
+                    // The estimate lands under the staff member's session and
+                    // never ends it: their page catches up on the import as on
+                    // any system write (operator, 6 October 2026).
+                    KeepsLease = true,
+                },
                 cancellationToken));
             results.ImportedEstimateId = imported.EstimateId;
         }
@@ -1171,7 +1177,10 @@ public sealed partial class GlassRepairEstimateGateway(
         {
             // The Case moved on while the operator was in Glass's. Everything
             // the provider produced is already retained; the estimate lands
-            // when the staff member takes the Case back.
+            // under the staff member's current session, or when they take the
+            // Case back. The reason is said here, once: the session records no
+            // code, as nothing failed at Glass's.
+            LogImportHeld(logger, session.Id, session.CaseId, stale.GetType().Name, stale.Message);
             return await WriteAsync(
                 session,
                 GlassRepairEstimateSessionState.AwaitingImport,
@@ -1463,6 +1472,12 @@ public sealed partial class GlassRepairEstimateGateway(
         Message = "Glass's session {SessionId} for case {CaseId} could not retain an export in custody")]
     private static partial void LogCustodyFailed(
         ILogger logger, Guid sessionId, Guid caseId, Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Glass's session {SessionId} for case {CaseId} holds its estimate for landing: {Reason} {Detail}")]
+    private static partial void LogImportHeld(
+        ILogger logger, Guid sessionId, Guid caseId, string reason, string detail);
 
     [LoggerMessage(
         Level = LogLevel.Warning,
