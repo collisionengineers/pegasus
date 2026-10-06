@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -106,6 +107,10 @@ public sealed partial class GlassGuideValuationProvider(
     private static string Code(Exception exception) => exception switch
     {
         GlassMvaStageException stage => stage.FailureCode,
+        // A page the adapter could not read within its budget is unreadable,
+        // whatever the network did; every read site settles this itself, and
+        // one that escapes is still never called transport.
+        RegexMatchTimeoutException => GlassFailure.ValuationUnreadable,
         HttpRequestException or OperationCanceledException or TimeoutException => GlassFailure.TransportFailed,
         _ => "glass.valuation.configuration",
     };
