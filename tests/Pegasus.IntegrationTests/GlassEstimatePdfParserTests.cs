@@ -286,6 +286,55 @@ public sealed class GlassEstimatePdfParserTests
         Assert.Equal(847.02m, parsed.SourceTotals.Vat);
     }
 
+    /// <summary>
+    /// EVARE35554 (10 WU, 83.28): the sections' labour adds to 1,140.93 and
+    /// the document prints Total Labour 137.00 hours as 1,140.94, the total
+    /// hours at the rate rounded once (13.7 h = 1,140.936). Either figure is
+    /// the document's; any other refuses.
+    /// </summary>
+    [Theory]
+    [InlineData("1140.94", true)]
+    [InlineData("1140.93", true)]
+    [InlineData("1140.95", false)]
+    public void TheTotalLabourIsTheSectionsAddedOrTheTotalHoursRoundedOnce(string totalLabour, bool read)
+    {
+        var rows = RoundedTotalDocument(decimal.Parse(totalLabour, CultureInfo.InvariantCulture));
+
+        if (read)
+        {
+            var parsed = GlassEstimatePdfParser.Parse(rows);
+            Assert.Equal(decimal.Parse(totalLabour, CultureInfo.InvariantCulture), parsed.SourceTotals!.Net);
+            Assert.Equal(2.80m, parsed.Lines[0].WorkUnits);
+            return;
+        }
+        var refusal = Assert.Throws<EstimateParseRejectedException>(() => GlassEstimatePdfParser.Parse(rows));
+        Assert.Contains("printed totals do not reconcile", refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// EVARE35579: two rows share a guide and a name up to the second one's
+    /// last word ("X Y (R)", "X Y Brkt (R)"). The appendix prints the shared
+    /// name twice and wraps the second after its code; the first row is
+    /// already named, so the second entry goes on to the row it belongs to.
+    /// </summary>
+    [Fact]
+    public void ARepeatedAppendixNameThatWrapsAfterItsCodeIsNamedOnTheRowItBelongsTo()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body",
+                new SheetRow("333700", "X Y (R)", "R", 0.40m, 32.00m, 0.00m),
+                new SheetRow("333700", "X Y Brkt (R)", "R", 0.40m, 32.00m, 0.00m))],
+            [new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 1.00m, 0.00m)],
+            [],
+            [],
+            [new PositionRow("X Y", "333700"), new PositionRow("X Y", "333700"), new PositionRow("Brkt", null)]));
+
+        Assert.Equal(["X Y (R)", "X Y Brkt (R)", "Prep. metal (on vehicle without pre-painting)"],
+            parsed.Lines.Select(line => line.Description));
+        Assert.Contains("Position appendix: 333700", parsed.Lines[0].Justification, StringComparison.Ordinal);
+        Assert.Contains("Position appendix: 333700", parsed.Lines[1].Justification, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AnAdditionalRowWhoseLabourIsNotItsHoursAtTheBodyRateRefusesTheWholeTable()
     {
@@ -790,6 +839,72 @@ public sealed class GlassEstimatePdfParserTests
         new(1, 360, [new(28, "Rear Bumper Lining")], "Rear Bumper Lining"),
         new(1, 340, [new(28, "Abbreviations"), new(205, "Description")], "Abbreviations Description"),
     ];
+
+    /// <summary>
+    /// The three sections of EVARE35554 at 10 WU and 83.28 (Body 28.00 / 233.18,
+    /// Auxiliary work 78.00 / 649.58, Paint 31.00 / 258.17), no material, and a
+    /// Total Labour of 137.00 hours at the stated cost; net is that cost.
+    /// </summary>
+    private static PdfEstimateDocumentParser.VisualRow[] RoundedTotalDocument(decimal totalLabour)
+    {
+        var vat = decimal.Round(totalLabour * 20m / 100m, 2, MidpointRounding.AwayFromZero);
+        return
+        [
+            new(1, 760, [new(28, "Vehicle Registration Number:"), new(200, "AB12 CDE")], "Vehicle Registration Number: AB12 CDE"),
+            new(1, 750, [new(28, "VIN:")], "VIN:"),
+            new(1, 740, [new(28, "Date:"), new(200, "5.10.2026")], "Date: 5.10.2026"),
+            new(1, 730, [new(28, "Database version:"), new(200, "TEST")], "Database version: TEST"),
+            new(1, 720, [new(28, "Labour time unit:"), new(200, "10 WU")], "Labour time unit: 10 WU"),
+            new(1, 710, [new(28, "Currency:"), new(200, "GBP")], "Currency: GBP"),
+
+            new(1, 690, [new(28, "Body"), new(359, "Overlap-time")], "Body Overlap-time"),
+            new(1, 680, [new(28, "1001"), new(92, "Body panel"), new(247, "R"), new(318, "28.00"),
+                new(467, "233.18"), new(526, "0.00")], "1001 Body panel R 28.00 233.18 0.00"),
+            new(1, 670, [new(28, "Labour costs"), new(465, "233.18")], "Labour costs 233.18"),
+            new(1, 660, [new(28, "Material costs"), new(530, "0.00")], "Material costs 0.00"),
+            new(1, 650, [new(28, "Total Body"), new(510, "233.18")], "Total Body 233.18"),
+
+            new(1, 630, [new(28, "Auxiliary work"), new(359, "Overlap-time")], "Auxiliary work Overlap-time"),
+            new(1, 620, [new(28, "2001"), new(92, "Auxiliary operation"), new(247, "R"), new(318, "78.00"),
+                new(467, "649.58"), new(526, "0.00")], "2001 Auxiliary operation R 78.00 649.58 0.00"),
+            new(1, 610, [new(28, "Labour costs"), new(465, "649.58")], "Labour costs 649.58"),
+            new(1, 600, [new(28, "Material costs"), new(530, "0.00")], "Material costs 0.00"),
+            new(1, 590, [new(28, "Total Auxiliary work"), new(510, "649.58")], "Total Auxiliary work 649.58"),
+
+            new(1, 570, [new(28, "Paint"), new(233, "Paint type"), new(304, "Paint level"), new(512, "Material")],
+                "Paint Paint type Paint level Material"),
+            new(1, 560, [new(302, "level"), new(375, "time"), new(521, "costs")], "level time costs"),
+            new(1, 550, [new(28, "Roof Panel, Centre"), new(253, "200"), new(312, "I"), new(383, "31.00"),
+                new(457, "258.17"), new(527, "0.00")], "Roof Panel, Centre 200 I 31.00 258.17 0.00"),
+            new(1, 540, [new(28, "Labour costs"), new(448, "258.17")], "Labour costs 258.17"),
+            new(1, 530, [new(28, "Material costs"), new(518, "0.00")], "Material costs 0.00"),
+            new(1, 520, [new(28, "Total Paint"), new(510, "258.17")], "Total Paint 258.17"),
+
+            new(1, 500, [new(28, "Summary"), new(230, "Labour rate")], "Summary Labour rate"),
+            new(1, 490, [new(28, "Body"), new(249, "83.28"), new(395, "28.00"), new(454, "233.18"), new(515, "0.00")],
+                "Body 83.28 28.00 233.18 0.00"),
+            new(1, 480, [new(28, "Auxiliary work"), new(249, "83.28"), new(395, "78.00"), new(454, "649.58"), new(515, "0.00")],
+                "Auxiliary work 83.28 78.00 649.58 0.00"),
+            new(1, 470, [new(28, "Paint"), new(249, "83.28"), new(395, "31.00"), new(454, "258.17"), new(515, "0.00")],
+                "Paint 83.28 31.00 258.17 0.00"),
+            new(1, 460, [new(28, "Total Labour"), new(387, "137.00"), new(441, Money(totalLabour))],
+                $"Total Labour 137.00 {Money(totalLabour)}"),
+            new(1, 450, [new(28, "Total Material"), new(511, "0.00")], "Total Material 0.00"),
+            new(1, 440, [new(28, "Repair costs excl. VAT"), new(511, Money(totalLabour))],
+                $"Repair costs excl. VAT {Money(totalLabour)}"),
+            new(1, 430, [new(28, "VAT"), new(49, "(20.00"), new(82, "%)"), new(515, Money(vat))], $"VAT (20.00 %) {Money(vat)}"),
+            new(1, 420, [new(28, "Repair costs incl. VAT"), new(505.5, Money(totalLabour + vat))],
+                $"Repair costs incl. VAT {Money(totalLabour + vat)}"),
+
+            new(1, 400, [new(28, "Part name"), new(205, "Part no."), new(334, "Previous part no."), new(478, "Material costs")],
+                "Part name Part no. Previous part no. Material costs"),
+            new(1, 390, [new(28, "Total Parts"), new(509.5, "0.00")], "Total Parts 0.00"),
+            new(1, 370, [new(28, "Part name"), new(205, "Position no.")], "Part name Position no."),
+            new(1, 360, [new(28, "Body panel"), new(205, "1001")], "Body panel 1001"),
+            new(1, 350, [new(28, "Auxiliary operation"), new(205, "2001")], "Auxiliary operation 2001"),
+            new(1, 330, [new(28, "Abbreviations"), new(205, "Description")], "Abbreviations Description"),
+        ];
+    }
 
     private static PdfEstimateDocumentParser.VisualRow[] RoundingDocument(string firstPaintLabour) =>
     [

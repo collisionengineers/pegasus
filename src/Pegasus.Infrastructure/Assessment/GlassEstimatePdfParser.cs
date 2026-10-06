@@ -29,7 +29,11 @@ namespace Pegasus.Infrastructure.Assessment;
 /// rounded once, while each printed row must still reconcile to that rate. An
 /// Additional costs section prints no rate or hours of its own: its labour is
 /// checked at the Body rate, its hours are the sum of its rows, and Total
-/// Labour hours exclude them while Total Labour cost includes them.
+/// Labour hours exclude them while Total Labour cost includes them. The Total
+/// Labour cost is either the sum of the section labours or, when every
+/// operation and Paint section prints one rate, the total operation and Paint
+/// hours at that rate rounded once plus the Additional costs labour; the two
+/// may differ by a penny and either is accepted.
 /// </summary>
 internal static class GlassEstimatePdfParser
 {
@@ -438,22 +442,28 @@ internal static class GlassEstimatePdfParser
 
         /// <summary>
         /// Whether a position name read so far goes on over this appendix row.
-        /// It does not when it already equals a main row's whole name. A name
-        /// that equals only the first lines of a row (the rest being text Glass's
-        /// prints under it) is complete only if the next row cannot extend it
-        /// to a name; a name that fits no row is wrapped, as it always was.
+        /// It does not when it already equals the whole name of a main row no
+        /// appendix entry has named yet: a row already named cannot take it,
+        /// so a repeated name that wraps after its code still goes on to the
+        /// row it belongs to. A name that equals only the first lines of a row
+        /// (the rest being text Glass's prints under it) is complete only if
+        /// the next row cannot extend it to a name; a name that fits no row is
+        /// wrapped, as it always was.
         /// </summary>
         private bool Continues(string pending, string description, string? codes)
         {
-            var fits = MainRows().Select(item => (Lines: item.Fit(pending), Count: item.Wrapped.Count))
+            var fits = UnpositionedRows().Select(item => (Lines: item.Fit(pending), Count: item.Wrapped.Count))
                 .Where(fit => fit.Lines >= 0).ToArray();
             if (fits.Length == 0) return true;
             if (fits.Any(fit => fit.Lines == fit.Count)) return false;
-            return codes is null && MainRows().Any(item => item.Fit(pending + " " + description) >= 0);
+            return codes is null && UnpositionedRows().Any(item => item.Fit(pending + " " + description) >= 0);
         }
 
         private IEnumerable<Row> MainRows() =>
             rows.Where(item => item.Parent is null && item.Section != Section.Paint && item.Section != Section.Additional);
+
+        /// <summary>The main rows no appendix entry has named yet.</summary>
+        private IEnumerable<Row> UnpositionedRows() => MainRows().Where(item => !positioned.Contains(item));
 
         /// <summary>
         /// A name that ends exactly where the number column starts is printed
@@ -465,7 +475,7 @@ internal static class GlassEstimatePdfParser
         private bool TrySplitGlued(string text, out string name, out string glued)
         {
             name = text; glued = string.Empty;
-            if (MainRows().Any(item => item.Fit(text) >= 0)) return false;
+            if (UnpositionedRows().Any(item => item.Fit(text) >= 0)) return false;
             var wordStart = text.LastIndexOf(' ') + 1;
             for (var cut = text.Length - 1; cut > wordStart; cut--)
             {
@@ -474,7 +484,7 @@ internal static class GlassEstimatePdfParser
                     || !rest.Any(char.IsAsciiDigit))
                     continue;
                 var head = text[..cut];
-                if (!MainRows().Any(item => item.Fit(head) >= 0)) continue;
+                if (!UnpositionedRows().Any(item => item.Fit(head) >= 0)) continue;
                 name = head; glued = rest;
                 return true;
             }
@@ -541,8 +551,14 @@ internal static class GlassEstimatePdfParser
                 labour += sum.Labour.Value;
                 material += sum.Material.Value;
             }
+            // The document's Total Labour is the section labours added, or the one rate on the total hours rounded once plus Additional costs.
+            var rates = totals.Where(entry => entry.Key != Section.Additional).Select(entry => entry.Value.SummaryRate).Distinct().ToArray();
+            var additionalLabour = totals.TryGetValue(Section.Additional, out var extra) ? extra.Labour ?? 0 : 0;
+            decimal? roundedLabour = rates is [{ } onlyRate]
+                ? decimal.Round(operationHours / divisor * onlyRate, 2, MidpointRounding.AwayFromZero) + additionalLabour
+                : null;
             if (totalHours is null || totalLabour is null || totalMaterial is null || net is null || vat is null || vatPercent is null || gross is null
-                || operationHours != totalHours || labour != totalLabour || material != totalMaterial
+                || operationHours != totalHours || labour != totalLabour && roundedLabour != totalLabour || material != totalMaterial
                 || totalLabour + totalMaterial != net || net + vat != gross
                 || decimal.Round(net.Value * vatPercent.Value / 100, 2, MidpointRounding.AwayFromZero) != vat)
                 throw Reject("The document's printed totals do not reconcile");
