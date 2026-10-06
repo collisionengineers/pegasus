@@ -122,6 +122,9 @@ public sealed partial class GlassRepairEstimateGateway(
     /// <summary>The embedded calculation sheet's custody occurrence on the Case.</summary>
     public static string PdfOccurrenceIdentity(Guid sessionId) => $"glass-estimate:{sessionId:D}:pdf";
 
+    /// <summary>How long a just-created vehicle waits before its identity is read once more.</summary>
+    private static readonly TimeSpan VehicleReread = TimeSpan.FromMilliseconds(500);
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -293,8 +296,9 @@ public sealed partial class GlassRepairEstimateGateway(
             }
             else
             {
-                await StageAsync(session, "RequireVehicle", () => client.RequireVehicleAsync(provider.MvaVehicleId, provider.NatCode!,
-                    provider.Registration, provider.MileageMiles, estimateStarted: false, cancellationToken));
+                await StageAsync(session, "RequireVehicle", () => RequireNewVehicleAsync(
+                    client, provider.MvaVehicleId, provider.NatCode!, provider.Registration, provider.MileageMiles,
+                    cancellationToken));
             }
             await StageAsync(session, "SelectOnly", () => client.SelectOnlyAsync(provider.MvaVehicleId, cancellationToken));
             provider.EstimateStartAttempted = true;
@@ -324,6 +328,41 @@ public sealed partial class GlassRepairEstimateGateway(
             return await SettleAsync(session,
                 new GlassMvaStageException(uncertain ? GlassFailure.TransportUnknown : GlassFailure.TransportFailed, uncertain),
                 provider, digest, null, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// Proves a vehicle created moments ago. Glass's answered a just-created
+    /// vehicle's detail fragments wrongly twice in 28 launches on 2 October
+    /// 2026 and rightly moments later (issue 1030), so a refused identity is
+    /// read once more after <see cref="VehicleReread"/>; the second refusal
+    /// is the one settled, flagged <c>reread=1</c>. Only a launch reads again:
+    /// a resumed or placeholder vehicle is not new.
+    /// </summary>
+    private async Task RequireNewVehicleAsync(
+        GlassMvaClient client, string vehicleId, string natCode, string registration, long mileageMiles,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await client.RequireVehicleAsync(
+                vehicleId, natCode, registration, mileageMiles, estimateStarted: false, cancellationToken);
+        }
+        catch (GlassMvaStageException first) when (first.FailureCode == GlassFailure.DetailsIdentity)
+        {
+            await Task.Delay(VehicleReread, timeProvider, cancellationToken);
+            try
+            {
+                await client.RequireVehicleAsync(
+                    vehicleId, natCode, registration, mileageMiles, estimateStarted: false, cancellationToken);
+            }
+            catch (GlassMvaStageException second) when (second.FailureCode == GlassFailure.DetailsIdentity)
+            {
+                throw new GlassMvaStageException(
+                    second.FailureCode,
+                    second.OutcomeUnknown,
+                    second.Detail is null ? "reread=1" : $"{second.Detail} reread=1");
+            }
         }
     }
 

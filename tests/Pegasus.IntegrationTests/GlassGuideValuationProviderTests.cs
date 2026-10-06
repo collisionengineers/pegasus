@@ -142,6 +142,29 @@ public sealed class GlassGuideValuationProviderTests
     }
 
     /// <summary>
+    /// A rejected credential is the portal's own redirect to its "Login failed"
+    /// page (issue 1030). The card says the same approved sentence, the log
+    /// names the code, and nothing signs in again or asks for anything else.
+    /// </summary>
+    [Fact]
+    public async Task ARejectedPasswordIsUnavailableAndLoggedByItsOwnCodeAfterOneSignIn()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set("POST /login/index", new(
+            HttpStatusCode.Found, string.Empty, Location: "https://mva.test/login/login-failed"));
+
+        var unavailable = await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
+            harness.Provider.GetAsync(Request(), default));
+
+        var stage = Assert.IsType<GlassMvaStageException>(unavailable.InnerException);
+        Assert.Equal(GlassFailure.LoginRejected, stage.FailureCode);
+        Assert.Equal(1, harness.Mva.Count("POST /login/index"));
+        Assert.Equal(0, harness.Mva.Count("GET /index"));
+        Assert.Contains(harness.Logger.Messages, message => message.Contains("glass.login.rejected", StringComparison.Ordinal));
+        Assert.DoesNotContain(harness.Logger.Messages, message => message.Contains("valuation-test", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// A vehicle older than Glass's values is not a failure to report: the
     /// card says so (operator, 2 October 2026). The log names it by its code
     /// and never holds the provider's message.

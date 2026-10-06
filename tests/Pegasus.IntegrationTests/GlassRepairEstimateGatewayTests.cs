@@ -635,6 +635,17 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            // A rejected credential: the portal redirects to its own "Login
+            // failed" page (glassesvaluation.har, 1 October 2026, issue 1030).
+            "login-rejected",
+            "POST /login/index",
+            (int)HttpStatusCode.Found,
+            string.Empty,
+            "https://mva.test/login/login-failed",
+            GlassFailure.LoginRejected,
+            GlassRepairEstimateSessionState.Failed
+        },
+        {
             "login-landing-form",
             "GET /index",
             (int)HttpStatusCode.OK,
@@ -802,6 +813,108 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(expectedState, session.State);
         Assert.Equal(expectedFailure, session.FailureCode);
         Assert.Null(session.ProviderEstimateId);
+        if (scenario == "login-rejected")
+        {
+            // The landing page is never fetched and nothing signs in again:
+            // the login page and the one post are the only requests.
+            Assert.Equal(0, harness.Mva.Count("GET /index"));
+            string[] expectedRequests = ["GET /login/index", "POST /login/index"];
+            Assert.Equal(expectedRequests,
+                harness.Mva.Requests.Select(request => $"{request.Method} {request.Path}").ToArray());
+        }
+    }
+
+    // ----------------------------------------- a just-created vehicle's identity
+
+    private const string DetailsValue = "GET /index/vehicle-details-value/";
+
+    /// <summary>
+    /// Issue 1030: Glass's answered a just-created vehicle's detail fragments
+    /// wrongly twice in 28 production launches and rightly moments later. One
+    /// wrong reading is read once more, and the launch goes on.
+    /// </summary>
+    [Fact]
+    public async Task AJustCreatedVehicleThatIsNotIdentifiedAtFirstIsReadOnceMoreAndTheLaunchGoesOn()
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        harness.Mva.Enqueue(
+            DetailsValue,
+            new(HttpStatusCode.OK, GlassProviderFixture.VehicleDetail(mileage: MileageMiles + 1)),
+            new(HttpStatusCode.OK, GlassProviderFixture.VehicleDetail()));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        Assert.Null(session.FailureCode);
+        Assert.Equal(2, harness.Mva.Count(DetailsValue));
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
+        // One stage line, as for any launch: the read-again is not a stage of its own.
+        var stage = Assert.Single(logger.Messages, message => message.Contains("stage RequireVehicle", StringComparison.Ordinal));
+        Assert.Contains("outcome Succeeded", stage, StringComparison.Ordinal);
+        Assert.DoesNotContain(logger.Messages, message => message.Contains("settled", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Two readings that both fail are read twice and no more: the second
+    /// refusal is the one the session settles on, flagged as read again, and
+    /// its flags name the first control that failed and how, never a value.
+    /// </summary>
+    [Theory]
+    [InlineData("registration", "control=registration state=different")]
+    [InlineData("mileage", "control=mileage state=different")]
+    [InlineData("vehicle", "control=id state=different")]
+    [InlineData("natcode", "control=natcode state=different")]
+    [InlineData("missing", "control=mileage state=absent")]
+    [InlineData("contradictory", "control=id state=contradictory")]
+    [InlineData("duplicate", "control=mileage state=duplicate")]
+    [InlineData("duplicate-unnamed", "state=duplicate")]
+    public async Task ALaunchVehicleThatIsNotIdentifiedTwiceFailsWithTheControlNamedAndReadAgain(string mismatch, string flags)
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        var detail = GlassProviderFixture.VehicleDetail(
+            registration: mismatch == "registration" ? "XY99ZZZ" : Registration,
+            mileage: mismatch == "mileage" ? MileageMiles + 1 : MileageMiles,
+            vehicleId: mismatch == "vehicle" ? "9999" : VehicleId,
+            natCode: mismatch == "natcode" ? "9999" : NatCode);
+        detail = mismatch switch
+        {
+            "missing" => detail.Replace("name=\"mileage\"", "name=\"other\"", StringComparison.Ordinal),
+            "contradictory" => detail + "<input name='id' value='9999'>",
+            "duplicate" => detail.Replace("name=\"mileage\"", "name=\"mileage\" value=\"1\"", StringComparison.Ordinal),
+            "duplicate-unnamed" => detail + "<input value=\"1\" value=\"2\">",
+            _ => detail,
+        };
+        harness.Mva.Set(DetailsValue, new(HttpStatusCode.OK, detail));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, session.State);
+        Assert.Equal(GlassFailure.DetailsIdentity, session.FailureCode);
+        Assert.Equal(2, harness.Mva.Count(DetailsValue));
+        Assert.Equal(0, harness.Mva.Count("POST /ere/start-ere"));
+        var settled = Assert.Single(logger.Messages, message => message.Contains("settled Failed", StringComparison.Ordinal));
+        Assert.EndsWith($"glass.details.identity {flags} reread=1", settled, StringComparison.Ordinal);
+        Assert.Single(logger.Messages, message => message.Contains("stage RequireVehicle outcome glass.details.identity", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A launch on a placeholder vehicle is not a read-again path: its own
+    /// identity refusal is read once.
+    /// </summary>
+    [Fact]
+    public async Task APlaceholderThatIsNotIdentifiedIsReadOnlyOnce()
+    {
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        harness.Mva.Set(DetailsValue, new(HttpStatusCode.OK, GlassProviderFixture.PlaceholderDetail(vehicleId: "9999")));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, session.State);
+        Assert.Equal(GlassFailure.PlaceholderIdentity, session.FailureCode);
+        Assert.Equal(1, harness.Mva.Count(DetailsValue));
     }
 
     /// <summary>
@@ -1833,8 +1946,11 @@ public sealed class GlassRepairEstimateGatewayTests
         // Correct-looking text elsewhere cannot rescue the wrong named field.
         detail += $"<script>var profile='{GlassProviderFixture.ProfileId}'; var natcode='{NatCode}';</script>";
         harness.Mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, detail));
+        var detailReads = harness.Mva.Count("GET /index/vehicle-details-value/");
         var resumed = await harness.ResumeAsync(
             new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken), default);
+        // A resumed vehicle is not new: the proof is read once and never again.
+        Assert.Equal(detailReads + 1, harness.Mva.Count("GET /index/vehicle-details-value/"));
         Assert.Equal(GlassRepairEstimateSessionState.Unknown, resumed.State);
         Assert.Equal(mismatch is "profile" or "script" ? GlassFailure.DetailsProfile : GlassFailure.DetailsIdentity, resumed.FailureCode);
         // The refusal is logged with the flag the control showed, never a value.
@@ -1849,6 +1965,17 @@ public sealed class GlassRepairEstimateGatewayTests
         else
         {
             Assert.DoesNotContain("profile=", settledLine, StringComparison.Ordinal);
+            // The refusal names the first control that failed and how, never its value.
+            var flags = mismatch switch
+            {
+                "registration" => "control=registration state=different",
+                "mileage" => "control=mileage state=different",
+                "vehicle" => "control=id state=different",
+                "natcode" => "control=natcode state=different",
+                "missing" => "control=mileage state=absent",
+                _ => "control=id state=contradictory",
+            };
+            Assert.EndsWith($"glass.details.identity {flags}", settledLine, StringComparison.Ordinal);
         }
         Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Equal(1, harness.Mva.Count("GET /index/get-selected-vehicle-count"));

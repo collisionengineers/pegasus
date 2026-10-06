@@ -274,7 +274,10 @@ must identify the expected vehicle ID, registration, mileage and NatCode, and
 show the configured repair profile. A placeholder's form must identify the
 recorded vehicle ID, a numeric type number (the one the launch recorded, once
 it has) and an empty registration, and show the profile; it has no mileage
-to prove. Missing or contradictory controls refuse the action.
+to prove. Missing or contradictory controls refuse the action. A launch reads
+the form of the vehicle it has just created once more, 500 ms later, when the
+first reading does not identify it, and settles on the second refusal; no
+other proof is read again.
 
 What "show the profile" means depends on whether the provider has started an
 estimate on the vehicle. Before a start, the repair-profile control is enabled
