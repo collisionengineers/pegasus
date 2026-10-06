@@ -44,7 +44,7 @@ public sealed class UploadStatusModel(
     public int? AutomaticRefreshMilliseconds =>
         Status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing
             ? UploadStatusRefresh.DelayMilliseconds(Status, timeProvider.GetUtcNow())
-            : UploadReviewFile.AwaitsPhotographs(Receipt)
+            : UploadReviewFile.AwaitsCustody(Receipt)
                 ? UploadStatusRefresh.MinimumMilliseconds
                 : null;
 

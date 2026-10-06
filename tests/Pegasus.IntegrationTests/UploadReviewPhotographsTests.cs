@@ -4,10 +4,11 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The upload review lists a photograph pulled out of a document only once
-/// custody can serve it, and asks the page to look again while one is still
-/// waiting. Listing it earlier drew a broken image: the asset address answers
-/// 409 until custody has confirmed the bytes.
+/// The upload review draws an uploaded image, or lists a photograph pulled out
+/// of a document, only once custody can serve it, and asks the page to look
+/// again while one is still waiting. Drawing it earlier drew a broken image:
+/// the image and asset addresses answer 409 until custody has confirmed the
+/// bytes.
 /// </summary>
 public sealed class UploadReviewPhotographsTests
 {
@@ -32,7 +33,7 @@ public sealed class UploadReviewPhotographsTests
     [Fact]
     public void AnImageFileIsAddressedByItsSourceHashAndAnOutcomeImageByItsOwn()
     {
-        var image = Receipt("image/png", "A");
+        var image = Receipt("image/png", "A", IncomingArtifactCustodyState.Confirmed);
         var outcomeReceiptId = Guid.NewGuid();
         var outcome = new UploadOutcomeView(
             UploadOutcomeKind.Working,
@@ -49,8 +50,22 @@ public sealed class UploadReviewPhotographsTests
         Assert.Equal(
             $"/Received/{outcomeReceiptId:D}/Image?v={new string('B', 64)}",
             UploadReviewFile.ImageUrlOf(outcome, image));
-        Assert.Null(UploadReviewFile.ImageUrlOf(null, Receipt("application/pdf", "C")));
+        Assert.Null(UploadReviewFile.ImageUrlOf(null, Receipt("application/pdf", "C", IncomingArtifactCustodyState.Confirmed)));
         Assert.Null(UploadReviewFile.ImageUrlOf(null, null));
+    }
+
+    /// <summary>
+    /// An uploaded image is drawn only once custody can serve it: the image
+    /// address answers 409 until then, which drew a broken image in the review.
+    /// </summary>
+    [Theory]
+    [InlineData(IncomingArtifactCustodyState.Pending)]
+    [InlineData(IncomingArtifactCustodyState.Failed)]
+    [InlineData(IncomingArtifactCustodyState.Unknown)]
+    public void AnImageFileHasNoReviewImageUntilCustodyConfirmsIt(IncomingArtifactCustodyState state)
+    {
+        Assert.Null(UploadReviewFile.ImageUrlOf(null, Receipt("image/jpeg", "A", state)));
+        Assert.Null(UploadReviewFile.ImageUrlOf(null, Receipt("image/jpeg", "A")));
     }
 
     [Theory]
@@ -64,14 +79,28 @@ public sealed class UploadReviewPhotographsTests
     {
         var receipt = Receipt(Photograph("a", state));
 
-        Assert.Equal(expected, UploadReviewFile.AwaitsPhotographs(receipt));
+        Assert.Equal(expected, UploadReviewFile.AwaitsCustody(receipt));
+    }
+
+    [Theory]
+    [InlineData(IncomingArtifactCustodyState.Pending, true)]
+    [InlineData(IncomingArtifactCustodyState.Confirmed, false)]
+    [InlineData(IncomingArtifactCustodyState.Failed, false)]
+    [InlineData(IncomingArtifactCustodyState.Unknown, false)]
+    public void PageLooksAgainOnlyWhileImageFileCustodyIsPending(
+        IncomingArtifactCustodyState state,
+        bool expected)
+    {
+        Assert.Equal(expected, UploadReviewFile.AwaitsCustody(Receipt("image/png", "A", state)));
+        // A document's own source is downloaded, never drawn, so it holds nothing back.
+        Assert.False(UploadReviewFile.AwaitsCustody(Receipt("application/pdf", "B", state)));
     }
 
     [Fact]
     public void NoReceiptListsNothingAndAwaitsNothing()
     {
         Assert.Empty(UploadReviewFile.PhotographsOf(null));
-        Assert.False(UploadReviewFile.AwaitsPhotographs(null));
+        Assert.False(UploadReviewFile.AwaitsCustody(null));
     }
 
     private static IntakeAssetRecord Photograph(string hashDigit, IncomingArtifactCustodyState state) =>
@@ -96,6 +125,28 @@ public sealed class UploadReviewPhotographsTests
 
     private static IntakeReceipt Receipt(string mediaType, string hashDigit) =>
         Receipt(mediaType, new string(hashDigit[0], 64), []);
+
+    private static IntakeReceipt Receipt(string mediaType, string hashDigit, IncomingArtifactCustodyState sourceCustody)
+    {
+        var hash = new string(hashDigit[0], 64);
+        return Receipt(mediaType, hash, [
+            new IntakeAssetRecord(
+                Guid.NewGuid(),
+                "source",
+                "upload",
+                mediaType,
+                IntakeAssetKind.Source,
+                IntakeAssetDisposition.Source,
+                1024,
+                hash,
+                "test-storage-key-source",
+                null,
+                null,
+                null,
+                null,
+                sourceCustody)
+        ]);
+    }
 
     private static IntakeReceipt Receipt(string mediaType, string sourceHash, IntakeAssetRecord[] assets) =>
         new(
