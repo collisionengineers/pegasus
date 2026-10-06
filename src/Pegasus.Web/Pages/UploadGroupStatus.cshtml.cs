@@ -73,9 +73,10 @@ public sealed class UploadGroupStatusModel(
                 return UploadStatusRefresh.MinimumMilliseconds;
             }
 
-            // A photograph pulled out of a document is listed once custody has
-            // confirmed it, so the page looks again until it has.
-            if (Receipts.Values.Any(UploadReviewFile.AwaitsPhotographs))
+            // An uploaded image, or a photograph pulled out of a document, is
+            // drawn once custody has confirmed it, so the page looks again
+            // until it has.
+            if (Receipts.Values.Any(UploadReviewFile.AwaitsCustody))
             {
                 return UploadStatusRefresh.MinimumMilliseconds;
             }
