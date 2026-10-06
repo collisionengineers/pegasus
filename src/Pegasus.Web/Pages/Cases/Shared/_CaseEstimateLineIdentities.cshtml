@@ -1,0 +1,10 @@
+@*
+    What a commit moves on in the Repair Spec section, carried forward by the
+    script after every commit: the identity of each line as the Case now
+    holds it, by the row it was posted from. Every save writes its lines
+    afresh, so the rows the operator keeps typing in take the ids the save
+    gave them, and the next commit names lines the Case still has. It is
+    disabled, so it posts nothing.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+<input type="hidden" name="estimateLineIds" value="@Model.EstimateLineIdentities" form="case-edit-form" disabled data-carry-forward data-estimate-line-ids />
