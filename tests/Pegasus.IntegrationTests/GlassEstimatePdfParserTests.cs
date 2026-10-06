@@ -64,6 +64,43 @@ public sealed class GlassEstimatePdfParserTests
         Assert.Contains("main rows disagree", refusal.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A sheet at <c>10 WU</c> (EVA's Glass's profile, 6 October 2026) prints
+    /// every time as a count of work units, ten to the hour, and a blank VIN.
+    /// Row, section and total identities hold in printed units, the rate
+    /// checks convert to hours, and every time the reader returns is hours.
+    /// </summary>
+    [Fact]
+    public void ASheetAtWorkUnitsToTheHourIsReadInHoursWithABlankVin()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(WorkUnitDocument("10 WU"));
+
+        Assert.Equal(["repair", "paint_blend", "specialist_wu"], parsed.Lines.Select(line => line.Type));
+        Assert.Equal(2.00m, parsed.Lines[0].WorkUnits);
+        Assert.Equal(0.30m, parsed.Lines[1].PaintWorkUnits);
+        Assert.Equal(0.20m, parsed.Lines[2].WorkUnits);
+        Assert.Contains("Printed labour: 166.56 GBP.", parsed.Lines[0].Justification, StringComparison.Ordinal);
+        Assert.Equal(2.00m, parsed.SourceTotals!.PanelWorkUnits);
+        Assert.Equal(0.30m, parsed.SourceTotals.PaintWorkUnits);
+        Assert.Equal(215.90m, parsed.SourceTotals.Net);
+        Assert.Equal(43.18m, parsed.SourceTotals.Vat);
+        Assert.Equal(259.08m, parsed.SourceTotals.Gross);
+        Assert.Equal("AB12 CDE 5.10.2026 TEST", parsed.SourceVersion);
+    }
+
+    [Theory]
+    [InlineData("1 Day")]
+    [InlineData("0 WU")]
+    [InlineData("10 Hours")]
+    [InlineData("WU")]
+    public void ALabourTimeUnitThatIsNeitherOneHourNorWorkUnitsRefusesTheWholeTable(string unit)
+    {
+        var refusal = Assert.Throws<EstimateParseRejectedException>(
+            () => GlassEstimatePdfParser.Parse(WorkUnitDocument(unit)));
+
+        Assert.Contains("units or complete tables are missing", refusal.Message, StringComparison.Ordinal);
+    }
+
     [ReferencePackTheory]
     [InlineData("VX21TZD", "1046012231790__VX21TZD calculation sheet.pdf", "c75b94438ad6a57aae8b6edb8de554498920c1626cb0c8b0046a3322a55c1016", 10134,
         "AD5107957FDAEE562C29C84D939A709812A4F8A9FC21A057306768FDD387777B", 30, 3, "990.15", "198.03", "1188.18")]
@@ -73,6 +110,10 @@ public sealed class GlassEstimatePdfParserTests
         "AE3609C9822924FCAE41E9E7ABDA15AD3DC80B65A8BF5F31AA9A5A8D399B2CB6", 46, 8, "5092.59", "1018.52", "6111.11")]
     [InlineData("LG73ZCJ", "2228602993671__CalculationPDF.pdf", "ab3472cd160a08f19251439c02966f747753051a1204db97a2465d505a0bb45f", 12107,
         "07934D40D3947FFF0B5AD81238D4E761A27C0AE88EE8E1670F07F39480002F99", 66, 9, "3063.03", "612.61", "3675.64")]
+    [InlineData("LO72XPW", "EVARE35552__CalculationPDF.pdf", "c35d9b4a7404e13bd8d6000c4895f0fb4f4c694ce04d5aa200dc3640f0e71180", 10847,
+        "CBD605964C20F5EA200A2765C205C061992B4412E44B16C6BF6DAD4CA52FEAD1", 30, 5, "3346.33", "669.27", "4015.60")]
+    [InlineData("KV20VEH", "EVARE35571__CalculationPDF.pdf", "9207cd876f9eb5194915e6d6f53d8f154d5a7f2aaf378cacff9e6d3611bd9674", 19480,
+        "C9A33D1FE27DDBDE4456117E04CD2E7E7140C0A16A9BD951201AF9F39ED30E07", 137, 35, "14275.69", "2855.14", "17130.83")]
     public async Task EveryReadableOriginalMatchesItsIndependentFullOrderedRowOracle(
         string identity, string fileName, string hash, int length, string oracleHash,
         int rowCount, int partCount, string net, string vat, string gross)
@@ -87,7 +128,7 @@ public sealed class GlassEstimatePdfParserTests
             .Where(line => line.StartsWith("| ", StringComparison.Ordinal))
             .Select(line => line.Split('|', StringSplitOptions.TrimEntries)[1..^1]).ToArray();
         var expected = tables.Where(cells => cells.Length == 11 && cells[0].Length == 3
-            && "BAP".Contains(cells[0][0]) && char.IsAsciiDigit(cells[0][1])).ToArray();
+            && "BAPD".Contains(cells[0][0]) && char.IsAsciiDigit(cells[0][1])).ToArray();
 
         var parsed = new PdfEstimateDocumentParser().Parse(bytes);
         Assert.Equal(RepairSpecificationSourceRoute.Glasses, parsed.Route);
@@ -99,7 +140,7 @@ public sealed class GlassEstimatePdfParserTests
         for (var index = 0; index < expected.Length; index++)
         {
             var source = expected[index]; var actual = parsed.Lines[index];
-            var section = source[0][0] switch { 'B' => "body", 'A' => "auxiliary", _ => "paint" };
+            var section = source[0][0] switch { 'B' => "body", 'A' => "auxiliary", 'D' => "additional", _ => "paint" };
             var ordinal = int.Parse(source[0].AsSpan(1), CultureInfo.InvariantCulture);
             Assert.Equal($"{section}:p{source[1]}:r{ordinal}:{Blank(source[3])}", actual.SourceRowIdentity);
             Assert.Equal(source[5], actual.Description);
@@ -172,6 +213,26 @@ public sealed class GlassEstimatePdfParserTests
         }
         if (identity == "LG73ZCJ")
             Assert.Equal("Panel repair sundries (including body fi", bySource["A40"].Description);
+        if (identity == "LO72XPW")
+        {
+            // 10 work units to the hour: the set-up time row prints 2.00 and is 0.20 h,
+            // and every time that leaves the reader is in hours.
+            Assert.Equal(2.00m, bySource["B01"].WorkUnits);
+            Assert.Equal("specialist_wu", bySource["D01"].Type);
+            Assert.Equal(0.20m, bySource["D01"].WorkUnits);
+            Assert.Equal(0.70m, bySource["P01"].PaintWorkUnits);
+            Assert.Equal("paint_blend", bySource["P01"].Type);
+            Assert.Equal(15.00m, parsed.SourceTotals.PanelWorkUnits);
+            Assert.Equal(5.50m, parsed.SourceTotals.PaintWorkUnits);
+        }
+        if (identity == "KV20VEH")
+        {
+            // 12 work units to the hour; the plastic parts' level 5 prints as B (blend).
+            Assert.Equal(1.20m, bySource["B01"].WorkUnits);
+            Assert.Equal("paint_blend", bySource["P01"].Type);
+            Assert.Equal(55.50m, parsed.SourceTotals.PanelWorkUnits);
+            Assert.Equal(13.10m, parsed.SourceTotals.PaintWorkUnits);
+        }
     }
 
     /// <summary>
@@ -421,30 +482,52 @@ public sealed class GlassEstimatePdfParserTests
     [InlineData("K", "4", "K1G", "paint_new")]
     [InlineData("K", "0", "K2", "paint_repair")]
     public void BothGlassesReadersLandTheSameRowsAsTheSameLines(
-        string materialKind, string level, string printedLevel, string expectedPaintType)
+        string materialKind, string level, string printedLevel, string expectedPaintType) =>
+        LandTheSameRowsOnBothRoutes(materialKind, level, printedLevel, expectedPaintType, unitsPerHour: 1);
+
+    /// <summary>
+    /// The same rows at 10 work units to the hour: the export's <c>TimeUnit</c>
+    /// and the sheet's <c>Labour time unit</c> both say so, every time is
+    /// printed in work units, and both routes land the same hours.
+    /// </summary>
+    [Theory]
+    [InlineData("B", "4", "B", "paint_blend")]
+    [InlineData("K", "5", "B", "paint_blend")]
+    public void BothGlassesReadersLandTheSameWorkUnitRowsAsTheSameLines(
+        string materialKind, string level, string printedLevel, string expectedPaintType) =>
+        LandTheSameRowsOnBothRoutes(materialKind, level, printedLevel, expectedPaintType, unitsPerHour: 10);
+
+    private static void LandTheSameRowsOnBothRoutes(
+        string materialKind, string level, string printedLevel, string expectedPaintType, int unitsPerHour)
     {
+        string Printed(decimal hours) =>
+            (hours * unitsPerHour).ToString("0.00", CultureInfo.InvariantCulture);
         var sheet = GlassEstimatePdfParser.Parse(Sheet(
-            [new SectionRows("Body", new SheetRow("1001", "Body panel", "RP", 1.00m, 80.00m, 100.00m))],
-            [new PaintRow("Paint row", "200", printedLevel, 1.00m, 50.00m),
-             new PaintRow("Surcharge scratch-resistant clear coat", null, null, 0.10m, 0.00m),
-             new PaintRow("First Colour/Clear tinted coat", null, null, 0.20m, 10.00m)],
-            [new SheetRow("", "Set-up time", "EC", 0.20m, 16.00m, 0.00m)],
+            [new SectionRows("Body", new SheetRow("1001", "Body panel", "RP", 1.00m * unitsPerHour, 80.00m, 100.00m))],
+            [new PaintRow("Paint row", "200", printedLevel, 1.00m * unitsPerHour, 50.00m, PrintedLabour: 80.00m),
+             new PaintRow("Surcharge scratch-resistant clear coat", null, null, 0.10m * unitsPerHour, 0.00m,
+                 PrintedLabour: 8.00m),
+             new PaintRow("First Colour/Clear tinted coat", null, null, 0.20m * unitsPerHour, 10.00m,
+                 PrintedLabour: 16.00m)],
+            [new SheetRow("", "Set-up time", "EC", 0.20m * unitsPerHour, 16.00m, 0.00m)],
             [new PartRow("Body panel", "PN1234", 100.00m)],
-            [new PositionRow("Body panel", "1001")]));
+            [new PositionRow("Body panel", "1001")],
+            unit: unitsPerHour == 1 ? "1 Hour" : unitsPerHour.ToString(CultureInfo.InvariantCulture) + " WU"));
         var export = GlassEstimateXmlParser.Read(Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml(
+            timeUnit: unitsPerHour == 1 ? "60" : unitsPerHour.ToString(CultureInfo.InvariantCulture),
             positions: string.Concat(
                 GlassEstimateXmlParserTests.GlassExport.Position(
-                    "Part_SparePart", "Replace", "Body panel", price: "100.00", time: "1.00", materialCode: "1001"),
+                    "Part_SparePart", "Replace", "Body panel", price: "100.00", time: Printed(1.00m), materialCode: "1001"),
                 GlassEstimateXmlParserTests.GlassExport.Position(
-                    "Paint_Part", "Replace", "Paint row", price: "50.00", time: "1.00",
+                    "Paint_Part", "Replace", "Paint row", price: "50.00", time: Printed(1.00m),
                     paintMatKind: materialKind, paintLevel: level),
                 GlassEstimateXmlParserTests.GlassExport.Position(
                     "Paint_PreparationScratchResistantClearCoatWork", "Replace",
-                    "Surcharge scratch-resistant clear coat", time: "0.10"),
+                    "Surcharge scratch-resistant clear coat", time: Printed(0.10m)),
                 GlassEstimateXmlParserTests.GlassExport.Position(
-                    "Paint_ClearVarnish", "Replace", "First Colour/Clear tinted coat", price: "10.00", time: "0.20"),
+                    "Paint_ClearVarnish", "Replace", "First Colour/Clear tinted coat", price: "10.00", time: Printed(0.20m)),
                 GlassEstimateXmlParserTests.GlassExport.Position(
-                    "Part_SetUpTime", "Extra costs", "Set-up time", time: "0.20", materialCode: "20")),
+                    "Part_SetUpTime", "Extra costs", "Set-up time", time: Printed(0.20m), materialCode: "20")),
             netTotal: "360.00", vatMaterial: "72.00", grossTotal: "432.00"))).Estimate;
 
         string[] expected = ["new_part", expectedPaintType, "paint_prep", "paint_prep", "specialist_wu"];
@@ -452,6 +535,9 @@ public sealed class GlassEstimatePdfParserTests
         Assert.Equal(expected, export.Lines.Select(line => line.Type));
         Assert.Equal(360.00m, sheet.SourceTotals!.Net);
         Assert.Equal(sheet.SourceTotals.Net, export.SourceTotals!.Net);
+        // The same hours on both routes, whatever the unit the document counts in.
+        Assert.Equal(export.Lines.Select(line => line.WorkUnits), sheet.Lines.Select(line => line.WorkUnits));
+        Assert.Equal(export.Lines.Select(line => line.PaintWorkUnits), sheet.Lines.Select(line => line.PaintWorkUnits));
     }
 
     private static string? Blank(string value) => value == "-" ? null : value;
@@ -468,9 +554,9 @@ public sealed class GlassEstimatePdfParserTests
     /// <summary>One paint row at the Glass's rate of 80.00 an hour.</summary>
     private sealed record PaintRow(
         string Description, string? Type, string? Level, decimal Hours, decimal Material,
-        string? Flag = null, string? Annotation = null)
+        string? Flag = null, string? Annotation = null, decimal? PrintedLabour = null)
     {
-        public decimal Labour => Hours * 80m;
+        public decimal Labour => PrintedLabour ?? Hours * 80m;
     }
 
     private sealed record PartRow(string Name, string Number, decimal Amount, bool Glued = false);
@@ -503,7 +589,8 @@ public sealed class GlassEstimatePdfParserTests
     /// out and its cost including it, so a test varies one thing at a time.
     /// </summary>
     private static PdfEstimateDocumentParser.VisualRow[] Sheet(
-        SectionRows[] sections, PaintRow[] paint, SheetRow[] additional, PartRow[] parts, PositionRow[] positions)
+        SectionRows[] sections, PaintRow[] paint, SheetRow[] additional, PartRow[] parts, PositionRow[] positions,
+        string unit = "1 Hour")
     {
         List<PdfEstimateDocumentParser.VisualRow> rows = [];
         var y = 800d;
@@ -518,7 +605,7 @@ public sealed class GlassEstimatePdfParserTests
         Put((28, "VIN:"), (200, "TESTVIN1234567890"));
         Put((28, "Date:"), (200, "5.10.2026"));
         Put((28, "Database version:"), (200, "TEST"));
-        Put((28, "Labour time unit:"), (200, "1 Hour"));
+        Put((28, "Labour time unit:"), (200, unit));
         Put((28, "Currency:"), (200, "GBP"));
 
         decimal totalHours = 0, totalLabour = 0, totalMaterial = 0;
@@ -645,6 +732,64 @@ public sealed class GlassEstimatePdfParserTests
         [],
         [new PartRow(partName, "LR114261", 978.77m, Glued: true)],
         [new PositionRow("Windscreen (Heat Reflecting & Heated)", "768101", Glued: true)]);
+
+    /// <summary>
+    /// Body, Paint and Additional costs at the Glass's rate of 83.28 an hour,
+    /// every printed time a count of work units, and a VIN line printed with
+    /// nothing after it (the EVA sheets). At ten units to the hour the body
+    /// row is 2.00 h, the paint row 0.30 h and the set-up time 0.20 h.
+    /// </summary>
+    private static PdfEstimateDocumentParser.VisualRow[] WorkUnitDocument(string unit) =>
+    [
+        new(1, 760, [new(28, "Vehicle Registration Number:"), new(200, "AB12 CDE")], "Vehicle Registration Number: AB12 CDE"),
+        new(1, 750, [new(28, "VIN:")], "VIN:"),
+        new(1, 740, [new(28, "Date:"), new(200, "5.10.2026")], "Date: 5.10.2026"),
+        new(1, 730, [new(28, "Database version:"), new(200, "TEST")], "Database version: TEST"),
+        new(1, 720, [new(28, "Labour time unit:"), new(200, unit)], $"Labour time unit: {unit}"),
+        new(1, 710, [new(28, "Currency:"), new(200, "GBP")], "Currency: GBP"),
+
+        new(1, 690, [new(28, "Body"), new(359, "Overlap-time")], "Body Overlap-time"),
+        new(1, 680, [new(28, "NN"), new(92, "Rear Bumper Lining"), new(247, "R"), new(318, "20.00"),
+            new(467, "166.56"), new(526, "0.00")], "NN Rear Bumper Lining R 20.00 166.56 0.00"),
+        new(1, 670, [new(28, "Labour costs"), new(465, "166.56")], "Labour costs 166.56"),
+        new(1, 660, [new(28, "Material costs"), new(530, "0.00")], "Material costs 0.00"),
+        new(1, 650, [new(28, "Total Body"), new(510, "166.56")], "Total Body 166.56"),
+
+        new(1, 630, [new(28, "Paint"), new(233, "Paint type"), new(304, "Paint level"), new(512, "Material")],
+            "Paint Paint type Paint level Material"),
+        new(1, 620, [new(302, "level"), new(375, "time"), new(521, "costs")], "level time costs"),
+        new(1, 610, [new(28, "Fuel Filler Lid (L)"), new(253, "200"), new(312, "B"), new(383, "3.00"),
+            new(457, "24.98"), new(527, "7.70")], "Fuel Filler Lid (L) 200 B 3.00 24.98 7.70"),
+        new(1, 600, [new(28, "Labour costs"), new(448, "24.98")], "Labour costs 24.98"),
+        new(1, 590, [new(28, "Material costs"), new(518, "7.70")], "Material costs 7.70"),
+        new(1, 580, [new(28, "Total Paint"), new(510, "32.68")], "Total Paint 32.68"),
+
+        new(1, 560, [new(28, "Additional costs"), new(359, "Overlap-time")], "Additional costs Overlap-time"),
+        new(1, 550, [new(28, "Set-up time"), new(247, "EC"), new(318, "2.00"), new(467, "16.66"), new(532, "0.00")],
+            "Set-up time EC 2.00 16.66 0.00"),
+        new(1, 540, [new(28, "Labour costs"), new(465, "16.66")], "Labour costs 16.66"),
+        new(1, 530, [new(28, "Material costs"), new(530, "0.00")], "Material costs 0.00"),
+        new(1, 520, [new(28, "Total Additional costs"), new(526, "16.66")], "Total Additional costs 16.66"),
+
+        new(1, 500, [new(28, "Summary"), new(230, "Labour rate")], "Summary Labour rate"),
+        new(1, 490, [new(28, "Body"), new(249, "83.28"), new(395, "20.00"), new(454, "166.56"), new(515, "0.00")],
+            "Body 83.28 20.00 166.56 0.00"),
+        new(1, 480, [new(28, "Paint"), new(249, "83.28"), new(395, "3.00"), new(454, "24.98"), new(515, "7.70")],
+            "Paint 83.28 3.00 24.98 7.70"),
+        new(1, 470, [new(28, "Additional costs"), new(459, "16.66"), new(535, "0.00")], "Additional costs 16.66 0.00"),
+        new(1, 460, [new(28, "Total Labour"), new(387, "23.00"), new(441, "208.20")], "Total Labour 23.00 208.20"),
+        new(1, 450, [new(28, "Total Material"), new(511, "7.70")], "Total Material 7.70"),
+        new(1, 440, [new(28, "Repair costs excl. VAT"), new(511, "215.90")], "Repair costs excl. VAT 215.90"),
+        new(1, 430, [new(28, "VAT"), new(49, "(20.00"), new(82, "%)"), new(515, "43.18")], "VAT (20.00 %) 43.18"),
+        new(1, 420, [new(28, "Repair costs incl. VAT"), new(505.5, "259.08")], "Repair costs incl. VAT 259.08"),
+
+        new(1, 400, [new(28, "Part name"), new(205, "Part no."), new(334, "Previous part no."), new(478, "Material costs")],
+            "Part name Part no. Previous part no. Material costs"),
+        new(1, 390, [new(28, "Total Parts"), new(509.5, "0.00")], "Total Parts 0.00"),
+        new(1, 370, [new(28, "Part name"), new(205, "Position no.")], "Part name Position no."),
+        new(1, 360, [new(28, "Rear Bumper Lining")], "Rear Bumper Lining"),
+        new(1, 340, [new(28, "Abbreviations"), new(205, "Description")], "Abbreviations Description"),
+    ];
 
     private static PdfEstimateDocumentParser.VisualRow[] RoundingDocument(string firstPaintLabour) =>
     [

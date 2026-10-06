@@ -653,6 +653,7 @@ public sealed class GlassEstimateXmlParserTests
     [InlineData("K", "3", "paint_new")]
     [InlineData("K", "4", "paint_new")]
     [InlineData("K", "0", "paint_repair")]
+    [InlineData("K", "5", "paint_blend")]
     public void APaintRowsLevelChoosesItsLineType(string materialKind, string level, string expected)
     {
         foreach (var repairKind in new[] { "Replace", "Repair" })
@@ -767,15 +768,79 @@ public sealed class GlassEstimateXmlParserTests
                 "Part_SparePart", "Replace", "Wing", time: "0.50", overlapTime: "0.60"))));
 
     [Theory]
-    [InlineData("100")]
-    [InlineData("1")]
+    [InlineData("0")]
     [InlineData("")]
-    public void AnyTimeUnitButSixtyIsRefusedRatherThanGuessedAt(string timeUnit)
+    [InlineData("abc")]
+    [InlineData("-10")]
+    public void ATimeUnitThatIsNotAPositiveWholeNumberIsRefusedRatherThanGuessedAt(string timeUnit)
     {
         var rejected = Assert.Throws<EstimateParseRejectedException>(
             () => Parse(GlassExport.BuildXml(timeUnit: timeUnit)));
 
         Assert.Contains("time unit", rejected.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>TimeUnit</c> 60 is the Hour option: a stated time is hours. Any other
+    /// positive whole number N counts work units, N to the hour, so stated
+    /// time, overlap time and guide time are all divided by N (EVA's Glass's
+    /// profile prints 10 and 12).
+    /// </summary>
+    [Theory]
+    [InlineData("hour", "60", "1.10", "0.00", "1.10")]
+    [InlineData("tenths", "10", "20.00", "0.00", "2.00")]
+    [InlineData("twelfths", "12", "14.40", "0.00", "1.20")]
+    [InlineData("overlap", "10", "8.00", "5.00", "0.30")]
+    public void AStatedTimeIsConvertedToHoursByTheCalculationsTimeUnit(
+        string row, string timeUnit, string time, string overlapTime, string expectedHours)
+    {
+        var line = Assert.Single(Parse(GlassExport.BuildXml(
+            timeUnit: timeUnit,
+            positions: GlassExport.Position(
+                "Part_SparePart", "Repair", "Wing", time: time, overlapTime: overlapTime))).Lines);
+
+        Assert.True(
+            decimal.Parse(expectedHours, CultureInfo.InvariantCulture) == line.WorkUnits,
+            $"{row}: {time} at unit {timeUnit} is {expectedHours} h");
+    }
+
+    [Fact]
+    public void AModifiedTimeNoteAtAWorkUnitTimeUnitPrintsHoursAndNotWorkUnits()
+    {
+        var line = Assert.Single(Parse(GlassExport.BuildXml(
+            timeUnit: "10",
+            positions: GlassExport.Position(
+                "Part_SparePart", "Replace", "Front Bumper Lining", price: "560.47", time: "9.00",
+                guideTime: "3.00", timeMarker: true, reason: "Additional work (6.00): ..."))).Lines);
+
+        Assert.Equal(0.90m, line.WorkUnits);
+        Assert.Equal(
+            "Modified source value: time 0.90 h, guide 0.30 h. Additional work (6.00): ...",
+            line.Justification);
+    }
+
+    /// <summary>
+    /// A row's time and price annotations and the criteria Glass's marked
+    /// selected are its notes, in the sheet's own wording and order; an
+    /// unselected criterion and a blank annotation say nothing.
+    /// </summary>
+    [Fact]
+    public void ARowsAnnotationsAndSelectedCriteriaAreItsNotes()
+    {
+        var result = Parse(GlassExport.BuildXml(positions: string.Concat(
+            GlassExport.Position("Part_SparePart", "Replace", "Rear Bumper Lining", price: "94.61", time: "1.00",
+                timeAnnot: "Autovista opinion time   ", priceAnnot: "Last known price",
+                criteria: ["Surround Camera System", "with Footboard"], unselectedCriteria: ["Heated Seats"],
+                reason: "Additional work (0.40): ..."),
+            GlassExport.Position("Part_SparePart", "Repair", "Wing", time: "1.00",
+                timeAnnot: "", priceAnnot: "   ", unselectedCriteria: ["Heated Seats"]))));
+
+        Assert.Equal(
+            "Annotation (time): Autovista opinion time Annotation (price): Last known price "
+            + "Selected criteria: Surround Camera System Selected criteria: with Footboard "
+            + "Additional work (0.40): ...",
+            result.Lines[0].Justification);
+        Assert.Null(result.Lines[1].Justification);
     }
 
     [Fact]
@@ -932,7 +997,11 @@ public sealed class GlassEstimateXmlParserTests
             string reason = "",
             string paintMatKind = "",
             string paintLevel = "-1",
-            bool paintMatExtra = false) =>
+            bool paintMatExtra = false,
+            string timeAnnot = "",
+            string priceAnnot = "",
+            IEnumerable<string>? criteria = null,
+            IEnumerable<string>? unselectedCriteria = null) =>
             $"""
             <Position>
               <PosType>{posType}</PosType>
@@ -945,8 +1014,10 @@ public sealed class GlassEstimateXmlParserTests
               <Place>{place}</Place>
               <Price>{price}</Price>
               <EtgPrice>{guidePrice ?? price}</EtgPrice>
+              <PriceAnnot>{priceAnnot}</PriceAnnot>
               <Time>{time}</Time>
               <EtgTime>{guideTime ?? time}</EtgTime>
+              <TimeAnnot>{timeAnnot}</TimeAnnot>
               <OverlapTime>{overlapTime}</OverlapTime>
               <Reason>{reason}</Reason>
               <RepairKind>{repairKind}</RepairKind>
@@ -961,9 +1032,15 @@ public sealed class GlassEstimateXmlParserTests
               <PaintTreatment>0</PaintTreatment>
               <PaintMethod>0</PaintMethod>
               <OperationNr />
-              <OldForNewValue>0.00</OldForNewValue>
+              {CriteriaXml(criteria, true, materialCode)}{CriteriaXml(unselectedCriteria, false, materialCode)}<OldForNewValue>0.00</OldForNewValue>
             </Position>
             """;
+
+        /// <summary>A position's criteria children, in the shape of the real exports.</summary>
+        private static string CriteriaXml(IEnumerable<string>? texts, bool selected, string materialCode) =>
+            string.Concat((texts ?? []).Select((text, index) =>
+                $"<Criteria><Id>{index + 1}</Id><State>{(selected ? "true" : "false")}</State><Text>{text}</Text>"
+                + $"<Attr>Part</Attr><MCode>{materialCode}</MCode></Criteria>"));
 
         private static string DefaultAttachment { get; } =
             $"""
