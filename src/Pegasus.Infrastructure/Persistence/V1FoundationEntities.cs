@@ -52,6 +52,12 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public string? ReconciliationContinuation { get; set; }
 
     /// <summary>
+    /// What a report send recorded: staff's answers, the holds they ticked, a Stop they
+    /// overrode and the after-send list (ReportDispatchRecord). Null for other purposes.
+    /// </summary>
+    public string? ReportDispatchJson { get; set; }
+
+    /// <summary>
     /// The tidy of the answered instruction after a confirmed report send (ADR-0063):
     /// null while due, then Moved, AlreadyMoved, MessageMissing or Failed (the third
     /// failed attempt).

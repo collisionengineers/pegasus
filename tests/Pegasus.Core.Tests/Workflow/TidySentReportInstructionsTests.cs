@@ -150,6 +150,43 @@ public sealed class TidySentReportInstructionsTests
         Assert.Empty(store.Recorded);
     }
 
+    /// <summary>
+    /// The mailbox asked Pegasus to wait: nothing was tried, so the candidate
+    /// keeps its attempts, and the rest of the batch is left for the next run.
+    /// </summary>
+    [Fact]
+    public async Task AThrottleStopsTheBatchAndRecordsNoAttemptForTheCandidate()
+    {
+        var store = new FakeStore(Candidate("msg-1"), Candidate("msg-2"));
+        var mover = new FakeMover { Parent = "inbox-id", DeletedItems = "deleted-id", ThrottleOnParentCall = 1 };
+
+        var result = await Use(store, mover).ExecuteAsync(10, WorkerActor);
+
+        Assert.Empty(store.Recorded);
+        Assert.Empty(mover.Moves);
+        Assert.Equal(1, mover.ParentCalls);
+        Assert.Equal(0, result.MovedCount);
+        Assert.Equal(0, result.FailedCount);
+    }
+
+    [Fact]
+    public async Task AThrottleOnALaterCandidateKeepsWhatWasAlreadyRecorded()
+    {
+        var first = Candidate("msg-1");
+        var store = new FakeStore(first, Candidate("msg-2"), Candidate("msg-3"));
+        var mover = new FakeMover { Parent = "inbox-id", DeletedItems = "deleted-id", ThrottleOnParentCall = 2 };
+
+        var result = await Use(store, mover).ExecuteAsync(10, WorkerActor);
+
+        var recorded = Assert.Single(store.Recorded);
+        Assert.Equal(first.OperationId, recorded.OperationId);
+        Assert.Equal(SentReportInstructionTidyOutcome.Moved, recorded.Outcome);
+        Assert.Equal("msg-1", Assert.Single(mover.Moves).ImmutableMessageId);
+        Assert.Equal(2, mover.ParentCalls);
+        Assert.Equal(1, result.MovedCount);
+        Assert.Equal(0, result.FailedCount);
+    }
+
     [Fact]
     public async Task OnlyTheSystemWorkerMayRunIt()
     {
@@ -226,6 +263,8 @@ public sealed class TidySentReportInstructionsTests
         public string DeletedItems { get; init; } = "deleted-id";
         public Exception? MoveFailure { get; init; }
         public bool FailOnlyFirstMove { get; init; }
+        public int? ThrottleOnParentCall { get; init; }
+        public int ParentCalls { get; private set; }
         public int ResolveCalls { get; private set; }
         public List<RetainedMailFolderMoveCoordinates> Moves { get; } = [];
 
@@ -242,8 +281,13 @@ public sealed class TidySentReportInstructionsTests
         }
 
         public Task<string?> GetParentFolderIdAsync(
-            string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
-            Task.FromResult(Parent);
+            string mailboxId, string immutableMessageId, CancellationToken cancellationToken)
+        {
+            ParentCalls++;
+            return ParentCalls == ThrottleOnParentCall
+                ? Task.FromException<string?>(new ApprovedSentSourceThrottledException(TimeSpan.FromSeconds(30)))
+                : Task.FromResult(Parent);
+        }
 
         public Task<string> ResolveDeletedItemsFolderIdAsync(
             string mailboxIdentity, CancellationToken cancellationToken)

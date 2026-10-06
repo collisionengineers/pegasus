@@ -275,12 +275,11 @@ public sealed class CaseViewsWebTests
         Assert.DoesNotContain(reports.Inspection!.Id.ToString("D"), auditReport, StringComparison.Ordinal);
         Assert.Contains($"{AuditReference} · </span>", ReportStatus(auditReport), StringComparison.Ordinal);
         Assert.Contains("data-send-report", auditReport, StringComparison.Ordinal);
-        // The delivery message is the Case report delivery template, rendered
-        // for staff to edit before Send report.
+        // The delivery message is the Case report delivery template (Report
+        // Sending SOP wording), rendered for staff to edit before Send report.
         Assert.Matches(
-            "<textarea[^>]*name=\"coveringMessage\"[^>]*data-report-message>[^<]*Kind regards\\s+Collision Engineers</textarea>",
+            "<textarea[^>]*name=\"coveringMessage\"[^>]*data-report-message>[^<]*Please see attached report and fee note\\.[^<]*Kind Regards</textarea>",
             auditReport);
-        Assert.Matches("<textarea[^>]*data-report-message>[^<]*Our reference: \\S+", auditReport);
         Assert.Contains(reports.Audit!.Id.ToString("D"), auditReport, StringComparison.Ordinal);
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
@@ -550,6 +549,90 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
+    /// Once Report sent is recorded, the Case's open tasks stand in the Next
+    /// action, oldest first, each a jump to Tasks, and Mark completed is
+    /// greyed with Core's one sentence there and in the Actions menu
+    /// (operator, 6 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task OpenTasksAreListedInTheNextActionAndGreyMarkCompletedOnceTheReportIsSent()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.PostReport,
+            SummaryCaseType = CaseType.Inspection,
+            AssignedEngineerId = Guid.NewGuid(),
+            ReportSentEvidence = SentEvidence(InspectionSentAtUtc)
+        };
+        Pegasus.Core.Tasks.CaseOpenTask[] openTasks =
+        [
+            new(Guid.NewGuid(), "Send the invoice to the Principal"),
+            new(Guid.NewGuid(), "Phone the claimant")
+        ];
+        var condition = Pegasus.Core.Tasks.CaseTaskRules.OpenTasksBlockTerminal;
+        using var host = new ReadingHost(store, services =>
+        {
+            Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId));
+            Substitute<ICaseReportSnapshotSource>(
+                services,
+                new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
+            Substitute<IGetCasePageFrame>(services, new PageFrameWithOpenTasks(store, openTasks));
+        });
+
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+
+        var next = NextAction(html);
+        Assert.Contains($"<span data-next-label>{Frame.MarkCompleted}</span>", next, StringComparison.Ordinal);
+        Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-open-tasks-condition=\"{condition}\">", next, StringComparison.Ordinal);
+        Assert.Contains("disabled aria-disabled=\"true\" data-next-mark-completed>", next, StringComparison.Ordinal);
+        var listStart = next.IndexOf("data-open-tasks>", StringComparison.Ordinal);
+        Assert.True(listStart >= 0, "The Next action must list the open tasks.");
+        var list = next[listStart..];
+        Assert.True(
+            list.IndexOf(openTasks[0].Description, StringComparison.Ordinal)
+                < list.IndexOf(openTasks[1].Description, StringComparison.Ordinal),
+            "The open tasks are listed oldest first.");
+        foreach (var task in openTasks)
+        {
+            Assert.Contains($"data-open-task=\"{task.Id:D}\"", list, StringComparison.Ordinal);
+            Assert.Contains(task.Description, list, StringComparison.Ordinal);
+        }
+        Assert.Equal(openTasks.Length, Occurrences(list, "data-section-jump=\"tasks\""));
+        Assert.Contains("section=tasks", list, StringComparison.Ordinal);
+        Assert.Contains("#section-tasks", list, StringComparison.Ordinal);
+
+        var bar = RecordBar(html);
+        Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-open-tasks-condition=\"{condition}\">", bar, StringComparison.Ordinal);
+        Assert.Contains("disabled aria-disabled=\"true\" data-mark-completed>", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"case-complete-dialog\"", bar, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A closed Case that still has an open task lists Archive greyed with the
+    /// same sentence (operator, 6 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task OpenTasksGreyArchive()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.PrincipalCancelled,
+            ReportSentEvidence = SentEvidence(InspectionSentAtUtc)
+        };
+        var condition = Pegasus.Core.Tasks.CaseTaskRules.OpenTasksBlockTerminal;
+        using var host = new ReadingHost(store, services =>
+            Substitute<IGetCasePageFrame>(
+                services,
+                new PageFrameWithOpenTasks(store, [new(Guid.NewGuid(), "Return the keys")])));
+
+        var bar = RecordBar(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
+
+        Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-open-tasks-condition=\"{condition}\">", bar, StringComparison.Ordinal);
+        Assert.Contains("disabled aria-disabled=\"true\" data-archive-case>", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"case-archive-dialog\"", bar, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Generate report posted from the Inspection view makes the Inspection
     /// report, lands back on the Inspection view with that report marked to
     /// open once, and the Next action there moves on to its delivery
@@ -759,6 +842,17 @@ public sealed class CaseViewsWebTests
             RegexOptions.CultureInvariant);
         Assert.True(chip.Success, "The ribbon's state chip is not rendered.");
         return chip.Groups["chip"].Value;
+    }
+
+    /// <summary>The store's page frame with the open tasks the frame reads once Report sent is recorded.</summary>
+    private sealed class PageFrameWithOpenTasks(
+        RecordingCaseDetailsStore store,
+        IReadOnlyList<Pegasus.Core.Tasks.CaseOpenTask> openTasks) : IGetCasePageFrame
+    {
+        public async Task<CasePageFrame?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken) =>
+            await ((IGetCasePageFrame)store).ExecuteAsync(query, cancellationToken) is { } frame
+                ? frame with { OpenTasks = openTasks }
+                : null;
     }
 
     /// <summary>A reading client with the recording store and any further substitutions.</summary>

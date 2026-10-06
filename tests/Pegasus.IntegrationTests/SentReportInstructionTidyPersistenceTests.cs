@@ -56,6 +56,31 @@ public sealed class SentReportInstructionTidyPersistenceTests
         Assert.Single(await Store(database).ListDueAsync(1, CancellationToken.None));
     }
 
+    /// <summary>
+    /// A mailbox an Administrator has withdrawn is never written to: a send
+    /// whose instruction is held in a mailbox that is not Approved is not due,
+    /// and is due again once the mailbox is.
+    /// </summary>
+    [Fact]
+    public async Task ASendWhoseMailboxIsNotApprovedIsNotDue()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        var operation = Operation(estate, SentAtUtc);
+        await AddAsync(database, operation);
+        var store = Store(database);
+
+        await database.ExecuteAsync(
+            $"UPDATE ApprovedMailboxes SET State = 'Disabled' WHERE Id = '{estate.MailboxId:D}'");
+
+        Assert.Empty(await store.ListDueAsync(10, CancellationToken.None));
+
+        await database.ExecuteAsync(
+            $"UPDATE ApprovedMailboxes SET State = 'Approved' WHERE Id = '{estate.MailboxId:D}'");
+
+        Assert.Equal(operation.Id, Assert.Single(await store.ListDueAsync(10, CancellationToken.None)).OperationId);
+    }
+
     [Fact]
     public async Task AMovedInstructionIsRecordedOnceWithItsHistoryAndNoLongerListed()
     {
@@ -236,7 +261,7 @@ public sealed class SentReportInstructionTidyPersistenceTests
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {SentAtUtc})");
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"TDY"}, {lineageId}, {true}, {0L})");
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, ReportSendingRulesJson, Version) VALUES ({principalId}, {organizationId}, {"TDY"}, {lineageId}, {true}, {EfOrganizationAdministration.DefaultReportSendingJson}, {0L})");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {1}, {"TDY260001"}, {"inspection"}, {"review"}, {"pending"}, {true}, {true}, {SentAtUtc}, {0L}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(db);

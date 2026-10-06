@@ -2634,7 +2634,7 @@ public sealed class CaseWorkflowPersistenceTests
         var denied = await Assert.ThrowsAsync<InvalidOperationException>(
             () => create.ExecuteAsync(request, default));
 
-        Assert.Contains("open case task", denied.Message, StringComparison.Ordinal);
+        Assert.Equal(CaseTaskRules.OpenTasksBlockTerminal, denied.Message);
         Assert.Equal(initialCaseCount, await harness.CountCasesAsync());
         Assert.Equal(initialQdosReferenceCount, await harness.CountQdosReferencesAsync());
         var unchanged = await harness.Store.GetAsync(harness.CaseId, default);
@@ -2709,19 +2709,21 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
 
-    private const string FrozenAfterSendTasks =
-        """["Send the figures to the garage","Authorise the garage"]""";
+    private static readonly string[] AfterSendTasks =
+        ["Send the figures to the garage", "Authorise the garage"];
 
     /// <summary>
-    /// Report sent creates the tasks the delivery froze (FRD-13, CASE-20) in the transaction
-    /// that records the Worker's automatic link: one open, unassigned task per description, with
-    /// a case_task_created event each. A replay of the link creates none more.
+    /// Report sent creates the tasks the send recorded (FRD-13, CASE-20) in the transaction
+    /// that records the Worker's automatic link of that send: one open, unassigned task per
+    /// description, with a case_task_created event each, in the name of the staff member who
+    /// sent the report. A replay of the link creates none more.
     /// </summary>
     [Fact]
-    public async Task AutoLinkCreatesTheDeliverysFrozenAfterSendTasksOnceAndAReplayCreatesNone()
+    public async Task AutoLinkCreatesTheSendsAfterSendTasksOnceInTheSendersNameAndAReplayCreatesNone()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var sender = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
@@ -2739,15 +2741,16 @@ public sealed class CaseWorkflowPersistenceTests
             "after-send-auto",
             harness.TimeProvider.GetUtcNow().AddMinutes(-2),
             harness.TimeProvider.GetUtcNow().AddMinutes(-1));
-        var generationId = await SeedFrozenReportSendAsync(
-            harness, staff, "immutable-item-after-send-auto", FrozenAfterSendTasks);
+        var send = await SeedReportSendAsync(
+            harness, sender, "immutable-item-after-send-auto", AfterSendTasks);
         var request = new AutoLinkReportEvidenceRequest(
             harness.CaseId,
             retained.EvidenceId,
             ActionActor.SystemWorker("approved-mailbox-sent-poll"),
             "auto-link-after-send-tasks",
             "Exact approved-mailbox Sent evidence and one authoritative Case identity",
-            generationId);
+            send.GenerationId,
+            send.OperationId);
         var sut = new AutoLinkReportEvidence(harness.Store);
 
         var first = await sut.ExecuteAsync(request, default);
@@ -2756,7 +2759,7 @@ public sealed class CaseWorkflowPersistenceTests
 
         Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, first.Disposition);
         Assert.Equal(
-            ["Send the figures to the garage", "Authorise the garage"],
+            AfterSendTasks,
             first.TasksCreated.Select(task => task.Description).ToArray());
         Assert.All(first.TasksCreated, task =>
         {
@@ -2779,23 +2782,154 @@ public sealed class CaseWorkflowPersistenceTests
             stored.Select(task => task.Id).Order().ToArray());
         var events = await context.CaseWorkflowEvents.AsNoTracking()
             .Where(item => item.CaseId == harness.CaseId && item.EventType == "case_task_created")
-            .Select(item => item.OperationKey)
             .ToListAsync();
         Assert.Equal(
             [$"{request.OperationKey}:task:0", $"{request.OperationKey}:task:1"],
-            events.Order(StringComparer.Ordinal).ToArray());
+            events.Select(item => item.OperationKey).Order(StringComparer.Ordinal).ToArray());
+        await AssertCreatedInTheSendersNameAsync(harness, events, first.TasksCreated, sender);
+    }
+
+    /// <summary>
+    /// The Worker's link is system work: it moves the Case's version on, with each task the
+    /// send recorded, and the member of staff editing the Case keeps their edit session.
+    /// </summary>
+    [Fact]
+    public async Task AutoLinkWithAfterSendTasksKeepsTheEditorsLease()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+            new ChangeCaseStateRequest(
+                harness.CaseId,
+                0,
+                staff,
+                "start-after-send-lease",
+                "Inspection work started",
+                (await harness.Store.ClaimAsync(
+                    new(harness.CaseId, 0, staff, "claim-start-after-send-lease"),
+                    default)).Token),
+            default);
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(3));
+        var retained = await RetainReportEvidenceAsync(
+            harness,
+            "after-send-lease",
+            harness.TimeProvider.GetUtcNow().AddMinutes(-2),
+            harness.TimeProvider.GetUtcNow().AddMinutes(-1));
+        var send = await SeedReportSendAsync(
+            harness, staff, "immutable-item-after-send-lease", AfterSendTasks);
+        var editing = await harness.Store.ClaimAsync(
+            new(harness.CaseId, started.Version, staff, "claim-edit-during-auto-link"),
+            default);
+
+        var linked = await new AutoLinkReportEvidence(harness.Store).ExecuteAsync(
+            new(
+                harness.CaseId,
+                retained.EvidenceId,
+                ActionActor.SystemWorker("approved-mailbox-sent-poll"),
+                "auto-link-during-edit",
+                "Exact approved-mailbox Sent evidence and one authoritative Case identity",
+                send.GenerationId,
+                send.OperationId),
+            default);
+
+        Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, linked.Disposition);
+        Assert.Equal(2, linked.TasksCreated.Count);
+        Assert.Equal(started.Version + 3, linked.Link?.Version);
+        var header = await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, staff), default);
+        Assert.Equal(staff.SubjectId, header?.ActiveEditLease?.Holder);
+        var stillHeld = await harness.Store.HeartbeatAsync(
+            new(harness.CaseId, staff, editing.Token),
+            default);
+        Assert.Equal(staff.SubjectId, stillHeld.Holder);
+    }
+
+    /// <summary>
+    /// The Worker's link of a Sent item it did not match to a Pegasus send creates no task,
+    /// even when a report send of the Case recorded a list.
+    /// </summary>
+    [Fact]
+    public async Task AutoLinkWithoutASendOperationCreatesNoTasks()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+            new ChangeCaseStateRequest(
+                harness.CaseId,
+                0,
+                staff,
+                "start-after-send-none",
+                "Inspection work started",
+                (await harness.Store.ClaimAsync(
+                    new(harness.CaseId, 0, staff, "claim-start-after-send-none"),
+                    default)).Token),
+            default);
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(3));
+        var retained = await RetainReportEvidenceAsync(
+            harness,
+            "after-send-none",
+            harness.TimeProvider.GetUtcNow().AddMinutes(-2),
+            harness.TimeProvider.GetUtcNow().AddMinutes(-1));
+        await SeedReportSendAsync(harness, staff, "immutable-item-after-send-none", AfterSendTasks);
+
+        var linked = await new AutoLinkReportEvidence(harness.Store).ExecuteAsync(
+            new(
+                harness.CaseId,
+                retained.EvidenceId,
+                ActionActor.SystemWorker("approved-mailbox-sent-poll"),
+                "auto-link-without-send",
+                "Exact approved-mailbox Sent evidence and one authoritative Case identity"),
+            default);
+
+        Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, linked.Disposition);
+        Assert.Empty(linked.TasksCreated);
+        Assert.Equal(started.Version + 1, linked.Link?.Version);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.False(await context.CaseTasks.AnyAsync(task => task.CaseId == harness.CaseId));
+    }
+
+    /// <summary>
+    /// Each task's creation event, in the Case's workflow and in the action history, names
+    /// the staff member who sent the report, not whoever recorded the link.
+    /// </summary>
+    private static async Task AssertCreatedInTheSendersNameAsync(
+        WorkflowHarness harness,
+        IReadOnlyList<CaseWorkflowEventEntity> events,
+        IReadOnlyList<CaseTaskRecord> tasks,
+        ActionActor sender)
+    {
+        Assert.All(events, item =>
+        {
+            Assert.Equal(nameof(ActorKind.Staff), item.ActorKind);
+            Assert.Equal(sender.SubjectId, item.ActorSubjectId);
+            Assert.Equal(CaseTaskReasons.ReportSent, item.Reason);
+        });
+        var taskIds = tasks.Select(task => task.Id.ToString("D")).ToArray();
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var history = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "case_task"
+                && item.EventKind == "case_task_created"
+                && taskIds.Contains(item.AggregateId))
+            .ToListAsync();
+        Assert.Equal(tasks.Count, history.Count);
+        Assert.All(history, item =>
+        {
+            Assert.Equal(nameof(ActorKind.Staff), item.ActorKind);
+            Assert.Equal(sender.SubjectId, item.ActorSubjectId);
+        });
     }
 
     /// <summary>
     /// Staff Mark report sent creates the same tasks when the linked Sent item is a Pegasus report
     /// send, resolved from the Sent staff-mail operation that observed it, and reports them in the
-    /// result; the same link again creates none more.
+    /// result. The tasks are in the name of the staff member who sent the report, not the one who
+    /// marked it sent; the same link again creates none more.
     /// </summary>
     [Fact]
-    public async Task StaffMarkReportSentCreatesTheFrozenTasksOfAPegasusReportSendOnce()
+    public async Task StaffMarkReportSentCreatesTheSendsTasksOnceInTheSendersName()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var sender = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
@@ -2813,8 +2947,8 @@ public sealed class CaseWorkflowPersistenceTests
             "after-send-staff",
             harness.TimeProvider.GetUtcNow().AddMinutes(-2),
             harness.TimeProvider.GetUtcNow().AddMinutes(-1));
-        await SeedFrozenReportSendAsync(
-            harness, staff, "immutable-item-after-send-staff", FrozenAfterSendTasks);
+        await SeedReportSendAsync(
+            harness, sender, "immutable-item-after-send-staff", AfterSendTasks);
         var link = new LinkReportEvidence(harness.Store);
         var request = new LinkReportEvidenceRequest(
             harness.CaseId,
@@ -2832,15 +2966,23 @@ public sealed class CaseWorkflowPersistenceTests
 
         Assert.Equal(CaseLifecycleState.PostReport, first.Workflow.State);
         Assert.Equal(
-            ["Send the figures to the garage", "Authorise the garage"],
+            AfterSendTasks,
             first.TasksCreated.Select(task => task.Description).ToArray());
+        Assert.All(first.TasksCreated, task =>
+        {
+            Assert.Equal(CaseTaskState.Open, task.State);
+            Assert.Null(task.AssigneeId);
+        });
+        // The link moves the Case's version on once and each task once more.
+        Assert.Equal(started.Version + 3, first.Workflow.Version);
         Assert.Empty(replay.TasksCreated);
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(2, await context.CaseTasks.CountAsync(task => task.CaseId == harness.CaseId));
-        Assert.Equal(
-            2,
-            await context.CaseWorkflowEvents.CountAsync(item =>
-                item.CaseId == harness.CaseId && item.EventType == "case_task_created"));
+        var events = await context.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == harness.CaseId && item.EventType == "case_task_created")
+            .ToListAsync();
+        Assert.Equal(2, events.Count);
+        await AssertCreatedInTheSendersNameAsync(harness, events, first.TasksCreated, sender);
     }
 
     /// <summary>
@@ -2869,9 +3011,9 @@ public sealed class CaseWorkflowPersistenceTests
             "after-send-foreign",
             harness.TimeProvider.GetUtcNow().AddMinutes(-2),
             harness.TimeProvider.GetUtcNow().AddMinutes(-1));
-        // A Pegasus send of this Case froze a list, but a different Sent item carried it.
-        await SeedFrozenReportSendAsync(
-            harness, staff, "immutable-item-someone-else", FrozenAfterSendTasks);
+        // A Pegasus send of this Case recorded a list, but a different Sent item carried it.
+        await SeedReportSendAsync(
+            harness, staff, "immutable-item-someone-else", AfterSendTasks);
 
         var linked = await new LinkReportEvidence(harness.Store).ExecuteAsync(
             new(
@@ -2894,19 +3036,22 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// A Pegasus report send of the Case: its report generation, the delivery intent that froze
-    /// <paramref name="afterSendTasksJson"/> when it was prepared, and the Sent staff-mail operation
-    /// that observed the Sent item <paramref name="immutableItemIdentity"/>. Returns the generation.
+    /// A Pegasus report send of the Case by <paramref name="sender"/>: its report generation, the
+    /// Sent CaseReport staff-mail operation that observed the Sent item
+    /// <paramref name="immutableItemIdentity"/> and recorded <paramref name="afterSendTasks"/> in
+    /// its report dispatch, and the operation's staff-mail-prepared history row, which records the
+    /// sender's role. Returns the generation and the operation.
     /// </summary>
-    private static async Task<Guid> SeedFrozenReportSendAsync(
+    private static async Task<(Guid GenerationId, Guid OperationId)> SeedReportSendAsync(
         WorkflowHarness harness,
-        ActionActor staff,
+        ActionActor sender,
         string immutableItemIdentity,
-        string? afterSendTasksJson)
+        IReadOnlyList<string> afterSendTasks)
     {
         var now = harness.TimeProvider.GetUtcNow();
         var generationId = Guid.NewGuid();
-        var intentId = Guid.NewGuid();
+        var operationId = Guid.NewGuid();
+        var operationKey = $"send-report-{operationId:N}";
         await using var context = await harness.Factory.CreateDbContextAsync();
         context.Set<CaseReportGenerationEntity>().Add(new()
         {
@@ -2922,26 +3067,13 @@ public sealed class CaseWorkflowPersistenceTests
             GeneratedAtUtc = now.AddMinutes(-10),
             Version = 1
         });
-        context.Set<CaseReportDeliveryIntentEntity>().Add(new()
-        {
-            Id = intentId,
-            GenerationId = generationId,
-            GenerationVersion = 1,
-            PayloadJson = "{}",
-            PayloadHash = new string('c', 64),
-            ActorSubjectId = staff.SubjectId,
-            PreparedAtUtc = now.AddMinutes(-5),
-            OperationKey = $"prepare-{intentId:N}",
-            Version = 1,
-            ConcurrencyToken = Guid.NewGuid()
-        });
         context.Set<StaffMailSendOperationEntity>().Add(new()
         {
-            Id = Guid.NewGuid(),
-            ActorSubjectId = staff.SubjectId,
+            Id = operationId,
+            ActorSubjectId = sender.SubjectId,
             MailboxId = Guid.NewGuid(),
             MailboxGeneration = 1,
-            OperationKey = intentId.ToString("N"),
+            OperationKey = operationKey,
             PayloadHash = new string('d', 64),
             Purpose = Pegasus.Core.Operations.StaffMailPurpose.CaseReport,
             ContextId = generationId,
@@ -2953,20 +3085,35 @@ public sealed class CaseWorkflowPersistenceTests
             AttachmentsJson = "[]",
             State = Pegasus.Core.Operations.StaffMailState.Sent,
             AttemptStage = Pegasus.Core.Operations.StaffMailAttemptStage.ObserveSent,
-            CorrelationMarker = $"marker-{intentId:N}",
+            CorrelationMarker = $"marker-{operationId:N}",
             CreatedAtUtc = now.AddMinutes(-4),
             RequestedAtUtc = now.AddMinutes(-4),
             ObservedSentImmutableMessageId = immutableItemIdentity,
             ProviderSentAtUtc = now.AddMinutes(-2),
             ObservedSentAtUtc = now.AddMinutes(-1),
+            // What the send recorded, as the staff-mail store writes it.
+            ReportDispatchJson = System.Text.Json.JsonSerializer.Serialize(
+                new Pegasus.Core.Reports.ReportDispatchRecord([], [], null, null, afterSendTasks),
+                System.Text.Json.JsonSerializerOptions.Web),
             Version = 3,
             ConcurrencyToken = Guid.NewGuid()
         });
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "StaffMailSend",
+            AggregateId = operationId.ToString("D"),
+            EventKind = "staff-mail-prepared",
+            ActorKind = sender.Kind.ToString(),
+            ActorSubjectId = sender.SubjectId,
+            ActorRolesJson = System.Text.Json.JsonSerializer.Serialize(
+                sender.Roles.Select(role => role.ToString()).Order(StringComparer.Ordinal)),
+            OccurredAtUtc = now.AddMinutes(-4),
+            Outcome = "succeeded",
+            CorrelationId = operationKey
+        });
         await context.SaveChangesAsync();
-        // The frozen list is the delivery intent's AfterSendTasksJson column.
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE [CaseReportDeliveryIntents] SET [AfterSendTasksJson] = {afterSendTasksJson} WHERE [Id] = {intentId}");
-        return generationId;
+        return (generationId, operationId);
     }
 
     private static Task<RetainedApprovedMailboxReportSentEvidence> RetainReportEvidenceAsync(
@@ -3233,7 +3380,7 @@ public sealed class CaseWorkflowPersistenceTests
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({tstLineageId}, {StartUtc})");
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"TST"}, {tstLineageId}, {true}, {0L})");
+                    $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, ReportSendingRulesJson, Version) VALUES ({principalId}, {organizationId}, {"TST"}, {tstLineageId}, {true}, {EfOrganizationAdministration.DefaultReportSendingJson}, {0L})");
                 var engineerRoleId = await context.Roles
                     .Where(role => role.NormalizedName == "ENGINEER")
                     .Select(role => role.Id)

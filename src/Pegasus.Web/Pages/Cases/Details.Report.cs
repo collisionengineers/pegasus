@@ -151,7 +151,9 @@ public sealed partial class DetailsModel
         CurrentReportGeneration?.Snapshot.CaseReference ?? Case?.Summary.Reference ?? "—",
         Case?.Summary.Registration,
         RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
-        ReportSendHistory.SentCount) + ".pdf";
+        ReportSendHistory.SentCount,
+        // The Principal's own name for its reports, when its rules set one.
+        DeliveryRecipientSuggestions?.Rules.AttachmentName) + ".pdf";
 
     /// <summary>
     /// The Case report delivery template rendered for this Case, for staff to
@@ -176,7 +178,8 @@ public sealed partial class DetailsModel
             Case?.Summary.Registration,
             RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
             DeliveryRecipientSuggestions?.PrincipalName,
-            ReportSendHistory);
+            ReportSendHistory,
+            DeliveryDispatchPlan?.Greeting);
         return await renderEmailTemplate.ExecuteAsync(
             actor,
             EmailTemplatePurpose.CaseReportDelivery,

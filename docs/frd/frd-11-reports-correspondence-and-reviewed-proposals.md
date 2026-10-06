@@ -267,7 +267,9 @@ separately addressable artifact in custody:
   own, in the report's page style. A Case whose report uses no image has no
   pack to generate.
 
-A delivery attaches the documents the operator chose. Without a choice every
+A delivery attaches the documents the operator chose. A Principal's report
+sending rules can also require companions and attach the Case's filed estimates
+([Report sending rules](#report-sending-rules)). Without a choice every
 artifact the generation holds attaches and a partly confirmed generation
 yields nothing; with a choice, exactly the chosen documents must be present
 and confirmed, so a companion still being filed never silently drops out of a
@@ -290,14 +292,17 @@ a re-issue is distinguishable at a glance. Companion documents keep the names
 custody gave them. The delivery carries one covering message, which starts as
 the Case report delivery template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
-this Case: a first report has no "supersedes" line; a later one says plainly
-that it supersedes the report dated the day the superseded generation carried.
-Before Send report, staff read the message in an editable box and may
-change it. The text they submit is what is sent; it cannot be blank
-or longer than 5000 characters. Custody keeps its own name for the same bytes.
-A send is a staff send that actually left the approved mailbox. The subject
-stays the Case or Audit reference. A send the mailbox provider refuses is
-shown as a failed send.
+this Case. Its built-in body is the Report Sending SOP wording: it greets with
+"morning" before noon in London and "afternoon" after, and says "Please see
+attached report and fee note", since every report ends with its fee note. A
+saved template may still name the date of the report it supersedes, which a
+first send leaves out. Before Send report, staff read the message in an
+editable box and may change it. The text they submit is what is sent; it cannot
+be blank or longer than 5000 characters. Custody keeps its own name for the same
+bytes. A send is a staff send that actually left the approved mailbox. A reply
+keeps "Re:" the instruction's subject; a new message is "{REG} Report"
+([Report sending rules](#report-sending-rules)). A send the mailbox provider
+refuses is shown as a failed send.
 
 **Report and fee note.** Every report ends with its fee note: one file under
 the report's name, the fee note's pages last (operator, 6 October 2026). The
@@ -338,15 +343,92 @@ generations in the same transaction. Report outputs are not report inputs
 and do not invalidate their own generation. Other retained files stay source
 evidence whatever their transport label.
 
-**Recipients.** A delivery needs current addressing. Principal
-recipient settings can include the original instruction sender and any
-number of extra addresses. The original sender comes from the originating
-instruction, never the latest reply; an unresolved sender adds no invented
-address. Claim Source is never copied implicitly. The settings only suggest:
-the human staff member sending the report may edit To and Cc, and what they
-submit is what the delivery is addressed to.
+**Recipients.** A delivery needs current addressing. It is planned from the
+Principal's report sending rules, in the order of Report Sending SOP rule R12.
+
+1. To is the Principal's fixed addresses when it has any, else the original
+   instruction sender.
+2. Cc starts as the instruction's own Cc list, unless the Principal turns that
+   off, then the Principal's Cc addresses, then the Cc of each rule that holds.
+3. A Principal set to send only to its fixed addresses has no Cc at all.
+4. The addresses the Principal never copies, and the ones a rule removes, are
+   taken out. Removals always win: an address staff type into To or Cc is taken
+   out too, and the form says what was removed and why.
+5. Duplicates are dropped without regard to case, and an address already in To
+   is not copied.
+
+Each address carries where it came from, such as Original sender, Instruction
+Cc, Principal Cc or "Rule 2: Claim Source Car 2 Go". The original sender comes
+from the originating instruction, never the latest reply; an unresolved sender
+adds no invented address. Claim Source is never copied implicitly. The plan
+only suggests: the human staff member sending the report may edit To and Cc,
+and what they submit is what the delivery is addressed to, less the removals.
 Every delivery still needs a staff-controlled send. Default report dates and
 displayed times use Europe/London.
+
+### Report sending rules
+
+Every Principal has report sending rules (set on the Principal contact, see
+[FRD-17](frd-17-administration-workspace.md); supplied as Report Sending SOP
+v5). One Core plan reads them with the Case's facts. The page makes the plan
+when it loads, and Send report makes it again with staff's answers and follows
+it. Everything below is answered on the one delivery form, in the same click
+as Send report.
+
+- **Mode.** When the Case holds its instruction e-mail in an approved mailbox,
+  the report is a reply in that thread, sent from the mailbox that holds it.
+  Otherwise the report is a new message from the Principal's send-from mailbox,
+  or from the default staff-send mailbox when the Principal names none. An
+  uploaded e-mail sits in no mailbox, so it takes the new message route. The
+  sending mailbox must be Approved, identity bound and bound for staff send and
+  Sent evidence; otherwise the send is refused, naming the address.
+- **Rule conditions.** A rule's conditions read the Case's Claim Source,
+  Repairer, recorded outcome and the instruction's sender. A rule is true,
+  false or undecided. With All, any false condition makes it false, else any
+  undecided one leaves it undecided. With Any, any true condition makes it
+  true, else any undecided one leaves it undecided. A fact the Case has not set
+  leaves its condition undecided. "Instruction mentions" is searched for in the
+  instruction e-mail's subject and text, ignoring case and spaces, and is
+  undecided only when the Case holds no instruction text. "Images from" and
+  "Bodyshop mentions" have no Case fact, so they are always undecided.
+- **Questions.** Each undecided condition of an undecided rule is a Yes or No
+  question on the delivery form. An answer settles it for that send only, and
+  never overrides a fact the Case holds. Send report is refused until every
+  question is answered. A copy that an answer adds is sent to.
+- **Holds.** The Principal's hold and the hold of each rule that holds are
+  ticked Done on the form, and Core refuses the send otherwise. The send
+  records them.
+- **Stop.** A rule that holds can stop the delivery. Send report is refused
+  unless staff with casework give a reason to override it. The send records the
+  Stop and the reason. Nothing else is a Stop: a send with no To address or no
+  usable mailbox is simply refused until it has one.
+- **Required companions.** A Principal may require the images document, the
+  figure breakdown (the Repair Spec) or both. A required companion is ticked
+  and cannot be unticked, and Send report is withheld while it is not
+  generated. Generate offers it.
+- **Filed estimates.** A Principal that sends the Audatex attaches the Case's
+  recognised filed estimates in the Audatex format; one that sends the estimate
+  attaches the recognised ones in any other format. They are rechecked at send
+  like every other attachment. None filed is a warning, not a hold.
+- **Report images.** A Principal whose report carries no vehicle images has its
+  report generated without them
+  ([Report generation entry point](#report-generation-entry-point)); the images
+  document carries them.
+- **Fee note.** A Principal that expects a separate fee note has it ticked when
+  it is generated, and gets a warning when it is not.
+- **After sending.** The Principal's reminders, the reminders of each rule that
+  holds, and "Send the figures to the garage." for a repairable outcome when the
+  Principal asks for it are shown on the form and recorded with the send. They
+  become Case tasks when Report sent is recorded
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
+- **Name.** A Principal may set the report's name: one pattern for a first send
+  and one for every later send, using {ref}, {reg} and {outcome}. Without one,
+  the default naming above applies.
+- **Changes.** A send carries the rules and Case facts its form was drawn from.
+  If the Principal's rules or the Case's instruction changed since, the send is
+  refused and the form is read again.
+- **Other mail on the instruction.** A report send is never held up by another
+  unfinished message on the same instruction, and never holds one up.
 
 ### Report generation entry point
 

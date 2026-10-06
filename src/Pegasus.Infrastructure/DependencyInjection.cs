@@ -262,6 +262,7 @@ public static class DependencyInjection
         services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
         services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
+        services.AddScoped<IFiledEstimateAttachmentQueries, EfFiledEstimateAttachmentQueries>();
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.

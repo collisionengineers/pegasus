@@ -54,6 +54,46 @@ public sealed class EfCaseTaskStore(
         return tasks.Select(item => Map(item, caseVersion)).ToArray();
     }
 
+    /// <summary>
+    /// The Case's open tasks, oldest first, as the Next action lists them once Report sent is
+    /// recorded (operator, 6 October 2026). A task's age is its <c>case_task_created</c>
+    /// history entry; it is read inside the caller's context so the page frame pays one
+    /// connection for it.
+    /// </summary>
+    internal static async Task<IReadOnlyList<CaseOpenTask>> ReadOpenAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var open = await context.CaseTasks
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.State == nameof(CaseTaskState.Open))
+            .Select(item => new { item.Id, item.Description })
+            .ToArrayAsync(cancellationToken);
+        if (open.Length == 0)
+        {
+            return [];
+        }
+
+        var ids = open.Select(item => item.Id.ToString("D")).ToArray();
+        var created = await context.ActionHistory
+            .AsNoTracking()
+            .Where(item => item.AggregateType == "case_task"
+                && item.EventKind == "case_task_created"
+                && ids.Contains(item.AggregateId))
+            .Select(item => new { item.AggregateId, item.OccurredAtUtc })
+            .ToArrayAsync(cancellationToken);
+        var createdAt = created
+            .GroupBy(item => item.AggregateId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Min(item => item.OccurredAtUtc), StringComparer.Ordinal);
+        return open
+            .OrderBy(item => createdAt.TryGetValue(item.Id.ToString("D"), out var at) ? at : DateTimeOffset.MaxValue)
+            .ThenBy(item => item.Id)
+            .Select(item => new CaseOpenTask(item.Id, item.Description))
+            .ToArray();
+    }
+
 
     public async Task<CaseTaskAssigneeStatus> GetAsync(
         Guid staffId,
@@ -240,7 +280,8 @@ public sealed class EfCaseTaskStore(
             Version = 0
         };
         context.CaseTasks.Add(task);
-        workflow.Version = checked(workflow.Version + 1);
+        // System work: the version moves on and an editor keeps their session.
+        CaseMutationGuard.Advance(workflow);
         var result = Map(task, workflow.Version);
         AddHistory(
             context,

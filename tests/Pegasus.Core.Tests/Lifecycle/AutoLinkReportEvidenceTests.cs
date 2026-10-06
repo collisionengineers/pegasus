@@ -129,6 +129,39 @@ public sealed class AutoLinkReportEvidenceTests
         Assert.Equal(task, Assert.Single(result.TasksCreated));
     }
 
+    /// <summary>
+    /// The Worker names the report send it matched, by its generation and
+    /// its own operation, whose recorded after-send list the store turns into
+    /// the Case's tasks; the use case hands both to the store unchanged.
+    /// </summary>
+    [Fact]
+    public async Task TheSendItMatchedReachesTheStoreWithTheRequest()
+    {
+        var caseId = Guid.NewGuid();
+        var evidenceId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var sendOperationId = Guid.NewGuid();
+        var store = new RecordingStore(new(
+            AutoLinkReportEvidenceDisposition.Linked,
+            new(caseId, evidenceId, CaseLifecycleState.PostReport, Version: 4),
+            NotLinkedReasonCode: null));
+
+        await new AutoLinkReportEvidence(store).ExecuteAsync(
+            new(
+                caseId,
+                evidenceId,
+                WorkerActor,
+                "report-auto-link-send",
+                "Exact approved-mailbox Sent evidence",
+                GenerationId: generationId,
+                SendOperationId: sendOperationId),
+            default);
+
+        var request = Assert.Single(store.Requests);
+        Assert.Equal(generationId, request.GenerationId);
+        Assert.Equal(sendOperationId, request.SendOperationId);
+    }
+
     [Fact]
     public async Task ALinkThatCreatedNoTasksReportsNone()
     {

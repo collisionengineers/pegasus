@@ -85,10 +85,15 @@ internal sealed class EfStaffMailSendStore(
             return Map(existing);
         }
 
-        if (command.OriginalMessage is { } activeOriginal
+        // A report send is never held up by another operation on the
+        // instruction, and never holds one up (operator, 6 October 2026):
+        // correspondence replies still wait for each other.
+        if (command.Purpose != StaffMailPurpose.CaseReport
+            && command.OriginalMessage is { } activeOriginal
             && await rows.AnyAsync(value =>
                 value.MailboxId == command.ApprovedMailboxId
                 && value.OriginalRetainedMessageId == activeOriginal.RetainedMessageId
+                && value.Purpose != StaffMailPurpose.CaseReport
                 && value.State != StaffMailState.Sent
                 && value.State != StaffMailState.Failed
                 && value.State != StaffMailState.Cancelled,
@@ -118,6 +123,9 @@ internal sealed class EfStaffMailSendStore(
             Subject = command.Subject,
             Body = command.Body,
             AttachmentsJson = JsonSerializer.Serialize(command.Attachments),
+            ReportDispatchJson = command.ReportDispatch is { } dispatch
+                ? JsonSerializer.Serialize(dispatch, ReportSnapshotJson)
+                : null,
             State = StaffMailState.Prepared,
             CorrelationMarker = $"x-pegasus-operation-id:{Guid.NewGuid():D}",
             CreatedAtUtc = nowUtc,
@@ -134,6 +142,27 @@ internal sealed class EfStaffMailSendStore(
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
+    }
+
+    /// <summary>
+    /// The roles the staff member held when they prepared the send, as its
+    /// <c>staff-mail-prepared</c> history row recorded them. Work the Worker
+    /// does in that person's name carries these.
+    /// </summary>
+    internal static async Task<HashSet<StaffRole>> PreparedRolesAsync(
+        PegasusDbContext db, Guid operationId, CancellationToken cancellationToken)
+    {
+        var aggregateId = operationId.ToString("D");
+        var preparedRoles = await db.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "StaffMailSend"
+                && item.AggregateId == aggregateId
+                && item.EventKind == "staff-mail-prepared")
+            .Select(item => item.ActorRolesJson)
+            .FirstOrDefaultAsync(cancellationToken);
+        return (preparedRoles is null ? [] : JsonSerializer.Deserialize<string[]>(preparedRoles) ?? [])
+            .Select(name => Enum.TryParse<StaffRole>(name, ignoreCase: false, out var role) ? (StaffRole?)role : null)
+            .OfType<StaffRole>()
+            .ToHashSet();
     }
 
     private static async Task AcquireTransactionLockAsync(
@@ -191,8 +220,11 @@ internal sealed class EfStaffMailSendStore(
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            // A report reply to the same message is the Case's own send, not
+            // this page's correspondence.
             .Where(value => value.ActorSubjectId == actorSubjectId
-                && value.OriginalRetainedMessageId == retainedMessageId)
+                && value.OriginalRetainedMessageId == retainedMessageId
+                && value.Purpose != StaffMailPurpose.CaseReport)
             .OrderBy(value => value.State == StaffMailState.Sent
                 || value.State == StaffMailState.Failed
                 || value.State == StaffMailState.Cancelled)
@@ -668,16 +700,7 @@ internal sealed class EfStaffMailSendStore(
         var target = ChaseTarget(recipients?.To?.Select(value => value.Address).ToArray() ?? []);
         // The Worker observes the send, so the chase carries the roles the
         // prepared send recorded; the Worker does not read the staff role tables.
-        var preparedRoles = await db.ActionHistory.AsNoTracking()
-            .Where(item => item.AggregateType == "StaffMailSend"
-                && item.AggregateId == mail.Id.ToString("D")
-                && item.EventKind == "staff-mail-prepared")
-            .Select(item => item.ActorRolesJson)
-            .FirstOrDefaultAsync(cancellationToken);
-        var roles = (preparedRoles is null ? [] : JsonSerializer.Deserialize<string[]>(preparedRoles) ?? [])
-            .Select(name => Enum.TryParse<StaffRole>(name, ignoreCase: false, out var role) ? (StaffRole?)role : null)
-            .OfType<StaffRole>()
-            .ToHashSet();
+        var roles = await PreparedRolesAsync(db, mail.Id, cancellationToken);
         var interval = (await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken)).ChaseIntervalDays;
         EfCaseWorkflowStore.ApplyChase(
             db,

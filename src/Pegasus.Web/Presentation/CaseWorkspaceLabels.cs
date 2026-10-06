@@ -858,8 +858,8 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
-    /// The Tasks section (FRD-16, CASE-20): what is still to do on the Case. Complete, Cancel
-    /// and Add task are edit-session actions with one fixed recorded reason each, so the
+    /// The Tasks section (FRD-16, CASE-20): what is still to do on the Case. Complete, Cancel,
+    /// Assign and Add task are edit-session actions with one fixed recorded reason each, so the
     /// section carries no reason box.
     /// </summary>
     public static class Tasks
@@ -876,14 +876,16 @@ public static class CaseWorkspaceLabels
         public const string Cancelled = "Cancelled";
         public const string Complete = "Complete";
         public const string Cancel = "Cancel task";
+        public const string Assign = "Assign";
         public const string NewTask = "New task";
         public const string AddTask = "Add task";
-        public const string StillToDo = "Still to do";
         public const string CompletedNotice = "The task was completed.";
         public const string CancelledNotice = "The task was cancelled.";
+        public const string AssignedNotice = "The task was assigned.";
         public const string AddedNotice = "The task was added.";
         public const string CompleteReason = "Completed from the Tasks section";
         public const string CancelReason = "Cancelled from the Tasks section";
+        public const string AssignReason = "Assigned from the Tasks section";
         public const string AddReason = "Added from the Tasks section";
 
         public static string StateText(Pegasus.Core.Tasks.CaseTaskState state) => state switch
@@ -1097,6 +1099,52 @@ public static class CaseWorkspaceLabels
 
         public static string MessageRefused =>
             $"Enter the message, at most {Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength} characters.";
+
+        // The Principal's report sending rules, as the delivery form reads
+        // them (FRD-11 Report sending rules).
+        public static string AlreadySent(string when, string recipients) =>
+            string.IsNullOrWhiteSpace(recipients)
+                ? $"Already sent on {when}."
+                : $"Already sent on {when} to {recipients}.";
+
+        public static string FromReply(string address) =>
+            $"From {address} — reply in the instruction's thread";
+
+        public static string FromNewMessage(string address) =>
+            $"New message from {address} (no instruction e-mail on this Case)";
+
+        public const string From = "From";
+        public const string Stopped = "Stopped";
+        public const string OverrideReason = "Override reason";
+        public const string Questions = "Answer before sending";
+        public const string Yes = "Yes";
+        public const string No = "No";
+        public const string RequiredForPrincipal = "(required for this Principal)";
+        public const string FiledEstimate = "Filed estimate";
+        public const string AfterSending = "After sending";
+        public const string HoldDone = "Done";
+
+        public static string CcHint(IEnumerable<string> setBy, IEnumerable<string> removed)
+        {
+            var parts = new List<string>();
+            var by = setBy.Distinct(StringComparer.Ordinal).ToArray();
+            if (by.Length > 0)
+            {
+                parts.Add("Cc set by: " + string.Join("; ", by));
+            }
+            var gone = removed.ToArray();
+            if (gone.Length > 0)
+            {
+                parts.Add("removed: " + string.Join("; ", gone));
+            }
+            return string.Join("; ", parts);
+        }
+
+        public static string Removal(string address, string reason) =>
+            $"{address} ({reason})";
+
+        public static string MissingCompanion(string document) =>
+            $"The {document} this Principal requires has not been generated. Generate it, then send the report.";
 
         public const string SendReport = "Send report";
         public const string SendObservedSent = "The report send was observed as sent.";

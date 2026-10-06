@@ -769,10 +769,10 @@ public sealed class EfCaseWorkflowStore(
         cancellationToken,
         afterEvent: async (context, workflow, now) =>
         {
-            // Report sent creates the after-send tasks the delivery froze, when the linked
-            // Sent item is a Pegasus report send. The lease is bypassed on purpose: they are a
-            // consequence of the recorded Sent item, which this transaction records.
-            var generationId = await ReportSentAfterSendTasks.GenerationOfSentEvidenceAsync(
+            // Report sent creates the after-send tasks the send recorded, when the linked
+            // Sent item is a Pegasus report send. They are a consequence of the recorded
+            // Sent item, which this transaction records.
+            var send = await ReportSentAfterSendTasks.SendOfSentEvidenceAsync(
                 context,
                 workflow.CaseId,
                 request.EvidenceId,
@@ -780,7 +780,7 @@ public sealed class EfCaseWorkflowStore(
             tasksCreated = await ReportSentAfterSendTasks.AddAsync(
                 context,
                 workflow,
-                generationId,
+                send,
                 request.EvidenceId,
                 request.OperationKey,
                 request.Actor,
@@ -1389,12 +1389,14 @@ public sealed class EfCaseWorkflowStore(
             now,
             beforeJson,
             afterJson);
-        // Report sent creates the after-send tasks the delivery froze. The Worker holds no
+        // Report sent creates the after-send tasks the send recorded. The Worker holds no
         // lease, and the tasks are a consequence of the Sent item this transaction records.
         var tasksCreated = await ReportSentAfterSendTasks.AddAsync(
             context,
             workflow,
-            request.GenerationId,
+            request.SendOperationId is { } sendOperationId
+                ? await ReportSentAfterSendTasks.SendAsync(context, workflow.CaseId, sendOperationId, cancellationToken)
+                : null,
             request.EvidenceId,
             operationKey,
             request.Actor,

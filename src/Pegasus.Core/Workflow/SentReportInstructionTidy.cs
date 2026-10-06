@@ -97,10 +97,23 @@ public sealed class TidySentReportInstructions(
         var alreadyMoved = 0;
         var missing = 0;
         var failed = 0;
+        var examined = 0;
         foreach (var candidate in candidates)
         {
-            var (outcome, failureCode) = await TidyOneAsync(
-                candidate, deletedItemsByMailbox, cancellationToken);
+            SentReportInstructionTidyOutcome outcome;
+            string? failureCode;
+            try
+            {
+                (outcome, failureCode) = await TidyOneAsync(
+                    candidate, deletedItemsByMailbox, cancellationToken);
+            }
+            catch (ApprovedSentSourceThrottledException)
+            {
+                // The mailbox asked us to wait: nothing was tried, so nothing is
+                // recorded as an attempt and the rest of this run is left for the next.
+                break;
+            }
+            examined++;
             await store.RecordAsync(
                 candidate.OperationId,
                 candidate.OperationVersion,
@@ -125,7 +138,7 @@ public sealed class TidySentReportInstructions(
             }
         }
 
-        return new(candidates.Count, moved, alreadyMoved, missing, failed);
+        return new(examined, moved, alreadyMoved, missing, failed);
     }
 
     private async Task<(SentReportInstructionTidyOutcome Outcome, string? FailureCode)> TidyOneAsync(
@@ -166,7 +179,8 @@ public sealed class TidySentReportInstructions(
                 cancellationToken);
             return (SentReportInstructionTidyOutcome.Moved, null);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (exception is not OperationCanceledException
+            and not ApprovedSentSourceThrottledException)
         {
             return (SentReportInstructionTidyOutcome.Failed, FailureCode(exception));
         }
