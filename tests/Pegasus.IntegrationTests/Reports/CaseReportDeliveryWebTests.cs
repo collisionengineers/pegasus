@@ -909,7 +909,7 @@ public sealed partial class AssessmentReportDraftWebTests
             ClaimSourceName: "Claims Direct")
         {
             OriginalSender = "handler@principal.example",
-            FiledEstimates = [new FiledEstimateAttachment(estimate, ReportDispatchPolicy.AudatexProvider)]
+            FiledEstimates = [new FiledEstimateAttachment(estimate, Pegasus.Core.Assessment.EstimateFormats.AudatexProvider)]
         };
         using var factory = WithDispatchFacts(
             baseFactory, caseId, new FakeCurrentGeneration(caseId, feeNoteStatus: CaseReportArtifactStatus.Confirmed),
