@@ -57,9 +57,7 @@ public sealed partial class DetailsModel(
     IEstimateDocumentPresentationStore estimateDocumentPresentations,
     IGeneratedCaseArtifactStore generatedArtifacts,
     ICaseReportGenerationStore reportGenerations,
-    IPrepareCaseReportDelivery prepareReportDelivery,
-    ISendPreparedCaseReport sendPreparedReport,
-    ICaseReportDeliveryPreparationStore deliveryPreparations,
+    ISendCaseReport sendCaseReport,
     IReportRecipientSuggestionQueries reportRecipientSuggestions,
     ICaseReportSendHistoryQueries reportSendHistory,
     RenderEmailTemplate renderEmailTemplate,
@@ -626,12 +624,6 @@ public sealed partial class DetailsModel(
         _ => null,
     };
 
-    /// <summary>
-    /// The current generation's latest delivery preparation (B07), if one
-    /// exists.
-    /// </summary>
-    public CaseReportDeliveryPreparationRecord? CurrentDeliveryPreparation { get; private set; }
-
     /// <summary>Principal suggestions offered for staff review before preparation.</summary>
     public ReportRecipientSuggestions? DeliveryRecipientSuggestions { get; private set; }
 
@@ -709,7 +701,7 @@ public sealed partial class DetailsModel(
 
     public string GenerateImagePackOperationKey { get; private set; } = NewOperationKey();
 
-    public string PrepareDeliveryOperationKey { get; private set; } = NewOperationKey();
+    public string SendReportOperationKey { get; private set; } = NewOperationKey();
 
     public string LaunchGlassOperationKey { get; private set; } = NewOperationKey();
 
@@ -1081,9 +1073,6 @@ public sealed partial class DetailsModel(
         var snapshots = selectedSpecificationId is { } specificationId
             ? reads.Start(token => specificationSnapshots.ListAsync(id, specificationId, token))
             : null;
-        var delivery = generated
-            ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, work, token))
-            : null;
         var suggestions = generated
             ? reads.Start(token => reportRecipientSuggestions.GetAsync(id, work, token))
             : null;
@@ -1111,7 +1100,6 @@ public sealed partial class DetailsModel(
                 ? null
                 : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
         }
-        CurrentDeliveryPreparation = delivery is null ? null : await delivery;
         DeliveryRecipientSuggestions = suggestions is null ? null : await suggestions;
         ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
             ? CaseReportDeliveryPolicy.AddressBook(addressBook)
@@ -2613,11 +2601,15 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// B07 delivery preparation: pins the current generation's confirmed
-    /// artifacts and the staff-reviewed recipient addressing. Nothing is
-    /// sent and no Sent state is claimed here.
+    /// Sends the current generation's report in one step (operator, 6 October
+    /// 2026): the staff-reviewed recipients, the documents chosen and the
+    /// message submitted go to A's staff send transport under this form's
+    /// operation key, so a repeated submission of one form replays one send.
+    /// The send boundary re-checks the generation and the attachment hashes.
+    /// A's returned state is mapped truthfully: only observation says sent,
+    /// and an Unknown outcome never claims one.
     /// </summary>
-    public async Task<IActionResult> OnPostPrepareReportDeliveryAsync(
+    public async Task<IActionResult> OnPostSendReportAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
@@ -2650,9 +2642,10 @@ public sealed partial class DetailsModel(
             return RedirectToReport(id);
         }
 
+        StaffMailOperation operation;
         try
         {
-            await prepareReportDelivery.ExecuteAsync(
+            operation = await sendCaseReport.ExecuteAsync(
                 new(
                     actor,
                     id,
@@ -2677,59 +2670,11 @@ public sealed partial class DetailsModel(
         {
             TempData["CaseError"] = MutationRefusalMessage(
                 exception,
-                "The report delivery could not be prepared. Retry the operation.");
+                "The report was not sent. Retry the operation.");
             return RedirectToReport(id);
         }
 
         ClearLeaseState();
-        TempData["CaseStatus"] =
-            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DeliveryPrepared + ".";
-        return RedirectToReport(id);
-    }
-
-    /// <summary>
-    /// The one page caller of A's staff send transport. The operation key is
-    /// derived from the immutable preparation identity server-side — a
-    /// reload can never mint a second send operation for one preparation —
-    /// and the send boundary re-checks recipients, freshness and attachment
-    /// hashes. A's returned state is mapped truthfully: only observation says
-    /// sent, and an Unknown outcome never claims one.
-    /// </summary>
-    public async Task<IActionResult> OnPostSendPreparedReportAsync(
-        Guid id,
-        Guid preparationId,
-        long expectedPreparationVersion,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        var operationKey = preparationId.ToString("N");
-
-        StaffMailOperation operation;
-        try
-        {
-            _ = await deliveryPreparations.GetAsync(actor, id, preparationId, cancellationToken)
-                ?? throw new InvalidOperationException("The report delivery preparation is unavailable.");
-            operation = await sendPreparedReport.ExecuteAsync(
-                new(actor, id, preparationId, expectedPreparationVersion, operationKey),
-                cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or KeyNotFoundException)
-        {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception,
-                "The report was not sent because the case changed or the preparation is no longer current. Prepare it again.");
-            return RedirectToReport(id);
-        }
-
         switch (operation.State)
         {
             case StaffMailState.Sent:
