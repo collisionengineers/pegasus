@@ -34,6 +34,22 @@ public static class GlassRepairEstimateSessionPolicy
         }
     }
 
+    /// <summary>
+    /// A repair spec's Glass's estimate stands on the vehicle it was started
+    /// for. The Case must still record that registration and mileage for the
+    /// estimate to be reopened; nothing is held at Glass's while it does not.
+    /// </summary>
+    public static void RequireUnchangedEstimateVehicle(
+        string originalRegistration, long originalMileage, string registration, long mileage)
+    {
+        if (!SameRegistration(originalRegistration, registration) || originalMileage != mileage)
+        {
+            throw new GlassRepairEstimateRefusalException(
+                "The Case registration or mileage has changed since this Glass's estimate was started. "
+                + "Restore the original vehicle details to reopen it.");
+        }
+    }
+
     public static bool OccupiesAccount(GlassRepairEstimateSessionState state) => state is
         GlassRepairEstimateSessionState.Prepared or GlassRepairEstimateSessionState.Launching
         or GlassRepairEstimateSessionState.Active or GlassRepairEstimateSessionState.Importing
@@ -128,7 +144,10 @@ public enum GlassRepairEstimateSessionConflict
     ActiveAccount,
     Version,
     Callback,
-    OperationKey
+    OperationKey,
+
+    /// <summary>A colleague's session on the same estimate is landing its return.</summary>
+    Importing
 }
 
 /// <summary>A Glass's session write refused because it would break an invariant.</summary>
@@ -144,6 +163,19 @@ public sealed class GlassRepairEstimateSessionConflictException(
 public sealed class GlassRepairEstimateRefusalException(string message)
     : InvalidOperationException(message);
 
+/// <summary>
+/// The Glass's estimate a repair spec belongs to (operator, 6 October 2026).
+/// The portal keeps one estimate on each stock vehicle and reopens it from the
+/// vehicle, so the vehicle is the identity: the estimate id is the one that
+/// vehicle last answered, and the type number, placeholder flag, registration
+/// and mileage are what the vehicle was proved against when the estimate was
+/// started. Glass's on that spec reopens this estimate, and its saved return
+/// updates that spec.
+/// </summary>
+public sealed record GlassEstimateLink(
+    string VehicleId, string EstimateId, string NatCode, bool Placeholder,
+    string Registration, long MileageMiles);
+
 public sealed record GlassRepairEstimateSession(
     Guid Id, Guid CaseId, Guid PegasusUserId, long CredentialGeneration,
     string NormalizedExternalAccountKey, GlassRepairEstimateSessionState State,
@@ -157,7 +189,14 @@ public sealed record GlassRepairEstimateSession(
 /// </summary>
 public sealed record GlassRepairEstimateLaunchRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
-    string OperationKey, Guid SessionId);
+    string OperationKey, Guid SessionId)
+{
+    /// <summary>
+    /// The repair spec on the screen. One that belongs to a Glass's estimate
+    /// reopens it; any other, or none, starts a new estimate.
+    /// </summary>
+    public Guid? SpecificationId { get; init; }
+}
 public sealed record GlassRepairEstimateResumeRequest(
     ActionActor Actor, Guid SessionId, long ExpectedVersion,
     long ExpectedCaseVersion, string LeaseToken);
@@ -252,4 +291,14 @@ public interface IGlassRepairEstimateSessionStore
     /// <summary>The session that holds the external account now, or null when none does.</summary>
     Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
         string normalizedExternalAccountKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Ends every other staff member's live session on a stock vehicle of
+    /// this Case and frees their accounts, so the staff member who now holds
+    /// the Case edit can reopen its estimate (operator, 6 October 2026). One
+    /// that is landing its return is left to settle: the call is refused with
+    /// <see cref="GlassRepairEstimateSessionConflict.Importing"/> instead.
+    /// </summary>
+    Task SupersedeAsync(
+        Guid caseId, string providerVehicleId, ActionActor actor, CancellationToken cancellationToken);
 }

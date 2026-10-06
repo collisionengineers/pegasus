@@ -424,11 +424,14 @@ public sealed class EfRepairSpecificationStore(
             RequireAssessmentEditable(workflow);
             // The workflow lock and source census share this transaction: two
             // concurrent completions cannot create two estimates for one
-            // Case/hash. A discarded import no longer holds its source.
+            // Case/hash. A discarded import no longer holds its source. A
+            // Glass's return that updates its spec answers only for that
+            // spec's own source.
             var existingImport = await context.CaseRepairSpecifications.Include(item => item.Lines)
                 .FirstOrDefaultAsync(item => item.WorkId == workId
                     && item.State != discarded
-                    && item.SourceSha256 == request.Source.Sha256, cancellationToken);
+                    && item.SourceSha256 == request.Source.Sha256
+                    && (request.EstimateId == null || item.Id == request.EstimateId), cancellationToken);
             if (existingImport is not null)
             {
                 return Map(existingImport);
@@ -571,9 +574,22 @@ public sealed class EfRepairSpecificationStore(
         entity.LastOperationKey = request.OperationKey;
         ApplyDetails(entity, request.Details);
         ApplySupplementary(entity, request.Supplementary);
+        if (request.GlassEstimate is { } glass)
+        {
+            entity.GlassVehicleId = glass.VehicleId;
+            entity.GlassEstimateId = glass.EstimateId;
+            entity.GlassNatCode = glass.NatCode;
+            entity.GlassPlaceholder = glass.Placeholder;
+            entity.GlassRegistration = glass.Registration;
+            entity.GlassMileageMiles = glass.MileageMiles;
+        }
         AddLines(context, entity, request.Lines, request.Actor, now);
         IReadOnlyList<Guid> replacedCurrent = [];
-        if (existing is null && RepairSpecificationPolicy.BecomesCurrentWhenCreated(request.Actor))
+        // What comes back from Glass's is the spec in use at once, also when
+        // the return updates a spec that was not (operator, 25 September and
+        // 6 October 2026).
+        if ((existing is null || (request.GlassEstimate is not null && !entity.IsCurrent))
+            && RepairSpecificationPolicy.BecomesCurrentWhenCreated(request.Actor))
         {
             replacedCurrent = await MakeCurrentAsync(context, workId, entity, cancellationToken);
         }

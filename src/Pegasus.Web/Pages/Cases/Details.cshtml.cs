@@ -793,14 +793,13 @@ public sealed partial class DetailsModel(
         && !IsInspectionView;
 
     /// <summary>
-    /// Whether the session on the screen can be picked back up: an open
-    /// calculation to return to, or a held result waiting for the Case's edit
-    /// authority.
+    /// The repair spec on the screen, which the Glass's slot names: one that
+    /// belongs to a Glass's estimate reopens it. The controls fragment has no
+    /// spec list of its own and carries the id it was rendered with.
     /// </summary>
-    public bool CanResumeGlass =>
-        CanLaunchGlass
-        && GlassSession is { } session
-        && GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State);
+    public Guid? GlassSpecificationId => glassSpecificationId ?? SelectedEstimate?.SpecificationId;
+
+    private Guid? glassSpecificationId;
 
     /// <summary>
     /// Whether the session on the screen failed because its export could not be
@@ -3516,10 +3515,11 @@ public sealed partial class DetailsModel(
 
     /// <summary>Read the owning staff member's Glass's controls without changing Case or lease state.</summary>
     public async Task<IActionResult> OnGetGlassSessionAsync(
-        Guid id, [FromHeader(Name = "X-Pegasus-Edit-Lease")] string? renderLeaseToken,
+        Guid id, Guid? estimate, [FromHeader(Name = "X-Pegasus-Edit-Lease")] string? renderLeaseToken,
         CancellationToken cancellationToken)
     {
         Response.Headers.CacheControl = "no-store";
+        glassSpecificationId = estimate;
         if (!TryGetActor(out var actor)) { return Forbid(); }
         Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
         if (Case is null) { return FragmentNotFound(); }
@@ -3554,12 +3554,19 @@ public sealed partial class DetailsModel(
     /// The gateway is a handler service rather than a page dependency: it is
     /// built from <c>Glass:*</c> configuration, and a host that has none must
     /// still serve every other part of the Case record.
+    ///
+    /// Glass's is the one button (operator, 6 October 2026). While this staff
+    /// member's own session on the Case still holds the account it is
+    /// continued, exactly as <see cref="OnPostResumeGlassAsync"/> continues
+    /// one; otherwise the gateway reopens the estimate the repair spec on the
+    /// screen belongs to, or starts a new one.
     /// </remarks>
     public async Task<IActionResult> OnPostLaunchGlassAsync(
         Guid id,
         long expectedCaseVersion,
         string operationKey,
         string? editLeaseToken,
+        Guid? estimate,
         [FromServices] IGlassRepairEstimateGateway glassEstimates,
         [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork,
         CancellationToken cancellationToken)
@@ -3571,9 +3578,17 @@ public sealed partial class DetailsModel(
             // window that posted it, as every other outcome here does.
             return RefusedGlassGuard(id, "LaunchGlass", guard);
         }
-        if (!TryGetActor(out var actor))
+        if (!TryGetActor(out var actor) || !Guid.TryParse(actor.SubjectId, out var staffId))
         {
             return Forbid();
+        }
+
+        var own = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
+        if (own is not null && GlassRepairEstimateSessionPolicy.OccupiesAccount(own.State))
+        {
+            return await ResumeGlassAsync(
+                id, actor, own.Id, own.Version, expectedCaseVersion, editLeaseToken,
+                glassEstimates, glassWork, cancellationToken);
         }
 
         // The new session's id is chosen here and held busy before the session
@@ -3591,7 +3606,10 @@ public sealed partial class DetailsModel(
                     expectedCaseVersion,
                     editLeaseToken!,
                     operationKey,
-                    newSessionId),
+                    newSessionId)
+                {
+                    SpecificationId = estimate,
+                },
                 cancellationToken);
             return await ContinueGlassAsync(actor, step, reservation, cancellationToken);
         }
@@ -3643,6 +3661,26 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = GlassLabels.ResumeRefused;
             return GlassReturn(id);
         }
+        return await ResumeGlassAsync(
+            id, actor, sessionId, expectedSessionVersion, expectedCaseVersion, editLeaseToken,
+            glassEstimates, glassWork, cancellationToken);
+    }
+
+    /// <summary>
+    /// Continues this staff member's session on the Case, for the Glass's
+    /// button and for Fetch again alike.
+    /// </summary>
+    private async Task<IActionResult> ResumeGlassAsync(
+        Guid id,
+        ActionActor actor,
+        Guid sessionId,
+        long expectedSessionVersion,
+        long expectedCaseVersion,
+        string? editLeaseToken,
+        IGlassRepairEstimateGateway glassEstimates,
+        Pegasus.Web.Background.ProviderWorkQueue glassWork,
+        CancellationToken cancellationToken)
+    {
         if (glassWork.IsInFlight(sessionId))
         {
             // Work for this session is already running: wait on it.

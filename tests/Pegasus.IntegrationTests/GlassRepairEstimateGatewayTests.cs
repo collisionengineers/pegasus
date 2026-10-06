@@ -99,10 +99,11 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     [Theory]
-    [InlineData("/", false)]
-    [InlineData("/index/create-new-vehicle", true)]
-    [InlineData("/ere/start-ere", true)]
-    public async Task CancellationIsDurableAndOnlyKnownStagesResume(string interruptedPath, bool uncertain)
+    [InlineData("/", false, false)]
+    [InlineData("/index/create-new-vehicle", true, false)]
+    [InlineData("/ere/start-ere", true, true)]
+    public async Task CancellationIsDurableAndOnlyKnownStagesResume(
+        string interruptedPath, bool uncertain, bool vehicleRecorded)
     {
         using var cancelled = new CancellationTokenSource();
         var harness = Harness.Create(transport: inner => new InterruptedProvider(inner, interruptedPath, cancelled));
@@ -118,7 +119,17 @@ public sealed class GlassRepairEstimateGatewayTests
         var resumed = await restarted.ResumeAsync(
             new(harness.Engineer, held.Id, held.Version, Harness.CaseVersion, Harness.LeaseToken), CancellationToken.None);
         Assert.Equal(held.Id, resumed.Id);
-        if (uncertain)
+        if (vehicleRecorded)
+        {
+            // The start went unanswered on a vehicle the session recorded. The
+            // portal answers a start on a vehicle with the estimate it holds,
+            // so the resume starts again there and makes no second vehicle.
+            Assert.Equal(GlassRepairEstimateSessionState.Active, resumed.State);
+            Assert.Equal(creates, harness.Mva.Count("GET /index/create-new-vehicle"));
+            Assert.Equal(starts + 1, harness.Mva.Count("POST /ere/start-ere"));
+            Assert.Equal(EreId, resumed.ProviderEstimateId);
+        }
+        else if (uncertain)
         {
             Assert.Equal(GlassRepairEstimateSessionState.Unknown, resumed.State);
             Assert.Equal(creates, harness.Mva.Count("GET /index/create-new-vehicle"));
@@ -322,7 +333,9 @@ public sealed class GlassRepairEstimateGatewayTests
         var refusal = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() => restarted.LaunchAsync(operationKey: "no-second-write"));
         Assert.Equal(GlassRepairEstimateSessionConflict.ActiveAccount, refusal.Conflict);
         Assert.Equal(creates, harness.Mva.Count("GET /index/create-new-vehicle"));
-        Assert.Equal(starts, harness.Mva.Count("POST /ere/start-ere"));
+        // A start that went unanswered is asked again on the vehicle the
+        // session recorded; a vehicle that was never recorded is not.
+        Assert.Equal(starts * 2, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Equal(1, await database.SessionCountAsync());
     }
 
@@ -2387,6 +2400,158 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Empty(harness.Import.Requests);
     }
 
+    // ------------------------------------------------- a spec's own estimate
+
+    /// <summary>
+    /// A Glass's estimate belongs to its repair spec (operator, 6 October
+    /// 2026). The first return makes the spec and records the stock vehicle on
+    /// it; Glass's on that spec afterwards is a new session that reopens the
+    /// same estimate on the same vehicle, as the portal does, and its return
+    /// updates that spec.
+    /// </summary>
+    [Fact]
+    public async Task GlassOnASpecThatBelongsToAnEstimateReopensItAndItsReturnUpdatesThatSpec()
+    {
+        var harness = Harness.Create();
+        var first = await harness.LaunchAsync();
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, (await harness.CompleteAsync(first)).State);
+        var made = Assert.Single(harness.Import.Requests);
+        Assert.Null(made.EstimateId);
+        Assert.Equal(
+            new GlassEstimateLink(VehicleId, EreId, NatCode, Placeholder: false, Registration, MileageMiles),
+            made.GlassEstimate);
+
+        var reopened = await harness.LaunchAsync(
+            operationKey: "glass-launch-2", specificationId: harness.Import.EstimateId);
+
+        Assert.NotEqual(first.Id, reopened.Id);
+        Assert.Equal(GlassRepairEstimateSessionState.Active, reopened.State);
+        Assert.Equal(VehicleId, reopened.ProviderVehicleId);
+        Assert.Equal(EreId, reopened.ProviderEstimateId);
+        Assert.Equal(1, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(2, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(
+            "0",
+            QueryOf(harness.Mva.Requests.Last(request => request.Path == "/ere/start-ere").Body!)["ere_id"]);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, (await harness.CompleteAsync(reopened)).State);
+        var updated = harness.Import.Requests[^1];
+        Assert.Equal(2, harness.Import.Requests.Count);
+        Assert.Equal(harness.Import.EstimateId, updated.EstimateId);
+        Assert.Equal(made.GlassEstimate, updated.GlassEstimate);
+    }
+
+    /// <summary>
+    /// Any spec that belongs to no Glass's estimate starts a new one, which
+    /// is how a Case comes to hold a second Glass's spec.
+    /// </summary>
+    [Fact]
+    public async Task GlassOnASpecThatBelongsToNoEstimateStartsANewOne()
+    {
+        var harness = Harness.Create();
+
+        var session = await harness.LaunchAsync(specificationId: Guid.NewGuid());
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        Assert.Equal(1, harness.Mva.Count("GET /index/create-new-vehicle"));
+    }
+
+    /// <summary>
+    /// Whoever holds the Case edit owns Glass's for it: a colleague's session
+    /// still live on the same estimate ends when another staff member reopens
+    /// it under their own account, and no second vehicle is made.
+    /// </summary>
+    [Fact]
+    public async Task AnotherStaffMemberReopensTheSpecAndTheEarlierLiveSessionEnds()
+    {
+        var harness = Harness.Create();
+        await harness.CompleteAsync(await harness.LaunchAsync());
+        var earlier = await harness.LaunchAsync(
+            operationKey: "glass-launch-2", specificationId: harness.Import.EstimateId);
+        Assert.Equal(GlassRepairEstimateSessionState.Active, earlier.State);
+
+        var taken = await harness.LaunchAsync(
+            harness.OtherEngineer, operationKey: "glass-launch-3", specificationId: harness.Import.EstimateId);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, taken.State);
+        Assert.Equal(harness.OtherEngineerId, taken.PegasusUserId);
+        Assert.Equal(GlassRepairEstimateSessionState.Cancelled, harness.Store.Sessions[earlier.Id].Session.State);
+        Assert.Equal(1, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(3, harness.Mva.Count("POST /ere/start-ere"));
+    }
+
+    /// <summary>
+    /// A session reopening its spec's estimate makes nothing at Glass's, so a
+    /// vehicle that cannot be proved is a plain failure that frees the
+    /// account, and the next launch reopens the estimate again.
+    /// </summary>
+    [Fact]
+    public async Task AReopenThatCannotProveItsVehicleFailsAndTheNextLaunchReopensAgain()
+    {
+        var harness = Harness.Create();
+        await harness.CompleteAsync(await harness.LaunchAsync());
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(
+            HttpStatusCode.OK, GlassProviderFixture.VehicleDetail(vehicleId: "99999999", locked: true)));
+
+        var failed = await harness.LaunchAsync(
+            operationKey: "glass-launch-2", specificationId: harness.Import.EstimateId);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, failed.State);
+        Assert.Equal(GlassFailure.DetailsIdentity, failed.FailureCode);
+        Assert.False(GlassRepairEstimateSessionPolicy.OccupiesAccount(failed.State));
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
+
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(
+            HttpStatusCode.OK, GlassProviderFixture.VehicleDetail(locked: true)));
+        var reopened = await harness.LaunchAsync(
+            operationKey: "glass-launch-3", specificationId: harness.Import.EstimateId);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, reopened.State);
+        Assert.Equal(1, harness.Mva.Count("GET /index/create-new-vehicle"));
+    }
+
+    /// <summary>
+    /// A reopen the provider answers with another estimate than the spec's
+    /// own is still Unknown and never opened: it is the wrong vehicle, or an
+    /// estimate reset at the portal.
+    /// </summary>
+    [Fact]
+    public async Task AReopenTheProviderAnswersWithAnotherEstimateIsUnknownAndNeverOpened()
+    {
+        var harness = Harness.Create();
+        await harness.CompleteAsync(await harness.LaunchAsync());
+        harness.Mva.Set("POST /ere/start-ere", new(HttpStatusCode.OK, GlassProviderFixture.StartEre(
+            GlassProviderFixture.LaunchUrl(
+                $"https://mva.test/ere/ere-callback/ere_id/53768/ere_session/{GlassProviderFixture.EreSession}"))));
+
+        var reopened = await harness.LaunchAsync(
+            operationKey: "glass-launch-2", specificationId: harness.Import.EstimateId);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, reopened.State);
+        Assert.Equal(GlassFailure.StartEreId, reopened.FailureCode);
+        Assert.Null(await harness.Gateway.GetEstimatorUrlAsync(harness.Engineer, reopened.Id, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The estimate stands on the vehicle it was started for: a Case whose
+    /// registration or mileage has changed since is refused before Glass's is
+    /// contacted and before any session is recorded.
+    /// </summary>
+    [Fact]
+    public async Task AReopenIsRefusedBeforeProviderWorkWhenTheCaseVehicleHasChanged()
+    {
+        var harness = Harness.Create();
+        await harness.CompleteAsync(await harness.LaunchAsync());
+        var requests = harness.Mva.Requests.Count;
+        harness.CaseAuthority.Facts = new(Registration, MileageMiles + 1);
+
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.LaunchAsync(
+            operationKey: "glass-launch-2", specificationId: harness.Import.EstimateId));
+
+        Assert.Equal(requests, harness.Mva.Requests.Count);
+        Assert.Single(harness.Store.Sessions);
+    }
+
     /// <summary>
     /// A second launch on an account that holds a live session is refused by
     /// a read that names that session, before anything is inserted.
@@ -2942,6 +3107,20 @@ public sealed class GlassRepairEstimateGatewayTests
             Refusal is null
                 ? Task.FromResult(Facts)
                 : Task.FromException<GlassRepairEstimateCaseFacts>(Refusal);
+
+        /// <summary>The Glass's estimate each repair spec belongs to, as an import records it.</summary>
+        public Dictionary<Guid, GlassEstimateLink> Links { get; } = [];
+
+        public Task<GlassEstimateLink?> FindEstimateAsync(
+            Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
+            Task.FromResult(Links.GetValueOrDefault(specificationId));
+
+        public Task<Guid?> FindSpecificationAsync(
+            Guid caseId, string vehicleId, CancellationToken cancellationToken) =>
+            Task.FromResult(Links
+                .Where(link => link.Value.VehicleId == vehicleId)
+                .Select(link => (Guid?)link.Key)
+                .FirstOrDefault());
     }
 
     private sealed class CredentialDouble : IPerUserExternalCredentialReader
@@ -3075,12 +3254,17 @@ public sealed class GlassRepairEstimateGatewayTests
 
         public List<ImportRawEstimateRequest> Requests { get; } = [];
 
+        /// <summary>Told the spec each import landed on: the one it named, or the new one.</summary>
+        public Action<ImportRawEstimateRequest, Guid>? Landed { get; set; }
+
         public async Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
             if (BeforeReturn is not null) { await BeforeReturn(); }
             if (Refusal is not null) { throw Refusal; }
-            return new EstimateImportResult(EstimateId);
+            var landed = request.EstimateId ?? EstimateId;
+            Landed?.Invoke(request, landed);
+            return new EstimateImportResult(landed);
         }
     }
 
@@ -3202,6 +3386,36 @@ public sealed class GlassRepairEstimateGatewayTests
             return Sessions[request.SessionId].Session;
         }
 
+        public Task SupersedeAsync(
+            Guid caseId, string providerVehicleId, ActionActor actor, CancellationToken cancellationToken)
+        {
+            var live = Sessions.Values
+                .Where(item => item.Session.CaseId == caseId
+                    && item.Session.ProviderVehicleId == providerVehicleId
+                    && !(Guid.TryParse(actor.SubjectId, out var own) && own == item.Session.PegasusUserId)
+                    && Occupies(item.Session.State))
+                .ToArray();
+            if (live.FirstOrDefault(item => item.Session.State == GlassRepairEstimateSessionState.Importing) is { } landing)
+            {
+                throw new GlassRepairEstimateSessionConflictException(
+                    GlassRepairEstimateSessionConflict.Importing, landing.Session.Id, "A return is landing.");
+            }
+            foreach (var item in live)
+            {
+                Sessions[item.Session.Id] = new(
+                    item.Session with
+                    {
+                        State = GlassRepairEstimateSessionState.Cancelled,
+                        FailureCode = null,
+                        Version = item.Session.Version + 1,
+                    },
+                    item.ProtectedProviderState,
+                    item.CallbackDigest,
+                    item.ResultArtifactsJson);
+            }
+            return Task.CompletedTask;
+        }
+
         private static bool Occupies(GlassRepairEstimateSessionState state) =>
             GlassRepairEstimateSessionPolicy.OccupiesAccount(state);
 
@@ -3238,6 +3452,10 @@ public sealed class GlassRepairEstimateGatewayTests
         public Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
             string normalizedExternalAccountKey, CancellationToken cancellationToken) =>
             inner.FindLiveForAccountAsync(normalizedExternalAccountKey, cancellationToken);
+
+        public Task SupersedeAsync(
+            Guid caseId, string providerVehicleId, ActionActor actor, CancellationToken cancellationToken) =>
+            inner.SupersedeAsync(caseId, providerVehicleId, actor, cancellationToken);
 
         public Task<GlassRepairEstimateSessionCreation> CreateAsync(
             GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
@@ -3314,6 +3532,15 @@ public sealed class GlassRepairEstimateGatewayTests
             OtherEngineer = ActionActor.Staff(otherEngineerId, [StaffRole.User]);
             Credentials.Give(Engineer, engineerId);
             Credentials.Give(OtherEngineer, otherEngineerId, account: "b.engineer");
+            // An import records the estimate on the spec it lands, as the
+            // real import writes it in the spec's own transaction.
+            Import.Landed = (request, specificationId) =>
+            {
+                if (request.GlassEstimate is { } link)
+                {
+                    CaseAuthority.Links[specificationId] = link;
+                }
+            };
         }
 
         public GlassRepairEstimateGateway Gateway { get; }
@@ -3433,12 +3660,16 @@ public sealed class GlassRepairEstimateGatewayTests
         public async Task<GlassRepairEstimateSession> LaunchAsync(
             ActionActor? actor = null,
             string operationKey = "glass-launch-1",
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            Guid? specificationId = null)
         {
             var launcher = actor ?? Engineer;
             var step = await Gateway.PrepareLaunchAsync(
                 new GlassRepairEstimateLaunchRequest(
-                    launcher, CaseId, CaseVersion, LeaseToken, operationKey, Guid.NewGuid()),
+                    launcher, CaseId, CaseVersion, LeaseToken, operationKey, Guid.NewGuid())
+                {
+                    SpecificationId = specificationId,
+                },
                 cancellationToken);
             var launched = await ContinueAsync(launcher, step, cancellationToken);
             if (launched.State == GlassRepairEstimateSessionState.Active)

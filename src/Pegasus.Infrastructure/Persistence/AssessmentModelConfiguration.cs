@@ -107,6 +107,12 @@ internal static class AssessmentModelConfiguration
                 table.HasCheckConstraint(
                     "CK_CaseRepairSpecifications_VatPercent",
                     "[VatPercent] BETWEEN 0 AND 100");
+                table.HasCheckConstraint(
+                    "CK_CaseRepairSpecifications_Glass",
+                    "([GlassVehicleId] IS NULL AND [GlassEstimateId] IS NULL AND [GlassNatCode] IS NULL "
+                    + "AND [GlassPlaceholder] IS NULL AND [GlassRegistration] IS NULL AND [GlassMileageMiles] IS NULL) OR "
+                    + "([GlassVehicleId] IS NOT NULL AND [GlassEstimateId] IS NOT NULL AND [GlassNatCode] IS NOT NULL "
+                    + "AND [GlassPlaceholder] IS NOT NULL AND [GlassRegistration] IS NOT NULL AND [GlassMileageMiles] IS NOT NULL)");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).ValueGeneratedNever();
@@ -131,6 +137,10 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.LastOperationKey).HasMaxLength(100);
             entity.Property(item => item.SupplementaryReason).HasMaxLength(20);
             entity.Property(item => item.SupplementaryStatement).HasMaxLength(4000);
+            entity.Property(item => item.GlassVehicleId).HasMaxLength(100);
+            entity.Property(item => item.GlassEstimateId).HasMaxLength(100);
+            entity.Property(item => item.GlassNatCode).HasMaxLength(100);
+            entity.Property(item => item.GlassRegistration).HasMaxLength(100);
             entity.HasIndex(item => new { item.WorkId, item.Version }).IsUnique();
             entity.HasIndex(item => new { item.WorkId, item.CreationOperationKey }).IsUnique();
             entity.HasIndex(item => item.WorkId)
