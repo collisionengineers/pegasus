@@ -239,7 +239,7 @@ there writes the Inspection's own values, before and after its report is
 sent. Such a save changes nothing of the Case's own: its state, due date,
 completeness and matching are the Audit's. Files and Notes are shared by
 both views; so is Tasks, which belongs to the Case. The Inspection view's Report section generates the Inspection
-report, prepares and sends its delivery, and the Actions menu's Mark report
+report, sends it, and the Actions menu's Mark report
 sent takes its evidence, all on the Inspection's own work and without
 changing the Case's state (operator, 1 October 2026); a sent Inspection
 report may be generated and sent again when needed (operator, 2 October

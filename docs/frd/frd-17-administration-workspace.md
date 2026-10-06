@@ -159,7 +159,7 @@ all empty is left out. The subject is not templated: a reply keeps
 (a reply keeps "Re:" the instruction's subject, and a new message is
 "{REG} Report"), and a chaser opens with the registration and the claimant.
 Until an Administrator saves a template, its built-in body is used.
-Staff can edit the rendered text before it is sent or prepared. Each save
+Staff can edit the rendered text before it is sent. Each save
 enters the Action logs.
 
 ### Valuation presets
