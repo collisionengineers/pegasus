@@ -328,12 +328,15 @@ establishes no claim that the hosted editor has initialized successfully.
 Keeping a returned estimate's source files does not use up the staff member's
 still-valid Case edit authority. The import uses that authority to land one
 spec, which becomes Current. When that authority is no longer current — a
-Case save while Glass's was open, or an expired or lost lease — the return
-takes a fresh lease for the returning staff member and lands the spec, as long
-as nobody holds the Case. While anyone holds it, the same staff member in
-another window included, the retained result waits for **Resume**, so the
-holder's session is never overtaken. Callback replay creates neither another spec nor
-another change.
+Case save, a hand-off or a fresh edit session while Glass's was open, or an
+expired or lost lease — the return lands the spec under the returning staff
+member's own session: the live lease they hold, or a fresh lease taken for
+them when nobody holds the Case (operator, 6 October 2026). The landing
+advances the Case without ending their session, and a page they keep open
+catches up on it as on any system write. While another staff member holds
+the Case, the retained result waits for **Resume**, so nobody's session is
+overtaken; the host log says why a held estimate waits. Callback replay
+creates neither another spec nor another change.
 
 **Unknown answers hold the account.** A provider write whose answer was lost
 stays `Unknown` and keeps the account. It must not create another vehicle or

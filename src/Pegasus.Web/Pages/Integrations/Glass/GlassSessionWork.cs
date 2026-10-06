@@ -27,18 +27,22 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// session Resume takes again as it stands.
 /// </para>
 /// <para>
-/// <b>A held estimate lands when the Case is free.</b> When the launch's edit
-/// authority is no longer current — the Case was saved while Glass's was open —
-/// the import takes a fresh lease for the returning staff member and lands the
-/// estimate as the Current repair spec, provided nobody holds the Case. While
-/// anyone holds it, the same staff member in another window included, the
-/// estimate waits for Resume, so unsaved edits are never overtaken (FRD-25).
+/// <b>A held estimate lands on the return.</b> When the launch's edit
+/// authority is no longer current — the Case was saved, handed on or taken back
+/// into edit mode while Glass's was open — the import lands the estimate as the
+/// Current repair spec under the returning staff member's own session: their
+/// live lease where they hold one, else a fresh lease taken for them (operator,
+/// 6 October 2026). The import advances the Case without ending that session,
+/// so a page they keep open catches up on it as it does on any system write.
+/// Only a Case another staff member holds waits for Resume, so nobody's edit
+/// session is overtaken (FRD-25).
 /// </para>
 /// </remarks>
 public sealed partial class GlassSessionWork(
     IGlassRepairEstimateGateway glassEstimates,
     IGetCaseHeader caseHeaders,
     IAcquireCaseEditLease leases,
+    IResumeCaseEditLease resumeLease,
     ILogger<GlassSessionWork> logger)
 {
     /// <summary>The provider work a step owes, keyed by its session.</summary>
@@ -99,13 +103,15 @@ public sealed partial class GlassSessionWork(
             or StaffAuthorizationException;
 
     /// <summary>
-    /// Lands a held estimate on a fresh lease when nobody holds the Case and it
-    /// is still writable; otherwise, or when the Case is taken first, the
-    /// estimate stays held for Resume. The return itself already succeeded, so
-    /// a landing that fails anywhere — reading the Case, taking the lease or
-    /// the import itself — is logged and leaves the session as it stands. A
-    /// lease taken for a Resume that does not import stays the staff member's
-    /// own edit session, which the Case page picks back up.
+    /// Lands a held estimate under the returning staff member's session: the
+    /// live lease they hold, resumed as the Case page resumes it, or a fresh
+    /// lease when nobody holds the Case. A Case another staff member holds, or
+    /// one that is no longer writable, keeps the estimate held for Resume and
+    /// says so. The return itself already succeeded, so a landing that fails
+    /// anywhere — reading the Case, taking the lease or the import itself — is
+    /// logged and leaves the session as it stands. A lease taken for a Resume
+    /// that does not import stays the staff member's own edit session, which
+    /// the Case page picks back up.
     /// </summary>
     private async Task LandHeldEstimateAsync(
         ActionActor actor, GlassRepairEstimateSession session, CancellationToken cancellationToken)
@@ -114,18 +120,37 @@ public sealed partial class GlassSessionWork(
         {
             var current = await caseHeaders.ExecuteAsync(new(session.CaseId, actor), cancellationToken);
             if (current is null
-                || current.ActiveEditLease is not null
                 || current.Workflow.Archive is not null
                 || !AssessmentPolicy.IsWritableState(current.Workflow.State))
             {
+                LogHeldEstimateWaits(logger, session.CaseId, session.Id, "the Case is not writable");
                 return;
             }
 
-            var lease = await leases.ExecuteAsync(
-                new(session.CaseId, current.Workflow.Version, actor, StaffPageModel.NewOperationKey()),
-                cancellationToken);
+            CaseEditLease? lease;
+            if (current.ActiveEditLease is { } held)
+            {
+                if (!CaseEditAuthority.IsHolder(held.HolderKind, held.Holder, actor))
+                {
+                    LogHeldEstimateWaits(logger, session.CaseId, session.Id, "another staff member holds the Case");
+                    return;
+                }
+                lease = await resumeLease.ExecuteAsync(new(session.CaseId, actor), cancellationToken);
+                if (lease is null)
+                {
+                    LogHeldEstimateWaits(logger, session.CaseId, session.Id, "the staff member's lease could not be resumed");
+                    return;
+                }
+            }
+            else
+            {
+                lease = await leases.ExecuteAsync(
+                    new(session.CaseId, current.Workflow.Version, actor, StaffPageModel.NewOperationKey()),
+                    cancellationToken);
+            }
+
             var step = await glassEstimates.PrepareResumeAsync(
-                new(actor, session.Id, session.Version, current.Workflow.Version, lease.Token),
+                new(actor, session.Id, session.Version, lease.Version, lease.Token),
                 cancellationToken);
             if (step.Continuation == GlassRepairEstimateContinuation.Import)
             {
@@ -155,4 +180,10 @@ public sealed partial class GlassSessionWork(
         Level = LogLevel.Warning,
         Message = "Glass's {Kind} for session {SessionId} was refused and left the session as it stands: {Reason}")]
     private static partial void LogWorkRefused(ILogger logger, string kind, Guid sessionId, string reason);
+
+    [LoggerMessage(
+        EventId = 1215,
+        Level = LogLevel.Warning,
+        Message = "Glass's held estimate on case {CaseId} (session {SessionId}) waits for Resume: {Reason}")]
+    private static partial void LogHeldEstimateWaits(ILogger logger, Guid caseId, Guid sessionId, string reason);
 }
