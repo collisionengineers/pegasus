@@ -1143,6 +1143,20 @@ it stopped.
 - `glass.export.unreadable` means the reader refused the export. The warning
   names the position or field, the rejected XML is on the Case in Files, and
   **Fetch again** reads the same estimate once the reader is fixed.
+- `glass.details.profile` carries one flag, `profile=absent` or `multiple`
+  (not exactly one `ere_profile` control), `disabled` (a launch found the
+  control already locked), `enabled` (a Resume or Fetch again found it
+  unlocked, so the vehicle shows no estimate) or `option` (the configured
+  profile is not the offered one before a start, or not the one selected
+  after it). After a start the portal locks the control with the profile that
+  started the estimate selected, so a Resume or Fetch again expects exactly
+  that.
+- `glass.start.ere_id` with `Unknown` on Resume means the provider answered
+  the reopening start (`ere_id` 0) with an estimate that is not one of the
+  session's own; the warning gives `expected_ids` and the `answered` id. A
+  start may have created an estimate, so the estimator was not opened. Look in
+  the account for an extra estimate on the vehicle before closing the session
+  with a reason.
 - A launch on a plate Glass's does not know logs stage `Lookup` at
   `glass.lookup.notfound`, then "launches on a placeholder vehicle" and the
   stages `InsertPlaceholder` and `RequirePlaceholder`

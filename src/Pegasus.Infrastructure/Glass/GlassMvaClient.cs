@@ -81,6 +81,7 @@ internal static class GlassFailure
     public const string StartStatus = "glass.start.status";
     public const string StartUrl = "glass.start.url";
     public const string StartCaller = "glass.start.caller";
+    public const string StartEreId = "glass.start.ere_id";
     public const string RelayRequest = "glass.relay.request";
     public const string RelayShape = "glass.relay.shape";
     public const string RelayEstimate = "glass.relay.ere_id";
@@ -439,13 +440,16 @@ internal sealed partial class GlassMvaClient(
     /// Proves the created vehicle is the one the estimate will be started for
     /// (stages 12–14): its detail fragments load and its valuation page names
     /// both the requested repair profile and the type number the lookup
-    /// settled on.
+    /// settled on. <paramref name="estimateStarted"/> says whether the
+    /// provider has already allocated an estimate on this vehicle, which
+    /// changes what its repair-profile control looks like (see
+    /// <see cref="VehicleControlsAsync"/>).
     /// </summary>
     public async Task RequireVehicleAsync(
         string vehicleId, string natCode, string registration, long mileageMiles,
-        CancellationToken cancellationToken)
+        bool estimateStarted, CancellationToken cancellationToken)
     {
-        var inputs = await VehicleControlsAsync(vehicleId, cancellationToken);
+        var inputs = await VehicleControlsAsync(vehicleId, estimateStarted, cancellationToken);
         if (string.IsNullOrWhiteSpace(natCode) || Field(inputs, "id") != vehicleId || Field(inputs, "natcode") != natCode
             || !GlassRepairEstimateSessionPolicy.SameRegistration(Field(inputs, "registration_number"), registration)
             || !long.TryParse(Field(inputs, "mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
@@ -464,9 +468,9 @@ internal sealed partial class GlassMvaClient(
     /// when the session already recorded it) and the repair profile.
     /// </summary>
     public async Task<string> RequirePlaceholderAsync(
-        string vehicleId, string? natCode, CancellationToken cancellationToken)
+        string vehicleId, string? natCode, bool estimateStarted, CancellationToken cancellationToken)
     {
-        var inputs = await VehicleControlsAsync(vehicleId, cancellationToken);
+        var inputs = await VehicleControlsAsync(vehicleId, estimateStarted, cancellationToken);
         var stated = Field(inputs, "natcode");
         if (Field(inputs, "id") != vehicleId
             || string.IsNullOrEmpty(stated) || !stated.All(char.IsAsciiDigit)
@@ -483,10 +487,16 @@ internal sealed partial class GlassMvaClient(
     /// Stages 12–14's reads: the vehicle's detail fragments and its valuation
     /// page, whose named controls are the only things that establish identity
     /// (scripts, comments and unrelated text can carry the right numbers for
-    /// the wrong vehicle), and which must offer the configured repair profile.
+    /// the wrong vehicle), and whose repair-profile control must say the
+    /// configured profile. Before an estimate exists the control is enabled
+    /// and must offer that profile. Once <c>start-ere</c> has allocated one
+    /// the portal locks the control and marks the profile that started the
+    /// estimate selected (<c>glasses12.har</c> entries 1826 and 1840,
+    /// 7 September 2026), so after a start the control must be disabled with
+    /// exactly that profile selected (operator, 5 October 2026, issue 1026).
     /// </summary>
     private async Task<Dictionary<string, string>[]> VehicleControlsAsync(
-        string vehicleId, CancellationToken cancellationToken)
+        string vehicleId, bool estimateStarted, CancellationToken cancellationToken)
     {
         await TextAsync(
             new HttpRequestMessage(
@@ -520,17 +530,54 @@ internal sealed partial class GlassMvaClient(
             var profiles = SelectControl().Matches(controls).Cast<Match>()
                 .Where(match => Attributes(match.Groups[1].Value).GetValueOrDefault("name") == "ere_profile")
                 .ToArray();
-            if (profiles.Length != 1 || Attributes(profiles[0].Groups[1].Value).ContainsKey("disabled")
-                || !OptionControl().Matches(profiles[0].Groups[2].Value).Cast<Match>()
-                    .Select(match => Attributes(match.Groups[1].Value))
-                    .Any(option => !option.ContainsKey("disabled")
-                        && option.GetValueOrDefault("value") == options.RepairProfileId))
+            if (ProfileRefusal(profiles, estimateStarted) is { } refusal)
             {
-                throw new GlassMvaStageException(GlassFailure.DetailsProfile);
+                throw new GlassMvaStageException(GlassFailure.DetailsProfile, detail: $"profile={refusal}");
             }
 
             return inputs;
         }, GlassFailure.DetailsIdentity);
+    }
+
+    /// <summary>
+    /// Why the repair-profile control is not what the vehicle's phase
+    /// requires, as a flag for the host log (never a value), or null when it
+    /// is: <c>absent</c> or <c>multiple</c> when there is not exactly one
+    /// control; <c>disabled</c> before a start when the control is locked;
+    /// <c>enabled</c> after a start when it is not locked; <c>option</c> when
+    /// the configured profile is not the option the phase requires — an
+    /// enabled one before a start, the one selected option after it.
+    /// </summary>
+    private string? ProfileRefusal(Match[] profiles, bool estimateStarted)
+    {
+        if (profiles.Length != 1)
+        {
+            return profiles.Length == 0 ? "absent" : "multiple";
+        }
+
+        var disabled = Attributes(profiles[0].Groups[1].Value).ContainsKey("disabled");
+        if (disabled != estimateStarted)
+        {
+            return disabled ? "disabled" : "enabled";
+        }
+
+        var offered = OptionControl().Matches(profiles[0].Groups[2].Value).Cast<Match>()
+            .Select(match => Attributes(match.Groups[1].Value))
+            .ToArray();
+        if (estimateStarted)
+        {
+            var selected = offered.Where(option => option.ContainsKey("selected")).ToArray();
+            return selected.Length == 1
+                && !selected[0].ContainsKey("disabled")
+                && selected[0].GetValueOrDefault("value") == options.RepairProfileId
+                    ? null
+                    : "option";
+        }
+
+        return offered.Any(option => !option.ContainsKey("disabled")
+            && option.GetValueOrDefault("value") == options.RepairProfileId)
+                ? null
+                : "option";
     }
 
     /// <summary>
@@ -607,9 +654,19 @@ internal sealed partial class GlassMvaClient(
     /// Never retried. <c>start-ere</c> allocates the estimate inside the Glass's
     /// account, so a lost answer leaves an estimate that may exist; the gateway
     /// records that as unknown and a person reconciles it.
+    ///
+    /// <para>
+    /// A start that reopens a session's estimate passes that session's
+    /// <paramref name="expectedEstimateIds"/>, as the portal reopens one with
+    /// <c>ere_id</c> 0 on the vehicle and the provider answers the estimate
+    /// that vehicle holds. An answer naming any other estimate is refused as
+    /// unknown — a start with id 0 may have created one — and its URL is
+    /// never returned. A first start passes none, and any answer is recorded.
+    /// </para>
     /// </remarks>
     public async Task<GlassEstimateLaunch> StartEstimateAsync(
-        string existingEreId, Uri pegasusCallback, CancellationToken cancellationToken)
+        string existingEreId, Uri pegasusCallback, IReadOnlyCollection<string>? expectedEstimateIds,
+        CancellationToken cancellationToken)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, options.MarketValueAssessor("ere/start-ere"))
         {
@@ -633,7 +690,18 @@ internal sealed partial class GlassMvaClient(
             throw new GlassMvaStageException(GlassFailure.StartUrl, outcomeUnknown: true);
         }
 
-        return Rewrite(launch, pegasusCallback);
+        var launched = Rewrite(launch, pegasusCallback);
+        if (expectedEstimateIds is not null && !expectedEstimateIds.Contains(launched.EreId, StringComparer.Ordinal))
+        {
+            // The answered id is a provider number; anything else is not repeated.
+            var answered = launched.EreId.All(char.IsAsciiDigit) ? launched.EreId : "non-numeric";
+            throw new GlassMvaStageException(
+                GlassFailure.StartEreId,
+                outcomeUnknown: true,
+                detail: $"expected_ids={expectedEstimateIds.Count} answered={answered}");
+        }
+
+        return launched;
     }
 
     /// <summary>
