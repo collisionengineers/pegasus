@@ -407,6 +407,48 @@ public sealed partial class DetailsModel(
     public EstimateDetails? EditorDetails { get; private set; }
 
     public IReadOnlyList<EstimateEditorLine> EditorLines { get; private set; } = [];
+
+    /// <summary>
+    /// The identity of each estimate row the editor shows, as "row:id" pairs by
+    /// the index the row posts at. The page draws it from the spec it shows; a
+    /// commit answered in place draws it from the spec the commit wrote, and the
+    /// script carries it into the rows the operator keeps typing in. Every save
+    /// writes its lines afresh, so without it the next commit would name lines
+    /// the last one replaced and be refused (a.QDOS26070, 6 October 2026).
+    /// </summary>
+    public string EstimateLineIdentities =>
+        savedEstimateLineIdentities ?? string.Join(
+            ' ',
+            EditorLines
+                .Select((row, index) => row.ExistingLineId is { } id
+                    ? string.Create(CultureInfo.InvariantCulture, $"{index}:{id:D}")
+                    : null)
+                .Where(entry => entry is not null));
+
+    private string? savedEstimateLineIdentities;
+
+    private IReadOnlyList<int>? postedEstimateLineRows;
+
+    /// <summary>
+    /// The written lines by the rows they were posted from: the editor dropped
+    /// blank rows, so the i-th line came from the i-th non-blank row. A count
+    /// that differs is a line the save did not keep as posted, and nothing is
+    /// carried rather than a wrong id.
+    /// </summary>
+    private static string? EstimateLineIdentitiesOf(
+        IReadOnlyList<int>? postedRows, RepairSpecificationVersion written)
+    {
+        var lines = written.Lines.OrderBy(line => line.Position).ToArray();
+        if (postedRows is null || postedRows.Count != lines.Length)
+        {
+            return null;
+        }
+
+        return string.Join(
+            ' ',
+            lines.Select((line, index) =>
+                string.Create(CultureInfo.InvariantCulture, $"{postedRows[index]}:{line.Id:D}")));
+    }
     public bool ShowingPostedEstimate { get; private set; }
 
     public string? PostedEstimateValue(string name) =>
@@ -2069,6 +2111,7 @@ public sealed partial class DetailsModel(
                 if (workspaceSave.Estimate is { } writtenEstimate)
                 {
                     savedEstimate = writtenEstimate.SpecificationId.ToString("D");
+                    savedEstimateLineIdentities = EstimateLineIdentitiesOf(postedEstimateLineRows, writtenEstimate);
                 }
 
                 if (saveUnroadworthyReason)
@@ -3042,6 +3085,7 @@ public sealed partial class DetailsModel(
                 "Check the estimate's lines: an operation, a quantity, hours or an amount does not read as a number.");
         }
 
+        postedEstimateLineRows = editor.LineRows;
         var existing = await ResolveEstimateAsync(caseId, editor.EstimateId, cancellationToken);
         var details = EditorDetailsFrom(editor, existing);
         var selectedRateCard = ParseSelectedRateCard();

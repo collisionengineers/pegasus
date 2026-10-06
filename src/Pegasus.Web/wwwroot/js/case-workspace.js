@@ -3007,6 +3007,28 @@
             appendPhantom();
         });
 
+        // Every save writes the spec's lines afresh, so a landed commit's
+        // answer carries each line's new id by the row it was posted from, and
+        // the rows the operator keeps typing in take it here: the next commit
+        // names lines the Case still has. Rows added since sit after the ones
+        // the commit posted, so the indexes it answers with still hold.
+        var identitiesHost = form.closest('[data-estimate-section]') || form;
+        identitiesHost.addEventListener('pegasus:carried-forward', function (event) {
+            var carrier = event.target;
+            if (!carrier || !carrier.matches || !carrier.matches('[data-estimate-line-ids]') || !carrier.value) {
+                return;
+            }
+            var rows = body.querySelectorAll('tr[data-estimate-line]');
+            carrier.value.split(' ').forEach(function (entry) {
+                var parts = entry.split(':');
+                var row = rows[parseInt(parts[0], 10)];
+                var identity = row ? row.querySelector('input[name="lineId"]') : null;
+                if (identity && parts[1]) {
+                    identity.value = parts[1];
+                }
+            });
+        });
+
         // The no-script Add line posts a redraw; with script a line is one
         // keystroke away already, so Add line just focuses the blank line.
         var add = form.querySelector('[data-estimate-add-line]');
