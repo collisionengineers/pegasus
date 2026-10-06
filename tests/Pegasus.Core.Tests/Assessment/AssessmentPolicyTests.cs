@@ -718,52 +718,24 @@ public sealed class AssessmentPolicyTests
                     ActionActor.SystemWorker("worker"))));
     }
 
+    /// <summary>
+    /// Save as you go records each field as it is left, so a decision's
+    /// partner field is a readiness item, never a save refusal (operator,
+    /// 6 October 2026): a total loss names its salvage category and value, an
+    /// unroadworthy vehicle its reason, a contract repair its agreed sum.
+    /// </summary>
     [Fact]
-    public void UnroadworthyRequiresAReasonInTheMergedState()
+    public void ADecisionWithoutItsPartnerFieldIsNamedByReadiness()
     {
-        var saved = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["assessment.legal_status"] = "unroadworthy"
-        };
-        Assert.Throws<InvalidOperationException>(() =>
-            AssessmentPolicy.ValidateMergedState(
-                saved,
-                new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["assessment.legal_status"] = "unroadworthy"
-                }));
-        AssessmentPolicy.ValidateMergedState(
-            saved,
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["assessment.legal_status"] = "unroadworthy",
-                ["assessment.unroadworthy_reason"] = "Suspension damage"
-            });
-    }
-
-    [Fact]
-    public void TotalLossRequiresCategoryAndSalvageValueInTheMergedState()
-    {
-        var saved = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["assessment.outcome"] = "total_loss"
-        };
-        Assert.Throws<InvalidOperationException>(() =>
-            AssessmentPolicy.ValidateMergedState(
-                saved,
-                new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["assessment.outcome"] = "total_loss",
-                    ["assessment.category"] = "S"
-                }));
-        AssessmentPolicy.ValidateMergedState(
-            saved,
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["assessment.outcome"] = "total_loss",
-                ["assessment.category"] = "S",
-                ["assessment.salvage_value"] = "1500.00"
-            });
+        Assert.Contains(
+            AssessmentPolicy.EvaluatePostReviewReadiness(Projection([Field(AssessmentVocabulary.Outcome, "total_loss")])),
+            item => item.Field == AssessmentVocabulary.SalvageValue);
+        Assert.Contains(
+            AssessmentPolicy.EvaluatePostReviewReadiness(Projection([Field(AssessmentVocabulary.LegalStatus, "unroadworthy")])),
+            item => item.Field == AssessmentVocabulary.UnroadworthyReason);
+        Assert.Contains(
+            AssessmentPolicy.EvaluatePostReviewReadiness(Projection([Field(AssessmentVocabulary.Outcome, "contract_repair")])),
+            item => item.Field == AssessmentVocabulary.SettlementContractSum);
     }
 
     [Fact]
@@ -778,12 +750,6 @@ public sealed class AssessmentPolicyTests
             new Dictionary<string, string>(StringComparer.Ordinal), ActorKind.Staff);
 
         Assert.Equal("contract_repair", writes[AssessmentVocabulary.Outcome]);
-        AssessmentPolicy.ValidateMergedState(writes,
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                [AssessmentVocabulary.Outcome] = "contract_repair",
-                [AssessmentVocabulary.SettlementContractSum] = "4500.00"
-            });
     }
 
     [Fact]
@@ -809,7 +775,7 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void EmptyContractRepairSumIsRefusedAndAutomationDoesNotEstablishTheOutcome()
+    public void AutomationDoesNotEstablishContractRepair()
     {
         var writes = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -818,16 +784,6 @@ public sealed class AssessmentPolicyTests
         AssessmentPolicy.CompleteCoupledWrites(writes,
             new Dictionary<string, string>(StringComparer.Ordinal), ActorKind.Automation);
         Assert.False(writes.ContainsKey(AssessmentVocabulary.Outcome));
-
-        Assert.Throws<InvalidOperationException>(() => AssessmentPolicy.ValidateMergedState(
-            new Dictionary<string, string?>(StringComparer.Ordinal)
-            {
-                [AssessmentVocabulary.Outcome] = "contract_repair"
-            },
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                [AssessmentVocabulary.Outcome] = "contract_repair"
-            }));
     }
 
     [Fact]

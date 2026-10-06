@@ -481,7 +481,9 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal(1, await harness.HistoryCountAsync());
         Assert.Equal(41, await harness.HiddenCaseVersionAsync());
 
-        await Assert.ThrowsAsync<CaseVersionConflictException>(() => harness.SaveCase.ExecuteAsync(
+        // The save ended the lease it was made under, so the page's old
+        // version comes with a token that is no longer held.
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => harness.SaveCase.ExecuteAsync(
             save with
             {
                 ExpectedVersion = initial.Version,
@@ -535,8 +537,11 @@ public sealed class CaseDataCompletenessPersistenceTests
                 changed),
             CancellationToken.None));
 
+        // A lapsed lease carries on only while nobody claims the Case; once a
+        // colleague has it, the lapsed token is no authority.
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => harness.SaveCase.ExecuteAsync(
+        await harness.AcquireLeaseAsync(initial.Version, otherStaff, "lease-after-lapse");
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => harness.SaveCase.ExecuteAsync(
             new(
                 harness.CaseId,
                 initial.Version,

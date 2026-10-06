@@ -712,7 +712,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 queryEntry = entry.Kind;
                 if (entry.Kind != PostReportQueryEntry.None)
                 {
-                    CaseMutationGuard.Complete(workflow);
+                    CaseMutationGuard.Advance(workflow);
                     if (entry.Kind == PostReportQueryEntry.EnterQuery)
                     {
                         PostReportQueryTransitions.AddQueryHistory(
@@ -733,7 +733,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 if (beforeStateJson is not null)
                 {
                     queryWithdrawn = true;
-                    CaseMutationGuard.Complete(workflow);
+                    CaseMutationGuard.Advance(workflow);
                     PostReportQueryTransitions.AddQueryHistory(
                         context, workflow, beforeCaseVersion, PostReportQueryTransitions.QueryWithdrawnEvent,
                         actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);

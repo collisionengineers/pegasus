@@ -338,22 +338,30 @@ public sealed class CustodyOutboxIntegrationTests
             await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
                 .GetAsync(accepted.CaseId, CancellationToken.None));
         Assert.Equal(checked(workflowBeforeCustody.Version + 1), workflowAfterCustody.Version);
-        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
-            scope.ServiceProvider.GetRequiredService<IAddCaseDocument>()
-                .ExecuteAsync(
-                    new(
-                        accepted.CaseId,
-                        "stale-editor.txt",
-                        "text/plain",
-                        "stale editor content"u8.ToArray(),
-                        DocumentSemanticRole.Other,
-                        DocumentSource.StaffUpload,
-                        $"stale-editor:{Guid.NewGuid():N}",
-                        editor,
-                        $"stale-editor-add:{Guid.NewGuid():N}",
-                        editorLease.Version,
-                        editorLease.Token),
-                    CancellationToken.None));
+        // Custody is system work: it moved the version under the editor's
+        // lease without ending it, so the editor's next action at the version
+        // their page read still lands (operator, 6 October 2026).
+        var editorAdded = await scope.ServiceProvider.GetRequiredService<IAddCaseDocument>()
+            .ExecuteAsync(
+                new(
+                    accepted.CaseId,
+                    "editor.txt",
+                    "text/plain",
+                    "editor content"u8.ToArray(),
+                    DocumentSemanticRole.Other,
+                    DocumentSource.StaffUpload,
+                    $"editor:{Guid.NewGuid():N}",
+                    editor,
+                    $"editor-add:{Guid.NewGuid():N}",
+                    editorLease.Version,
+                    editorLease.Token),
+                CancellationToken.None);
+        Assert.False(editorAdded.IsReplay);
+        Assert.Equal(
+            checked(workflowAfterCustody.Version + 1),
+            Assert.IsType<CaseWorkflowRecord>(
+                await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
+                    .GetAsync(accepted.CaseId, CancellationToken.None)).Version);
 
         Assert.Equal(
             "completed",
@@ -385,6 +393,67 @@ public sealed class CustodyOutboxIntegrationTests
             expectedHash,
             "content");
         Assert.Equal(accepted.Content, await File.ReadAllBytesAsync(retainedPath));
+    }
+
+    /// <summary>
+    /// Custody confirming under a member of staff's edit lease never ends their session
+    /// (operator, 6 October 2026): the lease survives, the editor's heartbeat answers the
+    /// version custody moved the Case to, and their Save at the version the page read lands.
+    /// </summary>
+    [Fact]
+    public async Task CustodyUnderAHeldLeaseKeepsItAndTheEditorsSaveAtTheReadVersionLands()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var accepted = await AcceptDirectSourceAsync(services);
+        var queries = services.GetRequiredService<ICaseWorkflowQueries>();
+        var editor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var read = Assert.IsType<CaseWorkflowRecord>(
+            await queries.GetAsync(accepted.CaseId, CancellationToken.None));
+        var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(accepted.CaseId, read.Version, editor, $"custody-held-lease:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal(
+            "confirmed",
+            await ReadCaseCustodyStateAsync(services, accepted.CaseId));
+        var afterCustody = Assert.IsType<CaseWorkflowRecord>(
+            await queries.GetAsync(accepted.CaseId, CancellationToken.None));
+        Assert.Equal(checked(read.Version + 1), afterCustody.Version);
+        await using (var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.AsNoTracking()
+                .SingleAsync(item => item.CaseId == accepted.CaseId);
+            Assert.Equal(editor.SubjectId, workflow.EditLeaseHolder);
+            Assert.False(string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash));
+        }
+
+        var beat = await services.GetRequiredService<IHeartbeatCaseEditLease>().ExecuteAsync(
+            new(accepted.CaseId, editor, lease.Token),
+            CancellationToken.None);
+        Assert.Equal(lease.Token, beat.Token);
+        Assert.Equal(afterCustody.Version, beat.Version);
+
+        var saved = await services.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                accepted.CaseId,
+                read.Version,
+                editor,
+                $"custody-held-save:{Guid.NewGuid():N}",
+                "Recorded the damage",
+                lease.Token)
+            {
+                Damage = new([new(["front"], "light", "Scuffed")], null)
+            },
+            CancellationToken.None);
+        Assert.False(saved.WasReplay);
+        Assert.Equal(checked(afterCustody.Version + 1), saved.Version);
     }
 
     [Fact]
@@ -631,7 +700,8 @@ public sealed class CustodyOutboxIntegrationTests
                     addLease.Version,
                     addLease.Token),
                 CancellationToken.None);
-        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+        // The add ended the lease it was made under.
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
             scope.ServiceProvider.GetRequiredService<IAddCaseDocument>()
                 .ExecuteAsync(
                     new(
@@ -766,9 +836,19 @@ public sealed class CustodyOutboxIntegrationTests
                     lease.Token),
                 CancellationToken.None));
 
+        // A lapsed lease carries on only while nobody claims the Case; once a
+        // colleague has it, the lapsed token is no authority.
         timeProvider.Advance(TimeSpan.FromMinutes(6));
+        await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+            .ClaimAsync(
+                new(
+                    accepted.CaseId,
+                    workflow.Version,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                    $"document-guard-colleague-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
 
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             add.ExecuteAsync(Command(actor, lease.Token), CancellationToken.None));
         var unchanged = Assert.IsType<CaseWorkflowRecord>(
             await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()

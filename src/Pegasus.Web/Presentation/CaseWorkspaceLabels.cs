@@ -23,7 +23,6 @@ public static class CaseWorkspaceLabels
     public static class Frame
     {
         public const string EditCase = "Edit Case";
-        public const string EditingExpired = "Editing expired · changes are not kept";
         public const string Edit = "Edit";
         /// <summary>
         /// Save as you go (operator, 29 September 2026): Done ends the session,
@@ -40,7 +39,6 @@ public static class CaseWorkspaceLabels
         public const string Tabs = "Tabs";
         public const string CollapseSection = "Collapse section";
         public const string ExpandSection = "Expand section";
-        public const string RenewEditing = "Renew editing";
         public const string TakeOver = "Take over";
         public const string Editing = "Editing";
         public const string Archived = "Archived";

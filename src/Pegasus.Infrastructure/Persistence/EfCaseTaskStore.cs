@@ -333,7 +333,7 @@ public sealed class EfCaseTaskStore(
     }
 
     private static void RequireCaseVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
 
     private static void RequireTaskVersion(CaseTaskEntity task, long expectedVersion)
     {

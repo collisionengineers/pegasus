@@ -91,7 +91,7 @@ public sealed class EfCaseAssessmentStore(
             .ThenInclude(item => item.Principal)
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        RequireVersion(workflow, request.ExpectedVersion);
+        RequireVersionUnderLease(workflow, request.ExpectedVersion);
         AssessmentPolicy.RequireOriginalReportScope(
             request.Fields.Keys,
             CaseTypeCodes.Parse(workflow.Case.Type));
@@ -121,7 +121,6 @@ public sealed class EfCaseAssessmentStore(
             ? null
             : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind);
         var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields, request.Actor.Kind);
-        AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
             workId,
@@ -343,8 +342,8 @@ public sealed class EfCaseAssessmentStore(
             ? kind
             : throw new InvalidDataException($"Unknown persisted actor kind '{value}'.");
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
+    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
 
     private static void RequireLease(
         CaseWorkflowEntity workflow,

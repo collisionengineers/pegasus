@@ -165,8 +165,17 @@ public sealed class CaseWorkspacePersistenceTests
             new(harness.CaseId, harness.StaffActor, new string('b', CaseEditAuthority.LeaseTokenLength)),
             CancellationToken.None));
 
+        // A lapsed staff lease nobody claimed still renders as held; once a
+        // colleague claims the Case the lapsed token is stale.
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(6));
+        Assert.True(await validator.ExecuteAsync(
+            new(harness.CaseId, harness.StaffActor, lease.Token),
+            CancellationToken.None));
 
+        await harness.AcquireLeaseAsync(
+            initial.Version,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            "focused-render-colleague-lease");
         Assert.False(await validator.ExecuteAsync(
             new(harness.CaseId, harness.StaffActor, lease.Token),
             CancellationToken.None));
@@ -1130,8 +1139,11 @@ public sealed class CaseWorkspacePersistenceTests
                 },
                 CancellationToken.None));
 
+        // A lapsed lease carries on only while nobody claims the Case; once a
+        // colleague has it, the lapsed token is no authority.
         harness.TimeProvider.Advance(TimeSpan.FromHours(4));
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+        await harness.AcquireLeaseAsync(initial.Version, other, "lease-denials-colleague");
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.WorkspaceStore.SaveAsync(
                 Request(harness, initial.Version, lease.Token, "workspace-expired") with
                 {
@@ -1143,6 +1155,77 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(initial.Version, after.Version);
         Assert.Equal("Jane Example", after.Claimant.Name.Current?.Value);
         Assert.Equal(historyBefore, await harness.HistoryCountAsync());
+    }
+
+    /// <summary>
+    /// A staff holder's lease that lapsed while nobody claimed the Case carries on (operator,
+    /// 6 October 2026): the holder's next save lands without a new claim. Once a colleague has
+    /// claimed the Case, the lapsed token is refused and writes nothing.
+    /// </summary>
+    [Fact]
+    public async Task ALapsedLeaseNobodyClaimedStillSavesUntilAColleagueClaimsTheCase()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-lapsed-holder");
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(6));
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-lapsed-holder") with
+            {
+                Damage = new([new(["left_front"], "light", "Scuffed")], null)
+            },
+            CancellationToken.None);
+        Assert.Equal(initial.Version + 1, saved.Version);
+        Assert.Equal("left_front", saved.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value);
+
+        var again = await harness.AcquireLeaseAsync(saved.Version, harness.StaffActor, "lease-lapsed-holder-again");
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(6));
+        await harness.AcquireLeaseAsync(
+            saved.Version,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            "lease-lapsed-colleague");
+        var historyBefore = await harness.HistoryCountAsync();
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.WorkspaceStore.SaveAsync(
+                Request(harness, saved.Version, again.Token, "workspace-lapsed-after-colleague") with
+                {
+                    Damage = new([new(["front"], "heavy", "Never written")], null)
+                },
+                CancellationToken.None));
+
+        var after = await harness.GetRequiredDataAsync();
+        Assert.Equal(saved.Version, after.Version);
+        Assert.Equal(historyBefore, await harness.HistoryCountAsync());
+        Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+    }
+
+    /// <summary>
+    /// Save-time cross-field pairings are gone (operator, 6 October 2026): a total loss with no
+    /// salvage category or value saves, and readiness is what names the gap.
+    /// </summary>
+    [Fact]
+    public async Task ATotalLossSavesWithoutItsSalvageCategoryOrValue()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-total-loss");
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-total-loss", engineer) with
+            {
+                Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.Outcome] = "total_loss"
+                })
+            },
+            CancellationToken.None);
+
+        Assert.Equal(initial.Version + 1, saved.Version);
+        Assert.Equal("total_loss", saved.Assessment.Field(AssessmentVocabulary.Outcome)?.Value);
+        Assert.Null(saved.Assessment.Field(AssessmentVocabulary.SalvageCategory)?.Value);
+        Assert.Null(saved.Assessment.Field(AssessmentVocabulary.SalvageValue)?.Value);
     }
 
     [Fact]

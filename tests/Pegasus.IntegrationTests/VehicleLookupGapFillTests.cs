@@ -375,6 +375,72 @@ public sealed class VehicleLookupGapFillTests
         Assert.Equal(FixtureDerivedFacts.Length, (await DerivedFactRowsAsync(database, caseId)).Count);
     }
 
+    /// <summary>
+    /// A lookup that lands while staff edit fills the Vehicle type under their lease (operator,
+    /// 6 October 2026). Their Save posts every control from the version the page read: the
+    /// Vehicle type it still shows as before the fill is not their answer, so the fill stands; a
+    /// different type would overwrite what the lookup wrote unseen, so that Save is refused.
+    /// </summary>
+    [Theory]
+    [InlineData("pre-fill", "", true)]
+    [InlineData("other", "van", false)]
+    public async Task ASaveBehindALookupFillKeepsTheFillOrIsRefused(
+        string row,
+        string postedVehicleType,
+        bool lands)
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            new(caseId, 0, Staff, $"fill-behind-save-lease-{row}"),
+            CancellationToken.None);
+
+        await RecordLookupAsync(database, caseId);
+        Assert.Equal(1L, await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal("car", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+
+        var save = scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                caseId,
+                0,
+                Staff,
+                $"fill-behind-save-{row}",
+                "Saved the page read before the lookup",
+                lease.Token)
+            {
+                Vehicle = new(
+                    FixtureRegistration,
+                    "RENAULT",
+                    "CAPTUR",
+                    null,
+                    new Dictionary<string, string?>(StringComparer.Ordinal)
+                    {
+                        [AssessmentVocabulary.VehicleType] = postedVehicleType
+                    })
+            },
+            CancellationToken.None);
+
+        if (lands)
+        {
+            var saved = await save;
+            Assert.Equal(2, saved.Version);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<CaseVersionConflictException>(() => save);
+            Assert.Equal(1L, await database.ScalarAsync<long>(
+                $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        }
+
+        Assert.Equal("car", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal(ActorKind.Automation.ToString(), await database.ScalarAsync<string>(
+            $"SELECT RecordedByKind FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+    }
+
     [Fact]
     public async Task ALookupReplacesAnotherRecordersValueOnItsOwnFact()
     {
