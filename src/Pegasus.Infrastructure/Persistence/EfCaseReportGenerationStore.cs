@@ -656,6 +656,43 @@ public sealed class EfCaseReportGenerationStore(
         return await LoadRecordAsync(context, caseId, generationId, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+        SendCaseReportRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        CaseReportDeliveryPolicy.RequireStaff(request.Actor);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var generation = await LoadRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                $"Case report generation '{request.GenerationId}' is unavailable on case '{request.CaseId}'.");
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
+
+        // A work's current report is delivered: the current work's, or the
+        // Inspection's once the Audit exists, which stays deliverable on its
+        // own work (operator, 1 October 2026). The generation must be of the
+        // work the request names.
+        var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken)
+            .ConfigureAwait(false);
+        if (generation.WorkId != workId)
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
+        CaseReportDeliveryPolicy.RequireDeliverable(
+            generation.Id,
+            generation.State,
+            generation.SupersededById is null,
+            generation.Version,
+            request.ExpectedGenerationVersion);
+        CaseMutationGuard.Require(
+            workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, timeProvider.GetUtcNow());
+        return generation;
+    }
+
     public async Task<CaseReportGenerationRecord?> GetCurrentAsync(
         ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
     {

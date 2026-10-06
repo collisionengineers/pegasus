@@ -200,7 +200,6 @@ public sealed partial class DetailsModel
                     NextActionBlockers,
                     BlockerSectionKey,
                     CurrentReportGeneration,
-                    CurrentDeliveryPreparation,
                     Works?.Primary.ReportSentEvidence);
                 return inspection is { Blocker: not null } ? null : inspection;
             }
@@ -212,8 +211,7 @@ public sealed partial class DetailsModel
                 OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
                 ReportDraftNotReady ? ReportDraftReasons : [],
                 BlockerSectionKey,
-                CurrentReportGeneration,
-                CurrentDeliveryPreparation);
+                CurrentReportGeneration);
             if (next.Blocker is null)
             {
                 return next;
