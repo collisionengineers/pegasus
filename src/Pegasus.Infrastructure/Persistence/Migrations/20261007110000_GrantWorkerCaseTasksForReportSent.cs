@@ -8,17 +8,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
 /// When the Worker's Sent-evidence poll links a Pegasus report send to its Case, Report sent
-/// creates the after-send tasks the delivery froze (FRD-13, CASE-20) in the same transaction.
+/// creates the after-send tasks the send recorded (FRD-13, CASE-20) in the same transaction.
 /// The Worker role held no grant on <c>CaseTasks</c>, so it gains SELECT (the replay check)
-/// and INSERT; it never updates a task. It also reads the delivery's frozen list from
-/// <c>CaseReportDeliveryIntents</c>, where it held no grant, so it gains SELECT there.
-/// DELETE stays denied. The Worker already holds SELECT and INSERT on
+/// and INSERT; it never updates a task. DELETE stays denied. The list is read from the send's
+/// own row in <c>StaffMailSendOperations</c>, and the sender's role from <c>ActionHistory</c>,
+/// both of which the Worker already reads. It already holds SELECT and INSERT on
 /// <c>CaseWorkflowEvents</c>, INSERT on <c>ActionHistory</c> and UPDATE on
 /// <c>CaseWorkflows</c>, which the same transaction writes. Web already holds what staff
 /// Mark report sent needs.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
-[Migration("20261007090000_GrantWorkerCaseTasksForReportSent")]
+[Migration("20261007110000_GrantWorkerCaseTasksForReportSent")]
 public partial class GrantWorkerCaseTasksForReportSent : Migration
 {
     private const string WorkerRole = "pegasus_worker_runtime_role";
@@ -36,8 +36,6 @@ public partial class GrantWorkerCaseTasksForReportSent : Migration
             $"GRANT SELECT, INSERT ON OBJECT::[dbo].[CaseTasks] TO [{WorkerRole}];");
         migrationBuilder.Sql(
             $"DENY DELETE ON OBJECT::[dbo].[CaseTasks] TO [{WorkerRole}];");
-        migrationBuilder.Sql(
-            $"GRANT SELECT ON OBJECT::[dbo].[CaseReportDeliveryIntents] TO [{WorkerRole}];");
     }
 
     /// <inheritdoc />
@@ -48,8 +46,6 @@ public partial class GrantWorkerCaseTasksForReportSent : Migration
             return;
         }
 
-        migrationBuilder.Sql(
-            $"REVOKE SELECT ON OBJECT::[dbo].[CaseReportDeliveryIntents] FROM [{WorkerRole}];");
         migrationBuilder.Sql(
             $"REVOKE SELECT, INSERT ON OBJECT::[dbo].[CaseTasks] FROM [{WorkerRole}];");
     }

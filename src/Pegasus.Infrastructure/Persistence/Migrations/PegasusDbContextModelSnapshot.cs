@@ -2674,8 +2674,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -3315,6 +3314,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("PendingContentStorageKey")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RecognisedEstimateProvider")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("RemovalOperationKey")
                         .HasMaxLength(256)
@@ -6023,9 +6026,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DefaultInspectionSourceVersion")
                         .HasColumnType("bigint");
 
-                    b.Property<bool>("IncludeOriginalInstructionSender")
-                        .HasColumnType("bit");
-
                     b.Property<string>("InspectionMode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -6047,12 +6047,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
-                    b.Property<string>("ReportRecipientAddressesJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("ReportSendingRulesJson")
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("{\"sendTo\":[],\"sendToOnly\":false,\"replyAll\":true,\"cc\":[],\"neverCc\":[],\"attach\":{\"feeNoteSeparate\":true,\"estimate\":false,\"audatex\":false,\"reportImages\":true,\"vehicleImagesDocument\":false,\"figureBreakdown\":false},\"garageFigures\":false,\"reminders\":[],\"rules\":[]}");
 
                     b.Property<string>("SalvageMatrixJson")
                         .HasColumnType("nvarchar(max)");
@@ -6984,6 +6983,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ReconciliationContinuation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReportDispatchJson")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTimeOffset>("RequestedAtUtc")
