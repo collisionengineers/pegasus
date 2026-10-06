@@ -81,7 +81,6 @@ public sealed partial class DetailsModel(
     IAddCaseDocument addCaseDocument,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
     IAcquireCaseEditLease acquireLease,
-    IRenewCaseEditLease renewLease,
     IHeartbeatCaseEditLease heartbeatLease,
     IResumeCaseEditLease resumeLease,
     IReleaseCaseEditLease releaseLease,
@@ -810,8 +809,6 @@ public sealed partial class DetailsModel(
 
     public bool QueryFailed { get; private set; }
 
-    public string RenewLeaseOperationKey { get; private set; } = NewOperationKey();
-
     /// <summary>
     /// Review point 12: the adverse dispositions this Case may actually be
     /// closed with right now, for the one Close action that is kept apart from
@@ -930,11 +927,6 @@ public sealed partial class DetailsModel(
             // The lease decides how much of the record is rendered now, so it is
             // restored before deciding which section bodies render directly.
             await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
-            if (LeaseToken is not null)
-            {
-                // Only this page renders a manual renew control, so only it needs that key.
-                RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
-            }
             // Each phase below starts its independent reads together, at most
             // four at a time and each on its own database context, and sets the
             // page's state only once all of them have finished. The phases stay
@@ -1621,53 +1613,6 @@ public sealed partial class DetailsModel(
                 view = ReturnView
             });
 
-    public async Task<IActionResult> OnPostRenewLeaseAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-
-        try
-        {
-            var normalizedOperationKey = RequireOperationKey(operationKey);
-            var lease = await renewLease.ExecuteAsync(
-                new(id, expectedVersion, actor, normalizedOperationKey, editLeaseToken),
-                cancellationToken);
-            StoreLeaseAuthority(id, lease.Token);
-            TempData.Remove(RenewLeaseOperationKeyName);
-            TempData["CaseStatus"] = "Edit mode was renewed.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "renew_lease", exception);
-            if (IsLeaseLoss(exception))
-            {
-                ClearLeaseState();
-            }
-            else
-            {
-                StoreLeaseAuthority(id, editLeaseToken);
-                TempData[RenewLeaseOperationKeyName] = operationKey;
-            }
-            TempData["CaseError"] =
-                "Edit mode could not be renewed. Reload the case and enter edit mode again.";
-        }
-
-        return RedirectToDetails(id);
-    }
-
     public Task<IActionResult> OnPostHeartbeatLeaseAsync(
         Guid id,
         string editLeaseToken,
@@ -2120,7 +2065,7 @@ public sealed partial class DetailsModel(
                     saveError = MutationRefusalMessage(exception, string.Empty);
                     throw;
                 }
-                RecordEditorCommit("case-edit-form", operationKey, expectedVersion);
+                RecordEditorCommit("case-edit-form", operationKey, expectedVersion, workspaceSave.Version);
                 if (workspaceSave.Estimate is { } writtenEstimate)
                 {
                     savedEstimate = writtenEstimate.SpecificationId.ToString("D");

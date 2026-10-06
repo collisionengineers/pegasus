@@ -580,7 +580,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `arrow` | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Open full record, transitions |
 | `user` | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Rail user, account dialog; Triage Assign |
 | `more` | `more-horizontal` | `2124DA66776313BB29ED93D2CC06BBF1307EF8C8DBE672B3EE3AF4975F5E56D1` | Overflow menus |
-| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due; Renew editing |
+| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due |
 | `alert` | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary, blocked |
 | `warning` | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Warning notice, exceptions group |
 | `check` | `check` | `DE2A367F6B80B94E85E56CF01EFB198FB835039FEC3C0B4E643EAE54E9C857C6` | Save, confirm, checks |

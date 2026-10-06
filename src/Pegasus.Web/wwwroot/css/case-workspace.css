@@ -8,7 +8,6 @@
 .case-record .ribbon-ref .ribbon-value{display:block}
 .case-record .ribbon-chips .status .icon{width:12px;height:12px}
 .case-record .lease-line{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
-.case-record .lease-line.is-expiring{color:var(--amber);font-weight:700}
 .case-record .lease-line.is-refused{color:var(--red);font-weight:700}
 .case-record .case-edit-badge{margin-right:2px}
 .case-record .ribbon-actions form{display:contents}

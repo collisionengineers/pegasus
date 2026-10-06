@@ -69,8 +69,8 @@ public sealed class EfCreateAuditStore(
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         var now = timeProvider.GetUtcNow();
         ArchivedCaseGuard.RequireMutable(workflow);
-        CaseMutationGuard.RequireVersion(workflow, request.ExpectedVersion);
         CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
 
         // Tracked: the primary row takes the Inspection report's evidence.
         var works = await context.CaseWorks

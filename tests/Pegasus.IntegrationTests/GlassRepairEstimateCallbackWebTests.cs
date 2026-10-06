@@ -111,7 +111,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     }
 
     [Fact]
-    public async Task TheRealCaseAuthorityRequiresTheExactVersionAndLiveLease()
+    public async Task TheRealCaseAuthorityRefusesAVersionNotReachedAndAnEndedLease()
     {
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();

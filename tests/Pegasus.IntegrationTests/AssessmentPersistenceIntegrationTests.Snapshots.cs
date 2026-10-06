@@ -128,7 +128,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal("Later supplementary wording.", metadataOnly.Supplementary?.Statement);
         var restore = new RestoreRepairSpecificationSnapshot(harness.RepairSpecifications);
 
-        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+        // The estimate save ended the lease it was made under.
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
             restore.ExecuteAsync(
                 new(caseId, lease.Version, engineer, "spec-restore-stale", lease.Token, specification.SpecificationId, version.Id),
                 CancellationToken.None));
