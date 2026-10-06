@@ -1,5 +1,7 @@
 using System.Net;
+using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Glass;
@@ -207,6 +209,66 @@ public sealed class GlassGuideValuationProviderTests
             Assert.True(unavailable.InnerException is HttpRequestException or OperationCanceledException);
             Assert.Contains(harness.Logger.Messages, message => message.Contains("glass.transport.failed", StringComparison.Ordinal));
         }
+    }
+
+    /// <summary>
+    /// Issue 1021: the sign-in page's first read after a restart ran out of
+    /// the adapter's match budget and was logged as a transport failure. A
+    /// read budget that runs out is the stage's own refusal, named by the
+    /// stage, and says whether the provider may already have acted.
+    /// </summary>
+    [Fact]
+    public void AReadBudgetThatRunsOutIsTheStagesOwnRefusalNeverTransport()
+    {
+        var timedOut = new RegexMatchTimeoutException("input", "pattern", TimeSpan.FromMilliseconds(1));
+
+        var refused = Assert.Throws<GlassMvaStageException>(() =>
+            GlassMvaClient.Matched<Match>(() => throw timedOut, "glass.login.csrf"));
+        Assert.Equal("glass.login.csrf", refused.FailureCode);
+        Assert.Equal("regex=timeout", refused.Detail);
+        Assert.False(refused.OutcomeUnknown);
+
+        var uncertain = Assert.Throws<GlassMvaStageException>(() =>
+            GlassMvaClient.Matched<Match>(() => throw timedOut, "glass.start.caller", outcomeUnknown: true));
+        Assert.True(uncertain.OutcomeUnknown);
+
+        Assert.Equal(1, GlassMvaClient.Matched(() => 1, "glass.login.csrf"));
+    }
+
+    /// <summary>
+    /// A read budget that somehow escapes its stage is a page the adapter
+    /// could not read, never the network.
+    /// </summary>
+    [Fact]
+    public async Task AReadBudgetThatEscapesItsStageIsUnreadableNotTransport()
+    {
+        var harness = Harness.Create(transport: _ => new Failing(
+            new RegexMatchTimeoutException("input", "pattern", TimeSpan.FromMilliseconds(100))));
+
+        await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
+            harness.Provider.GetAsync(Request(), default));
+
+        Assert.Contains(harness.Logger.Messages, message =>
+            message.Contains("glass.valuation.unreadable RegexMatchTimeoutException", StringComparison.Ordinal));
+        Assert.DoesNotContain(harness.Logger.Messages, message =>
+            message.Contains("glass.transport.failed", StringComparison.Ordinal));
+    }
+
+    /// <summary>Every pattern the adapter reads a page with has a budget a stalled host can meet.</summary>
+    [Fact]
+    public void EveryPatternHasAtLeastOneSecondToMatch()
+    {
+        var patterns = typeof(GlassMvaClient)
+            .GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .Where(method => method.ReturnType == typeof(Regex) && method.GetParameters().Length == 0)
+            .ToArray();
+
+        Assert.True(patterns.Length >= 12, $"Expected the adapter's twelve patterns, found {patterns.Length}.");
+        Assert.All(patterns, method =>
+        {
+            var budget = ((Regex)method.Invoke(null, null)!).MatchTimeout;
+            Assert.True(budget >= TimeSpan.FromSeconds(1), $"{method.Name} matches within {budget}.");
+        });
     }
 
     [Fact]
