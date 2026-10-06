@@ -508,12 +508,16 @@ sources are owned by
 
 ### Glass's window and Case edits
 
-Launch and Resume open the provider window from the staff gesture once any
+**Glass's** is the one button: it continues the staff member's live session,
+reopens the estimate the repair spec on the screen belongs to, or starts a new
+estimate
+([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return)).
+It opens the provider window from the staff gesture once any
 change not yet sent has landed. Only a confirmed save continues with the
 freshly rendered authority: a refused or lost save makes no provider
 request. A blocked popup gives an actionable refusal. Fetch again, shown
-beside Glass's for a `Failed` session whose export was unreadable, is the
-Resume handler and follows the same rule.
+beside Glass's for a `Failed` session whose export was unreadable, follows
+the same rule.
 
 The same-origin launch handoff refreshes only the Glass's launch slot and
 session controls on the original Case before visiting the provider URL. It
