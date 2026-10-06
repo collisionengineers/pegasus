@@ -15,7 +15,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// <c>CaseRepairSpecifications</c> covers the columns.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
-[Migration("20261006150000_RepairSpecificationGlassEstimate")]
+[Migration("20261006160000_RepairSpecificationGlassEstimate")]
 public partial class RepairSpecificationGlassEstimate : Migration
 {
     private const string Table = "CaseRepairSpecifications";
