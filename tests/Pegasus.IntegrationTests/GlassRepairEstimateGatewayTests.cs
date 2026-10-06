@@ -1917,15 +1917,22 @@ public sealed class GlassRepairEstimateGatewayTests
     [Fact]
     public async Task AStaleCaseLeaseKeepsTheArtifactsAndWaitsForTheEngineerToComeBack()
     {
-        var harness = Harness.Create();
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
         var session = await harness.LaunchAsync();
         harness.Import.Refusal = new CaseEditLeaseExpiredException(harness.CaseId, Harness.CaseVersion);
 
         var waiting = await harness.CompleteAsync(session);
 
         Assert.Equal(GlassRepairEstimateSessionState.AwaitingImport, waiting.State);
+        Assert.Null(waiting.FailureCode);
         Assert.Equal(2, harness.Custody.Retained.Count);
         Assert.Single(harness.Import.Requests);
+        // The hold is said once in the host log with its reason: nothing failed
+        // at Glass's, so the session records no code.
+        Assert.Contains(logger.Messages, message =>
+            message.Contains("holds its estimate for landing", StringComparison.Ordinal)
+            && message.Contains(nameof(CaseEditLeaseExpiredException), StringComparison.Ordinal));
 
         harness.Import.Refusal = null;
         var completed = await harness.ResumeAsync(
@@ -1939,6 +1946,8 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(2, harness.Import.Requests.Count);
         Assert.Equal(12, harness.Import.Requests[1].ExpectedVersion);
         Assert.Equal(new string('b', 64), harness.Import.Requests[1].EditLeaseToken);
+        // The landing never ends the session it rides, on the return or on Resume.
+        Assert.All(harness.Import.Requests, request => Assert.True(request.KeepsLease));
     }
 
     [Fact]

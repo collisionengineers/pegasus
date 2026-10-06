@@ -28,6 +28,14 @@ public sealed record ImportRawEstimateRequest(
 {
     /// <summary>The work the estimate is imported into (operator, 2 October 2026).</summary>
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+
+    /// <summary>
+    /// The staff member's edit session continues past this import. A Glass's
+    /// return lands its estimate under the session they hold and never ends it
+    /// (operator, 6 October 2026); the file import they press keeps ending the
+    /// session it was made under, as every other staff write does.
+    /// </summary>
+    public bool KeepsLease { get; init; }
 }
 
 public interface IImportRawEstimate
@@ -285,6 +293,7 @@ public sealed class ImportRawEstimate(
                 SelectedRateCardId = card?.Id,
                 SelectedRateCardVersion = card?.Version,
                 Work = request.Work,
+                KeepsLease = request.KeepsLease,
             }),
             cancellationToken);
         return new(saved.SpecificationId);
