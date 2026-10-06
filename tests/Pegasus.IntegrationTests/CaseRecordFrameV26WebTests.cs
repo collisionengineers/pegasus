@@ -321,11 +321,12 @@ public sealed class CaseRecordFrameV26WebTests
     }
 
     /// <summary>
-    /// Hand to Engineer on a Review Case is the select. Assign to me is not a
-    /// second way to take the Case.
+    /// Assign Engineer on a Review Case is the select. Assign to me is not a
+    /// second way to take the Case. The Next action opens the Actions menu's
+    /// own dialog rather than jumping to a section (issue 1025).
     /// </summary>
     [Fact]
-    public async Task HandToEngineerDoesNotOfferAssignToMe()
+    public async Task AssignEngineerDoesNotOfferAssignToMe()
     {
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
@@ -337,6 +338,40 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Contains("handler=AssignEngineer", dialog, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=AssignToMe", dialog, StringComparison.Ordinal);
         Assert.DoesNotContain("Assign to me", dialog, StringComparison.Ordinal);
+        Assert.Contains(
+            "<button type=\"button\" class=\"btn\" data-dialog-open=\"case-handoff-dialog\">",
+            RecordBar(leased),
+            StringComparison.Ordinal);
+        Assert.Matches(
+            "<div class=\"next-row\">\\s*<span data-next-label>Assign Engineer</span>\\s*"
+                + "<button type=\"button\" class=\"btn btn--small\" data-dialog-open=\"case-handoff-dialog\" data-next-assign-engineer>Assign Engineer</button>\\s*</div>",
+            leased);
+    }
+
+    /// <summary>
+    /// While a colleague holds the lease the Actions menu does not offer
+    /// Assign Engineer, so the Next action names the step without a control
+    /// and no dialog is rendered.
+    /// </summary>
+    [Fact]
+    public async Task AssignEngineerIsNamedWithoutAControlWhileAColleagueHoldsTheLease()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.Review,
+            LeaseHolder = Guid.NewGuid().ToString("D")
+        };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+        {
+            Substitute<IStaffAccountQueries>(services, new StubStaffAccounts(Guid.NewGuid(), "User", StaffRole.User));
+        });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Matches("<div class=\"next-row\">\\s*<span data-next-label>Assign Engineer</span>\\s*</div>", html);
+        Assert.DoesNotContain("data-next-assign-engineer", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"case-handoff-dialog\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"case-handoff-dialog\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>
