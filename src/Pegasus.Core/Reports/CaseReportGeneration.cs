@@ -18,7 +18,6 @@ namespace Pegasus.Core.Reports;
 public sealed record GenerateCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     string OperationKey, CaseReportArtifactKind Kind, string Reason,
-    bool IncludeFeeNote = false,
     Guid? TargetGenerationId = null,
     CaseWorkSelector Work = CaseWorkSelector.Current);
 public interface IGenerateCaseReport
@@ -29,10 +28,10 @@ public interface IGenerateCaseReport
 
 /// <summary>
 /// The separately addressable artifacts one accepted snapshot produces. Each
-/// is generated on its own request; none is rendered speculatively. A report
-/// frozen with <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> carries
-/// the fee note inside <see cref="AssessmentReport"/> itself, so the separate
-/// <see cref="FeeNote"/> document is not asked for as well.
+/// is generated on its own request; none is rendered speculatively. Every
+/// <see cref="AssessmentReport"/> ends with its fee note. A Principal that
+/// wants the fee note on its own as well is sent the separate
+/// <see cref="FeeNote"/> document beside the report.
 ///
 /// <see cref="RepairSpecification"/> and <see cref="ImagePack"/> are the two
 /// companion documents a delivery may attach (v28 P22). The specification is
@@ -332,11 +331,9 @@ public sealed record CaseReportFreezeResult(
     IReadOnlyList<AssessmentReadinessItem> Reasons);
 
 /// <summary>
-/// One freeze. <see cref="IncludeFeeNote"/> is the operator's packaging
-/// choice for an <see cref="CaseReportArtifactKind.AssessmentReport"/>
-/// request: it is frozen into the snapshot, so it is part of the material
-/// facts the snapshot hash covers and an issued report renders the same way
-/// again. It has no meaning for a separate fee-note document.
+/// One freeze. An <see cref="CaseReportArtifactKind.AssessmentReport"/>
+/// request freezes a fresh snapshot; any other kind names the confirmed
+/// generation it extends in <see cref="TargetGenerationId"/>.
 /// </summary>
 public sealed record FreezeCaseReportGenerationRequest(
     ActionActor Actor,
@@ -348,7 +345,6 @@ public sealed record FreezeCaseReportGenerationRequest(
     string Reason,
     string TemplateVersion,
     string RendererVersion,
-    bool IncludeFeeNote = false,
     Guid? TargetGenerationId = null,
     CaseWorkSelector Work = CaseWorkSelector.Current);
 
@@ -916,7 +912,6 @@ public sealed class GenerateCaseReport(
                 request.Reason,
                 AssessmentReportContract.TemplateVersion,
                 renderer.EngineVersion,
-                request.IncludeFeeNote,
                 request.TargetGenerationId,
                 request.Work),
             cancellationToken).ConfigureAwait(false);
