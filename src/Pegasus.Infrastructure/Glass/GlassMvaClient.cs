@@ -50,6 +50,7 @@ internal static class GlassFailure
     public const string LoginRequest = "glass.login.request";
     public const string LoginCsrf = "glass.login.csrf";
     public const string LoginRedirect = "glass.login.redirect";
+    public const string LoginRejected = "glass.login.rejected";
     public const string LoginLanding = "glass.login.landing";
     public const string LookupRequest = "glass.lookup.request";
     public const string LookupNotFound = "glass.lookup.notfound";
@@ -138,12 +139,17 @@ internal sealed record GlassEstimateLaunch(string EreId, Uri OriginalCallback, U
 /// </para>
 ///
 /// <para>
-/// <b>Nothing retries blindly.</b> Only the candidate list is read again,
-/// and only when the provider answered readable JSON that reported nothing
-/// yet: twice more, 250 ms apart, because the portal's own page reads it
-/// after the lookup and a list that is not ready is an empty answer, not a
-/// refusal. The plate search itself is never repeated; the portal does not
-/// repeat it either. Vehicle creation, inserting a placeholder and starting
+/// <b>Nothing retries blindly.</b> Only two reads are repeated. The candidate
+/// list is read again, and only when the provider answered readable JSON that
+/// reported nothing yet: twice more, 250 ms apart, because the portal's own
+/// page reads it after the lookup and a list that is not ready is an empty
+/// answer, not a refusal. A vehicle created moments earlier has its detail
+/// fragments proved once more, 500 ms later, when the first reading does not
+/// identify it, and only on a launch (the gateway repeats it): two of 28
+/// launches on 2 October 2026 failed that proof on a new vehicle and
+/// succeeded moments later with nothing changed (issue 1030), and the reads
+/// change nothing at Glass's. The plate search itself is never repeated; the
+/// portal does not repeat it either. Vehicle creation, inserting a placeholder and starting
 /// the estimate change state inside the Glass's account, so a lost answer to
 /// any of them is reported as unknown rather than repeated.
 /// </para>
@@ -216,8 +222,10 @@ internal sealed partial class GlassMvaClient(
     /// <summary>
     /// Signs in and proves the session is authenticated (stages 1–4): read the
     /// login page, take its single-use CSRF token, post the form, require a
-    /// same-origin redirect rather than a re-rendered login form, and require
-    /// the landing page to be the stock list and not the login form again.
+    /// same-origin redirect rather than a re-rendered login form, refuse the
+    /// redirect to the portal's "Login failed" page as a rejected credential,
+    /// and require the landing page to be the stock list and not the login
+    /// form again.
     /// </summary>
     public async Task SignInAsync(string username, string password, CancellationToken cancellationToken)
     {
@@ -250,6 +258,18 @@ internal sealed partial class GlassMvaClient(
             // following an off-origin redirect would carry this session's
             // cookies to whatever host named itself.
             throw new GlassMvaStageException(GlassFailure.LoginRedirect);
+        }
+
+        // The portal answers a rejected credential with a redirect to its own
+        // "Login failed" page (glassesvaluation.har, 1 October 2026). Nothing
+        // follows it and nothing signs in again: another attempt is another
+        // failed sign-in on an account that may be shared.
+        if (string.Equals(
+            Absolute(location, login).AbsolutePath.TrimEnd('/'),
+            options.MarketValueAssessor("login/login-failed").AbsolutePath,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new GlassMvaStageException(GlassFailure.LoginRejected);
         }
 
         var landing = await TextAsync(
@@ -450,13 +470,44 @@ internal sealed partial class GlassMvaClient(
         bool estimateStarted, CancellationToken cancellationToken)
     {
         var inputs = await VehicleControlsAsync(vehicleId, estimateStarted, cancellationToken);
-        if (string.IsNullOrWhiteSpace(natCode) || Field(inputs, "id") != vehicleId || Field(inputs, "natcode") != natCode
-            || !GlassRepairEstimateSessionPolicy.SameRegistration(Field(inputs, "registration_number"), registration)
-            || !long.TryParse(Field(inputs, "mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
-            || mileage != mileageMiles)
+        var refusal =
+            IdentityRefusal(inputs, "id", "id", Field(inputs, "id") == vehicleId)
+            ?? (string.IsNullOrWhiteSpace(natCode)
+                // The session holds no type number to compare the control with.
+                ? "control=natcode state=absent"
+                : IdentityRefusal(inputs, "natcode", "natcode", Field(inputs, "natcode") == natCode))
+            ?? IdentityRefusal(inputs, "registration", "registration_number",
+                GlassRepairEstimateSessionPolicy.SameRegistration(Field(inputs, "registration_number"), registration))
+            ?? IdentityRefusal(inputs, "mileage", "mileage",
+                long.TryParse(Field(inputs, "mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
+                    && mileage == mileageMiles);
+        if (refusal is not null)
         {
-            throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+            throw new GlassMvaStageException(GlassFailure.DetailsIdentity, detail: refusal);
         }
+    }
+
+    /// <summary>
+    /// The first identity control that failed its proof, as flags for the
+    /// host log (never a value), or null when it held: the control by the
+    /// name the operator guide uses, and <c>absent</c> when the page has no
+    /// usable control of that name, <c>contradictory</c> when its repeats
+    /// disagree, or <c>different</c> when it names another vehicle.
+    /// </summary>
+    private static string? IdentityRefusal(
+        Dictionary<string, string>[] inputs, string control, string name, bool proved)
+    {
+        if (proved)
+        {
+            return null;
+        }
+
+        var controls = inputs.Where(input => input.GetValueOrDefault("name") == name).ToArray();
+        var state = controls.Length == 0 || controls.All(input => input.ContainsKey("disabled")) ? "absent"
+            : controls.Select(input => input.ContainsKey("disabled") ? null : input.GetValueOrDefault("value"))
+                .Distinct(StringComparer.Ordinal).Count() > 1 ? "contradictory"
+            : "different";
+        return $"control={control} state={state}";
     }
 
     /// <summary>
@@ -602,7 +653,19 @@ internal sealed partial class GlassMvaClient(
                 WebUtility.HtmlDecode(match.Groups[2].Success ? match.Groups[2].Value
                     : match.Groups[3].Success ? match.Groups[3].Value : match.Groups[4].Value)))
             {
-                throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+                // An attribute stated twice cannot be read as either: say which
+                // identity control it sat on, when the tag had named one.
+                var control = attributes.GetValueOrDefault("name") switch
+                {
+                    "id" => "id",
+                    "natcode" => "natcode",
+                    "registration_number" => "registration",
+                    "mileage" => "mileage",
+                    _ => null,
+                };
+                throw new GlassMvaStageException(
+                    GlassFailure.DetailsIdentity,
+                    detail: control is null ? "state=duplicate" : $"control={control} state=duplicate");
             }
         }
         return attributes;
