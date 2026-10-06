@@ -109,11 +109,13 @@ home.
 Recent examples that are now guardrails:
 
 - Case images belong under **Files → Images**; Damage does not repeat the image strip.
-- Guide valuations have one route per source: the source's own card contains its
+- Guide valuations have one route per source: the source's own row contains its
   **Get valuation** (only when the source has a connected provider) and **Use this value**;
-  Get valuation fills the card's boxes in place; the boxes belong to the Case form,
-  so the ribbon **Save** records the card. Do not give a card its own Save, and do not
+  Get valuation fills the row's boxes in place; the boxes belong to the Case form,
+  so the Case's save records the row. Do not give a row its own Save, and do not
   reintroduce **Add valuation** or a second source-button row.
+- The Engineer's Value stands in one place, its box. Do not reintroduce a second
+  "Proposed" total or an "Applied" block beside it (operator, 6 October 2026).
 - The Estimate header does not show a locked pill saying a confirmed Engineer's Value is
   required when the action is already absent until the condition is met.
 

@@ -177,8 +177,9 @@ the proposal recorded by the `MarketResearch` job
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
 it never becomes the Engineer's Value by itself.
 
-**Retail value, Trade value and Engineer's Value** are three boxes at the
-top of Valuation (operator, 26 September 2026). The report prints them in its
+**Retail value, Trade value and Engineer's Value** are three boxes in
+Valuation, under the chosen source's row with the calculation above them
+(operator, 26 September and 6 October 2026). The report prints them in its
 Vehicle Data table. Staff type them, or choose a guide card as the basis: the
 card's retail and trade fill the first two boxes in place, and the
 calculation fills the Engineer's Value. Any box can be overtyped. The Case's
@@ -213,14 +214,28 @@ withdraws the decision; typing in the box withdraws it too. A card with no
 retail offers no Use this value, and a cleared retail box is "no retail", not
 the recorded card's figure.
 
-**The preview shows what the Save will use.** The lines and the figure that
-fills the Engineer's Value box come from the retail on the chosen card as
+**The preview shows what the Save will use.** The figure that fills the
+Engineer's Value box, and the commercial VAT and previous total loss amounts
+shown beside their controls, come from the retail on the chosen card as
 typed, even unsaved, and the claimant's VAT position as the form holds it,
-through the same Core calculation the Save runs. While a preview is pending
-the lines are dimmed, a preview that fails says so, and a calculation that
-cannot be worked out shows its own reason (deductions beyond the value, no
-retail to start from), never "None yet". "None yet" means only that no card
-is chosen.
+through the same Core calculation the Save runs. The Engineer's Value box is
+the one place the result stands: there is no separate proposed total
+(operator, 6 October 2026). While a preview is pending the amounts are
+dimmed, a preview that fails says so, and a calculation that cannot be worked
+out shows its own reason (deductions beyond the value, no retail to start
+from), never "None yet". "None yet" means only that no card is chosen, and is
+shown only while editing.
+
+**What the page shows of a recorded calculation** (operator, 6 October
+2026). While the Engineer's Value holds a recorded calculation's figure, its
+label carries that calculation's source as one word, the calculator opens on
+that calculation, and that source's row is the one that opens while reading.
+Once a different figure is saved in the box, none of that is shown: the
+figure is the Engineer's own, and the earlier calculation stays in the Case's
+history. The section head's figure and the source word follow each save
+without a reload. There is no applied block and the page never reads "None
+yet" beside a figure. Without script the three boxes are typed and a recorded
+calculation's result is not displayed.
 
 **The Engineer's own value.** The Engineer's Value box takes a figure the
 Engineer types with no card and no calculation. It is recorded as the staff
