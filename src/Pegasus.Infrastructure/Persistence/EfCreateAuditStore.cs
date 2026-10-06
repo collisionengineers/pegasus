@@ -344,7 +344,15 @@ public sealed class EfCreateAuditStore(
                 SupplementaryOfSpecificationId = Remap(source.SupplementaryOfSpecificationId),
                 SupplementaryReason = source.SupplementaryReason,
                 SupplementaryExplainOnReport = source.SupplementaryExplainOnReport,
-                SupplementaryStatement = source.SupplementaryStatement
+                SupplementaryStatement = source.SupplementaryStatement,
+                // The Audit's copy belongs to the same Glass's estimate
+                // (operator, 6 October 2026).
+                GlassVehicleId = source.GlassVehicleId,
+                GlassEstimateId = source.GlassEstimateId,
+                GlassNatCode = source.GlassNatCode,
+                GlassPlaceholder = source.GlassPlaceholder,
+                GlassRegistration = source.GlassRegistration,
+                GlassMileageMiles = source.GlassMileageMiles
             };
             foreach (var line in source.Lines.OrderBy(line => line.Position))
             {
