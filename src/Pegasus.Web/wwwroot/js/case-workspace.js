@@ -843,7 +843,11 @@
         var owned = '#' + id + ' [data-carry-forward], [data-carry-forward][form="' + id + '"]';
         Array.prototype.forEach.call(parsed.querySelectorAll(owned), function (input) {
             var current = form.elements.namedItem(input.name);
-            if (current && current.hasAttribute && current.hasAttribute('data-carry-forward')) { current.value = input.value; }
+            if (current && current.hasAttribute && current.hasAttribute('data-carry-forward')) {
+                current.value = input.value;
+                // A section that draws from what was carried redraws now.
+                current.dispatchEvent(new CustomEvent('pegasus:carried-forward', { bubbles: true }));
+            }
         });
     }
     function swap(html, command, preferred, options) {
@@ -2404,20 +2408,27 @@
 
 
 // --- valuation -----------------------------------------------------------------
-// --- Valuation: the calculator's preview, basis cards and additions -----------
-// The lines are Core's arithmetic: every change posts the selection to the
-// PreviewValuation handler and the returned partial replaces the lines. The
-// calculator's controls and the Basis radios belong to the Case form, so the
-// ribbon Save records a changed calculation (one Save, 23 September 2026).
-// Choosing a card fills the Retail and Trade boxes in place, and each
-// calculation fills the Engineer's Value box; the operator may overtype any
-// of them (operator, 26 September 2026).
+// --- Valuation: the calculator's preview, source rows and additions -----------
+// The figures are Core's arithmetic: every change posts the selection to the
+// PreviewValuation handler. The proposal it answers fills the Engineer's Value
+// box, which is the one place the figure stands, and the commercial VAT and
+// previous total loss amounts go to their cells' label lines (operator,
+// 6 October 2026). The calculator's controls and the Basis radios belong to
+// the Case form, so the Case's save records a changed calculation (one Save,
+// 23 September 2026). Choosing a source fills the Retail and Trade boxes in
+// place and moves the calculation under its row; the operator may overtype
+// any of the three boxes (operator, 26 September 2026).
 //
 // The preview shows what the Save will use (operator, 28 September 2026): it
 // posts the chosen card's retail as typed and the claimant's VAT position as
 // the form holds it, so an unsaved figure is calculated, not the recorded one.
-// While a preview is pending the lines are dimmed, and a failed one says so;
+// While a preview is pending the amounts are dimmed, and a failed one says so;
 // a calculation Core cannot work out shows its own reason.
+//
+// The section head's figure and the recorded source's word on the Engineer's
+// Value label are the Case as saved: each commit carries them forward and
+// they are redrawn then, with no reload. The word shows only while the box
+// holds the recorded calculation's figure.
 //
 // Use this value on a card is the visible decision to use that card's figure:
 // it chooses the card as the basis, fills the boxes, and switches on the
@@ -2449,8 +2460,10 @@
             }
             calc.dataset.valuationBound = 'true';
             var section = calc.closest('.record-section') || document;
-            var host = section.querySelector('[data-valuation-lines-host]');
+            var host = section.querySelector('[data-valuation-preview-host]');
             var basisName = section.querySelector('[data-valuation-basis-name]');
+            var open = section.querySelector('[data-valuation-open]');
+            var savedInput = section.querySelector('[data-valuation-recorded-state]');
             var sourceInput = section.querySelector('[data-valuation-source-input]');
             var useInput = section.querySelector('[data-valuation-use-input]');
             var previewUrl = calc.getAttribute('data-preview-url');
@@ -2478,26 +2491,56 @@
             }
 
             function busy(on) {
-                if (!host) { return; }
-                if (on) { host.setAttribute('aria-busy', 'true'); } else { host.removeAttribute('aria-busy'); }
+                if (on) { calc.setAttribute('aria-busy', 'true'); } else { calc.removeAttribute('aria-busy'); }
             }
 
-            // The lines could not be refreshed: say so where the figure was,
-            // rather than leaving the last figure standing as if it were current.
+            // What each adjustment comes to, in its own cell's label line:
+            // Core's amounts from the preview, or nothing where there are none.
+            function paintAmounts(proposal) {
+                ['vat', 'ptl'].forEach(function (name) {
+                    var cell = section.querySelector('[data-valuation-amount="' + name + '"]');
+                    if (cell) {
+                        cell.textContent = proposal ? (proposal.getAttribute('data-valuation-' + name + '-amount') || '') : '';
+                    }
+                });
+            }
+
+            // The calculation could not be refreshed: say so, rather than
+            // leaving the last amounts standing as if they were current.
             function showFailure() {
                 if (!host) { return; }
-                var lines = document.createElement('div');
-                lines.className = 'lines';
-                lines.setAttribute('data-valuation-lines', '');
                 var notice = document.createElement('div');
                 notice.className = 'notice notice--danger';
                 notice.setAttribute('role', 'alert');
                 notice.setAttribute('data-valuation-error', '');
                 notice.textContent = calc.getAttribute('data-text-preview-failed')
                     || 'The calculation could not be updated.';
-                lines.appendChild(notice);
                 host.textContent = '';
-                host.appendChild(lines);
+                host.appendChild(notice);
+                paintAmounts(null);
+            }
+
+            // The Case as saved: the section head's figure, and the recorded
+            // source's word on the Engineer's Value label while the box holds
+            // the recorded calculation's figure. A commit carries the saved
+            // state forward, so both follow it with no reload; a figure typed
+            // over the calculation takes the word away at once.
+            function paintSaved(landed) {
+                var state = null;
+                try { state = savedInput ? JSON.parse(savedInput.value) : null; } catch (_) { /* An unreadable state redraws nothing. */ }
+                if (!state) { return; }
+                var head = section.querySelector('[data-valuation-head]');
+                if (landed && head && state.head) { head.textContent = state.head; }
+                var word = section.querySelector('[data-valuation-recorded-word]');
+                var box = section.querySelector('[data-valuation-value="engineer"]');
+                if (!word || !box) { return; }
+                var holds = state.value !== null && state.word
+                    && parseFloat(box.value) === parseFloat(state.value);
+                word.hidden = !holds;
+                if (holds) {
+                    word.textContent = state.word;
+                    word.classList.toggle('src-tag--ai', !!state.research);
+                }
             }
 
             // The Engineer's Value box holds the last calculated figure until
@@ -2549,6 +2592,7 @@
                     busy(false);
                     host.innerHTML = html;
                     var proposal = host.querySelector('[data-valuation-proposal]');
+                    paintAmounts(proposal);
                     if (proposal) {
                         lastProposal = proposal.getAttribute('data-valuation-proposal');
                         fill(section, '[data-valuation-value="engineer"]', lastProposal);
@@ -2575,11 +2619,16 @@
                 timer = window.setTimeout(preview, 250);
             }
 
-            // The chosen card is drawn selected and named in the calculator's head.
+            // The chosen source is drawn selected, named in the calculator's
+            // head, and opens: the calculation and the three values move to
+            // stand under its row.
             function markChosen(card, name) {
                 section.querySelectorAll('[data-valuation-card]').forEach(function (other) {
                     other.classList.toggle('sel', other === card);
                 });
+                if (open && card && open.previousElementSibling !== card) {
+                    card.after(open);
+                }
                 if (basisName) {
                     basisName.textContent = 'from ' + (name || 'guide') + ' retail';
                 }
@@ -2638,7 +2687,16 @@
                 }
                 schedule();
             });
+            section.addEventListener('pegasus:carried-forward', function (event) {
+                if (event.target === savedInput) { paintSaved(true); }
+            });
             section.addEventListener('input', function (event) {
+                if (event.target && event.target.matches
+                    && event.target.matches('[data-valuation-value="engineer"]')) {
+                    // Typed or filled: the recorded source's word stands only
+                    // beside the recorded calculation's own figure.
+                    paintSaved(false);
+                }
                 if (event.isTrusted && event.target && event.target.matches
                     && event.target.matches('[data-valuation-value="engineer"]')) {
                     // Typed over by the Engineer: that figure is their own, so
