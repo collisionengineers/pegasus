@@ -306,21 +306,27 @@ text always looks different from sent, delivered, answered or completed work.
 
 **General Case tasks (`CASE-20`).** A Case task has a description, an
 optional assignee and the states Open, Completed and Cancelled. Staff add,
-complete and cancel tasks in the Tasks section of the Case record, in the edit
-session and under its lease
+complete, cancel and assign tasks in the Tasks section of the Case record, in
+the edit session and under its lease
 ([FRD-16](frd-16-case-record-workspace.md#tasks)). A Case with an open task
-cannot be completed or archived until each task is completed or cancelled. A
-task has no due date yet, and there are no reminders.
+cannot be completed or archived until each task is completed or cancelled.
+Once Report sent is recorded, the Case's Next action lists its open tasks,
+and Mark completed and Archive are greyed with the reason "Complete or cancel
+every open task first." (operator, 6 October 2026). A task has no due date
+yet, and there are no reminders.
 
-**After-send tasks.** When a report delivery is prepared it freezes the list of
-after-send task descriptions that the Principal's sending rules produce.
+**After-send tasks.** A report send records the list of after-send task
+descriptions that the Principal's sending rules produce
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)).
 When Report sent is recorded, by the Worker's automatic link or by staff Mark
 report sent, and the linked Sent item is a Pegasus report send, one open,
 unassigned task per description is created in the same transaction that
-records the link, with a `case_task_created` event each. The task ids come
+records the link, with a `case_task_created` event each, in the name of the
+staff member who sent the report. The task ids come
 from the Sent evidence and the position in the list, so a replay creates none
 more. A Mark report sent on a Sent item that is not a Pegasus report send
-creates none. These tasks bypass the edit lease by design: they are a
+creates none. Creating them is system work, which keeps the session
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)): they are a
 consequence of a recorded Sent item, not a staff edit, and the Worker's link
 holds no lease. Chasing above is the only due work.
 

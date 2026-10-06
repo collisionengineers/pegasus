@@ -43,10 +43,12 @@ public sealed class WorkCentreStatementCountWebTests
         // reads the workflow configuration and the open AI jobs once each rather
         // than three times, derives the AI drafts in memory, and hands the shell
         // the stage counts and the Unidentified count it has already read.
+        // Open tasks (operator, 6 October 2026) add the one read of the open
+        // Case tasks.
         Assert.True(
             counter.Count == WorkCentreCommands,
             $"A full Work Centre load sent {counter.Count} SQL commands; it is pinned at {WorkCentreCommands}." + Environment.NewLine + counter.Describe());
     }
 
-    private const int WorkCentreCommands = 30;
+    private const int WorkCentreCommands = 31;
 }

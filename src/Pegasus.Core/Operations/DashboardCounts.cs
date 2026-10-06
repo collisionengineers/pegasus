@@ -49,6 +49,26 @@ public sealed record PairedVehicleImagesCase(
     DateTimeOffset ImagesRegisteredAtUtc);
 
 /// <summary>
+/// One open Case task with the Case it is on and its creation (FRD-15, Open
+/// tasks). The Work Centre makes one row of each Case's open tasks.
+/// </summary>
+/// <param name="CreatedAtUtc">When the task was created: its creation event's instant.</param>
+/// <param name="CreatedByStaffId">The staff member the creation event records; null when its actor was not staff.</param>
+public sealed record OpenCaseTask(
+    Guid CaseId,
+    string Reference,
+    string? Principal,
+    string? Registration,
+    string? Claimant,
+    string? VehicleMake,
+    string? VehicleModel,
+    Guid TaskId,
+    string Description,
+    Guid? AssigneeId,
+    DateTimeOffset CreatedAtUtc,
+    Guid? CreatedByStaffId);
+
+/// <summary>
 /// The Cases rail counts and the Work Centre's own reads. Every count is a
 /// real number or the tile that would have shown it is not rendered — there is
 /// no placeholder value.
@@ -64,13 +84,17 @@ public interface IDashboardQueries
     /// </summary>
     Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
         CancellationToken cancellationToken);
+
+    /// <summary>Every open Case task with its creation, one row per task.</summary>
+    Task<IReadOnlyList<OpenCaseTask>> ListOpenCaseTasksAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
 /// The Work Centre's actionable kinds (Work Centre D1–D3, D9). Each is derived
-/// from one existing Core query and carries a due instant from the workflow
-/// targets; there is no placeholder row. Failed external work is not a kind
-/// (D1): a custody failure is retried in its Case's Custody page.
+/// from one existing Core query; every kind but <see cref="NeedsAttentionKind.OpenTasks"/> carries
+/// a due instant from the workflow targets. There is no placeholder row. Failed
+/// external work is not a kind (D1): a custody failure is retried in its Case's
+/// Custody page.
 /// </summary>
 public enum NeedsAttentionKind
 {
@@ -99,7 +123,13 @@ public enum NeedsAttentionKind
     /// A pre-report Case its early vehicle images were paired into, not
     /// changed by staff since; due at the pairing.
     /// </summary>
-    VehicleImagesPaired
+    VehicleImagesPaired,
+
+    /// <summary>
+    /// A Case with at least one open task, named by its oldest open task; no
+    /// due instant, so always Normal.
+    /// </summary>
+    OpenTasks
 }
 
 /// <summary>
@@ -120,7 +150,7 @@ public enum NeedsAttentionPriority
 /// record behind <paramref name="Id"/>.
 /// </summary>
 /// <param name="Id">The record the row opens (Case, Unidentified item, Triage record; the Case for external work).</param>
-/// <param name="Reason">Why it needs attention — a Core enum name or a recorded failure fact: a chase state, a Case state, an Unidentified reason code, a Triage state or an external failure reason.</param>
+/// <param name="Reason">Why it needs attention — a Core enum name or a recorded fact: a chase state, a Case state, an Unidentified reason code, a Triage state, an external failure reason or the first open task's description.</param>
 /// <param name="Source">Where the work came from — a Case origin, media kind or principal; null when the kind records none.</param>
 /// <param name="Attempts">How many times the work has been tried — external work only; null when the kind records none.</param>
 public sealed record NeedsAttentionItem(
@@ -143,8 +173,11 @@ public sealed record NeedsAttentionItem(
 
     public DateTimeOffset? ReceivedAtUtc => Received;
 
-    /// <summary>The staff member the row belongs to — the Case's engineer or the Triage assignee; null when unowned.</summary>
+    /// <summary>The staff member the row belongs to — the Case's engineer, the Triage assignee, or the first open task's assignee else its creator; null when unowned.</summary>
     public Guid? OwnerStaffId { get; init; }
+
+    /// <summary>How many more open tasks the Case has beyond the one an Open tasks row names; 0 for every other kind.</summary>
+    public int MoreCount { get; init; }
 
     /// <summary>The relative application path the row's action opens (Work Centre P4).</summary>
     public string Route { get; init; } = string.Empty;

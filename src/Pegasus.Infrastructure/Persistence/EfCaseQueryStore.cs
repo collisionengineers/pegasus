@@ -380,7 +380,13 @@ public sealed class EfCaseQueryStore(
             // and only while the Case can show one.
             CaseCancellationNotice.Applies(frame.Workflow)
                 ? await ReadLinkedCancellationMessageIdAsync(context, caseId, cancellationToken)
-                : null);
+                : null,
+            // Once Report sent is recorded the Next action lists the open tasks and
+            // they grey Mark completed and Archive (operator, 6 October 2026); a
+            // Case not yet sent reads none.
+            frame.Workflow.ReportSentEvidence is not null
+                ? await EfCaseTaskStore.ReadOpenAsync(context, caseId, cancellationToken)
+                : []);
     }
 
     /// <summary>
@@ -1120,7 +1126,8 @@ public sealed class EfCaseQueryStore(
         item.IsCurrent,
         item.IsLogicallyRemoved,
         item.RemovalReason,
-        item.IsRecognisedEstimate);
+        item.IsRecognisedEstimate,
+        item.RecognisedEstimateProvider);
 
     /// <summary>
     /// The keyset-paged sibling of <see cref="ListHistoryAsync"/>:

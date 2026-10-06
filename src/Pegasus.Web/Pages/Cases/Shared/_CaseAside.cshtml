@@ -9,6 +9,7 @@
     var staleGeneration = Model.CurrentReportGeneration is { State: CaseReportGenerationState.Stale };
     var next = Model.NextAction;
     var reportBlockers = Model.NextActionBlockers;
+    var openTasks = Model.OpenTasks;
     var engineerValue = Model.EngineerValue;
     var repairCost = Model.RepairCostIncVat;
     string FormatMoney(decimal value) => "£" + value.ToString("N2", CultureInfo.GetCultureInfo("en-GB"));
@@ -16,7 +17,8 @@
 @* The aside (v25 decision 7): Figures and Next action. Current
    position is gone because the ribbon carries it. Next action also
    carries what stands between the Case and its report (issue 899):
-   a stale generation's notice and every report blocker. *@
+   a stale generation's notice and every report blocker; once Report
+   sent is recorded, the Case's open tasks. *@
 <aside class="workspace-aside" aria-label="Case context" data-case-aside>
     @* Views (v29 option 4): once the Case has its Audit, its two views,
        each named by the reference its report carries; the current one
@@ -112,7 +114,9 @@
                menu's own dialog, greyed with its reason as the menu item is.
                Assign Engineer opens the Actions menu's own dialog too (issue
                1025); where the menu does not offer it, the step is its words
-               alone. *@
+               alone. Mark completed is greyed with its reason, as the menu
+               item is, while the Case has an open task (operator, 6 October
+               2026). *@
             @if (next is { } nextRow)
             {
                 <div class="next-row">
@@ -123,6 +127,12 @@
                         {
                             <button type="button" class="btn btn--small" data-dialog-open="case-handoff-dialog" data-next-assign-engineer>@CaseWorkspaceLabels.AssignEngineer</button>
                         }
+                    }
+                    else if (nextRow.Gate is { } nextGate)
+                    {
+                        <span class="menu-gated" title="@nextGate" data-open-tasks-condition="@nextGate">
+                            <button type="button" class="btn btn--small" disabled aria-disabled="true" data-next-mark-completed>@nextRow.Label</button>
+                        </span>
                     }
                     else if (!nextRow.OpensCreateAudit)
                     {
@@ -183,6 +193,29 @@
                                         <a class="btn btn--small" asp-page="/Administration/Accounts/Index" data-blocker-accounts>@OperatorLabels.Admin.Accounts</a>
                                     </div>
                                 }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+            @if (openTasks.Count > 0)
+            {
+                @* Once Report sent is recorded the Case's open tasks are what
+                   stands before Mark completed (operator, 6 October 2026):
+                   one row per open task, oldest first, each a jump to Tasks,
+                   which owns them. *@
+                <div class="sub-panel blockers" data-open-tasks>
+                    <h3>@CaseWorkspaceLabels.Tasks.Title</h3>
+                    <ul class="blocker-list">
+                        @foreach (var task in openTasks)
+                        {
+                            <li class="blocker" data-open-task="@task.Id">
+                                <strong>@task.Description</strong>
+                                <div class="blocker-actions">
+                                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                                       asp-route-section="tasks" asp-route-view="@Model.ViewRoute" asp-fragment="section-tasks"
+                                       data-section-jump="tasks">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == "tasks").Label</a>
+                                </div>
                             </li>
                         }
                     </ul>

@@ -232,6 +232,47 @@ public sealed class WorkCentreWebTests
     }
 
     /// <summary>
+    /// An Open tasks row (operator, 6 October 2026) names the Case's first open
+    /// task and how many more, has no due date, and opens the Case at Tasks.
+    /// </summary>
+    [Fact]
+    public async Task AnOpenTasksRowNamesItsFirstTaskAndOpensTheCaseAtTasks()
+    {
+        var caseId = Guid.NewGuid();
+        var tasks = new NeedsAttentionItem(
+            NeedsAttentionKind.OpenTasks,
+            caseId,
+            "QDOS26006",
+            "Ford Focus AB12CDE",
+            "QDOS",
+            "Chase the payment",
+            NeedsAttentionPriority.Normal,
+            Owner: NeedsAttentionPolicy.UnassignedOwner,
+            Due: null,
+            LastOutcome: null,
+            Source: null,
+            Attempts: null,
+            Received: Now.AddDays(-1))
+        {
+            MoreCount = 2,
+            Route = $"/Cases/{caseId:D}?section=tasks"
+        };
+        using var host = Host(new FakeSnapshot { Items = [tasks], LaterCount = 1 });
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, $"/?selected={caseId:D}");
+
+        Assert.Contains($"data-wc-row=\"{caseId}\" data-wc-row-kind=\"tasks\"", html, StringComparison.Ordinal);
+        Assert.Contains(HtmlEncoder.Default.Encode("Chase the payment (+2 more)"), html, StringComparison.Ordinal);
+        Assert.Contains("<small>Tasks</small>", html, StringComparison.Ordinal);
+        Assert.Matches("data-wc-kind=\"tasks\">Tasks<span class=\"n\">1</span>", html);
+        Assert.Contains("No due date", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Vehicle</dt>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{caseId:D}?section=tasks\"", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Open tasks</span>", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// assign=true reopens the Assign Engineer dialog for the selected Unassigned
     /// Engineer row. Its facts come from the Case header (one bounded read), and
     /// a page without assign=true renders the same dialog shut.

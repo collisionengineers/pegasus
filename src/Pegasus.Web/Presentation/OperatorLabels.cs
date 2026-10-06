@@ -768,6 +768,7 @@ public static class OperatorLabels
         Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review Case",
         Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
         Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => WorkCentre.VehicleImagesPaired,
+        Pegasus.Core.Operations.NeedsAttentionKind.OpenTasks => WorkCentre.OpenTasks,
         _ => Humanise(kind.ToString())
     };
 
@@ -897,6 +898,12 @@ public static class OperatorLabels
         /// </summary>
         public const string VehicleImagesPaired = "Vehicle images paired";
 
+        /// <summary>
+        /// A Case with open tasks (operator, 6 October 2026): the row's kind
+        /// and its action.
+        /// </summary>
+        public const string OpenTasks = "Open tasks";
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -907,9 +914,16 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => VehicleImagesPaired,
             Pegasus.Core.Operations.NeedsAttentionKind.Unidentified => "Unidentified",
             Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
+            Pegasus.Core.Operations.NeedsAttentionKind.OpenTasks => "Tasks",
             Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
             _ => Humanise(kind.ToString())
         };
+
+        /// <summary>An Open tasks row's bold line: the first open task, and how many more the Case has.</summary>
+        public static string OpenTasksTitle(string firstTask, int moreCount) =>
+            moreCount > 0
+                ? string.Create(CultureInfo.InvariantCulture, $"{firstTask} (+{moreCount} more)")
+                : firstTask;
 
         /// <summary>The due-day group heading (P1) with the whole-list count.</summary>
         public static string Group(NeedsAttentionPriority priority, int count) => priority switch
@@ -1991,7 +2005,7 @@ public static class OperatorLabels
         public const string ActionRemind = "Remind";
         public const string ActionHold = "Hold";
         public const string ActionStop = "Stop";
-        public const string ActionStopHint = "Prepare is refused; staff may override with a reason.";
+        public const string ActionStopHint = "Send is refused; staff may override with a reason.";
 
         /// <summary>A report sending condition as the rule row names it.</summary>
         public static string ConditionKind(Pegasus.Core.Reports.ReportSendingConditionKind kind) => kind switch
@@ -2002,6 +2016,7 @@ public static class OperatorLabels
             Pegasus.Core.Reports.ReportSendingConditionKind.Mentions => "Instruction mentions",
             Pegasus.Core.Reports.ReportSendingConditionKind.SenderNot => "Sender is not",
             Pegasus.Core.Reports.ReportSendingConditionKind.Outcome => "Outcome",
+            Pegasus.Core.Reports.ReportSendingConditionKind.BodyshopMentions => "Bodyshop mentions",
             _ => kind.ToString()
         };
 

@@ -184,7 +184,8 @@ public static class NeedsAttentionPolicy
             or NeedsAttentionKind.ReviewCase
             or NeedsAttentionKind.UnassignedEngineer
             or NeedsAttentionKind.Triage
-            or NeedsAttentionKind.VehicleImagesPaired => true,
+            or NeedsAttentionKind.VehicleImagesPaired
+            or NeedsAttentionKind.OpenTasks => true,
         NeedsAttentionKind.CaseChase
             or NeedsAttentionKind.Unidentified
             or NeedsAttentionKind.AiDraft => false,
@@ -429,8 +430,9 @@ public sealed class GetOperationsSnapshot(
                 ? Task.FromResult<IReadOnlyList<AiJobRecord>>([])
                 : aiJobs.ListOpenAsync(cancellationToken);
         var pairedRead = dashboardQueries.ListPairedVehicleImagesAwaitingStaffAsync(cancellationToken);
+        var openTasksRead = dashboardQueries.ListOpenCaseTasksAsync(cancellationToken);
         await Task.WhenAll(openRead, awaitingRead, dueRead, heldRead, reviewRead,
-            configurationRead, unidentifiedRead, openJobsRead, pairedRead);
+            configurationRead, unidentifiedRead, openJobsRead, pairedRead, openTasksRead);
         var openTriage = await openRead;
         var awaitingTriage = await awaitingRead;
         var dueWork = await dueRead;
@@ -440,6 +442,7 @@ public sealed class GetOperationsSnapshot(
         var unidentified = await unidentifiedRead;
         var drafts = AiDraftPolicy.Drafts(await openJobsRead, configuration.AiDraftTargetDays);
         var paired = await pairedRead;
+        var openTasks = await openTasksRead;
 
         var reviewPartitions = review
             .Select(item => new
@@ -462,7 +465,8 @@ public sealed class GetOperationsSnapshot(
             [.. openTriage, .. awaitingTriage],
             openTriage.Count + awaitingTriage.Count,
             drafts,
-            paired);
+            paired,
+            openTasks);
     }
 
     private async Task<IReadOnlyList<CaseSearchItem>> ReadCasesAsync(
@@ -513,7 +517,8 @@ public sealed class GetOperationsSnapshot(
         IReadOnlyList<TriageSummary> Triage,
         int TriageTotalCount,
         IReadOnlyList<AiDraft> Drafts,
-        IReadOnlyList<PairedVehicleImagesCase> PairedVehicleImages);
+        IReadOnlyList<PairedVehicleImagesCase> PairedVehicleImages,
+        IReadOnlyList<OpenCaseTask> OpenTasks);
 
     /// <summary>
     /// Every needs-attention row, each read from the query that already backs
@@ -528,13 +533,20 @@ public sealed class GetOperationsSnapshot(
         var (_, dayEndUtc, _) = LondonCalendar.DayAndWeekBoundariesAt(asOfUtc);
         var targets = inputs.Configuration;
         var draftOwners = await DraftOwnersAsync(inputs.Drafts, cancellationToken);
+        // One Open tasks row per Case: its oldest open task names the row, a
+        // newer one opened later qualifies it again past a dismissal.
+        var caseTasks = inputs.OpenTasks
+            .GroupBy(task => task.CaseId)
+            .Select(group => group.OrderBy(task => task.CreatedAtUtc).ThenBy(task => task.TaskId).ToArray())
+            .ToArray();
         var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
             inputs.Held.Select(item => item.EngineerId ?? Guid.Empty)
                 .Concat(inputs.Review.Select(item => item.EngineerId ?? Guid.Empty))
                 .Concat(inputs.Triage.Select(record => record.AssigneeId ?? Guid.Empty))
                 .Concat(draftOwners.Values.Select(id => id ?? Guid.Empty))
-                .Concat(inputs.PairedVehicleImages.Select(row => row.EngineerId ?? Guid.Empty)),
+                .Concat(inputs.PairedVehicleImages.Select(row => row.EngineerId ?? Guid.Empty))
+                .Concat(caseTasks.Select(tasks => TaskOwner(tasks[0]) ?? Guid.Empty)),
             cancellationToken);
 
         var items = new List<NeedsAttentionItem>();
@@ -726,6 +738,32 @@ public sealed class GetOperationsSnapshot(
             });
         }
 
+        foreach (var tasks in caseTasks)
+        {
+            var first = tasks[0];
+            var owner = TaskOwner(first);
+            items.Add(new(
+                NeedsAttentionKind.OpenTasks,
+                first.CaseId,
+                first.Reference,
+                VehicleLabel(first.VehicleMake, first.VehicleModel, first.Registration, first.Claimant, first.Reference),
+                first.Principal,
+                first.Description,
+                NeedsAttentionPriority.Normal,
+                NeedsAttentionPolicy.OwnerText(NeedsAttentionKind.OpenTasks, OwnerName(owner, staffNames)),
+                Due: null,
+                LastOutcome: null,
+                Source: null,
+                Attempts: null,
+                Received: first.CreatedAtUtc)
+            {
+                OwnerStaffId = owner,
+                MoreCount = tasks.Length - 1,
+                Route = StaffNotificationPolicy.CaseRoute(first.CaseId, "tasks"),
+                QualifiedAtUtc = tasks[^1].CreatedAtUtc
+            });
+        }
+
         // Dismissed rows leave before the chips, counts and pages are taken.
         var shown = await WorkCentreDismissalPolicy.WithoutDismissedAsync(
             dismissals,
@@ -771,12 +809,23 @@ public sealed class GetOperationsSnapshot(
             ? ActorDisplayNames.Resolve(ActorKind.Staff, id.ToString(), staffNames)
             : null;
 
-    private static string VehicleLabel(CaseSearchItem item) => string.Join(
+    /// <summary>An open task's owner: its assignee, else the staff member who created it.</summary>
+    private static Guid? TaskOwner(OpenCaseTask task) => task.AssigneeId ?? task.CreatedByStaffId;
+
+    private static string VehicleLabel(CaseSearchItem item) =>
+        VehicleLabel(item.VehicleMake, item.VehicleModel, item.Registration, item.Claimant, item.Reference);
+
+    private static string VehicleLabel(
+        string? make,
+        string? model,
+        string? registration,
+        string? claimant,
+        string reference) => string.Join(
         " ",
-        new[] { item.VehicleMake, item.VehicleModel, item.Registration }
+        new[] { make, model, registration }
             .Where(value => !string.IsNullOrWhiteSpace(value))) switch
     {
         { Length: > 0 } vehicle => vehicle,
-        _ => item.Claimant ?? item.Reference
+        _ => claimant ?? reference
     };
 }

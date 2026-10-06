@@ -196,7 +196,8 @@ internal static class CaseWorkflowModelConfiguration
                 table.HasCheckConstraint("CK_CaseTasks_Description", "[Description] <> ''");
             });
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.Description).HasMaxLength(500).IsRequired();
+            // A task description has no length limit (operator, 6 October 2026).
+            entity.Property(item => item.Description).IsRequired();
             entity.Property(item => item.State).HasMaxLength(40).IsRequired();
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();

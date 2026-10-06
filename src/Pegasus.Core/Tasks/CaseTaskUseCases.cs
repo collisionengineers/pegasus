@@ -98,6 +98,13 @@ public sealed class CancelCaseTask(ICaseTaskStore store) : ICancelCaseTask
 
 public static class CaseTaskRules
 {
+    /// <summary>
+    /// Why a Case with an open task cannot be marked completed, closed or archived: the
+    /// refusal the store raises and the hover text of the greyed Mark completed and Archive
+    /// (operator, 6 October 2026).
+    /// </summary>
+    public const string OpenTasksBlockTerminal = "Complete or cancel every open task first.";
+
     public static void ValidateCreate(CreateCaseTaskRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -109,11 +116,11 @@ public static class CaseTaskRules
             request.OperationKey,
             request.Reason,
             request.EditLeaseToken);
-        RequireText(
-            request.Description,
-            "A task description is required.",
-            500,
-            nameof(request));
+        // A description has no length limit (operator, 6 October 2026).
+        if (string.IsNullOrWhiteSpace(request.Description))
+        {
+            throw new ArgumentException("A task description is required.", nameof(request));
+        }
         ValidateAssigneeId(request.AssigneeId, nameof(request));
     }
 

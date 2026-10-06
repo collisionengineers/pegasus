@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -147,6 +149,85 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
                 item.AssignedEngineerId,
                 item.PairedAtUtc,
                 latest[item.CaseId].CreatedAtUtc))
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<OpenCaseTask>> ListOpenCaseTasksAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var open = nameof(CaseTaskState.Open);
+        // A task records neither its creation instant nor its creator; both are
+        // on its case_task_created history, written in the transaction that
+        // added the task, whose aggregate id is the task id in "D" form matched
+        // under the database's own collation. The Case's vehicle and claimant
+        // are read as the Case search reads them: the instruction draft, else
+        // the confirmed Case data.
+        var rows = await (
+            from task in context.CaseTasks.AsNoTracking()
+            where task.State == open
+            join created in context.ActionHistory.AsNoTracking()
+                    .Where(item => item.AggregateType == "case_task" && item.EventKind == "case_task_created")
+                on task.Id.ToString() equals created.AggregateId
+            join caseEntity in context.Cases.AsNoTracking() on task.CaseId equals caseEntity.Id
+            join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
+                on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
+            from receipt in receipts.DefaultIfEmpty()
+            join draftCandidate in context.Set<InstructionDraftEntity>().AsNoTracking()
+                on receipt.Id equals draftCandidate.IntakeReceiptId into drafts
+            from draft in drafts.DefaultIfEmpty()
+            join confirmedClaimantCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.ClaimantName
+                        && item.ValueKind == CaseDataCodes.Confirmed)
+                on caseEntity.Id equals confirmedClaimantCandidate.WorkId into confirmedClaimants
+            from confirmedClaimant in confirmedClaimants.DefaultIfEmpty()
+            join confirmedRegistrationCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                        && item.ValueKind == CaseDataCodes.Confirmed)
+                on caseEntity.Id equals confirmedRegistrationCandidate.WorkId into confirmedRegistrations
+            from confirmedRegistration in confirmedRegistrations.DefaultIfEmpty()
+            join confirmedMakeCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
+                        && item.ValueKind == CaseDataCodes.Confirmed)
+                on caseEntity.Id equals confirmedMakeCandidate.WorkId into confirmedMakes
+            from confirmedMake in confirmedMakes.DefaultIfEmpty()
+            join confirmedModelCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
+                        && item.ValueKind == CaseDataCodes.Confirmed)
+                on caseEntity.Id equals confirmedModelCandidate.WorkId into confirmedModels
+            from confirmedModel in confirmedModels.DefaultIfEmpty()
+            select new
+            {
+                task.CaseId,
+                caseEntity.Reference,
+                Principal = caseEntity.Principal.Code,
+                Registration = draft == null ? confirmedRegistration!.Value : draft.VehicleRegistration,
+                Claimant = draft == null ? confirmedClaimant!.Value : draft.ClaimantName,
+                VehicleMake = draft == null ? confirmedMake!.Value : draft.VehicleMake,
+                VehicleModel = draft == null ? confirmedModel!.Value : draft.VehicleModel,
+                TaskId = task.Id,
+                task.Description,
+                task.AssigneeId,
+                CreatedAtUtc = created.OccurredAtUtc,
+                CreatedByKind = created.ActorKind,
+                CreatedBySubjectId = created.ActorSubjectId
+            }).ToArrayAsync(cancellationToken);
+        var staff = nameof(ActorKind.Staff);
+        return rows
+            .Select(row => new OpenCaseTask(
+                row.CaseId,
+                row.Reference,
+                row.Principal,
+                row.Registration,
+                row.Claimant,
+                row.VehicleMake,
+                row.VehicleModel,
+                row.TaskId,
+                row.Description,
+                row.AssigneeId,
+                row.CreatedAtUtc,
+                row.CreatedByKind == staff && Guid.TryParse(row.CreatedBySubjectId, out var staffId)
+                    ? (Guid?)staffId
+                    : null))
             .ToArray();
     }
 }
