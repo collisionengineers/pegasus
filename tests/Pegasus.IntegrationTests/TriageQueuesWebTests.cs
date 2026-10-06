@@ -126,7 +126,6 @@ public sealed class TriageQueuesWebTests
             .GetCaseStageCountsAsync(CancellationToken.None);
         Assert.Equal(1, stages.NotReady);
         Assert.Equal(1, stages.AwaitingInstruction);
-        Assert.Equal(0, stages.Complete);
         Assert.Equal(0, stages.Query);
         Assert.Equal(0, stages.Review);
         Assert.Equal(0, stages.Held);
@@ -149,7 +148,7 @@ public sealed class TriageQueuesWebTests
             + stages.Held
             + triageCount
             + openUnidentifiedCount;
-        // Completed and Awaiting instruction intentionally are not shell work.
+        // Awaiting instruction intentionally is not shell work.
         Assert.Equal(2, expectedShellCount);
 
         using var notReady = await client.GetAsync("/Cases?tab=not_ready");
@@ -203,7 +202,7 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
-    public async Task WorkflowQueuesKeepCompletedAndQuerySeparateAndTheShellCountsQueryOnly()
+    public async Task CompletedCasesHaveNoQueueAndAreFoundThroughSearchWhileQueryKeepsItsQueue()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
@@ -234,7 +233,6 @@ public sealed class TriageQueuesWebTests
         var stages = await services.GetRequiredService<IDashboardQueries>()
             .GetCaseStageCountsAsync(CancellationToken.None);
         Assert.Equal(1, stages.NotReady);
-        Assert.Equal(1, stages.Complete);
         Assert.Equal(1, stages.Query);
         Assert.Equal(1, stages.AwaitingInstruction);
         Assert.Equal(0, stages.Review);
@@ -269,13 +267,28 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(1, QueueCount(queryHtml, "Query"));
         Assert.Equal(expectedShellCount, ShellCasesCount(queryHtml));
 
+        // Issue 1046: Completed has no queue. The rail offers none, the old
+        // route is not found and no Case queue lists the Completed Case.
+        Assert.DoesNotContain("<span>Completed</span>", queryHtml, StringComparison.Ordinal);
         using var completeResponse = await client.GetAsync("/Cases?tab=complete");
-        var completeHtml = await completeResponse.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, completeResponse.StatusCode);
-        Assert.Contains(completeReference, completeHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(queryReference, completeHtml, StringComparison.Ordinal);
-        Assert.Equal(1, QueueCount(completeHtml, "Completed"));
-        Assert.Equal(expectedShellCount, ShellCasesCount(completeHtml));
+        Assert.Equal(HttpStatusCode.NotFound, completeResponse.StatusCode);
+        foreach (var queue in new[] { "not_ready", "review", "with_engineer", "held" })
+        {
+            using var queueResponse = await client.GetAsync($"/Cases?tab={queue}");
+            Assert.Equal(HttpStatusCode.OK, queueResponse.StatusCode);
+            Assert.DoesNotContain(
+                completeReference,
+                await queueResponse.Content.ReadAsStringAsync(),
+                StringComparison.Ordinal);
+        }
+
+        // Search's State filter still finds it.
+        using var searchResponse = await client.GetAsync(
+            $"/Search?state={CaseLifecycleState.PostReportComplete}");
+        var searchHtml = await searchResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
+        Assert.Contains(completeReference, searchHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(queryReference, searchHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -627,6 +640,10 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(0, int.Parse(countMatch.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
+    /// <summary>The Cases rail, top to bottom, as one continuous list (issue 1046).</summary>
+    private static readonly string[] RailOrder =
+        ["Not ready", "Review", "With Engineer", "Query", "Triage", "Awaiting instruction", "Held", "Unidentified"];
+
     /// <summary>
     /// Not ready is one row list across both case origins, with
     /// dropdown filters rather than pills, and the rail replaces the old tab
@@ -659,10 +676,17 @@ public sealed class TriageQueuesWebTests
         // v26 decision L: the scope lists its rows as a table.
         Assert.Contains("<table", html, StringComparison.Ordinal);
         Assert.DoesNotContain("subtabs", html, StringComparison.Ordinal);
-        // The rail groups the workflow; the filters are selects.
-        Assert.DoesNotContain(">Case workflow<", html, StringComparison.Ordinal);
-        Assert.Contains("Workflow", html, StringComparison.Ordinal);
-        Assert.Contains("Exceptions", html, StringComparison.Ordinal);
+        // Issue 1046: the rail is one continuous list in this order, with no
+        // heading, group label, divider or exception tint; the filters are selects.
+        Assert.Equal(
+            RailOrder,
+            Regex.Matches(html, "class=\"scope-button\"[\\s\\S]*?</span>\\s*<span>([^<]+)</span>\\s*<span>\\d+</span>")
+                .Select(match => match.Groups[1].Value)
+                .ToArray());
+        Assert.DoesNotContain("<h2>Workflow</h2>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("queue-group-label", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("queue-group-divider", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("queue-exception", html, StringComparison.Ordinal);
         Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"missing\"", html, StringComparison.Ordinal);
         using var awaiting = await client.GetAsync("/Cases?tab=awaiting");

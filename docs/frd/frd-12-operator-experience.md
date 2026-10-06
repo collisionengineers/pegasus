@@ -178,7 +178,7 @@ raise failed; an Administrator retries it from
 | `/` | Work Centre ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)) | Dashboard |
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) | — |
 | `/Upload` | Staff upload ([FRD-18](frd-18-manual-upload.md#staff-upload-page)) | — |
-| `/Cases` | Queues: workflow (Triage included), pre-Case work and exceptions ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues; the Triage list |
+| `/Cases` | Queues as one continuous rail: Case queues, Triage, Awaiting instruction, Held and Unidentified ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues; the Triage list |
 | `/Cases/{id}` | Case record with section navigation; `?section=` jumps; once the Case has an Audit, `?view=inspection` or `?view=audit` chooses the view, the Audit view by default ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). A Triage Case renders as the Triage Case page ([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)) | Case workspace side-nav sections; the Assessment page; the Triage record page |
 | `/ReleaseNotes` | Published release notes, newest first; **Got it** posts here | — |
 | `/ProblemReports` | **Send** on Report a problem posts here; it has no page of its own | — |

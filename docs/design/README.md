@@ -58,7 +58,7 @@ returned as a routed workspace and was retired on 2026-09-28 (#865): its AI
 jobs live in the Work Centre and on Administration AI jobs, and Send
 Unidentified to AI is on the Unidentified record. `Triage`, `Unidentified`, `Audit`,
 `Not ready`, `Review` and `Held` keep their settled meanings. Triage is a Case
-type with its own states, reached through the Cases rail's Workflow group;
+type with its own states, reached through the Cases rail;
 Unidentified is a pre-Case record reached through the Cases rail. Neither is
 a Case state.
 
@@ -260,8 +260,8 @@ shared `.dismiss` × so it can be put away before it expires.
   near-black text.
 - Collision red is sparse: primary actions, the current route, visible focus
   and urgent emphasis.
-- Product states are distinct: amber for incomplete/pending and the
-  exceptions group, restrained navy for **Review**, blue for informational
+- Product states are distinct: amber for incomplete/pending,
+  restrained navy for **Review**, blue for informational
   and in-progress external work, green for an operation or outcome that
   succeeded (Case created, Linked, Sent, Saved, Approved, Roadworthy), red for one that did not (Failed, Could not be read, Unavailable, Rejected, Unroadworthy), and red for
   danger and blocked, neutral for everything else.
@@ -566,7 +566,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `dashboard` | `layout-dashboard` | `F8A9AFA8D2245E34D3DAEB88C9FF80A2AA546D1F8671212896E743E596F3752B` | Rail: Work Centre |
 | `inbox` | `inbox` | `0817485BFAE1A740458AA3FC1E6E4542047FA890C547D35B17C771E6D352E901` | Rail: Inbox; Inbox scopes |
 | `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; the picker's drop target |
-| `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it); Cases rail groups |
+| `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it) |
 | `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
 | `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
 | `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Running jobs |
@@ -582,7 +582,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `more` | `more-horizontal` | `2124DA66776313BB29ED93D2CC06BBF1307EF8C8DBE672B3EE3AF4975F5E56D1` | Overflow menus |
 | `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due; Renew editing |
 | `alert` | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary, blocked |
-| `warning` | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Warning notice, exceptions group |
+| `warning` | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Warning notice, Unidentified queue |
 | `check` | `check` | `DE2A367F6B80B94E85E56CF01EFB198FB835039FEC3C0B4E643EAE54E9C857C6` | Save, confirm, checks |
 | `check-circle` | `check-circle` | `CB9B89AA467B527393B51229F14E0314DB15D75792D2071C5FE599AB595C7678` | Confirmed completion |
 | `file` | `file` | `1A3C36C8758354AA3FBE172B2F9AA864C898B425AEF310970A2A30C706899C4A` | Document rows |
