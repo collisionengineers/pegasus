@@ -2244,8 +2244,15 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(1, held.Version);
     }
 
+    /// <summary>
+    /// A competing live lease refuses a claim. A page behind the Case does not: a claim
+    /// from a page rendered before the Case moved on (a.QDOS26070, 6 October 2026: the
+    /// Worker's vehicle lookup and custody confirmation moved a new Case twice while its
+    /// page was open) is issued at the Case's current version, and only a version from
+    /// the future is refused, as every write under the lease refuses it.
+    /// </summary>
     [Fact]
-    public async Task StaleVersionAndCompetingLeaseAreRejected()
+    public async Task CompetingLeaseAndFutureVersionAreRejectedButAPageBehindTheCaseClaims()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var firstActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -2267,7 +2274,15 @@ public sealed class CaseWorkflowPersistenceTests
                 lease.Token),
             default);
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
-            harness.Store.ClaimAsync(new(harness.SecondCaseId, 0, secondActor, "claim-stale"), default));
+            harness.Store.ClaimAsync(new(harness.SecondCaseId, 2, secondActor, "claim-future"), default));
+
+        var behind = await harness.Store.ClaimAsync(
+            new(harness.SecondCaseId, 0, secondActor, "claim-behind"), default);
+
+        Assert.Equal(1, behind.Version);
+        Assert.Equal(secondActor.SubjectId, behind.Holder);
+        var row = await harness.ReadLeaseRowAsync(harness.SecondCaseId);
+        Assert.Equal(secondActor.SubjectId, row.Holder);
     }
 
     [Fact]

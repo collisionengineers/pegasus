@@ -184,7 +184,12 @@ public sealed class EfCaseWorkflowStore(
         }
 
         ArchivedCaseGuard.RequireNotArchived(workflow);
-        RequireVersion(workflow, request.ExpectedVersion);
+        // A page rendered before the Case moved on still enters edit mode: the claim writes no
+        // Case data, the lease is issued at the Case's current version, and the page is drawn
+        // again at that version before the first edit. A system write never stops a member of
+        // staff's edit session from starting (operator, 6 October 2026); only a version from the
+        // future is refused, as it is for every write under the lease.
+        RequireVersionUnderLease(workflow, request.ExpectedVersion);
         ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(workflow.EditLeaseHolderKind, out var parsedKind)
             ? parsedKind
             : null;
@@ -1825,9 +1830,6 @@ public sealed class EfCaseWorkflowStore(
             return false;
         }
     }
-
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
 
     private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
         CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
