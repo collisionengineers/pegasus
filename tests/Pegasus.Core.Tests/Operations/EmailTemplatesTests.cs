@@ -163,7 +163,7 @@ public sealed class EmailTemplatesTests
             new[]
             {
                 EmailTemplates.CaseReference, EmailTemplates.Registration, EmailTemplates.Outcome,
-                EmailTemplates.PrincipalName, EmailTemplates.SupersededReportDate
+                EmailTemplates.PrincipalName, EmailTemplates.SupersededReportDate, EmailTemplates.Greeting
             },
             EmailTemplates.Placeholders(delivery));
         Assert.Equal(
@@ -177,35 +177,32 @@ public sealed class EmailTemplatesTests
     }
 
     [Fact]
-    public void TheReportDeliveryBodyRendersEveryFactAndSignsOff()
+    public void TheReportDeliveryBodyIsTheSopWordingWithTheGreeting()
     {
-        var rendered = EmailTemplates.Render(
-            EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery),
-            ReportValues(supersededReportDate: "19 August 2026"));
+        var body = EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery);
 
         Assert.Equal(
-            "Please find attached our report.\n"
-            + "\n"
-            + "Our reference: QDOS26001\n"
-            + "Registration: PK12TMZ\n"
-            + "Outcome: Total loss\n"
-            + "\n"
-            + "This report supersedes our report dated 19 August 2026.\n"
-            + "\n"
-            + "Kind regards\n"
-            + "Collision Engineers",
-            rendered);
+            "Good {greeting},\n\nPlease see attached report and fee note.\n\nAny issues let us know.\n\nKind Regards",
+            body);
+        Assert.Equal(
+            "Good morning,\n\nPlease see attached report and fee note.\n\nAny issues let us know.\n\nKind Regards",
+            EmailTemplates.Render(body, ReportValues(supersededReportDate: null)));
+        Assert.Equal(body, EmailTemplates.Validate(EmailTemplatePurpose.CaseReportDelivery, body));
     }
 
     [Fact]
-    public void TheReportDeliveryBodyLeavesOutTheSupersedesLineOnAFirstSend()
+    public void ASavedBodyCanStillNameTheSupersededReportDateAndLeavesItOutOnAFirstSend()
     {
-        var rendered = EmailTemplates.Render(
-            EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery),
-            ReportValues(supersededReportDate: null));
+        const string body =
+            "Our reference: {case reference}\nThis report supersedes our report dated {superseded report date}.";
 
-        Assert.DoesNotContain("supersedes", rendered, StringComparison.Ordinal);
-        Assert.Contains("Our reference: QDOS26001", rendered, StringComparison.Ordinal);
+        Assert.Contains(
+            "supersedes our report dated 19 August 2026",
+            EmailTemplates.Render(body, ReportValues(supersededReportDate: "19 August 2026")),
+            StringComparison.Ordinal);
+        var first = EmailTemplates.Render(body, ReportValues(supersededReportDate: null));
+        Assert.DoesNotContain("supersedes", first, StringComparison.Ordinal);
+        Assert.Contains("Our reference: QDOS26001", first, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -290,7 +287,8 @@ public sealed class EmailTemplatesTests
         [EmailTemplates.Registration] = "PK12TMZ",
         [EmailTemplates.Outcome] = "Total loss",
         [EmailTemplates.PrincipalName] = "Principal Ltd",
-        [EmailTemplates.SupersededReportDate] = supersededReportDate
+        [EmailTemplates.SupersededReportDate] = supersededReportDate,
+        [EmailTemplates.Greeting] = "morning"
     };
 
     private static Dictionary<string, string?> Values(

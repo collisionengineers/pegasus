@@ -62,6 +62,14 @@ public sealed class WorkerCompositionTests
                 provider.GetRequiredService<IApprovedSentSource>().GetType().FullName);
             Assert.Null(provider.GetService<LocalApprovedSentOptions>());
             Assert.NotNull(scopedServices.GetRequiredService<PollSentEvidence>());
+            // Only the Worker can move the answered instruction to Deleted Items (ADR-0063).
+            var mover = provider.GetRequiredService<IRetainedMailFolderMover>();
+            Assert.Equal("Pegasus.Infrastructure.Email.GraphRetainedMailFolderMover", mover.GetType().FullName);
+            Assert.True(mover.IsAvailable);
+            Assert.NotNull(scopedServices.GetRequiredService<TidySentReportInstructions>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Persistence.EfSentReportInstructionTidyStore",
+                scopedServices.GetRequiredService<ISentReportInstructionTidyStore>().GetType().FullName);
             Assert.NotNull(scopedServices.GetRequiredService<IGroupedIntakeSubmission>());
             Assert.NotNull(scopedServices.GetRequiredService<RetainIncomingArtifact>());
             Assert.Equal(
@@ -276,6 +284,10 @@ public sealed class WorkerCompositionTests
             Assert.Equal(
                 "Pegasus.Infrastructure.Email.LocalDurableApprovedSentSource",
                 provider.GetRequiredService<IApprovedSentSource>().GetType().FullName);
+            // Offline there is no mailbox to move in, so the tidy does nothing.
+            Assert.IsType<UnavailableRetainedMailFolderMover>(
+                provider.GetRequiredService<IRetainedMailFolderMover>());
+            Assert.NotNull(scopedServices.GetRequiredService<TidySentReportInstructions>());
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedCustody>());
             Assert.Equal(
                 "Pegasus.Infrastructure.Vehicle.DvlaDvsaReplayAdapter",

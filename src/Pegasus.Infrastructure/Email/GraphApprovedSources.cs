@@ -1503,6 +1503,9 @@ internal sealed class GraphRetainedMailFolderMover(GraphMailClient client) : IRe
 
     public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
         client.ReadMessageParentFolderAsync(mailboxId, immutableMessageId, cancellationToken);
+
+    public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
+        client.ResolveDeletedItemsFolderAsync(mailboxIdentity, cancellationToken);
 }
 internal sealed class GraphDeltaResetRequiredException : Exception;
 internal sealed record GraphDeltaItem(

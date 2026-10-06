@@ -67,7 +67,7 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   the `.menu-gated` span with its reason).
 - Report in the Audit view shows the Audit report alone (operator, 2 October 2026); the Views
   card is the route to the Inspection report. In the Inspection view the card is the Inspection
-  report with its Generate, Prepare delivery and Send controls, before and after it is sent
+  report with its Generate and Send report controls, before and after it is sent
   (operator, 1 and 2 October 2026), and the Actions menu's Mark report sent takes its evidence;
   every form carries `view=inspection` and acts on the Inspection's own work, never on the
   Case's state. Files shows the audit folder chip after the Case folder chip, mirroring its
@@ -88,6 +88,7 @@ Preserve this order:
 8. Report
 9. Files
 10. Notes
+11. Tasks
 
 Each section is the owner of its domain. Do not duplicate its full content elsewhere.
 
@@ -104,6 +105,12 @@ Important ownership decisions:
 - Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Next action (below).
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces. A document row may offer **Import as repair spec**, which runs Repair Spec's own import on that file (operator, 25 September 2026).
 - Notes owns the single Case timeline, notes and chase recording.
+- Tasks owns the Case's tasks (CASE-20, operator, 5 October 2026): a dense table (task,
+  assignee, state chip) with Complete, Cancel task, Assign (a select of the enabled named
+  staff, operator, 6 October 2026) and Add task in the edit session under the lease, each with
+  one fixed recorded reason and so no reason box. It loads like Files and Notes and acts
+  through its own posts. Once Report sent is recorded the aside's Next action lists the open
+  tasks, each linking here; do not add task actions to Report.
 
 Case images are not repeated under Damage. A Report image-selection/preview strip may summarize the
 same evidence only where Report needs that decision.
@@ -152,9 +159,10 @@ offered while a colleague holds it. Typical entries include:
 - Assign Engineer;
 - Send to EVA;
 - Mark report sent;
-- Mark completed;
+- Mark completed and Archive, each greyed in a `.menu-gated` span whose `title` reads
+  "Complete or cancel every open task first." while the Case has an open task (operator,
+  6 October 2026);
 - Return to Review / Return to Engineer;
-- Archive;
 - Send chaser, on any open Case where staff mail is composed in (operator, 5 October 2026): a
   link to the composer (`/Inbox/Compose?caseReference=…&purpose=chaser`), no dialog, no lease,
   no reason; the composer pre-fills To, Subject and Message and staff edit them there;
@@ -163,7 +171,8 @@ offered while a colleague holds it. Typical entries include:
 - Create audit, the one item always listed (on an Inspection + Audit Case, in every state): when
   Core refuses it, or a colleague holds the lease, it renders disabled inside a `.menu-gated`
   span whose `title` states the reason on hover (operator, 1 October 2026). Do not extend this
-  treatment to other items without the same explicit instruction.
+  treatment to other items, beyond Mark completed and Archive above, without the same explicit
+  instruction.
 
 Close case remains destructive, separated and styled in red.
 
@@ -294,7 +303,9 @@ action.
 While the report is not ready, Next action lists every report blocker (With Engineer, in place of
 its one line), each row linking to the section that owns the fact rather than repeating it. A stale generation's warning notice sits at the
 top of Next action; there is no page-wide stale bar and no second stale notice in Report
-(operator, 28 September 2026). Beside the sections the sticky aside is capped at the viewport and
+(operator, 28 September 2026). Once Report sent is recorded, Next action lists the Case's open
+tasks in the same blocker style, each linking to Tasks, and its Mark completed step is greyed
+like the menu item while one is open (operator, 6 October 2026). Beside the sections the sticky aside is capped at the viewport and
 scrolls on its own; folded above them, the blocker list scrolls inside its panel. Do not let a long
 list push the sections down or hide below a sticky aside.
 

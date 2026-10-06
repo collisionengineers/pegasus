@@ -143,21 +143,23 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The name the report would be attached under
-    /// (v28 P23), read from the same policy the preparation
-    /// freezes, so the form states what pressing Prepare delivery will send.
+    /// (v28 P23), read from the same policy the send
+    /// names it with, so the form states what pressing Send report will send.
     /// </summary>
     public string ReportDeliveryFileName => CaseReportDeliveryNaming.ReportName(
         // The generation's own reference: a. + the Case/PO for an Audit report.
         CurrentReportGeneration?.Snapshot.CaseReference ?? Case?.Summary.Reference ?? "—",
         Case?.Summary.Registration,
         RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
-        ReportSendHistory.SentCount) + ".pdf";
+        ReportSendHistory.SentCount,
+        // The Principal's own name for its reports, when its rules set one.
+        DeliveryRecipientSuggestions?.Rules.AttachmentName) + ".pdf";
 
     /// <summary>
     /// The Case report delivery template rendered for this Case, for staff to
-    /// review and edit before Prepare delivery (FRD-11): what the form's
+    /// review and edit before Send report (FRD-11): what the form's
     /// message box is pre-filled with. Empty while the form is not offered.
-    /// Preparation freezes what staff submit, not this text.
+    /// What staff submit is sent, not this text.
     /// </summary>
     public string ReportDeliveryMessage { get; private set; } = string.Empty;
 
@@ -165,7 +167,6 @@ public sealed partial class DetailsModel
         ActionActor actor, CancellationToken cancellationToken)
     {
         if (CurrentReportGeneration is not { State: CaseReportGenerationState.Confirmed } generation
-            || CurrentDeliveryPreparation is not null
             || !SectionIsEditable("report")
             || !StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
         {
@@ -177,7 +178,8 @@ public sealed partial class DetailsModel
             Case?.Summary.Registration,
             RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
             DeliveryRecipientSuggestions?.PrincipalName,
-            ReportSendHistory);
+            ReportSendHistory,
+            DeliveryDispatchPlan?.Greeting);
         return await renderEmailTemplate.ExecuteAsync(
             actor,
             EmailTemplatePurpose.CaseReportDelivery,

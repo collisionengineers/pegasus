@@ -133,12 +133,13 @@ public sealed partial class AssessmentReportRendererTests
         Assert.Equal(renderer.EngineVersion, artifact.EngineVersion);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(artifact.Pdf)), artifact.Sha256);
         // Page 1, the narrative, the vehicle data, the work lists, the images
-        // and the statement of truth each start a page.
-        Assert.Equal(6, artifact.PageCount);
+        // and the statement of truth each start a page; the fee note follows.
+        Assert.Equal(7, artifact.PageCount);
 
         var pages = PageTexts(artifact.Pdf);
         Assert.Equal(artifact.PageCount, pages.Length);
-        var text = string.Join(" ", pages);
+        var reportPages = pages[..^1];
+        var text = string.Join(" ", reportPages);
         var presentation = snapshot.Presentation();
         Assert.Contains(snapshot.OurReference, text, StringComparison.Ordinal);
         Assert.Contains(presentation.Badge, text, StringComparison.Ordinal);
@@ -153,15 +154,20 @@ public sealed partial class AssessmentReportRendererTests
         {
             Assert.Contains($"Page {page} of {pages.Length}", pages[page - 1], StringComparison.Ordinal);
             Assert.Contains($"{snapshot.Vehicle.Registration} · {snapshot.OurReference}", pages[page - 1], StringComparison.Ordinal);
-            // The company block runs on every page, and the VAT number on none of the report's.
+            // The company block runs on every page.
             Assert.Contains(AssessmentReportWording.CompanyName, pages[page - 1], StringComparison.Ordinal);
-            Assert.Contains(AssessmentReportWording.CompanyWebsite, pages[page - 1], StringComparison.Ordinal);
-            Assert.DoesNotContain(AssessmentReportWording.VatNumberLine, pages[page - 1], StringComparison.Ordinal);
         }
+        // The VAT number is on none of the report's pages.
+        Assert.All(reportPages, page =>
+        {
+            Assert.Contains(AssessmentReportWording.CompanyWebsite, page, StringComparison.Ordinal);
+            Assert.DoesNotContain(AssessmentReportWording.VatNumberLine, page, StringComparison.Ordinal);
+        });
         Assert.Contains(AssessmentReportWording.VehicleDetailsHeading, pages[0], StringComparison.Ordinal);
         Assert.Contains(presentation.SettlementText, pages[1], StringComparison.Ordinal);
         Assert.Contains(AssessmentReportWording.RepairCostHeading, pages[2], StringComparison.Ordinal);
-        Assert.Contains(AssessmentReportWording.StatementOfTruthHeading, pages[^1], StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.StatementOfTruthHeading, reportPages[^1], StringComparison.Ordinal);
+        Assert.Contains(Squeeze(AssessmentReportWording.FeeNoteTitle), Squeeze(pages[^1]), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -316,13 +322,13 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     [Fact]
-    public async Task AnImagePackNeverAppendsTheFeeNoteEvenWhenTheSnapshotIncludesIt()
+    public async Task AnImagePackNeverAppendsTheFeeNote()
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
 
         var artifact = await new GenerateAssessmentReportDraft(renderer)
-            .ExecuteAsync(ReadySnapshot() with { IncludeFeeNote = true }, CaseReportArtifactKind.ImagePack);
+            .ExecuteAsync(ReadySnapshot(), CaseReportArtifactKind.ImagePack);
 
         var text = string.Join(" ", PageTexts(artifact.Pdf));
         Assert.Contains(Squeeze(AssessmentReportWording.ImagePackTitle), Squeeze(text), StringComparison.Ordinal);
@@ -369,42 +375,38 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
-    /// R34B: with the choice made, the report's own document ends with the
-    /// fee note's pages — one document, the fee note last, after a page
-    /// break — and the separate fee-note document is unchanged.
+    /// The report's own document always ends with the fee note's pages — one
+    /// document, the fee note last, after a page break — and the separate
+    /// fee-note document is exactly those pages.
     /// </summary>
     [Fact]
-    public async Task TheCombinedReportEndsWithTheFeeNotePagesInOneDocument()
+    public async Task TheReportEndsWithTheFeeNotePagesInOneDocument()
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var draft = new GenerateAssessmentReportDraft(renderer);
         var snapshot = ReadySnapshot();
 
-        var plain = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
-        var combined = await draft.ExecuteAsync(
-            snapshot with { IncludeFeeNote = true }, CaseReportArtifactKind.AssessmentReport);
-        var separate = await draft.ExecuteAsync(
-            snapshot with { IncludeFeeNote = true }, CaseReportArtifactKind.FeeNote);
+        var report = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+        var separate = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.FeeNote);
 
-        Assert.Equal("CE_100_assessment.pdf", combined.SuggestedFileName);
-        Assert.True(combined.PageCount > plain.PageCount);
-        var pages = PageTexts(combined.Pdf);
+        Assert.Equal("CE_100_assessment.pdf", report.SuggestedFileName);
+        Assert.True(report.PageCount > separate.PageCount);
+        var pages = PageTexts(report.Pdf);
         var last = pages[^1];
         Assert.Contains("TOTAL DUE", last, StringComparison.Ordinal);
         Assert.Contains(AssessmentReportWording.BillToLabel, last, StringComparison.Ordinal);
         Assert.Contains($"Page {pages.Length} of {pages.Length}", last, StringComparison.Ordinal);
         // The report is first and complete: its final page still closes with
         // the signatory, and no report page carries the fee note's totals.
-        var reportPages = pages.Take(plain.PageCount).ToArray();
+        var reportPageCount = report.PageCount - separate.PageCount;
+        var reportPages = pages.Take(reportPageCount).ToArray();
         Assert.Contains(snapshot.Signatory.PrintedName, reportPages[^1], StringComparison.Ordinal);
         Assert.All(reportPages, page => Assert.DoesNotContain("TOTAL DUE", page, StringComparison.Ordinal));
         Assert.All(reportPages, page => Assert.DoesNotContain(
             $"VAT No: {AssessmentReportContract.VatNumber}", page, StringComparison.Ordinal));
-        Assert.All(pages.Skip(plain.PageCount), page => Assert.Contains(
+        Assert.All(pages.Skip(reportPageCount), page => Assert.Contains(
             $"VAT No: {AssessmentReportContract.VatNumber}", page, StringComparison.Ordinal));
-        // The separate fee-note document is exactly the fee note.
-        Assert.Equal(combined.PageCount - plain.PageCount, separate.PageCount);
         Assert.Contains("TOTAL DUE", string.Join(" ", PageTexts(separate.Pdf)), StringComparison.Ordinal);
     }
 
@@ -447,7 +449,7 @@ public sealed partial class AssessmentReportRendererTests
             snapshot with { Photos = [rotated, snapshot.Photos[0]] },
             CaseReportArtifactKind.AssessmentReport);
 
-        Assert.Equal(6, artifact.PageCount);
+        Assert.Equal(7, artifact.PageCount);
         // The Close-up leads page 1 in its slot, turned and cropped as the
         // Engineer left it and then trimmed to the slot's shape.
         var lead = Assert.Single(BodyImages(artifact.Pdf)[0]);
@@ -583,9 +585,97 @@ public sealed partial class AssessmentReportRendererTests
         // none is enlarged, so each prints at its own width in pixels.
         Assert.Equal([800, 400, 640], images.Select(image => image.PixelWidth));
         // The narrative, the vehicle data and the work lists carry no image,
-        // and the last page carries the signature alone.
-        Assert.Equal([1, 0, 0, 0, 3, 1], printed.Select(page => page.Count));
+        // the statement of truth carries the signature alone, and the fee
+        // note none.
+        Assert.Equal([1, 0, 0, 0, 3, 1, 0], printed.Select(page => page.Count));
     }
+
+    /// <summary>
+    /// Whether the report carries vehicle images is projected into the
+    /// snapshot, so a generation freezes it; a report carries them unless its
+    /// Principal's rules say otherwise.
+    /// </summary>
+    [Fact]
+    public void TheProjectionCarriesWhetherTheReportHasVehicleImages()
+    {
+        var input = AssessmentReportDraftWebTests.ReadyInput(Guid.NewGuid());
+
+        Assert.True(input.IncludeVehicleImages);
+        Assert.True(AssessmentReportProjection.Project(input).Snapshot!.IncludeVehicleImages);
+        Assert.False(AssessmentReportProjection
+            .Project(input with { IncludeVehicleImages = false }).Snapshot!.IncludeVehicleImages);
+    }
+
+    /// <summary>
+    /// A report generated without vehicle images (operator, 6 October 2026):
+    /// page 1 has no lead photo and the plan keeps its own place and size,
+    /// there are no image pages, and the fee note still ends it. The images
+    /// document of the same snapshot prints every image.
+    /// </summary>
+    [Fact]
+    public async Task AReportWithoutVehicleImagesPrintsNoneAndItsImagePackPrintsThemAll()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var draft = new GenerateAssessmentReportDraft(renderer);
+        var ready = ReadySnapshot();
+        var photo = ready.Photos.Single();
+        var withImages = ready with
+        {
+            Photos =
+            [
+                photo with { CustodyReference = "close-up.jpg", Role = CaseAssetReportRole.CloseUp },
+                photo with { CustodyReference = "overview.jpg", Role = CaseAssetReportRole.Overview },
+                photo with { CustodyReference = "supporting.jpg", Order = 1 },
+            ],
+        };
+        var withoutImages = withImages with { IncludeVehicleImages = false };
+
+        var included = await draft.ExecuteAsync(withImages, CaseReportArtifactKind.AssessmentReport);
+        var report = await draft.ExecuteAsync(withoutImages, CaseReportArtifactKind.AssessmentReport);
+        var imagePack = await draft.ExecuteAsync(withoutImages, CaseReportArtifactKind.ImagePack);
+
+        // Page 1, the narrative, the vehicle data, the work lists and the
+        // statement of truth each start a page; the fee note follows.
+        Assert.Equal(6, report.PageCount);
+        Assert.Equal(7, included.PageCount);
+        var pages = PageTexts(report.Pdf);
+        Assert.DoesNotContain(
+            pages, page => page.Contains(AssessmentReportWording.VehicleImagesHeading, StringComparison.Ordinal));
+        Assert.Contains(AssessmentReportWording.StatementOfTruthHeading, pages[^2], StringComparison.Ordinal);
+        Assert.Contains(Squeeze(AssessmentReportWording.FeeNoteTitle), Squeeze(pages[^1]), StringComparison.Ordinal);
+        // No lead photo and no image pages: the signature is the one image.
+        Assert.Equal([0, 0, 0, 0, 1, 0], BodyImages(report.Pdf).Select(page => page.Count));
+        // Page 1 draws exactly what it draws beside a lead photo: the plan
+        // stands in its own place at its own size.
+        var drawn = PageOneDrawing(included.Pdf);
+        Assert.NotEmpty(drawn);
+        var alone = PageOneDrawing(report.Pdf);
+        Assert.Equal(drawn.Length, alone.Length);
+        Assert.All(drawn.Zip(alone), pair =>
+        {
+            Assert.InRange(pair.Second.Left, pair.First.Left - 0.05, pair.First.Left + 0.05);
+            Assert.InRange(pair.Second.Top, pair.First.Top - 0.05, pair.First.Top + 0.05);
+            Assert.InRange(pair.Second.Right, pair.First.Right - 0.05, pair.First.Right + 0.05);
+            Assert.InRange(pair.Second.Bottom, pair.First.Bottom - 0.05, pair.First.Bottom + 0.05);
+        });
+        // The images document of the same snapshot prints every image.
+        Assert.Equal(3, BodyImages(imagePack.Pdf).Sum(page => page.Count));
+    }
+
+    /// <summary>
+    /// What page 1 draws, the plan among it, in print order: every filled or
+    /// stroked shape. A photo is an image, not a shape.
+    /// </summary>
+    private static PrintedBox[] PageOneDrawing(byte[] pdf) =>
+    [
+        .. Read(pdf)[0].Shapes
+            .Where(shape => !shape.Clip && (shape.Fill is not null || shape.Stroke is not null))
+            .OrderBy(shape => Math.Round(shape.Top, 1))
+            .ThenBy(shape => Math.Round(shape.Left, 1))
+            .ThenBy(shape => Math.Round(shape.Bottom, 1))
+            .ThenBy(shape => Math.Round(shape.Right, 1)),
+    ];
 
     /// <summary>
     /// An image is trimmed about its centre to the shape of its slot after

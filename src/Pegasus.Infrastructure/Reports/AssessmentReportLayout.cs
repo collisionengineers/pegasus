@@ -35,10 +35,9 @@ internal sealed record PreparedReportPhoto(byte[] Content, bool FullPage);
 internal static class AssessmentReportLayout
 {
     /// <summary>
-    /// Exactly the requested artifact kind. An assessment report frozen with
-    /// <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> ends with the fee
-    /// note's own pages: the same fee facts and the same accepted terms the
-    /// separate document prints, after a page break, in one document.
+    /// Exactly the requested artifact kind. An assessment report always ends
+    /// with the fee note's own pages: the same fee facts and the same accepted
+    /// terms the separate document prints, after a page break, in one document.
     /// </summary>
     internal static Document Compose(
         AssessmentReportSnapshot snapshot,
@@ -78,10 +77,7 @@ internal static class AssessmentReportLayout
                     break;
                 default:
                     Pages(feeNote: false, column => Report(column, snapshot, images));
-                    if (snapshot.IncludeFeeNote)
-                    {
-                        Pages(feeNote: true, column => FeeNote(column, snapshot));
-                    }
+                    Pages(feeNote: true, column => FeeNote(column, snapshot));
                     break;
             }
         });
@@ -128,11 +124,24 @@ internal static class AssessmentReportLayout
         Gap(column, SlotGap);
         column.Item()
             .ShowEntire()
-            .Element(slots => ImageSlots(
-                slots,
-                LeadSlotHeight,
-                images.Lead is null ? null : slot => Fill(slot, images.Lead),
-                slot => slot.AlignCenter().Svg(plan).FitHeight()));
+            .Element(slots =>
+            {
+                Action<IContainer> planSlot = slot => slot.AlignCenter().Svg(plan).FitHeight();
+                if (!snapshot.IncludeVehicleImages)
+                {
+                    // A report generated without vehicle images (its
+                    // Principal's rules): the lead photo slot is left out and
+                    // the plan keeps its own place and size (operator, 6
+                    // October 2026, interim ruling).
+                    RightSlotAlone(slots, LeadSlotHeight, planSlot);
+                    return;
+                }
+                ImageSlots(
+                    slots,
+                    LeadSlotHeight,
+                    images.Lead is null ? null : slot => Fill(slot, images.Lead),
+                    planSlot);
+            });
 
         // Page 2: the narrative, in the Engineer's order (v28 P30). The
         // settlement block keeps the value box that belongs to it.

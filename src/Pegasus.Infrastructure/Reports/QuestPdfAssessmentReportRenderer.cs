@@ -66,7 +66,9 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
     /// The images one artifact prints. The report leads page 1 with the
     /// Close-up and prints it nowhere else; the image pack prints every
     /// image in the grid. Full page has no effect on the Close-up. Each
-    /// image is opened, prepared and let go of before the next is opened.
+    /// image is opened, prepared and let go of before the next is opened. A
+    /// report generated without vehicle images opens none: it has no lead and
+    /// no image pages, and its image pack still prints every image.
     /// </summary>
     private static async Task<PreparedReportImages> PrepareAsync(
         AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
@@ -74,6 +76,10 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         if (kind == CaseReportArtifactKind.FeeNote)
         {
             return new(null, [], [], ReportResources.Logo());
+        }
+        if (kind == CaseReportArtifactKind.AssessmentReport && !snapshot.IncludeVehicleImages)
+        {
+            return new(null, [], PrepareSignature(snapshot.Signatory), ReportResources.Logo());
         }
         var ordered = snapshot.OrderedPhotos;
         var closeUp = ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.CloseUp);

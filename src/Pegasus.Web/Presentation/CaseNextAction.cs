@@ -8,16 +8,18 @@ namespace Pegasus.Web.Presentation;
 
 /// <summary>
 /// One step of a Case's Next action: its words, the section its link opens,
-/// the blocker it names while the report is not ready, and whether it opens
+/// the blocker it names while the report is not ready, whether it opens
 /// the Actions menu's Create audit or Assign Engineer dialog rather than a
-/// section.
+/// section, and why it is greyed, as Mark completed is while the Case has an
+/// open task (operator, 6 October 2026).
 /// </summary>
 public sealed record CaseNextActionStep(
     string Label,
     string SectionKey,
     AssessmentReadinessItem? Blocker = null,
     bool OpensCreateAudit = false,
-    bool OpensAssignEngineer = false);
+    bool OpensAssignEngineer = false,
+    string? Gate = null);
 
 /// <summary>
 /// The one Next action of a Case: the Case page's aside states it and the
@@ -43,6 +45,7 @@ public static class CaseNextAction
     /// <param name="firstRequirement">The first outstanding requirement's words, if any.</param>
     /// <param name="reportBlockers">The report readiness items; empty when the report is ready or its readiness was not read.</param>
     /// <param name="blockerSection">The section that clears a blocker on this Case, or null.</param>
+    /// <param name="markCompletedGate">Why Mark completed is greyed (the Case has an open task), or null.</param>
     public static CaseNextActionStep Of(
         CaseWorkflowRecord workflow,
         CaseType caseType,
@@ -51,7 +54,7 @@ public static class CaseNextAction
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
         Func<AssessmentReadinessItem, string?> blockerSection,
         CaseReportGenerationRecord? currentReport,
-        CaseReportDeliveryPreparationRecord? deliveryPreparation)
+        string? markCompletedGate = null)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(reportBlockers);
@@ -62,8 +65,8 @@ public static class CaseNextAction
         }
         return ReportStep(reportBlockers, blockerSection, currentReport)
             ?? (workflow.ReportSentEvidence is not null
-                ? AfterTheSend(workflow, caseType, works)
-                : DeliveryStep(deliveryPreparation));
+                ? AfterTheSend(workflow, caseType, works, markCompletedGate)
+                : DeliveryStep);
     }
 
     /// <summary>
@@ -78,18 +81,17 @@ public static class CaseNextAction
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
         Func<AssessmentReadinessItem, string?> blockerSection,
         CaseReportGenerationRecord? report,
-        CaseReportDeliveryPreparationRecord? deliveryPreparation,
         ApprovedMailboxReportSentEvidence? sentEvidence)
     {
         ArgumentNullException.ThrowIfNull(reportBlockers);
         ArgumentNullException.ThrowIfNull(blockerSection);
         return ReportStep(reportBlockers, blockerSection, report)
-            ?? (sentEvidence is not null ? null : DeliveryStep(deliveryPreparation));
+            ?? (sentEvidence is not null ? null : DeliveryStep);
     }
 
     /// <summary>
-    /// Whether the Next action reads the report's readiness, the current
-    /// report and its delivery; a caller that has not loaded them need not.
+    /// Whether the Next action reads the report's readiness and the current
+    /// report; a caller that has not loaded them need not.
     /// </summary>
     public static bool ReadsTheReport(CaseWorkflowRecord workflow)
     {
@@ -152,16 +154,16 @@ public static class CaseNextAction
         return null;
     }
 
-    private static CaseNextActionStep DeliveryStep(CaseReportDeliveryPreparationRecord? deliveryPreparation) =>
-        deliveryPreparation is not null
-            ? new(CaseWorkspaceLabels.ReportDelivery.SendPreparedReport, "report")
-            : new(CaseWorkspaceLabels.ReportDelivery.PrepareDelivery, "report");
+    private static CaseNextActionStep DeliveryStep =>
+        new(CaseWorkspaceLabels.ReportDelivery.SendReport, "report");
 
     // What follows the sent report: Create audit on an Inspection + Audit Case
     // that has no Audit yet (offered even without an Engineer, where the item
-    // is greyed with that reason), else Mark completed.
-    private static CaseNextActionStep AfterTheSend(CaseWorkflowRecord workflow, CaseType caseType, CaseWorkSet? works) =>
+    // is greyed with that reason), else Mark completed, greyed with its gate
+    // while the Case has an open task (operator, 6 October 2026).
+    private static CaseNextActionStep AfterTheSend(
+        CaseWorkflowRecord workflow, CaseType caseType, CaseWorkSet? works, string? markCompletedGate) =>
         AuditPolicy.Refusal(caseType, workflow, works) is null or AuditRefusal.NoAssignedEngineer
             ? new(CaseWorkspaceLabels.Frame.CreateAudit, "overview", OpensCreateAudit: true)
-            : new(CaseWorkspaceLabels.Frame.MarkCompleted, "overview");
+            : new(CaseWorkspaceLabels.Frame.MarkCompleted, "overview", Gate: markCompletedGate);
 }

@@ -60,7 +60,8 @@ function Get-MigrationPermissionMatrix {
         '20260824123336_DropEvaHandoffTables.cs',
         '20260917161519_RemovePublicUploadLinks.cs',
         '20260924180000_CaseWorksAndTriageCases.cs',
-        '20260929090000_RetireUnusedTables.cs'
+        '20260929090000_RetireUnusedTables.cs',
+        '20261006150000_DropCaseReportDeliveryIntents.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -436,7 +437,7 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|AutomaticEvaReviewSubmissions')
     # 20260906054658_V1PlatformFoundation: v1 schema owners and holding custody.
-    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','DocumentContentCacheEntries')
+    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','DocumentContentCacheEntries')
     foreach ($table in $v1Tables) {
         $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
         if ($table -ne 'DocumentContentCacheEntries') {
@@ -611,6 +612,13 @@ function Get-MigrationPermissionMatrix {
     # chaser's chase when the Sent poll observes the send. It never deletes one.
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseManualChases')
     $expected.Add('pegasus_worker_runtime_role|G|INSERT|CaseManualChases')
+    # 20261007110000_GrantWorkerCaseTasksForReportSent: the Worker's Sent-evidence
+    # link creates the after-send tasks the send recorded, in the same transaction
+    # as Report sent. It inserts the tasks; it never updates or deletes one.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseTasks")
+    }
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseTasks')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

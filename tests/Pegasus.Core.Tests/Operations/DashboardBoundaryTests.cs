@@ -172,6 +172,118 @@ public sealed class DashboardBoundaryTests
         Assert.Equal($"/Cases/{caseId:D}", item.Route);
     }
 
+    /// <summary>
+    /// FRD-15 (operator, 6 October 2026): one Open tasks row per Case with an
+    /// open task, named by its oldest open task with how many more; no due
+    /// instant, so always Normal; owned by that task's assignee, else its
+    /// creator when staff; opening the Case at Tasks.
+    /// </summary>
+    [Fact]
+    public async Task OpenTasksListOneRowPerCaseNamedByItsOldestOpenTask()
+    {
+        var twoTasksId = Guid.NewGuid();
+        var createdByStaffId = Guid.NewGuid();
+        var systemCreatedId = Guid.NewGuid();
+        var assigneeId = Guid.NewGuid();
+        var creatorId = Guid.NewGuid();
+        var oldest = NowUtc.AddDays(-3);
+        var newest = NowUtc.AddHours(-2);
+        var snapshot = await ExecuteAsync(
+            new RecordingDashboardQueries
+            {
+                OpenTasks =
+                [
+                    NewOpenTask(twoTasksId, "C/2026/TWO", "Send the invoice", newest, assigneeId: null, creatorId),
+                    NewOpenTask(twoTasksId, "C/2026/TWO", "Chase the payment", oldest, assigneeId, creatorId),
+                    NewOpenTask(createdByStaffId, "C/2026/STAFF", "Call the claimant", newest, assigneeId: null, creatorId),
+                    NewOpenTask(systemCreatedId, "C/2026/SYSTEM", "File the report", newest, assigneeId: null, createdByStaffId: null)
+                ]
+            },
+            NowUtc);
+
+        var rows = snapshot.NeedsAttention.ToDictionary(item => item.Id);
+        Assert.Equal(3, rows.Count);
+        Assert.All(rows.Values, row =>
+        {
+            Assert.Equal(NeedsAttentionKind.OpenTasks, row.Kind);
+            Assert.Null(row.Due);
+            Assert.Equal(NeedsAttentionPriority.Normal, row.Priority);
+            Assert.Equal($"/Cases/{row.Id:D}?section=tasks", row.Route);
+            Assert.Equal("Ford Focus KP68 ABC", row.Title);
+            Assert.Equal("QDOS", row.Detail);
+        });
+        var two = rows[twoTasksId];
+        Assert.Equal("C/2026/TWO", two.Reference);
+        Assert.Equal("Chase the payment", two.Reason);
+        Assert.Equal(1, two.MoreCount);
+        Assert.Equal(assigneeId, two.OwnerStaffId);
+        Assert.Equal(oldest, two.Received);
+        Assert.Equal(newest, two.QualifiedAtUtc);
+        Assert.Equal(0, rows[createdByStaffId].MoreCount);
+        Assert.Equal(creatorId, rows[createdByStaffId].OwnerStaffId);
+        Assert.Null(rows[systemCreatedId].OwnerStaffId);
+        Assert.Equal("Unassigned", rows[systemCreatedId].Owner);
+        Assert.Equal(0, snapshot.Attention.OverdueCount + snapshot.Attention.TodayCount);
+        Assert.Equal(3, snapshot.Attention.KindCounts[NeedsAttentionKind.OpenTasks]);
+    }
+
+    [Fact]
+    public async Task AnUnassignedOpenTasksRowNamesTheStaffMemberWhoCreatedTheTask()
+    {
+        var creatorId = Guid.NewGuid();
+        var snapshot = await new GetOperationsSnapshot(
+            new StubListTriage(),
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries
+            {
+                OpenTasks = [NewOpenTask(Guid.NewGuid(), "C/2026/OWNED", "Call the claimant", NowUtc, assigneeId: null, creatorId)]
+            },
+            new StubSearchCases(),
+            new StubUnidentifiedQueue(),
+            new NamedStaffAccounts(creatorId, "Alex"),
+            new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new InMemoryWorkCentreDismissals(),
+            new FixedTimeProvider(NowUtc)).ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
+
+        var row = Assert.Single(snapshot.NeedsAttention);
+        Assert.Equal(NeedsAttentionKind.OpenTasks, row.Kind);
+        Assert.Equal("Alex", row.Owner);
+    }
+
+    /// <summary>
+    /// A dismissed Open tasks row stays hidden while its Case's open tasks are
+    /// the ones it was dismissed with, and returns when a task is opened later.
+    /// </summary>
+    [Fact]
+    public async Task ADismissedOpenTasksRowReturnsWhenANewTaskIsOpened()
+    {
+        var quietId = Guid.NewGuid();
+        var newTaskId = Guid.NewGuid();
+        var dismissedAt = NowUtc.AddHours(-3);
+        var dismissals = new InMemoryWorkCentreDismissals();
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        await dismissals.DismissAsync(quietId, dismissedAt, staff, CancellationToken.None);
+        await dismissals.DismissAsync(newTaskId, dismissedAt, staff, CancellationToken.None);
+
+        var snapshot = await ExecuteAsync(
+            new RecordingDashboardQueries
+            {
+                OpenTasks =
+                [
+                    NewOpenTask(quietId, "C/2026/QUIET", "Chase the payment", NowUtc.AddDays(-2), assigneeId: null, createdByStaffId: null),
+                    NewOpenTask(newTaskId, "C/2026/NEW", "Chase the payment", NowUtc.AddDays(-2), assigneeId: null, createdByStaffId: null),
+                    NewOpenTask(newTaskId, "C/2026/NEW", "Send the invoice", NowUtc.AddHours(-1), assigneeId: null, createdByStaffId: null)
+                ]
+            },
+            NowUtc,
+            dismissals: dismissals);
+
+        var row = Assert.Single(snapshot.NeedsAttention);
+        Assert.Equal(newTaskId, row.Id);
+        Assert.Equal("Chase the payment", row.Reason);
+        Assert.Equal(1, row.MoreCount);
+    }
+
     [Fact]
     public async Task NeedsAttentionPartitionsReviewCasesUsingTheCurrentCompletenessConfiguration()
     {
@@ -902,15 +1014,40 @@ public sealed class DashboardBoundaryTests
         FailureReason: "The document could not be placed in accepted Case custody.",
         canRetry);
 
+    private static OpenCaseTask NewOpenTask(
+        Guid caseId,
+        string reference,
+        string description,
+        DateTimeOffset createdAtUtc,
+        Guid? assigneeId,
+        Guid? createdByStaffId) => new(
+        caseId,
+        reference,
+        "QDOS",
+        Registration: "KP68 ABC",
+        Claimant: "Meridian Claims",
+        VehicleMake: "Ford",
+        VehicleModel: "Focus",
+        TaskId: Guid.NewGuid(),
+        description,
+        assigneeId,
+        createdAtUtc,
+        createdByStaffId);
+
     private sealed class RecordingDashboardQueries : IDashboardQueries
     {
         public IReadOnlyList<PairedVehicleImagesCase> Paired { get; init; } = [];
+
+        public IReadOnlyList<OpenCaseTask> OpenTasks { get; init; } = [];
 
         public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new CaseStageCounts(0, 0, 0, 0));
 
         public Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
             CancellationToken cancellationToken) => Task.FromResult(Paired);
+
+        public Task<IReadOnlyList<OpenCaseTask>> ListOpenCaseTasksAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(OpenTasks);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset nowUtc) : TimeProvider

@@ -54,6 +54,46 @@ public sealed class EfCaseTaskStore(
         return tasks.Select(item => Map(item, caseVersion)).ToArray();
     }
 
+    /// <summary>
+    /// The Case's open tasks, oldest first, as the Next action lists them once Report sent is
+    /// recorded (operator, 6 October 2026). A task's age is its <c>case_task_created</c>
+    /// history entry; it is read inside the caller's context so the page frame pays one
+    /// connection for it.
+    /// </summary>
+    internal static async Task<IReadOnlyList<CaseOpenTask>> ReadOpenAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var open = await context.CaseTasks
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.State == nameof(CaseTaskState.Open))
+            .Select(item => new { item.Id, item.Description })
+            .ToArrayAsync(cancellationToken);
+        if (open.Length == 0)
+        {
+            return [];
+        }
+
+        var ids = open.Select(item => item.Id.ToString("D")).ToArray();
+        var created = await context.ActionHistory
+            .AsNoTracking()
+            .Where(item => item.AggregateType == "case_task"
+                && item.EventKind == "case_task_created"
+                && ids.Contains(item.AggregateId))
+            .Select(item => new { item.AggregateId, item.OccurredAtUtc })
+            .ToArrayAsync(cancellationToken);
+        var createdAt = created
+            .GroupBy(item => item.AggregateId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Min(item => item.OccurredAtUtc), StringComparer.Ordinal);
+        return open
+            .OrderBy(item => createdAt.TryGetValue(item.Id.ToString("D"), out var at) ? at : DateTimeOffset.MaxValue)
+            .ThenBy(item => item.Id)
+            .Select(item => new CaseOpenTask(item.Id, item.Description))
+            .ToArray();
+    }
+
 
     public async Task<CaseTaskAssigneeStatus> GetAsync(
         Guid staffId,
@@ -195,6 +235,67 @@ public sealed class EfCaseTaskStore(
                 return Task.CompletedTask;
             },
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Adds one open, unassigned task and its <c>case_task_created</c> event inside the
+    /// caller's transaction, for a task that is a consequence of a recorded fact (Report
+    /// sent) rather than a staff edit. It takes no edit lease and no expected version on
+    /// purpose: the caller has already authorised and versioned the recorded fact, and the
+    /// task moves the Case's version on once, like any task creation. The caller owns the
+    /// replay check, the commit and the Case's own guards.
+    /// </summary>
+    internal static CaseTaskRecord AddConsequenceTask(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        Guid taskId,
+        string description,
+        string operationKey,
+        string reason,
+        DateTimeOffset occurredAtUtc)
+    {
+        const string eventKind = "case_task_created";
+        var beforeCaseVersion = workflow.Version;
+        var requestHash = RequestHash(
+            eventKind,
+            workflow.CaseId,
+            taskId,
+            beforeCaseVersion,
+            expectedTaskVersion: null,
+            actor,
+            operationKey,
+            reason,
+            editLeaseToken: "consequence-of-recorded-fact",
+            description,
+            assigneeId: null);
+        var task = new CaseTaskEntity
+        {
+            Id = taskId,
+            CaseId = workflow.CaseId,
+            Workflow = workflow,
+            Description = description.Trim(),
+            AssigneeId = null,
+            State = nameof(CaseTaskState.Open),
+            Version = 0
+        };
+        context.CaseTasks.Add(task);
+        // System work: the version moves on and an editor keeps their session.
+        CaseMutationGuard.Advance(workflow);
+        var result = Map(task, workflow.Version);
+        AddHistory(
+            context,
+            workflow,
+            actor,
+            operationKey,
+            reason,
+            eventKind,
+            requestHash,
+            beforeCaseVersion,
+            result,
+            before: null,
+            occurredAtUtc);
+        return result;
     }
 
     private async Task<CaseTaskRecord> MutateAsync<TRequest>(

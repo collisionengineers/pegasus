@@ -188,15 +188,8 @@ public sealed class EfCaseReportGenerationStore(
             readiness.RecordedReportDate,
             readiness.ReportDateOverridden,
             LondonCalendar.DateAt(now));
-        // The packaging choice belongs to the report itself: a separate fee
-        // note never embeds one, whatever the caller asked for.
         var projected = AssessmentReportProjection.Project(
-            reportInputs.Projection with
-            {
-                ReportDate = reportDate,
-                IncludeFeeNote = request.IncludeFeeNote
-                    && request.Kind == CaseReportArtifactKind.AssessmentReport,
-            });
+            reportInputs.Projection with { ReportDate = reportDate });
         if (projected.Snapshot is null)
         {
             return new(CaseReportFreezeOutcome.NotReady, null, null, projected.Reasons);
@@ -338,11 +331,6 @@ public sealed class EfCaseReportGenerationStore(
         }
 
         var snapshot = DeserializeSnapshot(generation);
-        if (request.Kind == CaseReportArtifactKind.FeeNote && snapshot.Report.IncludeFeeNote)
-        {
-            throw new InvalidOperationException("The generated artifact is unavailable.");
-        }
-
         var report = await context.Set<GeneratedCaseArtifactEntity>()
             .SingleOrDefaultAsync(
                 item => item.GenerationId == generation.Id
@@ -422,20 +410,29 @@ public sealed class EfCaseReportGenerationStore(
         GeneratedCaseArtifactEntity replay,
         CancellationToken cancellationToken)
     {
-        var generation = await context.Set<CaseReportGenerationEntity>()
-            .AsNoTracking()
-            .SingleAsync(item => item.Id == replay.GenerationId, cancellationToken)
+        // The Principal's report sending rules are read with the generation,
+        // in the same command: whether the report carries vehicle images is
+        // decided by them, not by the request.
+        var row = await (
+                from item in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+                join @case in context.Cases.AsNoTracking() on item.CaseId equals @case.Id
+                where item.Id == replay.GenerationId
+                select new { Generation = item, @case.Principal.ReportSendingRulesJson })
+            .SingleAsync(cancellationToken)
             .ConfigureAwait(false);
-        var snapshot = DeserializeSnapshot(generation);
-        var expectedIncludeFeeNote = request.Kind == CaseReportArtifactKind.AssessmentReport
-            && request.IncludeFeeNote;
+        var generation = row.Generation;
         var targetMatches = request.Kind == CaseReportArtifactKind.AssessmentReport
             ? request.TargetGenerationId is null
             : request.TargetGenerationId == generation.Id;
+        // A report replayed after its Principal's image rule changed would be
+        // a different report from the one frozen under this key.
+        var imagesMatch = request.Kind != CaseReportArtifactKind.AssessmentReport
+            || DeserializeSnapshot(generation).Report.IncludeVehicleImages
+                == EfAssessmentReportProjectionSource.IncludesVehicleImages(row.ReportSendingRulesJson);
         if (generation.CaseId != request.CaseId
             || !string.Equals(replay.Kind, request.Kind.ToString(), StringComparison.Ordinal)
-            || snapshot.Report.IncludeFeeNote != expectedIncludeFeeNote
-            || !targetMatches)
+            || !targetMatches
+            || !imagesMatch)
         {
             throw new CaseOperationConflictException(request.CaseId, replay.OperationKey);
         }
@@ -654,6 +651,43 @@ public sealed class EfCaseReportGenerationStore(
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await LoadRecordAsync(context, caseId, generationId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+        SendCaseReportRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        CaseReportDeliveryPolicy.RequireStaff(request.Actor);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var generation = await LoadRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                $"Case report generation '{request.GenerationId}' is unavailable on case '{request.CaseId}'.");
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
+
+        // A work's current report is delivered: the current work's, or the
+        // Inspection's once the Audit exists, which stays deliverable on its
+        // own work (operator, 1 October 2026). The generation must be of the
+        // work the request names.
+        var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken)
+            .ConfigureAwait(false);
+        if (generation.WorkId != workId)
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
+        CaseReportDeliveryPolicy.RequireDeliverable(
+            generation.Id,
+            generation.State,
+            generation.SupersededById is null,
+            generation.Version,
+            request.ExpectedGenerationVersion);
+        CaseMutationGuard.Require(
+            workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, timeProvider.GetUtcNow());
+        return generation;
     }
 
     public async Task<CaseReportGenerationRecord?> GetCurrentAsync(

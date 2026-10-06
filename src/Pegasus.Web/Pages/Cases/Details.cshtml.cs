@@ -44,6 +44,12 @@ public sealed partial class DetailsModel(
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
+    IGetCaseTasksSection getCaseTasksSection,
+    Pegasus.Core.Tasks.ICreateCaseTask createCaseTask,
+    Pegasus.Core.Tasks.IAssignCaseTask assignCaseTask,
+    Pegasus.Core.Tasks.ICompleteCaseTask completeCaseTask,
+    Pegasus.Core.Tasks.ICancelCaseTask cancelCaseTask,
+    ICaseEngineerChoices caseEngineerChoices,
     IGetCaseFilesSection getCaseFilesSection,
     ICaseDocumentQueries caseDocuments,
     IListCaseReferences listCaseReferences,
@@ -57,9 +63,7 @@ public sealed partial class DetailsModel(
     IEstimateDocumentPresentationStore estimateDocumentPresentations,
     IGeneratedCaseArtifactStore generatedArtifacts,
     ICaseReportGenerationStore reportGenerations,
-    IPrepareCaseReportDelivery prepareReportDelivery,
-    ISendPreparedCaseReport sendPreparedReport,
-    ICaseReportDeliveryPreparationStore deliveryPreparations,
+    ISendCaseReport sendCaseReport,
     IReportRecipientSuggestionQueries reportRecipientSuggestions,
     ICaseReportSendHistoryQueries reportSendHistory,
     RenderEmailTemplate renderEmailTemplate,
@@ -272,16 +276,17 @@ public sealed partial class DetailsModel(
             ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
             ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
-            ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml"
+            ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml",
+            ["tasks"] = "/Pages/Cases/Shared/_CaseTasks.cshtml"
         };
 
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
     /// first response. The addressed section is always rendered, so
-    /// <c>?section=</c> works over plain HTTP. Files and Notes have no fields
-    /// in the record's single Save form, so they remain deferred while editing
-    /// without replacing entered values elsewhere; their bodies act through
-    /// their own posts with the render lease token.
+    /// <c>?section=</c> works over plain HTTP. Files, Notes and Tasks have no
+    /// fields in the record's single Save form, so they remain deferred while
+    /// editing without replacing entered values elsewhere; their bodies act
+    /// through their own posts with the render lease token.
     /// </summary>
     public bool SectionIsDeferred(string key) =>
         !string.Equals(key, Section, StringComparison.Ordinal)
@@ -289,7 +294,7 @@ public sealed partial class DetailsModel(
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
-        && (LeaseToken is null || key is "files" or "notes");
+        && (LeaseToken is null || key is "files" or "notes" or "tasks");
 
     /// <summary>
     /// A lease token supplied only for rendering an asynchronously mounted
@@ -360,11 +365,13 @@ public sealed partial class DetailsModel(
     public CaseVehicleSection? VehicleSection { get; private set; }
     public CaseValuationSection? ValuationSection { get; private set; }
     public CaseNotesSection? NotesSection { get; private set; }
+    public CaseTasksSection? TasksSection { get; private set; }
     public CaseFilesSection? FilesSection { get; private set; }
 
     public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
         ?? ValuationSection?.Frame
         ?? NotesSection?.Frame
+        ?? TasksSection?.Frame
         ?? FilesSection?.Frame;
 
     public CaseWorkflowRecord? CurrentWorkflow => Case?.Workflow ?? SectionFrame?.Workflow;
@@ -626,14 +633,14 @@ public sealed partial class DetailsModel(
         _ => null,
     };
 
-    /// <summary>
-    /// The current generation's latest delivery preparation (B07), if one
-    /// exists.
-    /// </summary>
-    public CaseReportDeliveryPreparationRecord? CurrentDeliveryPreparation { get; private set; }
+    /// <summary>The dispatch facts of the shown generation: the Principal's rules read with the Case.</summary>
+    public ReportDispatchFacts? DeliveryRecipientSuggestions { get; private set; }
 
-    /// <summary>Principal suggestions offered for staff review before preparation.</summary>
-    public ReportRecipientSuggestions? DeliveryRecipientSuggestions { get; private set; }
+    /// <summary>
+    /// The one plan the delivery form follows, made once when the page loads
+    /// with no answers; Send report plans again with staff's answers.
+    /// </summary>
+    public ReportDispatchPlan? DeliveryDispatchPlan { get; private set; }
 
     public string? OpenDialog { get; private set; }
 
@@ -709,7 +716,7 @@ public sealed partial class DetailsModel(
 
     public string GenerateImagePackOperationKey { get; private set; } = NewOperationKey();
 
-    public string PrepareDeliveryOperationKey { get; private set; } = NewOperationKey();
+    public string SendReportOperationKey { get; private set; } = NewOperationKey();
 
     public string LaunchGlassOperationKey { get; private set; } = NewOperationKey();
 
@@ -1081,9 +1088,6 @@ public sealed partial class DetailsModel(
         var snapshots = selectedSpecificationId is { } specificationId
             ? reads.Start(token => specificationSnapshots.ListAsync(id, specificationId, token))
             : null;
-        var delivery = generated
-            ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, work, token))
-            : null;
         var suggestions = generated
             ? reads.Start(token => reportRecipientSuggestions.GetAsync(id, work, token))
             : null;
@@ -1111,14 +1115,29 @@ public sealed partial class DetailsModel(
                 ? null
                 : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
         }
-        CurrentDeliveryPreparation = delivery is null ? null : await delivery;
-        DeliveryRecipientSuggestions = suggestions is null ? null : await suggestions;
-        ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
-            ? CaseReportDeliveryPolicy.AddressBook(addressBook)
-            : [];
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None
             : await history;
+        DeliveryRecipientSuggestions = suggestions is null ? null : await suggestions;
+        if (DeliveryRecipientSuggestions is { } dispatchFacts)
+        {
+            // The generation's own facts complete what the query reads, and
+            // the plan is made once here for every part of the form.
+            DeliveryRecipientSuggestions = dispatchFacts with
+            {
+                History = ReportSendHistory,
+                ConfirmedArtifacts =
+                [
+                    .. CurrentReportGeneration?.Artifacts
+                        .Where(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed)
+                        .Select(artifact => artifact.Kind) ?? []
+                ]
+            };
+            DeliveryDispatchPlan = ReportDispatchPolicy.Plan(DeliveryRecipientSuggestions, [], clock.GetUtcNow());
+        }
+        ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
+            ? CaseReportDeliveryPolicy.AddressBook(addressBook)
+            : [];
         ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
         OpenDialog = dialog switch
         {
@@ -1346,6 +1365,13 @@ public sealed partial class DetailsModel(
                         return FragmentNotFound();
                     }
                     break;
+                case "tasks":
+                    TasksSection = await getCaseTasksSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (TasksSection is null)
+                    {
+                        return FragmentNotFound();
+                    }
+                    break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (FilesSection is null)
@@ -1377,6 +1403,10 @@ public sealed partial class DetailsModel(
             if (key == "valuation")
             {
                 await LoadValuationSectionAsync(id, actor, cancellationToken);
+            }
+            if (key == "tasks" && TasksReadAssignees)
+            {
+                TaskAssigneeChoices = await caseEngineerChoices.GetAsync(actor, cancellationToken);
             }
             return Partial(view, this);
         }
@@ -1461,6 +1491,14 @@ public sealed partial class DetailsModel(
         var notes = rendered.Contains("notes")
             ? reads.Start(token => getCaseNotesSection.ExecuteAsync(query, token))
             : null;
+        var tasks = rendered.Contains("tasks")
+            ? reads.Start(token => getCaseTasksSection.ExecuteAsync(query, token))
+            : null;
+        // An open task's Assign offers the enabled staff only while the Tasks
+        // body is rendered here and can be changed.
+        var taskAssignees = rendered.Contains("tasks") && CanEditCaseData
+            ? reads.Start(token => caseEngineerChoices.GetAsync(actor, token))
+            : null;
         // Report Preview is part of the initial Case response even when the
         // heavier Files gallery is deferred.
         var preparations = reads.Start(token => caseAssetPreparationQueries.ListForCaseAsync(id, token));
@@ -1490,6 +1528,15 @@ public sealed partial class DetailsModel(
         {
             NotesSection = await notes
                 ?? throw new InvalidOperationException("The Case notes section is unavailable.");
+        }
+        if (tasks is not null)
+        {
+            TasksSection = await tasks
+                ?? throw new InvalidOperationException("The Case tasks section is unavailable.");
+        }
+        if (taskAssignees is not null)
+        {
+            TaskAssigneeChoices = await taskAssignees;
         }
         AssetPreparations = await preparations;
         if (valuationReads is not null)
@@ -1571,7 +1618,7 @@ public sealed partial class DetailsModel(
             EditAuthorityHolder = holder is null ? CaseEditAuthorityHolder.Unnamed : await holder;
         }
         var jobs = await caseAiJobs;
-        AiDrafts = AiDraftPolicy.Drafts(jobs, (await configuration).AiDraftTargetDays);
+        AiDrafts =AiDraftPolicy.Drafts(jobs, (await configuration).AiDraftTargetDays);
         PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
     }
 
@@ -2162,21 +2209,18 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// The working preview is reachable both as a plain link (report only)
-    /// and from the generate form, where the operator's "Include fee note"
-    /// choice must be previewed exactly as it would be generated (R34B).
+    /// The working preview, exactly as the report would be generated: the
+    /// report followed by its fee note.
     /// </summary>
     public Task<IActionResult> OnGetPreviewReportDraftAsync(
         Guid id,
-        bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
 
     public Task<IActionResult> OnPostPreviewReportDraftAsync(
         Guid id,
-        bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
 
     /// <summary>
     /// The included images as they would print (v28 P42): the same working
@@ -2186,11 +2230,10 @@ public sealed partial class DetailsModel(
     public Task<IActionResult> OnGetPreviewImagePackAsync(
         Guid id,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote: false, CaseReportArtifactKind.ImagePack, cancellationToken);
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.ImagePack, cancellationToken);
 
     private async Task<IActionResult> PreviewReportDraftAsync(
         Guid id,
-        bool includeFeeNote,
         CaseReportArtifactKind kind,
         CancellationToken cancellationToken)
     {
@@ -2204,7 +2247,7 @@ public sealed partial class DetailsModel(
         {
             result = await HttpContext.RequestServices
                 .GetRequiredService<GenerateCaseAssessmentReportDraft>()
-                .ExecuteAsync(id, actor, kind, includeFeeNote, cancellationToken);
+                .ExecuteAsync(id, actor, kind, cancellationToken);
         }
         catch (ReportRenderRejectedException exception)
         {
@@ -2301,20 +2344,19 @@ public sealed partial class DetailsModel(
     /// store's short transaction and renders through the registered
     /// renderer, one artifact per request. The draft handlers above stay for
     /// the labelled ungenerated working preview; this is the real report.
-    /// R34B: the operator chooses whether the fee note is part of this
-    /// report or the separate document <see cref="OnPostGenerateFeeNoteAsync"/>
-    /// still produces, and that choice is frozen with the snapshot.
+    /// The report always ends with its fee note; a Principal that wants the
+    /// fee note on its own as well is sent the separate document
+    /// <see cref="OnPostGenerateFeeNoteAsync"/> produces beside it.
     /// </summary>
     public Task<IActionResult> OnPostGenerateReportAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
         long expectedCaseVersion,
-        bool includeFeeNote,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+            CaseReportArtifactKind.AssessmentReport,
             targetGenerationId: null, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
@@ -2326,7 +2368,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.FeeNote, includeFeeNote: false,
+            CaseReportArtifactKind.FeeNote,
             targetGenerationId, cancellationToken);
 
     /// <summary>
@@ -2344,7 +2386,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.RepairSpecification, includeFeeNote: false,
+            CaseReportArtifactKind.RepairSpecification,
             targetGenerationId, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateImagePackAsync(
@@ -2356,7 +2398,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.ImagePack, includeFeeNote: false,
+            CaseReportArtifactKind.ImagePack,
             targetGenerationId, cancellationToken);
 
     /// <summary>
@@ -2372,14 +2414,13 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
-        bool includeFeeNote,
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             return await GenerateWithOneOffLeaseAsync(
-                id, operationKey, expectedCaseVersion, kind, includeFeeNote,
+                id, operationKey, expectedCaseVersion, kind,
                 targetGenerationId, cancellationToken);
         }
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2393,7 +2434,7 @@ public sealed partial class DetailsModel(
         }
         return await GenerateAsync(
             actor, id, operationKey, editLeaseToken, expectedCaseVersion,
-            kind, includeFeeNote, targetGenerationId, cancellationToken);
+            kind, targetGenerationId, cancellationToken);
     }
 
     /// <summary>
@@ -2408,7 +2449,6 @@ public sealed partial class DetailsModel(
         string operationKey,
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
-        bool includeFeeNote,
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
@@ -2446,7 +2486,7 @@ public sealed partial class DetailsModel(
         {
             return await GenerateAsync(
                 actor, id, operationKey, lease.Token, expectedCaseVersion,
-                kind, includeFeeNote, targetGenerationId, cancellationToken);
+                kind, targetGenerationId, cancellationToken);
         }
         finally
         {
@@ -2463,7 +2503,6 @@ public sealed partial class DetailsModel(
         string editLeaseToken,
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
-        bool includeFeeNote,
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
@@ -2487,7 +2526,6 @@ public sealed partial class DetailsModel(
                         CaseReportArtifactKind.RepairSpecification => "Generate the immutable Repair Spec",
                         _ => "Generate the immutable images",
                     },
-                    includeFeeNote,
                     targetGenerationId,
                     WorkSelector),
                 cancellationToken);
@@ -2613,11 +2651,38 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// B07 delivery preparation: pins the current generation's confirmed
-    /// artifacts and the staff-reviewed recipient addressing. Nothing is
-    /// sent and no Sent state is claimed here.
+    /// Staff's answers to the questions the Principal's rules ask: one radio
+    /// pair per question, named <c>decision-{rule}-{condition}</c> with the
+    /// value true or false.
     /// </summary>
-    public async Task<IActionResult> OnPostPrepareReportDeliveryAsync(
+    private List<ReportRuleDecision> PostedReportDecisions()
+    {
+        var decisions = new List<ReportRuleDecision>();
+        foreach (var key in Request.Form.Keys)
+        {
+            var parts = key.Split('-');
+            if (parts.Length == 3
+                && parts[0] == "decision"
+                && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var rule)
+                && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var condition)
+                && bool.TryParse(Request.Form[key].ToString(), out var holds))
+            {
+                decisions.Add(new(rule, condition, holds));
+            }
+        }
+        return decisions;
+    }
+
+    /// <summary>
+    /// Sends the current generation's report in one step (operator, 6 October
+    /// 2026): the staff-reviewed recipients, the documents chosen and the
+    /// message submitted go to A's staff send transport under this form's
+    /// operation key, so a repeated submission of one form replays one send.
+    /// The send boundary re-checks the generation and the attachment hashes.
+    /// A's returned state is mapped truthfully: only observation says sent,
+    /// and an Unknown outcome never claims one.
+    /// </summary>
+    public async Task<IActionResult> OnPostSendReportAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
@@ -2628,6 +2693,9 @@ public sealed partial class DetailsModel(
         string[]? toRecipients,
         string[]? ccRecipients,
         CaseReportArtifactKind[]? attach,
+        string? dispatchFingerprint,
+        string? stopOverrideReason,
+        string[]? holdsDone,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2650,9 +2718,10 @@ public sealed partial class DetailsModel(
             return RedirectToReport(id);
         }
 
+        StaffMailOperation operation;
         try
         {
-            await prepareReportDelivery.ExecuteAsync(
+            operation = await sendCaseReport.ExecuteAsync(
                 new(
                     actor,
                     id,
@@ -2664,7 +2733,11 @@ public sealed partial class DetailsModel(
                     coveringMessage!,
                     new(toRecipients ?? [], ccRecipients ?? []),
                     attach,
-                    WorkSelector),
+                    WorkSelector,
+                    dispatchFingerprint,
+                    PostedReportDecisions(),
+                    holdsDone ?? [],
+                    stopOverrideReason),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -2677,59 +2750,11 @@ public sealed partial class DetailsModel(
         {
             TempData["CaseError"] = MutationRefusalMessage(
                 exception,
-                "The report delivery could not be prepared. Retry the operation.");
+                "The report was not sent. Retry the operation.");
             return RedirectToReport(id);
         }
 
         ClearLeaseState();
-        TempData["CaseStatus"] =
-            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DeliveryPrepared + ".";
-        return RedirectToReport(id);
-    }
-
-    /// <summary>
-    /// The one page caller of A's staff send transport. The operation key is
-    /// derived from the immutable preparation identity server-side — a
-    /// reload can never mint a second send operation for one preparation —
-    /// and the send boundary re-checks recipients, freshness and attachment
-    /// hashes. A's returned state is mapped truthfully: only observation says
-    /// sent, and an Unknown outcome never claims one.
-    /// </summary>
-    public async Task<IActionResult> OnPostSendPreparedReportAsync(
-        Guid id,
-        Guid preparationId,
-        long expectedPreparationVersion,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        var operationKey = preparationId.ToString("N");
-
-        StaffMailOperation operation;
-        try
-        {
-            _ = await deliveryPreparations.GetAsync(actor, id, preparationId, cancellationToken)
-                ?? throw new InvalidOperationException("The report delivery preparation is unavailable.");
-            operation = await sendPreparedReport.ExecuteAsync(
-                new(actor, id, preparationId, expectedPreparationVersion, operationKey),
-                cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or KeyNotFoundException)
-        {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception,
-                "The report was not sent because the case changed or the preparation is no longer current. Prepare it again.");
-            return RedirectToReport(id);
-        }
-
         switch (operation.State)
         {
             case StaffMailState.Sent:

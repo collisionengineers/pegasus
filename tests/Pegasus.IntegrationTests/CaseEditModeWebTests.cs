@@ -813,14 +813,14 @@ public sealed class CaseEditModeWebTests
 
 
     [Fact]
-    public async Task HoldingTheEditLeaseDefersOnlyFilesAndNotesAndKeepsTheSingleEditorComplete()
+    public async Task HoldingTheEditLeaseDefersOnlyFilesNotesAndTasksAndKeepsTheSingleEditorComplete()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await workspace.GetWorkspaceAsync();
 
-        Assert.Equal(["files", "notes"], DeferredSections(html));
+        Assert.Equal(["files", "notes", "tasks"], DeferredSections(html));
         Assert.Contains("id=\"section-files\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"section-notes\"", html, StringComparison.Ordinal);
         Assert.Contains("section-placeholder", html, StringComparison.Ordinal);
@@ -1595,7 +1595,6 @@ public sealed class CaseEditModeWebTests
         var request = Assert.Single(generator.Requests);
         Assert.Equal(kind, request.Kind);
         Assert.Equal(generation.Record.Id, request.TargetGenerationId);
-        Assert.False(request.IncludeFeeNote);
         Assert.Equal(store.LeaseToken, request.LeaseToken);
         var release = Assert.Single(store.LeaseReleases);
         Assert.Equal(store.LeaseToken, release.LeaseToken);
@@ -1679,14 +1678,13 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
-    /// A confirmed generation whose fee note is a separate document not yet
-    /// made; its images are retried, so all three companion Generates stand.
+    /// A confirmed generation whose separate fee note is not yet made; its
+    /// images are retried, so all three companion Generates stand.
     /// </summary>
     private static AssessmentReportDraftWebTests.FakeCurrentGeneration ConfirmedSeparateGeneration(
         RecordingCaseDetailsStore store) =>
         new(
             store.CaseId,
-            includeFeeNote: false,
             imagePackStatus: CaseReportArtifactStatus.Pending,
             imagePackOperationKey: Guid.NewGuid().ToString("N"));
 

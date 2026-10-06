@@ -51,6 +51,7 @@ exclusion.
 | MAIL-15 | Manually link, unlink, or relink an exact Sent item with a reason | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-16 | Automatically match the exact report Sent item to its case | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-18 | Chaser messages for staff to send: the Case chaser template and Send chaser, and the copyable due-chaser text | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
+| MAIL-25 | Move the answered instruction to Deleted Items once its report send is confirmed (one automatic, recoverable move; no Delete control) | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | TRI-01 | Distinct inbox Triage label; Triage as a Case type with a `t.` Case/PO and its own workflow | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-02 | Vehicle-registration gate and Triage-specific missing-registration behavior | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-03 | Open, Awaiting information, Finding recorded, Completed, and Cancelled states | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
@@ -77,7 +78,7 @@ exclusion.
 | CASE-17 | Due-by date extraction and overdue display | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
-| CASE-20 | General Case tasks (back end only, no screen; deferred) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
+| CASE-20 | General Case tasks: a Tasks section on the Case record (add, assign, complete, cancel), after-send tasks created from the list the report send recorded when Report sent is recorded, and open tasks shown as the blocker to completing the Case (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
 | CASE-21 | Replay-safe EVA export history and First sent to Engineer | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) |
 | CASE-24 | Post-report completion, Principal cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |
@@ -99,7 +100,7 @@ exclusion.
 | UI-11 | Accounts, Contacts, mailbox allowlist, and configuration workspace | [Administration](frd/frd-17-administration-workspace.md#administration) |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Operator experience](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-16 | Operations Workspace shell: rail, counts, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
-| UI-17 | Case record: Scroll and Tabs modes over ten sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
+| UI-17 | Case record: Scroll and Tabs modes over eleven sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-18 | Awaiting instruction pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | ENG-03 | Damage record: zones with severity and note, tyres, belts, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
@@ -160,7 +161,7 @@ exclusion.
 | MAIL-09 | Automatic association of related email and attachments with a case | [Automatic Case association of retained mail](frd/frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail) |
 | MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
 | MAIL-11 | Browse, search and view mailbox messages and threads | [Quick preview and message detail](frd/frd-20-mailbox-workspace.md#quick-preview-and-message-detail) |
-| MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or delete | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
+| MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or Delete control | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
 | CASE-23 | Post-report query and dispute work on the existing Case | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | UI-10 | Full email-management workspace | [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | UI-14 | Categorised email views by destination and classification | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
@@ -205,6 +206,8 @@ exclusion.
 | RPT-04 | Diminution rendering uses accepted original-case data plus the Engineer-entered percentage (deferred) | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
 | RPT-05 | Addenda from accepted data plus a versioned amendment (deferred) | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | RPT-07 | Estimate document rendered per estimate version from the one totals owner | [Report generation entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point) |
+| RPT-08 | Principal report sending rules edited on the Contact: recipients, mailbox, attachments, holds, stops, reminders and file name | [Contacts administration](frd/frd-04-parties-accounts-and-access.md#contacts-administration) |
+| RPT-09 | Report delivery follows the Principal's sending rules in one step: reply in the instruction thread, questions, holds, stop with override, required companions, filed estimates by format, after-send list | [Report sending rules](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules) |
 | AI-08 | AI-drafted query response reviewed by human staff before sending | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | AI-10 | Named AI job kinds with durable lifecycle and job list | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
 | MCP-07 | Administration switch for Send to AI | [Send to AI switch](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch) |

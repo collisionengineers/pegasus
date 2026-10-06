@@ -20,6 +20,10 @@ internal static class V1FoundationModelConfiguration
             var stages = string.Join(", ", Enum.GetNames<Pegasus.Core.Operations.StaffMailAttemptStage>().Select(x => $"'{x}'"));
             e.ToTable("StaffMailSendOperations", t => { t.HasCheckConstraint("CK_StaffMailSendOperations_State", $"[State] IN ({states})"); t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", $"[AttemptStage] IS NULL OR [AttemptStage] IN ({stages})"); }); e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.ActorSubjectId, x.MailboxId, x.OperationKey }).IsUnique();
+            e.HasIndex(x => new { x.Purpose, x.State }).HasFilter("[InstructionMoveState] IS NULL");
+            e.Property(x => x.InstructionMoveState).HasMaxLength(20);
+            e.Property(x => x.InstructionMoveFailureCode).HasMaxLength(100);
+            e.Property(x => x.InstructionMoveAttempts).HasDefaultValue(0);
             e.Property(x => x.ActorSubjectId).HasMaxLength(200); e.Property(x => x.OperationKey).HasMaxLength(100);
             e.Property(x => x.PayloadHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.CorrelationMarker).HasMaxLength(100);
             e.Property(x => x.ObservedSentImmutableMessageId).HasMaxLength(500);
@@ -75,12 +79,6 @@ internal static class V1FoundationModelConfiguration
             e.ToTable("GeneratedCaseArtifacts", t => t.HasCheckConstraint("CK_GeneratedCaseArtifacts_Custody", "[State] <> 'Confirmed' OR ([VersionId] IS NOT NULL AND [Sha256] IS NOT NULL AND [FailureCode] IS NULL)")); e.HasKey(x => x.Id); e.HasIndex(x => new { x.GenerationId, x.Kind }).IsUnique();
             e.HasIndex(x => x.OperationKey).IsUnique(); e.Property(x => x.Sha256).HasMaxLength(64).IsFixedLength();
         });
-        builder.Entity<CaseReportDeliveryIntentEntity>(e =>
-        {
-            e.ToTable("CaseReportDeliveryIntents"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.GenerationId, x.OperationKey }).IsUnique();
-            e.Property(x => x.PayloadHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.Version).IsConcurrencyToken();
-            e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
-        });
         builder.Entity<RetainedInstructionAnalysisEntity>(e =>
         {
             e.ToTable("RetainedInstructionAnalyses"); e.HasKey(x => x.Id);
@@ -118,7 +116,6 @@ internal static class V1FoundationModelConfiguration
         builder.Entity<CaseReportGenerationEntity>().HasOne<CaseEntity>().WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<GeneratedCaseArtifactEntity>().HasOne<CaseReportGenerationEntity>().WithMany().HasForeignKey(x => x.GenerationId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<GeneratedCaseArtifactEntity>().HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(x => x.VersionId).OnDelete(DeleteBehavior.Restrict);
-        builder.Entity<CaseReportDeliveryIntentEntity>().HasOne<CaseReportGenerationEntity>().WithMany().HasForeignKey(x => x.GenerationId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<RetainedInstructionAnalysisEntity>().HasOne<IntakeReceiptEntity>().WithMany().HasForeignKey(x => x.IntakeReceiptId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<RetainedInstructionAnalysisEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<IntakeSourceCandidateEntity>().HasOne<RetainedInstructionAnalysisEntity>().WithMany().HasForeignKey(x => x.AnalysisId).OnDelete(DeleteBehavior.Restrict);

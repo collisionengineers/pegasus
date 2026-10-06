@@ -10,12 +10,18 @@ namespace Pegasus.Infrastructure.Persistence;
 /// What a Case's report has already been sent (v28 P23): the sends that
 /// actually left the approved mailbox, counted from the staff-send operations
 /// whose report context is one of this Case's generations, with the report
-/// date of the one sent last. A prepared-but-unsent delivery is not a send.
+/// date of the one sent last, when it was observed in the Sent folder and the
+/// addresses it went to.
 /// </summary>
 internal sealed class EfCaseReportSendHistoryQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : ICaseReportSendHistoryQueries
 {
     private static readonly JsonSerializerOptions SnapshotJsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions RecipientsJsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private sealed record SentRecipients(
+        IReadOnlyList<StaffMailRecipient> To,
+        IReadOnlyList<StaffMailRecipient> Cc);
 
     public async Task<CaseReportSendHistory> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
     {
@@ -33,7 +39,7 @@ internal sealed class EfCaseReportSendHistoryQueries(
                     && send.Purpose == StaffMailPurpose.CaseReport
                     && send.State == StaffMailState.Sent
                 orderby send.ObservedSentAtUtc descending
-                select new { generation.SnapshotJson })
+                select new { generation.SnapshotJson, send.ObservedSentAtUtc, send.RecipientsJson })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
         if (sends.Count == 0)
@@ -43,6 +49,11 @@ internal sealed class EfCaseReportSendHistoryQueries(
 
         var latest = JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(
             sends[0].SnapshotJson, SnapshotJsonOptions);
-        return new(sends.Count, latest?.ReportDate);
+        var recipients = JsonSerializer.Deserialize<SentRecipients>(sends[0].RecipientsJson, RecipientsJsonOptions);
+        return new(
+            sends.Count,
+            latest?.ReportDate,
+            sends[0].ObservedSentAtUtc,
+            [.. (recipients?.To ?? []).Concat(recipients?.Cc ?? []).Select(recipient => recipient.Address)]);
     }
 }

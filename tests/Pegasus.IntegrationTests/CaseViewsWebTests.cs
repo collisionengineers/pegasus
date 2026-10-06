@@ -274,13 +274,12 @@ public sealed class CaseViewsWebTests
         Assert.DoesNotContain(sentLine, auditReport, StringComparison.Ordinal);
         Assert.DoesNotContain(reports.Inspection!.Id.ToString("D"), auditReport, StringComparison.Ordinal);
         Assert.Contains($"{AuditReference} · </span>", ReportStatus(auditReport), StringComparison.Ordinal);
-        Assert.Contains("data-prepare-delivery", auditReport, StringComparison.Ordinal);
-        // The delivery message is the Case report delivery template, rendered
-        // for staff to edit before Prepare delivery.
+        Assert.Contains("data-send-report", auditReport, StringComparison.Ordinal);
+        // The delivery message is the Case report delivery template (Report
+        // Sending SOP wording), rendered for staff to edit before Send report.
         Assert.Matches(
-            "<textarea[^>]*name=\"coveringMessage\"[^>]*data-report-message>[^<]*Kind regards\\s+Collision Engineers</textarea>",
+            "<textarea[^>]*name=\"coveringMessage\"[^>]*data-report-message>[^<]*Please see attached report and fee note\\.[^<]*Kind Regards</textarea>",
             auditReport);
-        Assert.Matches("<textarea[^>]*data-report-message>[^<]*Our reference: \\S+", auditReport);
         Assert.Contains(reports.Audit!.Id.ToString("D"), auditReport, StringComparison.Ordinal);
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
@@ -291,7 +290,7 @@ public sealed class CaseViewsWebTests
         Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
         Assert.DoesNotContain(reports.Audit!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-reference", inspectionReport, StringComparison.Ordinal);
-        Assert.Contains("data-prepare-delivery", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
         Assert.Equal(
             auditReport.Contains("data-report-menu", StringComparison.Ordinal),
             inspectionReport.Contains("data-report-menu", StringComparison.Ordinal));
@@ -417,11 +416,11 @@ public sealed class CaseViewsWebTests
 
     /// <summary>
     /// The Inspection report still to be sent after Create audit (operator,
-    /// 1 October 2026): the Inspection view prepares and sends it on its own
+    /// 1 October 2026): the Inspection view sends it on its own
     /// work, its forms naming the view.
     /// </summary>
     [Fact]
-    public async Task TheInspectionViewPreparesItsReportWhileItAwaitsSending()
+    public async Task TheInspectionViewSendsItsReportWhileItAwaitsSending()
     {
         var store = new RecordingCaseDetailsStore
         {
@@ -436,7 +435,7 @@ public sealed class CaseViewsWebTests
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
         var inspectionReport = Section(inspectionHtml, "section-report-title");
         Assert.DoesNotContain(Frame.Sent, ReportStatus(inspectionReport), StringComparison.Ordinal);
-        Assert.Contains("data-prepare-delivery", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
         Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
         Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
         Assert.DoesNotContain(reports.Audit!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
@@ -480,13 +479,13 @@ public sealed class CaseViewsWebTests
         // The Audit's own step is untouched by the Inspection's: its stored
         // report awaits delivery, and its link lands on the Audit view.
         var auditNext = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
-        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.PrepareDelivery}</span>", auditNext, StringComparison.Ordinal);
+        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</span>", auditNext, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{store.CaseId:D}?section=report#section-report\"", auditNext, StringComparison.Ordinal);
 
         // The Inspection report stored: its delivery is the step.
         reports.Inspection = ReportsPerWork.Generation(store.CaseId, Reference, CaseWorkKind.Primary);
         next = NextAction(await host.ReadAsync(inspectionPath));
-        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.PrepareDelivery}</span>", next, StringComparison.Ordinal);
+        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</span>", next, StringComparison.Ordinal);
         Assert.Contains("view=inspection#section-report", next, StringComparison.Ordinal);
 
         // The Inspection report sent: nothing more for the Inspection.
@@ -550,6 +549,90 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
+    /// Once Report sent is recorded, the Case's open tasks stand in the Next
+    /// action, oldest first, each a jump to Tasks, and Mark completed is
+    /// greyed with Core's one sentence there and in the Actions menu
+    /// (operator, 6 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task OpenTasksAreListedInTheNextActionAndGreyMarkCompletedOnceTheReportIsSent()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.PostReport,
+            SummaryCaseType = CaseType.Inspection,
+            AssignedEngineerId = Guid.NewGuid(),
+            ReportSentEvidence = SentEvidence(InspectionSentAtUtc)
+        };
+        Pegasus.Core.Tasks.CaseOpenTask[] openTasks =
+        [
+            new(Guid.NewGuid(), "Send the invoice to the Principal"),
+            new(Guid.NewGuid(), "Phone the claimant")
+        ];
+        var condition = Pegasus.Core.Tasks.CaseTaskRules.OpenTasksBlockTerminal;
+        using var host = new ReadingHost(store, services =>
+        {
+            Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId));
+            Substitute<ICaseReportSnapshotSource>(
+                services,
+                new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
+            Substitute<IGetCasePageFrame>(services, new PageFrameWithOpenTasks(store, openTasks));
+        });
+
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+
+        var next = NextAction(html);
+        Assert.Contains($"<span data-next-label>{Frame.MarkCompleted}</span>", next, StringComparison.Ordinal);
+        Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-open-tasks-condition=\"{condition}\">", next, StringComparison.Ordinal);
+        Assert.Contains("disabled aria-disabled=\"true\" data-next-mark-completed>", next, StringComparison.Ordinal);
+        var listStart = next.IndexOf("data-open-tasks>", StringComparison.Ordinal);
+        Assert.True(listStart >= 0, "The Next action must list the open tasks.");
+        var list = next[listStart..];
+        Assert.True(
+            list.IndexOf(openTasks[0].Description, StringComparison.Ordinal)
+                < list.IndexOf(openTasks[1].Description, StringComparison.Ordinal),
+            "The open tasks are listed oldest first.");
+        foreach (var task in openTasks)
+        {
+            Assert.Contains($"data-open-task=\"{task.Id:D}\"", list, StringComparison.Ordinal);
+            Assert.Contains(task.Description, list, StringComparison.Ordinal);
+        }
+        Assert.Equal(openTasks.Length, Occurrences(list, "data-section-jump=\"tasks\""));
+        Assert.Contains("section=tasks", list, StringComparison.Ordinal);
+        Assert.Contains("#section-tasks", list, StringComparison.Ordinal);
+
+        var bar = RecordBar(html);
+        Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-open-tasks-condition=\"{condition}\">", bar, StringComparison.Ordinal);
+        Assert.Contains("disabled aria-disabled=\"true\" data-mark-completed>", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"case-complete-dialog\"", bar, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A closed Case that still has an open task lists Archive greyed with the
+    /// same sentence (operator, 6 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task OpenTasksGreyArchive()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.PrincipalCancelled,
+            ReportSentEvidence = SentEvidence(InspectionSentAtUtc)
+        };
+        var condition = Pegasus.Core.Tasks.CaseTaskRules.OpenTasksBlockTerminal;
+        using var host = new ReadingHost(store, services =>
+            Substitute<IGetCasePageFrame>(
+                services,
+                new PageFrameWithOpenTasks(store, [new(Guid.NewGuid(), "Return the keys")])));
+
+        var bar = RecordBar(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
+
+        Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-open-tasks-condition=\"{condition}\">", bar, StringComparison.Ordinal);
+        Assert.Contains("disabled aria-disabled=\"true\" data-archive-case>", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"case-archive-dialog\"", bar, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Generate report posted from the Inspection view makes the Inspection
     /// report, lands back on the Inspection view with that report marked to
     /// open once, and the Next action there moves on to its delivery
@@ -600,7 +683,7 @@ public sealed class CaseViewsWebTests
         Assert.Contains($"generationId={reports.Inspection!.Id:D}", report, StringComparison.Ordinal);
         Assert.Contains("view=inspection", report, StringComparison.Ordinal);
         var next = NextAction(arrived);
-        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.PrepareDelivery}</span>", next, StringComparison.Ordinal);
+        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</span>", next, StringComparison.Ordinal);
 
         var later = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{caseId}?section=report&view=inspection"));
         Assert.DoesNotContain("data-open-on-arrival=\"true\"", later, StringComparison.Ordinal);
@@ -637,24 +720,21 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
-    /// The Inspection report already sent is generated, prepared and sent
+    /// The Inspection report already sent is generated and sent
     /// again from the Inspection view when needed (operator, 2 October 2026):
     /// each command posted from it reaches the report use cases on the
     /// Inspection's own work and lands back on the Inspection view's Report.
     /// </summary>
     [Fact]
-    public async Task TheInspectionReportIsGeneratedPreparedAndSentAgainFromTheInspectionView()
+    public async Task TheInspectionReportIsGeneratedAndSentAgainFromTheInspectionView()
     {
         var store = AuditedCase();
         var commands = new RecordingReportCommands();
-        var preparationId = Guid.NewGuid();
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId));
-            Substitute<ICaseReportDeliveryPreparationStore>(services, new InspectionPreparation(store.CaseId, preparationId));
             Substitute<IGenerateCaseReport>(services, commands);
-            Substitute<IPrepareCaseReportDelivery>(services, commands);
-            Substitute<ISendPreparedCaseReport>(services, commands);
+            Substitute<ISendCaseReport>(services, commands);
         });
         var caseId = store.CaseId.ToString("D");
         var version = store.CaseVersion.ToString(CultureInfo.InvariantCulture);
@@ -675,7 +755,7 @@ public sealed class CaseViewsWebTests
             ("editLeaseToken", store.LeaseToken),
             ("expectedCaseVersion", version));
         await PostFromTheInspectionViewAsync(
-            "PrepareReportDelivery",
+            "SendReport",
             ("operationKey", Guid.NewGuid().ToString("N")),
             ("editLeaseToken", store.LeaseToken),
             ("expectedCaseVersion", version),
@@ -683,15 +763,10 @@ public sealed class CaseViewsWebTests
             ("expectedGenerationVersion", "1"),
             ("coveringMessage", "Please find attached our report."),
             ("toRecipients", "handler@principal.example"));
-        await PostFromTheInspectionViewAsync(
-            "SendPreparedReport",
-            ("preparationId", preparationId.ToString("D")),
-            ("expectedPreparationVersion", "1"));
 
-        Assert.Equal(3, commands.Calls.Count);
+        Assert.Equal(2, commands.Calls.Count);
         Assert.Equal(CaseWorkSelector.Primary, Assert.IsType<GenerateCaseReportRequest>(commands.Calls[0]).Work);
-        Assert.Equal(CaseWorkSelector.Primary, Assert.IsType<PrepareCaseReportDeliveryRequest>(commands.Calls[1]).Work);
-        Assert.Equal(preparationId, Assert.IsType<SendPreparedCaseReportRequest>(commands.Calls[2]).PreparationId);
+        Assert.Equal(CaseWorkSelector.Primary, Assert.IsType<SendCaseReportRequest>(commands.Calls[1]).Work);
     }
 
     /// <summary>
@@ -769,6 +844,17 @@ public sealed class CaseViewsWebTests
         return chip.Groups["chip"].Value;
     }
 
+    /// <summary>The store's page frame with the open tasks the frame reads once Report sent is recorded.</summary>
+    private sealed class PageFrameWithOpenTasks(
+        RecordingCaseDetailsStore store,
+        IReadOnlyList<Pegasus.Core.Tasks.CaseOpenTask> openTasks) : IGetCasePageFrame
+    {
+        public async Task<CasePageFrame?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken) =>
+            await ((IGetCasePageFrame)store).ExecuteAsync(query, cancellationToken) is { } frame
+                ? frame with { OpenTasks = openTasks }
+                : null;
+    }
+
     /// <summary>A reading client with the recording store and any further substitutions.</summary>
     private sealed class ReadingHost : IDisposable
     {
@@ -825,6 +911,10 @@ public sealed class CaseViewsWebTests
             CurrentReads.Add(work);
             return Task.FromResult(work == CaseWorkSelector.Primary ? Inspection : Audit);
         }
+
+        public Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+            SendCaseReportRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<CaseReportGenerationRecord?> GetAsync(
             ActionActor actor, Guid id, Guid generationId, CancellationToken cancellationToken) =>
@@ -933,7 +1023,7 @@ public sealed class CaseViewsWebTests
     /// answers with its redirect.
     /// </summary>
     private sealed class RecordingReportCommands
-        : IGenerateCaseReport, IPrepareCaseReportDelivery, ISendPreparedCaseReport
+        : IGenerateCaseReport, ISendCaseReport
     {
         public List<object> Calls { get; } = [];
 
@@ -944,47 +1034,11 @@ public sealed class CaseViewsWebTests
             throw new InvalidOperationException("Recorded.");
         }
 
-        public Task<CaseReportDeliveryPreparation> ExecuteAsync(
-            PrepareCaseReportDeliveryRequest request, CancellationToken cancellationToken)
-        {
-            Calls.Add(request);
-            throw new InvalidOperationException("Recorded.");
-        }
-
         public Task<StaffMailOperation> ExecuteAsync(
-            SendPreparedCaseReportRequest request, CancellationToken cancellationToken)
+            SendCaseReportRequest request, CancellationToken cancellationToken)
         {
             Calls.Add(request);
             throw new InvalidOperationException("Recorded.");
         }
-    }
-
-    /// <summary>One preparation of the Inspection's report: a preparation of the primary work.</summary>
-    private sealed class InspectionPreparation(Guid caseId, Guid preparationId)
-        : ICaseReportDeliveryPreparationStore
-    {
-        private readonly CaseReportDeliveryPreparationRecord record = new(
-            new(preparationId, caseId, Guid.NewGuid(), 1, 1, [], ActionActor.SystemWorker("test"), InspectionSentAtUtc, "fingerprint"),
-            new([], [], "subject"),
-            0,
-            0,
-            CaseReportGenerationState.Confirmed,
-            true,
-            1,
-            [],
-            CaseWorkSelector.Primary);
-
-        public Task<CaseReportDeliveryPreparationRecord> PrepareAsync(
-            PrepareCaseReportDeliveryCommand command, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CaseReportDeliveryPreparationRecord?> GetAsync(
-            ActionActor actor, Guid ownerCaseId, Guid ownerPreparationId, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseReportDeliveryPreparationRecord?>(
-                ownerCaseId == caseId && ownerPreparationId == preparationId ? record : null);
-
-        public Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
-            ActionActor actor, Guid ownerCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseReportDeliveryPreparationRecord?>(null);
     }
 }

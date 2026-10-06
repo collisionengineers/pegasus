@@ -858,6 +858,52 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
+    /// The Tasks section (FRD-16, CASE-20): what is still to do on the Case. Complete, Cancel,
+    /// Assign and Add task are edit-session actions with one fixed recorded reason each, so the
+    /// section carries no reason box.
+    /// </summary>
+    public static class Tasks
+    {
+        public const string Title = "Tasks";
+        public const string Description = "Task";
+        public const string Assignee = "Assignee";
+        public const string State = "State";
+        public const string Actions = "Actions";
+        public const string Unassigned = "Unassigned";
+        public const string None = "No tasks";
+        public const string Open = "Open";
+        public const string Completed = "Completed";
+        public const string Cancelled = "Cancelled";
+        public const string Complete = "Complete";
+        public const string Cancel = "Cancel task";
+        public const string Assign = "Assign";
+        public const string NewTask = "New task";
+        public const string AddTask = "Add task";
+        public const string CompletedNotice = "The task was completed.";
+        public const string CancelledNotice = "The task was cancelled.";
+        public const string AssignedNotice = "The task was assigned.";
+        public const string AddedNotice = "The task was added.";
+        public const string CompleteReason = "Completed from the Tasks section";
+        public const string CancelReason = "Cancelled from the Tasks section";
+        public const string AssignReason = "Assigned from the Tasks section";
+        public const string AddReason = "Added from the Tasks section";
+
+        public static string StateText(Pegasus.Core.Tasks.CaseTaskState state) => state switch
+        {
+            Pegasus.Core.Tasks.CaseTaskState.Open => Open,
+            Pegasus.Core.Tasks.CaseTaskState.Completed => Completed,
+            _ => Cancelled
+        };
+
+        public static string StateTone(Pegasus.Core.Tasks.CaseTaskState state) => state switch
+        {
+            Pegasus.Core.Tasks.CaseTaskState.Open => "status--amber",
+            Pegasus.Core.Tasks.CaseTaskState.Completed => "status--green",
+            _ => "status--neutral"
+        };
+    }
+
+    /// <summary>
     /// The estimate totals block's row labels (B04). The five printed
     /// components, the net and the gross are what the canonical breakdown
     /// carries, so the block names them rather than the flat pre-B04 rows;
@@ -1011,9 +1057,7 @@ public static class CaseWorkspaceLabels
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
-        public const string IncludeFeeNote = "Include fee note";
         public const string OpenReport = "Open report";
-        public const string OpenReportWithFeeNote = "Open report with fee note";
         public const string OpenFeeNote = "Open fee note";
         public const string DownloadFeeNote = "Fee note";
         public const string GenerationStaleNotice =
@@ -1056,9 +1100,53 @@ public static class CaseWorkspaceLabels
         public static string MessageRefused =>
             $"Enter the message, at most {Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength} characters.";
 
-        public const string PrepareDelivery = "Prepare delivery";
-        public const string DeliveryPrepared = "Delivery prepared";
-        public const string SendPreparedReport = "Send prepared report";
+        // The Principal's report sending rules, as the delivery form reads
+        // them (FRD-11 Report sending rules).
+        public static string AlreadySent(string when, string recipients) =>
+            string.IsNullOrWhiteSpace(recipients)
+                ? $"Already sent on {when}."
+                : $"Already sent on {when} to {recipients}.";
+
+        public static string FromReply(string address) =>
+            $"From {address} — reply in the instruction's thread";
+
+        public static string FromNewMessage(string address) =>
+            $"New message from {address} (no instruction e-mail on this Case)";
+
+        public const string From = "From";
+        public const string Stopped = "Stopped";
+        public const string OverrideReason = "Override reason";
+        public const string Questions = "Answer before sending";
+        public const string Yes = "Yes";
+        public const string No = "No";
+        public const string RequiredForPrincipal = "(required for this Principal)";
+        public const string FiledEstimate = "Filed estimate";
+        public const string AfterSending = "After sending";
+        public const string HoldDone = "Done";
+
+        public static string CcHint(IEnumerable<string> setBy, IEnumerable<string> removed)
+        {
+            var parts = new List<string>();
+            var by = setBy.Distinct(StringComparer.Ordinal).ToArray();
+            if (by.Length > 0)
+            {
+                parts.Add("Cc set by: " + string.Join("; ", by));
+            }
+            var gone = removed.ToArray();
+            if (gone.Length > 0)
+            {
+                parts.Add("removed: " + string.Join("; ", gone));
+            }
+            return string.Join("; ", parts);
+        }
+
+        public static string Removal(string address, string reason) =>
+            $"{address} ({reason})";
+
+        public static string MissingCompanion(string document) =>
+            $"The {document} this Principal requires has not been generated. Generate it, then send the report.";
+
+        public const string SendReport = "Send report";
         public const string SendObservedSent = "The report send was observed as sent.";
         public const string SendAccepted = "The report send was accepted.";
         public const string SendInProgress = "The report send is in progress.";

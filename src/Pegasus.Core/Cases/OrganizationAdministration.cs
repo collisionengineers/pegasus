@@ -35,7 +35,7 @@ public sealed record PrincipalAdministrationSummary(
     int AllocatedCaseCount,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
     PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
-    PrincipalReportRecipientSettings? ReportRecipients = null,
+    PrincipalReportSendingRules? ReportSending = null,
     string? DefaultInspectionLocationLabel = null,
     string? DefaultInspectionAddress = null,
     string? DefaultInspectionPostcode = null,
@@ -44,7 +44,12 @@ public sealed record PrincipalAdministrationSummary(
     long? DefaultInspectionSourceVersion = null,
     string? NotesOnEveryCase = null,
     SalvageMatrix? SalvageMatrix = null,
-    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard);
+    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard)
+{
+    /// <summary>The Principal's report sending rules; the defaults when none were named.</summary>
+    public PrincipalReportSendingRules ReportSending { get; init; } =
+        ReportSending ?? PrincipalReportSendingRules.Default;
+}
 
 public sealed record PrincipalAdministrationDetails(
     string Name,
@@ -84,6 +89,14 @@ public interface IOrganizationAdministrationStore
     /// </summary>
     Task<Principal> UpdatePrincipalSalvageMatrixAsync(
         UpdatePrincipalSalvageMatrixRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Replace the principal's report sending rules in place, as its salvage
+    /// matrix changes in place.
+    /// </summary>
+    Task<Principal> UpdatePrincipalReportSendingAsync(
+        UpdatePrincipalReportSendingRequest request,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -194,6 +207,20 @@ public sealed class UpdatePrincipalSalvageMatrix(IOrganizationAdministrationStor
             cancellationToken);
 }
 
+public sealed class UpdatePrincipalReportSending(IOrganizationAdministrationStore store)
+    : IUpdatePrincipalReportSending
+{
+    private readonly IOrganizationAdministrationStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<Principal> ExecuteAsync(
+        UpdatePrincipalReportSendingRequest request,
+        CancellationToken cancellationToken) =>
+        _store.UpdatePrincipalReportSendingAsync(
+            OrganizationAdministrationPolicy.Normalize(request),
+            cancellationToken);
+}
+
 public sealed record PrincipalReplacementPlan(
     Principal Predecessor,
     Principal Successor);
@@ -251,7 +278,7 @@ public static class OrganizationAdministrationPolicy
                 0,
                 predecessor.InspectionMode,
                 predecessor.ReportGenerationPolicy,
-                predecessor.ReportRecipients,
+                predecessor.ReportSending,
                 SalvageMatrix: predecessor.SalvageMatrix,
                 DefaultFee: predecessor.DefaultFee));
     }
@@ -305,6 +332,24 @@ public static class OrganizationAdministrationPolicy
                 MaximumOperationKeyLength,
                 nameof(request.OperationKey)),
             SalvageMatrix = SalvageMatrix.Normalize(request.SalvageMatrix?.Bands)
+        };
+    }
+
+    public static UpdatePrincipalReportSendingRequest Normalize(
+        UpdatePrincipalReportSendingRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireAdministrator(request.Actor);
+        RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
+        RequireExpectedVersion(request.ExpectedVersion, nameof(request.ExpectedVersion));
+        RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
+        return request with
+        {
+            OperationKey = NormalizeRequiredText(
+                request.OperationKey,
+                MaximumOperationKeyLength,
+                nameof(request.OperationKey)),
+            Rules = PrincipalReportSendingRules.Normalize(request.Rules)
         };
     }
 
@@ -365,15 +410,14 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// The report route, suggested recipients and default fee change, and
-    /// nothing else does. The code, the organization, the lineage and the
-    /// allocation history are untouched.
+    /// The report route, default fee and notes change, and nothing else
+    /// does. The code, the organization, the lineage and the allocation
+    /// history are untouched.
     /// </summary>
     public static Principal PlanPrincipalReportSettingsUpdate(
         Principal current,
         long expectedVersion,
         PrincipalReportGenerationPolicy reportGenerationPolicy,
-        PrincipalReportRecipientSettings reportRecipients,
         decimal defaultFee,
         string? notesOnEveryCase = null)
     {
@@ -394,23 +438,17 @@ public static class OrganizationAdministrationPolicy
                 OrganizationAdministrationError.PrincipalInactive);
         }
 
-        ArgumentNullException.ThrowIfNull(reportRecipients);
         if (!Enum.IsDefined(reportGenerationPolicy))
         {
             throw new ArgumentOutOfRangeException(nameof(reportGenerationPolicy));
         }
         PrincipalDefaultFeePolicy.Require(defaultFee, nameof(defaultFee));
-        var normalizedRecipients = PrincipalReportRecipientSettings.Normalize(
-            reportRecipients.IncludeOriginalInstructionSender,
-            reportRecipients.AdditionalAddresses);
         var changed = current.ReportGenerationPolicy != reportGenerationPolicy
-            || !Equals(current.ReportRecipients ?? PrincipalReportRecipientSettings.None, normalizedRecipients)
             || current.DefaultFee != defaultFee
             || !string.Equals(current.NotesOnEveryCase, notesOnEveryCase, StringComparison.Ordinal);
         return current with
         {
             ReportGenerationPolicy = reportGenerationPolicy,
-            ReportRecipients = normalizedRecipients,
             DefaultFee = defaultFee,
             NotesOnEveryCase = notesOnEveryCase,
             Version = changed ? checked(current.Version + 1) : current.Version
@@ -444,6 +482,38 @@ public static class OrganizationAdministrationPolicy
         {
             SalvageMatrix = normalized,
             Version = Equals(current.SalvageMatrix, normalized)
+                ? current.Version
+                : checked(current.Version + 1)
+        };
+    }
+
+    /// <summary>
+    /// The report sending rules change, and nothing else does. A replaced
+    /// principal keeps its rules as it keeps its other settings.
+    /// </summary>
+    public static Principal PlanPrincipalReportSendingUpdate(
+        Principal current,
+        long expectedVersion,
+        PrincipalReportSendingRules rules)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
+        if (current.Version != expectedVersion)
+        {
+            throw new OrganizationAdministrationException(
+                OrganizationAdministrationError.StaleVersion);
+        }
+        if (!current.IsActive)
+        {
+            throw new OrganizationAdministrationException(
+                OrganizationAdministrationError.PrincipalInactive);
+        }
+
+        var normalized = PrincipalReportSendingRules.Normalize(rules);
+        return current with
+        {
+            ReportSending = normalized,
+            Version = Equals(current.ReportSending, normalized)
                 ? current.Version
                 : checked(current.Version + 1)
         };

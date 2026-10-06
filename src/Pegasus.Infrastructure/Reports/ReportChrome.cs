@@ -691,6 +691,19 @@ internal static class ReportChrome
             right?.Invoke(rightSlot);
         });
 
+    /// <summary>
+    /// The right-hand slot alone, where <see cref="ImageSlots"/> stands it:
+    /// the left slot is left out, not printed empty.
+    /// </summary>
+    internal static void RightSlotAlone(
+        IContainer container,
+        float slotHeight,
+        Action<IContainer> right) => container.Row(row =>
+        {
+            row.RelativeItem();
+            right(row.ConstantItem(SlotWidth, Unit.Millimetre).Height(slotHeight, Unit.Millimetre));
+        });
+
     /// <summary>An image of the grid: it fills its slot inside a hairline frame, as the template draws one.</summary>
     private static void Frame(IContainer slot, byte[] image) => slot
         .Border(0.5f)

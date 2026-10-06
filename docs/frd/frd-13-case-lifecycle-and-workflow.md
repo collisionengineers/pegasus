@@ -246,7 +246,7 @@ the Audit view's Next action follow the Audit's report, and the Case's report
 generation, approval, Mark report sent and Mark completed act on the Audit
 report. The Inspection's values are edited from the Inspection view, on the
 Inspection's own work and without any effect on the Case's state, due date,
-completeness or matching; its report is generated, prepared, sent and marked
+completeness or matching; its report is generated, sent and marked
 sent from that view, again when needed, and that view's Next action states
 the Inspection report's own step (operator, 2 October 2026). While the Audit
 report is being
@@ -304,12 +304,31 @@ missing-material reason, Due by, the next chase, the most recent channel and
 outcome, an optional note, and the next permitted action. Prepared or copied
 text always looks different from sent, delivered, answered or completed work.
 
-**General Case tasks are unfinished (`CASE-20`).** `Pegasus.Core` holds a
-Case task record with Open, Completed and Cancelled states, an optional
-assignee, and create, assign, complete and cancel use cases. No screen shows
-or uses them, which is why the Case record has no tasks panel
-([FRD-16](frd-16-case-record-workspace.md)). A task has no due date, and
-there are no reminders. Chasing above is the only due work staff see today.
+**General Case tasks (`CASE-20`).** A Case task has a description, an
+optional assignee and the states Open, Completed and Cancelled. Staff add,
+complete, cancel and assign tasks in the Tasks section of the Case record, in
+the edit session and under its lease
+([FRD-16](frd-16-case-record-workspace.md#tasks)). A Case with an open task
+cannot be completed or archived until each task is completed or cancelled.
+Once Report sent is recorded, the Case's Next action lists its open tasks,
+and Mark completed and Archive are greyed with the reason "Complete or cancel
+every open task first." (operator, 6 October 2026). A task has no due date
+yet, and there are no reminders.
+
+**After-send tasks.** A report send records the list of after-send task
+descriptions that the Principal's sending rules produce
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)).
+When Report sent is recorded, by the Worker's automatic link or by staff Mark
+report sent, and the linked Sent item is a Pegasus report send, one open,
+unassigned task per description is created in the same transaction that
+records the link, with a `case_task_created` event each, in the name of the
+staff member who sent the report. The task ids come
+from the Sent evidence and the position in the list, so a replay creates none
+more. A Mark report sent on a Sent item that is not a Pegasus report send
+creates none. Creating them is system work, which keeps the session
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)): they are a
+consequence of a recorded Sent item, not a staff edit, and the Worker's link
+holds no lease. Chasing above is the only due work.
 
 ### Cancellation messages
 

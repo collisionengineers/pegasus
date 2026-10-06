@@ -49,6 +49,7 @@ public static partial class EmailTemplates
     public const string Outcome = "outcome";
     public const string PrincipalName = "principal name";
     public const string SupersededReportDate = "superseded report date";
+    public const string Greeting = "greeting";
     public const string OutstandingMaterial = "outstanding material";
     public const string Claimant = "claimant";
 
@@ -70,24 +71,22 @@ public static partial class EmailTemplates
         + "Collision Engineers";
 
     private static readonly string[] CaseReportDeliveryPlaceholders =
-        [CaseReference, Registration, Outcome, PrincipalName, SupersededReportDate];
+        [CaseReference, Registration, Outcome, PrincipalName, SupersededReportDate, Greeting];
 
     /// <summary>
-    /// The Case report delivery's built-in body. The "supersedes" line names
-    /// the date of the report sent before, so on a first send it has no value
-    /// and is left out. <c>{principal name}</c> is available but not used.
+    /// The Case report delivery's built-in body (Report Sending SOP wording).
+    /// <c>{greeting}</c> is "morning" before noon in London, else
+    /// "afternoon". Every report ends with its fee note, so the body always
+    /// names both. The other placeholders are available but not used.
     /// </summary>
     private const string CaseReportDeliveryDefault =
-        "Please find attached our report.\n"
+        "Good {greeting},\n"
         + "\n"
-        + "Our reference: {case reference}\n"
-        + "Registration: {registration}\n"
-        + "Outcome: {outcome}\n"
+        + "Please see attached report and fee note.\n"
         + "\n"
-        + "This report supersedes our report dated {superseded report date}.\n"
+        + "Any issues let us know.\n"
         + "\n"
-        + "Kind regards\n"
-        + "Collision Engineers";
+        + "Kind Regards";
 
     /// <summary>
     /// The Case chaser carries no Case/PO reference: it is internal and means

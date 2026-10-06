@@ -1,0 +1,6 @@
+# v34 planning: the report dispatch screens
+
+**Temporary design review artifact.** Created at the operator's request on 6 October 2026 for PR 1015 (report dispatch): the three new screens and two smaller surfaces are built but not accepted until this round is signed off. It is not application code, not design authority and not implementation evidence. Behaviour is owned by the FRDs, in particular [FRD-11](../../../docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules), [FRD-13](../../../docs/frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing), [FRD-15](../../../docs/frd/frd-15-work-centre-queues-and-search.md), [FRD-16](../../../docs/frd/frd-16-case-record-workspace.md) and [FRD-04](../../../docs/frd/frd-04-parties-accounts-and-access.md#contacts-administration). Remove or retain this folder by operator instruction in the Stage 2 PR.
+
+- [current/](current/README.md): five offline mockups captured from the as-built pages (the delivery form, Tasks, Next action after the send, the Work Centre row, the Principal's Report sending panel), the build and self-check scripts, screenshots, the notes with the lettered sign-off items, and the discussion log.
+- [pages/](pages/README.md): one folder per surface, with how it works today and how it should work.

@@ -431,6 +431,14 @@ public sealed record AssessmentReportPresentation(
     };
 }
 
+/// <summary>
+/// The accepted facts one report prints, frozen with its generation.
+/// <see cref="IncludeVehicleImages"/> false means the report is generated
+/// with no vehicle images, as its Principal's report sending rules say
+/// (operator, 6 October 2026): the images are still pinned here, and the
+/// separate images document prints them. A snapshot frozen before the rule
+/// existed reads as true.
+/// </summary>
 public sealed record AssessmentReportSnapshot(
     string OurReference,
     string YourReference,
@@ -471,9 +479,9 @@ public sealed record AssessmentReportSnapshot(
     string? ValuationCommentary = null,
     bool ReportDateOverridden = false,
     string PayloadVersion = AssessmentReportContract.TemplateVersion,
-    bool IncludeFeeNote = false,
     string? SupplementaryStatement = null,
-    IReadOnlyList<CaseReportWording>? Wording = null)
+    IReadOnlyList<CaseReportWording>? Wording = null,
+    bool IncludeVehicleImages = true)
 {
     /// <summary>
     /// The narrative the report prints, in the Engineer's order (v28 P30):
@@ -538,7 +546,8 @@ public sealed record AssessmentReportSnapshot(
         }
         Signatory.Validate();
         AcceptedReportSource.Required(PayloadVersion, nameof(PayloadVersion));
-        if (ReportFor.Count == 0 || Photos.Count == 0 || Sources.Count == 0)
+        // A report generated without vehicle images needs none to print.
+        if (ReportFor.Count == 0 || (IncludeVehicleImages && Photos.Count == 0) || Sources.Count == 0)
         {
             throw new ReportRenderRejectedException("Report addressee, photo custody and accepted source evidence are required.");
         }
@@ -668,10 +677,10 @@ public sealed record RenderedReportArtifact(
 /// <summary>
 /// Renders exactly the requested artifact kind. A caller that wants the
 /// assessment report and a separate fee-note document asks twice from the
-/// same frozen snapshot; nothing is rendered and discarded. When the frozen
-/// snapshot's <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> is set,
-/// the <see cref="CaseReportArtifactKind.AssessmentReport"/> render carries
-/// the fee note as its final pages instead, and no second document exists.
+/// same frozen snapshot; nothing is rendered and discarded. The
+/// <see cref="CaseReportArtifactKind.AssessmentReport"/> render always ends
+/// with the fee note's pages; the separate fee-note document is those pages
+/// alone.
 /// </summary>
 public interface IAssessmentReportRenderer
 {

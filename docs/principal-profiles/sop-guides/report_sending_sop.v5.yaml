@@ -1,0 +1,399 @@
+# =====================================================================
+# Collision Engineers — Report Sending SOP  (version 5, 02/10/2026)
+# =====================================================================
+# One file, three sections:
+#   defaults    rules that apply to every principal unless overridden
+#   sources     claim sources / introducers that conditional rules refer to
+#   principals  one block per principal code (the code from our Our Ref)
+#
+# EDITING
+#   - true / false fields are exactly that: true or false, lower case.
+#   - Lists use "- item" or [a, b]. An empty list is [].
+#   - null means "not applicable".
+#   - After editing, run:  python scripts/validate_sop.py references/report-sending-sop.yaml
+#
+# PRINCIPAL FIELDS
+#   name               Firm name (from the EVA contacts list)
+#   status             confirmed | open  (open = has open_questions)
+#   received_via       engineers | info | desk | whatsapp
+#                        where instructions arrive. Reply from the mailbox the email
+#                        actually arrived in. whatsapp = no email to reply to, so send
+#                        a new email from send_from to send_to.
+#   send_from          engineers | info | desk   (required when received_via is whatsapp)
+#   send_to            original_sender  OR  a list of addresses.
+#                        original_sender = the claims handler who sent the instruction.
+#                        A list of addresses REPLACES the original sender.
+#   send_to_only       true = the send_to addresses and nobody else (no CCs, no reply-all)
+#   reply_all          true = keep everyone already copied on the instruction
+#   cc                 always added
+#   never_cc           always removed, even if copied on the instruction
+#   attach:            everything below goes in the SAME email as the report
+#     fee_note_separate        true  = the fee note is a separate PDF (same folder as the
+#                                      report). If it isn't there, tell the user; this is
+#                                      not a blocker.
+#                              false = the fee note is inside the report PDF
+#     estimate                 true = attach the estimate PDF
+#     audatex                  true = attach the Audatex PDF
+#     report_images            false = the report itself must contain NO vehicle images
+#     vehicle_images_document  true = attach a separate document with the vehicle images.
+#                                      Matched to the report by registration. If it is
+#                                      missing, hold the email.
+#     figure_breakdown         true = attach the estimate / figure breakdown PDF. Either
+#                                      format counts: a Glass's calculation or an EVA
+#                                      estimate export. It is matched to the report by
+#                                      registration (it carries no case ref of its own).
+#                                      If it is missing, hold the email.
+#   garage_figures     true = on REPAIRABLE jobs the user sends the figures to the garage
+#   tl_threshold       information for the user only, e.g. "78%"
+#   hold               text = do not send until the user confirms this is done
+#   reminders          after-sending tasks for the user
+#   rules              conditional rules, see below
+#   notes              anything else
+#   open_questions     questions still to answer
+#
+# RULES   - if: <condition>
+#           then: <actions>
+#   Conditions (keys inside one "if" must ALL be true):
+#     source: CODE             the instruction is from / mentions this claim source
+#     bodyshop_mentions: CODE  the bodyshop details on the instruction mention this source
+#     images_from: CODE        the vehicle images came from this source
+#     mentions: "text"         the instruction mentions this text anywhere
+#     sender_not: [addresses]  the instruction was NOT sent by any of these
+#     report_status: repairable | total_loss
+#     all: [conditions]        every one true
+#     any: [conditions]        at least one true
+#   Actions:
+#     cc_add: [addresses]      cc_remove: [addresses]
+#     remind: "text"           tell the user after sending
+#     hold: "text"             do not send until the user confirms
+#     stop: "text"             do not prepare the email; tell the user
+#   Matching text is case-insensitive and ignores spaces ("Car Claims" = "CarClaims").
+# =====================================================================
+
+defaults:
+  mailboxes:
+    engineers: engineers@collisionengineers.co.uk
+    info: info@collisionengineers.co.uk
+    desk: desk@collisionengineers.co.uk
+  send_to: original_sender    # the claims handler who sent the instruction email
+  reply_all: true
+  send_to_only: false
+  attach:
+    fee_note_separate: true   # fee note is a separate PDF unless the principal says false
+    estimate: false
+    audatex: false
+    report_images: true
+    vehicle_images_document: false
+    figure_breakdown: false
+  garage_figures: false
+  new_email_subject: "{REG} Report"     # e.g. "AO60SDY Report"
+  body_with_fee_note: |
+    Good {morning|afternoon},
+
+    Please see attached report and fee note.
+
+    Any issues let us know.
+
+    Kind Regards
+  body_report_only: |
+    Good {morning|afternoon},
+
+    Please see attached report.
+
+    Any issues let us know.
+
+    Kind Regards
+  unknown_principal: stop_and_ask     # alternative: reply_to_original_sender_no_cc
+
+sources:
+  ACSP:       {name: Accident Specialists,       match: ["Accident Specialist"]}
+  CARCLAIMS:  {name: CarClaims,                  match: ["CarClaims"]}
+  CAR2GO:     {name: Car 2 Go,                   match: ["Car2go", "Car 2 Go", "car2go-nw.co.uk"]}
+  CS:         {name: Claim Specialists,          match: ["Claim Specialist", "Claims Specialist", "claimsspecialists.co.uk"]}
+  EASDONS:    {name: Easdons,                    match: ["Easdons"]}
+  EXPERT:     {name: Expert Claims,              match: ["Expert Claims"]}
+  GUARDIAN:   {name: Guardian Accident Claims,   match: ["Guardian"]}
+  HACKNEY:    {name: Hackney Solutions,          match: ["Hackney", "hackneysolutions.co.uk"]}
+  JAMESCLAIMS: {name: James Claims,              match: ["James Claims"]}
+  RAPID:      {name: Rapid Rental Solutions,     match: ["Rapid"]}
+  SMC:        {name: SMC,                        match: ["SMC", "shawmarnell.co.uk"]}
+  SWINTON:    {name: Swinton,                    match: ["Swinton"]}
+
+principals:
+
+  ACSP:
+    name: Accident Specialists
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    cc: [admin@accidentspecialist.co.uk]
+
+  ALISON:
+    name: Alison Law Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+
+  ALS:
+    name: Auto Logistic Solutions Ltd
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    cc: [claims@autologistic.co.uk, p.mandy@oakwoodscotland.co.uk]
+    attach: {fee_note_separate: false, estimate: true}
+    garage_figures: true
+    tl_threshold: "78%"
+
+  AMS:
+    name: AMS Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+
+  AX:
+    name: Accident Exchange Ltd
+    status: confirmed
+    received_via: info
+    send_to: [engineersreports@ax-uk.com, engineersinspections@ax-uk.com]
+    attach: {fee_note_separate: false}
+    cc: [p.mandy@oakwoodscotland.co.uk]
+    garage_figures: true
+    tl_threshold: "74%"
+    rules:
+      - if:
+          all:
+            - bodyshop_mentions: EASDONS
+            - any:
+                - bodyshop_mentions: GUARDIAN
+                - bodyshop_mentions: JAMESCLAIMS
+        then:
+          cc_remove: [p.mandy@oakwoodscotland.co.uk]
+
+  BC:
+    name: Baker & Coleman Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    cc: [a.nawaz@bakercoleman.co.uk, h.ahmed@bakercoleman.co.uk]
+
+  BLACK:
+    name: Blackstone Legal
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    attach: {estimate: true}
+    tl_threshold: "74%"
+
+  CS:
+    name: Claim Specialists
+    status: confirmed
+    received_via: whatsapp
+    send_from: engineers
+    send_to: [info@claimsspecialists.co.uk, accounts@carhirespec.co.uk]
+
+  DFD:
+    name: Davison Flynn Duke
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    rules:
+      - if: {source: CAR2GO}
+        then: {cc_add: [info@car2go-nw.co.uk]}
+      - if: {source: SMC}
+        then: {cc_add: [tony@shawnmarnell.co.uk, richard.pownall@dfd-solicitors.co.uk]}
+      - if: {source: CARCLAIMS}
+        then: {stop: "CarClaims job. This needs checking with Andy before it is sent."}
+
+  FW:
+    name: Fairway Legal Expenses Ltd
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    attach: {fee_note_separate: false}
+    rules:
+      - if: {sender_not: [info@fairwaylegal.co.uk]}
+        then: {cc_add: [info@fairwaylegal.co.uk]}
+
+  HTU:
+    name: HTU Assessors Ltd
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    notes: "The SOP says \"Engineers (Ben)\"."
+
+  KBS:
+    name: Knightsbridge Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: [info@knightsbridgesolicitors.co.uk]
+    rules:
+      - if: {source: EXPERT}
+        then: {cc_add: [gabbas@knightsbridgesolicitors.co.uk]}
+      - if: {source: RAPID}
+        then: {cc_add: [Rapidlongton@gmail.com]}
+
+  KERR:
+    name: Kerr Brown Partnership
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+
+  KMR:
+    name: KMR Law Ltd
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    cc: [info@kmrlaw.co.uk]
+
+  MIDAS:
+    name: Midas
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    attach: {fee_note_separate: false}
+    hold: "WhatsApp the report to Midas to check before it is sent."
+
+  MOTORX:
+    name: Motor X Assistance Ltd
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    attach: {fee_note_separate: false}
+
+  MP:
+    name: Montreal Prestige Ltd
+    status: confirmed
+    received_via: desk
+    send_to: [mdakri@montrealprestige.co.uk, info@montrealprestige.co.uk]
+    attach: {fee_note_separate: false, report_images: false, vehicle_images_document: true, figure_breakdown: true}
+    notes: "Every case goes out as three PDFs in one email: report (fee note inside), vehicle images document, and estimate / figure breakdown (Glass's or EVA)."
+
+  OAK:
+    name: Oakwood Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    cc: [p.mandy@oakwoodscotland.co.uk]
+    garage_figures: true
+    tl_threshold: "74%"
+
+  PCH:
+    name: null
+    status: confirmed
+    received_via: info
+    send_to: [SBL@connexus.co.uk]
+    send_to_only: true
+    attach: {fee_note_separate: false, audatex: true}
+    tl_threshold: "66% (always)"
+    notes: "The report is named \"[reg] Initial\" or \"[reg] Supplementary\"."
+
+  QCL:
+    name: QC Law Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    attach: {fee_note_separate: false}
+    never_cc: [credithire@hackneysolutions.co.uk]
+    notes: "Contract repair at 73%."
+
+  QDOS:
+    name: QDOS Assistance
+    status: confirmed
+    received_via: desk
+    send_to: original_sender
+    attach: {fee_note_separate: false}
+    cc: [engineers@qdosassist.co.uk]
+    garage_figures: true
+    tl_threshold: "78%"
+
+  RJS:
+    name: Robert James Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    tl_threshold: "70%"
+    rules:
+      - if:
+          any:
+            - mentions: "Luton"
+            - source: CS
+        then: {cc_add: [engreport@robertjameslaw.co.uk, accounts@claimsspecialists.co.uk]}
+      - if: {source: ACSP}
+        then: {cc_add: [admin@accidentspecialist.co.uk]}
+
+  SBL:
+    name: null
+    status: confirmed
+    received_via: info
+    send_to: [Claims@smartbusinesslink.com]
+    attach: {fee_note_separate: false}
+    cc: [SBL@connexus.co.uk]
+    tl_threshold: "66%"
+    reminders:
+      - "Authorise the garage."
+
+  SIX:
+    name: Six Ways Marketing Ltd
+    status: confirmed
+    received_via: engineers
+    send_to: [info@sixwaysclaims.co.uk]
+
+  SS:
+    name: Savas & Savage Solicitors Ltd
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    attach: {fee_note_separate: false}
+
+  SWADE:
+    name: Swade Solutions Ltd
+    status: open
+    received_via: engineers
+    send_to: [Ontrack789@gmail.com]
+    reminders:
+      - "WhatsApp Swade to say the report has been sent."
+    open_questions:
+      - "The SOP says \"SWADE (FRZ)\". The contacts list has SWADE as Swade Solutions (legal) and FRZ as a repairer in Oldham. Does this entry apply to SWADE jobs, FRZ jobs, or both?"
+
+  SWAN:
+    name: Swan Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+
+  TEN:
+    name: Ten Legal
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    attach: {fee_note_separate: false}
+
+  TP:
+    name: Taylor Price Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    cc: [info@taylorprice.co.uk]
+
+  WALKER:
+    name: Walker Prestons
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    reminders:
+      - "Send the report to Waqqas on WhatsApp."
+
+  WLS:
+    name: Woodlands Solicitors
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+
+  YML:
+    name: Network HD UK
+    status: confirmed
+    received_via: engineers
+    send_to: original_sender
+    rules:
+      - if: {images_from: SWINTON}
+        then: {remind: "send Swinton a copy of the report."}

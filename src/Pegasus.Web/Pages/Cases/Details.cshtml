@@ -113,7 +113,7 @@
 
     <div class="workspace">
         <div class="workspace-main" id="case-main">
-            @* The ten sections in their fixed order (D30), each a panel whose
+            @* The sections in their fixed order (D30), each a panel whose
                id the section nav addresses. A body below the fold is fetched
                as the reader approaches it; the fragment is the section itself. *@
             @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
@@ -168,6 +168,9 @@
                         break;
                     case "notes":
                         <partial name="Cases/Shared/_CaseHistory" model="Model" />
+                        break;
+                    case "tasks":
+                        <partial name="Cases/Shared/_CaseTasks" model="Model" />
                         break;
                 }
             }

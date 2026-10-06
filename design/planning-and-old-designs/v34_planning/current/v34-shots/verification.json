@@ -1,0 +1,489 @@
+{
+  "checkedAtUtc": "2026-10-06T21:28:58.035588+00:00",
+  "result": {
+    "fail": [],
+    "okCount": 53
+  },
+  "shots": [
+    {
+      "shot": "01-case_report_delivery-plain-full.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "plain",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "02-case_report_delivery-plain-surface.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "plain",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "03-case_report_delivery-plain-1580.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "plain",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "04-case_report_delivery-plain-1440.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "plain",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "05-case_report_delivery-plain-760.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "plain",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "06-case_report_delivery-rules-full.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "rules",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "07-case_report_delivery-rules-surface.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "rules",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "08-case_report_delivery-rules-1580.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "rules",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "09-case_report_delivery-rules-1440.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "rules",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "10-case_report_delivery-rules-760.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "rules",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "11-case_report_delivery-stop-full.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "stop",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "12-case_report_delivery-stop-surface.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "stop",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "13-case_report_delivery-stop-1580.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "stop",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "14-case_report_delivery-stop-1440.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "stop",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "15-case_report_delivery-stop-760.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "stop",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "16-case_report_delivery-missing-full.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "missing",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "17-case_report_delivery-missing-surface.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "missing",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "18-case_report_delivery-missing-1580.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "missing",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "19-case_report_delivery-missing-1440.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "missing",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "20-case_report_delivery-missing-760.png",
+      "file": "pegasus_case_report_delivery_v34.html",
+      "state": "missing",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "21-case_tasks-edit-full.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "edit",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "22-case_tasks-edit-surface.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "edit",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "23-case_tasks-edit-1580.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "edit",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "24-case_tasks-edit-1440.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "edit",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "25-case_tasks-edit-760.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "edit",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "26-case_tasks-read-full.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "read",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "27-case_tasks-read-surface.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "read",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "28-case_tasks-read-1580.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "read",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "29-case_tasks-read-1440.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "read",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "30-case_tasks-read-760.png",
+      "file": "pegasus_case_tasks_v34.html",
+      "state": "read",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "31-case_next_action_blocker-next-full.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "next",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "32-case_next_action_blocker-next-surface.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "next",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "33-case_next_action_blocker-next-1580.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "next",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "34-case_next_action_blocker-next-1440.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "next",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "35-case_next_action_blocker-next-760.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "next",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "36-case_next_action_blocker-archive-full.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "archive",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "37-case_next_action_blocker-archive-surface.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "archive",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "38-case_next_action_blocker-archive-1580.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "archive",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "39-case_next_action_blocker-archive-1440.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "archive",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "40-case_next_action_blocker-archive-760.png",
+      "file": "pegasus_case_next_action_blocker_v34.html",
+      "state": "archive",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "41-work_centre_tasks-row-full.png",
+      "file": "pegasus_work_centre_tasks_v34.html",
+      "state": "row",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "42-work_centre_tasks-row-surface.png",
+      "file": "pegasus_work_centre_tasks_v34.html",
+      "state": "row",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "43-work_centre_tasks-row-1580.png",
+      "file": "pegasus_work_centre_tasks_v34.html",
+      "state": "row",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "44-work_centre_tasks-row-1440.png",
+      "file": "pegasus_work_centre_tasks_v34.html",
+      "state": "row",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "45-work_centre_tasks-row-760.png",
+      "file": "pegasus_work_centre_tasks_v34.html",
+      "state": "row",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "46-contact_report_sending-kerr-edit-full.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "kerr-edit",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "47-contact_report_sending-kerr-edit-surface.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "kerr-edit",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "48-contact_report_sending-kerr-edit-1580.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "kerr-edit",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "49-contact_report_sending-kerr-edit-1440.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "kerr-edit",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "50-contact_report_sending-kerr-edit-760.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "kerr-edit",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "51-contact_report_sending-dfd-full.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "dfd",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "52-contact_report_sending-dfd-surface.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "dfd",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "53-contact_report_sending-dfd-1580.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "dfd",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "54-contact_report_sending-dfd-1440.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "dfd",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "55-contact_report_sending-dfd-760.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "dfd",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "56-contact_report_sending-ax-full.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "ax",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "57-contact_report_sending-ax-surface.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "ax",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "58-contact_report_sending-ax-1580.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "ax",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "59-contact_report_sending-ax-1440.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "ax",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "60-contact_report_sending-ax-760.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "ax",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "61-contact_report_sending-mp-full.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "mp",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "62-contact_report_sending-mp-surface.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "mp",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "63-contact_report_sending-mp-1580.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "mp",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "64-contact_report_sending-mp-1440.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "mp",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "65-contact_report_sending-mp-760.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "mp",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "66-contact_report_sending-pch-full.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "pch",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "67-contact_report_sending-pch-surface.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "pch",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "68-contact_report_sending-pch-1580.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "pch",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "69-contact_report_sending-pch-1440.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "pch",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "70-contact_report_sending-pch-760.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "pch",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "71-contact_report_sending-rjs-full.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "rjs",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "72-contact_report_sending-rjs-surface.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "rjs",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "73-contact_report_sending-rjs-1580.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "rjs",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "74-contact_report_sending-rjs-1440.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "rjs",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "75-contact_report_sending-rjs-760.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "rjs",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "76-contact_report_sending-qdos-full.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "qdos",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "77-contact_report_sending-qdos-surface.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "qdos",
+      "viewport": "1580 surface"
+    },
+    {
+      "shot": "78-contact_report_sending-qdos-1580.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "qdos",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "79-contact_report_sending-qdos-1440.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "qdos",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "80-contact_report_sending-qdos-760.png",
+      "file": "pegasus_contact_report_sending_v34.html",
+      "state": "qdos",
+      "viewport": "760x1000"
+    }
+  ]
+}

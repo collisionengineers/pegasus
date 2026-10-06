@@ -22,12 +22,32 @@ public sealed class EfOrganizationAdministration(
 {
     private const string UpdatePrincipalReportSettingsKind = "update_principal_report_settings";
     private const string UpdatePrincipalSalvageMatrixKind = "update_principal_salvage_matrix";
+    private const string UpdatePrincipalReportSendingKind = "update_principal_report_sending";
     private const string UpdatePrincipalDefaultInspectionLocationKind =
         "update_principal_default_inspection_location";
     private const string ReplacePrincipalKind = "replace_principal";
     private const string PolicyVersion = "organization-principal-administration/v1";
     internal static readonly JsonSerializerOptions SerializerOptions =
         new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// How a Principal's report sending rules are stored: camelCase names,
+    /// enum names rather than numbers and no nulls, so the stored text can be
+    /// read and written by hand.
+    /// </summary>
+    internal static readonly JsonSerializerOptions ReportSendingSerializerOptions =
+        new(JsonSerializerDefaults.Web)
+        {
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        };
+
+    /// <summary>
+    /// The stored text of <see cref="PrincipalReportSendingRules.Default"/>:
+    /// what a new Principal row starts with.
+    /// </summary>
+    internal static readonly string DefaultReportSendingJson =
+        ToReportSendingJson(PrincipalReportSendingRules.Default);
 
     private readonly IDbContextFactory<PegasusDbContext> _contextFactory =
         contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
@@ -55,6 +75,13 @@ public sealed class EfOrganizationAdministration(
             token => UpdatePrincipalSalvageMatrixOnceAsync(request, token),
             cancellationToken);
 
+    public Task<Principal> UpdatePrincipalReportSendingAsync(
+        UpdatePrincipalReportSendingRequest request,
+        CancellationToken cancellationToken) =>
+        ExecuteWithConcurrencyRetryAsync(
+            token => UpdatePrincipalReportSendingOnceAsync(request, token),
+            cancellationToken);
+
     public Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
         UpdatePrincipalDefaultInspectionLocationRequest request,
         CancellationToken cancellationToken) =>
@@ -63,7 +90,7 @@ public sealed class EfOrganizationAdministration(
             cancellationToken);
 
     /// <summary>
-    /// Changes a principal's report route and report-recipient suggestions.
+    /// Changes a principal's report route, default fee and notes.
     ///
     /// The only principal attribute that changes in place. Everything else
     /// about a principal is immutable once work has been allocated against it,
@@ -89,7 +116,6 @@ public sealed class EfOrganizationAdministration(
             request.ExpectedVersion,
             request.ExpectedContactVersion,
             request.ReportGenerationPolicy,
-            request.ReportRecipients,
             request.Reason,
             request.NotesOnEveryCase
         });
@@ -120,15 +146,12 @@ public sealed class EfOrganizationAdministration(
             before,
             request.ExpectedVersion,
             request.ReportGenerationPolicy,
-            request.ReportRecipients,
             request.DefaultFee,
             request.NotesOnEveryCase);
 
         entity.ReportGenerationPolicy = result.ReportGenerationPolicy.ToString();
         entity.DefaultFee = result.DefaultFee;
         entity.Organization.NotesOnEveryCase = result.NotesOnEveryCase;
-        entity.IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender;
-        entity.ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions);
         entity.Version = result.Version;
 
         var now = _timeProvider.GetUtcNow();
@@ -218,6 +241,80 @@ public sealed class EfOrganizationAdministration(
             "principal",
             entity.Id,
             "principal_salvage_matrix_updated",
+            request.Actor,
+            request.OperationKey,
+            now,
+            null,
+            before,
+            result);
+        AdvancePrincipalContactVersion(contact);
+        await SaveChangesAsync(context, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    /// <summary>
+    /// Replaces a principal's report sending rules in place, with the same
+    /// receipt, attributed history and contact version the salvage matrix carries.
+    /// </summary>
+    private async Task<Principal> UpdatePrincipalReportSendingOnceAsync(
+        UpdatePrincipalReportSendingRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var requestHash = HashRequest(new
+        {
+            command = UpdatePrincipalReportSendingKind,
+            actor = ActorMaterial(request.Actor),
+            request.PrincipalId,
+            request.ExpectedVersion,
+            request.ExpectedContactVersion,
+            rules = request.Rules.Canonical()
+        });
+
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
+        if (receipt is not null)
+        {
+            var replay = ReadReplay<Principal>(
+                receipt,
+                UpdatePrincipalReportSendingKind,
+                requestHash);
+            await transaction.CommitAsync(cancellationToken);
+            return replay;
+        }
+
+        var entity = await context.Principals
+            .Include(item => item.Organization)
+            .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
+            ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
+        var contact = await RequirePrincipalContactVersionAsync(
+            context, entity, request.ExpectedContactVersion, cancellationToken);
+        var before = ToPrincipal(entity);
+        var result = OrganizationAdministrationPolicy.PlanPrincipalReportSendingUpdate(
+            before,
+            request.ExpectedVersion,
+            request.Rules);
+
+        entity.ReportSendingRulesJson = ToReportSendingJson(result.ReportSending);
+        entity.Version = result.Version;
+
+        var now = _timeProvider.GetUtcNow();
+        AddReceipt(
+            context,
+            request.OperationKey,
+            UpdatePrincipalReportSendingKind,
+            requestHash,
+            result,
+            now);
+        AddHistory(
+            context,
+            "principal",
+            entity.Id,
+            "principal_report_sending_updated",
             request.Actor,
             request.OperationKey,
             now,
@@ -396,10 +493,9 @@ public sealed class EfOrganizationAdministration(
             IsActive = result.IsActive,
             InspectionMode = PrincipalInspectionModePolicy.ToCode(result.InspectionMode),
             ReportGenerationPolicy = result.ReportGenerationPolicy.ToString(),
-            IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender,
-            ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions),
             SalvageMatrixJson = ToSalvageMatrixJson(result.SalvageMatrix),
             DefaultFee = result.DefaultFee,
+            ReportSendingRulesJson = ToReportSendingJson(result.ReportSending),
             DefaultInspectionLocationLabel = predecessor.DefaultInspectionLocationLabel,
             DefaultInspectionAddress = predecessor.DefaultInspectionAddress,
             DefaultInspectionPostcode = predecessor.DefaultInspectionPostcode,
@@ -479,7 +575,7 @@ public sealed class EfOrganizationAdministration(
             allocatedCaseCount,
             PrincipalInspectionModePolicy.Parse(entity.InspectionMode),
             Enum.Parse<PrincipalReportGenerationPolicy>(entity.ReportGenerationPolicy),
-            RecipientSettings(entity),
+            ReadReportSending(entity.ReportSendingRulesJson),
             entity.DefaultInspectionLocationLabel,
             entity.DefaultInspectionAddress,
             entity.DefaultInspectionPostcode,
@@ -504,15 +600,10 @@ public sealed class EfOrganizationAdministration(
             entity.Version,
             PrincipalInspectionModePolicy.Parse(entity.InspectionMode),
             Enum.Parse<PrincipalReportGenerationPolicy>(entity.ReportGenerationPolicy),
-            RecipientSettings(entity),
+            ReadReportSending(entity.ReportSendingRulesJson),
             entity.Organization?.NotesOnEveryCase,
             ReadSalvageMatrix(entity.SalvageMatrixJson),
             entity.DefaultFee);
-
-    private static PrincipalReportRecipientSettings RecipientSettings(PrincipalEntity entity) =>
-        PrincipalReportRecipientSettings.Normalize(
-            entity.IncludeOriginalInstructionSender,
-            JsonSerializer.Deserialize<string[]>(entity.ReportRecipientAddressesJson, SerializerOptions));
 
     /// <summary>The stored bands, or null for a principal without a matrix.</summary>
     internal static string? ToSalvageMatrixJson(SalvageMatrix? matrix) =>
@@ -524,6 +615,15 @@ public sealed class EfOrganizationAdministration(
             ? null
             : SalvageMatrix.Normalize(
                 JsonSerializer.Deserialize<SalvageMatrixBand[]>(json, SerializerOptions));
+
+    /// <summary>The stored text of a principal's rules.</summary>
+    internal static string ToReportSendingJson(PrincipalReportSendingRules rules) =>
+        JsonSerializer.Serialize(rules, ReportSendingSerializerOptions);
+
+    /// <summary>Stored rules are read back through the same rules they were saved under.</summary>
+    internal static PrincipalReportSendingRules ReadReportSending(string json) =>
+        PrincipalReportSendingRules.Normalize(
+            JsonSerializer.Deserialize<PrincipalReportSendingRules>(json, ReportSendingSerializerOptions)!);
 
     internal static async Task<OrganizationEntity> RequirePrincipalContactVersionAsync(
         PegasusDbContext context,

@@ -40,13 +40,11 @@ namespace Pegasus.Core.Reports;
 /// stated date; a persisted override wins over both.
 /// </para>
 /// <para>
-/// <see cref="IncludeFeeNote"/> is the operator's packaging choice for this
-/// generation, supplied by the caller and never loaded: off means the fee
-/// note is only ever the separate <see cref="CaseReportArtifactKind.FeeNote"/>
-/// document, on means the report itself ends with the fee note. It is frozen
-/// into the immutable snapshot, so an issued report renders the same way
-/// again. The fee facts themselves are the assessment's, whichever way it is
-/// packaged.
+/// <see cref="IncludeVehicleImages"/> is loaded from the Case's Principal's
+/// report sending rules (<see cref="ReportSendingAttachments.ReportImages"/>),
+/// never chosen on the Generate form (operator, 6 October 2026). The preview
+/// and the generation read it alike, and it is frozen into the snapshot, so a
+/// later change to the rules does not alter a frozen generation.
 /// </para>
 /// </remarks>
 public sealed record AssessmentReportProjectionInput(
@@ -60,9 +58,9 @@ public sealed record AssessmentReportProjectionInput(
     ReportSignatory? Signatory = null,
     ReportGuideSources? Guides = null,
     string? ValuationCommentary = null,
-    bool IncludeFeeNote = false,
     IReadOnlyList<CaseReportWording>? Wording = null,
-    bool SignOffEngineersOffered = false);
+    bool SignOffEngineersOffered = false,
+    bool IncludeVehicleImages = true);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -216,13 +214,13 @@ public static class AssessmentReportProjection
             Guides: input.Guides ?? ReportGuideSources.None,
             ValuationCommentary: input.ValuationCommentary,
             ReportDateOverridden: reportDateOverridden,
-            IncludeFeeNote: input.IncludeFeeNote,
             // v28 P30: the Engineer's changes to the report's wording are
             // frozen with the rest of the snapshot, so a generation prints
             // their words as they stood and a later edit changes nothing
             // already issued. What a block they never touched says is
             // composed from the frozen facts beside it.
-            Wording: input.Wording);
+            Wording: input.Wording,
+            IncludeVehicleImages: input.IncludeVehicleImages);
 
         return new(snapshot, []);
     }
@@ -449,14 +447,11 @@ public sealed class GenerateCaseAssessmentReportDraft(
     /// requested kind. Nothing is persisted: no generation, no artifact, no
     /// custody object and no Sent claim. The preview's report date is today's
     /// unless the Case records an override — a generation is what freezes one.
-    /// The preview shows the same packaging the generation would produce, so
-    /// <paramref name="includeFeeNote"/> is the operator's current choice.
     /// </summary>
     public async Task<GenerateCaseAssessmentReportDraftResult> ExecuteAsync(
         Guid caseId,
         ActionActor actor,
         CaseReportArtifactKind kind,
-        bool includeFeeNote = false,
         CancellationToken cancellationToken = default)
     {
         var access = await getAssessmentAccess.ExecuteAsync(
@@ -478,7 +473,6 @@ public sealed class GenerateCaseAssessmentReportDraft(
         var projected = AssessmentReportProjection.Project(input with
         {
             ReportDate = LondonCalendar.DateAt(timeProvider.GetUtcNow()),
-            IncludeFeeNote = includeFeeNote,
         });
         if (!projected.IsReady)
         {

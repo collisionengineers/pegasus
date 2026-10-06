@@ -63,7 +63,11 @@ public sealed record StaffMailSendCommand(
     StaffMailComposeMode ComposeMode, StaffMailOriginalMessage? OriginalMessage,
     IReadOnlyList<StaffMailRecipient> To, IReadOnlyList<StaffMailRecipient> Cc,
     string Subject, string Body, IReadOnlyList<StaffMailAttachment> Attachments,
-    string OperationKey);
+    string OperationKey)
+{
+    /// <summary>What a report send records with its operation; null for every other purpose.</summary>
+    public ReportDispatchRecord? ReportDispatch { get; init; }
+}
 public sealed record StaffReportSendCommand(
     StaffMailSendCommand Mail, ReportSendReadinessRequest Report);
 public sealed record StaffMailOperation(

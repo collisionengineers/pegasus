@@ -43,7 +43,6 @@ public sealed class IndexModel(
     IGetCaseEditBasis getCaseEditBasis,
     ICaseReportSnapshotSource reportSnapshotSource,
     ICaseReportGenerationStore reportGenerations,
-    ICaseReportDeliveryPreparationStore deliveryPreparations,
     IDashboardQueries dashboardQueries,
     IUnidentifiedStore unidentifiedStore,
     IImageIntakeQueries imageIntakeQueries,
@@ -71,8 +70,6 @@ public sealed class IndexModel(
         reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
     private readonly ICaseReportGenerationStore _reportGenerations =
         reportGenerations ?? throw new ArgumentNullException(nameof(reportGenerations));
-    private readonly ICaseReportDeliveryPreparationStore _deliveryPreparations =
-        deliveryPreparations ?? throw new ArgumentNullException(nameof(deliveryPreparations));
     private readonly IDashboardQueries _dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
     private readonly IUnidentifiedStore _unidentifiedStore =
@@ -612,12 +609,10 @@ public sealed class IndexModel(
         // Current work is the Case's Next action, the one the Case page's
         // aside states (issue 896), read from the same facts: the first
         // missing requirement, and once the report is the Case's concern its
-        // readiness while the assessment can open, the current report and its
-        // delivery preparation.
+        // readiness while the assessment can open, and the current report.
         var caseId = basis.Workflow.CaseId;
         IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
         CaseReportGenerationRecord? currentReport = null;
-        CaseReportDeliveryPreparationRecord? deliveryPreparation = null;
         if (CaseNextAction.ReadsTheReport(basis.Workflow))
         {
             if (AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
@@ -627,9 +622,6 @@ public sealed class IndexModel(
                     CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons);
             }
             currentReport = await _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
-            deliveryPreparation = currentReport is null
-                ? null
-                : await _deliveryPreparations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
         }
         var next = CaseNextAction.Of(
             basis.Workflow,
@@ -638,8 +630,7 @@ public sealed class IndexModel(
             missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
             reportBlockers,
             _ => null,
-            currentReport,
-            deliveryPreparation);
+            currentReport);
 
         var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
 

@@ -63,44 +63,6 @@ public sealed class AssessmentReportRenderingTests
         Assert.Equal($"{kind}.pdf", result.SuggestedFileName);
     }
 
-    /// <summary>
-    /// R34B: the fee note is packaged with the report only when the frozen
-    /// snapshot says so. The choice is off unless it is made, it travels to
-    /// the renderer with the report, and it never turns one requested kind
-    /// into two renders or two documents.
-    /// </summary>
-    [Fact]
-    public async Task TheFeeNotePackagingChoiceTravelsWithTheReportAndIsOffUnlessMade()
-    {
-        var report = Snapshot(AssessmentReportOutcome.Repairable);
-        Assert.False(report.IncludeFeeNote);
-
-        var renderer = new FakeRenderer();
-        var combined = await new GenerateAssessmentReportDraft(renderer)
-            .ExecuteAsync(report with { IncludeFeeNote = true }, CaseReportArtifactKind.AssessmentReport);
-
-        Assert.True(renderer.Received!.IncludeFeeNote);
-        Assert.Equal([CaseReportArtifactKind.AssessmentReport], renderer.ReceivedKinds);
-        Assert.Equal($"{CaseReportArtifactKind.AssessmentReport}.pdf", combined.SuggestedFileName);
-    }
-
-    /// <summary>
-    /// The separate fee-note document is still exactly itself: asking for it
-    /// renders the fee note kind, whatever the report's packaging choice was.
-    /// </summary>
-    [Fact]
-    public async Task TheSeparateFeeNoteIsUnchangedByTheReportsPackagingChoice()
-    {
-        var renderer = new FakeRenderer();
-        var combined = Snapshot(AssessmentReportOutcome.Repairable) with { IncludeFeeNote = true };
-
-        var result = await new GenerateAssessmentReportDraft(renderer)
-            .ExecuteAsync(combined, CaseReportArtifactKind.FeeNote);
-
-        Assert.Equal([CaseReportArtifactKind.FeeNote], renderer.ReceivedKinds);
-        Assert.Equal($"{CaseReportArtifactKind.FeeNote}.pdf", result.SuggestedFileName);
-    }
-
     [Fact]
     public async Task IncompleteSnapshotFailsBeforeAdapter()
     {
@@ -111,6 +73,28 @@ public sealed class AssessmentReportRenderingTests
             () => new GenerateAssessmentReportDraft(renderer)
                 .ExecuteAsync(invalid, CaseReportArtifactKind.AssessmentReport));
         Assert.Null(renderer.Received);
+    }
+
+    /// <summary>
+    /// A Principal whose report sending rules say so has its report
+    /// generated without vehicle images (operator, 6 October 2026): that
+    /// report needs no image to print, every other report still does, and a
+    /// snapshot carries images unless it is told otherwise.
+    /// </summary>
+    [Fact]
+    public async Task AReportWithoutVehicleImagesNeedsNoImageToPrint()
+    {
+        var snapshot = Snapshot(AssessmentReportOutcome.Repairable);
+        Assert.True(snapshot.IncludeVehicleImages);
+        Assert.Throws<ReportRenderRejectedException>((snapshot with { Photos = [] }).Validate);
+
+        var renderer = new FakeRenderer();
+        await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
+            snapshot with { Photos = [], IncludeVehicleImages = false },
+            CaseReportArtifactKind.AssessmentReport);
+
+        Assert.False(renderer.Received!.IncludeVehicleImages);
+        Assert.Empty(renderer.Received.Photos);
     }
 
     [Fact]

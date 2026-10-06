@@ -197,7 +197,7 @@ public sealed class EfContactDirectoryAdministration(
                 throw new ContactDirectoryException(ContactDirectoryError.DuplicatePrincipalCode);
             var lineage = new PrincipalSequenceLineageEntity { Id = Guid.NewGuid(), CreatedAtUtc = _timeProvider.GetUtcNow() };
             context.PrincipalSequenceLineages.Add(lineage);
-            entity.Principals.Add(new PrincipalEntity { Id = Guid.NewGuid(), OrganizationId = entity.Id, Code = request.PrincipalCode!, SequenceLineageId = lineage.Id, SequenceLineage = lineage, IsActive = entity.Active, InspectionMode = PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode), Version = 0 });
+            entity.Principals.Add(new PrincipalEntity { Id = Guid.NewGuid(), OrganizationId = entity.Id, Code = request.PrincipalCode!, SequenceLineageId = lineage.Id, SequenceLineage = lineage, IsActive = entity.Active, InspectionMode = PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode), ReportSendingRulesJson = EfOrganizationAdministration.DefaultReportSendingJson, Version = 0 });
             changed = true;
         }
         if (!isPrincipal && entity.Principals.Count > 0)
@@ -376,7 +376,7 @@ public sealed class EfContactDirectoryAdministration(
         public string? Reference { get; init; }
     }
 
-    private static PrincipalAdministrationDetails ToPrincipalChoice(PrincipalEntity item) => new(item.Organization.Name, new(item.Id, item.OrganizationId, item.Code, item.SequenceLineageId, item.PredecessorId, item.SuccessorId, item.IsActive, item.Version, 0, PrincipalInspectionModePolicy.Parse(item.InspectionMode), Enum.Parse<Pegasus.Core.Reports.PrincipalReportGenerationPolicy>(item.ReportGenerationPolicy), Pegasus.Core.Reports.PrincipalReportRecipientSettings.Normalize(item.IncludeOriginalInstructionSender, JsonSerializer.Deserialize<string[]>(item.ReportRecipientAddressesJson))));
+    private static PrincipalAdministrationDetails ToPrincipalChoice(PrincipalEntity item) => new(item.Organization.Name, new(item.Id, item.OrganizationId, item.Code, item.SequenceLineageId, item.PredecessorId, item.SuccessorId, item.IsActive, item.Version, 0, PrincipalInspectionModePolicy.Parse(item.InspectionMode), Enum.Parse<Pegasus.Core.Reports.PrincipalReportGenerationPolicy>(item.ReportGenerationPolicy), EfOrganizationAdministration.ReadReportSending(item.ReportSendingRulesJson)));
     private static string ToCode(ContactRole role) => role switch { ContactRole.Principal => "principal", ContactRole.ClaimSource => "claim_source", ContactRole.Repairer => "repairer", ContactRole.Storage => "storage", ContactRole.ThirdPartyEngineer => "third_party_engineer", _ => throw new ArgumentOutOfRangeException(nameof(role)) };
     private static ContactRole ParseRole(string role) => role switch { "principal" => ContactRole.Principal, "claim_source" => ContactRole.ClaimSource, "repairer" => ContactRole.Repairer, "storage" => ContactRole.Storage, "third_party_engineer" => ContactRole.ThirdPartyEngineer, _ => throw new InvalidOperationException("The contact role is invalid.") };
     private static bool IsRetryable(Exception error) => error is ContactDirectoryException { Error: ContactDirectoryError.StaleVersion or ContactDirectoryError.DuplicateOrganizationName or ContactDirectoryError.DuplicatePrincipalCode } || error is SqlException { Number: 1205 or 2601 or 2627 } || error.InnerException is not null && IsRetryable(error.InnerException);

@@ -50,6 +50,22 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public DateTimeOffset? ObservedSentAtUtc { get; set; }
     public string? LastError { get; set; }
     public string? ReconciliationContinuation { get; set; }
+
+    /// <summary>
+    /// What a report send recorded: staff's answers, the holds they ticked, a Stop they
+    /// overrode and the after-send list (ReportDispatchRecord). Null for other purposes.
+    /// </summary>
+    public string? ReportDispatchJson { get; set; }
+
+    /// <summary>
+    /// The tidy of the answered instruction after a confirmed report send (ADR-0063):
+    /// null while due, then Moved, AlreadyMoved, MessageMissing or Failed (the third
+    /// failed attempt).
+    /// </summary>
+    public string? InstructionMoveState { get; set; }
+    public int InstructionMoveAttempts { get; set; }
+    public DateTimeOffset? InstructionMovedAtUtc { get; set; }
+    public string? InstructionMoveFailureCode { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }
 }
@@ -153,20 +169,6 @@ internal sealed class GeneratedCaseArtifactEntity
     public required string State { get; set; }
     public required string OperationKey { get; set; }
     public string? FailureCode { get; set; }
-}
-
-internal sealed class CaseReportDeliveryIntentEntity : IApplicationManagedConcurrencyToken
-{
-    public Guid Id { get; set; }
-    public Guid GenerationId { get; set; }
-    public long GenerationVersion { get; set; }
-    public required string PayloadJson { get; set; }
-    public required string PayloadHash { get; set; }
-    public required string ActorSubjectId { get; set; }
-    public DateTimeOffset PreparedAtUtc { get; set; }
-    public required string OperationKey { get; set; }
-    public long Version { get; set; }
-    public Guid ConcurrencyToken { get; set; }
 }
 
 internal sealed class RetainedInstructionAnalysisEntity

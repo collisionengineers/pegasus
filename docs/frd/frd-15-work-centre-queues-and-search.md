@@ -78,7 +78,7 @@ keep it.
 
 **Needs attention** is one list. Each item is exactly one of these kinds.
 Every kind comes from a Core query, never from fixture or placeholder data,
-and has a due instant:
+and every kind but Open tasks has a due instant:
 
 | Kind | Item | Due instant |
 | --- | --- | --- |
@@ -89,6 +89,7 @@ and has a due instant:
 | Vehicle images paired | A pre-report Case its early vehicle images paired into, not changed by staff since ([FRD-19](frd-19-image-led-intake-and-pairing.md#age-and-chase-state)) | The pairing |
 | Unidentified | An open Unidentified item | Unidentified target after it was received |
 | Triage | A Triage Case without a finding | Triage target after it opened |
+| Open tasks | A Case with at least one open task, one row per Case: its oldest open task and how many more (6 October 2026) | None; always Later |
 | AI draft | An AI job in Draft ready, except Market research | AI draft target after the draft was written |
 
 The targets are workflow settings
@@ -115,7 +116,7 @@ Mine switch and **Find in Needs attention**. Office is every item. Mine is
 the items the signed-in person owns plus unowned items of kinds they can
 take. Every staff role opens on Office, and the choice is remembered per
 browser. **Kind chips** (Case, Held, Review, Unassigned, Vehicle images
-paired, Unidentified, Triage, AI draft) filter the list, several at once. Each chip shows its count
+paired, Unidentified, Triage, Tasks, AI draft) filter the list, several at once. Each chip shows its count
 over the whole scope before any filter. Find narrows the scoped list by a
 case-insensitive match on the row's reference, title, detail (principal,
 sender or instruction) and owner, before paging; Enter applies it and the
@@ -127,8 +128,10 @@ toolbar and says "No work matches these filters."
 kind beneath), Record / detail (the reference, with the subject beneath),
 Owner, Due, Received, the next action as a button (v32 item M) and
 **Dismiss**, an icon-only control named "Dismiss {reference}" (v32 item B).
-Owner is the person's name. A Held, Review, Unassigned, Vehicle images
-paired or Triage row with an empty person slot says **Unassigned**. A Case
+Owner is the person's name; an Open tasks row's person is its oldest open
+task's assignee, else the staff member who created that task. A Held, Review,
+Unassigned, Vehicle images paired, Triage or Open tasks row with an empty
+person slot says **Unassigned**. A Case
 chase, an Unidentified item, or an AI draft with no person says **No owner**.
 Find matches that word. Below 980px Owner and Received fold into the task
 cell. Rows are grouped under **Overdue (n)**, **Due today
@@ -146,8 +149,9 @@ title, its facts (reference, subject, principal or sender or instruction,
 owner, due, received) and a next action that does the action. Choosing the
 open task again closes it; nothing opens by itself. Assign Engineer opens the
 assignment dialog on the Work Centre. Review Case opens the Case, and so
-does Open Case on a Vehicle images paired item. Open Triage opens the Triage
-Case page. An AI draft offers its per-kind action. The open row
+does Open Case on a Vehicle images paired item. Open tasks opens the Case at
+its Tasks section. Open Triage opens the Triage Case page. An AI draft offers
+its per-kind action. The open row
 repeats no Dismiss; the row's own control is the one.
 
 **New cases.** Every Case except a Triage Case created in the last 7 calendar
@@ -186,6 +190,7 @@ dismissal shows again:
 | Vehicle images paired | The images were paired |
 | Unidentified | The item was opened or reopened |
 | Triage | The Triage changed state, or opened |
+| Open tasks | The Case's newest open task was created |
 | AI draft, AI job | The job entered the state it shows (taken, draft written, failed, or returned to the queue when its lease lapsed); a job released back to the queue keeps its creation time |
 | New case, Changed by automation | The Case was created; the change was made |
 
@@ -236,7 +241,7 @@ straight to its full detail. Selecting a row shows a quick detail. For a
 Case that is its origin, compact workflow position, outstanding requirements
 and current work, with Open full Case. Current work is the Case's Next action,
 the step the Case record's aside names (a report blocker, Generate report,
-Prepare delivery and so on), never the chase schedule's state; beside it stand
+Send report and so on), never the chase schedule's state; beside it stand
 the Engineer and the due. A Case's due is one instant everywhere it shows, on
 the list, the quick detail and Search: its Case chase due instant from the
 table above, dated by the day it falls due (operator, 28 September 2026). For other

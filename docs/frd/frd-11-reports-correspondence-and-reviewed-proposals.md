@@ -189,12 +189,11 @@ The Audit report's reference is its Our Ref, its file name (for example
 counted among Audit sends only. It has its own fee note and fee, counted
 separately. Report image choices are shared, because they belong to the
 Case's files. Once the Audit exists, the Inspection report is generated,
-prepared, sent and marked sent from the Inspection view, on the Inspection's
+sent and marked sent from the Inspection view, on the Inspection's
 own work and without changing the Case's state, which is the Audit's
 (operator, 1 October 2026), and a sent Inspection report may be generated
 and sent again when needed, counted among Inspection sends (operator,
-2 October 2026); a delivery prepared for it before Create audit is refused at
-send, because Create audit changed the Case. The Audit report never
+2 October 2026). The Audit report never
 overwrites or reissues the Inspection report.
 
 Audit outcome or reference evidence that is missing, conflicting, ambiguous,
@@ -268,14 +267,23 @@ separately addressable artifact in custody:
   own, in the report's page style. A Case whose report uses no image has no
   pack to generate.
 
-A delivery attaches the documents the operator chose. Without a choice every
+A delivery attaches the documents the operator chose. A Principal's report
+sending rules can also require companions and attach the Case's filed estimates
+([Report sending rules](#report-sending-rules)). Without a choice every
 artifact the generation holds attaches and a partly confirmed generation
 yields nothing; with a choice, exactly the chosen documents must be present
 and confirmed, so a companion still being filed never silently drops out of a
 delivery that asked for it and never blocks one that did not. The report is
-always attached. The preparation pins each chosen attachment by document,
-version, hash and length, and the send re-checks that every pinned attachment
-is still a confirmed artifact, byte for byte.
+always attached. The send names each chosen attachment by document,
+version, hash and length, and re-checks just before the mail is submitted that
+every one is still a confirmed artifact, byte for byte.
+
+**One step (operator, 6 October 2026).** A report is sent in one step. The
+Report section's delivery form holds the recipients, the documents to attach,
+the report's name and the covering message, and its one **Send report** sends
+them. There is no separate preparation and no second confirmation. The
+staff-send operation is the record of what was sent. The form stays offered
+after a send, whatever its outcome, so the same report can be sent again.
 
 **What a delivery is called (v28 P23).** The attached report is named for the
 people who read it — the Case's reference, the vehicle's registration and the
@@ -284,35 +292,34 @@ a re-issue is distinguishable at a glance. Companion documents keep the names
 custody gave them. The delivery carries one covering message, which starts as
 the Case report delivery template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
-this Case: a first report has no "supersedes" line; a later one says plainly
-that it supersedes the report dated the day the superseded generation carried.
-Before Prepare delivery, staff read the message in an editable box and may
-change it. Prepare delivery freezes the text they submit, which cannot be blank
-or longer than 5000 characters. The report's name and that message are frozen
-with the preparation, so what was reviewed is what is sent. Send uses only the
-frozen message, and custody keeps its own name for the same bytes. A send is a
-staff send that actually left the approved mailbox; a prepared-but-unsent
-delivery is not one. The subject stays the Case or Audit reference. A send the
-mailbox provider refuses is shown as a failed send; that preparation is spent,
-and Prepare delivery is offered again so a fresh preparation can be sent.
+this Case. Its built-in body is the Report Sending SOP wording: it greets with
+"morning" before noon in London and "afternoon" after, and says "Please see
+attached report and fee note", since every report ends with its fee note. A
+saved template may still name the date of the report it supersedes, which a
+first send leaves out. Before Send report, staff read the message in an
+editable box and may change it. The text they submit is what is sent; it cannot
+be blank or longer than 5000 characters. Custody keeps its own name for the same
+bytes. A send is a staff send that actually left the approved mailbox. A reply
+keeps "Re:" the instruction's subject; a new message is "{REG} Report"
+([Report sending rules](#report-sending-rules)). A send the mailbox provider
+refuses is shown as a failed send.
 
-**Report and fee note.** They are separately addressable files in custody.
-The operator generating the report chooses whether the fee note is a separate
-document or the report's final pages, with the Include fee note choice beside
-Generate report (issue 912). The snapshot records that choice, so a
-combined report is one file under the report's name and reproduces the same
-way. A later request for a separate fee note names the current confirmed,
-non-stale generation and adds the fee note from that generation's frozen
-date and fee facts. It does not re-freeze the report. The request is refused
-when there is no current generation, the generation is stale, or the report
-already contains its fee note. Fee facts, readiness and accepted fee terms
-are the same either way.
+**Report and fee note.** Every report ends with its fee note: one file under
+the report's name, the fee note's pages last (operator, 6 October 2026). The
+separate fee note is its own file in custody and can always be generated. A
+Principal that wants it separately is sent both: the report with its fee note,
+and the separate fee note attached beside it. A request for the separate fee
+note names the current confirmed, non-stale generation and adds the fee note
+from that generation's frozen date and fee facts. It does not re-freeze the
+report. The request is refused when there is no current generation or the
+generation is stale. Fee facts, readiness and accepted fee terms are the same
+in both files.
 
 **Staleness.** One Core rule over normalised effective values marks a
 generation stale only when an accepted report fact changes. Notes, no-op
 saves and recipient edits do not. A ready generation records
 `case_report_generation_ready` in history. Stale generations cannot be
-prepared or sent.
+sent.
 
 **Views and downloads.** A preview creates no file and no Sent evidence.
 Viewing one records `case_report_draft_previewed`, distinct from generation
@@ -323,9 +330,11 @@ bytes, so it records the same event, and Case history shows it as Report
 downloaded. That includes the report opening by itself after Generate report.
 
 **Version checks.** Snapshot assembly reads the Case version first and
-refuses a changed version before freezing. Generation and preparation
+refuses a changed version before freezing. Generation
 commands carry the version shown in the browser and refuse a stale one
-rather than re-reading. An operation key replays only the same file kind,
+rather than re-reading. A send is made under the Case's edit lease and names
+its generation and that generation's version; system work that moved the Case
+after the page was read does not refuse it. An operation key replays only the same file kind,
 packaging choice and target generation; reusing it for a different command
 is a conflict. The signatory tuple is rechecked in the freeze transaction.
 Confirming or removing source evidence, or changing the signatory's
@@ -334,14 +343,93 @@ generations in the same transaction. Report outputs are not report inputs
 and do not invalidate their own generation. Other retained files stay source
 evidence whatever their transport label.
 
-**Recipients.** A delivery preparation needs current addressing. Principal
-recipient settings can include the original instruction sender and any
-number of extra addresses. The original sender comes from the originating
-instruction, never the latest reply; an unresolved sender adds no invented
-address. Claim Source is never copied implicitly. Recipients are frozen in
-the preparation, but the preparing human staff member may edit To and Cc before that freeze.
+**Recipients.** A delivery needs current addressing. It is planned from the
+Principal's report sending rules, in the order of Report Sending SOP rule R12.
+
+1. To is the Principal's fixed addresses when it has any, else the original
+   instruction sender.
+2. Cc starts as the instruction's own Cc list, unless the Principal turns that
+   off, then the Principal's Cc addresses, then the Cc of each rule that holds.
+3. A Principal set to send only to its fixed addresses has no Cc at all.
+4. The addresses the Principal never copies, and the ones a rule removes, are
+   taken out. Removals always win: an address staff type into To or Cc is taken
+   out at send too. The form says what the plan removed and why.
+5. Duplicates are dropped without regard to case, and an address already in To
+   is not copied.
+
+Each address carries where it came from, such as Original sender, Instruction
+Cc, Principal Cc or "Rule 2: Claim Source Car 2 Go". The original sender comes
+from the originating instruction, never the latest reply; an unresolved sender
+adds no invented address. Claim Source is never copied implicitly. The plan
+only suggests: the human staff member sending the report may edit To and Cc,
+and what they submit is what the delivery is addressed to, less the removals.
 Every delivery still needs a staff-controlled send. Default report dates and
 displayed times use Europe/London.
+
+### Report sending rules
+
+Every Principal has report sending rules (set on the Principal contact, see
+[FRD-17](frd-17-administration-workspace.md); supplied as Report Sending SOP
+v5). One Core plan reads them with the Case's facts. The page makes the plan
+when it loads, and Send report makes it again with staff's answers and follows
+it. Everything below is answered on the one delivery form, in the same click
+as Send report.
+
+- **Mode.** When the Case holds its instruction e-mail in an approved mailbox,
+  the report is a reply in that thread, sent from the mailbox that holds it.
+  Otherwise the report is a new message from the Principal's send-from mailbox,
+  or from the default staff-send mailbox when the Principal names none. An
+  uploaded e-mail sits in no mailbox, so it takes the new message route. The
+  sending mailbox must be Approved, identity bound and bound for staff send and
+  Sent evidence; otherwise the send is refused, naming the address.
+- **Rule conditions.** A rule's conditions read the Case's Claim Source,
+  Repairer, recorded outcome and the instruction's sender. A rule is true,
+  false or undecided. With All, any false condition makes it false, else any
+  undecided one leaves it undecided. With Any, any true condition makes it
+  true, else any undecided one leaves it undecided. A fact the Case has not set
+  leaves its condition undecided. "Instruction mentions" is searched for in the
+  instruction e-mail's subject and text, ignoring case and spaces, and is
+  undecided only when the Case holds no instruction text. "Images from" and
+  "Bodyshop mentions" have no Case fact, so they are always undecided.
+- **Questions.** Each undecided condition of an undecided rule is a Yes or No
+  question on the delivery form. An answer settles it for that send only, and
+  never overrides a fact the Case holds. Send report is refused until every
+  question is answered. A copy that an answer adds is sent to.
+- **Holds.** The Principal's hold and the hold of each rule that holds are
+  ticked Done on the form, and Core refuses the send otherwise. The send
+  records them.
+- **Stop.** A rule that holds can stop the delivery. Send report is refused
+  unless staff with casework give a reason to override it. The send records the
+  Stop and the reason. Nothing else is a Stop: a send with no To address or no
+  usable mailbox is simply refused until it has one.
+- **Required companions.** A Principal may require the images document, the
+  figure breakdown (the Repair Spec) or both. A required companion is ticked
+  and cannot be unticked, and Send report is withheld while it is not
+  generated. Generate offers it.
+- **Filed estimates.** A Principal that sends the Audatex attaches the Case's
+  recognised filed estimates in the Audatex format; one that sends the estimate
+  attaches the recognised ones in any other format. They are rechecked at send
+  like every other attachment. None filed is a warning, not a hold.
+- **Report images.** A Principal whose report carries no vehicle images has its
+  report generated without them
+  ([Report generation entry point](#report-generation-entry-point)); the images
+  document carries them.
+- **Fee note.** A confirmed separate fee note is offered ticked under Attach. A
+  Principal that expects one gets a warning when none is confirmed.
+- **After sending.** The Principal's reminders, the reminders of each rule that
+  holds, and "Send the figures to the garage." for a repairable outcome when the
+  Principal asks for it are shown on the form and recorded with the send. They
+  become Case tasks when Report sent is recorded
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
+- **Name.** A Principal may set the report's name: one pattern for a first send
+  and one for every later send, using {ref}, {reg} and {outcome}. Without one,
+  the default naming above applies.
+- **Changes.** A send carries the rules and Case facts its form was drawn from
+  (the rules, the instruction, its sender, the Claim Source, the Repairer, the
+  outcome and the instruction text). If any changed since, the send is refused
+  and the form is read again.
+- **Other mail on the instruction.** A report send is never held up by another
+  unfinished message on the same instruction, and never holds one up.
 
 ### Report generation entry point
 
@@ -612,7 +700,7 @@ The Case's own states are in
 
 - Any missing, unknown or conflicting outcome data stops rendering.
 - A stale version in the browser is refused, never replaced.
-- A stale generation cannot be prepared or sent.
+- A stale generation cannot be sent.
 - A fee-note request against a report that already contains one is refused.
 - A missing printed fact, such as a total loss with no salvage category, is
   a named readiness item: preview and Generate refuse before any generation

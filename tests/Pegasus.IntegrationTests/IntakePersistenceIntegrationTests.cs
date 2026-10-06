@@ -214,7 +214,12 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261002105641_WorkCentreDismissals",
                 "20261005090000_CorrespondenceSentEvent",
                 "20261005120000_GrantWorkerCaseManualChases",
-                "20261005150000_PrincipalDefaultFee"
+                "20261005150000_PrincipalDefaultFee",
+                "20261006150000_DropCaseReportDeliveryIntents",
+                "20261007090000_PrincipalReportSendingRules",
+                "20261007100000_ReportDispatchRecord",
+                "20261007110000_GrantWorkerCaseTasksForReportSent",
+                "20261007120000_SentReportInstructionMove"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -420,14 +425,16 @@ public sealed class IntakePersistenceIntegrationTests
             WHERE object_id = OBJECT_ID(N'WorkflowConfigurations')
               AND name IN (N'RequireInstructions', N'RequireImages', N'ChaseIntervalDays')
             """));
-        Assert.Equal(3, await database.ScalarAsync<int>(
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'ReportGenerationPolicy'"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns
             WHERE object_id = OBJECT_ID(N'Principals')
-              AND name IN (
-                  N'ReportGenerationPolicy', N'IncludeOriginalInstructionSender',
-                  N'ReportRecipientAddressesJson')
+              AND name IN (N'IncludeOriginalInstructionSender', N'ReportRecipientAddressesJson')
             """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'ReportSendingRulesJson' AND is_nullable = 0"));
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'EvaManualSubmission'"));
         Assert.Equal(1, await database.ScalarAsync<int>(

@@ -262,6 +262,7 @@ public static class DependencyInjection
         services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
         services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
+        services.AddScoped<IFiledEstimateAttachmentQueries, EfFiledEstimateAttachmentQueries>();
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
@@ -333,6 +334,7 @@ public static class DependencyInjection
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
         services.AddScoped<IUpdatePrincipalSalvageMatrix, UpdatePrincipalSalvageMatrix>();
+        services.AddScoped<IUpdatePrincipalReportSending, UpdatePrincipalReportSending>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
@@ -464,6 +466,7 @@ public static class DependencyInjection
         services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
         services.AddScoped<IGetCaseValuationSection, GetCaseValuationSection>();
         services.AddScoped<IGetCaseNotesSection, GetCaseNotesSection>();
+        services.AddScoped<IGetCaseTasksSection, GetCaseTasksSection>();
         services.AddScoped<IGetCaseFilesSection, GetCaseFilesSection>();
         services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
         services.AddScoped<IListCaseReferences, ListCaseReferences>();
@@ -756,10 +759,8 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
         services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
-        services.AddScoped<ICaseReportDeliveryPreparationStore, EfCaseReportDeliveryPreparationStore>();
-        services.AddScoped<IPrepareCaseReportDelivery, PrepareCaseReportDelivery>();
         services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
-        services.AddScoped<ISendPreparedCaseReport, SendPreparedCaseReport>();
+        services.AddScoped<ISendCaseReport, SendCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();
         services.AddScoped<IRenderCaseEstimateDocument, RenderCaseEstimateDocument>();
         return services;
@@ -989,6 +990,9 @@ public static class DependencyInjection
             provider.GetRequiredService<TokenCredential>(),
             provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
+        // The Worker alone may move a retained message: it tidies the instruction a
+        // confirmed report send answered (ADR-0063). Web keeps the unavailable mover.
+        services.Replace(ServiceDescriptor.Singleton<IRetainedMailFolderMover, GraphRetainedMailFolderMover>());
         AddStaffMailSending(services);
         services.AddSingleton<GraphMailboxChangeSubscriptions>();
         services.AddSingleton<IApprovedInboxSource, GraphApprovedInboxSource>();
@@ -1002,6 +1006,19 @@ public static class DependencyInjection
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(DvlaDvsaProductionAdapter)),
             provider.GetRequiredService<TimeProvider>()));
+        return services;
+    }
+
+    /// <summary>
+    /// The Worker's tidy of a sent report's answered instruction (ADR-0063). It runs
+    /// in both Worker profiles; the offline profile has the unavailable mover, so
+    /// the use case does nothing there.
+    /// </summary>
+    public static IServiceCollection AddSentReportInstructionTidy(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddScoped<ISentReportInstructionTidyStore, EfSentReportInstructionTidyStore>();
+        services.AddScoped<TidySentReportInstructions>();
         return services;
     }
 

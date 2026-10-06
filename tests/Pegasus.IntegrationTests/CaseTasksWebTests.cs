@@ -1,5 +1,6 @@
 using System.Net;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -10,6 +11,7 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
+using TaskLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Tasks;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
@@ -304,6 +306,221 @@ public sealed class CaseTasksWebTests
         var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
         Assert.True(end > start, "The manual chase form is not closed.");
         return html[start..end];
+    }
+
+    /// <summary>
+    /// The Tasks section follows Notes, lists the Case's tasks, and offers Complete, Cancel and
+    /// Assign on an open task and Add task only in the edit session: a section fetched without
+    /// the render lease reads, and a closed task never offers an action. Assign offers the
+    /// enabled named staff, and a description has no length limit.
+    /// </summary>
+    [Fact]
+    public async Task TasksSectionListsTheTasksAndOffersItsActionsOnlyInTheEditSession()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var open = new CaseTaskRecord(
+            Guid.NewGuid(), store.CaseId, "Send the figures to the garage", null, CaseTaskState.Open, 0, store.CaseVersion);
+        var done = new CaseTaskRecord(
+            Guid.NewGuid(), store.CaseId, "Phone the claimant", null, CaseTaskState.Completed, 1, store.CaseVersion);
+        store.Tasks.AddRange([open, done]);
+        var colleague = new CaseEngineerChoice(Guid.NewGuid(), "colleague.engineer");
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<IGetCaseTasksSection>(services, store);
+            Substitute<ICreateCaseTask>(services, store);
+            Substitute<IAssignCaseTask>(services, store);
+            Substitute<ICompleteCaseTask>(services, store);
+            Substitute<ICancelCaseTask>(services, store);
+            Substitute<ICaseEngineerChoices>(services, new StaffChoices(colleague));
+        });
+
+        Assert.Equal(
+            "notes",
+            OperatorLabelsSectionKeyBefore("tasks"));
+
+        var html = WebUtility.HtmlDecode(
+            await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=tasks"));
+
+        var section = Section(html, "section-tasks-title");
+        Assert.Contains("Send the figures to the garage", section, StringComparison.Ordinal);
+        Assert.Contains("Phone the claimant", section, StringComparison.Ordinal);
+        Assert.Contains("Open", section, StringComparison.Ordinal);
+        Assert.Contains("Completed", section, StringComparison.Ordinal);
+        Assert.Contains("handler=CreateCaseTask", section, StringComparison.Ordinal);
+        Assert.Contains("handler=CompleteCaseTask", section, StringComparison.Ordinal);
+        Assert.Contains("handler=CancelCaseTask", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"reason\"", section, StringComparison.Ordinal);
+        Assert.Contains("id=\"case-task-description\"", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("maxlength", section, StringComparison.Ordinal);
+        var openRow = Regex.Match(
+            section,
+            $"<tr data-case-task=\"{open.Id:D}\".*?</tr>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(openRow.Success, "The open task's row is not rendered.");
+        Assert.Contains("handler=AssignCaseTask", openRow.Value, StringComparison.Ordinal);
+        Assert.Contains("name=\"assigneeId\"", openRow.Value, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{colleague.StaffId:D}\"", openRow.Value, StringComparison.Ordinal);
+        Assert.Contains($">{colleague.DisplayName}</option>", openRow.Value, StringComparison.Ordinal);
+        Assert.Contains($">{TaskLabels.Assign}</span>", openRow.Value, StringComparison.Ordinal);
+        var doneRow = Regex.Match(
+            section,
+            $"<tr data-case-task=\"{done.Id:D}\".*?</tr>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(doneRow.Success, "The completed task's row is not rendered.");
+        Assert.DoesNotContain("handler=", doneRow.Value, StringComparison.Ordinal);
+
+        // The lazy Tasks fragment answers (its read phase is allow-listed) and reads without
+        // the render lease.
+        using var read = await workspace.Client.GetAsync($"/Cases/{store.CaseId:D}/Section?section=tasks");
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        var fragment = WebUtility.HtmlDecode(await read.Content.ReadAsStringAsync());
+        Assert.Contains("Send the figures to the garage", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=CompleteCaseTask", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=AssignCaseTask", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=CreateCaseTask", fragment, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Complete, Cancel, Assign and Add task post the session's envelope to their use cases with
+    /// the fixed reason each carries, and land back on the Tasks section; the session carries on.
+    /// </summary>
+    [Fact]
+    public async Task CompleteCancelAssignAndAddPostTheSessionsEnvelopeWithTheirFixedReasons()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<IGetCaseTasksSection>(services, store);
+            Substitute<ICreateCaseTask>(services, store);
+            Substitute<IAssignCaseTask>(services, store);
+            Substitute<ICompleteCaseTask>(services, store);
+            Substitute<ICancelCaseTask>(services, store);
+        });
+        var taskId = Guid.NewGuid();
+        var assigneeId = Guid.NewGuid();
+        const string completeKey = "1a1b1c1d1e1f10111213141516171819";
+        const string cancelKey = "2a2b2c2d2e2f20212223242526272829";
+        const string addKey = "3a3b3c3d3e3f30313233343536373839";
+        const string assignKey = "4a4b4c4d4e4f40414243444546474849";
+
+        using var assigned = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=AssignCaseTask",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("taskId", taskId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("expectedTaskVersion", "3"),
+                ("operationKey", assignKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("assigneeId", assigneeId.ToString("D"))));
+        AssertPrg(assigned, store.CaseId, expectedQuery: "section=tasks");
+        var assign = Assert.Single(store.TaskAssignments);
+        AssertTaskMutation(workspace, assign, assignKey, TaskLabels.AssignReason);
+        Assert.Equal(taskId, assign.TaskId);
+        Assert.Equal(3, assign.ExpectedTaskVersion);
+        Assert.Equal(assigneeId, assign.AssigneeId);
+
+        using var completed = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=CompleteCaseTask",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("taskId", taskId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("expectedTaskVersion", "4"),
+                ("operationKey", completeKey),
+                ("editLeaseToken", store.LeaseToken)));
+        AssertPrg(completed, store.CaseId, expectedQuery: "section=tasks");
+        var complete = Assert.Single(store.TaskCompletions);
+        AssertTaskMutation(workspace, complete, completeKey, TaskLabels.CompleteReason);
+        Assert.Equal(taskId, complete.TaskId);
+        Assert.Equal(4, complete.ExpectedTaskVersion);
+
+        using var cancelled = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=CancelCaseTask",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("taskId", taskId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("expectedTaskVersion", "5"),
+                ("operationKey", cancelKey),
+                ("editLeaseToken", store.LeaseToken)));
+        AssertPrg(cancelled, store.CaseId, expectedQuery: "section=tasks");
+        var cancel = Assert.Single(store.TaskCancellations);
+        AssertTaskMutation(workspace, cancel, cancelKey, TaskLabels.CancelReason);
+        Assert.Equal(5, cancel.ExpectedTaskVersion);
+
+        using var added = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=CreateCaseTask",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("taskId", taskId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", addKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("description", "Authorise the garage")));
+        AssertPrg(added, store.CaseId, expectedQuery: "section=tasks");
+        var create = Assert.Single(store.TaskCreations);
+        AssertTaskMutation(workspace, create.Actor, create.CaseId, create.ExpectedCaseVersion, create.EditLeaseToken, create.OperationKey, create.Reason, addKey, TaskLabels.AddReason);
+        Assert.Equal(taskId, create.TaskId);
+        Assert.Equal("Authorise the garage", create.Description);
+        Assert.Null(create.AssigneeId);
+    }
+
+    private static void AssertTaskMutation(
+        LeasedWorkspace workspace,
+        ExistingCaseTaskMutationRequest request,
+        string operationKey,
+        string reason) =>
+        AssertTaskMutation(
+            workspace,
+            request.Actor,
+            request.CaseId,
+            request.ExpectedCaseVersion,
+            request.EditLeaseToken,
+            request.OperationKey,
+            request.Reason,
+            operationKey,
+            reason);
+
+    private static void AssertTaskMutation(
+        LeasedWorkspace workspace,
+        ActionActor actor,
+        Guid caseId,
+        long expectedCaseVersion,
+        string editLeaseToken,
+        string recordedOperationKey,
+        string recordedReason,
+        string operationKey,
+        string reason)
+    {
+        AssertClaimant(workspace, actor);
+        Assert.Equal(workspace.Store.CaseId, caseId);
+        Assert.Equal(workspace.Store.CaseVersion, expectedCaseVersion);
+        Assert.Equal(workspace.Store.LeaseToken, editLeaseToken);
+        Assert.Equal(operationKey, recordedOperationKey);
+        Assert.Equal(reason, recordedReason);
+    }
+
+    /// <summary>The enabled named staff an open task's Assign offers.</summary>
+    private sealed class StaffChoices(params CaseEngineerChoice[] choices) : ICaseEngineerChoices
+    {
+        public Task<IReadOnlyList<CaseEngineerChoice>> GetAsync(
+            ActionActor actor,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseEngineerChoice>>(choices);
+    }
+
+    /// <summary>The key of the section the record lists immediately before <paramref name="key"/>.</summary>
+    private static string OperatorLabelsSectionKeyBefore(string key)
+    {
+        var keys = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.Sections
+            .Select(section => section.Key)
+            .ToList();
+        return keys[keys.IndexOf(key) - 1];
     }
 
     /// <summary>
