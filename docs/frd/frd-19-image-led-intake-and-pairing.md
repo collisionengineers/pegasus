@@ -312,8 +312,8 @@ complete membership, and fail-closed source-identity rules apply to both.
 ### Operator surfaces
 
 **Awaiting instruction queue.** On Cases, Awaiting instruction lists the
-Image-initiated Cases still waiting for an instruction. It is Pre-Case work,
-never a workflow queue. Rows show reference, registration,
+Image-initiated Cases still waiting for an instruction, never formal Cases.
+Rows show reference, registration,
 image count, custody, received, source, and chase facts; `?tab=` selects
 the queue. Not ready holds only formal instructed Cases. Selecting a row
 shows a quick detail with the definition list, the open action, and **Add
