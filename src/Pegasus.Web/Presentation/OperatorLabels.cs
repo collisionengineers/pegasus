@@ -489,7 +489,6 @@ public static class OperatorLabels
         public const string Opening = "Opening…";
         public const string Pausing = "Pausing…";
         public const string Placing = "Placing on hold…";
-        public const string Preparing = "Preparing…";
         public const string Publishing = "Publishing…";
         public const string Recording = "Recording…";
         public const string Refreshing = "Refreshing…";

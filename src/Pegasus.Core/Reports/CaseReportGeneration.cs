@@ -409,6 +409,15 @@ public interface ICaseReportGenerationStore
     Task<CaseReportGenerationRecord?> GetAsync(
         ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The generation one delivery names, read under the Case's edit lease:
+    /// reloads permission, the held lease and the expected Case version, and
+    /// requires the generation to be of the work the request names, that
+    /// work's current one, confirmed, and at the expected version.
+    /// </summary>
+    Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+        SendCaseReportRequest request, CancellationToken cancellationToken);
+
     /// <summary>The selected work's current generation.</summary>
     Task<CaseReportGenerationRecord?> GetCurrentAsync(
         ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);

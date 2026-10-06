@@ -665,7 +665,7 @@ public sealed partial class AssessmentReportDraftWebTests
     /// never drawn, failed or not confirmed is generated again.
     /// </summary>
     [Theory]
-    [InlineData(CaseReportArtifactStatus.Confirmed, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.PrepareDelivery)]
+    [InlineData(CaseReportArtifactStatus.Confirmed, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendReport)]
     [InlineData(CaseReportArtifactStatus.Pending, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.WaitingForStorage)]
     [InlineData(CaseReportArtifactStatus.Pending, false, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport)]
     [InlineData(CaseReportArtifactStatus.Failed, true, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerateReport)]
@@ -752,28 +752,31 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.DoesNotContain("data-report-artifact=\"FeeNote\"", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// One step (operator, 6 October 2026): the delivery form's fields reach
+    /// the send under the server's actor, the held lease and the form's own
+    /// operation key.
+    /// </summary>
     [Fact]
-    public async Task PrepareDeliveryCarriesGenerationAndServerAuthorityWithoutSending()
+    public async Task SendReportCarriesGenerationReviewedFieldsAndServerAuthority()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
         var generationId = Guid.NewGuid();
         var operationKey = Guid.NewGuid().ToString("N");
-        var prepare = new RecordingPrepareDelivery(caseId, generationId);
-        var send = new RecordingSendPreparedReport(StaffMailState.Submitted);
+        var send = new RecordingSendReport(StaffMailState.Submitted);
         using var factory = Compose(
             baseFactory,
             new FakeGetCase(caseId),
             FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId)),
             new FakeRenderer([1]),
-            prepareDelivery: prepare,
-            sendPreparedReport: send);
+            sendReport: send);
         using var client = Client(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=PrepareReportDelivery&section=report",
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
             Form(
                 AntiforgeryValue(html),
                 ("id", caseId.ToString("D")),
@@ -787,52 +790,50 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("ccRecipients", "copy@recipient.example")));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var request = Assert.Single(prepare.Requests);
+        var request = Assert.Single(send.Requests);
         Assert.Equal(caseId, request.CaseId);
         Assert.Equal(0, request.ExpectedCaseVersion);
         Assert.Equal("held-report-lease", request.LeaseToken);
         Assert.Equal(generationId, request.GenerationId);
         Assert.Equal(13, request.ExpectedGenerationVersion);
         Assert.Equal(operationKey, request.OperationKey);
-        // The message the operator submitted goes to preparation as posted;
-        // Core freezes it.
+        // The message the operator submitted goes to the send as posted;
+        // Core makes its line endings plain.
         Assert.Equal("Edited by staff.\r\n\r\nKind regards", request.CoveringMessage);
         Assert.Equal(ActorKind.Staff, request.Actor.Kind);
         Assert.Equal("reviewed@recipient.example", Assert.Single(request.ReviewedRecipients!.To));
         Assert.Equal("copy@recipient.example", Assert.Single(request.ReviewedRecipients.Cc));
-        Assert.Empty(send.Requests);
     }
 
     /// <summary>
     /// v28 P22: the delivery attaches the documents the operator ticked, and
-    /// the Attach choice reaches the preparation as the operator made it.
+    /// the Attach choice reaches the send as the operator made it.
     /// </summary>
     [Fact]
-    public async Task PrepareDeliveryCarriesTheDocumentsTheOperatorChose()
+    public async Task SendReportCarriesTheDocumentsTheOperatorChose()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
-        var generationId = Guid.NewGuid();
-        var prepare = new RecordingPrepareDelivery(caseId, generationId);
+        var send = new RecordingSendReport(StaffMailState.Submitted);
         using var factory = Compose(
             baseFactory,
             new FakeGetCase(caseId),
             FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId)),
             new FakeRenderer([1]),
-            prepareDelivery: prepare);
+            sendReport: send);
         using var client = Client(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=PrepareReportDelivery&section=report",
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
             Form(
                 AntiforgeryValue(html),
                 ("id", caseId.ToString("D")),
                 ("operationKey", Guid.NewGuid().ToString("N")),
                 ("editLeaseToken", "held-report-lease"),
                 ("expectedCaseVersion", "0"),
-                ("generationId", generationId.ToString("D")),
+                ("generationId", Guid.NewGuid().ToString("D")),
                 ("expectedGenerationVersion", "13"),
                 ("coveringMessage", "Edited by staff.\r\n\r\nKind regards"),
                 ("toRecipients", "reviewed@recipient.example"),
@@ -840,108 +841,99 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("attach", nameof(CaseReportArtifactKind.ImagePack))));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var request = Assert.Single(prepare.Requests);
+        var request = Assert.Single(send.Requests);
         Assert.Equal(
             [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.ImagePack],
             request.Attach);
     }
 
     /// <summary>
-    /// The message is what staff review before Prepare delivery: a blank one
-    /// never reaches preparation and the operator is told why.
+    /// The message is what staff review before Send report: a blank one
+    /// never reaches the send and the operator is told why.
     /// </summary>
     [Fact]
-    public async Task PrepareDeliveryRefusesABlankMessage()
+    public async Task SendReportRefusesABlankMessage()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
-        var generationId = Guid.NewGuid();
-        var prepare = new RecordingPrepareDelivery(caseId, generationId);
+        var send = new RecordingSendReport(StaffMailState.Submitted);
         using var factory = Compose(
             baseFactory,
             new FakeGetCase(caseId),
             FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId)),
             new FakeRenderer([1]),
-            prepareDelivery: prepare);
+            sendReport: send);
         using var client = Client(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=PrepareReportDelivery&section=report",
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
             Form(
                 AntiforgeryValue(html),
                 ("id", caseId.ToString("D")),
                 ("operationKey", Guid.NewGuid().ToString("N")),
                 ("editLeaseToken", "held-report-lease"),
                 ("expectedCaseVersion", "0"),
-                ("generationId", generationId.ToString("D")),
+                ("generationId", Guid.NewGuid().ToString("D")),
                 ("expectedGenerationVersion", "13"),
                 ("coveringMessage", "  "),
                 ("toRecipients", "reviewed@recipient.example")));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Empty(prepare.Requests);
+        Assert.Empty(send.Requests);
+        var reloaded = WebUtility.HtmlDecode(await GetHtmlAsync(client, response.Headers.Location!.OriginalString!));
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.MessageRefused,
+            reloaded,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// A preparation whose send failed is spent: Send is not offered for it
-    /// again and Prepare delivery is offered instead, so a fresh preparation
-    /// can be sent once the cause is put right. An unsent preparation keeps
-    /// its Send and offers no second Prepare.
+    /// A stored report offers one delivery form with one Send report, and no
+    /// second step (operator, 6 October 2026).
     /// </summary>
-    [Theory]
-    [InlineData(null)]
-    [InlineData(StaffMailState.Failed)]
-    public async Task AFailedSendSpendsThePreparationAndOffersPrepareDeliveryAgain(
-        StaffMailState? latestSendState)
+    [Fact]
+    public async Task AStoredReportOffersOneDeliveryFormWithOneSendReport()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
-        var preparationId = Guid.NewGuid();
-        var generation = new FakeCurrentGeneration(caseId, includeFeeNote: false);
-        using var factory = Compose(
-            baseFactory,
-            new FakeGetCase(caseId),
-            FullAssessmentProjection(caseId),
-            new FakeProjectionSource(ReadyInput(caseId)),
-            new FakeRenderer([1]),
-            sendPreparedReport: new RecordingSendPreparedReport(StaffMailState.Failed))
-            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<ICaseReportGenerationStore>();
-                services.AddSingleton<ICaseReportGenerationStore>(generation);
-                services.RemoveAll<ICaseReportDeliveryPreparationStore>();
-                services.AddSingleton<ICaseReportDeliveryPreparationStore>(
-                    new FakeDeliveryPreparation(caseId, generation.Record.Id, preparationId, latestSendState));
-            }));
+        using var factory = WithCurrentGeneration(
+            baseFactory, caseId, new FakeCurrentGeneration(caseId, includeFeeNote: false));
         using var client = Client(factory);
 
         var html = await EnterEditModeAsync(client, caseId);
 
-        if (latestSendState is StaffMailState.Failed)
-        {
-            Assert.DoesNotContain("data-send-prepared", html, StringComparison.Ordinal);
-            Assert.Contains("handler=PrepareReportDelivery", FormHtml(html, "PrepareReportDelivery"), StringComparison.Ordinal);
-        }
-        else
-        {
-            Assert.Contains("data-send-prepared", html, StringComparison.Ordinal);
-            Assert.DoesNotContain("handler=PrepareReportDelivery", html, StringComparison.Ordinal);
-        }
+        var form = FormHtml(html, "SendReport");
+        Assert.Contains("data-send-report", form, StringComparison.Ordinal);
+        Assert.Contains("name=\"toRecipients\"", form, StringComparison.Ordinal);
+        Assert.Contains("name=\"coveringMessage\"", form, StringComparison.Ordinal);
+        Assert.Contains(
+            $">{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendReport}<",
+            form,
+            StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(html, "handler=SendReport"));
+        Assert.DoesNotContain("handler=PrepareReportDelivery", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=SendPreparedReport", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-delivery", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The transport's returned state is stated as it is: only an observed
+    /// send says sent. The form is offered again after any outcome, so the
+    /// same report can be sent again (operator, 6 October 2026).
+    /// </summary>
     [Theory]
+    [InlineData(StaffMailState.Sent)]
     [InlineData(StaffMailState.Submitted)]
     [InlineData(StaffMailState.Unknown)]
     [InlineData(StaffMailState.Failed)]
-    public async Task SendPreparedReportDerivesStableOperationKeyAndDoesNotClaimSent(
+    public async Task SendReportStatesTheTransportOutcomeAndOffersTheFormAgain(
         StaffMailState returnedState)
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
-        var preparationId = Guid.NewGuid();
-        var send = new RecordingSendPreparedReport(returnedState);
+        var send = new RecordingSendReport(returnedState);
         var generation = new FakeCurrentGeneration(caseId, includeFeeNote: false);
         var snapshots = new RecordingRepairSpecificationSnapshots();
         using var factory = Compose(
@@ -950,14 +942,11 @@ public sealed partial class AssessmentReportDraftWebTests
             FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId)),
             new FakeRenderer([1]),
-            sendPreparedReport: send)
+            sendReport: send)
             .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
             {
                 services.RemoveAll<ICaseReportGenerationStore>();
                 services.AddSingleton<ICaseReportGenerationStore>(generation);
-                services.RemoveAll<ICaseReportDeliveryPreparationStore>();
-                services.AddSingleton<ICaseReportDeliveryPreparationStore>(
-                    new FakeDeliveryPreparation(caseId, generation.Record.Id, preparationId));
                 services.RemoveAll<IRepairSpecificationSnapshotStore>();
                 services.AddSingleton<IRepairSpecificationSnapshotStore>(snapshots);
             }));
@@ -965,35 +954,41 @@ public sealed partial class AssessmentReportDraftWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=SendPreparedReport&section=report",
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
             Form(
                 AntiforgeryValue(html),
                 ("id", caseId.ToString("D")),
-                ("preparationId", preparationId.ToString("D")),
-                ("expectedPreparationVersion", "9"),
-                ("operationKey", "client-supplied-is-ignored")));
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", generation.Record.Id.ToString("D")),
+                ("expectedGenerationVersion", "1"),
+                ("coveringMessage", "Please find attached our report."),
+                ("toRecipients", "reviewed@recipient.example")));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var request = Assert.Single(send.Requests);
-        Assert.Equal(caseId, request.CaseId);
-        Assert.Equal(preparationId, request.PreparationId);
-        Assert.Equal(9, request.ExpectedPreparationVersion);
-        Assert.Equal(preparationId.ToString("N"), request.OperationKey);
-        Assert.Equal(ActorKind.Staff, request.Actor.Kind);
+        Assert.Single(send.Requests);
 
         var reloaded = await GetHtmlAsync(client, response.Headers.Location!.OriginalString!);
         var expectedMessage = returnedState switch
         {
+            StaffMailState.Sent => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendObservedSent,
             StaffMailState.Submitted => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendAccepted,
             StaffMailState.Failed => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendFailed,
             _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown
         };
         Assert.Contains(expectedMessage, reloaded, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendObservedSent,
-            reloaded,
-            StringComparison.Ordinal);
+        if (returnedState != StaffMailState.Sent)
+        {
+            Assert.DoesNotContain(
+                Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendObservedSent,
+                reloaded,
+                StringComparison.Ordinal);
+        }
         Assert.Empty(snapshots.Requests);
+
+        var editing = await EnterEditModeAsync(client, caseId);
+        Assert.Contains("data-send-report", editing, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1177,6 +1172,10 @@ public sealed partial class AssessmentReportDraftWebTests
             ActionActor actor, Guid id, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportGenerationRecord?>(record);
 
+        public Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+            SendCaseReportRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<CaseReportGenerationRecord?> GetAsync(
             ActionActor actor, Guid id, Guid generationId, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportGenerationRecord?>(record);
@@ -1243,6 +1242,10 @@ public sealed partial class AssessmentReportDraftWebTests
             ActionActor actor,
             Guid id,
             CaseWorkSelector work, CancellationToken cancellationToken) => Task.FromResult(current);
+
+        public Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+            SendCaseReportRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<CaseReportGenerationRecord?> GetAsync(
             ActionActor actor,
@@ -1401,29 +1404,12 @@ public sealed partial class AssessmentReportDraftWebTests
             Task.FromResult<CaseReportFreezeInputs?>(null);
     }
 
-    private sealed class RecordingPrepareDelivery(Guid caseId, Guid generationId)
-        : IPrepareCaseReportDelivery
+    private sealed class RecordingSendReport(StaffMailState state) : ISendCaseReport
     {
-        public List<PrepareCaseReportDeliveryRequest> Requests { get; } = [];
-
-        public Task<CaseReportDeliveryPreparation> ExecuteAsync(
-            PrepareCaseReportDeliveryRequest request,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(request);
-            return Task.FromResult(new CaseReportDeliveryPreparation(
-                Guid.NewGuid(), caseId, generationId, request.ExpectedGenerationVersion,
-                1, [], request.Actor, ReportFixtureAtUtc, new string('a', 64)));
-        }
-    }
-
-    private sealed class RecordingSendPreparedReport(StaffMailState state)
-        : ISendPreparedCaseReport
-    {
-        public List<SendPreparedCaseReportRequest> Requests { get; } = [];
+        public List<SendCaseReportRequest> Requests { get; } = [];
 
         public Task<StaffMailOperation> ExecuteAsync(
-            SendPreparedCaseReportRequest request,
+            SendCaseReportRequest request,
             CancellationToken cancellationToken)
         {
             Requests.Add(request);
@@ -1431,45 +1417,9 @@ public sealed partial class AssessmentReportDraftWebTests
                 Guid.NewGuid(), state, null, 1, ReportFixtureAtUtc,
                 state == StaffMailState.Submitted ? ReportFixtureAtUtc : null,
                 null, null, Guid.NewGuid(), 1, new string('a', 64), null, null,
-                StaffMailPurpose.CaseReport, request.CaseId,
-                request.ExpectedPreparationVersion, null));
+                StaffMailPurpose.CaseReport, request.GenerationId,
+                request.ExpectedGenerationVersion, null));
         }
-    }
-
-    private sealed class FakeDeliveryPreparation(
-        Guid caseId, Guid generationId, Guid preparationId, StaffMailState? latestSendState = null)
-        : ICaseReportDeliveryPreparationStore
-    {
-        private readonly CaseReportDeliveryPreparationRecord record = new(
-            new(preparationId, caseId, generationId, 1, 1, [], ActionActor.SystemWorker("test"), ReportFixtureAtUtc, "fingerprint"),
-            new([], [], "subject"),
-            0,
-            0,
-            CaseReportGenerationState.Confirmed,
-            true,
-            1,
-            [],
-            LatestSendState: latestSendState);
-
-        public Task<CaseReportDeliveryPreparationRecord> PrepareAsync(
-            PrepareCaseReportDeliveryCommand command,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<CaseReportDeliveryPreparationRecord?> GetAsync(
-            ActionActor actor,
-            Guid ownerCaseId,
-            Guid ownerPreparationId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<CaseReportDeliveryPreparationRecord?>(
-                ownerCaseId == caseId && ownerPreparationId == preparationId ? record : null);
-
-        public Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
-            ActionActor actor,
-            Guid ownerCaseId,
-            CaseWorkSelector work,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<CaseReportDeliveryPreparationRecord?>(
-                ownerCaseId == caseId ? record : null);
     }
 
     private sealed class RecordingRepairSpecificationSnapshots : IRepairSpecificationSnapshotStore
