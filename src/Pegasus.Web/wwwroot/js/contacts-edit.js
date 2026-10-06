@@ -3,20 +3,6 @@
 (function () {
     'use strict';
 
-    var addRecipient = document.querySelector('[data-add-report-recipient]');
-    var recipients = document.getElementById('additional-report-recipients');
-    if (addRecipient && recipients) {
-        addRecipient.addEventListener('click', function () {
-            var input = document.createElement('input');
-            input.name = 'AdditionalReportRecipients';
-            input.type = 'email';
-            input.autocomplete = 'email';
-            input.setAttribute('aria-label', 'Additional report recipient');
-            recipients.appendChild(input);
-            input.focus();
-        });
-    }
-
     // Salvage matrix: Add band appends a blank row to its category's table and
     // Remove takes its row away. Each table's spare row is the pattern.
     var salvageEditor = document.querySelector('[data-salvage-matrix-editor]');
@@ -61,7 +47,7 @@
     var sendingEditor = document.querySelector('[data-report-sending-editor]');
     if (sendingEditor) {
         var rulesHost = sendingEditor.querySelector('[data-rs-rules]');
-        var textKinds = ['ImagesFrom', 'Mentions', 'SenderNot'];
+        var textKinds = ['ImagesFrom', 'Mentions', 'BodyshopMentions', 'SenderNot'];
         var syncCondition = function (condition) {
             var kind = condition.querySelector('[data-rs-kind]').value;
             condition.querySelectorAll('[data-rs-value]').forEach(function (field) {

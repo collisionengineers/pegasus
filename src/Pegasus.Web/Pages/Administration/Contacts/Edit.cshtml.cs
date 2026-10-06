@@ -62,8 +62,6 @@ public sealed class EditModel(
 
     [BindProperty] public long PrincipalExpectedVersion { get; set; }
     [BindProperty] public PrincipalReportGenerationPolicy ReportGenerationPolicy { get; set; }
-    [BindProperty] public bool IncludeOriginalInstructionSender { get; set; }
-    [BindProperty] public string[] AdditionalReportRecipients { get; set; } = [];
     [BindProperty] public decimal? DefaultFee { get; set; }
     [BindProperty] public string? ReportSettingsOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public string? SalvageMatrixOperationKey { get; set; } = NewOperationKey();
@@ -153,8 +151,6 @@ public sealed class EditModel(
         ContactId = id;
         ClearModelStatePreservingErrors(
             nameof(ReportGenerationPolicy),
-            nameof(IncludeOriginalInstructionSender),
-            nameof(AdditionalReportRecipients),
             nameof(DefaultFee),
             nameof(PrincipalExpectedVersion),
             nameof(ExpectedVersion),
@@ -167,11 +163,9 @@ public sealed class EditModel(
         {
             try
             {
-                var recipients = PrincipalReportRecipientSettings.Normalize(
-                    IncludeOriginalInstructionSender, AdditionalReportRecipients);
                 await updatePrincipalReportSettings.ExecuteAsync(new(
                     Principal!.Id, expectedVersion, actor, ReportSettingsOperationKey!,
-                    "Updated report settings", ReportGenerationPolicy, recipients,
+                    "Updated report settings", ReportGenerationPolicy,
                     DefaultFee ?? 0m,
                     ExpectedVersion,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Principal.NotesOnEveryCase), cancellationToken);
@@ -452,15 +446,13 @@ public sealed class EditModel(
         PrincipalExpectedVersion = Principal.Version;
         ReplacementExpectedVersion = Principal.Version;
         ReportGenerationPolicy = Principal.ReportGenerationPolicy;
-        IncludeOriginalInstructionSender = (Principal.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender;
-        AdditionalReportRecipients = (Principal.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses.ToArray();
         DefaultFee = Principal.DefaultFee;
         LocationIsImageBasedAssessment = Principal.DefaultInspectionAddress is null;
         LocationLabel = Principal.DefaultInspectionLocationLabel;
         LocationAddress = Principal.DefaultInspectionAddress;
         LocationPostcode = Principal.DefaultInspectionPostcode;
         CredentialVersion = Credential?.Version ?? 0;
-        ReportSendingRules = Principal.ReportSending ?? PrincipalReportSendingRules.Default;
+        ReportSendingRules = Principal.ReportSending;
         SalvageRows = (Principal.SalvageMatrix?.Bands ?? [])
             .Select(band => new SalvageMatrixEntry(
                 band.Category,
@@ -614,7 +606,6 @@ public sealed class EditModel(
             ReportSendingRulesRule.AddressInCcAndNeverCc => "An address cannot be in both Cc and Never cc.",
             ReportSendingRulesRule.SendToOnlyNeedsAddresses => "Send to only needs at least one Send to address.",
             ReportSendingRulesRule.TextRequired => $"{where}: the text is required.",
-            ReportSendingRulesRule.TextTooLong => $"{where}: keep the text to {PrincipalReportSendingRules.MaximumTextLength} characters or fewer.",
             ReportSendingRulesRule.UnknownContact => $"{where}: choose a contact from the list.",
             ReportSendingRulesRule.UnknownOutcome => $"{where}: choose an outcome from the list.",
             ReportSendingRulesRule.EmptyRule => $"{where}: add at least one condition.",

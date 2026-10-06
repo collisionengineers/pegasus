@@ -98,6 +98,15 @@ public sealed partial class OrganizationAdministrationWebTests
             $"/Administration/Contacts/Edit/{principalContactId:D}";
         var evaSubmissionHtml = await EditContactAsync(client, evaSubmissionPath);
         Assert.Contains("pegasustest</h2>", evaSubmissionHtml, StringComparison.Ordinal);
+        // A new Principal starts with the default report sending rules; the
+        // retired Report recipients settings are not offered.
+        Assert.Equal(
+            EfOrganizationAdministration.ToReportSendingJson(Pegasus.Core.Reports.PrincipalReportSendingRules.Default),
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}';"));
+        Assert.DoesNotContain("Report recipients", evaSubmissionHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("IncludeOriginalInstructionSender", evaSubmissionHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("AdditionalReportRecipients", evaSubmissionHtml, StringComparison.Ordinal);
         var evaSubmissionForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
@@ -278,6 +287,11 @@ public sealed partial class OrganizationAdministrationWebTests
         // One spare blank rule; the claim source list offers a seeded source.
         Assert.Equal(1, Regex.Count(html, "name=\"RuleIndex\""));
         Assert.Contains(">Car 2 Go</option>", html, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"BodyshopMentions\">Bodyshop mentions</option>", html, StringComparison.Ordinal);
+        Assert.Contains("Send is refused; staff may override with a reason.", html, StringComparison.Ordinal);
+        // The texts have no length limit.
+        var sendingPanel = html[html.IndexOf("data-report-sending-editor", StringComparison.Ordinal)..html.IndexOf("principal-salvage-title", StringComparison.Ordinal)];
+        Assert.DoesNotContain("maxlength", sendingPanel, StringComparison.Ordinal);
         var versionBefore = await factory.Database.ScalarAsync<long>(principalVersion);
 
         using var refused = await client.PostAsync(
@@ -311,7 +325,7 @@ public sealed partial class OrganizationAdministrationWebTests
                 new("RuleIndex", "0"), new("Rule0Match", "Any"),
                 new("Rule0Cond0Kind", "Outcome"), new("Rule0Cond0Outcome", "repairable"),
                 new("Rule0Cond1Kind", "Mentions"), new("Rule0Cond1Text", "Luton, Dunstable"),
-                new("Rule0Cond2Kind", ""),
+                new("Rule0Cond2Kind", "BodyshopMentions"), new("Rule0Cond2Text", "Easdons, James Claims"),
                 new("Rule0CcAdd", "x@example.com, y@example.com"), new("Rule0Stop", "Check with Andy."),
                 new("RuleIndex", "1"), new("Rule1Match", "All"), new("Rule1Cond0Kind", "")
             ]));
@@ -330,6 +344,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains("value=\"to@example.com\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"Check first.\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"Luton, Dunstable\"", reloaded, StringComparison.Ordinal);
+        Assert.Contains("value=\"Easdons, James Claims\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"x@example.com, y@example.com\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"{reg} Initial\"", reloaded, StringComparison.Ordinal);
         // The saved rule and one spare blank rule.

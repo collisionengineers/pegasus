@@ -33,9 +33,9 @@ public sealed record PrincipalAdministrationSummary(
     bool IsActive,
     long Version,
     int AllocatedCaseCount,
-    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
-    PrincipalReportRecipientSettings? ReportRecipients = null,
+    CaseInspectionMode InspectionMode,
+    PrincipalReportGenerationPolicy ReportGenerationPolicy,
+    PrincipalReportSendingRules ReportSending,
     string? DefaultInspectionLocationLabel = null,
     string? DefaultInspectionAddress = null,
     string? DefaultInspectionPostcode = null,
@@ -44,8 +44,7 @@ public sealed record PrincipalAdministrationSummary(
     long? DefaultInspectionSourceVersion = null,
     string? NotesOnEveryCase = null,
     SalvageMatrix? SalvageMatrix = null,
-    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
-    PrincipalReportSendingRules? ReportSending = null);
+    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard);
 
 public sealed record PrincipalAdministrationDetails(
     string Name,
@@ -274,10 +273,9 @@ public static class OrganizationAdministrationPolicy
                 0,
                 predecessor.InspectionMode,
                 predecessor.ReportGenerationPolicy,
-                predecessor.ReportRecipients,
+                predecessor.ReportSending,
                 SalvageMatrix: predecessor.SalvageMatrix,
-                DefaultFee: predecessor.DefaultFee,
-                ReportSending: predecessor.ReportSending));
+                DefaultFee: predecessor.DefaultFee));
     }
 
     public static void RequireUniquePrincipalCode(bool alreadyExists)
@@ -407,15 +405,14 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// The report route, suggested recipients and default fee change, and
-    /// nothing else does. The code, the organization, the lineage and the
-    /// allocation history are untouched.
+    /// The report route, default fee and notes change, and nothing else
+    /// does. The code, the organization, the lineage and the allocation
+    /// history are untouched.
     /// </summary>
     public static Principal PlanPrincipalReportSettingsUpdate(
         Principal current,
         long expectedVersion,
         PrincipalReportGenerationPolicy reportGenerationPolicy,
-        PrincipalReportRecipientSettings reportRecipients,
         decimal defaultFee,
         string? notesOnEveryCase = null)
     {
@@ -436,23 +433,17 @@ public static class OrganizationAdministrationPolicy
                 OrganizationAdministrationError.PrincipalInactive);
         }
 
-        ArgumentNullException.ThrowIfNull(reportRecipients);
         if (!Enum.IsDefined(reportGenerationPolicy))
         {
             throw new ArgumentOutOfRangeException(nameof(reportGenerationPolicy));
         }
         PrincipalDefaultFeePolicy.Require(defaultFee, nameof(defaultFee));
-        var normalizedRecipients = PrincipalReportRecipientSettings.Normalize(
-            reportRecipients.IncludeOriginalInstructionSender,
-            reportRecipients.AdditionalAddresses);
         var changed = current.ReportGenerationPolicy != reportGenerationPolicy
-            || !Equals(current.ReportRecipients ?? PrincipalReportRecipientSettings.None, normalizedRecipients)
             || current.DefaultFee != defaultFee
             || !string.Equals(current.NotesOnEveryCase, notesOnEveryCase, StringComparison.Ordinal);
         return current with
         {
             ReportGenerationPolicy = reportGenerationPolicy,
-            ReportRecipients = normalizedRecipients,
             DefaultFee = defaultFee,
             NotesOnEveryCase = notesOnEveryCase,
             Version = changed ? checked(current.Version + 1) : current.Version
@@ -498,7 +489,7 @@ public static class OrganizationAdministrationPolicy
     public static Principal PlanPrincipalReportSendingUpdate(
         Principal current,
         long expectedVersion,
-        PrincipalReportSendingRules? rules)
+        PrincipalReportSendingRules rules)
     {
         ArgumentNullException.ThrowIfNull(current);
         RequireExpectedVersion(expectedVersion, nameof(expectedVersion));

@@ -61,6 +61,12 @@ together persist one of the four policy values, alongside the recipient
 settings. The recipient settings only suggest a report's recipients: the
 delivery still requires a staff send action.
 
+The recipient settings are superseded by the Principal's report sending rules
+(operator, 6 October 2026): every Principal has rules, and the original sender
+and fixed addresses are set there
+([FRD-04](../frd/frd-04-parties-accounts-and-access.md#contacts-administration)).
+The report generation policy decided here stands.
+
 ## Links
 
 - [ADR-0038 — Manual-only EVA API submission](0038-manual-only-eva-api-submission.md)

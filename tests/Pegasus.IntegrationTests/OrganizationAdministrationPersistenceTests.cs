@@ -46,7 +46,6 @@ public sealed class OrganizationAdministrationPersistenceTests
             operationKey,
             "Confirm contact-owned report settings",
             changedPolicy,
-            PrincipalReportRecipientSettings.None,
             205.00m,
             contactVersion);
 
@@ -112,7 +111,7 @@ public sealed class OrganizationAdministrationPersistenceTests
 
         // The seed gave QDOS its rules; the update replaces them.
         var before = await getPrincipal.ExecuteAsync(Administrator, principal.Id, default);
-        Assert.NotNull(before?.Principal.ReportSending);
+        Assert.NotEqual(PrincipalReportSendingRules.Default, before!.Principal.ReportSending);
 
         var request = Request(principal.Version, principal.ContactVersion, "principal:report-sending:first", rules);
         var updated = await update.ExecuteAsync(request, default);
@@ -414,10 +413,11 @@ public sealed class OrganizationAdministrationPersistenceTests
     /// top-15 principal identities exactly once, by the exact code/GUID the
     /// foundation handoff froze — and YML (the confirmed HDUK-branded route)
     /// stays a distinct principal role rather than merging with a document
-    /// issuer or any other principal.
+    /// issuer or any other principal. The Report Sending SOP seed adds the
+    /// other 17 SOP Principals, so a fresh database holds 32.
     /// </summary>
     [Fact]
-    public async Task FreshDatabaseSeedsExactlyTheFifteenFrozenPrincipalsOnce()
+    public async Task FreshDatabaseSeedsTheFifteenFrozenPrincipalsOnce()
     {
         var expected = new (string Code, Guid PrincipalId)[]
         {
@@ -449,7 +449,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             .Select(principal => new { principal.Id, principal.Code })
             .ToListAsync();
 
-        Assert.Equal(15, seeded.Count);
+        Assert.Equal(32, seeded.Count);
         foreach (var (code, principalId) in expected)
         {
             var matches = seeded.Where(row => row.Id == principalId).ToArray();

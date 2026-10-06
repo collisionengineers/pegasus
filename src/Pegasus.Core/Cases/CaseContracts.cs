@@ -15,9 +15,11 @@ public sealed record Principal(
     Guid? SuccessorId,
     bool IsActive,
     long Version,
-    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
-    PrincipalReportRecipientSettings? ReportRecipients = null,
+    CaseInspectionMode InspectionMode,
+    PrincipalReportGenerationPolicy ReportGenerationPolicy,
+    // The Principal's report sending rules (Report Sending SOP v5). Every
+    // Principal has them; one the SOP does not name has the defaults.
+    PrincipalReportSendingRules ReportSending,
     // The record's "Notes on every Case" (Contacts planning, 13 September): shown
     // read-only on every Case of this Principal, read live from the record and
     // never copied. Null when the record carries none, or when a reader did not
@@ -26,9 +28,7 @@ public sealed record Principal(
     // The Principal's salvage matrix (29 September 2026); null when it has none.
     SalvageMatrix? SalvageMatrix = null,
     // The agreed fee a new Case of this Principal starts with (5 October 2026).
-    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
-    // The Principal's report sending rules (Report Sending SOP v5); null when the SOP has no entry.
-    PrincipalReportSendingRules? ReportSending = null);
+    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard);
 
 public enum CaseType
 {
@@ -255,7 +255,6 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     string OperationKey,
     string? Reason,
     PrincipalReportGenerationPolicy ReportGenerationPolicy,
-    PrincipalReportRecipientSettings ReportRecipients,
     decimal DefaultFee,
     long ExpectedContactVersion,
     string? NotesOnEveryCase = null);
@@ -290,14 +289,14 @@ public interface IUpdatePrincipalSalvageMatrix
 
 /// <summary>
 /// Replace a principal's report sending rules with the ones an administrator
-/// entered; null rules leave the principal with the defaults.
+/// entered.
 /// </summary>
 public sealed record UpdatePrincipalReportSendingRequest(
     Guid PrincipalId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    PrincipalReportSendingRules? Rules,
+    PrincipalReportSendingRules Rules,
     long ExpectedContactVersion);
 
 public interface IUpdatePrincipalReportSending

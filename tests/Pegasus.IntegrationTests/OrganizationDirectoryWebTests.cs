@@ -60,8 +60,6 @@ public sealed partial class OrganizationDirectoryWebTests
             ["PrincipalExpectedVersion"] = InputValue(settingsAfterLocationHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(settingsAfterLocationHtml, "ExpectedVersion"),
             ["ReportGenerationPolicy"] = "EvaManualApi",
-            ["IncludeOriginalInstructionSender"] = bool.TrueString,
-            ["AdditionalReportRecipients"] = "reports@example.test",
             ["DefaultFee"] = "225.50"
         };
         // A new Principal starts at the standard default fee.
@@ -76,7 +74,7 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND ReportGenerationPolicy = 'EvaManualApi' AND IncludeOriginalInstructionSender = 1 AND ReportRecipientAddressesJson LIKE '%reports@example.test%' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF' AND DefaultFee = 225.50;"));
+                $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND ReportGenerationPolicy = 'EvaManualApi' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF' AND DefaultFee = 225.50;"));
 
         using var indexGet = await client.GetAsync("/Administration/Contacts");
         var indexHtml = await indexGet.Content.ReadAsStringAsync();
