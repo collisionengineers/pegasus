@@ -6,7 +6,7 @@
 
 - EVA is optional. Each Principal picks one report route: Pegasus, EVA ZIP
   export, manual EVA API, or automatic EVA API on entering Review.
-- Sending to EVA never changes the Case state. Only Hand to Engineer moves a
+- Sending to EVA never changes the Case state. Only Assign Engineer moves a
   Case from Review to With Engineer.
 - The ZIP is an export only. Pegasus never claims EVA received it.
 - An API send records one of four outcomes: Succeeded, Rejected, Partial,
@@ -53,8 +53,8 @@ status, Case custody or Audit custody rule.
 
 **Sending never moves the Case.** A ZIP download or an API send records its
 handoff evidence and the Case version it used. The Case stays in its current
-state, with the same version and edit lease. Hand to Engineer
-([FRD-13](frd-13-case-lifecycle-and-workflow.md#hand-to-engineer)) is the only
+state, with the same version and edit lease. Assign Engineer
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)) is the only
 way from Review to With Engineer.
 
 ### Focused EVA manual handoff

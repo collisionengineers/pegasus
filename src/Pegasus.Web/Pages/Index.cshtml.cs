@@ -252,7 +252,7 @@ public partial class IndexModel(
                         lease.Version,
                         actor,
                         operationKey,
-                        CaseWorkspaceLabels.HandToEngineer,
+                        CaseWorkspaceLabels.AssignEngineer,
                         lease.Token,
                         engineerId,
                         new CaseReadinessEvidence(

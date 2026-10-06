@@ -14,7 +14,7 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public static class CaseWorkspaceLabels
 {
-    public const string HandToEngineer = "Hand to Engineer";
+    public const string AssignEngineer = "Assign Engineer";
 
     /// <summary>
     /// The v26 frame's own words: the ribbon controls, the Actions menu, the
