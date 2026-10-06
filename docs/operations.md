@@ -4,6 +4,52 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 87 — 6 October 2026 (deployment live)
+
+Release 87 deployed [PR 1049](https://github.com/collisionengineers/pegasus/pull/1049). It merged ten PRs into `dev` with no conflicts and no fixes of its own:
+
+- [PR 1023](https://github.com/collisionengineers/pegasus/pull/1023): every Glass's page pattern has a one-second match budget, and a timeout settles as the stage's own refusal with `regex=timeout`, never as `glass.transport.failed`. It fixes [issue 1021](https://github.com/collisionengineers/pegasus/issues/1021).
+- [PR 1036](https://github.com/collisionengineers/pegasus/pull/1036): Resume and Fetch again re-prove a vehicle whose estimate already exists, and Resume reopens the estimator as the portal does (`ere_id` 0). It fixes [issue 1026](https://github.com/collisionengineers/pegasus/issues/1026).
+- [PR 1037](https://github.com/collisionengineers/pegasus/pull/1037): identity refusals name the control that was missing, a newly created vehicle is read once more before the identity check, and a rejected password is its own code `glass.login.rejected`. It fixes [issue 1030](https://github.com/collisionengineers/pegasus/issues/1030).
+- [PR 1038](https://github.com/collisionengineers/pegasus/pull/1038): both estimate readers (XML and calculation sheet) take every section, the paint level and set-up time the CE account prints, and every labour time unit. It fixes [issue 1027](https://github.com/collisionengineers/pegasus/issues/1027) and [issue 1029](https://github.com/collisionengineers/pegasus/issues/1029).
+- [PR 1039](https://github.com/collisionengineers/pegasus/pull/1039): a refused export is kept rather than discarded, an export that fails after the relay can be fetched again, and a login page at the relay is looked up instead of reported as a landing. It fixes [issue 1031](https://github.com/collisionengineers/pegasus/issues/1031).
+- [PR 1040](https://github.com/collisionengineers/pegasus/pull/1040): a Glass's valuation report is filed only when the PDF names the Case registration. It fixes [issue 1032](https://github.com/collisionengineers/pegasus/issues/1032).
+- [PR 1041](https://github.com/collisionengineers/pegasus/pull/1041): a system write (custody confirmation, lookup fill) advances the Case version without ending the staff edit session; Renew is removed and a lapsed, unclaimed lease is picked up silently; the total-loss, unroadworthy and contract-sum save refusals are dropped (readiness still lists them).
+- [PR 1043](https://github.com/collisionengineers/pegasus/pull/1043): in Review, the Next action opens the Assign Engineer dialog instead of jumping to a section; "Hand to Engineer" is renamed Assign Engineer. It fixes [issue 1025](https://github.com/collisionengineers/pegasus/issues/1025).
+- [PR 1045](https://github.com/collisionengineers/pegasus/pull/1045): the Valuation section is v33 design D, one Engineer's Value beside its calculation, with the recorded calculation named as the figure's source.
+- [PR 1048](https://github.com/collisionengineers/pegasus/pull/1048): the Cases rail is one continuous list (Not ready, Review, With Engineer, Query, Triage, Awaiting instruction, Held, Unidentified) with no groups, dividers, exception tint or Completed queue; `/Cases?tab=complete` is Not found and a Completed Case is found through Search. It fixes [issue 1046](https://github.com/collisionengineers/pegasus/issues/1046).
+
+The route was the normal App Service route with an unchanged migration identity, run from the Windows workstation. Web and Worker are Running on the approved release, and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `f8ae02cf81f9437076c65322e9c74ffc22f3a32d` (the merge of PR 1049 into `dev`; its tree equals the PR head `27c5ca52e` that CI tested). Promoted atomically to both `dev` and `main` at 11:30:45Z; `main` was `e50fbd6c8`. Manifest schema 3 SHA-256 `DE7D6390B766B7919FA67597D1CD9F310E6002877456357B488E76DD92A815AD`. `web.zip` SHA-256 `3945C1EDDBE9F1B5F6EFA1E62DD4818144AC728F74848052FD3A43B279878273`, 107,051,157 bytes. `worker.zip` SHA-256 `D4D49910FD525F4119795FA3A78C716A5BD14EC4146F7A49AE1CF5370D596AA9`. Windows `efbundle.exe` SHA-256 `A2424B1325273FA3D88B932422D73B7584E4A54CFC4ABF69FBF42A9B36A57D22`. |
+| Review and verification | No PR had review feedback. The merge train (1023, 1036, 1037, 1038, 1039, 1040, 1041, 1043, 1045, 1048) merged with no conflict at any step or pair; the lost-work audit's only REVIEW lines are two PR 1036 lines that its stacked children 1037, 1039 and 1040 revise. A Release build of the combined tip had 0 errors and 0 warnings. <br>**CI:** PR 1049 passed all 11 jobs at `27c5ca52e`, and each PR passed CI at its head. The Local, Artifact, PreDeploy and PreProvision gates passed. <br>**Operator approvals (6 October 2026):** the combination and merge with the request, the wipe with its fresh counts, then merge authority, and the exact manifest and deployment targets. |
+| Schema and grants | Unchanged. The manifest's `migrationIdentity` is the deployed head `20261005150000_PrincipalDefaultFee`; no bundle, bootstrap or grant step ran. |
+| Web and Worker deployment | Provision (11:31:34–11:31:46Z) reported no changes. B1 quota in `uksouth` read 3, and the Worker `Disabled` settings rendered `false`. `az webapp deploy` (deployment `0277d329-7066-449c-ab84-651fe10ba19e`, package `20261006113154.zip`) started 11:31:46Z. The exact SHA answered `/health/ready` and `/diagnostics/version` at 11:36:30Z. The Worker ZIP was deployed by 11:38:57Z (deployment `11245f67-f501-4b21-8d8f-894e5ffb07c8`). |
+| Production smoke | Passed at 11:39:41Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20261006113154.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-10-06T11:35:00Z`; the active Graph subscription expires `2026-10-08T13:10:00Z`. |
+| Wipe | Ordinary intake wipe before the release (approved 6 October 2026), Worker `pegasus-prod-worker-252ow37gij` stopped for it (`Stopped` 10:50:58Z) and started again after verification (`Running` 10:51:48Z); the Web App stayed Running. The fresh dry run immediately before the execute found 76 blobs (122,800,525 bytes) in `pegcustody252ow37gij/transient-intake` and 552 rows across 90 non-preserved tables in SQL `pegasus` on `pegasus-prod-sql-252ow37gij` (2 Cases); the batch reported 553 affected rows including the mail-boundary update. The committed mail cutoff is `2026-10-06T10:51:15.9236604+00:00`; 39 effective tables and 727 preserved rows remain. `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences` were unchanged at 69/11/1. `ValuationPresets` and `EmailTemplates` were 0/0 and 3/3 before/after, and built-in image tags 5/5. `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook and Box were untouched. No `-ResetTestEstate` was used. Post-run script verification reported zero blobs remaining and zero wiped tables holding rows. |
+| Still owed | Live proofs of the changes themselves:<br>• PR 1036: Resume before and after a save, and Fetch again, on a Case whose estimate exists.<br>• PR 1039: one estimator session longer than 30 minutes returning its export.<br>• PR 1041: a Case edit continuing through a custody confirmation without the "case action was not applied" notice.<br>• PR 1043: the Review Next action opening the Assign Engineer dialog.<br>• PR 1045: a signed-in walk of the Valuation section in both views with a real save.<br>The Release 81 to 86 proofs remain owed. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-87-f8ae02cf`; the build and deploy drivers and their logs at `artifacts/releases/release-87-driver`. |
+
+## Intake data wipe — 5 October 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped for the maintenance window and read back `Stopped`, then resumed and
+  read back `Running` after verification; the Web App stayed Running. The fresh
+  dry run immediately before the execute found 309 blobs (345,513,862 bytes)
+  in `pegcustody252ow37gij/transient-intake` and 2,450 rows across 90
+  non-preserved tables in SQL `pegasus` on `pegasus-prod-sql-252ow37gij` (10
+  Cases); the batch reported 2,451 affected rows including the mail-boundary
+  update. The committed mail cutoff is `2026-10-05T21:48:47.0472336+00:00`;
+  39 effective tables and 717 preserved rows remain.
+  `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences` were unchanged
+  at 67/11/1. `ValuationPresets` and `EmailTemplates` were 0/0 and 1/1
+  before/after, and built-in image tags 5/5.
+  `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook and Box were
+  untouched. No `-ResetTestEstate` was used. Post-run script verification
+  reported zero blobs remaining and zero wiped tables holding rows.
+
 ## Release 86 — 5 October 2026 (deployment live)
 
 Release 86 deployed [PR 1034](https://github.com/collisionengineers/pegasus/pull/1034). It merged three PRs into `dev` together with the fixes from the PR 1024 review:
