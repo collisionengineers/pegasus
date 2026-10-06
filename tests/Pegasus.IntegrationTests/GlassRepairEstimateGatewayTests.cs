@@ -3660,8 +3660,8 @@ public sealed class GlassRepairEstimateGatewayTests
         public async Task<GlassRepairEstimateSession> LaunchAsync(
             ActionActor? actor = null,
             string operationKey = "glass-launch-1",
-            CancellationToken cancellationToken = default,
-            Guid? specificationId = null)
+            Guid? specificationId = null,
+            CancellationToken cancellationToken = default)
         {
             var launcher = actor ?? Engineer;
             var step = await Gateway.PrepareLaunchAsync(
