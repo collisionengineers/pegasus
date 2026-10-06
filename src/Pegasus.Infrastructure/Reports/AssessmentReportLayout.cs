@@ -35,10 +35,9 @@ internal sealed record PreparedReportPhoto(byte[] Content, bool FullPage);
 internal static class AssessmentReportLayout
 {
     /// <summary>
-    /// Exactly the requested artifact kind. An assessment report frozen with
-    /// <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> ends with the fee
-    /// note's own pages: the same fee facts and the same accepted terms the
-    /// separate document prints, after a page break, in one document.
+    /// Exactly the requested artifact kind. An assessment report always ends
+    /// with the fee note's own pages: the same fee facts and the same accepted
+    /// terms the separate document prints, after a page break, in one document.
     /// </summary>
     internal static Document Compose(
         AssessmentReportSnapshot snapshot,
@@ -78,10 +77,7 @@ internal static class AssessmentReportLayout
                     break;
                 default:
                     Pages(feeNote: false, column => Report(column, snapshot, images));
-                    if (snapshot.IncludeFeeNote)
-                    {
-                        Pages(feeNote: true, column => FeeNote(column, snapshot));
-                    }
+                    Pages(feeNote: true, column => FeeNote(column, snapshot));
                     break;
             }
         });

@@ -740,36 +740,33 @@ public sealed class CaseReportGenerationTests
     }
 
     /// <summary>
-    /// R34B: the operator's packaging choice reaches the freeze, so it is
-    /// frozen with the snapshot rather than decided again at render time.
-    /// A separate fee-note document never carries it.
+    /// The report freezes fresh facts; a separate fee note names the
+    /// generation it extends, so it is made from that report's frozen facts.
     /// </summary>
     [Fact]
-    public async Task TheFeeNotePackagingChoiceIsCarriedIntoTheFreeze()
+    public async Task ASeparateFeeNoteNamesTheGenerationItExtends()
     {
         var store = new FakeStore();
         var targetGenerationId = Guid.NewGuid();
 
         await Use(store, new RecordingRenderer(), new RecordingCustody())
-            .ExecuteAsync(Request() with { IncludeFeeNote = true }, default);
+            .ExecuteAsync(Request(), default);
         await Use(store, new RecordingRenderer(), new RecordingCustody())
             .ExecuteAsync(
                 Request(CaseReportArtifactKind.FeeNote) with { TargetGenerationId = targetGenerationId },
                 default);
 
-        Assert.Equal([true, false], store.Freezes.Select(freeze => freeze.IncludeFeeNote));
+        Assert.Null(store.Freezes[0].TargetGenerationId);
         Assert.Equal(targetGenerationId, store.Freezes[1].TargetGenerationId);
-        Assert.False(Request().IncludeFeeNote);
     }
 
     /// <summary>
-    /// The fee facts the fee note prints are already a report readiness
-    /// requirement, so a Case without an agreed fee is refused for the
-    /// combined report with exactly the reason the fee note is refused with.
-    /// Nothing about the packaging choice adds a second fee policy.
+    /// The fee facts the fee note prints are a report readiness requirement,
+    /// because every report ends with its fee note: a Case without an agreed
+    /// fee is refused.
     /// </summary>
     [Fact]
-    public void AMissingAgreedFeeBlocksGenerationHoweverTheFeeNoteIsPackaged()
+    public void AMissingAgreedFeeBlocksGeneration()
     {
         var input = ReadyInput();
         var withoutFee = input.Assessment.Fields

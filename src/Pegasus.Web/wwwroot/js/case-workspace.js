@@ -4114,7 +4114,7 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();
 
-// --- report: content switches, the fee-note choice and the draft preview ------
+// --- report: content switches ------------------------------------------------
 (function () {
     'use strict';
 
@@ -4148,37 +4148,8 @@
         });
     }
 
-    function bindReport(root) {
-        root.querySelectorAll('[data-report]').forEach(function (section) {
-            if (section.dataset.reportPreviewBound === 'true') {
-                return;
-            }
-            section.dataset.reportPreviewBound = 'true';
-
-            // The preview follows the Include fee note choice beside Generate
-            // report, and opens in the page's document viewer when one is present.
-            var preview = section.querySelector('[data-report-preview]');
-            var feeNote = section.querySelector('[data-include-fee-note]');
-            function previewHref() {
-                if (!preview) {
-                    return '';
-                }
-                var url = new URL(preview.getAttribute('href'), window.location.href);
-                url.searchParams.set('includeFeeNote', feeNote && feeNote.checked ? 'True' : 'False');
-                return url.toString();
-            }
-            if (preview && feeNote) {
-                feeNote.addEventListener('change', function () { preview.setAttribute('href', previewHref()); });
-            }
-        });
-    }
-
-    function bind(root) {
-        bindContent(root);
-        bindReport(root);
-    }
-    bind(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+    bindContent(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindContent);
 })();
 
 // --- saved document previews -------------------------------------------------

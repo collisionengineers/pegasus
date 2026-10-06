@@ -572,12 +572,12 @@ is green. A report that was never drawn shows Not generated alone, with no
 date. No raw state name is shown. What each word means is in
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point).
 
-Once the report is stored the card offers **Open report**, or **Open report
-with fee note** when the report carries its fee note. It opens the stored
-report in the page's document viewer; without script the link gives the
-file. After **Generate report** stores a report, that report opens in the
-viewer by itself, once. A report still being filed shows the warning notice
-"The report is still being filed to Box." in amber, never as a confirmation.
+Once the report is stored the card offers **Open report**. It opens the stored
+report, which ends with its fee note, in the page's document viewer; without
+script the link gives the file. After **Generate report** stores a report,
+that report opens in the viewer by itself, once. A report still being filed
+shows the warning notice "The report is still being filed to Box." in amber,
+never as a confirmation.
 
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
@@ -794,9 +794,9 @@ The Report section's More menu offers the three documents as previews (v28
 P42) — the report, the Repair Spec and the images — each opening the document
 the Case would actually produce rather than a picture of one, and offers
 Generate for a companion document the confirmed generation does not yet hold,
-in or out of edit mode as Generate report is. Include fee note sits beside
-Generate report, and once a separate fee note is confirmed the report card
-offers Open fee note beside Open report (issue 912).
+in or out of edit mode as Generate report is. Generate fee note is offered for
+every confirmed report, and once the separate fee note is confirmed the report
+card offers Open fee note beside Open report (issue 912).
 The delivery form offers the Case's known addresses on every recipient field
 (v28 P21), the documents to attach (v28 P22), and states the name the report
 will be attached under (v28 P23) and the covering message it will carry, in an

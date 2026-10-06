@@ -471,7 +471,6 @@ public sealed record AssessmentReportSnapshot(
     string? ValuationCommentary = null,
     bool ReportDateOverridden = false,
     string PayloadVersion = AssessmentReportContract.TemplateVersion,
-    bool IncludeFeeNote = false,
     string? SupplementaryStatement = null,
     IReadOnlyList<CaseReportWording>? Wording = null)
 {
@@ -668,10 +667,10 @@ public sealed record RenderedReportArtifact(
 /// <summary>
 /// Renders exactly the requested artifact kind. A caller that wants the
 /// assessment report and a separate fee-note document asks twice from the
-/// same frozen snapshot; nothing is rendered and discarded. When the frozen
-/// snapshot's <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> is set,
-/// the <see cref="CaseReportArtifactKind.AssessmentReport"/> render carries
-/// the fee note as its final pages instead, and no second document exists.
+/// same frozen snapshot; nothing is rendered and discarded. The
+/// <see cref="CaseReportArtifactKind.AssessmentReport"/> render always ends
+/// with the fee note's pages; the separate fee-note document is those pages
+/// alone.
 /// </summary>
 public interface IAssessmentReportRenderer
 {
