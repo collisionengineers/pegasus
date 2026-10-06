@@ -201,7 +201,7 @@ public sealed record PrincipalReportSendingRules(
         var sendTo = AddressList(rules.SendTo, nameof(SendTo));
         var cc = AddressList(rules.Cc, nameof(Cc));
         var neverCc = AddressList(rules.NeverCc, nameof(NeverCc));
-        if (rules.SendToOnly && sendTo.Count == 0)
+        if (rules.SendToOnly && sendTo.Length == 0)
         {
             throw new ReportSendingRulesException(ReportSendingRulesRule.SendToOnlyNeedsAddresses, nameof(SendTo));
         }
@@ -287,7 +287,7 @@ public sealed record PrincipalReportSendingRules(
             : throw new ReportSendingRulesException(ReportSendingRulesRule.InvalidAddress, field, ruleIndex);
     }
 
-    private static IReadOnlyList<string> AddressList(IEnumerable<string>? values, string field, int? ruleIndex = null) =>
+    private static string[] AddressList(IEnumerable<string>? values, string field, int? ruleIndex = null) =>
         (values ?? [])
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => Address(value, field, ruleIndex))

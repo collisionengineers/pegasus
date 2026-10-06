@@ -669,7 +669,7 @@ public sealed class SendCaseReport(
 
         // The generation's documents first, the report leading; then the
         // Case's filed estimates the Principal's rules attach.
-        IReadOnlyList<StaffMailAttachment> attachments =
+        StaffMailAttachment[] attachments =
         [
             .. CaseReportDeliveryPolicy.Attachments(
                 generation.Id,
