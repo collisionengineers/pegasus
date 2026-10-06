@@ -1123,8 +1123,12 @@ Glass's window and return scripts, and records JSON under
 no provider requests. This check covers browser behavior; the .NET suites run
 in CI and the live provider journey has its own acceptance below.
 
-Use the Case's Repair Spec Glass's controls. Launch/Resume saves pending Case
-edits first. The provider work then runs in the background while the Glass's
+Use the Case's Repair Spec Glass's controls. **Glass's** is the one button
+(operator, 6 October 2026): it continues your own live session, reopens the
+estimate the repair spec on the screen belongs to, or starts a new one. Below,
+"continuing" is pressing Glass's while your session holds the account, and a
+"reopen" is pressing it on a spec that belongs to a Glass's estimate. Glass's
+saves pending Case edits first. The provider work then runs in the background while the Glass's
 window waits; a restart or the time cap settles it as interrupted work
 ([FRD-25](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-interrupted-sessions)).
 Its stages are logged by the Web host, not by the request. An issued estimator URL is a transport milestone; it does not
@@ -1138,8 +1142,8 @@ it stopped.
 
 - `glass.custody.failed` with `Unknown` means custody threw while storing the
   export, for example the Box sign-in failing. Read the exception logged just
-  before it, then Resume. A custody answer that names a failed artifact instead
-  settles `Failed` with the same code and cannot be resumed.
+  before it, then press Glass's. A custody answer that names a failed artifact
+  instead settles `Failed` with the same code and cannot be continued.
 - `glass.export.unreadable` means the reader refused the export. The warning
   names the position or field, the rejected XML is on the Case in Files, and
   **Fetch again** reads the same estimate once the reader is fixed.
@@ -1152,24 +1156,27 @@ it stopped.
   relay succeeded and the export could not be fetched, for example a sign-in
   redirect at the export grid. The estimate is saved at Glass's, and **Fetch
   again** looks it up with a fresh sign-in. A relay answered by a redirect
-  settles `Unknown` at `glass.relay.request` instead, and Resume looks the
+  settles `Unknown` at `glass.relay.request` instead, and continuing looks the
   export up without relaying again.
 - `glass.details.profile` carries one flag, `profile=absent` or `multiple`
   (not exactly one `ere_profile` control), `disabled` (a launch found the
-  control already locked), `enabled` (a Resume or Fetch again found it
-  unlocked, so the vehicle shows no estimate) or `option` (the configured
-  profile is not the offered one before a start, or not the one selected
-  after it). After a start the portal locks the control with the profile that
-  started the estimate selected, so a Resume or Fetch again expects exactly
-  that.
+  control already locked), `enabled` (a continued session, a reopen or Fetch
+  again found it unlocked, so the vehicle shows no estimate) or `option` (the
+  configured profile is not the offered one before a start, or not the one
+  selected after it). After a start the portal locks the control with the
+  profile that started the estimate selected, so a continued session, a reopen
+  or Fetch again expects exactly that. `enabled` on a reopen of a spec's
+  estimate (`Failed`) usually means the estimate was reset with the portal's
+  own Reset Repair Estimate, which Pegasus does not support: discard the spec,
+  or start a new one from **New repair spec**.
 - `glass.details.identity` carries `control=id`, `natcode`, `registration` or
   `mileage` (the first control that failed) and `state=absent` (no usable
   control of that name), `contradictory` (its repeats disagree) or `different`
   (it names another vehicle); `state=duplicate` is an attribute stated twice on
   a control, with the control named when the tag had named one. A value is
   never logged. A launch reads the vehicle once more 500 ms later and settles
-  on the second refusal, which ends `reread=1`; a Resume or Fetch again reads
-  once. Two of 28 launches on 2 October 2026 failed here and succeeded moments
+  on the second refusal, which ends `reread=1`; a continued session, a reopen
+  or Fetch again reads once. Two of 28 launches on 2 October 2026 failed here and succeeded moments
   later, each leaving an orphan stock vehicle at Glass's.
 - `glass.login.rejected` (`Failed`) means the portal redirected the sign-in to
   its "Login failed" page: the account's credential was refused. Nothing signs
@@ -1177,12 +1184,18 @@ it stopped.
   repeated failed sign-ins on a shared account risk a lockout. It is shown as
   the raw code. `glass.login.landing` is a signed-in redirect whose landing
   page was not the stock list.
-- `glass.start.ere_id` with `Unknown` on Resume means the provider answered
-  the reopening start (`ere_id` 0) with an estimate that is not one of the
-  session's own; the warning gives `expected_ids` and the `answered` id. A
-  start may have created an estimate, so the estimator was not opened. Look in
-  the account for an extra estimate on the vehicle before closing the session
-  with a reason.
+- `glass.start.ere_id` with `Unknown` means the provider answered the
+  reopening start (`ere_id` 0) with an estimate that is not one of the
+  session's own, or not the one the repair spec recorded; the warning gives
+  `expected_ids` and the `answered` id. It is the wrong vehicle or an estimate
+  reset at the portal, so the estimator was not opened. Look in the account
+  for an extra estimate on the vehicle before closing the session with a
+  reason.
+- Any other code on a reopen of a spec's estimate settles `Failed` and frees
+  the account: that session made nothing at Glass's. Press Glass's on the spec
+  again once the cause is cleared.
+- A `Cancelled` session nobody closed was ended by a colleague who took the
+  Case and reopened the same estimate; its history row names them.
 - A launch on a plate Glass's does not know logs stage `Lookup` at
   `glass.lookup.notfound`, then "launches on a placeholder vehicle" and the
   stages `InsertPlaceholder` and `RequirePlaceholder`
@@ -1195,9 +1208,10 @@ it stopped.
   list for a placeholder whose model text is the Case registration before
   closing the session with a reason.
 - `glass.placeholder.refused` (`Failed`) is the portal's own validation
-  refusing the insert; `glass.placeholder.identity` (`Failed` on launch,
-  `Unknown` on Resume) means the stock entry no longer reads as the
-  placeholder: its registration is set, or its type number changed.
+  refusing the insert; `glass.placeholder.identity` (`Failed` on launch and
+  on a reopen of a spec's estimate, `Unknown` on a continued session) means
+  the stock entry no longer reads as the placeholder: its registration is set,
+  or its type number changed.
 - A Get valuation logged at `glass.lookup.notfound … natcode=absent` means
   Glass's does not know the plate; the card's notice is the approved one and
   there is no placeholder for a valuation.
@@ -1208,7 +1222,7 @@ it stopped.
 If the popup reports `dialog not found` or an undefined `openModelessDialog`,
 retain the session and collect provider startup evidence before closing it:
 
-1. Record Case reference, UTC time, browser/version, fresh launch versus Resume,
+1. Record Case reference, UTC time, browser/version, fresh launch versus reopen,
    Pegasus session/version and deployed artifact SHA.
 2. In the popup's DevTools enable Preserve log and Pause on caught exceptions,
    then capture a complete network HAR with response content and the console.
@@ -1223,10 +1237,13 @@ retain the session and collect provider startup evidence before closing it:
    They do not prove why the parent object was absent. Ask the supplier to
    identify the first failed startup dependency and establish explicit readiness
    before child dialog access. Do not patch provider JavaScript from Pegasus.
-5. Resume requires unchanged registration and mileage plus current Case edit
-   authority. Restore the original facts or close the external editor and use
-   Close with a reason. Unknown writes retain their hold; never clear credentials
-   or start another zero-ID calculation to get around it.
+5. Continuing a session, and reopening a spec's estimate, require unchanged
+   registration and mileage plus current Case edit authority. Restore the
+   original facts or close the external editor and use Close with a reason.
+   Unknown writes retain their hold; never clear credentials to get around it.
+   A start that went unanswered on a recorded vehicle is asked again there
+   when Glass's is pressed; a vehicle whose creation went unanswered is never
+   made again.
 6. A stale Close refreshes its controls. Review the new state and confirm
    external closure again. A waiting import resumes after editing is regained;
    retained sources are reused and Save & Exit is not relayed again.
