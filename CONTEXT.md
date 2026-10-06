@@ -96,8 +96,10 @@ One named repair specification on a Case: its lines, labour rate, VAT and
 totals. A spec a staff member types in, imports or brings back from Glass's
 is the Current one at once; **Use repair spec** switches to another live spec.
 The Current spec feeds the report and stays editable while the Case is
-writable. "Estimate" names a repairer's or provider's source document.
-_Avoid_: accepted estimate, Use estimate
+writable. A spec brought back from Glass's belongs to that Glass's estimate:
+**Glass's** on it reopens the same estimate, and its saved return updates the
+same spec. "Estimate" names a repairer's or provider's source document.
+_Avoid_: accepted estimate, Use estimate, Resume (as a button)
 
 **AI Proposal**:
 An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until an authorised human staff member explicitly accepts or applies it.

@@ -1097,7 +1097,6 @@ public static class CaseWorkspaceLabels
     public static class GlassSession
     {
         public const string Launch = "Glass's";
-        public const string Resume = "Resume";
         public const string Close = "Close session";
         public const string CloseReason = "Reason";
         public const string ExternalClosedConfirmation = "Glass's is closed and no estimate remains open";

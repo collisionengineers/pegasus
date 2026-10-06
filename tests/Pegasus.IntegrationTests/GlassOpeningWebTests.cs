@@ -94,7 +94,7 @@ public sealed class GlassOpeningWebTests
         Assert.DoesNotContain("handler=CloseGlass", html, StringComparison.Ordinal);
         var close = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["__RequestVerificationToken"] = FormFor(html, "ResumeGlass")["__RequestVerificationToken"],
+            ["__RequestVerificationToken"] = FormFor(html, "LaunchGlass")["__RequestVerificationToken"],
             ["sessionId"] = running.Id.ToString("D"),
             ["expectedSessionVersion"] = running.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["reason"] = "Closed in Glass's.",
@@ -175,7 +175,7 @@ public sealed class GlassOpeningWebTests
         Assert.Equal(GlassFailure.Interrupted, session.FailureCode);
         var html = WebUtility.HtmlDecode(await workspace.CaseHtmlAsync());
         Assert.Contains(GlassLabels.LaunchRefused, html, StringComparison.Ordinal);
-        Assert.Contains("handler=ResumeGlass", html, StringComparison.Ordinal);
+        Assert.Contains("handler=LaunchGlass", html, StringComparison.Ordinal);
         Assert.Empty(workspace.Mva.Requests);
     }
 
@@ -214,7 +214,7 @@ public sealed class GlassOpeningWebTests
         Assert.Equal(0, workspace.Mva.Count("GET /ere/ere-callback/"));
         Assert.Empty(await workspace.EstimatesAsync());
 
-        using var resumed = await workspace.PostGlassAsync("ResumeGlass", await workspace.ResumeFormAsync());
+        using var resumed = await workspace.PostGlassAsync("LaunchGlass", await workspace.LaunchFormAsync());
 
         await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
         Assert.Equal(

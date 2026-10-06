@@ -36,6 +36,21 @@ public sealed record ImportRawEstimateRequest(
     /// session it was made under, as every other staff write does.
     /// </summary>
     public bool KeepsLease { get; init; }
+
+    /// <summary>
+    /// The Glass's estimate this document was exported from. A new spec
+    /// records it; with <see cref="EstimateId"/> it is what allows the import
+    /// to update a spec instead of creating one.
+    /// </summary>
+    public GlassEstimateLink? GlassEstimate { get; init; }
+
+    /// <summary>
+    /// The live spec that belongs to <see cref="GlassEstimate"/>, updated in
+    /// place: the same Glass's estimate saved again is the same repair spec
+    /// (operator, 6 October 2026). A spec discarded since no longer takes the
+    /// return, which lands as a new one.
+    /// </summary>
+    public Guid? EstimateId { get; init; }
 }
 
 public interface IImportRawEstimate
@@ -204,7 +219,9 @@ public static class EstimateFormats
 /// Case's Current repair spec at once, an Automation import stays a Draft
 /// (<see cref="RepairSpecificationPolicy.BecomesCurrentWhenCreated"/>). The
 /// same Case with the same source hash replays to the live estimate that
-/// import already created.
+/// import already created. A Glass's return for a spec that already belongs
+/// to its estimate replaces that spec's lines and source and keeps its
+/// header.
 /// </summary>
 public sealed class ImportRawEstimate(
     IEnumerable<IEstimateDocumentParser> parsers,
@@ -244,9 +261,18 @@ public sealed class ImportRawEstimate(
             throw new EstimateParseRejectedException("The Case does not hold the exact source the import names.");
         }
         var existing = await estimates.ExecuteAsync(request.CaseId, request.Work, cancellationToken);
-        if (existing.FirstOrDefault(estimate =>
-                estimate.State != RepairSpecificationState.Discarded
-                && string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal)) is { } replayed)
+        var target = request is { EstimateId: { } targetId, GlassEstimate: not null }
+            ? existing.FirstOrDefault(estimate =>
+                estimate.SpecificationId == targetId && estimate.State != RepairSpecificationState.Discarded)
+            : null;
+        // A spec being updated answers only for its own source: the same
+        // export replays to it, and another spec holding that hash is not it.
+        if ((target is null
+                ? existing.FirstOrDefault(estimate =>
+                    estimate.State != RepairSpecificationState.Discarded
+                    && string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal))
+                : string.Equals(target.Source.Sha256, sha256, StringComparison.Ordinal) ? target : null)
+            is { } replayed)
         {
             return await store.BindSourceHashReplayAsync(
                 request.CaseId,
@@ -264,6 +290,33 @@ public sealed class ImportRawEstimate(
             document, retained.ContentLength, sha256, cancellationToken);
         var parsed = EstimateFormats.Parse(parsers, retained.FileName, retained.MediaType, content);
         var artifactIdentity = $"estimate-import:{retained.OccurrenceId:D}";
+        if (target is not null)
+        {
+            // The spec keeps its name, labour-rate card, VAT, discounts and
+            // supplementary statement; the export replaces its lines and
+            // source.
+            var updated = await store.SaveImportedEstimateAsync(
+                EstimatePolicy.ValidateImportedSave(
+                new(request.CaseId,
+                    request.ExpectedVersion,
+                    request.Actor,
+                    request.OperationKey,
+                    request.Reason,
+                    request.EditLeaseToken,
+                    target.SpecificationId,
+                    target.Details,
+                    [.. parsed.Lines.Select((line, index) => WithProvenance(
+                        line, index + 1, artifactIdentity, request.DocumentVersionId, sha256))],
+                    new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))
+                {
+                    Supplementary = target.Supplementary,
+                    Work = request.Work,
+                    KeepsLease = request.KeepsLease,
+                    GlassEstimate = request.GlassEstimate,
+                }),
+                cancellationToken);
+            return new(updated.SpecificationId);
+        }
         var card = LabourRateCardAdministration.ForNewSpecification(
             await rateCards.ListAsync(cancellationToken));
         var saved = await store.SaveImportedEstimateAsync(
@@ -294,6 +347,7 @@ public sealed class ImportRawEstimate(
                 SelectedRateCardVersion = card?.Version,
                 Work = request.Work,
                 KeepsLease = request.KeepsLease,
+                GlassEstimate = request.GlassEstimate,
             }),
             cancellationToken);
         return new(saved.SpecificationId);
