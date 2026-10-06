@@ -1056,9 +1056,7 @@ public static class CaseWorkspaceLabels
         public static string MessageRefused =>
             $"Enter the message, at most {Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength} characters.";
 
-        public const string PrepareDelivery = "Prepare delivery";
-        public const string DeliveryPrepared = "Delivery prepared";
-        public const string SendPreparedReport = "Send prepared report";
+        public const string SendReport = "Send report";
         public const string SendObservedSent = "The report send was observed as sent.";
         public const string SendAccepted = "The report send was accepted.";
         public const string SendInProgress = "The report send is in progress.";

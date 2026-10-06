@@ -629,8 +629,7 @@ public sealed partial class AssessmentReportDraftWebTests
         IAssessmentReportRenderer renderer,
         bool canOpen = true,
         IGenerateCaseReport? generateReport = null,
-        IPrepareCaseReportDelivery? prepareDelivery = null,
-        ISendPreparedCaseReport? sendPreparedReport = null,
+        ISendCaseReport? sendReport = null,
         bool failIfReportServicesResolved = false,
         RepairSpecificationVersion? currentSpecification = null) =>
         baseFactory.WithWebHostBuilder(builder =>
@@ -666,15 +665,10 @@ public sealed partial class AssessmentReportDraftWebTests
                     services.RemoveAll<IGenerateCaseReport>();
                     services.AddSingleton(generateReport);
                 }
-                if (prepareDelivery is not null)
+                if (sendReport is not null)
                 {
-                    services.RemoveAll<IPrepareCaseReportDelivery>();
-                    services.AddSingleton(prepareDelivery);
-                }
-                if (sendPreparedReport is not null)
-                {
-                    services.RemoveAll<ISendPreparedCaseReport>();
-                    services.AddSingleton(sendPreparedReport);
+                    services.RemoveAll<ISendCaseReport>();
+                    services.AddSingleton(sendReport);
                 }
                 services.AddSingleton<IGetCasePageFrame>(caseReads);
                 services.AddSingleton<IGetCaseVehicleSection>(caseReads);

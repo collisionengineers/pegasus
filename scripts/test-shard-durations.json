@@ -177,7 +177,7 @@
   "Pegasus.IntegrationTests.Reports.AssessmentReportDraftWebTests": 453.22,
   "Pegasus.IntegrationTests.Reports.AssessmentReportRendererTests": 5.16,
   "Pegasus.IntegrationTests.Reports.AssessmentReportTemplateConformanceTests": 0.26,
-  "Pegasus.IntegrationTests.Reports.CaseReportDeliveryPreparationPersistenceTests": 83.24,
+  "Pegasus.IntegrationTests.Reports.CaseReportDeliveryPersistenceTests": 83.24,
   "Pegasus.IntegrationTests.Reports.CaseReportGenerationPersistenceTests": 512.02,
   "Pegasus.IntegrationTests.Reports.EstimateDocumentRendererTests": 1.78,
   "Pegasus.IntegrationTests.Reports.ReportPhotoPreparationTests": 6.45,

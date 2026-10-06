@@ -219,13 +219,13 @@ public sealed class CaseReportGenerationPersistenceTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task SourceAdditionOrRemovalInvalidatesTheReportAndRefusesPreparedDelivery(bool remove)
+    public async Task SourceAdditionOrRemovalInvalidatesTheReportAndRefusesItsDelivery(bool remove)
     {
         await using var harness = await Harness.CreateAsync();
         var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
             .ExecuteAsync(harness.Request(), default);
         var generation = generated.Generation!;
-        var delivery = await harness.PrepareDeliveryAsync(generation);
+        var delivery = await harness.SendReportAsync(generation);
 
         if (remove)
         {
@@ -240,7 +240,7 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(CaseReportGenerationState.Stale, stale.State);
         Assert.Equal(CaseReportStaleReasons.SourceDocumentsChanged, await harness.StaleReasonAsync());
         Assert.Equal(generation.SnapshotHash, stale.SnapshotHash);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.PrepareDeliveryAsync(generation));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.SendReportAsync(generation));
         await Assert.ThrowsAnyAsync<InvalidOperationException>(() => harness.RequireDeliveryReadyAsync(delivery));
     }
 
@@ -258,7 +258,7 @@ public sealed class CaseReportGenerationPersistenceTests
         var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
             .ExecuteAsync(harness.Request(), default);
         var generation = generated.Generation!;
-        var delivery = await harness.PrepareDeliveryAsync(generation);
+        var delivery = await harness.SendReportAsync(generation);
 
         await harness.ChangeSignatoryAsync(change);
 
@@ -274,7 +274,7 @@ public sealed class CaseReportGenerationPersistenceTests
         {
             Assert.Equal(CaseReportGenerationState.Stale, current.State);
             Assert.Equal(CaseReportStaleReasons.SignatoryChanged, await harness.StaleReasonAsync());
-            await Assert.ThrowsAsync<InvalidOperationException>(() => harness.PrepareDeliveryAsync(generation));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => harness.SendReportAsync(generation));
             await Assert.ThrowsAsync<InvalidOperationException>(() => harness.RequireDeliveryReadyAsync(delivery));
         }
     }
@@ -282,7 +282,7 @@ public sealed class CaseReportGenerationPersistenceTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task WorkflowSignatoryChangesStaleTheReportAndRefusePreparation(
+    public async Task WorkflowSignatoryChangesStaleTheReportAndRefuseItsDelivery(
         bool throughEngineerAssignment)
     {
         await using var harness = await Harness.CreateAsync();
@@ -335,7 +335,7 @@ public sealed class CaseReportGenerationPersistenceTests
             default);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            harness.PrepareDeliveryAsync(generation, changed.Version, lease.Token));
+            harness.SendReportAsync(generation, changed.Version, lease.Token));
     }
 
     [Fact]
@@ -1717,46 +1717,21 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     [Fact]
-    public async Task GeneratedReportKeepsCustodyNameUntilPreparationRenamesItAtSendBoundary()
+    public async Task GeneratedReportKeepsCustodyNameAndTheSendNamesItForItsReaders()
     {
         await using var harness = await Harness.CreateAsync();
         var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
             .ExecuteAsync(harness.Request(), CancellationToken.None);
         var generation = generated.Generation!;
-        var suggestions = new ReportRecipientSuggestions(
-            generation.Snapshot.CaseReference,
-            PrincipalReportRecipientSettings.Normalize(false, ["digital@collisionengineers.co.uk"]),
-            null);
-        var preparation = await harness.PrepareDeliveryAsync(
-            generation,
-            recipientSuggestionFingerprint: suggestions.Fingerprint);
 
-        var custodyAttachment = Assert.Single(preparation.Preparation.Artifacts);
+        var command = await harness.SendReportAsync(generation);
+
+        var custodyAttachment = Assert.Single(command.Report.Artifacts);
         Assert.Equal("AssessmentReport.pdf", custodyAttachment.FileName);
-
-        var store = new EfCaseReportDeliveryPreparationStore(harness.Factory, Harness.Clock);
-        var send = new RecordingReportSend();
-        var operation = await new SendPreparedCaseReport(
-            store,
-            new FixedRecipientSuggestions(suggestions),
-            new FixedApprovedMailboxes(TestMailbox()),
-            new ReportSendReadiness(store),
-            send)
-            .ExecuteAsync(
-                new(
-                    harness.StaffActor,
-                    harness.CaseId,
-                    preparation.Preparation.Id,
-                    preparation.Preparation.Version,
-                    "send-report"),
-                CancellationToken.None);
-
-        Assert.Equal(StaffMailState.Unknown, operation.State);
-        var command = Assert.Single(send.Commands);
         var expectedReportName = CaseReportDeliveryNaming.ReportName(
             generation.Snapshot.CaseReference,
             generation.Snapshot.Report.Vehicle.Registration,
-            generation.Snapshot.Report.Outcome.ToString(),
+            CaseReportDeliveryNaming.OutcomeWords(generation.Snapshot.Report.Outcome),
             0);
         Assert.Equal(expectedReportName + ".pdf", Assert.Single(command.Mail.Attachments).FileName);
         Assert.NotEqual(custodyAttachment.FileName, command.Mail.Attachments[0].FileName);
@@ -2118,24 +2093,38 @@ public sealed class CaseReportGenerationPersistenceTests
             await context.SaveChangesAsync();
         }
 
-        public Task<CaseReportDeliveryPreparationRecord> PrepareDeliveryAsync(
+        /// <summary>
+        /// One send of the generation's report through the real use case over
+        /// this database; the transport records the command it was handed.
+        /// </summary>
+        public async Task<StaffReportSendCommand> SendReportAsync(
             CaseReportGenerationRecord generation,
             long expectedCaseVersion = 1,
-            string? leaseToken = null,
-            string? recipientSuggestionFingerprint = null) =>
-            new EfCaseReportDeliveryPreparationStore(Factory, Clock).PrepareAsync(
-                new(new(
+            string? leaseToken = null)
+        {
+            var send = new RecordingReportSend();
+            await new SendCaseReport(
+                    Store,
+                    new EfCaseReportSendHistoryQueries(Factory),
+                    new FixedRecipientSuggestions(new(
+                        generation.Snapshot.CaseReference,
+                        PrincipalReportRecipientSettings.Normalize(false, ["digital@collisionengineers.co.uk"]),
+                        null)),
+                    new FixedApprovedMailboxes(TestMailbox()),
+                    send)
+                .ExecuteAsync(
+                    new(
                         StaffActor,
                         CaseId,
                         expectedCaseVersion,
                         leaseToken ?? Lease.Token,
                         generation.Id,
                         generation.Version,
-                        "prepare-report",
+                        "send-report",
                         "Please find attached our report."),
-                    new([new StaffMailRecipient("digital@collisionengineers.co.uk", "pegasustest")], [], "Case report"),
-                    recipientSuggestionFingerprint ?? new string('a', 64),
-                    CaseReportSendHistory.None), default);
+                    default);
+            return Assert.Single(send.Commands);
+        }
 
         /// <summary>
         /// These generations never ask for the repair specification document,
@@ -2161,11 +2150,8 @@ public sealed class CaseReportGenerationPersistenceTests
                     [], 2));
         }
 
-        public Task RequireDeliveryReadyAsync(CaseReportDeliveryPreparationRecord record) =>
-            new ReportSendReadiness(new EfCaseReportDeliveryPreparationStore(Factory, Clock)).RequireReadyAsync(
-                new(StaffActor, CaseId, record.FrozenCaseVersion, record.Preparation.GenerationId,
-                    record.Preparation.GenerationVersion, record.Preparation.Id, record.Preparation.Version,
-                    record.Preparation.Artifacts), default);
+        public Task RequireDeliveryReadyAsync(StaffReportSendCommand command) =>
+            new ReportSendReadiness(Store).RequireReadyAsync(command.Report, default);
 
         public async Task ChangeSignatoryAsync(string change)
         {
@@ -2873,6 +2859,10 @@ public sealed class CaseReportGenerationPersistenceTests
             sequence.Add("record");
             return inner.RecordArtifactOutcomeAsync(request, cancellationToken);
         }
+
+        public Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+            SendCaseReportRequest request, CancellationToken cancellationToken) =>
+            inner.GetForDeliveryAsync(request, cancellationToken);
 
         public Task<CaseReportGenerationRecord?> GetAsync(
             ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken) =>

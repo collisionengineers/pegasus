@@ -50,8 +50,7 @@ public static class CaseNextAction
         string? firstRequirement,
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
         Func<AssessmentReadinessItem, string?> blockerSection,
-        CaseReportGenerationRecord? currentReport,
-        CaseReportDeliveryPreparationRecord? deliveryPreparation)
+        CaseReportGenerationRecord? currentReport)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(reportBlockers);
@@ -63,7 +62,7 @@ public static class CaseNextAction
         return ReportStep(reportBlockers, blockerSection, currentReport)
             ?? (workflow.ReportSentEvidence is not null
                 ? AfterTheSend(workflow, caseType, works)
-                : DeliveryStep(deliveryPreparation));
+                : DeliveryStep);
     }
 
     /// <summary>
@@ -78,18 +77,17 @@ public static class CaseNextAction
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
         Func<AssessmentReadinessItem, string?> blockerSection,
         CaseReportGenerationRecord? report,
-        CaseReportDeliveryPreparationRecord? deliveryPreparation,
         ApprovedMailboxReportSentEvidence? sentEvidence)
     {
         ArgumentNullException.ThrowIfNull(reportBlockers);
         ArgumentNullException.ThrowIfNull(blockerSection);
         return ReportStep(reportBlockers, blockerSection, report)
-            ?? (sentEvidence is not null ? null : DeliveryStep(deliveryPreparation));
+            ?? (sentEvidence is not null ? null : DeliveryStep);
     }
 
     /// <summary>
-    /// Whether the Next action reads the report's readiness, the current
-    /// report and its delivery; a caller that has not loaded them need not.
+    /// Whether the Next action reads the report's readiness and the current
+    /// report; a caller that has not loaded them need not.
     /// </summary>
     public static bool ReadsTheReport(CaseWorkflowRecord workflow)
     {
@@ -152,10 +150,8 @@ public static class CaseNextAction
         return null;
     }
 
-    private static CaseNextActionStep DeliveryStep(CaseReportDeliveryPreparationRecord? deliveryPreparation) =>
-        deliveryPreparation is not null
-            ? new(CaseWorkspaceLabels.ReportDelivery.SendPreparedReport, "report")
-            : new(CaseWorkspaceLabels.ReportDelivery.PrepareDelivery, "report");
+    private static CaseNextActionStep DeliveryStep =>
+        new(CaseWorkspaceLabels.ReportDelivery.SendReport, "report");
 
     // What follows the sent report: Create audit on an Inspection + Audit Case
     // that has no Audit yet (offered even without an Engineer, where the item

@@ -756,10 +756,8 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
         services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
-        services.AddScoped<ICaseReportDeliveryPreparationStore, EfCaseReportDeliveryPreparationStore>();
-        services.AddScoped<IPrepareCaseReportDelivery, PrepareCaseReportDelivery>();
         services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
-        services.AddScoped<ISendPreparedCaseReport, SendPreparedCaseReport>();
+        services.AddScoped<ISendCaseReport, SendCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();
         services.AddScoped<IRenderCaseEstimateDocument, RenderCaseEstimateDocument>();
         return services;

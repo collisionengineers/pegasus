@@ -585,7 +585,7 @@ In the Audit view the report card's status begins with the Audit reference
 and the section shows the Audit report alone; the Views card is the way to
 the Inspection report (operator, 2 October 2026). In the
 Inspection view the card shows the Inspection report with its generation
-status and the same Generate, Prepare delivery and Send controls, acting on
+status and the same Generate and Send report controls, acting on
 the Inspection's own work under the session's lease or one claimed for the
 generation, before and after that report is sent (operator, 1 and 2 October
 2026). The Next action there is the
