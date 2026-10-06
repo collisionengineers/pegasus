@@ -271,12 +271,20 @@ things follow when the return is accepted but the estimate does not land:
   inside that XML. The host log names the position or field the reader refused,
   in position numbers, field names and short code values only, never the
   registration, a token or a URL. Once the reader accepts the file, staff can
-  import the kept XML from Files.
-- A session that failed only for that reason offers **Fetch again** beside
-  Glass's in the Case's Glass's controls. It signs in, selects the recorded
-  vehicle and fetches the export for the same estimate. It makes no vehicle
-  and starts no estimate. It is refused while the account holds another live
-  session.
+  import the kept XML from Files. An export refused for another vehicle's
+  registration, mileage or type number, or for carrying no estimate, is kept
+  the same way, so work an Engineer corrected inside Glass's is not lost; it
+  is not offered **Fetch again**, because the export is not this session's
+  vehicle.
+- A session that failed only because the export could not be read, or could
+  not be fetched after the relay succeeded (the export grid or the download
+  refused, offered more than one export or one off Glass's own origin, or
+  exceeded the size cap), offers **Fetch again** beside Glass's in the Case's
+  Glass's controls. It signs in, selects the recorded vehicle and fetches the
+  export for the same estimate. It makes no vehicle and starts no estimate. It
+  is refused while the account holds another live session. A relay answered by
+  a redirect (the sign-in page) may have been acted on, so that session is
+  `Unknown`, and Resume looks the export up without relaying again.
 - If custody throws while storing the export, the session is `Unknown` with
   `glass.custody.failed`, holds the account and can be resumed. Resume fetches
   the export again and does not relay Save & Exit again. It is never reported
@@ -388,7 +396,7 @@ the same import. A staff Import makes the imported spec Current.
 | Thing | States |
 | --- | --- |
 | Repair specification | Draft (live) or Discarded. At most one live spec is Current: a staff-created spec is Current at once, and Use repair spec switches. Edits keep the spec; imports, scales, restores and sent reports freeze numbered versions |
-| Glass's session | prepared (work running in the background), launched, `Unknown` (holds the account), resumed, closed by the owning staff member with a reason. Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable can fetch that estimate again |
+| Glass's session | prepared (work running in the background), launched, `Unknown` (holds the account), resumed, closed by the owning staff member with a reason. Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable, or could not be fetched after a successful relay, can fetch that estimate again |
 
 ## Edge cases and fail-closed behaviour
 

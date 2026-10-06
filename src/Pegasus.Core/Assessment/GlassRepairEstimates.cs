@@ -49,14 +49,43 @@ public static class GlassRepairEstimateSessionPolicy
     public const string ExportUnreadableFailureCode = "glass.export.unreadable";
 
     /// <summary>
+    /// The failure codes of an export that could not be fetched after the relay
+    /// succeeded: Glass's request for the export grid, a grid that offers more
+    /// than one export or one off Glass's own origin, and the download itself.
+    /// </summary>
+    public const string ExportRequestFailureCode = "glass.export.request";
+
+    public const string ExportAmbiguousFailureCode = "glass.export.ambiguous";
+
+    public const string ExportOffOriginFailureCode = "glass.export.off_origin";
+
+    public const string DownloadRequestFailureCode = "glass.download.request";
+
+    public const string DownloadOversizeFailureCode = "glass.download.oversize";
+
+    private static readonly HashSet<string> RefetchableFailureCodes = new(StringComparer.Ordinal)
+    {
+        ExportUnreadableFailureCode,
+        ExportRequestFailureCode,
+        ExportAmbiguousFailureCode,
+        ExportOffOriginFailureCode,
+        DownloadRequestFailureCode,
+        DownloadOversizeFailureCode,
+    };
+
+    /// <summary>
     /// Whether the owner may fetch the export again for the same estimate. A
-    /// session that failed because the reader refused the document has nothing
-    /// wrong at Glass's, so the estimate can be read again once the reader
-    /// accepts it. No vehicle is made and no estimate is started.
+    /// session that failed after the relay succeeded, because the reader
+    /// refused the document or the export could not be fetched, has nothing
+    /// wrong at Glass's: the estimate is saved there and can be read again. An
+    /// identity or empty refusal is not offered, because the export it kept is
+    /// not this session's vehicle. No vehicle is made and no estimate is
+    /// started.
     /// </summary>
     public static bool CanRefetchExport(GlassRepairEstimateSessionState state, string? failureCode) =>
         state == GlassRepairEstimateSessionState.Failed
-        && string.Equals(failureCode, ExportUnreadableFailureCode, StringComparison.Ordinal);
+        && failureCode is not null
+        && RefetchableFailureCodes.Contains(failureCode);
 
     /// <summary>
     /// Which sessions the owning staff member may close: every one that still
