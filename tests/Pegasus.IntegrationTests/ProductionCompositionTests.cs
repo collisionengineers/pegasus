@@ -92,7 +92,7 @@ public sealed class ProductionCompositionTests
                 StaffMailComposeMode.New, null, [new("operator@example.test", null)], [],
                 "Case report", "Body", attachments, "offline-report-send"),
             new ReportSendReadinessRequest(
-                actor, Guid.NewGuid(), 1, generationId, 1, Guid.NewGuid(), 1, attachments));
+                actor, Guid.NewGuid(), generationId, 1, attachments));
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(
             () => reportSender.SendAsync(command, CancellationToken.None));
