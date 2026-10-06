@@ -106,6 +106,22 @@ public sealed class OpenCaseTasksPersistenceTests
         var principal = await SeededPrincipals.QdosAsync(seedScope.ServiceProvider);
         await using var context = await database.CreateContextAsync();
         context.Users.AddRange(Staff(creatorId, "creator"), Staff(assigneeId, "assignee"));
+        // A staff account is read with its one role, so both hold one.
+        var role = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.SingleOrDefaultAsync(
+            context.Roles, row => row.NormalizedName == "ENGINEER");
+        if (role is null)
+        {
+            role = new Microsoft.AspNetCore.Identity.IdentityRole<Guid>
+            {
+                Id = Guid.NewGuid(),
+                Name = "Engineer",
+                NormalizedName = "ENGINEER"
+            };
+            context.Roles.Add(role);
+        }
+        context.UserRoles.AddRange(
+            new Microsoft.AspNetCore.Identity.IdentityUserRole<Guid> { UserId = creatorId, RoleId = role.Id },
+            new Microsoft.AspNetCore.Identity.IdentityUserRole<Guid> { UserId = assigneeId, RoleId = role.Id });
         var twoTasksCaseId = AddCase(context, principal, "OPEN31001", 1);
         var oneTaskCaseId = AddCase(context, principal, "OPEN31002", 2);
         await context.SaveChangesAsync();

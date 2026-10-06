@@ -214,7 +214,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // - the report snapshot takes the Case's works from the frame at the same version (1);
         // - the Case's AI jobs are read once for the drafts and the pending research (1).
         // It sends 48 since the Next action reads the Case's newest linked cancellation
-        // (FRD-13) in one statement.
+        // (FRD-13) in one statement, and 50 since the report sending seed gives a fresh
+        // database claim-source contacts: the Claim Source picker used to find none, and
+        // now reads their rows and when each was last used (2 commands).
         // The save sent 43 until the lease it reclaims read only the Case's workflow row,
         // then 37, 35 once its edit basis read the data in two fewer commands, and 34 once
         // the save writes the work the request names and stales that work's report alone
@@ -233,7 +235,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             + Environment.NewLine + saveDescription);
     }
 
-    private const int CasePageCommands = 48;
+    private const int CasePageCommands = 50;
 
     private const int CaseSaveCommands = 35;
 
