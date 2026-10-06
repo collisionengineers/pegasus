@@ -50,16 +50,23 @@ public sealed record GlassEstimateExport(
 /// percentages it computed them at.
 /// </para>
 ///
-/// <para><b>Time.</b> <c>Rate/Other/TimeUnit</c> states the calculation's time
-/// unit and the parser refuses any value but <c>60</c> rather than guess at an
-/// unfamiliar one. At <c>TimeUnit 60</c> a Position's <c>Time</c> is decimal
-/// hours, which the reference exports prove against their own arithmetic: the
-/// eight-position export prints <c>LabourRate/PanelBeater</c> 80.00 and
+/// <para><b>Time.</b> <c>Rate/Other/TimeUnit</c> states how the calculation
+/// counts time. <c>60</c> is the code of the Hour option, not a divisor: at
+/// <c>TimeUnit 60</c> a Position's <c>Time</c> is decimal hours, which the
+/// reference exports prove against their own arithmetic: the eight-position
+/// export prints <c>LabourRate/PanelBeater</c> 80.00 and
 /// <c>TotalAmountLabourCosts</c> 488.00, and its Positions' <c>Time</c> sums
 /// to exactly 6.1 — 6.1 × 80 = 488.00. Reading <c>Time</c> as sixtieths would
-/// have made that estimate's labour £8.13. The figure is retained at
-/// <see cref="EstimatePolicy.WorkUnitDecimals"/> exactly as printed and is
-/// never rounded to the editor's 0.1 step.
+/// have made that estimate's labour £8.13. Any other positive whole number N
+/// counts work units, N to the hour, and every <c>Time</c>, <c>OverlapTime</c>
+/// and <c>EtgTime</c> of the document is a count of them: hours are the stated
+/// figure divided by N. The EVA-profile exports prove it at 10 and 12: at
+/// <c>TimeUnit 10</c> a set-up <c>Time</c> of 2.00 is 0.2 h, and 0.2 × 83.28 is
+/// the 16.66 the same export prints as <c>TotalAmountAdditionalCosts</c>. A
+/// zero, negative, absent or non-integer unit refuses the document. The stated
+/// figure is validated as printed, and the hours are retained at
+/// <see cref="EstimatePolicy.WorkUnitDecimals"/>, never rounded to the
+/// editor's 0.1 step.
 /// </para>
 ///
 /// <para><b>Which hours a row costs.</b> Glass's states each row's gross time
@@ -112,7 +119,9 @@ public sealed record GlassEstimateExport(
 /// calculation sheet prints it, so a left and a right part are two different
 /// lines. A guide time or price the engineer changed (<c>TimeMarker</c>,
 /// <c>PriceMarker</c>) and Glass's own reason for it are kept as the line's
-/// note, in the wording the calculation PDF reader uses.
+/// note, in the wording the calculation PDF reader uses. So are the row's time
+/// and price annotations (<c>TimeAnnot</c>, <c>PriceAnnot</c>) and each of its
+/// criteria Glass's marked as selected, in the sheet's own wording.
 /// </para>
 ///
 /// <para><b>Totals are not stored.</b> <c>ExclVatStatisticResults</c> and
@@ -135,7 +144,8 @@ public sealed record GlassEstimateExport(
 /// <see cref="XmlReader"/> with DTDs prohibited, no resolver and explicit
 /// entity and document caps, so no external entity, no DTD and no entity
 /// expansion can be reached. An unknown <c>PosType</c>, an unknown
-/// <c>RepairKind</c>, a paint level outside <see cref="GlassPaintLevels"/>, an
+/// <c>RepairKind</c>, a paint level outside <see cref="GlassPaintLevels"/>, a
+/// time unit that is not a positive whole number, an
 /// unreadable number, an over-long document and an
 /// attachment that is not a PDF each reject the whole import with
 /// <see cref="EstimateParseRejectedException"/> — nothing is guessed and no
@@ -149,8 +159,8 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     /// <summary>Titles the Draft an import of this document lands as.</summary>
     public const string ProviderName = "Glass's";
 
-    /// <summary>The one time unit this format is read at; see the class remarks.</summary>
-    public const int SupportedTimeUnit = 60;
+    /// <summary>The <c>TimeUnit</c> code of the Hour option, at which a stated time is already hours; see the class remarks.</summary>
+    private const int HourTimeUnit = 60;
 
     /// <summary>An export beyond this size is refused unread.</summary>
     public const int MaximumDocumentBytes = 16 * 1024 * 1024;
@@ -266,7 +276,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         var calculation = root.Element("Calculation")
             ?? throw new EstimateParseRejectedException(
                 "The export carries no calculation, so nothing was imported.");
-        RequireSupportedTimeUnit(calculation);
+        var divisor = ReadTimeDivisor(calculation);
 
         var positions = calculation.Elements("Position").ToArray();
         if (positions.Length > AssessmentPolicy.MaximumEstimateLines)
@@ -281,7 +291,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         for (var index = 0; index < positions.Length; index++)
         {
             var ordinal = index + 1;
-            var (line, charge) = ReadPosition(positions[index], ordinal, parent);
+            var (line, charge) = ReadPosition(positions[index], ordinal, parent, divisor);
             lines.Add(line);
             if (charge == Charge.Part)
             {
@@ -343,17 +353,19 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             ? content[..^Utf8ByteOrderMark.Length]
             : content;
 
-    private static void RequireSupportedTimeUnit(XElement calculation)
+    /// <summary>What a stated time is divided by to give hours: 1 at the Hour option, the unit's own count otherwise.</summary>
+    private static decimal ReadTimeDivisor(XElement calculation)
     {
         var stated = Text(calculation.Element("Rate")?.Element("Other")?.Element("TimeUnit"))
             ?? throw new EstimateParseRejectedException(
                 "The calculation states no time unit, so nothing was imported.");
-        if (!int.TryParse(stated, NumberStyles.Integer, CultureInfo.InvariantCulture, out var timeUnit)
-            || timeUnit != SupportedTimeUnit)
+        if (!int.TryParse(stated, NumberStyles.None, CultureInfo.InvariantCulture, out var timeUnit)
+            || timeUnit <= 0)
         {
             throw new EstimateParseRejectedException(
-                $"The calculation states time unit '{stated}' and not {SupportedTimeUnit}, so nothing was imported.");
+                $"The calculation states time unit '{stated}', so nothing was imported.");
         }
+        return timeUnit == HourTimeUnit ? 1m : timeUnit;
     }
 
     /// <summary>What a position charges, which decides the figures its line carries.</summary>
@@ -370,7 +382,9 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     }
 
     /// <param name="parent">The row an included operation belongs to: the nearest part row before it.</param>
-    private static (EstimateLineInput Line, Charge Charge) ReadPosition(XElement position, int ordinal, int? parent)
+    /// <param name="divisor">What the document's stated times are divided by to give hours.</param>
+    private static (EstimateLineInput Line, Charge Charge) ReadPosition(
+        XElement position, int ordinal, int? parent, decimal divisor)
     {
         var posType = Text(position.Element("PosType"))
             ?? throw Reject(ordinal, "names no position type");
@@ -379,8 +393,8 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             ?? throw Reject(ordinal, "carries no description");
 
         var price = Money(position.Element("Price"), ordinal, "price");
-        var time = Hours(position.Element("Time"), ordinal, "time") ?? 0m;
-        var hours = ChargeableHours(position, time, posType, ordinal);
+        var time = Hours(position.Element("Time"), ordinal, "time", divisor) ?? 0m;
+        var hours = ChargeableHours(position, time, posType, ordinal, divisor);
         var (type, charge) = LineShape(position, posType, operation, hours, ordinal);
         var guideCode = Bounded(Text(position.Element("MCode")), MaximumGuideCodeLength, ordinal, "MCode");
         var isPaint = charge == Charge.Paint;
@@ -401,7 +415,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             Betterment: null,
             // The Audatex report's own evidence label, because this is the same claim.
             EvidenceLabel: "case",
-            Justification: Note(position, ordinal, charge == Charge.Included, isPaint, parent, time, price),
+            Justification: Note(position, ordinal, charge == Charge.Included, isPaint, parent, time, price, divisor),
             PaintWorkUnits: isPaint ? hours : null,
             Quantity: null,
             Materials: isPaint ? price : null,
@@ -420,7 +434,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
 
     /// <summary>The line's note; see the class remarks. The markers are written true or false.</summary>
     private static string? Note(
-        XElement position, int ordinal, bool included, bool paint, int? parent, decimal time, decimal? price)
+        XElement position, int ordinal, bool included, bool paint, int? parent, decimal time, decimal? price, decimal divisor)
     {
         List<string> notes = [];
         if (included)
@@ -438,7 +452,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             notes.Add(Modified(
                 "time",
                 time,
-                Hours(position.Element("EtgTime"), ordinal, "guide time"),
+                Hours(position.Element("EtgTime"), ordinal, "guide time", divisor),
                 "h"));
         }
         if (Marked(position.Element("PriceMarker")))
@@ -448,6 +462,21 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
                 price,
                 Money(position.Element("EtgPrice"), ordinal, "guide price"),
                 "GBP"));
+        }
+        if (Text(position.Element("TimeAnnot")) is { } timeAnnotation)
+        {
+            notes.Add($"Annotation (time): {timeAnnotation}");
+        }
+        if (Text(position.Element("PriceAnnot")) is { } priceAnnotation)
+        {
+            notes.Add($"Annotation (price): {priceAnnotation}");
+        }
+        foreach (var criterion in position.Elements("Criteria"))
+        {
+            if (Marked(criterion.Element("State")) && Text(criterion.Element("Text")) is { } selected)
+            {
+                notes.Add($"Selected criteria: {selected}");
+            }
         }
         if (Text(position.Element("Reason")) is { } reason)
         {
@@ -472,9 +501,9 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     /// which charges nothing of its own. See the class remarks for the two
     /// exports that prove the rule against Glass's own printed labour.
     /// </summary>
-    private static decimal ChargeableHours(XElement position, decimal time, string posType, int ordinal)
+    private static decimal ChargeableHours(XElement position, decimal time, string posType, int ordinal, decimal divisor)
     {
-        var overlap = Hours(position.Element("OverlapTime"), ordinal, "overlap time") ?? 0m;
+        var overlap = Hours(position.Element("OverlapTime"), ordinal, "overlap time", divisor) ?? 0m;
         if (posType == InclusivePosition)
         {
             return 0m;
@@ -763,7 +792,8 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         return value;
     }
 
-    private static decimal? Hours(XElement? element, int ordinal, string field)
+    /// <summary>A stated time, validated as printed and returned in hours (the stated figure divided by <paramref name="divisor"/>).</summary>
+    private static decimal? Hours(XElement? element, int ordinal, string field, decimal divisor)
     {
         var text = Text(element);
         if (text is null)
@@ -777,7 +807,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         {
             throw Reject(ordinal, $"has an unreadable {field}");
         }
-        return value;
+        return decimal.Round(value / divisor, EstimatePolicy.WorkUnitDecimals, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>Ordinal zero names the document's own totals, which sit outside the positions.</summary>

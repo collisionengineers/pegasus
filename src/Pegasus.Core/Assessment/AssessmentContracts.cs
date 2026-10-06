@@ -354,9 +354,10 @@ public static class EstimateLineCodes
 /// adjacent panel blend, <c>III</c> repair up to 50%, <c>IV</c> repair over
 /// 50%, <c>SP</c> spot-repair, <c>II</c> inner surface (a repair of an
 /// existing panel; operator reading, 5 October 2026), and for plastic
-/// <c>K1R</c>, <c>K1N</c> and <c>K1G</c> raw or primed parts (new) and
-/// <c>K2</c> surface spraying (repair). A pair or printed level outside the
-/// table is unknown, and each reader refuses the document.
+/// <c>K1R</c>, <c>K1N</c> and <c>K1G</c> raw or primed parts (new),
+/// <c>K2</c> surface spraying (repair), and plastic level 5, which the sheet
+/// prints as <c>B</c> (adjacent panel blend). A pair or printed level outside
+/// the table is unknown, and each reader refuses the document.
 /// </summary>
 public static class GlassPaintLevels
 {
@@ -374,6 +375,9 @@ public static class GlassPaintLevels
         new("K", 3, "K1N", "paint_new"),
         new("K", 4, "K1G", "paint_new"),
         new("K", 0, "K2", "paint_repair"),
+        // Two export pairs print the same code (B): a sheet's printed B is
+        // read through the first entry, and both pairs land as a blend.
+        new("K", 5, "B", "paint_blend"),
     ];
 
     /// <summary>The line type of an export's paint level, or null when the pair is not in the table.</summary>

@@ -92,7 +92,9 @@ Upholstery, Dent repair, Mechatronics and Special work; at least one),
 Paint and Additional costs, included-operation context, source guide codes,
 unambiguous manufacturer part identities, notes and printed amounts. PDF
 labour hours are already net of overlap and do not reuse the XML gross-time
-conversion. Parts and position appendices are evidence for existing rows,
+conversion. The sheet's labour time unit, `1 Hour` or N work units to the
+hour, converts every printed time to hours, and the XML's `TimeUnit` does the
+same (60 is the Hour option). Parts and position appendices are evidence for existing rows,
 never extra charges. Repeated printed charges and visibly clipped text stay
 as printed. Whole-row, section and document reconciliation is required.
 Section labour must equal the printed rate × section hours as the source
@@ -114,11 +116,11 @@ export and the calculation PDF land the same spec:
   price, noted as included in its row. It is never a new part.
 - A part's side prints after its description, `(L)` or `(R)`, as Glass's
   sheet prints it.
-- A guide time or price the engineer changed in Glass's, and Glass's reason
-  for it, are the line's note.
+- A guide time or price the engineer changed in Glass's, Glass's reason for
+  it, and a row's annotations and selected criteria are the line's note.
 - A paint row's level is its line type, from one table both routes share. New
   paint: `I`, `K1R`, `K1N`, `K1G` (the XML's material kind and level B 3,
-  K 2, K 3, K 4). Blend: `B` (B 4). Repair: `II` inner surface (the
+  K 2, K 3, K 4). Blend: `B` (B 4, K 5). Repair: `II` inner surface (the
   operator's reading, 5 October 2026), `III`, `IV`, `SP`, `K2` (B 0, B 1,
   B 2, B 6, K 0). A row with no level (preparation, colour mixing, sample,
   the clear-coat surcharge) is preparation. Glass's marked-up paint

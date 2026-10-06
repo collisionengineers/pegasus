@@ -18,6 +18,13 @@ namespace Pegasus.Infrastructure.Assessment;
 /// reader files them. The paint level a sheet prints lands as the line type
 /// <see cref="GlassPaintLevels"/> gives it, the same table the XML reader uses.
 /// Printed PDF hours are already net and never use the XML overlap rule.
+/// The sheet's <c>Labour time unit</c> is <c>1 Hour</c> or <c>N WU</c>, N work
+/// units to the hour; every printed time is a count of those units. The sums
+/// that tie rows to their summary and total hours are checked in printed units,
+/// each rate check converts to hours first (units divided by N), and every
+/// time the reader returns is in hours. Any other unit refuses the sheet.
+/// A sheet whose <c>VIN:</c> or <c>Vehicle Registration Number:</c> line is
+/// printed blank is read; the source identity then omits that part.
 /// Printed section labour is section hours multiplied by the printed rate and
 /// rounded once, while each printed row must still reconcile to that rate. An
 /// Additional costs section prints no rate or hours of its own: its labour is
@@ -149,7 +156,8 @@ internal static class GlassEstimatePdfParser
         private Row? parent;
         private bool annotation;
         private string? registration, vin, date, database;
-        private bool hourUnit, pounds;
+        private decimal? unitDivisor;
+        private bool pounds;
         private decimal? totalHours, totalLabour, totalMaterial, net, vat, vatPercent, gross, partsTotal;
         private string? positionDescription;
         private string? positionCodes;
@@ -160,12 +168,12 @@ internal static class GlassEstimatePdfParser
             var text = row.JoinedText.Replace(' ', ' ').Trim();
             if (section == Section.None)
             {
-                Capture(row, "Vehicle Registration Number:", ref registration);
-                Capture(row, "VIN:", ref vin);
+                Capture(row, "Vehicle Registration Number:", ref registration, allowEmpty: true);
+                Capture(row, "VIN:", ref vin, allowEmpty: true);
                 Capture(row, "Date:", ref date);
                 Capture(row, "Database version:", ref database);
                 if (text.StartsWith("Labour time unit:", StringComparison.Ordinal))
-                    hourUnit = Cell(row, 190, 580) == "1 Hour";
+                    unitDivisor = TimeDivisor(Cell(row, 190, 580));
                 if (text.StartsWith("Currency:", StringComparison.Ordinal))
                     pounds = Cell(row, 190, 580) is "£" or "GBP";
             }
@@ -218,12 +226,23 @@ internal static class GlassEstimatePdfParser
             section = next;
         }
 
-        private static void Capture(VisualRow row, string label, ref string? value)
+        /// <summary>A label's printed value. A blank one is kept as empty only where the sheet may print it so.</summary>
+        private static void Capture(VisualRow row, string label, ref string? value, bool allowEmpty = false)
         {
             if (!row.JoinedText.StartsWith(label, StringComparison.Ordinal)) return;
             var found = Cell(row, 190, 580);
-            if (found.Length == 0 || value is not null && value != found) throw Reject("The source identity is ambiguous");
+            if (found.Length == 0 && !allowEmpty || value is not null && value != found) throw Reject("The source identity is ambiguous");
             value = found;
+        }
+
+        /// <summary>What a printed time is divided by to give hours: <c>1 Hour</c> is 1 and <c>N WU</c> is N; anything else is unknown.</summary>
+        private static decimal? TimeDivisor(string stated)
+        {
+            if (stated == "1 Hour") return 1;
+            var parts = stated.Split(' ');
+            return parts.Length == 2 && parts[1] == "WU"
+                && int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var units) && units > 0
+                ? units : null;
         }
 
         private void ReadOperation(VisualRow row)
@@ -489,7 +508,7 @@ internal static class GlassEstimatePdfParser
         public ParsedEstimate Complete()
         {
             FlushPosition();
-            if (registration is null || vin is null || date is null || database is null || !hourUnit || !pounds
+            if (registration is null || vin is null || date is null || database is null || unitDivisor is not { } divisor || !pounds
                 || rows.Count is 0 or > AssessmentPolicy.MaximumEstimateLines || section != Section.End
                 || !totals.ContainsKey(Section.Paint) || !totals.Keys.Any(IsOperationSection))
                 throw Reject("The source identity, units or complete tables are missing");
@@ -512,11 +531,11 @@ internal static class GlassEstimatePdfParser
                 if (own.Length == 0 || !sum.Summarised || rate is null || hours is null
                     || sum.Labour is null || sum.Material is null || sum.Total is null
                     || own.Sum(item => item.Hours ?? 0) != hours
-                    || decimal.Round(hours.Value * rate.Value, 2, MidpointRounding.AwayFromZero) != sum.Labour
+                    || decimal.Round(hours.Value / divisor * rate.Value, 2, MidpointRounding.AwayFromZero) != sum.Labour
                     || sum.Labour != sum.SummaryLabour
                     || own.Sum(item => item.Material ?? 0) != sum.Material || sum.Material != sum.SummaryMaterial
                     || sum.Labour + sum.Material != sum.Total
-                    || own.Any(item => item.Hours is { } rowHours && decimal.Round(rowHours * rate.Value, 2, MidpointRounding.AwayFromZero) != (item.Labour ?? 0)))
+                    || own.Any(item => item.Hours is { } rowHours && decimal.Round(rowHours / divisor * rate.Value, 2, MidpointRounding.AwayFromZero) != (item.Labour ?? 0)))
                     throw Reject("The main rows disagree with their printed section totals or rate");
                 if (!additional) operationHours += hours.Value;
                 labour += sum.Labour.Value;
@@ -540,20 +559,27 @@ internal static class GlassEstimatePdfParser
             // Rows the appendix does not name (included work, paint) keep every line they printed.
             foreach (var item in rows) item.Settle(item.Wrapped.Count);
             var bodyHours = SummaryHoursOf(Section.Body); var auxiliaryHours = SummaryHoursOf(Section.Auxiliary);
-            return new($"{registration} {vin} {date} {database}", rows.Select(ToLine).ToArray(), GlassEstimateXmlParser.ProviderName,
+            var identity = string.Join(' ', new[] { registration, vin, date, database }.Where(part => !string.IsNullOrEmpty(part)));
+            return new(identity, rows.Select(ToLine).ToArray(), GlassEstimateXmlParser.ProviderName,
                 RepairSpecificationSourceRoute.Glasses, new(Parts: partsTotal,
-                    PanelWorkUnits: bodyHours is null && auxiliaryHours is null ? null : (bodyHours ?? 0) + (auxiliaryHours ?? 0),
-                    PaintWorkUnits: SummaryHoursOf(Section.Paint), Materials: totalMaterial - partsTotal,
+                    PanelWorkUnits: bodyHours is null && auxiliaryHours is null ? null : InHours((bodyHours ?? 0) + (auxiliaryHours ?? 0)),
+                    PaintWorkUnits: InHours(SummaryHoursOf(Section.Paint)), Materials: totalMaterial - partsTotal,
                     Net: net, Vat: vat, Gross: gross));
         }
 
-        private static EstimateLineInput ToLine(Row row)
+        /// <summary>A printed count of the sheet's time unit, as hours at the precision an estimate line keeps.</summary>
+        private decimal? InHours(decimal? printed) => printed is { } units
+            ? decimal.Round(units / unitDivisor!.Value, EstimatePolicy.WorkUnitDecimals, MidpointRounding.AwayFromZero)
+            : null;
+
+        private EstimateLineInput ToLine(Row row)
         {
             var paint = row.Section == Section.Paint;
+            var hours = InHours(row.Hours);
             var type = paint ? PaintLineType(row.Operation) : row.Operation switch
             {
                 "RP" => "new_part", "R" or "PR" => "repair", "UI" => "rnr",
-                "EC" => EstimateOperations.ToLineType(EstimateOperation.Specialist, row.Hours),
+                "EC" => EstimateOperations.ToLineType(EstimateOperation.Specialist, hours),
                 _ => "check_labour",
             };
             // A part and an additional operation print their amount as a unit
@@ -562,11 +588,11 @@ internal static class GlassEstimatePdfParser
             List<string> notes = [.. row.Notes];
             if (row.Parent is { } parent) notes.Insert(0, $"Included in {parent.Section} row {parent.Position}; no separate charge.");
             if (row.Operation is { } operation) notes.Insert(0, $"Printed {(paint ? "paint level" : "operation")}: {operation}.");
-            if (row.Overlap is { } overlap) notes.Add(FormattableString.Invariant($"Printed overlap: {overlap:0.00} h (net hours retained)."));
+            if (InHours(row.Overlap) is { } overlap) notes.Add(FormattableString.Invariant($"Printed overlap: {overlap:0.00} h (net hours retained)."));
             if (row.Labour is { } labour) notes.Add(FormattableString.Invariant($"Printed labour: {labour:0.00} GBP."));
-            return new(type, row.Guide, row.Description, paint ? null : row.Hours,
+            return new(type, row.Guide, row.Description, paint ? null : hours,
                 priced ? row.Material : null, false, row.PartNumber, null, "reference",
-                notes.Count == 0 ? null : string.Join(' ', notes), PaintWorkUnits: paint ? row.Hours : null,
+                notes.Count == 0 ? null : string.Join(' ', notes), PaintWorkUnits: paint ? hours : null,
                 Materials: priced ? null : row.Material,
                 SourceRowIdentity: FormattableString.Invariant($"{row.Section.ToString().ToLowerInvariant()}:p{row.Page}:r{row.Position}:{row.Guide}"));
         }
