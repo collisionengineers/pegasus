@@ -175,8 +175,8 @@ public sealed partial class DetailsModel
             }
         }
 
-        // The extras start from the Engineers the readiness read listed, and the
-        // delivery preparation from the generation, so each waits for its input.
+        // The extras start from the Engineers the readiness read listed, so they
+        // wait for that read.
         using (DocumentReadTelemetry.Start("web.case.extras"))
         {
             var extrasInputs = new WorkspaceExtrasInputs(
@@ -185,16 +185,12 @@ public sealed partial class DetailsModel
                 EligibleSignOffEngineers,
                 LeaseToken);
             var extras = reads.Start(token => ReadWorkspaceExtrasAsync(extrasInputs, token));
-            var delivery = CurrentReportGeneration is not null
-                ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, work, token))
-                : null;
             await reads.WhenAllAsync();
 
             var workspaceExtras = await extras;
             EngineerDisplayName = workspaceExtras.EngineerDisplayName;
             SignOffEngineerDisplayName = workspaceExtras.SignOffEngineerDisplayName;
             EvaHandoff = workspaceExtras.EvaHandoff;
-            CurrentDeliveryPreparation = delivery is null ? null : await delivery;
             AvailableClosureOutcomes = DescribeClosureOutcomes(Case.Workflow, actor);
         }
 

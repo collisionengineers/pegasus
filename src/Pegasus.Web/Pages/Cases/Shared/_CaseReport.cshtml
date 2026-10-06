@@ -4,7 +4,7 @@
     one More menu (the previews, and Generate for each companion document).
     Body: the preview card (when the report was generated, where its file
     stands, and Open report and Open fee note once each is stored), the
-    reviewed recipients and delivery, and the report fields. The readiness
+    delivery form with its one Send report, and the report fields. The readiness
     list and the stale notice are the aside's Next action's (issue 899).
     Mark report sent is the ribbon's Actions item and
     Unlink report evidence is Overview's Lifecycle actions; neither is
@@ -26,12 +26,11 @@
     var caseId = workflow.CaseId;
     var editing = Model.SectionIsEditable("report");
     // One report per work (v29 P4): each view's card is its own work's report,
-    // generated, prepared and sent under the same rules, the Inspection's
+    // generated and sent under the same rules, the Inspection's
     // before and after it is sent (operator, 1 and 2 October 2026). The Audit
     // view shows the Audit report alone (operator, 2 October 2026).
     var auditView = !Model.IsInspectionView && Model.Works is { HasAudit: true };
     var generation = Model.CurrentReportGeneration;
-    var preparation = Model.CurrentDeliveryPreparation;
     var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
         ? CaseReportDeliveryPolicy.SuggestedReview(suggestions)
         : new ReportRecipientReview([], []);
@@ -88,14 +87,10 @@
 
     // A delivery may attach a subset of the generation's documents (v28 P22),
     // so what it needs is a confirmed report, not every artifact confirmed.
-    // A preparation whose send failed or was cancelled is spent: it is not
-    // offered for sending again, and a fresh preparation may be made.
-    var preparationSpent = preparation?.LatestSendState
-        is Pegasus.Core.Operations.StaffMailState.Failed
-        or Pegasus.Core.Operations.StaffMailState.Cancelled;
-    var canPrepareDelivery = leaseForReport
+    // The form is offered again after a send, so the same report can be sent
+    // again (operator, 6 October 2026).
+    var canSendReport = leaseForReport
         && generation is not null
-        && (preparation is null || preparationSpent)
         && generation.State == CaseReportGenerationState.Confirmed
         && reportArtifact?.Status == CaseReportArtifactStatus.Confirmed;
     var repairSpecArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
@@ -350,11 +345,11 @@
 
         @if (generation is not null)
         {
-            @if (canPrepareDelivery)
+            @if (canSendReport)
             {
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="PrepareReportDelivery"
-                      asp-route-id="@caseId" asp-route-section="report" class="recip-form" data-prepare-delivery>
-                    <input type="hidden" name="operationKey" value="@Model.PrepareDeliveryOperationKey" />
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="SendReport"
+                      asp-route-id="@caseId" asp-route-section="report" class="recip-form" data-send-report>
+                    <input type="hidden" name="operationKey" value="@Model.SendReportOperationKey" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                     <input type="hidden" name="generationId" value="@generation.Id" />
@@ -413,9 +408,9 @@
                         </div>
                     }
                     @* P23: what the attached report will be called, read from
-                       the same policy the preparation freezes. The message is
+                       the same policy the send names it with. The message is
                        the Case report delivery template rendered for this Case;
-                       staff edit it here, and Prepare delivery freezes what is
+                       staff edit it here, and Send report sends what is
                        submitted. *@
                     <span class="lbl">@ReportLabels.FileName</span>
                     <div class="fv mono" data-report-file-name>@Model.ReportDeliveryFileName</div>
@@ -423,35 +418,9 @@
                     <textarea id="report-message" name="coveringMessage" rows="9" required
                               maxlength="@Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength"
                               data-report-message>@Model.ReportDeliveryMessage</textarea>
-                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Preparing" class="btn btn--small btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                        <span>@ReportLabels.PrepareDelivery</span>
-                    </button>
-                </form>
-            }
-            @if (preparation is not null && !preparationSpent && !Model.AssessmentIsReadOnly)
-            {
-                <dl class="detail-list" data-report-delivery>
-                    <div><dt>@ReportLabels.DeliveryPrepared</dt><dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd></div>
-                    <div><dt>@ReportLabels.Attach</dt><dd data-report-prepared-attachments>@string.Join(", ", preparation.Preparation.Artifacts.Select(artifact => artifact.FileName))</dd></div>
-                    @if (!string.IsNullOrWhiteSpace(preparation.Preparation.ReportFileName))
-                    {
-                        <div><dt>@ReportLabels.FileName</dt><dd class="mono" data-report-prepared-file-name>@(preparation.Preparation.ReportFileName).pdf</dd></div>
-                        <div><dt>@ReportLabels.Message</dt><dd data-report-prepared-message>@preparation.Preparation.CoveringMessage</dd></div>
-                    }
-                    @if (preparation.Addressing.Cc.Count > 0)
-                    {
-                        <div><dt>Cc</dt><dd>@string.Join(", ", preparation.Addressing.Cc.Select(recipient => recipient.Address))</dd></div>
-                    }
-                </dl>
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="SendPreparedReport"
-                      asp-route-id="@caseId" asp-route-section="report" class="button-row" data-send-prepared>
-                    <input type="hidden" name="preparationId" value="@preparation.Preparation.Id" />
-                    <input type="hidden" name="expectedPreparationVersion" value="@preparation.Preparation.Version" />
-                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                        <span>@ReportLabels.SendPreparedReport</span>
+                        <span>@ReportLabels.SendReport</span>
                     </button>
                 </form>
             }

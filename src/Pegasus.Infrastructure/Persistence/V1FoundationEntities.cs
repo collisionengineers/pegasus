@@ -155,20 +155,6 @@ internal sealed class GeneratedCaseArtifactEntity
     public string? FailureCode { get; set; }
 }
 
-internal sealed class CaseReportDeliveryIntentEntity : IApplicationManagedConcurrencyToken
-{
-    public Guid Id { get; set; }
-    public Guid GenerationId { get; set; }
-    public long GenerationVersion { get; set; }
-    public required string PayloadJson { get; set; }
-    public required string PayloadHash { get; set; }
-    public required string ActorSubjectId { get; set; }
-    public DateTimeOffset PreparedAtUtc { get; set; }
-    public required string OperationKey { get; set; }
-    public long Version { get; set; }
-    public Guid ConcurrencyToken { get; set; }
-}
-
 internal sealed class RetainedInstructionAnalysisEntity
 {
     public Guid Id { get; set; }

@@ -1254,6 +1254,10 @@ public sealed class CaseReportGenerationTests
             return Task.FromResult(Record(CaseReportArtifactKind.AssessmentReport));
         }
 
+        public Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+            SendCaseReportRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<CaseReportGenerationRecord?> GetAsync(
             ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportGenerationRecord?>(Record(CaseReportArtifactKind.AssessmentReport));

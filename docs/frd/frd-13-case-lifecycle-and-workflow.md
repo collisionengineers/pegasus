@@ -246,7 +246,7 @@ the Audit view's Next action follow the Audit's report, and the Case's report
 generation, approval, Mark report sent and Mark completed act on the Audit
 report. The Inspection's values are edited from the Inspection view, on the
 Inspection's own work and without any effect on the Case's state, due date,
-completeness or matching; its report is generated, prepared, sent and marked
+completeness or matching; its report is generated, sent and marked
 sent from that view, again when needed, and that view's Next action states
 the Inspection report's own step (operator, 2 October 2026). While the Audit
 report is being
