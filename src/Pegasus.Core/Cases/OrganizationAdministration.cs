@@ -33,9 +33,9 @@ public sealed record PrincipalAdministrationSummary(
     bool IsActive,
     long Version,
     int AllocatedCaseCount,
-    CaseInspectionMode InspectionMode,
-    PrincipalReportGenerationPolicy ReportGenerationPolicy,
-    PrincipalReportSendingRules ReportSending,
+    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
+    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
+    PrincipalReportSendingRules? ReportSending = null,
     string? DefaultInspectionLocationLabel = null,
     string? DefaultInspectionAddress = null,
     string? DefaultInspectionPostcode = null,
@@ -44,7 +44,12 @@ public sealed record PrincipalAdministrationSummary(
     long? DefaultInspectionSourceVersion = null,
     string? NotesOnEveryCase = null,
     SalvageMatrix? SalvageMatrix = null,
-    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard);
+    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard)
+{
+    /// <summary>The Principal's report sending rules; the defaults when none were named.</summary>
+    public PrincipalReportSendingRules ReportSending { get; init; } =
+        ReportSending ?? PrincipalReportSendingRules.Default;
+}
 
 public sealed record PrincipalAdministrationDetails(
     string Name,
