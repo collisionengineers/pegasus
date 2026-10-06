@@ -161,7 +161,8 @@ Each valuation also saves the vehicle to the account's Glass's stock list, as
 the portal does, and once the figures have answered, files that stocked
 vehicle's "Vehicle Valuation Report – Glass's Values Only" PDF on the Case's
 Documents as `Glass's valuation {registration} {yyyy-MM}.pdf` (operator, 1
-October 2026). Whatever stops a Glass's valuation, the card shows its notice.
+October 2026), only when the report's own text names the Case registration
+(operator, 5 October 2026). Whatever stops a Glass's valuation, the card shows its notice.
 Brego, Super CAP, CAP and Cazana have no connected provider; connecting one
 needs its own accepted decision.
 

@@ -1,10 +1,11 @@
 using System.Net;
 using System.Reflection;
-using System.Text;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Glass;
+using Pegasus.Infrastructure.Intake;
 using static Pegasus.IntegrationTests.GlassProviderFixture;
 
 namespace Pegasus.IntegrationTests;
@@ -56,11 +57,47 @@ public sealed class GlassGuideValuationProviderTests
 
         var pdf = await quote.Report!.FetchPdfAsync(default);
 
-        Assert.Equal(ReportPdf, Encoding.UTF8.GetString(pdf));
+        Assert.Equal(ReportPdf, pdf);
         var print = Assert.Single(harness.Mva.Requests, request => request.Path.StartsWith("/pdf-print/", StringComparison.Ordinal));
         Assert.Equal("/pdf-print/storess/template/0/printaction/vehicle-valuation/vehicles/" + VehicleId, print.Path);
         var download = Assert.Single(harness.Mva.Requests, request => request.Path == ReportPath);
         Assert.Contains("NDP=session-cookie", download.Cookie, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The shared account can hand back another vehicle's print (issue 1032):
+    /// the filing reads the report's text and keeps only the Case's own.
+    /// </summary>
+    [Fact]
+    public async Task TheReportIsFiledWhenItNamesTheCaseRegistration()
+    {
+        var harness = Harness.Create();
+        var quote = await harness.Provider.GetAsync(Request(), default);
+        var custody = new RecordingCustody();
+
+        await new FileGuideValuationReport(custody, new PdfPigPageTextExtractor()).ExecuteAsync(
+            new(Request().Actor, Guid.NewGuid(), ValuationSource.Glasses, Registration, April, quote.Report!),
+            default);
+
+        Assert.Single(custody.Requests);
+    }
+
+    [Fact]
+    public async Task AReportThatNamesAnotherRegistrationIsNeverFiled()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set("GET /ndp_download/18390/", new(
+            HttpStatusCode.OK, string.Empty, ContentType: "application/pdf", Bytes: ValuationReport("MP23KTV")));
+        var quote = await harness.Provider.GetAsync(Request(), default);
+        var custody = new RecordingCustody();
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new FileGuideValuationReport(custody, new PdfPigPageTextExtractor()).ExecuteAsync(
+                new(Request().Actor, Guid.NewGuid(), ValuationSource.Glasses, Registration, April, quote.Report!),
+                default));
+
+        Assert.Contains("registration=different", refused.Message, StringComparison.Ordinal);
+        Assert.Empty(custody.Requests);
     }
 
     [Theory]
@@ -415,6 +452,20 @@ public sealed class GlassGuideValuationProviderTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromException<HttpResponseMessage>(failure);
+    }
+
+    private sealed class RecordingCustody : ICaseArtifactCustody
+    {
+        public List<CaseArtifactCustodyRequest> Requests { get; } = [];
+
+        public Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult<CaseArtifactCustodyResult>(new(
+                CaseArtifactCustodyDisposition.Confirmed, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                "box-file", "box-version", request.Sha256, request.ContentLength, request.MediaType, null, null));
+        }
     }
 
     private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<GlassGuideValuationProvider>
