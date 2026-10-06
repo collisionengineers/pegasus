@@ -274,7 +274,7 @@ public sealed class CaseViewsWebTests
         Assert.DoesNotContain(sentLine, auditReport, StringComparison.Ordinal);
         Assert.DoesNotContain(reports.Inspection!.Id.ToString("D"), auditReport, StringComparison.Ordinal);
         Assert.Contains($"{AuditReference} · </span>", ReportStatus(auditReport), StringComparison.Ordinal);
-        Assert.Contains("data-prepare-delivery", auditReport, StringComparison.Ordinal);
+        Assert.Contains("data-send-report", auditReport, StringComparison.Ordinal);
         // The delivery message is the Case report delivery template, rendered
         // for staff to edit before Send report.
         Assert.Matches(
@@ -291,7 +291,7 @@ public sealed class CaseViewsWebTests
         Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
         Assert.DoesNotContain(reports.Audit!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-reference", inspectionReport, StringComparison.Ordinal);
-        Assert.Contains("data-prepare-delivery", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
         Assert.Equal(
             auditReport.Contains("data-report-menu", StringComparison.Ordinal),
             inspectionReport.Contains("data-report-menu", StringComparison.Ordinal));
@@ -417,11 +417,11 @@ public sealed class CaseViewsWebTests
 
     /// <summary>
     /// The Inspection report still to be sent after Create audit (operator,
-    /// 1 October 2026): the Inspection view prepares and sends it on its own
+    /// 1 October 2026): the Inspection view sends it on its own
     /// work, its forms naming the view.
     /// </summary>
     [Fact]
-    public async Task TheInspectionViewPreparesItsReportWhileItAwaitsSending()
+    public async Task TheInspectionViewSendsItsReportWhileItAwaitsSending()
     {
         var store = new RecordingCaseDetailsStore
         {
@@ -436,7 +436,7 @@ public sealed class CaseViewsWebTests
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
         var inspectionReport = Section(inspectionHtml, "section-report-title");
         Assert.DoesNotContain(Frame.Sent, ReportStatus(inspectionReport), StringComparison.Ordinal);
-        Assert.Contains("data-prepare-delivery", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
         Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
         Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
         Assert.DoesNotContain(reports.Audit!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
