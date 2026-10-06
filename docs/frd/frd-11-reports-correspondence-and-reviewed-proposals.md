@@ -296,17 +296,16 @@ delivery is not one. The subject stays the Case or Audit reference. A send the
 mailbox provider refuses is shown as a failed send; that preparation is spent,
 and Prepare delivery is offered again so a fresh preparation can be sent.
 
-**Report and fee note.** They are separately addressable files in custody.
-The operator generating the report chooses whether the fee note is a separate
-document or the report's final pages, with the Include fee note choice beside
-Generate report (issue 912). The snapshot records that choice, so a
-combined report is one file under the report's name and reproduces the same
-way. A later request for a separate fee note names the current confirmed,
-non-stale generation and adds the fee note from that generation's frozen
-date and fee facts. It does not re-freeze the report. The request is refused
-when there is no current generation, the generation is stale, or the report
-already contains its fee note. Fee facts, readiness and accepted fee terms
-are the same either way.
+**Report and fee note.** Every report ends with its fee note: one file under
+the report's name, the fee note's pages last (operator, 6 October 2026). The
+separate fee note is its own file in custody and can always be generated. A
+Principal that wants it separately is sent both: the report with its fee note,
+and the separate fee note attached beside it. A request for the separate fee
+note names the current confirmed, non-stale generation and adds the fee note
+from that generation's frozen date and fee facts. It does not re-freeze the
+report. The request is refused when there is no current generation or the
+generation is stale. Fee facts, readiness and accepted fee terms are the same
+in both files.
 
 **Staleness.** One Core rule over normalised effective values marks a
 generation stale only when an accepted report fact changes. Notes, no-op

@@ -2162,21 +2162,18 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// The working preview is reachable both as a plain link (report only)
-    /// and from the generate form, where the operator's "Include fee note"
-    /// choice must be previewed exactly as it would be generated (R34B).
+    /// The working preview, exactly as the report would be generated: the
+    /// report followed by its fee note.
     /// </summary>
     public Task<IActionResult> OnGetPreviewReportDraftAsync(
         Guid id,
-        bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
 
     public Task<IActionResult> OnPostPreviewReportDraftAsync(
         Guid id,
-        bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
 
     /// <summary>
     /// The included images as they would print (v28 P42): the same working
@@ -2186,11 +2183,10 @@ public sealed partial class DetailsModel(
     public Task<IActionResult> OnGetPreviewImagePackAsync(
         Guid id,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote: false, CaseReportArtifactKind.ImagePack, cancellationToken);
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.ImagePack, cancellationToken);
 
     private async Task<IActionResult> PreviewReportDraftAsync(
         Guid id,
-        bool includeFeeNote,
         CaseReportArtifactKind kind,
         CancellationToken cancellationToken)
     {
@@ -2204,7 +2200,7 @@ public sealed partial class DetailsModel(
         {
             result = await HttpContext.RequestServices
                 .GetRequiredService<GenerateCaseAssessmentReportDraft>()
-                .ExecuteAsync(id, actor, kind, includeFeeNote, cancellationToken);
+                .ExecuteAsync(id, actor, kind, cancellationToken);
         }
         catch (ReportRenderRejectedException exception)
         {
@@ -2301,20 +2297,19 @@ public sealed partial class DetailsModel(
     /// store's short transaction and renders through the registered
     /// renderer, one artifact per request. The draft handlers above stay for
     /// the labelled ungenerated working preview; this is the real report.
-    /// R34B: the operator chooses whether the fee note is part of this
-    /// report or the separate document <see cref="OnPostGenerateFeeNoteAsync"/>
-    /// still produces, and that choice is frozen with the snapshot.
+    /// The report always ends with its fee note; a Principal that wants the
+    /// fee note on its own as well is sent the separate document
+    /// <see cref="OnPostGenerateFeeNoteAsync"/> produces beside it.
     /// </summary>
     public Task<IActionResult> OnPostGenerateReportAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
         long expectedCaseVersion,
-        bool includeFeeNote,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+            CaseReportArtifactKind.AssessmentReport,
             targetGenerationId: null, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
@@ -2326,7 +2321,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.FeeNote, includeFeeNote: false,
+            CaseReportArtifactKind.FeeNote,
             targetGenerationId, cancellationToken);
 
     /// <summary>
@@ -2344,7 +2339,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.RepairSpecification, includeFeeNote: false,
+            CaseReportArtifactKind.RepairSpecification,
             targetGenerationId, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateImagePackAsync(
@@ -2356,7 +2351,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.ImagePack, includeFeeNote: false,
+            CaseReportArtifactKind.ImagePack,
             targetGenerationId, cancellationToken);
 
     /// <summary>
@@ -2372,14 +2367,13 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
-        bool includeFeeNote,
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             return await GenerateWithOneOffLeaseAsync(
-                id, operationKey, expectedCaseVersion, kind, includeFeeNote,
+                id, operationKey, expectedCaseVersion, kind,
                 targetGenerationId, cancellationToken);
         }
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2393,7 +2387,7 @@ public sealed partial class DetailsModel(
         }
         return await GenerateAsync(
             actor, id, operationKey, editLeaseToken, expectedCaseVersion,
-            kind, includeFeeNote, targetGenerationId, cancellationToken);
+            kind, targetGenerationId, cancellationToken);
     }
 
     /// <summary>
@@ -2408,7 +2402,6 @@ public sealed partial class DetailsModel(
         string operationKey,
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
-        bool includeFeeNote,
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
@@ -2446,7 +2439,7 @@ public sealed partial class DetailsModel(
         {
             return await GenerateAsync(
                 actor, id, operationKey, lease.Token, expectedCaseVersion,
-                kind, includeFeeNote, targetGenerationId, cancellationToken);
+                kind, targetGenerationId, cancellationToken);
         }
         finally
         {
@@ -2463,7 +2456,6 @@ public sealed partial class DetailsModel(
         string editLeaseToken,
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
-        bool includeFeeNote,
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
@@ -2487,7 +2479,6 @@ public sealed partial class DetailsModel(
                         CaseReportArtifactKind.RepairSpecification => "Generate the immutable Repair Spec",
                         _ => "Generate the immutable images",
                     },
-                    includeFeeNote,
                     targetGenerationId,
                     WorkSelector),
                 cancellationToken);

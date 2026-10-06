@@ -1,7 +1,8 @@
 ﻿@*
     Report (v26 § Report). Head: one primary (Generate report, gated by the
-    readiness the projection states, with Include fee note beside it) and
-    one More menu (the previews, and Generate for each companion document).
+    readiness the projection states; the report always ends with its fee
+    note) and one More menu (the previews, and Generate for each companion
+    document).
     Body: the preview card (when the report was generated, where its file
     stands, and Open report and Open fee note once each is stored), the
     reviewed recipients and delivery, and the report fields. The readiness
@@ -66,7 +67,6 @@
     var canGenerateCompanion = canClaimGeneration
         && generation is { State: CaseReportGenerationState.Confirmed };
     var canGenerateFeeNote = canGenerateCompanion
-        && !generation!.Snapshot.Report.IncludeFeeNote
         && feeNoteArtifact?.Status != CaseReportArtifactStatus.Confirmed;
     var feeNoteOperationKey = feeNoteArtifact?.OperationKey ?? Model.GenerateFeeNoteOperationKey;
     // What the preview card opens: the stored report, and a separate fee
@@ -80,7 +80,7 @@
         ? null
         : Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm", CultureInfo.InvariantCulture);
     var draftFileName = Model.ReportTitle + Words.DraftSuffix;
-    var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId, includeFeeNote = false })!;
+    var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId })!;
     // P50 moved the image surface to Files, so what the report uses is
     // counted from the preparations that grid reads. The Preview images
     // offer still depends on there being at least one.
@@ -148,19 +148,6 @@
                     }
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
-                    @if (reportRetryArtifact is not null)
-                    {
-                        <input type="hidden" name="includeFeeNote" value="@(generation!.Snapshot.Report.IncludeFeeNote ? "true" : "false")" />
-                    }
-                    else
-                    {
-                        @* R34B: the packaging choice sits beside the button it
-                           changes, and freezes with the snapshot (issue 912). *@
-                        <label class="choice" for="report-include-fee-note">
-                            <input type="checkbox" id="report-include-fee-note" name="includeFeeNote" value="true" data-include-fee-note />
-                            <span>@ReportLabels.IncludeFeeNote</span>
-                        </label>
-                    }
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" data-busy-done="@OperatorLabels.Busy.Done.Generated" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                         <span>@ReportLabels.GenerateReport</span>
@@ -326,9 +313,7 @@
                            data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@storedReport.FileName" data-no-inplace
                            data-open-on-arrival="@(Model.OpenReportArtifactId == storedReport.Id ? "true" : "false")">
                             <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                            <span>@(generation.Snapshot.Report.IncludeFeeNote
-                                ? ReportLabels.OpenReportWithFeeNote
-                                : ReportLabels.OpenReport)</span>
+                            <span>@ReportLabels.OpenReport</span>
                         </a>
                     }
                     @if (cardFeeNote is { } separateFeeNote)

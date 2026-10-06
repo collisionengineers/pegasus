@@ -60,14 +60,11 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
-    /// R34B: one checkbox on the generate form decides whether the fee note
-    /// is part of the report. An unticked box posts nothing, so the request
-    /// defaults to the separate document the fee-note action still produces.
+    /// The report always ends with its fee note, so the generate form offers
+    /// no fee-note choice and posts the report alone.
     /// </summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task GenerateReportCarriesTheOperatorsFeeNotePackagingChoice(bool includeFeeNote)
+    [Fact]
+    public async Task GenerateReportOffersNoFeeNoteChoice()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
@@ -80,43 +77,27 @@ public sealed partial class AssessmentReportDraftWebTests
             new FakeRenderer([1]),
             generateReport: recorder);
         using var client = Client(factory);
-        // v26: Generate report is the head's primary inside the edit session;
-        // the Include fee note choice sits inside that form, beside its
-        // button (issue 912), so it posts as the form's own field.
+        // v26: Generate report is the head's primary inside the edit session.
         var html = await EnterEditModeAsync(client, caseId);
         var generateForm = FormHtml(html, "GenerateReport");
 
         Assert.Contains("data-generate-report", generateForm, StringComparison.Ordinal);
-        Assert.Contains(
-            "name=\"includeFeeNote\" value=\"true\" data-include-fee-note",
-            generateForm,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.IncludeFeeNote,
-            generateForm,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("includeFeeNote", generateForm, StringComparison.Ordinal);
         Assert.DoesNotContain("form=\"case-generate-report-form\"", html, StringComparison.Ordinal);
-
-        List<(string Name, string Value)> fields =
-        [
-            ("id", caseId.ToString("D")),
-            ("operationKey", Guid.NewGuid().ToString("N")),
-            ("editLeaseToken", "held-report-lease"),
-            ("expectedCaseVersion", "0"),
-        ];
-        if (includeFeeNote)
-        {
-            fields.Add(("includeFeeNote", "true"));
-        }
 
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=GenerateReport&section=report",
-            Form(AntiforgeryValue(html), [.. fields]));
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0")));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var request = Assert.Single(recorder.Requests);
         Assert.Equal(CaseReportArtifactKind.AssessmentReport, request.Kind);
-        Assert.Equal(includeFeeNote, request.IncludeFeeNote);
+        Assert.Null(request.TargetGenerationId);
     }
 
     [Fact]
@@ -143,7 +124,7 @@ public sealed partial class AssessmentReportDraftWebTests
             .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
             {
                 services.RemoveAll<ICaseReportGenerationStore>();
-                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(caseId, false));
+                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(caseId));
             }));
         using var feeNoteClient = Client(feeNoteFactory);
         var feeNoteHtml = await EnterEditModeAsync(feeNoteClient, caseId);
@@ -191,7 +172,6 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Contains("data-report-artifact=\"AssessmentReport\"", confirmedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("data-generate-report", confirmedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-generate-report-form\"", confirmedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-include-fee-note", confirmedHtml, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -215,7 +195,6 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.RemoveAll<ICaseReportGenerationStore>();
                 services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
                     caseId,
-                    includeFeeNote: false,
                     feeNoteStatus: status,
                     feeNoteOperationKey: retainedOperationKey));
             }));
@@ -253,7 +232,6 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.RemoveAll<ICaseReportGenerationStore>();
                 services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
                     caseId,
-                    includeFeeNote: false,
                     repairSpecStatus: kind == CaseReportArtifactKind.RepairSpecification ? status : null,
                     repairSpecOperationKey: retainedOperationKey,
                     imagePackStatus: kind == CaseReportArtifactKind.ImagePack ? status : null,
@@ -301,15 +279,12 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("id", caseId.ToString("D")),
                 ("operationKey", retainedOperationKey),
                 ("editLeaseToken", InputValue(initialForm, "editLeaseToken")),
-                ("expectedCaseVersion", InputValue(initialForm, "expectedCaseVersion")),
-                ("includeFeeNote", "true")));
+                ("expectedCaseVersion", InputValue(initialForm, "expectedCaseVersion"))));
 
         Assert.Equal(HttpStatusCode.Redirect, failed.StatusCode);
         var retryHtml = await GetHtmlAsync(client, failed.Headers.Location!.OriginalString);
         var retryForm = FormHtml(retryHtml, "GenerateReport");
         Assert.Equal(retainedOperationKey, InputValue(retryForm, "operationKey"));
-        Assert.Equal("true", InputValue(retryForm, "includeFeeNote"));
-        Assert.DoesNotContain("data-include-fee-note", retryForm, StringComparison.Ordinal);
 
         using var retried = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=GenerateReport&section=report",
@@ -318,8 +293,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("id", caseId.ToString("D")),
                 ("operationKey", InputValue(retryForm, "operationKey")),
                 ("editLeaseToken", InputValue(retryForm, "editLeaseToken")),
-                ("expectedCaseVersion", InputValue(retryForm, "expectedCaseVersion")),
-                ("includeFeeNote", InputValue(retryForm, "includeFeeNote"))));
+                ("expectedCaseVersion", InputValue(retryForm, "expectedCaseVersion"))));
 
         Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
         Assert.Collection(
@@ -327,13 +301,11 @@ public sealed partial class AssessmentReportDraftWebTests
             request =>
             {
                 Assert.Equal(retainedOperationKey, request.OperationKey);
-                Assert.True(request.IncludeFeeNote);
                 Assert.Equal(0, request.ExpectedCaseVersion);
             },
             request =>
             {
                 Assert.Equal(retainedOperationKey, request.OperationKey);
-                Assert.True(request.IncludeFeeNote);
                 Assert.Equal(0, request.ExpectedCaseVersion);
             });
         Assert.Equal(CaseReportGenerationOutcome.Generated, generator.LastOutcome);
@@ -357,7 +329,6 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.RemoveAll<ICaseReportGenerationStore>();
                 services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
                     caseId,
-                    includeFeeNote: false,
                     reportStatus: CaseReportArtifactStatus.Failed,
                     reportOperationKey: retainedOperationKey));
             }));
@@ -371,65 +342,21 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
-    /// The generated card names what the operator actually issued, so a
-    /// combined document is never offered as if a separate fee note existed.
-    /// </summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task TheGeneratedReportCardNamesTheCombinedDocument(bool includeFeeNote)
-    {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        var caseId = Guid.NewGuid();
-        using var factory = Compose(
-            baseFactory,
-            new FakeGetCase(caseId),
-            FullAssessmentProjection(caseId),
-            new FakeProjectionSource(ReadyInput(caseId)),
-            new FakeRenderer([1]))
-            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<ICaseReportGenerationStore>();
-                services.AddSingleton<ICaseReportGenerationStore>(
-                    new FakeCurrentGeneration(caseId, includeFeeNote));
-            }));
-        using var client = Client(factory);
-
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
-
-        var combined = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReportWithFeeNote;
-        if (includeFeeNote)
-        {
-            Assert.Contains($"<span>{combined}</span>", html, StringComparison.Ordinal);
-        }
-        else
-        {
-            Assert.DoesNotContain(combined, html, StringComparison.Ordinal);
-            Assert.Contains(
-                $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReport}</span>",
-                html,
-                StringComparison.Ordinal);
-        }
-    }
-
-    /// <summary>
     /// A confirmed separate fee note is opened from the report card, beside
-    /// Open report (issue 912); a combined report or a fee note not yet
-    /// confirmed offers no such link.
+    /// Open report (issue 912); a fee note not yet confirmed offers no such
+    /// link.
     /// </summary>
     [Theory]
-    [InlineData(false, CaseReportArtifactStatus.Confirmed, true)]
-    [InlineData(false, CaseReportArtifactStatus.Pending, false)]
-    [InlineData(false, null, false)]
-    [InlineData(true, null, false)]
+    [InlineData(CaseReportArtifactStatus.Confirmed, true)]
+    [InlineData(CaseReportArtifactStatus.Pending, false)]
+    [InlineData(null, false)]
     public async Task TheReportCardOpensAConfirmedSeparateFeeNote(
-        bool includeFeeNote,
         CaseReportArtifactStatus? feeNoteStatus,
         bool offered)
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
-        var generation = new FakeCurrentGeneration(caseId, includeFeeNote, feeNoteStatus);
+        var generation = new FakeCurrentGeneration(caseId, feeNoteStatus);
         using var factory = WithCurrentGeneration(baseFactory, caseId, generation);
         using var client = Client(factory);
 
@@ -521,7 +448,7 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
-        var generation = new FakeCurrentGeneration(caseId, includeFeeNote: false, reportStatus: status, reportFiled: filed);
+        var generation = new FakeCurrentGeneration(caseId, reportStatus: status, reportFiled: filed);
         using var factory = WithCurrentGeneration(baseFactory, caseId, generation);
         using var client = Client(factory);
 
@@ -699,7 +626,7 @@ public sealed partial class AssessmentReportDraftWebTests
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
         using var factory = WithCurrentGeneration(
-            baseFactory, caseId, new FakeCurrentGeneration(caseId, includeFeeNote: false, stale: true));
+            baseFactory, caseId, new FakeCurrentGeneration(caseId, stale: true));
         using var client = Client(factory);
 
         var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
@@ -734,7 +661,6 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.RemoveAll<ICaseReportGenerationStore>();
                 services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
                     caseId,
-                    includeFeeNote: false,
                     feeNoteStatus: CaseReportArtifactStatus.Confirmed));
             }));
         using var client = Client(factory);
@@ -899,7 +825,7 @@ public sealed partial class AssessmentReportDraftWebTests
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
         var preparationId = Guid.NewGuid();
-        var generation = new FakeCurrentGeneration(caseId, includeFeeNote: false);
+        var generation = new FakeCurrentGeneration(caseId);
         using var factory = Compose(
             baseFactory,
             new FakeGetCase(caseId),
@@ -942,7 +868,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var preparationId = Guid.NewGuid();
         var send = new RecordingSendPreparedReport(returnedState);
-        var generation = new FakeCurrentGeneration(caseId, includeFeeNote: false);
+        var generation = new FakeCurrentGeneration(caseId);
         var snapshots = new RecordingRepairSpecificationSnapshots();
         using var factory = Compose(
             baseFactory,
@@ -1026,7 +952,7 @@ public sealed partial class AssessmentReportDraftWebTests
         WithCurrentGeneration(
             baseFactory,
             caseId,
-            new FakeCurrentGeneration(caseId, includeFeeNote: false, reportStatus: status, reportFiled: filed));
+            new FakeCurrentGeneration(caseId, reportStatus: status, reportFiled: filed));
 
     private static WebApplicationFactory<Program> WithCurrentGeneration(
         IntakeWebApplicationFactory baseFactory,
@@ -1143,7 +1069,6 @@ public sealed partial class AssessmentReportDraftWebTests
     /// </summary>
     internal sealed class FakeCurrentGeneration(
         Guid caseId,
-        bool includeFeeNote,
         CaseReportArtifactStatus? feeNoteStatus = null,
         string? feeNoteOperationKey = null,
         CaseReportArtifactStatus reportStatus = CaseReportArtifactStatus.Confirmed,
@@ -1158,7 +1083,6 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         private readonly CaseReportGenerationRecord record = GenerationRecord(
             caseId,
-            includeFeeNote,
             feeNoteStatus,
             feeNoteOperationKey,
             reportStatus,
@@ -1225,7 +1149,6 @@ public sealed partial class AssessmentReportDraftWebTests
                 : CaseReportArtifactStatus.Confirmed;
             current = GenerationRecord(
                 caseId,
-                request.IncludeFeeNote,
                 feeNoteStatus: null,
                 feeNoteOperationKey: null,
                 reportStatus: status,
@@ -1280,7 +1203,6 @@ public sealed partial class AssessmentReportDraftWebTests
 
     private static CaseReportGenerationRecord GenerationRecord(
         Guid caseId,
-        bool includeFeeNote,
         CaseReportArtifactStatus? feeNoteStatus,
         string? feeNoteOperationKey,
         CaseReportArtifactStatus reportStatus = CaseReportArtifactStatus.Confirmed,
@@ -1293,8 +1215,7 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         reportOperationKey ??= "operation-1";
         var input = ReadyInput(caseId);
-        var projected = AssessmentReportProjection.Project(input).Snapshot!;
-        var report = projected with { IncludeFeeNote = includeFeeNote };
+        var report = AssessmentReportProjection.Project(input).Snapshot!;
         var generationId = Guid.NewGuid();
         var snapshot = new CaseReportGenerationSnapshot(
             caseId, 0, "CE-100", reportOperationKey, CaseReportActor.None, ReportFixtureAtUtc,

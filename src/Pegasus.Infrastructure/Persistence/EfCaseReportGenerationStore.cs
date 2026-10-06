@@ -188,15 +188,8 @@ public sealed class EfCaseReportGenerationStore(
             readiness.RecordedReportDate,
             readiness.ReportDateOverridden,
             LondonCalendar.DateAt(now));
-        // The packaging choice belongs to the report itself: a separate fee
-        // note never embeds one, whatever the caller asked for.
         var projected = AssessmentReportProjection.Project(
-            reportInputs.Projection with
-            {
-                ReportDate = reportDate,
-                IncludeFeeNote = request.IncludeFeeNote
-                    && request.Kind == CaseReportArtifactKind.AssessmentReport,
-            });
+            reportInputs.Projection with { ReportDate = reportDate });
         if (projected.Snapshot is null)
         {
             return new(CaseReportFreezeOutcome.NotReady, null, null, projected.Reasons);
@@ -338,11 +331,6 @@ public sealed class EfCaseReportGenerationStore(
         }
 
         var snapshot = DeserializeSnapshot(generation);
-        if (request.Kind == CaseReportArtifactKind.FeeNote && snapshot.Report.IncludeFeeNote)
-        {
-            throw new InvalidOperationException("The generated artifact is unavailable.");
-        }
-
         var report = await context.Set<GeneratedCaseArtifactEntity>()
             .SingleOrDefaultAsync(
                 item => item.GenerationId == generation.Id
@@ -426,15 +414,11 @@ public sealed class EfCaseReportGenerationStore(
             .AsNoTracking()
             .SingleAsync(item => item.Id == replay.GenerationId, cancellationToken)
             .ConfigureAwait(false);
-        var snapshot = DeserializeSnapshot(generation);
-        var expectedIncludeFeeNote = request.Kind == CaseReportArtifactKind.AssessmentReport
-            && request.IncludeFeeNote;
         var targetMatches = request.Kind == CaseReportArtifactKind.AssessmentReport
             ? request.TargetGenerationId is null
             : request.TargetGenerationId == generation.Id;
         if (generation.CaseId != request.CaseId
             || !string.Equals(replay.Kind, request.Kind.ToString(), StringComparison.Ordinal)
-            || snapshot.Report.IncludeFeeNote != expectedIncludeFeeNote
             || !targetMatches)
         {
             throw new CaseOperationConflictException(request.CaseId, replay.OperationKey);

@@ -1011,9 +1011,7 @@ public static class CaseWorkspaceLabels
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
-        public const string IncludeFeeNote = "Include fee note";
         public const string OpenReport = "Open report";
-        public const string OpenReportWithFeeNote = "Open report with fee note";
         public const string OpenFeeNote = "Open fee note";
         public const string DownloadFeeNote = "Fee note";
         public const string GenerationStaleNotice =
