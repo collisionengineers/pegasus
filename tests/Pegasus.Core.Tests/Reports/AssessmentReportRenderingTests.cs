@@ -75,6 +75,28 @@ public sealed class AssessmentReportRenderingTests
         Assert.Null(renderer.Received);
     }
 
+    /// <summary>
+    /// A Principal whose report sending rules say so has its report
+    /// generated without vehicle images (operator, 6 October 2026): that
+    /// report needs no image to print, every other report still does, and a
+    /// snapshot carries images unless it is told otherwise.
+    /// </summary>
+    [Fact]
+    public async Task AReportWithoutVehicleImagesNeedsNoImageToPrint()
+    {
+        var snapshot = Snapshot(AssessmentReportOutcome.Repairable);
+        Assert.True(snapshot.IncludeVehicleImages);
+        Assert.Throws<ReportRenderRejectedException>((snapshot with { Photos = [] }).Validate);
+
+        var renderer = new FakeRenderer();
+        await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
+            snapshot with { Photos = [], IncludeVehicleImages = false },
+            CaseReportArtifactKind.AssessmentReport);
+
+        Assert.False(renderer.Received!.IncludeVehicleImages);
+        Assert.Empty(renderer.Received.Photos);
+    }
+
     [Fact]
     public void ContractRepairUsesTheAgreedSumWhileKeepingTheComputedRepairTotal()
     {

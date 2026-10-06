@@ -115,6 +115,14 @@ public enum DocumentCustodyStatus
 /// to be an estimate (<see cref="Pegasus.Core.Assessment.EstimateFormats"/>);
 /// null until it has been read.
 /// </param>
+/// <param name="RecognisedEstimateProvider">
+/// The format a recognised estimate was read in, as its parser names it
+/// (<see cref="Pegasus.Core.Assessment.ParsedEstimate.ProviderName"/>, such as
+/// <see cref="Pegasus.Core.Assessment.EstimateFormats.AudatexProvider"/>).
+/// Null until it has been read, or when the version is not an estimate; empty
+/// when the version was recognised before the format was kept and reading it
+/// again could not determine it.
+/// </param>
 public sealed record DocumentVersion(
     Guid Id,
     Guid DocumentId,
@@ -129,7 +137,8 @@ public sealed record DocumentVersion(
     bool IsCurrent,
     bool IsLogicallyRemoved,
     string? RemovalReason,
-    bool? IsRecognisedEstimate = null);
+    bool? IsRecognisedEstimate = null,
+    string? RecognisedEstimateProvider = null);
 
 public sealed record DocumentOccurrence(
     Guid Id,

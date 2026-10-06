@@ -591,6 +591,93 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
+    /// Whether the report carries vehicle images is projected into the
+    /// snapshot, so a generation freezes it; a report carries them unless its
+    /// Principal's rules say otherwise.
+    /// </summary>
+    [Fact]
+    public void TheProjectionCarriesWhetherTheReportHasVehicleImages()
+    {
+        var input = AssessmentReportDraftWebTests.ReadyInput(Guid.NewGuid());
+
+        Assert.True(input.IncludeVehicleImages);
+        Assert.True(AssessmentReportProjection.Project(input).Snapshot!.IncludeVehicleImages);
+        Assert.False(AssessmentReportProjection
+            .Project(input with { IncludeVehicleImages = false }).Snapshot!.IncludeVehicleImages);
+    }
+
+    /// <summary>
+    /// A report generated without vehicle images (operator, 6 October 2026):
+    /// page 1 has no lead photo and the plan keeps its own place and size,
+    /// there are no image pages, and the fee note still ends it. The images
+    /// document of the same snapshot prints every image.
+    /// </summary>
+    [Fact]
+    public async Task AReportWithoutVehicleImagesPrintsNoneAndItsImagePackPrintsThemAll()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var draft = new GenerateAssessmentReportDraft(renderer);
+        var ready = ReadySnapshot();
+        var photo = ready.Photos.Single();
+        var withImages = ready with
+        {
+            Photos =
+            [
+                photo with { CustodyReference = "close-up.jpg", Role = CaseAssetReportRole.CloseUp },
+                photo with { CustodyReference = "overview.jpg", Role = CaseAssetReportRole.Overview },
+                photo with { CustodyReference = "supporting.jpg", Order = 1 },
+            ],
+        };
+        var withoutImages = withImages with { IncludeVehicleImages = false };
+
+        var included = await draft.ExecuteAsync(withImages, CaseReportArtifactKind.AssessmentReport);
+        var report = await draft.ExecuteAsync(withoutImages, CaseReportArtifactKind.AssessmentReport);
+        var imagePack = await draft.ExecuteAsync(withoutImages, CaseReportArtifactKind.ImagePack);
+
+        // Page 1, the narrative, the vehicle data, the work lists and the
+        // statement of truth each start a page; the fee note follows.
+        Assert.Equal(6, report.PageCount);
+        Assert.Equal(7, included.PageCount);
+        var pages = PageTexts(report.Pdf);
+        Assert.DoesNotContain(
+            pages, page => page.Contains(AssessmentReportWording.VehicleImagesHeading, StringComparison.Ordinal));
+        Assert.Contains(AssessmentReportWording.StatementOfTruthHeading, pages[^2], StringComparison.Ordinal);
+        Assert.Contains(Squeeze(AssessmentReportWording.FeeNoteTitle), Squeeze(pages[^1]), StringComparison.Ordinal);
+        // No lead photo and no image pages: the signature is the one image.
+        Assert.Equal([0, 0, 0, 0, 1, 0], BodyImages(report.Pdf).Select(page => page.Count));
+        // Page 1 draws exactly what it draws beside a lead photo: the plan
+        // stands in its own place at its own size.
+        var drawn = PageOneDrawing(included.Pdf);
+        Assert.NotEmpty(drawn);
+        var alone = PageOneDrawing(report.Pdf);
+        Assert.Equal(drawn.Length, alone.Length);
+        Assert.All(drawn.Zip(alone), pair =>
+        {
+            Assert.InRange(pair.Second.Left, pair.First.Left - 0.05, pair.First.Left + 0.05);
+            Assert.InRange(pair.Second.Top, pair.First.Top - 0.05, pair.First.Top + 0.05);
+            Assert.InRange(pair.Second.Right, pair.First.Right - 0.05, pair.First.Right + 0.05);
+            Assert.InRange(pair.Second.Bottom, pair.First.Bottom - 0.05, pair.First.Bottom + 0.05);
+        });
+        // The images document of the same snapshot prints every image.
+        Assert.Equal(3, BodyImages(imagePack.Pdf).Sum(page => page.Count));
+    }
+
+    /// <summary>
+    /// What page 1 draws, the plan among it, in print order: every filled or
+    /// stroked shape. A photo is an image, not a shape.
+    /// </summary>
+    private static PrintedBox[] PageOneDrawing(byte[] pdf) =>
+    [
+        .. Read(pdf)[0].Shapes
+            .Where(shape => !shape.Clip && (shape.Fill is not null || shape.Stroke is not null))
+            .OrderBy(shape => Math.Round(shape.Top, 1))
+            .ThenBy(shape => Math.Round(shape.Left, 1))
+            .ThenBy(shape => Math.Round(shape.Bottom, 1))
+            .ThenBy(shape => Math.Round(shape.Right, 1)),
+    ];
+
+    /// <summary>
     /// An image is trimmed about its centre to the shape of its slot after
     /// the Engineer's own crop, and is never enlarged.
     /// </summary>

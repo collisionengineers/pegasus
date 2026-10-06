@@ -410,16 +410,29 @@ public sealed class EfCaseReportGenerationStore(
         GeneratedCaseArtifactEntity replay,
         CancellationToken cancellationToken)
     {
-        var generation = await context.Set<CaseReportGenerationEntity>()
-            .AsNoTracking()
-            .SingleAsync(item => item.Id == replay.GenerationId, cancellationToken)
+        // The Principal's report sending rules are read with the generation,
+        // in the same command: whether the report carries vehicle images is
+        // decided by them, not by the request.
+        var row = await (
+                from item in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+                join @case in context.Cases.AsNoTracking() on item.CaseId equals @case.Id
+                where item.Id == replay.GenerationId
+                select new { Generation = item, @case.Principal.ReportSendingRulesJson })
+            .SingleAsync(cancellationToken)
             .ConfigureAwait(false);
+        var generation = row.Generation;
         var targetMatches = request.Kind == CaseReportArtifactKind.AssessmentReport
             ? request.TargetGenerationId is null
             : request.TargetGenerationId == generation.Id;
+        // A report replayed after its Principal's image rule changed would be
+        // a different report from the one frozen under this key.
+        var imagesMatch = request.Kind != CaseReportArtifactKind.AssessmentReport
+            || DeserializeSnapshot(generation).Report.IncludeVehicleImages
+                == EfAssessmentReportProjectionSource.IncludesVehicleImages(row.ReportSendingRulesJson);
         if (generation.CaseId != request.CaseId
             || !string.Equals(replay.Kind, request.Kind.ToString(), StringComparison.Ordinal)
-            || !targetMatches)
+            || !targetMatches
+            || !imagesMatch)
         {
             throw new CaseOperationConflictException(request.CaseId, replay.OperationKey);
         }

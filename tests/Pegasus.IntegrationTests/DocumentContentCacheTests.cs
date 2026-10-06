@@ -1824,7 +1824,12 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(ActorKind.SystemWorker, Assert.Single(source.Actors).Kind);
             await using (var db = await estate.Database.CreateContextAsync())
             {
-                Assert.Equal(isEstimate, (await db.Set<DocumentVersionEntity>().SingleAsync()).IsRecognisedEstimate);
+                var recorded = await db.Set<DocumentVersionEntity>().SingleAsync();
+                Assert.Equal(isEstimate, recorded.IsRecognisedEstimate);
+                // The format it was read in is kept with the answer.
+                Assert.Equal(
+                    isEstimate ? Pegasus.Core.Assessment.EstimateFormats.AudatexProvider : null,
+                    recorded.RecognisedEstimateProvider);
             }
             Assert.Equal(0, (await sweep.ExecuteAsync(5, CancellationToken.None)).Candidates);
 
@@ -1845,6 +1850,120 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 }
                 Assert.Equal(0, (await sweep.ExecuteAsync(5, CancellationToken.None)).Candidates);
             }
+        }
+    }
+
+    /// <summary>
+    /// An estimate recognised before its format was kept is read once more
+    /// by the same sweep for its format (operator, 6 October 2026), after
+    /// every version never read, even an older one. A re-read that may pass
+    /// records nothing and is read again later; one that definitely cannot
+    /// determine the format records it as empty, so the version is not
+    /// listed again. It stays an estimate either way.
+    /// </summary>
+    [Fact]
+    public async Task TheEstimateSweepReadsARecognisedEstimateOnceMoreForItsFormat()
+    {
+        var content = AudatexEstimateFixture.Build();
+        var estate = await Estate.CreateDocumentAsync(content, "application/pdf");
+        await using (estate)
+        {
+            var recognised = estate.Request.VersionId!.Value;
+            var unread = Guid.NewGuid();
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var version = await db.Set<DocumentVersionEntity>().SingleAsync();
+                version.IsRecognisedEstimate = true;
+                var caseId = await db.Set<CaseDocumentEntity>()
+                    .Where(document => document.Id == version.DocumentId)
+                    .Select(document => document.CaseId)
+                    .SingleAsync();
+                var documentId = Guid.NewGuid();
+                db.Add(new CaseDocumentEntity
+                {
+                    Id = documentId, CaseId = caseId, Ordinal = 2, SourceOccurrenceIdentity = "document-cache-unread"
+                });
+                db.Add(new DocumentVersionEntity
+                {
+                    Id = unread, DocumentId = documentId, Version = 1, FileName = version.FileName,
+                    MediaType = version.MediaType, ContentLength = version.ContentLength, Sha256 = version.Sha256,
+                    BoxFileId = "box-file-2", BoxVersionId = "box-version-2",
+                    CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    CreatedAtUtc = version.CreatedAtUtc.AddDays(-1),
+                    CreatedBy = "test", IsCurrent = true
+                });
+                await db.SaveChangesAsync();
+            }
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var candidates = new EfEstimateRecognitionCandidates(factory, estate.Clock);
+
+            // The older version never read comes first.
+            var listed = await candidates.ListAsync(5, CancellationToken.None);
+            Assert.Equal([unread, recognised], listed.Select(candidate => candidate.VersionId));
+            Assert.Equal([false, true], listed.Select(candidate => candidate.IsRecognised));
+            Assert.Equal(unread, Assert.Single(await candidates.ListAsync(1, CancellationToken.None)).VersionId);
+
+            var sweep = new Pegasus.Core.Assessment.RecogniseFiledEstimates(
+                candidates,
+                new ImmediateSource(content),
+                [new Pegasus.Infrastructure.Assessment.PdfEstimateDocumentParser()]);
+            Assert.Equal(
+                new Pegasus.Core.Assessment.RecogniseFiledEstimatesResult(2, 2, 0, 0, null),
+                await sweep.ExecuteAsync(5, CancellationToken.None));
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                Assert.All(await db.Set<DocumentVersionEntity>().ToArrayAsync(), version =>
+                {
+                    Assert.True(version.IsRecognisedEstimate);
+                    Assert.Equal(
+                        Pegasus.Core.Assessment.EstimateFormats.AudatexProvider, version.RecognisedEstimateProvider);
+                });
+            }
+            Assert.Equal(0, (await sweep.ExecuteAsync(5, CancellationToken.None)).Candidates);
+
+            // A read that may pass records nothing: the version is deferred and
+            // listed again once the deferral has passed.
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var version = await db.Set<DocumentVersionEntity>().SingleAsync(item => item.Id == recognised);
+                version.RecognisedEstimateProvider = null;
+                await db.SaveChangesAsync();
+            }
+            var interrupted = new Pegasus.Core.Assessment.RecogniseFiledEstimates(
+                candidates,
+                new FailingSource(),
+                [new Pegasus.Infrastructure.Assessment.PdfEstimateDocumentParser()]);
+            Assert.Equal(
+                new Pegasus.Core.Assessment.RecogniseFiledEstimatesResult(1, 0, 0, 1, nameof(IOException)),
+                await interrupted.ExecuteAsync(5, CancellationToken.None));
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var version = await db.Set<DocumentVersionEntity>().SingleAsync(item => item.Id == recognised);
+                Assert.True(version.IsRecognisedEstimate);
+                Assert.Null(version.RecognisedEstimateProvider);
+            }
+            Assert.Equal(0, (await interrupted.ExecuteAsync(5, CancellationToken.None)).Candidates);
+            estate.Clock.Advance(TimeSpan.FromMinutes(11));
+
+            // Bytes that are not the recorded version are permanently
+            // unreadable: the format is recorded as not determined and
+            // nothing else changes.
+            var unreadable = new Pegasus.Core.Assessment.RecogniseFiledEstimates(
+                candidates,
+                new ImmediateSource("%PDF-1.4 instruction letter"u8.ToArray()),
+                [new Pegasus.Infrastructure.Assessment.PdfEstimateDocumentParser()]);
+            Assert.Equal(
+                new Pegasus.Core.Assessment.RecogniseFiledEstimatesResult(
+                    1, 0, 0, 1, nameof(Pegasus.Core.Assessment.EstimateParseRejectedException)),
+                await unreadable.ExecuteAsync(5, CancellationToken.None));
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var version = await db.Set<DocumentVersionEntity>().SingleAsync(item => item.Id == recognised);
+                Assert.True(version.IsRecognisedEstimate);
+                Assert.Equal(string.Empty, version.RecognisedEstimateProvider);
+            }
+            Assert.Equal(0, (await unreadable.ExecuteAsync(5, CancellationToken.None)).Candidates);
         }
     }
 
@@ -2246,6 +2365,15 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>The verified full bytes, answered at once, with who asked.</summary>
+    /// <summary>A custody read that fails in a way that may pass.</summary>
+    private sealed class FailingSource : IReadLogicalDocumentVersion
+    {
+        public Task<LogicalDocumentContent> OpenAsync(
+            ReadLogicalDocumentVersionRequest request,
+            CancellationToken cancellationToken) =>
+            throw new IOException("Box said later.");
+    }
+
     private sealed class ImmediateSource(byte[] content) : IReadLogicalDocumentVersion
     {
         public List<ActionActor> Actors { get; } = [];
