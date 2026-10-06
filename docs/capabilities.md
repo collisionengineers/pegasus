@@ -78,7 +78,7 @@ exclusion.
 | CASE-17 | Due-by date extraction and overdue display | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
-| CASE-20 | General Case tasks: a Tasks section on the Case record, and after-send tasks created from the delivery's frozen list when Report sent is recorded (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
+| CASE-20 | General Case tasks: a Tasks section on the Case record (add, assign, complete, cancel), after-send tasks created from the list the report send recorded when Report sent is recorded, and open tasks shown as the blocker to completing the Case (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
 | CASE-21 | Replay-safe EVA export history and First sent to Engineer | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) |
 | CASE-24 | Post-report completion, Principal cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |
@@ -207,6 +207,7 @@ exclusion.
 | RPT-05 | Addenda from accepted data plus a versioned amendment (deferred) | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | RPT-07 | Estimate document rendered per estimate version from the one totals owner | [Report generation entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point) |
 | RPT-08 | Principal report sending rules edited on the Contact: recipients, mailbox, attachments, holds, stops, reminders and file name | [Contacts administration](frd/frd-04-parties-accounts-and-access.md#contacts-administration) |
+| RPT-09 | Report delivery follows the Principal's sending rules in one step: reply in the instruction thread, questions, holds, stop with override, required companions, filed estimates by format, after-send list | [Report sending rules](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules) |
 | AI-08 | AI-drafted query response reviewed by human staff before sending | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | AI-10 | Named AI job kinds with durable lifecycle and job list | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
 | MCP-07 | Administration switch for Send to AI | [Send to AI switch](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch) |

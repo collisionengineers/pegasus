@@ -612,15 +612,13 @@ function Get-MigrationPermissionMatrix {
     # chaser's chase when the Sent poll observes the send. It never deletes one.
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseManualChases')
     $expected.Add('pegasus_worker_runtime_role|G|INSERT|CaseManualChases')
-    # 20261007090000_GrantWorkerCaseTasksForReportSent: the Worker's Sent-evidence
-    # link creates the after-send tasks the delivery froze, in the same transaction
-    # as Report sent. It reads the frozen list from the delivery intent and inserts
-    # the tasks; it never updates or deletes one.
+    # 20261007110000_GrantWorkerCaseTasksForReportSent: the Worker's Sent-evidence
+    # link creates the after-send tasks the send recorded, in the same transaction
+    # as Report sent. It inserts the tasks; it never updates or deletes one.
     foreach ($permission in @('SELECT', 'INSERT')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseTasks")
     }
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseTasks')
-    $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseReportDeliveryIntents')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

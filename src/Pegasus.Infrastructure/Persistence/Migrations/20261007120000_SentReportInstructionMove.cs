@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// <c>StaffMailSendOperations</c> cover the columns, so no grant changes.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
-[Migration("20261007100000_SentReportInstructionMove")]
+[Migration("20261007120000_SentReportInstructionMove")]
 public partial class SentReportInstructionMove : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
