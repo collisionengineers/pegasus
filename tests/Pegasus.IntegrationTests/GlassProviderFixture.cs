@@ -53,8 +53,8 @@ internal static class GlassProviderFixture
     /// <summary>The placeholder's detail form: no registration, no mileage, the unqualified type number.</summary>
     public static string PlaceholderDetail(
         string registration = "", long mileage = 0, string vehicleId = PlaceholderVehicleId,
-        string natCode = PlaceholderNatCode, string profile = ProfileId) =>
-        VehicleDetail(registration, mileage, vehicleId, natCode, profile);
+        string natCode = PlaceholderNatCode, string profile = ProfileId, bool locked = false) =>
+        VehicleDetail(registration, mileage, vehicleId, natCode, profile, locked);
 
     /// <summary>The operator's Save &amp; Exit, as the provider composes it.</summary>
     public const string SavedQuery =
@@ -72,16 +72,24 @@ internal static class GlassProviderFixture
         + Uri.EscapeDataString(
             caller ?? $"https://mva.test/ere/ere-callback/ere_id/{EreId}/ere_session/{EreSession}");
 
-    // Named fields and repeated id match the captured MVA detail form.
+    // Named fields and repeated id match the captured MVA detail form. Once an
+    // estimate exists the portal renders the repair-profile control locked with
+    // the profile that started it selected (glasses12.har entries 1826 and
+    // 1840), which is what locked serves.
     public static string VehicleDetail(string registration = Registration, long mileage = MileageMiles,
-        string vehicleId = VehicleId, string natCode = NatCode, string profile = ProfileId) => $"""
+        string vehicleId = VehicleId, string natCode = NatCode, string profile = ProfileId, bool locked = false) => $"""
         <form><input name="id" value="{vehicleId}" type="hidden" />
         <input name="natcode" value="{natCode}" type="hidden" />
         <input name="registration_number" value="{registration}" />
         <input name="mileage" value="{mileage}" /></form>
         <form><input name="id" value="{vehicleId}" type="hidden" />
-        <select name="ere_profile"><option value="{profile}">Repair profile</option></select></form>
+        {ProfileSelect(profile, locked)}</form>
         """;
+
+    private static string ProfileSelect(string profile, bool locked) => locked
+        ? "<select name=\"ere_profile\" id=\"ere_profile\" tabindex=\"6\" style=\"width:140px\" disabled=\"1\">"
+            + $"<option value=\"{profile}\" selected=\"selected\">Repair profile</option></select>"
+        : $"<select name=\"ere_profile\"><option value=\"{profile}\">Repair profile</option></select>";
 
     /// <summary>The provider answers this with a byte-order mark at both ends.</summary>
     public static string StartEre(string launchUrl) =>
@@ -183,6 +191,9 @@ internal static class GlassProviderFixture
         mva.Set("GET /index/get-selected-vehicle-count/grid/stocklistGrid", new(
             HttpStatusCode.OK, "{\"grid\":\"stocklistGrid\",\"error\":false,\"count\":\"1\"}"));
         mva.Set("POST /ere/start-ere", new(HttpStatusCode.OK, StartEre(LaunchUrl())));
+        // The portal locks the vehicle's repair-profile control as soon as
+        // start-ere has allocated the estimate (issue 1026).
+        LockProfileOnStart(mva, VehicleDetail(), VehicleDetail(locked: true));
         mva.Set("GET /ere/ere-callback/", new(
             HttpStatusCode.OK,
             Relay("\"928.3\", \"773.58\", \"0\", \"0\", \"352\", \"421.58\", \"0\", " + EreId + ", 1, \"\"")));
@@ -209,6 +220,36 @@ internal static class GlassProviderFixture
             "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
             new(HttpStatusCode.OK, UnknownPlate));
         mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, PlaceholderDetail()));
+        LockProfileOnStart(mva, PlaceholderDetail(), PlaceholderDetail(locked: true));
+    }
+
+    /// <summary>
+    /// After <c>start-ere</c> is answered the vehicle's details page is the
+    /// locked one, as the portal renders a vehicle that has an estimate. A
+    /// vehicle created or inserted afterwards has none yet, so a later launch
+    /// on the same script gets the open page back. Registering again replaces
+    /// the earlier hooks.
+    /// </summary>
+    private static void LockProfileOnStart(ScriptedGlass mva, string openPage, string lockedPage)
+    {
+        const string Details = "GET /index/vehicle-details-value/";
+        var locked = false;
+        mva.OnServed("POST /ere/start-ere", glass =>
+        {
+            glass.Set(Details, new(HttpStatusCode.OK, lockedPage));
+            locked = true;
+        });
+        foreach (var newVehicle in new[] { "GET /index/create-new-vehicle", "POST /index/unqualified-vehicle-insert" })
+        {
+            mva.OnServed(newVehicle, glass =>
+            {
+                if (locked)
+                {
+                    glass.Set(Details, new(HttpStatusCode.OK, openPage));
+                    locked = false;
+                }
+            });
+        }
     }
 }
 
@@ -242,10 +283,20 @@ internal sealed class ScriptedGlass : HttpMessageHandler
 {
     private readonly Dictionary<string, Reply> standing = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Queue<Reply>> queued = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Action<ScriptedGlass>> hooks = new(StringComparer.Ordinal);
 
     public List<Recorded> Requests { get; } = [];
 
     public void Set(string route, Reply reply) => standing[route] = reply;
+
+    /// <summary>
+    /// Runs the action each time the route is chosen for a request, after its
+    /// reply is picked, so the provider's own state can move on as a result of
+    /// the call (a started estimate locks its vehicle's profile). One action
+    /// per route; registering again replaces it. Not on <see cref="Reply"/>,
+    /// which is theory data.
+    /// </summary>
+    public void OnServed(string route, Action<ScriptedGlass> served) => hooks[route] = served;
 
     public void Enqueue(string route, params Reply[] replies)
     {
@@ -285,6 +336,10 @@ internal sealed class ScriptedGlass : HttpMessageHandler
             : route is not null && standing.TryGetValue(route, out var standingReply)
                 ? standingReply
                 : new Reply(HttpStatusCode.NotFound, string.Empty);
+        if (route is not null && hooks.TryGetValue(route, out var served))
+        {
+            served(this);
+        }
 
         var response = new HttpResponseMessage(reply.Status)
         {

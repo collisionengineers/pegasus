@@ -222,8 +222,9 @@ stands until the first live return has been read.
 A Glass's launch records its callback and external account before contacting
 the provider. Vehicle and estimate identities are kept as soon as they
 arrive. Resume continues an interrupted preparation or a known vehicle that
-has not started an estimate; an existing estimate reopens by its existing
-identity. These actions sit in the Case estimate section and do not need
+has not started an estimate; an existing estimate reopens through its
+vehicle, as the portal does, and must answer one of the session's own
+estimate ids. These actions sit in the Case estimate section and do not need
 credentials reset.
 
 **Interrupted background work.** Work can stop part-way: the host restarts,
@@ -270,12 +271,25 @@ match the account used at launch.
 
 Before selecting a vehicle or reopening an estimate, the provider detail form
 must identify the expected vehicle ID, registration, mileage and NatCode, and
-offer the configured repair profile. A placeholder's form must identify the
+show the configured repair profile. A placeholder's form must identify the
 recorded vehicle ID, a numeric type number (the one the launch recorded, once
-it has) and an empty registration, and offer the profile; it has no mileage
-to prove. Missing or contradictory controls refuse the action. Resume uses the positive estimate ID already recorded; uncertain
-writes never restart at zero. A URL issued by the provider establishes no
-claim that the hosted editor has initialized successfully.
+it has) and an empty registration, and show the profile; it has no mileage
+to prove. Missing or contradictory controls refuse the action.
+
+What "show the profile" means depends on whether the provider has started an
+estimate on the vehicle. Before a start, the repair-profile control is enabled
+and offers the configured profile. Once a start has allocated an estimate the
+provider locks the control and marks the profile that started it selected, so
+a Resume or Fetch again requires exactly one disabled repair-profile control
+whose selected option is the configured profile (operator, 5 October 2026).
+The identity controls are checked the same way in both phases.
+
+Resume follows the portal: after the vehicle is proved, it starts with
+estimate ID 0, as the portal does, and accepts only an answer naming one of
+the estimate IDs the session recorded. Any other answer, or a start whose
+answer is lost, leaves the session `Unknown` without opening the estimator,
+because that start may have created an estimate. A URL issued by the provider
+establishes no claim that the hosted editor has initialized successfully.
 
 Keeping a returned estimate's source files does not use up the staff member's
 still-valid Case edit authority. The import uses that authority to land one
@@ -296,9 +310,8 @@ no estimate is open, and with a reason. Stale versions and closure by another
 staff member are refused. An account holds one live session: while it is held
 from another Case, every Case the staff member opens names that Case instead of
 offering a launch, and a second launch is refused before the provider is
-contacted. Reopening an estimate may come back under a different provider
-estimate id; every id a session was launched under is kept, and the provider
-may return any of them. Checkpoints and explicit closure are audited
+contacted. Every estimate id a session was launched under is kept, and the
+provider may return any of them. Checkpoints and explicit closure are audited
 permanently without provider credentials, callback tokens or document
 content.
 
@@ -375,10 +388,11 @@ edits during return.
 
 The hosted editor must also pass live acceptance on the deployed artifact:
 three fresh launches across two vehicle models (cold and warm browser), three
-positive-ID resumes including reload and host restart, deliberate estimate
-changes followed by Save & Exit and an automatic import that lands as the
-Current spec, replay producing one spec, expired-lease recovery, original-window closure, and a second Case
-refused while the account is held. Chrome is primary; Edge also covers a fresh
+resumes (before and after a save) including reload and host restart,
+deliberate estimate changes followed by Save & Exit and an automatic import
+that lands as the Current spec, replay producing one spec, expired-lease
+recovery, original-window closure, and a second Case refused while the
+account is held. Chrome is primary; Edge also covers a fresh
 launch and Resume. Manual export/import does not satisfy this integration's
 acceptance. Supplier startup failures remain open until that journey passes
 ([engineering](../engineering.md#required-evidence-tiers)).
