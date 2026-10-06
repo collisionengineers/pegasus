@@ -12,6 +12,13 @@ public static class GlassRepairEstimateSessionPolicy
     public static bool SameRegistration(string? left, string? right) =>
         string.Equals(Compact(left), Compact(right), StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Whether printed text names the registration, ignoring case and any spacing in either.</summary>
+    public static bool NamesRegistration(string? text, string? registration)
+    {
+        var plate = Compact(registration);
+        return plate.Length > 0 && Compact(text).Contains(plate, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string Compact(string? value) =>
         new((value ?? string.Empty).Where(character => !char.IsWhiteSpace(character)).ToArray());
 
