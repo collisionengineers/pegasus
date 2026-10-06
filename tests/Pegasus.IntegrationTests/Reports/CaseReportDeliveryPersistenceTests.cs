@@ -454,7 +454,7 @@ public sealed class CaseReportDeliveryPersistenceTests
         Assert.Equal("Agreed by phone.", root.GetProperty("stopOverrideReason").GetString());
         Assert.Equal(
             ["Send the WhatsApp.", "Chase the images."],
-            root.GetProperty("afterSendTasks").EnumerateArray().Select(item => item.GetString()).ToArray());
+            root.GetProperty("afterSendTasks").EnumerateArray().Select(item => item.GetString()!).ToArray());
     }
 
     /// <summary>
