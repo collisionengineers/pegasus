@@ -170,7 +170,8 @@ public sealed class ReconcileUnidentifiedDestinations(
 
     /// <summary>
     /// Resolves the one Unidentified item owned by a grouped manual upload
-    /// only after every durable member has reached the same Case. A member
+    /// only after every durable member has reached the same Case, or the
+    /// group has been registered as one Image intake. A member
     /// link can commit before the request completes, so this is callable from
     /// that request and from the worker sweep that recovers an interruption.
     /// </summary>
@@ -430,23 +431,40 @@ public sealed class ReconcileUnidentifiedDestinations(
             }
             return await receiptQueries.GetAsync(receiptId, cancellationToken);
         }));
-        if (receipts.Any(receipt => receipt?.CurrentCaseId is null))
+        if (receipts.Any(receipt => receipt is null))
         {
             return null;
         }
 
+        var associationVersion = receipts.Sum(receipt => receipt!.ManualAssociationVersion ?? 0);
         var first = receipts[0]!;
-        if (receipts.Any(receipt => receipt!.CurrentCaseId != first.CurrentCaseId))
+        if (first.CurrentCaseId is { } caseId
+            && receipts.All(receipt => receipt!.CurrentCaseId == caseId))
         {
-            return null;
+            return new(
+                new(
+                    UnidentifiedResolutionTargetKind.InstructionCase,
+                    caseId.ToString("N"),
+                    first.CurrentCaseReference),
+                associationVersion);
         }
 
-        return new(
-            new(
-                UnidentifiedResolutionTargetKind.InstructionCase,
-                first.CurrentCaseId!.Value.ToString("N"),
-                first.CurrentCaseReference),
-            receipts.Sum(receipt => receipt!.ManualAssociationVersion ?? 0));
+        // Before every member reaches one Case, the group's own Image intake is
+        // its destination: the one registration stamped with this group,
+        // reached through any member it moved to the registered decision.
+        if (receipts.FirstOrDefault(receipt => receipt!.Decision == IntakeDecision.ImageIntakeRegistered) is { } registered
+            && await imageIntakeQueries.GetByOriginReceiptAsync(registered.Id, cancellationToken) is { } detail
+            && detail.Record.SubmissionGroupId == groupId)
+        {
+            return new(
+                new(
+                    UnidentifiedResolutionTargetKind.ImageIntake,
+                    detail.Record.Id.ToString("N"),
+                    detail.Record.ImageIntakeReference),
+                associationVersion);
+        }
+
+        return null;
     }
 
     private Task<UnidentifiedResolveResult> ResolveAsync(

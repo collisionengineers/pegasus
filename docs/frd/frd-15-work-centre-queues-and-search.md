@@ -265,7 +265,7 @@ bounded detail. Its actions are:
   scope;
 - **Create case**, from its receipt;
 - **Register images**, the registration prefilled from an agreeing reading,
-  with a reason;
+  with a reason; on an upload group's item it registers the whole group;
 - **Send Unidentified to AI**, while the item is open: queues one
   Unidentified-resolution AI job for that item
   ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
