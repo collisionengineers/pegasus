@@ -1501,29 +1501,32 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Empty(harness.Import.Requests);
     }
 
-    public static TheoryData<string, string, GlassRepairEstimateSessionState> RefusedExports() => new()
+    public static TheoryData<string, string, GlassRepairEstimateSessionState, bool> RefusedExports() => new()
     {
         {
             "<div>no exports yet</div>",
             GlassFailure.ExportNone,
-            GlassRepairEstimateSessionState.Unknown
+            GlassRepairEstimateSessionState.Unknown,
+            false
         },
         {
             "<a href=\"/ndp_download/one.xml\">a</a><a href=\"/ndp_download/two.xml\">b</a>",
             GlassFailure.ExportAmbiguous,
-            GlassRepairEstimateSessionState.Failed
+            GlassRepairEstimateSessionState.Failed,
+            true
         },
         {
             "<a href=\"https://attacker.test/ndp_download/one.xml\">a</a>",
             GlassFailure.ExportOffOrigin,
-            GlassRepairEstimateSessionState.Failed
+            GlassRepairEstimateSessionState.Failed,
+            true
         },
     };
 
     [Theory]
     [MemberData(nameof(RefusedExports))]
     public async Task AnExportThatIsNotExactlyOneSameOriginDocumentIsRefused(
-        string grid, string expectedFailure, GlassRepairEstimateSessionState expectedState)
+        string grid, string expectedFailure, GlassRepairEstimateSessionState expectedState, bool refetchable)
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();
@@ -1533,6 +1536,7 @@ public sealed class GlassRepairEstimateGatewayTests
 
         Assert.Equal(expectedState, settled.State);
         Assert.Equal(expectedFailure, settled.FailureCode);
+        Assert.Equal(refetchable, GlassRepairEstimateSessionPolicy.CanRefetchExport(settled.State, settled.FailureCode));
         Assert.Empty(harness.Import.Requests);
     }
 
@@ -1546,7 +1550,66 @@ public sealed class GlassRepairEstimateGatewayTests
 
         Assert.Equal(GlassRepairEstimateSessionState.Failed, settled.State);
         Assert.Equal(GlassFailure.DownloadOversize, settled.FailureCode);
+        Assert.True(GlassRepairEstimateSessionPolicy.CanRefetchExport(settled.State, settled.FailureCode));
         Assert.Empty(harness.Import.Requests);
+    }
+
+    /// <summary>
+    /// Issue 1031: a login redirect where the export grid should be is not a
+    /// reason to lose the saved estimate. Glass's saved it and the relay
+    /// succeeded, so the failure is the export's own code and Fetch again can
+    /// look the export up with a fresh sign-in.
+    /// </summary>
+    [Fact]
+    public async Task AnExportRequestRedirectedToTheLoginPageOffersAFetchAgain()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ere/export-vehicle/", new(
+            HttpStatusCode.Found, string.Empty, Location: "https://mva.test/login"));
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, settled.State);
+        Assert.Equal(GlassFailure.ExportRequest, settled.FailureCode);
+        Assert.True(GlassRepairEstimateSessionPolicy.CanRefetchExport(settled.State, settled.FailureCode));
+        Assert.Empty(harness.Import.Requests);
+    }
+
+    /// <summary>
+    /// Issue 1031: the relay answered by the login page's redirect may have
+    /// been acted on, so the session is Unknown, never Failed, and the relay is
+    /// never repeated (ADR-0058). A Resume signs in again, looks the export up
+    /// and lands the estimate. A 200 login page at the relay is another
+    /// matter: it is the answer, and it is refused as RelayShape above.
+    /// </summary>
+    [Fact]
+    public async Task ARelayRedirectedToTheLoginPageStaysUnknownUntilAResumeLooksTheExportUp()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ere/ere-callback/", new(
+            HttpStatusCode.Found, string.Empty, Location: "https://mva.test/login"));
+
+        var uncertain = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, uncertain.State);
+        Assert.Equal(GlassFailure.RelayRequest, uncertain.FailureCode);
+        Assert.True(GlassRepairEstimateSessionPolicy.OccupiesAccount(uncertain.State));
+        Assert.Empty(harness.Import.Requests);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        var starts = harness.Mva.Count("POST /ere/start-ere");
+
+        var completed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, uncertain.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Equal(starts, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Single(harness.Import.Requests);
+        Assert.Contains(
+            harness.Custody.Retained,
+            item => item.OccurrenceIdentity == GlassRepairEstimateGateway.XmlOccurrenceIdentity(session.Id));
     }
 
     public static TheoryData<string, string> MismatchedExports() => new()
@@ -1584,18 +1647,20 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateSessionState.Failed, settled.State);
         Assert.Equal(expectedFailure, settled.FailureCode);
         Assert.Empty(harness.Import.Requests);
-        // Only a document the reader refused is kept, as a rejected export;
-        // another vehicle's or an empty estimate is not filed on this Case.
-        if (expectedFailure == GlassFailure.ExportUnreadable)
-        {
-            Assert.Equal(
-                GlassRepairEstimateGateway.RejectedXmlOccurrenceIdentity(session.Id),
-                Assert.Single(harness.Custody.Retained).OccurrenceIdentity);
-        }
-        else
-        {
-            Assert.Empty(harness.Custody.Retained);
-        }
+        // Issue 1031: every refusal of a downloaded export keeps it as a
+        // rejected export, the same occurrence and file name as a reader
+        // refusal, so an Engineer's corrections inside Glass's are not lost.
+        // Nothing is imported. The identity and empty refusals are kept but
+        // are not offered a Fetch again: the export is not this session's
+        // vehicle, or carries no estimate.
+        var kept = Assert.Single(harness.Custody.Retained);
+        Assert.Equal(GlassRepairEstimateGateway.RejectedXmlOccurrenceIdentity(session.Id), kept.OccurrenceIdentity);
+        Assert.EndsWith("-rejected.xml", kept.FileName, StringComparison.Ordinal);
+        Assert.Equal(Encoding.UTF8.GetBytes(xml), kept.Content);
+        Assert.Contains("\"rejectedXml\":{", harness.Store.ResultsOf(session.Id)!, StringComparison.Ordinal);
+        Assert.Equal(
+            expectedFailure == GlassFailure.ExportUnreadable,
+            GlassRepairEstimateSessionPolicy.CanRefetchExport(settled.State, settled.FailureCode));
     }
 
     /// <summary>
@@ -1698,6 +1763,43 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
+    /// Issue 1031: a download that failed after the relay succeeded is fetched
+    /// again for the same estimate, like an unreadable export: a fresh sign-in
+    /// and the vehicle selected again, no new vehicle, estimate or relay.
+    /// </summary>
+    [Fact]
+    public async Task AFailedDownloadIsFetchedAgainForTheSameEstimateWithoutANewVehicle()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ndp_download/", new(HttpStatusCode.NotFound, string.Empty));
+        var failed = await harness.CompleteAsync(session);
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, failed.State);
+        Assert.Equal(GlassFailure.DownloadRequest, failed.FailureCode);
+        Assert.True(GlassRepairEstimateSessionPolicy.CanRefetchExport(failed.State, failed.FailureCode));
+        Assert.False(GlassRepairEstimateSessionPolicy.OccupiesAccount(failed.State));
+        var vehicles = harness.Mva.Count("GET /index/create-new-vehicle");
+        var starts = harness.Mva.Count("POST /ere/start-ere");
+        var relays = harness.Mva.Count("GET /ere/ere-callback/");
+        var signIns = harness.Mva.Count("POST /login/index");
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK, GlassEstimateXmlParserTests.GlassExport.BuildXml(), ContentType: "application/xml"));
+
+        var completed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, failed.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(vehicles, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(starts, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(relays, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Equal(signIns + 1, harness.Mva.Count("POST /login/index"));
+        Assert.Single(harness.Import.Requests);
+        Assert.Contains(
+            harness.Custody.Retained,
+            item => item.OccurrenceIdentity == GlassRepairEstimateGateway.XmlOccurrenceIdentity(session.Id));
+    }
+
+    /// <summary>
     /// Fetch again takes the account back, so it is refused while a newer live
     /// session holds it. The store's one-live-session rule decides this.
     /// </summary>
@@ -1723,9 +1825,37 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateSessionConflict.ActiveAccount, refusal.Conflict);
     }
 
-    /// <summary>Only a refused export can be fetched again; any other failure is not resumable.</summary>
+    /// <summary>
+    /// Issue 1031: the export failures after a successful relay are the set a
+    /// Fetch again is offered for, and only while the session is Failed. The
+    /// identity and empty refusals keep their export but are not in it.
+    /// </summary>
+    [Theory]
+    [InlineData(GlassFailure.ExportUnreadable, GlassRepairEstimateSessionState.Failed, true)]
+    [InlineData(GlassFailure.ExportRequest, GlassRepairEstimateSessionState.Failed, true)]
+    [InlineData(GlassFailure.ExportAmbiguous, GlassRepairEstimateSessionState.Failed, true)]
+    [InlineData(GlassFailure.ExportOffOrigin, GlassRepairEstimateSessionState.Failed, true)]
+    [InlineData(GlassFailure.DownloadRequest, GlassRepairEstimateSessionState.Failed, true)]
+    [InlineData(GlassFailure.DownloadOversize, GlassRepairEstimateSessionState.Failed, true)]
+    [InlineData(GlassFailure.ExportRequest, GlassRepairEstimateSessionState.Unknown, false)]
+    [InlineData(GlassFailure.ExportEmpty, GlassRepairEstimateSessionState.Failed, false)]
+    [InlineData(GlassFailure.IdentityRegistration, GlassRepairEstimateSessionState.Failed, false)]
+    [InlineData(GlassFailure.IdentityMileage, GlassRepairEstimateSessionState.Failed, false)]
+    [InlineData(GlassFailure.IdentityNatCode, GlassRepairEstimateSessionState.Failed, false)]
+    [InlineData(GlassFailure.RelayShape, GlassRepairEstimateSessionState.Failed, false)]
+    [InlineData(GlassFailure.CallbackNotSaved, GlassRepairEstimateSessionState.Failed, false)]
+    public void OnlyAnExportFailureAfterASuccessfulRelayOffersAFetchAgain(
+        string failureCode, GlassRepairEstimateSessionState state, bool refetchable)
+    {
+        Assert.Equal(refetchable, GlassRepairEstimateSessionPolicy.CanRefetchExport(state, failureCode));
+    }
+
+    /// <summary>
+    /// An identity refusal keeps its export (issue 1031) yet offers no Fetch
+    /// again, and a resume of it is refused.
+    /// </summary>
     [Fact]
-    public async Task OnlyAnUnreadableExportOffersAFetchAgain()
+    public async Task AnIdentityRefusalIsRetainedButOffersNoFetchAgain()
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();

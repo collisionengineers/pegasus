@@ -501,7 +501,8 @@ public sealed partial class GlassRepairEstimateGateway(
         var provider = Unprotect(material.ProtectedProviderState);
         var results = Deserialize(material.ResultArtifactsJson);
 
-        // A session Failed because the reader refused the export is taken up
+        // A session Failed after the relay because the reader refused the
+        // export, or because the export could not be fetched, is taken up
         // again the way a claimed return is: the export is fetched again for
         // the estimate it already has.
         var refetch = GlassRepairEstimateSessionPolicy.CanRefetchExport(session.State, session.FailureCode);
@@ -1001,6 +1002,17 @@ public sealed partial class GlassRepairEstimateGateway(
         }
         catch (GlassMvaStageException failure)
         {
+            if (failure.FailureCode is GlassFailure.IdentityRegistration or GlassFailure.IdentityMileage
+                or GlassFailure.IdentityNatCode or GlassFailure.ExportEmpty)
+            {
+                // The refusal is a fact about this export, which exists only
+                // here and at Glass's: an Engineer who corrected the vehicle
+                // inside Glass's has saved work that must not be lost. Keep it
+                // as a reader refusal does; nothing is imported.
+                results.RejectedXml = await KeepRejectedExportAsync(
+                    actor, session, ereId, exported, cancellationToken);
+            }
+
             return await SettleAsync(session, failure, provider, callbackDigest, results, cancellationToken);
         }
 
