@@ -666,7 +666,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             Assert.Equal(third.Lines[0].AmendedAtUtc, replay.Lines[0].AmendedAtUtc);
             await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
                 resumed.ExecuteAsync(update with { Details = update.Details with { Name = "Changed intent" } }, default));
-            await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+            // Each save ended the lease it was made under, so a new operation
+            // on the old page is refused for its lease before its version.
+            await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
                 resumed.ExecuteAsync(update with { OperationKey = "new-stale-operation" }, default));
         }
         finally
@@ -1045,8 +1047,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             Assert.Equal(RepairSpecificationState.Draft, imported.State);
             Assert.True(imported.IsCurrent);
             Assert.Equal(imported.SpecificationId, (await store.GetCurrentAsync(caseId, default))!.SpecificationId);
-            await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.RequireImportAuthorityAsync(authority, default));
-            await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.SaveImportedEstimateAsync(request, default));
+            // The import ended the lease it was made under.
+            await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => store.RequireImportAuthorityAsync(authority, default));
+            await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => store.SaveImportedEstimateAsync(request, default));
         }
         finally
         {

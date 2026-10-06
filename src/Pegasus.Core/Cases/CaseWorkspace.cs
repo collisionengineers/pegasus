@@ -732,6 +732,46 @@ public static class CaseWorkspacePolicy
     }
 
     /// <summary>
+    /// Reconciles a Save with the assessment values system work filled since the page read the
+    /// Case (operator, 6 October 2026): the Save posts every control, so a value the page still
+    /// shows as it was before the fill is not the operator's answer, and the fill stands. A posted
+    /// value equal to the fill changes nothing. Any other posted value would overwrite what the
+    /// system wrote unseen, so the Save is refused and the page catches up first.
+    /// <paramref name="filledFrom"/> maps each filled path to its value before the first fill
+    /// since the page's version; <paramref name="current"/> is the work's current values.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string?> KeepSystemFills(
+        Guid caseId,
+        long expectedVersion,
+        long caseVersion,
+        IReadOnlyDictionary<string, string?> requested,
+        IReadOnlyDictionary<string, string?> filledFrom,
+        IReadOnlyDictionary<string, string?> current)
+    {
+        ArgumentNullException.ThrowIfNull(requested);
+        ArgumentNullException.ThrowIfNull(filledFrom);
+        ArgumentNullException.ThrowIfNull(current);
+        var kept = new Dictionary<string, string?>(requested, StringComparer.Ordinal);
+        foreach (var (path, before) in filledFrom)
+        {
+            if (!requested.TryGetValue(path, out var posted)
+                || string.Equals(posted, current.GetValueOrDefault(path), StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!string.Equals(posted, before, StringComparison.Ordinal))
+            {
+                throw new CaseVersionConflictException(caseId, expectedVersion, caseVersion);
+            }
+
+            kept.Remove(path);
+        }
+
+        return kept;
+    }
+
+    /// <summary>
     /// Every assessment path this save writes, normalized once. A path belongs
     /// to exactly one section, so the same path submitted twice fails closed
     /// instead of letting the section order decide.

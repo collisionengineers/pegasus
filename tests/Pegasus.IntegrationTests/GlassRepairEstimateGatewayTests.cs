@@ -239,7 +239,9 @@ public sealed class GlassRepairEstimateGatewayTests
         var request = new GlassRepairEstimateResumeRequest(before.Engineer, held.Id, held.Version, regainedVersion, regainedToken);
         await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => restarted.ResumeAsync(request with { LeaseToken = string.Empty }, default));
         await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => restarted.ResumeAsync(request with { ExpectedCaseVersion = 0 }, default));
-        await Assert.ThrowsAsync<CaseVersionConflictException>(() => restarted.ResumeAsync(request with { ExpectedCaseVersion = Harness.CaseVersion }, default));
+        // A version the Case has not reached is refused; an older one under the held lease
+        // is accepted, because only system work can have moved it (operator, 6 October 2026).
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() => restarted.ResumeAsync(request with { ExpectedCaseVersion = regainedVersion + 1 }, default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => restarted.ResumeAsync(request with { LeaseToken = Harness.LeaseToken }, default));
         await using (var db = await database.Factory.CreateDbContextAsync())
         {
@@ -251,7 +253,10 @@ public sealed class GlassRepairEstimateGatewayTests
         await using (var db = await database.Factory.CreateDbContextAsync())
         {
             var workflow = await db.CaseWorkflows.SingleAsync(value => value.CaseId == database.CaseId);
+            // The lease lapsed and a colleague claimed the Case since: the regained token is
+            // no authority any more. A lapse nobody claimed would carry on.
             workflow.EditLeaseHolder = before.Engineer.SubjectId;
+            workflow.EditLeaseTokenHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(new string('c', 64))));
             workflow.EditLeaseExpiresAtUtc = StartUtc.AddSeconds(-1);
             await db.SaveChangesAsync();
         }
@@ -261,6 +266,7 @@ public sealed class GlassRepairEstimateGatewayTests
         await using (var db = await database.Factory.CreateDbContextAsync())
         {
             var workflow = await db.CaseWorkflows.SingleAsync(value => value.CaseId == database.CaseId);
+            workflow.EditLeaseTokenHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(regainedToken)));
             workflow.EditLeaseExpiresAtUtc = StartUtc.AddMinutes(15);
             await db.SaveChangesAsync();
         }

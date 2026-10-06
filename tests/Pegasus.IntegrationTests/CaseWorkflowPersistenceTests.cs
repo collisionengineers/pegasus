@@ -538,7 +538,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
-    public async Task AutoLinkUsesCanonicalVersionAndHistoryClearsLeaseAndReplays()
+    public async Task AutoLinkUsesCanonicalVersionAndHistoryKeepsTheLeaseAndReplays()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
@@ -594,7 +594,8 @@ public sealed class CaseWorkflowPersistenceTests
             details.Workflow.ReportSentEvidence?.LinkedBy.SubjectId);
         Assert.Null(first.NotLinkedReasonCode);
         Assert.Null(replay.NotLinkedReasonCode);
-        Assert.False(await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
+        // System work never ends a member of staff's edit session.
+        Assert.True(await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
         Assert.Equal(1L, await harness.WorkflowEventCountAsync(request.OperationKey));
         Assert.Equal(
             1L,
@@ -867,7 +868,9 @@ public sealed class CaseWorkflowPersistenceTests
             1L,
             await harness.WorkflowEventCountAsync(staffOperationKey)
                 + await harness.WorkflowEventCountAsync(autoOperationKey));
-        Assert.False(await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
+        // The staff link ends its lease; the Worker's link leaves it, and the
+        // refused staff link then writes nothing.
+        Assert.Equal(workerLinked, await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
     }
 
     [Theory]
@@ -1943,9 +1946,9 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// A beat is refused for a non-holder and after a takeover, but the holder's own beat with its
-    /// own token revives a lease that lapsed unbeaten: nobody else could have taken it without
-    /// rewriting the retained hash. An expired holder must claim again.
+    /// A beat is refused for a non-holder and after another claim, but the staff holder's own beat
+    /// with its own token picks up a lease that lapsed unbeaten (operator, 6 October 2026): nobody
+    /// else could have taken it without rewriting the retained hash.
     /// </summary>
     [Fact]
     public async Task HeartbeatIsRefusedForANonHolderAfterExpiryAndAfterAnotherClaim()
@@ -1961,9 +1964,11 @@ public sealed class CaseWorkflowPersistenceTests
             harness.Store.HeartbeatAsync(new(harness.CaseId, other, lease.Token), default));
 
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
-            harness.Store.HeartbeatAsync(new(harness.CaseId, holder, lease.Token), default));
+        var revived = await harness.Store.HeartbeatAsync(new(harness.CaseId, holder, lease.Token), default);
+        Assert.Equal(lease.Token, revived.Token);
+        Assert.Equal(harness.TimeProvider.GetUtcNow().AddMinutes(5), revived.ExpiresAtUtc);
 
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
         var taken = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, other, "claim-after-lapse"),
             default);

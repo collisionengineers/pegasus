@@ -384,7 +384,7 @@ internal sealed class EfIntakeMutationStore(
             context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
         if (entry.Kind != PostReportQueryEntry.None)
         {
-            CaseMutationGuard.Complete(caseWorkflow);
+            CaseMutationGuard.Advance(caseWorkflow);
             if (entry.Kind == PostReportQueryEntry.EnterQuery)
             {
                 AddCaseAssociationHistory(

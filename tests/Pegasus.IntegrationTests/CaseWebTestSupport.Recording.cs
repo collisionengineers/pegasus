@@ -260,7 +260,6 @@ internal static partial class CaseWebTestSupport
     }
 
     internal sealed partial class RecordingCaseDetailsStore :
-        IRenewCaseEditLease,
         IHeartbeatCaseEditLease,
         IReleaseCaseEditLease,
         IGetAssessmentAccess,
@@ -304,8 +303,6 @@ internal static partial class CaseWebTestSupport
                 assessment.Reference, CaseVersion));
         }
 
-        public string RenewedLeaseToken { get; } = "opaque-renewed-case-lease";
-        public List<RenewCaseEditLeaseRequest> LeaseRenewals { get; } = [];
         public List<HeartbeatCaseEditLeaseRequest> LeaseHeartbeats { get; } = [];
         public List<ReleaseCaseEditLeaseRequest> LeaseReleases { get; } = [];
 
@@ -321,20 +318,6 @@ internal static partial class CaseWebTestSupport
                 request.Actor.SubjectId,
                 CaseVersion,
                 _now.AddMinutes(5)));
-        }
-
-        Task<CaseEditLease> IRenewCaseEditLease.ExecuteAsync(
-            RenewCaseEditLeaseRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            LeaseRenewals.Add(request);
-            return Task.FromResult(new CaseEditLease(
-                request.CaseId,
-                RenewedLeaseToken,
-                request.Actor.SubjectId,
-                request.ExpectedVersion,
-                _now.AddMinutes(10)));
         }
 
         Task IReleaseCaseEditLease.ExecuteAsync(

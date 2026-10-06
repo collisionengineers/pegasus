@@ -498,7 +498,6 @@ public static class OperatorLabels
         public const string Registering = "Registering…";
         public const string Releasing = "Releasing…";
         public const string Removing = "Removing…";
-        public const string Renewing = "Renewing…";
         public const string Reopening = "Reopening…";
         public const string Replacing = "Replacing…";
         public const string Resetting = "Resetting…";
