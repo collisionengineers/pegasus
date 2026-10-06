@@ -109,12 +109,22 @@
             }
             @* The step is the viewed work's and its link stays in that view
                (operator, 2 October 2026). Create audit opens the Actions
-               menu's own dialog, greyed with its reason as the menu item is. *@
+               menu's own dialog, greyed with its reason as the menu item is.
+               Assign Engineer opens the Actions menu's own dialog too (issue
+               1025); where the menu does not offer it, the step is its words
+               alone. *@
             @if (next is { } nextRow)
             {
                 <div class="next-row">
                     <span data-next-label>@nextRow.Label</span>
-                    @if (!nextRow.OpensCreateAudit)
+                    @if (nextRow.OpensAssignEngineer)
+                    {
+                        if (Model.CanAssignEngineer)
+                        {
+                            <button type="button" class="btn btn--small" data-dialog-open="case-handoff-dialog" data-next-assign-engineer>@CaseWorkspaceLabels.AssignEngineer</button>
+                        }
+                    }
+                    else if (!nextRow.OpensCreateAudit)
                     {
                         <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@nextRow.SectionKey">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == nextRow.SectionKey).Label</a>
                     }

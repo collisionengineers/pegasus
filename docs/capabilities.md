@@ -182,7 +182,7 @@ exclusion.
 | MAIL-17 | Idempotent report and fee-note send with Box filing | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | CASE-22 | Replace EVA inspection and report-preparation work inside Pegasus | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
 | EXT-04 | Principal-selected report route: Pegasus, EVA ZIP or EVA API | [EVA handoff routes](frd/frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes) |
-| EXT-05 | Replace EVA Engineer assignment | [Hand to Engineer](frd/frd-13-case-lifecycle-and-workflow.md#hand-to-engineer) |
+| EXT-05 | Replace EVA Engineer assignment | [Assign Engineer](frd/frd-13-case-lifecycle-and-workflow.md#assign-engineer) |
 | EXT-06 | Replace EVA estimating without moving repair-specification authority out of Pegasus Core | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
 | EXT-07 | Dated valuation source evidence with explicit human staff selection | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
 | EXT-08 | Deterministic report generation from accepted Core data | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |

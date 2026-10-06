@@ -480,7 +480,6 @@ public static class OperatorLabels
         public const string Exporting = "Exporting…";
         public const string Finishing = "Finishing…";
         public const string Generating = "Generating…";
-        public const string HandingOver = "Handing over…";
         public const string Importing = "Importing…";
         public const string Linking = "Linking…";
         public const string Loading = "Loading…";

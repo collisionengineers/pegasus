@@ -149,7 +149,7 @@ contract. The menu is offered in and out of an edit session (operator, 29 Septem
 item taken outside one runs under a lease claimed for it, and nothing that needs a lease is
 offered while a colleague holds it. Typical entries include:
 
-- Hand to Engineer;
+- Assign Engineer;
 - Send to EVA;
 - Mark report sent;
 - Mark completed;

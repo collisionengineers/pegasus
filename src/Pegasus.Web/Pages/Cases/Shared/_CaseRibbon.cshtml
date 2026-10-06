@@ -32,8 +32,7 @@
     var registration = string.IsNullOrWhiteSpace(summary.Registration)
         ? "No registration"
         : summary.Registration!;
-    var canHandToEngineer = mayActOnCaseData && isReview
-        && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
+    var canAssignEngineer = Model.CanAssignEngineer;
     var canSendToEva = (Model.EvaHandoff?.ReportGenerationPolicy is PrincipalReportGenerationPolicy.EvaZip or PrincipalReportGenerationPolicy.EvaManualApi
         || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
@@ -61,7 +60,7 @@
     var offersHoldGroup = mayActOnCaseData && !isClosed;
     var offersCreateAudit = Model.OffersCreateAudit;
     // The menu shows whenever it has an item to offer.
-    var offersActionsMenu = canUnlinkEvidence || canSendChaser || canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
+    var offersActionsMenu = canUnlinkEvidence || canSendChaser || canSendToEva || canAssignEngineer || canConfirmReportSent || canMarkCompleted
         || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
         || offersCreateAudit || offersAdverseClosure;
     var outcome = Model.AssessmentEditorValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)
@@ -227,11 +226,11 @@
             <details class="menu" data-menu data-case-actions>
                 <summary class="btn"><span>@Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
                 <div class="menu-body">
-                    @if (canHandToEngineer)
+                    @if (canAssignEngineer)
                     {
                         <button type="button" class="btn" data-dialog-open="case-handoff-dialog">
                             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                            <span>@CaseWorkspaceLabels.HandToEngineer</span>
+                            <span>@CaseWorkspaceLabels.AssignEngineer</span>
                         </button>
                     }
                     @if (canSendToEva)
@@ -295,7 +294,7 @@
                     }
                     @if (offersHoldGroup || offersCreateAudit)
                     {
-                        @if (canHandToEngineer || canSendToEva || canConfirmReportSent || canMarkCompleted || canReturnToReview || canReturnToEngineer || canArchive || canSendChaser)
+                        @if (canAssignEngineer || canSendToEva || canConfirmReportSent || canMarkCompleted || canReturnToReview || canReturnToEngineer || canArchive || canSendChaser)
                         {
                             <div class="menu-sep"></div>
                         }
