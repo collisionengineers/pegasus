@@ -832,7 +832,7 @@ public sealed partial class AssessmentReportDraftWebTests
         // The Stop is only possible until the images question is answered.
         Assert.DoesNotContain("data-report-stop>", form, StringComparison.Ordinal);
         Assert.DoesNotContain("required", InputTag(form, "data-report-stop-override"), StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(form, "data-report-question").Count);
+        Assert.Equal(2, Regex.Count(form, "data-report-question"));
         Assert.Contains("Does the instruction mention \"Luton\"?", form, StringComparison.Ordinal);
         Assert.Contains("Are the images from Garage?", form, StringComparison.Ordinal);
         foreach (var name in new[] { "decision-0-0", "decision-1-0" })
