@@ -100,7 +100,9 @@ as printed. Whole-row, section and document reconciliation is required.
 Section labour must equal the printed rate × section hours as the source
 computes it; Additional costs prints no rate, so its labour is checked at
 the Body rate, and its hours stay out of the Total Labour hours while its
-cost is in the Total Labour cost. A paint level the one table below does
+cost is in the Total Labour cost. The document's Total Labour is the total
+hours at the one rate rounded once, plus Additional costs, and may differ
+from the sum of the section labours by a penny. A paint level the one table below does
 not name refuses the import. Missing or ambiguous required evidence refuses
 the whole import. Source rates and VAT do not select a Pegasus rate card or
 decide a repairer's VAT status.
