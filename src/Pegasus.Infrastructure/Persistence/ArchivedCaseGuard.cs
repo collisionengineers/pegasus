@@ -75,8 +75,7 @@ internal static class CaseTerminalReadinessGuard
                     && item.State == nameof(CaseTaskState.Open),
                 cancellationToken))
         {
-            throw new InvalidOperationException(
-                "Complete or cancel every open case task before terminalizing or archiving the case.");
+            throw new InvalidOperationException(CaseTaskRules.OpenTasksBlockTerminal);
         }
     }
 }

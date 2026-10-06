@@ -52,17 +52,45 @@ public sealed class WorkCentreLabelTests
         Assert.Equal(new WorkCentreFact("Principal", "QDOS"), facts[2]);
     }
 
+    [Fact]
+    public void OpenTasksReadAsTheFirstTaskAndHowManyMore()
+    {
+        var item = NewItem(
+            NeedsAttentionKind.OpenTasks,
+            title: "Ford Focus GJ13EVC",
+            attempts: null,
+            detail: "QDOS",
+            reason: "Chase the invoice");
+        var more = item with { MoreCount = 2 };
+
+        Assert.Equal("Open tasks", OperatorLabels.NeedsAttentionKind(item.Kind));
+        Assert.Equal("Tasks", OperatorLabels.WorkCentre.KindChip(item.Kind));
+        Assert.Equal("tasks", NeedsAttentionPresentation.KindSlug(item.Kind));
+        Assert.Equal(NeedsAttentionKind.OpenTasks, Assert.Single(NeedsAttentionPresentation.ParseKinds(["tasks"])));
+        Assert.Equal("Open tasks", NeedsAttentionPresentation.ActionLabel(item));
+        Assert.Equal("Chase the invoice", NeedsAttentionPresentation.RowTitle(item));
+        Assert.Equal("Chase the invoice (+2 more)", NeedsAttentionPresentation.RowTitle(more));
+        Assert.Equal("Ford Focus GJ13EVC", NeedsAttentionPresentation.RowSubject(item));
+        // After every Case kind, immediately before AI draft.
+        var chips = NeedsAttentionPresentation.ChipOrder.ToList();
+        Assert.Equal(chips.IndexOf(NeedsAttentionKind.AiDraft) - 1, chips.IndexOf(NeedsAttentionKind.OpenTasks));
+        var facts = NeedsAttentionPresentation.Facts(item, DateTimeOffset.UtcNow);
+        Assert.Equal(new WorkCentreFact("Vehicle", "Ford Focus GJ13EVC"), facts[1]);
+        Assert.Equal(new WorkCentreFact("Principal", "QDOS"), facts[2]);
+    }
+
     private static NeedsAttentionItem NewItem(
         NeedsAttentionKind kind,
         string title,
         int? attempts,
-        string? detail = null) => new(
+        string? detail = null,
+        string reason = "custody_failed") => new(
         kind,
         Guid.NewGuid(),
         "C/2026/009",
         title,
         detail,
-        "custody_failed",
+        reason,
         NeedsAttentionPriority.Today,
         Owner: NeedsAttentionPolicy.NoPersonOwner,
         Due: null,
