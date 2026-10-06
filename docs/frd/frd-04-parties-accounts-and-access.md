@@ -116,12 +116,12 @@ The Principal section of a Contact carries:
   [FRD-09](frd-09-principal-and-intermediary-routes.md#principal-and-intermediary-routes);
 - the default inspection location, Image Based Assessment or a physical
   address, saved on the click;
-- the report-generation policy and its delivery suggestions, owned by
+- the report-generation policy, owned by
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes)
-  and [ADR-0048](../adr/0048-principal-report-generation-policies.md).
-  Configured additional recipients and the optional original instruction
-  sender are the only delivery suggestions. The Claim Source is never copied
-  in by default;
+  and [ADR-0048](../adr/0048-principal-report-generation-policies.md). Who a
+  report goes to is set by the report sending rules below; the separate
+  Report recipients settings are gone (operator, 6 October 2026). The Claim
+  Source is never copied in by default;
 - the default fee (operator, 5 October 2026), saved with the report
   settings. Every Principal has one: more than £0 with two decimal places at
   most, the agreed fee's own rule. Every Principal was seeded at £180.00, a
@@ -140,9 +140,10 @@ The Principal section of a Contact carries:
   with no bands has no matrix. A refused save names the category and the
   rule and keeps the typed rows. No Principal starts with one, and a
   successor code inherits its predecessor's;
-- the report sending rules (operator, 5 October 2026), from the Report
-  Sending SOP v5 (2 October 2026). They say where a report goes, from where,
-  who is copied, what goes with it and what holds or stops it:
+- the report sending rules (operator, 5 and 6 October 2026), from the Report
+  Sending SOP v5 (2 October 2026). Every Principal has them. They say where a
+  report goes, from where, who is copied, what goes with it and what holds or
+  stops it:
   - Send from: the approved mailbox a new message leaves from when the Case
     has no instruction e-mail. A reply always leaves from the mailbox that
     holds the instruction;
@@ -163,18 +164,23 @@ The Principal section of a Contact carries:
   - Rules add Cc or remove Cc, remind, hold or stop when their conditions
     hold. A rule matches All or Any of its conditions. A condition reads the
     Case's Claim Source or Repairer (a Contact of that type), the recorded
-    outcome, or who sent the instruction. Several values in one condition
-    are alternatives. "Images from" and "Instruction mentions" have no Case
-    fact. A rule whose fact is not yet known is undecided, and the delivery
-    form asks staff at delivery.
+    outcome, who sent the instruction, or words: "Instruction mentions" is
+    searched for in the instruction e-mail and asked only when the Case
+    holds no instruction text. Several values in one condition are
+    alternatives. "Images from" and "Bodyshop mentions" have no Case fact. A
+    rule whose fact is not yet known is undecided, and the delivery form
+    asks staff at delivery.
 
-  A refused save names the rule and the problem and keeps what was typed. A
-  Principal the SOP does not name has no rules and delivers as before. A
-  successor code inherits its predecessor's rules. The rules were imported
-  once from the SOP (the supplied
+  No text in the rules has a length limit. A refused save names the rule and
+  the problem and keeps what was typed. A Principal the SOP does not name,
+  and every Principal created later, has the default rules: reply to the
+  original sender and keep the instruction's Cc. A successor code inherits
+  its predecessor's rules. The rules were imported once from the SOP (the
+  supplied
   [report_sending_sop.v5.yaml](../principal-profiles/sop-guides/report_sending_sop.v5.yaml)),
-  with the SOP's TL thresholds, notes and open questions appended to Notes
-  on every Case. The delivery behaviour is owned by
+  with the SOP's TL thresholds and QCL's contract repair line appended to
+  Notes on every Case. The
+  delivery behaviour is owned by
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md);
 - the Principal API credential (API-04): issue, reset, revoke, pause and
   resume. Each acts on the click and goes into permanent history with an

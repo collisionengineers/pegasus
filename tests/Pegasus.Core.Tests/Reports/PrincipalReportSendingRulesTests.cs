@@ -23,9 +23,9 @@ public sealed class PrincipalReportSendingRulesTests
         Assert.Throws<ReportSendingRulesException>(() => PrincipalReportSendingRules.Normalize(rules));
 
     [Fact]
-    public void NullNormalizesToTheDefaultAndTheDefaultIsThePlainSop()
+    public void TheDefaultIsThePlainSopAndNormalizesToItself()
     {
-        var normalized = PrincipalReportSendingRules.Normalize(null);
+        var normalized = PrincipalReportSendingRules.Normalize(PrincipalReportSendingRules.Default);
 
         Assert.Equal(PrincipalReportSendingRules.Default, normalized);
         Assert.Null(normalized.SendFromMailbox);
@@ -102,7 +102,7 @@ public sealed class PrincipalReportSendingRulesTests
     }
 
     [Fact]
-    public void TextsAreTrimmedBlankRemindersDroppedAndLongTextRefused()
+    public void TextsAreTrimmedBlankRemindersDroppedAndLongTextKept()
     {
         var normalized = PrincipalReportSendingRules.Normalize(Rules() with
         {
@@ -113,9 +113,9 @@ public sealed class PrincipalReportSendingRulesTests
         Assert.Equal("WhatsApp the report first.", normalized.Hold);
         Assert.Equal("Authorise the garage.", Assert.Single(normalized.Reminders));
 
-        var tooLong = new string('x', PrincipalReportSendingRules.MaximumTextLength + 1);
-        Assert.Equal(ReportSendingRulesRule.TextTooLong, Refused(Rules() with { Hold = tooLong }).Rule);
-        Assert.Equal(ReportSendingRulesRule.TextTooLong, Refused(Rules() with { Reminders = [tooLong] }).Rule);
+        var longText = new string('x', 501);
+        Assert.Equal(longText, PrincipalReportSendingRules.Normalize(Rules() with { Hold = longText }).Hold);
+        Assert.Equal(longText, Assert.Single(PrincipalReportSendingRules.Normalize(Rules() with { Reminders = [longText] }).Reminders));
         Assert.Null(PrincipalReportSendingRules.Normalize(Rules() with { Hold = " " }).Hold);
     }
 
@@ -177,16 +177,21 @@ public sealed class PrincipalReportSendingRulesTests
             Rules =
             [
                 Rule(ReportSendingConditionKind.Mentions, [" Luton ", "luton"]),
-                Rule(ReportSendingConditionKind.ImagesFrom, ["Swinton"])
+                Rule(ReportSendingConditionKind.ImagesFrom, ["Swinton"]),
+                Rule(ReportSendingConditionKind.BodyshopMentions, [" Guardian ", "guardian", "James Claims"])
             ]
         });
         Assert.Equal("Luton", Assert.Single(Assert.Single(text.Rules[0].If).Values));
         Assert.Equal("Swinton", Assert.Single(Assert.Single(text.Rules[1].If).Values));
+        Assert.Equal(["Guardian", "James Claims"], Assert.Single(text.Rules[2].If).Values.ToArray());
 
-        var tooLong = new string('x', PrincipalReportSendingRules.MaximumTextLength + 1);
+        var longText = new string('x', 501);
         Assert.Equal(
-            ReportSendingRulesRule.TextTooLong,
-            Refused(Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, [tooLong])] }).Rule);
+            longText,
+            Assert.Single(Assert.Single(PrincipalReportSendingRules.Normalize(Rules() with
+            {
+                Rules = [Rule(ReportSendingConditionKind.Mentions, [longText])]
+            }).Rules).If).Values.Single());
     }
 
     [Fact]

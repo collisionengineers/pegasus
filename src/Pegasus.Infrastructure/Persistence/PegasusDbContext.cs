@@ -543,7 +543,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DefaultInspectionSourceKind).HasMaxLength(40);
             entity.Property(item => item.DefaultInspectionSourceRecordId).HasMaxLength(200);
             entity.Property(item => item.ReportGenerationPolicy).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.ReportRecipientAddressesJson).IsRequired();
+            entity.Property(item => item.ReportSendingRulesJson)
+                .IsRequired()
+                .HasDefaultValue(EfOrganizationAdministration.DefaultReportSendingJson);
             entity.Property(item => item.DefaultFee)
                 .HasPrecision(18, 2)
                 .HasDefaultValue(Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard);
@@ -1258,11 +1260,9 @@ internal sealed class PrincipalEntity
     public string? DefaultInspectionSourceRecordId { get; set; }
     public long? DefaultInspectionSourceVersion { get; set; }
     public string ReportGenerationPolicy { get; set; } = "Pegasus";
-    public bool IncludeOriginalInstructionSender { get; set; }
-    public string ReportRecipientAddressesJson { get; set; } = "[]";
     public string? SalvageMatrixJson { get; set; }
     public decimal DefaultFee { get; set; } = Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard;
-    public string? ReportSendingRulesJson { get; set; }
+    public string ReportSendingRulesJson { get; set; } = EfOrganizationAdministration.DefaultReportSendingJson;
     public long Version { get; set; }
     public List<ContactPrincipalLinkEntity> ContactLinks { get; set; } = [];
     public List<CaseEntity> Cases { get; set; } = [];

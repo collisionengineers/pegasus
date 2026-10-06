@@ -6,10 +6,12 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// Migration 20261006090000_PrincipalReportSendingRules: the 17 SOP
-/// Principals Pegasus did not have, the source organisations rule conditions
-/// point at, every SOP Principal's rules and the notes appended to Notes on
-/// every Case (Report Sending SOP v5, 2 October 2026).
+/// Migration 20261007090000_PrincipalReportSendingRules: the 17 SOP
+/// Principals Pegasus did not have, the claim sources rule conditions point
+/// at, every SOP Principal's rules and the TL thresholds appended to Notes on
+/// every Case (Report Sending SOP v5, 2 October 2026; operator, 6 October
+/// 2026). Every Principal has rules, and the retired report recipient
+/// settings are gone.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class PrincipalReportSendingSeedTests
@@ -28,11 +30,10 @@ public sealed class PrincipalReportSendingSeedTests
     private static readonly (string Name, string Role)[] SourceOrganizations =
     [
         ("Car 2 Go", "claim_source"), ("SMC", "claim_source"), ("CarClaims", "claim_source"), ("Expert Claims", "claim_source"),
-        ("Rapid Rental Solutions", "claim_source"), ("Easdons", "repairer"), ("Guardian Accident Claims", "repairer"),
-        ("James Claims", "repairer")
+        ("Rapid Rental Solutions", "claim_source")
     ];
 
-    private sealed record SeededPrincipal(PrincipalEntity Principal, PrincipalReportSendingRules? Rules);
+    private sealed record SeededPrincipal(PrincipalEntity Principal, PrincipalReportSendingRules Rules);
 
     private static async Task<(Dictionary<string, SeededPrincipal> Principals, Dictionary<Guid, OrganizationEntity> Organizations)> LoadAsync(
         IntakeWebApplicationFactory factory)
@@ -50,7 +51,7 @@ public sealed class PrincipalReportSendingSeedTests
     }
 
     [Fact]
-    public async Task EverySopPrincipalExistsAndItsStoredRulesNormalizeAndRoundTrip()
+    public async Task EveryPrincipalHasRulesThatNormalizeAndRoundTrip()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var (principals, _) = await LoadAsync(factory);
@@ -58,16 +59,30 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal(32, SopCodes.Length);
         Assert.All(SopCodes, code => Assert.True(principals.ContainsKey(code), $"{code} must be seeded."));
         Assert.Equal(15 + NewCodes.Length, SopCodes.Count(principals.ContainsKey));
-        foreach (var code in SopCodes)
+        Assert.All(SopCodes, code => Assert.True(principals[code].Principal.IsActive, code));
+        foreach (var (code, seeded) in principals)
         {
-            var seeded = principals[code];
-            Assert.True(seeded.Principal.IsActive, code);
-            var rules = Assert.IsType<PrincipalReportSendingRules>(seeded.Rules);
+            Assert.False(string.IsNullOrWhiteSpace(seeded.Principal.ReportSendingRulesJson), code);
             // Stored in exactly the form the serializer writes it.
-            Assert.Equal(rules, EfOrganizationAdministration.ReadReportSending(
-                EfOrganizationAdministration.ToReportSendingJson(rules)));
-            Assert.Equal(rules, PrincipalReportSendingRules.Normalize(rules));
+            Assert.Equal(seeded.Rules, EfOrganizationAdministration.ReadReportSending(
+                EfOrganizationAdministration.ToReportSendingJson(seeded.Rules)));
+            Assert.Equal(seeded.Rules, PrincipalReportSendingRules.Normalize(seeded.Rules));
         }
+    }
+
+    [Fact]
+    public async Task TheRetiredReportRecipientSettingsAreGone()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'Principals')
+              AND name IN (N'IncludeOriginalInstructionSender', N'ReportRecipientAddressesJson')
+            """));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'ReportSendingRulesJson' AND is_nullable = 0"));
     }
 
     [Fact]
@@ -82,8 +97,6 @@ public sealed class PrincipalReportSendingSeedTests
             Assert.True(principal.IsActive, code);
             Assert.Equal("physical_address", principal.InspectionMode);
             Assert.Equal("Pegasus", principal.ReportGenerationPolicy);
-            Assert.True(principal.IncludeOriginalInstructionSender, code);
-            Assert.Equal("[]", principal.ReportRecipientAddressesJson);
             Assert.Equal(0, principal.Version);
             Assert.Null(principal.PredecessorId);
             Assert.Null(principal.SuccessorId);
@@ -110,7 +123,7 @@ public sealed class PrincipalReportSendingSeedTests
     }
 
     [Fact]
-    public async Task TheSourceOrganisationsRuleConditionsPointAtExistWithTheirRole()
+    public async Task TheClaimSourcesRuleConditionsPointAtExistWithTheirRole()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var (principals, organizations) = await LoadAsync(factory);
@@ -122,9 +135,9 @@ public sealed class PrincipalReportSendingSeedTests
         }
 
         // Every contact a condition names is a real organisation with the right role.
-        foreach (var seeded in principals.Values.Where(item => item.Rules is not null))
+        foreach (var seeded in principals.Values)
         {
-            foreach (var condition in seeded.Rules!.Rules.SelectMany(rule => rule.If))
+            foreach (var condition in seeded.Rules.Rules.SelectMany(rule => rule.If))
             {
                 var role = condition.Kind switch
                 {
@@ -148,17 +161,15 @@ public sealed class PrincipalReportSendingSeedTests
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var (principals, organizations) = await LoadAsync(factory);
         string IdOf(string name) => Assert.Single(organizations.Values, item => item.Name == name).Id.ToString("D");
-        PrincipalReportSendingRules Rules(string code) => principals[code].Rules!;
+        PrincipalReportSendingRules Rules(string code) => principals[code].Rules;
 
-        // AX: the nested all/any flattens to Match All with two Repairer conditions.
+        // AX: the nested all/any flattens to Match All with two Bodyshop mentions conditions.
         var ax = Assert.Single(Rules("AX").Rules);
         Assert.Equal(ReportSendingRuleMatch.All, ax.Match);
         Assert.Equal(2, ax.If.Count);
-        Assert.All(ax.If, condition => Assert.Equal(ReportSendingConditionKind.Repairer, condition.Kind));
-        Assert.Equal([IdOf("Easdons")], ax.If[0].Values.ToArray());
-        Assert.Equal(
-            [IdOf("Guardian Accident Claims"), IdOf("James Claims")],
-            ax.If[1].Values.ToArray());
+        Assert.All(ax.If, condition => Assert.Equal(ReportSendingConditionKind.BodyshopMentions, condition.Kind));
+        Assert.Equal(["Easdons"], ax.If[0].Values.ToArray());
+        Assert.Equal(["Guardian", "James Claims"], ax.If[1].Values.ToArray());
         Assert.Equal("p.mandy@oakwoodscotland.co.uk", Assert.Single(ax.Then.CcRemove));
         Assert.Equal(2, Rules("AX").SendTo.Count);
         Assert.False(Rules("AX").Attach.FeeNoteSeparate);
@@ -216,24 +227,25 @@ public sealed class PrincipalReportSendingSeedTests
     }
 
     [Fact]
-    public async Task TlThresholdsNotesAndTheOpenQuestionAreAppendedToNotesOnEveryCase()
+    public async Task TlThresholdsAreAppendedToNotesOnEveryCase()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var (principals, organizations) = await LoadAsync(factory);
         string Notes(string code) => organizations[principals[code].Principal.OrganizationId].NotesOnEveryCase ?? string.Empty;
 
         Assert.Contains("TL threshold: 78%", Notes("QDOS"), StringComparison.Ordinal);
+        Assert.Contains("TL threshold: 78%", Notes("ALS"), StringComparison.Ordinal);
         Assert.Contains("TL threshold: 74%", Notes("AX"), StringComparison.Ordinal);
+        Assert.Contains("TL threshold: 74%", Notes("BLACK"), StringComparison.Ordinal);
+        Assert.Contains("TL threshold: 74%", Notes("OAK"), StringComparison.Ordinal);
         Assert.Contains("TL threshold: 70%", Notes("RJS"), StringComparison.Ordinal);
-        Assert.Equal(
-            "TL threshold: 66% (always)\r\nThe report is named \"[reg] Initial\" or \"[reg] Supplementary\".",
-            Notes("PCH"));
+        Assert.Contains("TL threshold: 66%", Notes("SBL"), StringComparison.Ordinal);
+        Assert.Equal("TL threshold: 66% (always)", Notes("PCH"));
         Assert.Contains("Contract repair at 73%.", Notes("QCL"), StringComparison.Ordinal);
-        Assert.Contains("Every case goes out as three PDFs in one email", Notes("MP"), StringComparison.Ordinal);
-        Assert.StartsWith("Open question: The SOP says \"SWADE (FRZ)\".", Notes("SWADE"), StringComparison.Ordinal);
-        Assert.All(
-            new[] { "QDOS", "AX", "RJS", "PCH", "QCL", "MP", "SWADE" },
-            code => Assert.True(Notes(code).Length <= 2000, code));
+        // Only the TL thresholds and QCL's contract repair line are kept.
+        Assert.DoesNotContain("Engineers (Ben)", Notes("HTU"), StringComparison.Ordinal);
+        Assert.DoesNotContain("three PDFs", Notes("MP"), StringComparison.Ordinal);
+        Assert.DoesNotContain("Open question", Notes("SWADE"), StringComparison.Ordinal);
         // A Principal the SOP gives nothing to keep has no appended notes.
         Assert.DoesNotContain("TL threshold", Notes("WLS"), StringComparison.Ordinal);
     }

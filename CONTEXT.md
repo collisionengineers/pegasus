@@ -158,7 +158,7 @@ A Principal's table of Engineer's Value bands and the percentage of that value p
 _Avoid_: Salvage table, salvage rates
 
 **Report sending rules**:
-A Principal's standing instructions for sending a Case's report: where it goes and from, who is copied or never copied, what goes with it, what holds or stops it, what staff do after, and the report's file name ([FRD-04](docs/frd/frd-04-parties-accounts-and-access.md#contacts-administration)). A rule changes the copies, or holds, stops or reminds, when its conditions about the Case hold; a condition with no Case fact yet is undecided and is asked at delivery. A Principal with no rules delivers to the original sender plus its configured extra addresses. In dispatch, a **Hold** is a text staff tick as done before Send, and a **Stop** refuses Prepare until staff with casework override it with a recorded reason; neither is the Held Case state.
+A Principal's standing instructions for sending a Case's report: where it goes and from, who is copied or never copied, what goes with it, what holds or stops it, what staff do after, and the report's file name ([FRD-04](docs/frd/frd-04-parties-accounts-and-access.md#contacts-administration)). A rule changes the copies, or holds, stops or reminds, when its conditions about the Case hold; a condition with no Case fact yet is undecided and is asked at delivery. In dispatch, a **Hold** is a text staff tick as done before Send, and a **Stop** refuses Send until staff with casework override it with a recorded reason; neither is the Held Case state.
 _Avoid_: Sending SOP, dispatch rules, Held (for a dispatch hold)
 
 **Vehicle enrichment**:
