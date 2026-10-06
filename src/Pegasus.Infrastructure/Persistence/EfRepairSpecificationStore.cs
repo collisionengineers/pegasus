@@ -450,9 +450,16 @@ public sealed class EfRepairSpecificationStore(
         if (importedDocument)
         {
             // v1 of an imported specification is the import itself (v28 P43).
+            // A Glass's return that updates its spec numbers after the
+            // versions that spec already has.
+            var latest = await context.CaseRepairSpecificationSnapshots
+                .Where(item => item.SpecificationId == entity.Id)
+                .OrderByDescending(item => item.Number)
+                .FirstOrDefaultAsync(cancellationToken);
             EfRepairSpecificationSnapshotStore.Freeze(
                 context, workId, Map(entity), request.Actor, RepairSpecificationSnapshotKind.Imported,
-                "Imported " + Pegasus.Core.Assessment.RepairSpecificationRouteWords.Of(request.Source.Route), now);
+                "Imported " + Pegasus.Core.Assessment.RepairSpecificationRouteWords.Of(request.Source.Route), now,
+                latest);
         }
         if (edit.ChangesCurrent)
         {
