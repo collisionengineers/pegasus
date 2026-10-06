@@ -3519,8 +3519,12 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
 
+        // The launch that made the session, posted again, is a double-click:
+        // it replays below rather than continuing the session at Glass's.
         var own = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
-        if (own is not null && GlassRepairEstimateSessionPolicy.OccupiesAccount(own.State))
+        if (own is not null
+            && GlassRepairEstimateSessionPolicy.OccupiesAccount(own.State)
+            && !string.Equals(own.OperationKey, operationKey.Trim(), StringComparison.Ordinal))
         {
             return await ResumeGlassAsync(
                 id, actor, own.Id, own.Version, expectedCaseVersion, editLeaseToken,

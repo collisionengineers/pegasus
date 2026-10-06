@@ -342,7 +342,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(HttpStatusCode.Found, closed.StatusCode);
         Assert.Equal(GlassRepairEstimateSessionState.Cancelled, Assert.Single(await workspace.SessionsAsync()).State);
         Assert.DoesNotContain("handler=CloseGlass", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
-        Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
+        // Closing asks nothing more of the provider.
+        Assert.Equal(2, workspace.Mva.Count("POST /ere/start-ere"));
     }
 
     /// <summary>
