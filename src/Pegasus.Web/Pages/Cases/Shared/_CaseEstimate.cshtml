@@ -539,6 +539,12 @@
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.estimate") @Model.ActiveTabClass("estimate") @(Model.IsEditing && !Model.SectionIsEditable("estimate") ? "is-locked" : null)" id="section-estimate" data-section="estimate" data-collapse="case.estimate" aria-labelledby="section-estimate-title" data-estimate-section data-estimate-drop-target>
+    @if (editing)
+    {
+        @* The lines' identities as the last commit left them, which the
+           script carries into the grid after every commit. *@
+        <partial name="Cases/Shared/_CaseEstimateLineIdentities" model="Model" />
+    }
     <div class="panel-head">
         <h2 id="section-estimate-title">@EngineerLabels.Estimate</h2>
         @if (meta is not null)

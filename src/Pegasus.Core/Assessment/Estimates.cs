@@ -1059,6 +1059,14 @@ public sealed record SaveEstimateRequest(
 
     /// <summary>The work whose specification this writes (operator, 2 October 2026).</summary>
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+
+    /// <summary>
+    /// The write advances the Case but leaves the lease it was made under in
+    /// place: a Glass's return landing its estimate under the staff member's
+    /// own session (operator, 6 October 2026). Every other staff write ends
+    /// its lease, and the page claims it again.
+    /// </summary>
+    public bool KeepsLease { get; init; }
 }
 
 public sealed record DuplicateEstimateRequest(

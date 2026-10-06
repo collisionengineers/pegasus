@@ -38,6 +38,10 @@
     {
         <partial name="Cases/Shared/_CaseValuationOpening" model="Model" />
     }
+    @if (Model.SectionIsEditable("estimate"))
+    {
+        <partial name="Cases/Shared/_CaseEstimateLineIdentities" model="Model" />
+    }
     <partial name="Cases/Shared/_CaseAside" model="Model" />
 </article>
 @if (Model.FilesSection is not null)
