@@ -86,29 +86,52 @@ correctly paired historical version is still valid evidence. The new spec is
 guarded again in the save transaction. A staff import becomes the Current
 spec; an automation import through MCP stays a Draft.
 
-**Glass's calculation PDFs.** These keep ordered Body, Auxiliary and Paint
-rows, included-operation context, source guide codes, unambiguous
-manufacturer part identities, notes and printed amounts. PDF labour hours are
-already net of overlap and do not reuse the XML gross-time conversion. Parts
-and position appendices are evidence for existing rows, never extra charges.
-Repeated printed charges and visibly clipped text stay as printed. Whole-row,
-section and document reconciliation is required. Section labour must equal
-the printed rate × section hours as the source computes it. Missing or
-ambiguous required evidence refuses the whole import. Source rates and VAT do
-not select a Pegasus rate card or decide a repairer's VAT status.
+**Glass's calculation PDFs.** These keep ordered rows from the sheet's
+operation sections (Body, Mechanical, Electrical, Auxiliary work,
+Upholstery, Dent repair, Mechatronics and Special work; at least one),
+Paint and Additional costs, included-operation context, source guide codes,
+unambiguous manufacturer part identities, notes and printed amounts. PDF
+labour hours are already net of overlap and do not reuse the XML gross-time
+conversion. The sheet's labour time unit, `1 Hour` or N work units to the
+hour, converts every printed time to hours, and the XML's `TimeUnit` does the
+same (60 is the Hour option). Parts and position appendices are evidence for existing rows,
+never extra charges. Repeated printed charges and visibly clipped text stay
+as printed. Whole-row, section and document reconciliation is required.
+Section labour must equal the printed rate × section hours as the source
+computes it; Additional costs prints no rate, so its labour is checked at
+the Body rate, and its hours stay out of the Total Labour hours while its
+cost is in the Total Labour cost. The document's Total Labour is the total
+hours at the one rate rounded once, plus Additional costs, and may differ
+from the sum of the section labours by a penny. A paint level the one table below does
+not name refuses the import. Missing or ambiguous required evidence refuses
+the whole import. Source rates and VAT do not select a Pegasus rate card or
+decide a repairer's VAT status.
 
 **Glass's rows, both routes (operator, 29 September 2026).** The Glass's XML
 export and the calculation PDF land the same spec:
 
-- An additional operation (the XML's `Extra costs`, the PDF's Auxiliary `EC`
-  row) is a Specialist line, as EVA files it. With hours it is priced by work
-  units at the spec's rate; with none, its amount is a fixed Specialist sum.
+- An additional operation (the XML's `Extra costs`, which includes Glass's
+  own set-up time; the PDF's Auxiliary work or Additional costs `EC` row) is
+  a Specialist line, as EVA files it. With hours it is priced by work units
+  at the spec's rate; with none, its amount is a fixed Specialist sum.
 - An included operation is a no-charge Other line, with neither hours nor a
   price, noted as included in its row. It is never a new part.
 - A part's side prints after its description, `(L)` or `(R)`, as Glass's
   sheet prints it.
-- A guide time or price the engineer changed in Glass's, and Glass's reason
-  for it, are the line's note.
+- A guide time or price the engineer changed in Glass's, Glass's reason for
+  it, and a row's annotations and selected criteria are the line's note.
+- A paint row's level is its line type, from one table both routes share. New
+  paint: `I`, `K1R`, `K1N`, `K1G` (the XML's material kind and level B 3,
+  K 2, K 3, K 4). Blend: `B` (B 4, K 5). Repair: `II` inner surface (the
+  operator's reading, 5 October 2026), `III`, `IV`, `SP`, `K2` (B 0, B 1,
+  B 2, B 6, K 0). A row with no level (preparation, colour mixing, sample,
+  the clear-coat surcharge) is preparation. Glass's marked-up paint
+  material (the sheet's `Z`, the XML's `PaintMatExtraAppl`) is the note
+  "Markup material".
+- A discount, surcharge, small-material, sourcing, disposal or
+  environmental-fee value the XML prints as non-zero (operator, 5 October
+  2026) is imported and noted on the first line with room, beside Glass's
+  net. It changes no line and no total.
 
 **Labour rate on a new spec.** A new repair spec — imported, returned from
 Glass's, or started with **New repair spec** — takes the one enabled Pegasus
