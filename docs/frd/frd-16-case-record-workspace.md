@@ -508,12 +508,16 @@ sources are owned by
 
 ### Glass's window and Case edits
 
-Launch and Resume open the provider window from the staff gesture once any
+**Glass's** is the one button: it continues the staff member's live session,
+reopens the estimate the repair spec on the screen belongs to, or starts a new
+estimate
+([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return)).
+It opens the provider window from the staff gesture once any
 change not yet sent has landed. Only a confirmed save continues with the
 freshly rendered authority: a refused or lost save makes no provider
 request. A blocked popup gives an actionable refusal. Fetch again, shown
-beside Glass's for a `Failed` session whose export was unreadable, is the
-Resume handler and follows the same rule.
+beside Glass's for a `Failed` session whose export was unreadable, follows
+the same rule.
 
 The same-origin launch handoff refreshes only the Glass's launch slot and
 session controls on the original Case before visiting the provider URL. It
@@ -572,12 +576,12 @@ is green. A report that was never drawn shows Not generated alone, with no
 date. No raw state name is shown. What each word means is in
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point).
 
-Once the report is stored the card offers **Open report**, or **Open report
-with fee note** when the report carries its fee note. It opens the stored
-report in the page's document viewer; without script the link gives the
-file. After **Generate report** stores a report, that report opens in the
-viewer by itself, once. A report still being filed shows the warning notice
-"The report is still being filed to Box." in amber, never as a confirmation.
+Once the report is stored the card offers **Open report**. It opens the stored
+report, which ends with its fee note, in the page's document viewer; without
+script the link gives the file. After **Generate report** stores a report,
+that report opens in the viewer by itself, once. A report still being filed
+shows the warning notice "The report is still being filed to Box." in amber,
+never as a confirmation.
 
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
@@ -585,7 +589,7 @@ In the Audit view the report card's status begins with the Audit reference
 and the section shows the Audit report alone; the Views card is the way to
 the Inspection report (operator, 2 October 2026). In the
 Inspection view the card shows the Inspection report with its generation
-status and the same Generate, Prepare delivery and Send controls, acting on
+status and the same Generate and Send report controls, acting on
 the Inspection's own work under the session's lease or one claimed for the
 generation, before and after that report is sent (operator, 1 and 2 October
 2026). The Next action there is the
@@ -794,9 +798,9 @@ The Report section's More menu offers the three documents as previews (v28
 P42) — the report, the Repair Spec and the images — each opening the document
 the Case would actually produce rather than a picture of one, and offers
 Generate for a companion document the confirmed generation does not yet hold,
-in or out of edit mode as Generate report is. Include fee note sits beside
-Generate report, and once a separate fee note is confirmed the report card
-offers Open fee note beside Open report (issue 912).
+in or out of edit mode as Generate report is. Generate fee note is offered for
+every confirmed report, and once the separate fee note is confirmed the report
+card offers Open fee note beside Open report (issue 912).
 The delivery form offers the Case's known addresses on every recipient field
 (v28 P21), the documents to attach (v28 P22), and states the name the report
 will be attached under (v28 P23) and the covering message it will carry, in an

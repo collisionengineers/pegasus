@@ -884,12 +884,17 @@ public static class EstimatePolicy
         }
     }
 
-    /// <summary>A document import is not an AI-draft save; it creates one new source-backed estimate.</summary>
+    /// <summary>
+    /// A document import is not an AI-draft save; it creates one new
+    /// source-backed estimate. The one import that names an existing estimate
+    /// is a Glass's return for the spec that belongs to its estimate.
+    /// </summary>
     public static SaveEstimateRequest ValidateImportedSave(SaveEstimateRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
         RequireImportActor(request.Actor);
-        if (request.EstimateId is not null || request.AiJobId is not null || request.ExistingLineIds is not null
+        if ((request.EstimateId is not null && request.GlassEstimate is null)
+            || request.AiJobId is not null || request.ExistingLineIds is not null
             || !RepairSpecificationPolicy.IsDocumentRoute(request.Source.Route))
         {
             throw new InvalidOperationException("A retained document import creates a new source-backed estimate only.");
@@ -1059,6 +1064,20 @@ public sealed record SaveEstimateRequest(
 
     /// <summary>The work whose specification this writes (operator, 2 October 2026).</summary>
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+
+    /// <summary>
+    /// The write advances the Case but leaves the lease it was made under in
+    /// place: a Glass's return landing its estimate under the staff member's
+    /// own session (operator, 6 October 2026). Every other staff write ends
+    /// its lease, and the page claims it again.
+    /// </summary>
+    public bool KeepsLease { get; init; }
+
+    /// <summary>
+    /// The Glass's estimate the specification belongs to, recorded with the
+    /// return that names it; null leaves what is recorded as it stands.
+    /// </summary>
+    public GlassEstimateLink? GlassEstimate { get; init; }
 }
 
 public sealed record DuplicateEstimateRequest(

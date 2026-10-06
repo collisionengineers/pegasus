@@ -43,7 +43,11 @@ needs the role allowed by the
 [staff role access matrix](frd-04-parties-accounts-and-access.md#staff-role-access-matrix).
 
 **Entering edit.** Pressing Edit claims the Case's one server-owned lease.
-Other authorised staff stay read-only and can see who holds it. The Case
+The claim is made at the Case's current version: a page drawn before system
+work or a colleague's save moved the Case still enters edit mode and is drawn
+again as the Case now stands, and only a page from the future is refused
+(operator, 6 October 2026). Other authorised staff stay read-only and can see
+who holds it. The Case
 workspace and the assessment screen share one edit mode over one lease.
 
 **How long it lasts.** The lease is five minutes long. While the editing

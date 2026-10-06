@@ -52,12 +52,16 @@ public sealed record UploadReviewFile(
     /// <summary>
     /// The review image of an upload's file: the image itself, or the image its
     /// outcome names. The address names the image's content hash, so the browser
-    /// keeps the image while the page looks again every few seconds.
+    /// keeps the image while the page looks again every few seconds. An image
+    /// whose source custody has not confirmed has no readable copy yet (the
+    /// address answers 409), so it has no review image until it has.
     /// </summary>
     public static string? ImageUrlOf(UploadOutcomeView? outcome, IntakeReceipt? receipt) =>
         outcome?.ThumbnailReceiptId is { } thumbnailReceiptId
             ? IntakeImageAddress.Image(thumbnailReceiptId, outcome.ThumbnailContentHash)
-            : receipt is { MediaType: var mediaType } && mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            : receipt is not null
+                && IsImageSource(receipt)
+                && SourceCustodyIs(receipt, IncomingArtifactCustodyState.Confirmed)
                 ? IntakeImageAddress.Image(receipt.Id, receipt.SourceHash)
                 : null;
 
@@ -77,12 +81,22 @@ public sealed record UploadReviewFile(
                     IntakeImageAddress.Asset(receipt.Id, asset.Id, asset.ContentHash)))
                 .ToArray();
 
-    /// <summary>Whether a photograph of this receipt is still waiting on custody, so the page should look again.</summary>
-    public static bool AwaitsPhotographs(IntakeReceipt? receipt) =>
+    /// <summary>
+    /// Whether an image this receipt will show, its own or a photograph pulled
+    /// out of it, is still waiting on custody, so the page should look again.
+    /// </summary>
+    public static bool AwaitsCustody(IntakeReceipt? receipt) =>
         receipt is not null
-        && InstructionEvidenceImages.Select(receipt.AssetRecords).Any(asset =>
-            asset.Kind == IntakeAssetKind.EmbeddedImage
-            && asset.CustodyState == IncomingArtifactCustodyState.Pending);
+        && ((IsImageSource(receipt) && SourceCustodyIs(receipt, IncomingArtifactCustodyState.Pending))
+            || InstructionEvidenceImages.Select(receipt.AssetRecords).Any(asset =>
+                asset.Kind == IntakeAssetKind.EmbeddedImage
+                && asset.CustodyState == IncomingArtifactCustodyState.Pending));
+
+    private static bool IsImageSource(IntakeReceipt receipt) =>
+        receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+    private static bool SourceCustodyIs(IntakeReceipt receipt, IncomingArtifactCustodyState state) =>
+        IntakeFileIdentity.SourceAsset(receipt)?.CustodyState == state;
 }
 
 /// <summary>One photograph pulled out of an uploaded document.</summary>

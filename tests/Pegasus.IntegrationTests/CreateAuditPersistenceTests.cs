@@ -516,6 +516,14 @@ public sealed class CreateAuditPersistenceTests
         Assert.Single(auditSpecifications, item => item.IsCurrent);
         Assert.Equal(harness.AiJobId, current.AiJobId);
         Assert.Equal("specification-2", current.CreationOperationKey);
+        // The Audit's copy belongs to the same Glass's estimate (operator, 6 October 2026).
+        Assert.Equal("33584499", current.GlassVehicleId);
+        Assert.Equal("1954488", current.GlassEstimateId);
+        Assert.Equal("10203040", current.GlassNatCode);
+        Assert.False(current.GlassPlaceholder);
+        Assert.Equal("AB12CDE", current.GlassRegistration);
+        Assert.Equal(33000, current.GlassMileageMiles);
+        Assert.Null(earlier.GlassVehicleId);
         var sourceLine = Assert.Single(sourceSpecifications.Single(item => item.Version == 2).Lines);
         var line = Assert.Single(current.Lines);
         Assert.NotEqual(sourceLine.Id, line.Id);
@@ -990,6 +998,12 @@ public sealed class CreateAuditPersistenceTests
             var current = Specification(caseId, 2, nameof(RepairSpecificationState.Draft), now);
             current.IsCurrent = true;
             current.AiJobId = aiJobId;
+            current.GlassVehicleId = "33584499";
+            current.GlassEstimateId = "1954488";
+            current.GlassNatCode = "10203040";
+            current.GlassPlaceholder = false;
+            current.GlassRegistration = "AB12CDE";
+            current.GlassMileageMiles = 33000;
             current.Lines.Add(Line(caseId, current.Id, now));
             var discarded = Specification(caseId, 3, nameof(RepairSpecificationState.Discarded), now);
             discarded.DiscardedBy = "engineer";

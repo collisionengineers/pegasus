@@ -133,12 +133,13 @@ public sealed partial class AssessmentReportRendererTests
         Assert.Equal(renderer.EngineVersion, artifact.EngineVersion);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(artifact.Pdf)), artifact.Sha256);
         // Page 1, the narrative, the vehicle data, the work lists, the images
-        // and the statement of truth each start a page.
-        Assert.Equal(6, artifact.PageCount);
+        // and the statement of truth each start a page; the fee note follows.
+        Assert.Equal(7, artifact.PageCount);
 
         var pages = PageTexts(artifact.Pdf);
         Assert.Equal(artifact.PageCount, pages.Length);
-        var text = string.Join(" ", pages);
+        var reportPages = pages[..^1];
+        var text = string.Join(" ", reportPages);
         var presentation = snapshot.Presentation();
         Assert.Contains(snapshot.OurReference, text, StringComparison.Ordinal);
         Assert.Contains(presentation.Badge, text, StringComparison.Ordinal);
@@ -153,15 +154,20 @@ public sealed partial class AssessmentReportRendererTests
         {
             Assert.Contains($"Page {page} of {pages.Length}", pages[page - 1], StringComparison.Ordinal);
             Assert.Contains($"{snapshot.Vehicle.Registration} · {snapshot.OurReference}", pages[page - 1], StringComparison.Ordinal);
-            // The company block runs on every page, and the VAT number on none of the report's.
+            // The company block runs on every page.
             Assert.Contains(AssessmentReportWording.CompanyName, pages[page - 1], StringComparison.Ordinal);
-            Assert.Contains(AssessmentReportWording.CompanyWebsite, pages[page - 1], StringComparison.Ordinal);
-            Assert.DoesNotContain(AssessmentReportWording.VatNumberLine, pages[page - 1], StringComparison.Ordinal);
         }
+        // The VAT number is on none of the report's pages.
+        Assert.All(reportPages, page =>
+        {
+            Assert.Contains(AssessmentReportWording.CompanyWebsite, page, StringComparison.Ordinal);
+            Assert.DoesNotContain(AssessmentReportWording.VatNumberLine, page, StringComparison.Ordinal);
+        });
         Assert.Contains(AssessmentReportWording.VehicleDetailsHeading, pages[0], StringComparison.Ordinal);
         Assert.Contains(presentation.SettlementText, pages[1], StringComparison.Ordinal);
         Assert.Contains(AssessmentReportWording.RepairCostHeading, pages[2], StringComparison.Ordinal);
-        Assert.Contains(AssessmentReportWording.StatementOfTruthHeading, pages[^1], StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.StatementOfTruthHeading, reportPages[^1], StringComparison.Ordinal);
+        Assert.Contains(Squeeze(AssessmentReportWording.FeeNoteTitle), Squeeze(pages[^1]), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -316,13 +322,13 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     [Fact]
-    public async Task AnImagePackNeverAppendsTheFeeNoteEvenWhenTheSnapshotIncludesIt()
+    public async Task AnImagePackNeverAppendsTheFeeNote()
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
 
         var artifact = await new GenerateAssessmentReportDraft(renderer)
-            .ExecuteAsync(ReadySnapshot() with { IncludeFeeNote = true }, CaseReportArtifactKind.ImagePack);
+            .ExecuteAsync(ReadySnapshot(), CaseReportArtifactKind.ImagePack);
 
         var text = string.Join(" ", PageTexts(artifact.Pdf));
         Assert.Contains(Squeeze(AssessmentReportWording.ImagePackTitle), Squeeze(text), StringComparison.Ordinal);
@@ -369,42 +375,38 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
-    /// R34B: with the choice made, the report's own document ends with the
-    /// fee note's pages — one document, the fee note last, after a page
-    /// break — and the separate fee-note document is unchanged.
+    /// The report's own document always ends with the fee note's pages — one
+    /// document, the fee note last, after a page break — and the separate
+    /// fee-note document is exactly those pages.
     /// </summary>
     [Fact]
-    public async Task TheCombinedReportEndsWithTheFeeNotePagesInOneDocument()
+    public async Task TheReportEndsWithTheFeeNotePagesInOneDocument()
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var draft = new GenerateAssessmentReportDraft(renderer);
         var snapshot = ReadySnapshot();
 
-        var plain = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
-        var combined = await draft.ExecuteAsync(
-            snapshot with { IncludeFeeNote = true }, CaseReportArtifactKind.AssessmentReport);
-        var separate = await draft.ExecuteAsync(
-            snapshot with { IncludeFeeNote = true }, CaseReportArtifactKind.FeeNote);
+        var report = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+        var separate = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.FeeNote);
 
-        Assert.Equal("CE_100_assessment.pdf", combined.SuggestedFileName);
-        Assert.True(combined.PageCount > plain.PageCount);
-        var pages = PageTexts(combined.Pdf);
+        Assert.Equal("CE_100_assessment.pdf", report.SuggestedFileName);
+        Assert.True(report.PageCount > separate.PageCount);
+        var pages = PageTexts(report.Pdf);
         var last = pages[^1];
         Assert.Contains("TOTAL DUE", last, StringComparison.Ordinal);
         Assert.Contains(AssessmentReportWording.BillToLabel, last, StringComparison.Ordinal);
         Assert.Contains($"Page {pages.Length} of {pages.Length}", last, StringComparison.Ordinal);
         // The report is first and complete: its final page still closes with
         // the signatory, and no report page carries the fee note's totals.
-        var reportPages = pages.Take(plain.PageCount).ToArray();
+        var reportPageCount = report.PageCount - separate.PageCount;
+        var reportPages = pages.Take(reportPageCount).ToArray();
         Assert.Contains(snapshot.Signatory.PrintedName, reportPages[^1], StringComparison.Ordinal);
         Assert.All(reportPages, page => Assert.DoesNotContain("TOTAL DUE", page, StringComparison.Ordinal));
         Assert.All(reportPages, page => Assert.DoesNotContain(
             $"VAT No: {AssessmentReportContract.VatNumber}", page, StringComparison.Ordinal));
-        Assert.All(pages.Skip(plain.PageCount), page => Assert.Contains(
+        Assert.All(pages.Skip(reportPageCount), page => Assert.Contains(
             $"VAT No: {AssessmentReportContract.VatNumber}", page, StringComparison.Ordinal));
-        // The separate fee-note document is exactly the fee note.
-        Assert.Equal(combined.PageCount - plain.PageCount, separate.PageCount);
         Assert.Contains("TOTAL DUE", string.Join(" ", PageTexts(separate.Pdf)), StringComparison.Ordinal);
     }
 
@@ -447,7 +449,7 @@ public sealed partial class AssessmentReportRendererTests
             snapshot with { Photos = [rotated, snapshot.Photos[0]] },
             CaseReportArtifactKind.AssessmentReport);
 
-        Assert.Equal(6, artifact.PageCount);
+        Assert.Equal(7, artifact.PageCount);
         // The Close-up leads page 1 in its slot, turned and cropped as the
         // Engineer left it and then trimmed to the slot's shape.
         var lead = Assert.Single(BodyImages(artifact.Pdf)[0]);
@@ -583,8 +585,9 @@ public sealed partial class AssessmentReportRendererTests
         // none is enlarged, so each prints at its own width in pixels.
         Assert.Equal([800, 400, 640], images.Select(image => image.PixelWidth));
         // The narrative, the vehicle data and the work lists carry no image,
-        // and the last page carries the signature alone.
-        Assert.Equal([1, 0, 0, 0, 3, 1], printed.Select(page => page.Count));
+        // the statement of truth carries the signature alone, and the fee
+        // note none.
+        Assert.Equal([1, 0, 0, 0, 3, 1, 0], printed.Select(page => page.Count));
     }
 
     /// <summary>

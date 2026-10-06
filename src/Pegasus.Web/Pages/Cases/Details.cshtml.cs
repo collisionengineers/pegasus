@@ -57,9 +57,7 @@ public sealed partial class DetailsModel(
     IEstimateDocumentPresentationStore estimateDocumentPresentations,
     IGeneratedCaseArtifactStore generatedArtifacts,
     ICaseReportGenerationStore reportGenerations,
-    IPrepareCaseReportDelivery prepareReportDelivery,
-    ISendPreparedCaseReport sendPreparedReport,
-    ICaseReportDeliveryPreparationStore deliveryPreparations,
+    ISendCaseReport sendCaseReport,
     IReportRecipientSuggestionQueries reportRecipientSuggestions,
     ICaseReportSendHistoryQueries reportSendHistory,
     RenderEmailTemplate renderEmailTemplate,
@@ -407,6 +405,48 @@ public sealed partial class DetailsModel(
     public EstimateDetails? EditorDetails { get; private set; }
 
     public IReadOnlyList<EstimateEditorLine> EditorLines { get; private set; } = [];
+
+    /// <summary>
+    /// The identity of each estimate row the editor shows, as "row:id" pairs by
+    /// the index the row posts at. The page draws it from the spec it shows; a
+    /// commit answered in place draws it from the spec the commit wrote, and the
+    /// script carries it into the rows the operator keeps typing in. Every save
+    /// writes its lines afresh, so without it the next commit would name lines
+    /// the last one replaced and be refused (a.QDOS26070, 6 October 2026).
+    /// </summary>
+    public string EstimateLineIdentities =>
+        savedEstimateLineIdentities ?? string.Join(
+            ' ',
+            EditorLines
+                .Select((row, index) => row.ExistingLineId is { } id
+                    ? string.Create(CultureInfo.InvariantCulture, $"{index}:{id:D}")
+                    : null)
+                .Where(entry => entry is not null));
+
+    private string? savedEstimateLineIdentities;
+
+    private IReadOnlyList<int>? postedEstimateLineRows;
+
+    /// <summary>
+    /// The written lines by the rows they were posted from: the editor dropped
+    /// blank rows, so the i-th line came from the i-th non-blank row. A count
+    /// that differs is a line the save did not keep as posted, and nothing is
+    /// carried rather than a wrong id.
+    /// </summary>
+    private static string? EstimateLineIdentitiesOf(
+        IReadOnlyList<int>? postedRows, RepairSpecificationVersion written)
+    {
+        var lines = written.Lines.OrderBy(line => line.Position).ToArray();
+        if (postedRows is null || postedRows.Count != lines.Length)
+        {
+            return null;
+        }
+
+        return string.Join(
+            ' ',
+            lines.Select((line, index) =>
+                string.Create(CultureInfo.InvariantCulture, $"{postedRows[index]}:{line.Id:D}")));
+    }
     public bool ShowingPostedEstimate { get; private set; }
 
     public string? PostedEstimateValue(string name) =>
@@ -626,12 +666,6 @@ public sealed partial class DetailsModel(
         _ => null,
     };
 
-    /// <summary>
-    /// The current generation's latest delivery preparation (B07), if one
-    /// exists.
-    /// </summary>
-    public CaseReportDeliveryPreparationRecord? CurrentDeliveryPreparation { get; private set; }
-
     /// <summary>Principal suggestions offered for staff review before preparation.</summary>
     public ReportRecipientSuggestions? DeliveryRecipientSuggestions { get; private set; }
 
@@ -709,7 +743,7 @@ public sealed partial class DetailsModel(
 
     public string GenerateImagePackOperationKey { get; private set; } = NewOperationKey();
 
-    public string PrepareDeliveryOperationKey { get; private set; } = NewOperationKey();
+    public string SendReportOperationKey { get; private set; } = NewOperationKey();
 
     public string LaunchGlassOperationKey { get; private set; } = NewOperationKey();
 
@@ -751,14 +785,13 @@ public sealed partial class DetailsModel(
         && !IsInspectionView;
 
     /// <summary>
-    /// Whether the session on the screen can be picked back up: an open
-    /// calculation to return to, or a held result waiting for the Case's edit
-    /// authority.
+    /// The repair spec on the screen, which the Glass's slot names: one that
+    /// belongs to a Glass's estimate reopens it. The controls fragment has no
+    /// spec list of its own and carries the id it was rendered with.
     /// </summary>
-    public bool CanResumeGlass =>
-        CanLaunchGlass
-        && GlassSession is { } session
-        && GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State);
+    public Guid? GlassSpecificationId => glassSpecificationId ?? SelectedEstimate?.SpecificationId;
+
+    private Guid? glassSpecificationId;
 
     /// <summary>
     /// Whether the session on the screen failed because its export could not be
@@ -1081,9 +1114,6 @@ public sealed partial class DetailsModel(
         var snapshots = selectedSpecificationId is { } specificationId
             ? reads.Start(token => specificationSnapshots.ListAsync(id, specificationId, token))
             : null;
-        var delivery = generated
-            ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, work, token))
-            : null;
         var suggestions = generated
             ? reads.Start(token => reportRecipientSuggestions.GetAsync(id, work, token))
             : null;
@@ -1111,7 +1141,6 @@ public sealed partial class DetailsModel(
                 ? null
                 : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
         }
-        CurrentDeliveryPreparation = delivery is null ? null : await delivery;
         DeliveryRecipientSuggestions = suggestions is null ? null : await suggestions;
         ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
             ? CaseReportDeliveryPolicy.AddressBook(addressBook)
@@ -2069,6 +2098,7 @@ public sealed partial class DetailsModel(
                 if (workspaceSave.Estimate is { } writtenEstimate)
                 {
                     savedEstimate = writtenEstimate.SpecificationId.ToString("D");
+                    savedEstimateLineIdentities = EstimateLineIdentitiesOf(postedEstimateLineRows, writtenEstimate);
                 }
 
                 if (saveUnroadworthyReason)
@@ -2162,21 +2192,18 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// The working preview is reachable both as a plain link (report only)
-    /// and from the generate form, where the operator's "Include fee note"
-    /// choice must be previewed exactly as it would be generated (R34B).
+    /// The working preview, exactly as the report would be generated: the
+    /// report followed by its fee note.
     /// </summary>
     public Task<IActionResult> OnGetPreviewReportDraftAsync(
         Guid id,
-        bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
 
     public Task<IActionResult> OnPostPreviewReportDraftAsync(
         Guid id,
-        bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
 
     /// <summary>
     /// The included images as they would print (v28 P42): the same working
@@ -2186,11 +2213,10 @@ public sealed partial class DetailsModel(
     public Task<IActionResult> OnGetPreviewImagePackAsync(
         Guid id,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote: false, CaseReportArtifactKind.ImagePack, cancellationToken);
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.ImagePack, cancellationToken);
 
     private async Task<IActionResult> PreviewReportDraftAsync(
         Guid id,
-        bool includeFeeNote,
         CaseReportArtifactKind kind,
         CancellationToken cancellationToken)
     {
@@ -2204,7 +2230,7 @@ public sealed partial class DetailsModel(
         {
             result = await HttpContext.RequestServices
                 .GetRequiredService<GenerateCaseAssessmentReportDraft>()
-                .ExecuteAsync(id, actor, kind, includeFeeNote, cancellationToken);
+                .ExecuteAsync(id, actor, kind, cancellationToken);
         }
         catch (ReportRenderRejectedException exception)
         {
@@ -2301,20 +2327,19 @@ public sealed partial class DetailsModel(
     /// store's short transaction and renders through the registered
     /// renderer, one artifact per request. The draft handlers above stay for
     /// the labelled ungenerated working preview; this is the real report.
-    /// R34B: the operator chooses whether the fee note is part of this
-    /// report or the separate document <see cref="OnPostGenerateFeeNoteAsync"/>
-    /// still produces, and that choice is frozen with the snapshot.
+    /// The report always ends with its fee note; a Principal that wants the
+    /// fee note on its own as well is sent the separate document
+    /// <see cref="OnPostGenerateFeeNoteAsync"/> produces beside it.
     /// </summary>
     public Task<IActionResult> OnPostGenerateReportAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
         long expectedCaseVersion,
-        bool includeFeeNote,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+            CaseReportArtifactKind.AssessmentReport,
             targetGenerationId: null, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
@@ -2326,7 +2351,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.FeeNote, includeFeeNote: false,
+            CaseReportArtifactKind.FeeNote,
             targetGenerationId, cancellationToken);
 
     /// <summary>
@@ -2344,7 +2369,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.RepairSpecification, includeFeeNote: false,
+            CaseReportArtifactKind.RepairSpecification,
             targetGenerationId, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateImagePackAsync(
@@ -2356,7 +2381,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.ImagePack, includeFeeNote: false,
+            CaseReportArtifactKind.ImagePack,
             targetGenerationId, cancellationToken);
 
     /// <summary>
@@ -2372,14 +2397,13 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
-        bool includeFeeNote,
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             return await GenerateWithOneOffLeaseAsync(
-                id, operationKey, expectedCaseVersion, kind, includeFeeNote,
+                id, operationKey, expectedCaseVersion, kind,
                 targetGenerationId, cancellationToken);
         }
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2393,7 +2417,7 @@ public sealed partial class DetailsModel(
         }
         return await GenerateAsync(
             actor, id, operationKey, editLeaseToken, expectedCaseVersion,
-            kind, includeFeeNote, targetGenerationId, cancellationToken);
+            kind, targetGenerationId, cancellationToken);
     }
 
     /// <summary>
@@ -2408,7 +2432,6 @@ public sealed partial class DetailsModel(
         string operationKey,
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
-        bool includeFeeNote,
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
@@ -2446,7 +2469,7 @@ public sealed partial class DetailsModel(
         {
             return await GenerateAsync(
                 actor, id, operationKey, lease.Token, expectedCaseVersion,
-                kind, includeFeeNote, targetGenerationId, cancellationToken);
+                kind, targetGenerationId, cancellationToken);
         }
         finally
         {
@@ -2463,7 +2486,6 @@ public sealed partial class DetailsModel(
         string editLeaseToken,
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
-        bool includeFeeNote,
         Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
@@ -2487,7 +2509,6 @@ public sealed partial class DetailsModel(
                         CaseReportArtifactKind.RepairSpecification => "Generate the immutable Repair Spec",
                         _ => "Generate the immutable images",
                     },
-                    includeFeeNote,
                     targetGenerationId,
                     WorkSelector),
                 cancellationToken);
@@ -2613,11 +2634,15 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// B07 delivery preparation: pins the current generation's confirmed
-    /// artifacts and the staff-reviewed recipient addressing. Nothing is
-    /// sent and no Sent state is claimed here.
+    /// Sends the current generation's report in one step (operator, 6 October
+    /// 2026): the staff-reviewed recipients, the documents chosen and the
+    /// message submitted go to A's staff send transport under this form's
+    /// operation key, so a repeated submission of one form replays one send.
+    /// The send boundary re-checks the generation and the attachment hashes.
+    /// A's returned state is mapped truthfully: only observation says sent,
+    /// and an Unknown outcome never claims one.
     /// </summary>
-    public async Task<IActionResult> OnPostPrepareReportDeliveryAsync(
+    public async Task<IActionResult> OnPostSendReportAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
@@ -2650,9 +2675,10 @@ public sealed partial class DetailsModel(
             return RedirectToReport(id);
         }
 
+        StaffMailOperation operation;
         try
         {
-            await prepareReportDelivery.ExecuteAsync(
+            operation = await sendCaseReport.ExecuteAsync(
                 new(
                     actor,
                     id,
@@ -2677,59 +2703,11 @@ public sealed partial class DetailsModel(
         {
             TempData["CaseError"] = MutationRefusalMessage(
                 exception,
-                "The report delivery could not be prepared. Retry the operation.");
+                "The report was not sent. Retry the operation.");
             return RedirectToReport(id);
         }
 
         ClearLeaseState();
-        TempData["CaseStatus"] =
-            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DeliveryPrepared + ".";
-        return RedirectToReport(id);
-    }
-
-    /// <summary>
-    /// The one page caller of A's staff send transport. The operation key is
-    /// derived from the immutable preparation identity server-side — a
-    /// reload can never mint a second send operation for one preparation —
-    /// and the send boundary re-checks recipients, freshness and attachment
-    /// hashes. A's returned state is mapped truthfully: only observation says
-    /// sent, and an Unknown outcome never claims one.
-    /// </summary>
-    public async Task<IActionResult> OnPostSendPreparedReportAsync(
-        Guid id,
-        Guid preparationId,
-        long expectedPreparationVersion,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        var operationKey = preparationId.ToString("N");
-
-        StaffMailOperation operation;
-        try
-        {
-            _ = await deliveryPreparations.GetAsync(actor, id, preparationId, cancellationToken)
-                ?? throw new InvalidOperationException("The report delivery preparation is unavailable.");
-            operation = await sendPreparedReport.ExecuteAsync(
-                new(actor, id, preparationId, expectedPreparationVersion, operationKey),
-                cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or KeyNotFoundException)
-        {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception,
-                "The report was not sent because the case changed or the preparation is no longer current. Prepare it again.");
-            return RedirectToReport(id);
-        }
-
         switch (operation.State)
         {
             case StaffMailState.Sent:
@@ -3042,6 +3020,7 @@ public sealed partial class DetailsModel(
                 "Check the estimate's lines: an operation, a quantity, hours or an amount does not read as a number.");
         }
 
+        postedEstimateLineRows = editor.LineRows;
         var existing = await ResolveEstimateAsync(caseId, editor.EstimateId, cancellationToken);
         var details = EditorDetailsFrom(editor, existing);
         var selectedRateCard = ParseSelectedRateCard();
@@ -3472,10 +3451,11 @@ public sealed partial class DetailsModel(
 
     /// <summary>Read the owning staff member's Glass's controls without changing Case or lease state.</summary>
     public async Task<IActionResult> OnGetGlassSessionAsync(
-        Guid id, [FromHeader(Name = "X-Pegasus-Edit-Lease")] string? renderLeaseToken,
+        Guid id, Guid? estimate, [FromHeader(Name = "X-Pegasus-Edit-Lease")] string? renderLeaseToken,
         CancellationToken cancellationToken)
     {
         Response.Headers.CacheControl = "no-store";
+        glassSpecificationId = estimate;
         if (!TryGetActor(out var actor)) { return Forbid(); }
         Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
         if (Case is null) { return FragmentNotFound(); }
@@ -3510,12 +3490,19 @@ public sealed partial class DetailsModel(
     /// The gateway is a handler service rather than a page dependency: it is
     /// built from <c>Glass:*</c> configuration, and a host that has none must
     /// still serve every other part of the Case record.
+    ///
+    /// Glass's is the one button (operator, 6 October 2026). While this staff
+    /// member's own session on the Case still holds the account it is
+    /// continued, exactly as <see cref="OnPostResumeGlassAsync"/> continues
+    /// one; otherwise the gateway reopens the estimate the repair spec on the
+    /// screen belongs to, or starts a new one.
     /// </remarks>
     public async Task<IActionResult> OnPostLaunchGlassAsync(
         Guid id,
         long expectedCaseVersion,
         string operationKey,
         string? editLeaseToken,
+        Guid? estimate,
         [FromServices] IGlassRepairEstimateGateway glassEstimates,
         [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork,
         CancellationToken cancellationToken)
@@ -3527,9 +3514,21 @@ public sealed partial class DetailsModel(
             // window that posted it, as every other outcome here does.
             return RefusedGlassGuard(id, "LaunchGlass", guard);
         }
-        if (!TryGetActor(out var actor))
+        if (!TryGetActor(out var actor) || !Guid.TryParse(actor.SubjectId, out var staffId))
         {
             return Forbid();
+        }
+
+        // The launch that made the session, posted again, is a double-click:
+        // it replays below rather than continuing the session at Glass's.
+        var own = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
+        if (own is not null
+            && GlassRepairEstimateSessionPolicy.OccupiesAccount(own.State)
+            && !string.Equals(own.OperationKey, operationKey.Trim(), StringComparison.Ordinal))
+        {
+            return await ResumeGlassAsync(
+                id, actor, own.Id, own.Version, expectedCaseVersion, editLeaseToken,
+                glassEstimates, glassWork, cancellationToken);
         }
 
         // The new session's id is chosen here and held busy before the session
@@ -3547,7 +3546,10 @@ public sealed partial class DetailsModel(
                     expectedCaseVersion,
                     editLeaseToken!,
                     operationKey,
-                    newSessionId),
+                    newSessionId)
+                {
+                    SpecificationId = estimate,
+                },
                 cancellationToken);
             return await ContinueGlassAsync(actor, step, reservation, cancellationToken);
         }
@@ -3599,6 +3601,26 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = GlassLabels.ResumeRefused;
             return GlassReturn(id);
         }
+        return await ResumeGlassAsync(
+            id, actor, sessionId, expectedSessionVersion, expectedCaseVersion, editLeaseToken,
+            glassEstimates, glassWork, cancellationToken);
+    }
+
+    /// <summary>
+    /// Continues this staff member's session on the Case, for the Glass's
+    /// button and for Fetch again alike.
+    /// </summary>
+    private async Task<IActionResult> ResumeGlassAsync(
+        Guid id,
+        ActionActor actor,
+        Guid sessionId,
+        long expectedSessionVersion,
+        long expectedCaseVersion,
+        string? editLeaseToken,
+        IGlassRepairEstimateGateway glassEstimates,
+        Pegasus.Web.Background.ProviderWorkQueue glassWork,
+        CancellationToken cancellationToken)
+    {
         if (glassWork.IsInFlight(sessionId))
         {
             // Work for this session is already running: wait on it.

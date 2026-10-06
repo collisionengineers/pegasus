@@ -287,8 +287,8 @@ public sealed class StaffMailSendTests
             Attachments = [deliveryAttachment]
         };
         var report = new ReportSendReadinessRequest(
-            actor, Guid.NewGuid(), 1, mail.ContextId, mail.ExpectedContextVersion,
-            Guid.NewGuid(), 1, [custodyAttachment]);
+            actor, Guid.NewGuid(), mail.ContextId, mail.ExpectedContextVersion,
+            [custodyAttachment]);
         var readiness = new Readiness();
         var transport = new Transport();
         var send = new StaffMailSend(

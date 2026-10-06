@@ -456,6 +456,60 @@ public sealed class EfGlassRepairEstimateSessionStore(
         return ToSession(entity);
     }
 
+    public async Task SupersedeAsync(
+        Guid caseId, string providerVehicleId, ActionActor actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerVehicleId);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        // The staff member's own session is theirs to continue, and is never
+        // ended here.
+        var own = Guid.TryParse(actor.SubjectId, out var staffId) ? staffId : Guid.Empty;
+        var live = await context.Set<GlassRepairEstimateSessionEntity>()
+            .Where(item => item.CaseId == caseId
+                && item.ActiveAccountKey != null
+                && item.UserId != own
+                && item.ProviderVehicleId == providerVehicleId)
+            .ToListAsync(cancellationToken);
+        if (live.Count == 0)
+        {
+            return;
+        }
+        if (live.FirstOrDefault(item => item.State == GlassRepairEstimateSessionState.Importing) is { } landing)
+        {
+            throw new GlassRepairEstimateSessionConflictException(
+                GlassRepairEstimateSessionConflict.Importing,
+                landing.Id,
+                "Another Glass's session on this estimate is landing its return.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+        foreach (var entity in live)
+        {
+            var previousState = entity.State;
+            entity.State = GlassRepairEstimateSessionState.Cancelled;
+            entity.ActiveAccountKey = null;
+            entity.LastError = null;
+            entity.Version++;
+            entity.UpdatedAtUtc = now;
+            AddHistory(context, entity, previousState, entity.State, now, actor,
+                "The Glass's estimate was reopened by the staff member holding the Case.");
+        }
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new GlassRepairEstimateSessionConflictException(
+                GlassRepairEstimateSessionConflict.Version, live[0].Id,
+                "A Glass's session on this estimate changed before it could be ended.");
+        }
+    }
+
     private static bool OccupiesAccount(GlassRepairEstimateSessionState state) =>
         GlassRepairEstimateSessionPolicy.OccupiesAccount(state);
 

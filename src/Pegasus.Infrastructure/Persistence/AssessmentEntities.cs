@@ -96,6 +96,17 @@ internal sealed class CaseRepairSpecificationEntity
     public string? SupplementaryReason { get; set; }
     public bool SupplementaryExplainOnReport { get; set; }
     public string? SupplementaryStatement { get; set; }
+
+    // The Glass's estimate this specification belongs to (operator,
+    // 6 October 2026): the stock vehicle it stands on, the estimate id that
+    // vehicle last answered and what the vehicle was proved against. All set
+    // or none.
+    public string? GlassVehicleId { get; set; }
+    public string? GlassEstimateId { get; set; }
+    public string? GlassNatCode { get; set; }
+    public bool? GlassPlaceholder { get; set; }
+    public string? GlassRegistration { get; set; }
+    public long? GlassMileageMiles { get; set; }
     public List<CaseEstimateLineEntity> Lines { get; set; } = [];
 }
 

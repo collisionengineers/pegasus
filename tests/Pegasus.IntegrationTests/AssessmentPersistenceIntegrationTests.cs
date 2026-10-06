@@ -1504,6 +1504,75 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
+    /// A Glass's estimate belongs to its repair spec (operator, 6 October
+    /// 2026). The return that makes the spec records the stock vehicle on it;
+    /// a later return for that vehicle replaces the same spec's lines and
+    /// source, keeps its name, and puts it back in use.
+    /// </summary>
+    [Fact]
+    public async Task AGlassReturnForItsSpecUpdatesItInPlaceAndPutsItBackInUse()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("glass-update-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
+        var link = new GlassEstimateLink("33584499", "1954488", "10203040", Placeholder: false, "AB12CDE", 33000);
+        var authority = new Pegasus.Infrastructure.Glass.EfGlassRepairEstimateCaseAuthority(harness.Factory, harness.Clock);
+
+        var firstLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "glass-update-lease-1");
+        var first = await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            new(caseId, 0, engineer, "glass-update-first", ImportRawEstimate.ImportReason, firstLease.Token, null,
+                new("Glass's 1", 40m, null, 20m), parsed.Lines,
+                new(RepairSpecificationSourceRoute.Glasses, "estimate-import:glass-first", parsed.SourceVersion, hash))
+            {
+                GlassEstimate = link,
+            },
+            CancellationToken.None);
+        Assert.Equal(link, await authority.FindEstimateAsync(caseId, first.SpecificationId, CancellationToken.None));
+        Assert.Equal(
+            first.SpecificationId,
+            await authority.FindSpecificationAsync(caseId, link.VehicleId, CancellationToken.None));
+
+        // A typed spec takes its place in use, and belongs to no estimate.
+        var typedLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "glass-update-lease-typed");
+        var typed = await new SaveEstimate(harness.RepairSpecifications,
+            new EfAiJobStore(harness.Factory, harness.Clock), harness.Clock).ExecuteAsync(
+            new(caseId, typedLease.Version, engineer, "glass-update-typed", "Recorded a typed spec.",
+                typedLease.Token, null, new("Typed", 40m, 0m, 20m),
+                [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+        Assert.True(typed.IsCurrent);
+        Assert.Null(await authority.FindEstimateAsync(caseId, typed.SpecificationId, CancellationToken.None));
+
+        var secondHash = new string('c', 64);
+        var updateLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "glass-update-lease-2");
+        var updated = await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            new(caseId, updateLease.Version, engineer, "glass-update-second", ImportRawEstimate.ImportReason,
+                updateLease.Token, first.SpecificationId, first.Details, [parsed.Lines[0]],
+                new(RepairSpecificationSourceRoute.Glasses, "estimate-import:glass-second", parsed.SourceVersion, secondHash))
+            {
+                GlassEstimate = link with { EstimateId = "1954489" },
+            },
+            CancellationToken.None);
+
+        Assert.Equal(first.SpecificationId, updated.SpecificationId);
+        Assert.Equal("Glass's 1", updated.Details.Name);
+        Assert.True(updated.IsCurrent);
+        Assert.Single(updated.Lines);
+        Assert.Equal(secondHash, updated.Source.Sha256);
+        var listed = await harness.RepairSpecifications.ListEstimatesAsync(
+            caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(2, listed.Count);
+        Assert.Equal(first.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
+        Assert.Equal(
+            "1954489",
+            (await authority.FindEstimateAsync(caseId, first.SpecificationId, CancellationToken.None))!.EstimateId);
+    }
+
+    /// <summary>
     /// Unknown is a real recorded state, not a missing value: an estimate
     /// whose repairer VAT position was never recorded charges VAT on nothing,
     /// and it never gates Use repair spec (v28 P10).

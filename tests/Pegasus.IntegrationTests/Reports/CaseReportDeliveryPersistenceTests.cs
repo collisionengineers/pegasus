@@ -9,244 +9,160 @@ using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.IntegrationTests.Support;
 
 namespace Pegasus.IntegrationTests.Reports;
 
 /// <summary>
-/// The durable half of B07: one preparation is one serializable transaction
-/// over the Foundation <c>CaseReportDeliveryIntents</c> table that re-reads
-/// the Case, its lease and the generation's rows, pins every confirmed
-/// artifact by exact identity/hash/length, replays by operation key, and
-/// conflicts when the same key carries a different payload. Nothing here
-/// sends or records a Sent state.
+/// The durable half of the one-step report send (operator, 6 October 2026):
+/// the generation store re-reads the Case, its lease and the generation's
+/// rows for one delivery, and the send boundary re-reads the confirmed
+/// artifacts by exact identity, hash and length. The transport is a recording
+/// double; nothing here sends or records a Sent state.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseReportDeliveryPreparationPersistenceTests
+public sealed class CaseReportDeliveryPersistenceTests
 {
     private static readonly DateTimeOffset StartUtc = new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero);
     private static readonly JsonSerializerOptions SnapshotJsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
-    public async Task PreparePinsConfirmedArtifactsAndWritesThePreparedEventOnce()
+    public async Task SendHandsTheTransportTheConfirmedArtifactAndTheReviewedRecipients()
     {
         await using var harness = await Harness.CreateAsync();
-        var command = harness.PrepareCommand();
 
-        var record = await harness.Store.PrepareAsync(command, CancellationToken.None);
+        var command = await harness.SendAsync(harness.Request());
 
-        Assert.Equal(harness.GenerationId, record.Preparation.GenerationId);
-        Assert.Equal(1, record.Preparation.Version);
-        Assert.Equal(harness.Artifact.DocumentId, Assert.Single(record.Preparation.Artifacts).DocumentId);
+        Assert.Equal(harness.GenerationId, command.Mail.ContextId);
+        Assert.Equal(1, command.Mail.ExpectedContextVersion);
         Assert.Equal(
-            ("handler@principal.example", "DVR-31001"),
-            (Assert.Single(record.Addressing.To).Address, record.Addressing.Subject));
-        Assert.Equal(CaseReportGenerationState.Confirmed, record.GenerationState);
-        Assert.True(record.GenerationIsCurrent);
-        Assert.Equal(1, record.FrozenCaseVersion);
-        Assert.Equal(record.FrozenCaseVersion, record.CurrentCaseVersion);
-        Assert.Equal(1, await harness.IntentCountAsync());
-        Assert.Equal(1, await harness.ActionHistoryCountAsync());
-    }
-
-    [Fact]
-    public async Task PreparePersistsStaffReviewedRecipients()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var command = harness.PrepareCommand(addressing: new(
-            [new("reviewed@recipient.example", null)],
-            [new("copy@recipient.example", null)],
-            "DVR-31001"));
-
-        var prepared = await harness.Store.PrepareAsync(command, CancellationToken.None);
-        var reloaded = await harness.Store.GetAsync(
-            harness.Staff, harness.CaseId, prepared.Preparation.Id, CancellationToken.None);
-
-        Assert.Equal("reviewed@recipient.example", Assert.Single(reloaded!.Addressing.To).Address);
-        Assert.Equal("copy@recipient.example", Assert.Single(reloaded.Addressing.Cc).Address);
+            ("handler@principal.example", "DVR-31001", "Please find attached our report."),
+            (Assert.Single(command.Mail.To).Address, command.Mail.Subject, command.Mail.Body));
+        var pinned = Assert.Single(command.Report.Artifacts);
+        Assert.Equal(
+            (harness.Artifact.DocumentId, harness.Artifact.VersionId, harness.Artifact.Sha256, harness.Artifact.ContentLength),
+            (pinned.DocumentId!.Value, pinned.VersionId!.Value, pinned.Sha256, pinned.ContentLength));
+        // Custody keeps "report.pdf"; the mail names the report for its readers.
+        Assert.Equal("report.pdf", pinned.FileName);
+        var sent = Assert.Single(command.Mail.Attachments);
+        Assert.StartsWith("DVR-31001 ", sent.FileName, StringComparison.Ordinal);
+        Assert.EndsWith(" report.pdf", sent.FileName, StringComparison.Ordinal);
+        await new ReportSendReadiness(harness.Store).RequireReadyAsync(command.Report, CancellationToken.None);
     }
 
     /// <summary>
-    /// The covering message staff reviewed is frozen as submitted and read
-    /// back unchanged; the same key with another message is a conflict.
+    /// Without reviewed recipients the Principal's suggestions address the
+    /// delivery: here the sender of the instruction that opened the Case.
     /// </summary>
     [Fact]
-    public async Task PrepareFreezesTheSubmittedCoveringMessage()
+    public async Task SendWithoutReviewedRecipientsUsesThePrincipalSuggestions()
     {
         await using var harness = await Harness.CreateAsync();
-        var command = harness.PrepareCommand();
-        command = command with
-        {
-            Request = command.Request with { CoveringMessage = "Edited by staff.\n\nKind regards" },
-        };
 
-        var prepared = await harness.Store.PrepareAsync(command, CancellationToken.None);
-        var reloaded = await harness.Store.GetAsync(
-            harness.Staff, harness.CaseId, prepared.Preparation.Id, CancellationToken.None);
+        var command = await harness.SendAsync(harness.Request() with { ReviewedRecipients = null });
 
-        Assert.Equal("Edited by staff.\n\nKind regards", prepared.Preparation.CoveringMessage);
-        Assert.Equal("Edited by staff.\n\nKind regards", reloaded!.Preparation.CoveringMessage);
-        var replay = await harness.Store.PrepareAsync(command, CancellationToken.None);
-        Assert.Equal(prepared.Preparation.Id, replay.Preparation.Id);
-
-        var reworded = command with
-        {
-            Request = command.Request with { CoveringMessage = "Different wording." },
-        };
-        await Assert.ThrowsAsync<CaseOperationConflictException>(
-            () => harness.Store.PrepareAsync(reworded, CancellationToken.None));
+        Assert.Equal("origin-sender@principal.example", Assert.Single(command.Mail.To).Address);
     }
 
     [Fact]
-    public async Task PrepareRefusesABlankCoveringMessageAtTheStore()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var command = harness.PrepareCommand();
-        command = command with { Request = command.Request with { CoveringMessage = "  " } };
-
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => harness.Store.PrepareAsync(command, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task TheSameOperationKeyReplaysAndADifferentPayloadConflicts()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var command = harness.PrepareCommand();
-        var first = await harness.Store.PrepareAsync(command, CancellationToken.None);
-
-        var replay = await harness.Store.PrepareAsync(command, CancellationToken.None);
-        Assert.Equal(first.Preparation.Id, replay.Preparation.Id);
-        Assert.Equal(1, await harness.IntentCountAsync());
-        Assert.Equal(1, await harness.ActionHistoryCountAsync());
-
-        // The same key is the same operation only with the same inputs.
-        var changed = harness.PrepareCommand() with
-        {
-            Addressing = new(
-                [new("other@principal.example", null)], [], "DVR-31001"),
-        };
-        await Assert.ThrowsAsync<CaseOperationConflictException>(
-            () => harness.Store.PrepareAsync(changed, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task PrepareRefusesAPendingSupersededOrStaleVersionGeneration()
+    public async Task SendRefusesAPendingSupersededOrStaleVersionGeneration()
     {
         await using var harness = await Harness.CreateAsync();
         await harness.SetGenerationStateAsync(nameof(CaseReportGenerationState.Pending));
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => harness.Store.PrepareAsync(harness.PrepareCommand(), CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.SendAsync(harness.Request()));
 
         await harness.SetGenerationStateAsync(nameof(CaseReportGenerationState.Confirmed));
         await harness.SupersedeGenerationAsync();
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => harness.Store.PrepareAsync(harness.PrepareCommand(), CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.SendAsync(harness.Request()));
 
         await using var fresh = await Harness.CreateAsync();
         await fresh.SetGenerationVersionAsync(7);
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => fresh.Store.PrepareAsync(fresh.PrepareCommand(expectedGenerationVersion: 1), CancellationToken.None));
+            () => fresh.SendAsync(fresh.Request(expectedGenerationVersion: 1)));
     }
 
     [Fact]
-    public async Task PrepareRefusesAPartlyConfirmedGeneration()
+    public async Task SendRefusesAGenerationWhoseReportIsNotConfirmed()
     {
         await using var harness = await Harness.CreateAsync();
         await harness.SetArtifactStateAsync(nameof(CaseReportArtifactStatus.Pending));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => harness.Store.PrepareAsync(harness.PrepareCommand(), CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.SendAsync(harness.Request()));
     }
 
     [Fact]
-    public async Task PrepareRequiresTheCurrentCaseVersionAndTheHeldLease()
+    public async Task SendRequiresTheHeldLeaseAndRefusesACaseVersionFromTheFuture()
     {
         await using var harness = await Harness.CreateAsync();
 
         await Assert.ThrowsAsync<CaseVersionConflictException>(
-            () => harness.Store.PrepareAsync(
-                harness.PrepareCommand(expectedCaseVersion: 2), CancellationToken.None));
+            () => harness.SendAsync(harness.Request(expectedCaseVersion: 2)));
         await AssertThrowsAsyncAny<CaseEditLeaseExpiredException, CaseEditLeaseConflictException>(
-            () => harness.Store.PrepareAsync(harness.PrepareCommand(leaseToken: "foreign-lease"), CancellationToken.None));
-        Assert.Equal(0, await harness.IntentCountAsync());
+            () => harness.SendAsync(harness.Request(leaseToken: "foreign-lease")));
+    }
+
+    /// <summary>
+    /// System work never ends a member of staff's edit session (operator,
+    /// 6 October 2026), so a Case it moved after the page was read does not
+    /// refuse the send made under the lease, at the store or at the send
+    /// boundary. The two-step delivery this replaces refused it for good.
+    /// </summary>
+    [Fact]
+    public async Task SystemWorkThatMovedTheCaseDoesNotRefuseTheSend()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.MoveCaseVersionAsync(3);
+
+        var command = await harness.SendAsync(harness.Request(expectedCaseVersion: 1));
+
+        await new ReportSendReadiness(harness.Store).RequireReadyAsync(command.Report, CancellationToken.None);
     }
 
     [Fact]
     public async Task ReadinessRefusesWhenAConfirmedArtifactChangedUnderneath()
     {
         await using var harness = await Harness.CreateAsync();
-        var record = await harness.Store.PrepareAsync(harness.PrepareCommand(), CancellationToken.None);
+        var command = await harness.SendAsync(harness.Request());
         var readiness = new ReportSendReadiness(harness.Store);
-        var request = harness.ReadyRequest(record);
 
-        // The pinned payload still matches its confirmed rows: ready.
-        await readiness.RequireReadyAsync(request, CancellationToken.None);
+        // The attachment still matches its confirmed row: ready.
+        await readiness.RequireReadyAsync(command.Report, CancellationToken.None);
 
         await harness.TamperArtifactVersionAsync();
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => readiness.RequireReadyAsync(request, CancellationToken.None));
+            () => readiness.RequireReadyAsync(command.Report, CancellationToken.None));
     }
 
-    /// <summary>
-    /// Stream A review: the frozen Case version is the one the preparation
-    /// pinned. A Case mutation after preparation — with the addressing and
-    /// artifacts untouched — refuses the send boundary.
-    /// </summary>
     [Fact]
-    public async Task ReadinessRefusesWhenTheCaseMovedAfterPreparation()
+    public async Task ReadinessRefusesAGenerationThatWentStaleAfterTheSendBegan()
     {
         await using var harness = await Harness.CreateAsync();
-        var record = await harness.Store.PrepareAsync(harness.PrepareCommand(), CancellationToken.None);
-        var readiness = new ReportSendReadiness(harness.Store);
-        var request = harness.ReadyRequest(record);
-        await readiness.RequireReadyAsync(request, CancellationToken.None);
+        var command = await harness.SendAsync(harness.Request());
 
-        await harness.MoveCaseVersionAsync(2);
-        var moved = await harness.Store.GetAsync(harness.Staff, harness.CaseId,
-            record.Preparation.Id, CancellationToken.None);
-        Assert.NotNull(moved);
-        Assert.Equal(1, moved!.FrozenCaseVersion);
-        Assert.Equal(2, moved.CurrentCaseVersion);
+        await harness.SetGenerationStateAsync(nameof(CaseReportGenerationState.Stale));
 
-        await Assert.ThrowsAsync<CaseVersionConflictException>(
-            () => readiness.RequireReadyAsync(harness.ReadyRequest(moved), CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => new ReportSendReadiness(harness.Store).RequireReadyAsync(command.Report, CancellationToken.None));
     }
 
     /// <summary>
-    /// The Inspection report of a Case that has its Audit is prepared on its
-    /// own work, and once sent it is prepared again for another send; the
-    /// preparation already made still replays (operator, 2 October 2026).
+    /// The Inspection report of a Case that has its Audit is sent on its own
+    /// work, and once sent it is sent again when needed (operator, 2 and
+    /// 6 October 2026). It is not the current work's report.
     /// </summary>
     [Fact]
-    public async Task TheInspectionReportSentAfterTheAuditIsPreparedAgain()
+    public async Task TheInspectionReportIsSentOnItsOwnWorkOnceTheAuditExistsAndAgainOnceSent()
     {
         await using var harness = await Harness.CreateAsync();
         await CaseReportGenerationPersistenceTests.GiveAuditAsync(harness.Factory, harness.CaseId, StartUtc);
-        var command = harness.PrepareCommand();
-        command = command with { Request = command.Request with { Work = CaseWorkSelector.Primary } };
-        var prepared = await harness.Store.PrepareAsync(command, CancellationToken.None);
+        var request = harness.Request() with { Work = CaseWorkSelector.Primary };
 
+        await harness.SendAsync(request);
         await CaseReportGenerationPersistenceTests.LinkInspectionSentEvidenceAsync(harness.Factory, harness.CaseId, StartUtc);
+        await harness.SendAsync(request with { OperationKey = "send-report-2" });
 
-        var replay = await harness.Store.PrepareAsync(command, CancellationToken.None);
-        Assert.Equal(prepared.Preparation.Id, replay.Preparation.Id);
-        var again = command with { Request = command.Request with { OperationKey = "prepare-delivery-2" } };
-        var second = await harness.Store.PrepareAsync(again, CancellationToken.None);
-        Assert.NotEqual(prepared.Preparation.Id, second.Preparation.Id);
-        Assert.Equal(2, await harness.IntentCountAsync());
-    }
-
-    [Fact]
-    public async Task GetCurrentReturnsTheLatestPreparationOfTheCurrentGenerationOnly()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var first = await harness.Store.PrepareAsync(harness.PrepareCommand(), CancellationToken.None);
-
-        var current = await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
-        Assert.Equal(first.Preparation.Id, current!.Preparation.Id);
-
-        await harness.SupersedeGenerationAsync();
-        Assert.Null(await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => harness.SendAsync(request with { Work = CaseWorkSelector.Current }));
     }
 
     [Fact]
@@ -260,7 +176,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         Assert.NotNull(suggestions);
         Assert.True(suggestions!.Settings.IncludeOriginalInstructionSender);
         Assert.Equal("origin-sender@principal.example", suggestions.OriginalInstructionSender);
-        Assert.Equal("Delivery preparation test", suggestions.PrincipalName);
+        Assert.Equal("Report delivery test", suggestions.PrincipalName);
     }
 
     private static async Task AssertThrowsAsyncAny<T1, T2>(Func<Task> action)
@@ -282,13 +198,10 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
     /// <summary>
     /// Seeds one case at version 1 with an active staff edit lease, one
     /// Confirmed generation at version 1, and one Confirmed artifact joined
-    /// to a real custody version row — the minimum the preparation store
-    /// re-reads inside its transaction.
+    /// to a real custody version row — the minimum a delivery re-reads.
     /// </summary>
     private sealed class Harness : IAsyncDisposable
     {
-        internal const string OperationKey = "prepare-delivery-1";
-
         private readonly LocalDbTestDatabase database;
 
         private Harness(
@@ -297,8 +210,6 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
             Guid caseId,
             ActionActor staff,
             CaseEditLease lease,
-            Guid generationId,
-            Guid artifactVersionId,
             SeededArtifact artifact)
         {
             this.database = database;
@@ -306,11 +217,16 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
             CaseId = caseId;
             Staff = staff;
             Lease = lease;
-            GenerationId = generationId;
-            ArtifactVersionId = artifactVersionId;
+            GenerationId = artifact.GenerationId;
+            ArtifactVersionId = artifact.VersionId;
             Artifact = artifact;
-            Store = new EfCaseReportDeliveryPreparationStore(
-                factory, new FixedTimeProvider(StartUtc));
+            // A delivery reads the generation's rows; it never freezes a
+            // snapshot or opens a document, so neither source is reached.
+            Store = new EfCaseReportGenerationStore(
+                factory,
+                new UnusedSnapshotSource(),
+                RecordingLogicalDocumentVersionReader.Refusing(),
+                new FixedTimeProvider(StartUtc));
         }
 
         public PooledDbContextFactory<PegasusDbContext> Factory { get; }
@@ -327,7 +243,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
 
         public SeededArtifact Artifact { get; }
 
-        public EfCaseReportDeliveryPreparationStore Store { get; }
+        public EfCaseReportGenerationStore Store { get; }
 
         public static async Task<Harness> CreateAsync()
         {
@@ -338,7 +254,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     .UseSqlServer(database.ConnectionString)
                     .Options;
                 var factory = new PooledDbContextFactory<PegasusDbContext>(options);
-                // Delivery preparation is a staff casework action. Keep this
+                // Report delivery is a staff casework action. Keep this
                 // persistence suite on a User actor so every positive and
                 // stale/readiness refusal below exercises the broadened path.
                 var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -346,9 +262,8 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                 var artifact = await SeedConfirmedGenerationAsync(factory, caseId);
                 var lease = await new AcquireCaseEditLease(
                         new EfCaseWorkflowStore(factory, new FixedTimeProvider(StartUtc)))
-                    .ExecuteAsync(new(caseId, 1, staff, "lease-prepare-delivery"), CancellationToken.None);
-                return new(
-                    database, factory, caseId, staff, lease, artifact.GenerationId, artifact.VersionId, artifact);
+                    .ExecuteAsync(new(caseId, 1, staff, "lease-send-report"), CancellationToken.None);
+                return new(database, factory, caseId, staff, lease, artifact);
             }
             catch
             {
@@ -357,39 +272,38 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
             }
         }
 
-        public PrepareCaseReportDeliveryCommand PrepareCommand(
+        public SendCaseReportRequest Request(
             long expectedCaseVersion = 1,
             long expectedGenerationVersion = 1,
-            string leaseToken = "lease",
-            CaseReportDeliveryAddressing? addressing = null) => new(
-            new(
-                Staff,
-                CaseId,
-                expectedCaseVersion,
-                leaseToken == "lease" ? Lease.Token : leaseToken,
-                GenerationId,
-                expectedGenerationVersion,
-                OperationKey,
-                "Please find attached our report."),
-            addressing ?? new([new("handler@principal.example", "Principal Handler")], [], "DVR-31001"),
-            new string('a', 64),
-            CaseReportSendHistory.None);
-
-        public ReportSendReadinessRequest ReadyRequest(CaseReportDeliveryPreparationRecord record) => new(
+            string leaseToken = "lease") => new(
             Staff,
             CaseId,
-            record.FrozenCaseVersion,
-            record.Preparation.GenerationId,
-            record.Preparation.GenerationVersion,
-            record.Preparation.Id,
-            record.Preparation.Version,
-            record.Preparation.Artifacts);
+            expectedCaseVersion,
+            leaseToken == "lease" ? Lease.Token : leaseToken,
+            GenerationId,
+            expectedGenerationVersion,
+            "send-report-1",
+            "Please find attached our report.",
+            new(["handler@principal.example"], []));
 
-        public Task<long> IntentCountAsync() => database.ScalarAsync<long>(
-            $"SELECT COUNT_BIG(*) FROM CaseReportDeliveryIntents");
-
-        public Task<long> ActionHistoryCountAsync() => database.ScalarAsync<long>(
-            $"SELECT COUNT(*) FROM ActionHistory WHERE EventKind = 'case_report_delivery_prepared' AND CorrelationId = '{OperationKey}'");
+        /// <summary>
+        /// One send through the real use case over this database: the real
+        /// generation store, recipient suggestions and send history, one
+        /// approved mailbox, and a transport that records the command it was
+        /// handed and returns it.
+        /// </summary>
+        public async Task<StaffReportSendCommand> SendAsync(SendCaseReportRequest request)
+        {
+            var send = new RecordingSend();
+            await new SendCaseReport(
+                    Store,
+                    new EfCaseReportSendHistoryQueries(Factory),
+                    new EfReportRecipientSuggestionQueries(Factory),
+                    new FixedMailboxes(),
+                    send)
+                .ExecuteAsync(request, CancellationToken.None);
+            return Assert.Single(send.Commands);
+        }
 
         public async Task SetGenerationStateAsync(string state)
         {
@@ -418,12 +332,12 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         /// <summary>
         /// Changes the confirmed version row's content length underneath the
         /// pinned attachment: the send boundary must refuse bytes that no
-        /// longer match what was prepared.
+        /// longer match what the send named.
         /// </summary>
         public Task TamperArtifactVersionAsync() => database.ExecuteAsync(
             $"UPDATE DocumentVersions SET ContentLength = 999 WHERE Id = '{ArtifactVersionId:D}'");
 
-        /// <summary>A Case mutation after preparation: the live version moves.</summary>
+        /// <summary>A Case write after the page was read: the live version moves.</summary>
         public Task MoveCaseVersionAsync(long version) => database.ExecuteAsync(
             $"UPDATE CaseWorkflows SET [Version] = {version} WHERE CaseId = '{CaseId:D}'");
 
@@ -439,7 +353,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
             var receiptId = Guid.NewGuid();
             var caseId = Guid.NewGuid();
             context.AddRange(
-                new OrganizationEntity { Id = organizationId, Name = "Delivery preparation test", Version = 0 },
+                new OrganizationEntity { Id = organizationId, Name = "Report delivery test", Version = 0 },
                 new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = StartUtc },
                 new PrincipalEntity
                 {
@@ -461,14 +375,14 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     SourceLength = 1,
                     SourceHash = new string('0', 64),
                     SourceChannel = "manual_upload",
-                    ExternalReceiptToken = $"prepare:{receiptId:N}",
+                    ExternalReceiptToken = $"delivery:{receiptId:N}",
                     ReceivedAtUtc = StartUtc,
                     ProcessedAtUtc = StartUtc,
-                    SourceReaderKey = "prepare-test",
+                    SourceReaderKey = "delivery-test",
                     SourceReaderVersion = "1",
                     Version = 0,
                     Decision = "case_created",
-                    DecisionReason = "Delivery preparation test",
+                    DecisionReason = "Report delivery test",
                     EvidenceJson = "[]",
                     FieldsJson = "[]",
                     OcrCandidatesJson = "[]"
@@ -478,8 +392,8 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     IntakeReceiptId = receiptId,
                     Disposition = "accepted",
                     PredicatesJson = "[]",
-                    Reason = "Delivery preparation origin sender",
-                    PolicyKey = "prepare-test",
+                    Reason = "Report delivery origin sender",
+                    PolicyKey = "delivery-test",
                     PolicyVersion = 1,
                     TransportIdentitiesJson = "[]",
                     OriginalIdentitiesJson = "[]",
@@ -522,12 +436,12 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
             var documentId = Guid.NewGuid();
             var versionId = Guid.NewGuid();
             var occurrenceId = Guid.NewGuid();
-            var content = "delivery-preparation"u8.ToArray();
+            var content = "report-delivery"u8.ToArray();
             var sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content));
             var input = AssessmentReportDraftWebTests.ReadyInput(caseId);
             var report = AssessmentReportProjection.Project(input).Snapshot!;
             var snapshot = new CaseReportGenerationSnapshot(
-                caseId, 1, "DVR-31001", "prepare-delivery-1", CaseReportActor.None, StartUtc,
+                caseId, 1, "DVR-31001", "send-report-1", CaseReportActor.None, StartUtc,
                 Guid.Empty, new string('0', 64), "image/png", input.CurrentEstimate!.SpecificationId, input.CurrentEstimate.Version,
                 report.Costs, report.EngineerValue, Guid.Empty, report.Content, report.Guides,
                 report.ReportDate, report.ReportDateOverridden, report.AgreedFee,
@@ -541,7 +455,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     Id = documentId,
                     CaseId = caseId,
                     Ordinal = 1,
-                    SourceOccurrenceIdentity = $"prepare:{documentId:N}"
+                    SourceOccurrenceIdentity = $"delivery:{documentId:N}"
                 },
                 new DocumentVersionEntity
                 {
@@ -565,7 +479,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     VersionId = versionId,
                     SemanticRole = DocumentSemanticRole.EngineerReport,
                     Source = DocumentSource.Generated,
-                    SourceOccurrenceIdentity = $"prepare:{occurrenceId:N}",
+                    SourceOccurrenceIdentity = $"delivery:{occurrenceId:N}",
                     RecordedAtUtc = StartUtc,
                     OperationKey = $"seed:{occurrenceId:N}"
                 },
@@ -603,6 +517,81 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
         {
             public override DateTimeOffset GetUtcNow() => utcNow;
+        }
+    }
+
+    private sealed class UnusedSnapshotSource : ICaseReportSnapshotSource
+    {
+        public Task<CaseReportFreezeInputs?> GetAsync(
+            Guid caseId,
+            ActionActor actor,
+            CaseWorkSelector work,
+            ReportProjectionReuse? reuse,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A delivery freezes no snapshot.");
+    }
+
+    /// <summary>The one approved mailbox bound for staff send and report-sent evidence.</summary>
+    private sealed class FixedMailboxes : IApprovedMailboxStore
+    {
+        private static readonly ApprovedMailbox Mailbox = new(
+            Guid.NewGuid(),
+            "reports@collisionengineers.example",
+            [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
+            ApprovedMailboxState.Approved,
+            "identity",
+            "inbox",
+            "sent",
+            IdentityIsBound: true,
+            ActivatedAtUtc: StartUtc,
+            Version: 1,
+            FolderBindings: [],
+            Generation: 3);
+
+        public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ApprovedMailbox>>([Mailbox]);
+
+        public Task<ApprovedMailbox> UpdateAsync(
+            UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ApprovedMailbox> SetDefaultAsync(
+            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress,
+            ApprovedMailboxRouteScope routeScope,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+    }
+
+    private sealed class RecordingSend : IStaffReportSend
+    {
+        public List<StaffReportSendCommand> Commands { get; } = [];
+
+        public Task<StaffMailOperation> SendAsync(
+            StaffReportSendCommand command, CancellationToken cancellationToken)
+        {
+            Commands.Add(command);
+            return Task.FromResult(new StaffMailOperation(
+                Guid.NewGuid(),
+                StaffMailState.Unknown,
+                null,
+                1,
+                StartUtc,
+                null,
+                null,
+                null,
+                command.Mail.ApprovedMailboxId,
+                command.Mail.ExpectedMailboxGeneration,
+                new string('d', 64),
+                null,
+                null,
+                command.Mail.Purpose,
+                command.Mail.ContextId,
+                command.Mail.ExpectedContextVersion,
+                null));
         }
     }
 }

@@ -1,10 +1,11 @@
 ﻿@*
     Report (v26 § Report). Head: one primary (Generate report, gated by the
-    readiness the projection states, with Include fee note beside it) and
-    one More menu (the previews, and Generate for each companion document).
+    readiness the projection states; the report always ends with its fee
+    note) and one More menu (the previews, and Generate for each companion
+    document).
     Body: the preview card (when the report was generated, where its file
     stands, and Open report and Open fee note once each is stored), the
-    reviewed recipients and delivery, and the report fields. The readiness
+    delivery form with its one Send report, and the report fields. The readiness
     list and the stale notice are the aside's Next action's (issue 899).
     Mark report sent is the ribbon's Actions item and
     Unlink report evidence is Overview's Lifecycle actions; neither is
@@ -26,12 +27,11 @@
     var caseId = workflow.CaseId;
     var editing = Model.SectionIsEditable("report");
     // One report per work (v29 P4): each view's card is its own work's report,
-    // generated, prepared and sent under the same rules, the Inspection's
+    // generated and sent under the same rules, the Inspection's
     // before and after it is sent (operator, 1 and 2 October 2026). The Audit
     // view shows the Audit report alone (operator, 2 October 2026).
     var auditView = !Model.IsInspectionView && Model.Works is { HasAudit: true };
     var generation = Model.CurrentReportGeneration;
-    var preparation = Model.CurrentDeliveryPreparation;
     var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
         ? CaseReportDeliveryPolicy.SuggestedReview(suggestions)
         : new ReportRecipientReview([], []);
@@ -66,7 +66,6 @@
     var canGenerateCompanion = canClaimGeneration
         && generation is { State: CaseReportGenerationState.Confirmed };
     var canGenerateFeeNote = canGenerateCompanion
-        && !generation!.Snapshot.Report.IncludeFeeNote
         && feeNoteArtifact?.Status != CaseReportArtifactStatus.Confirmed;
     var feeNoteOperationKey = feeNoteArtifact?.OperationKey ?? Model.GenerateFeeNoteOperationKey;
     // What the preview card opens: the stored report, and a separate fee
@@ -80,7 +79,7 @@
         ? null
         : Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm", CultureInfo.InvariantCulture);
     var draftFileName = Model.ReportTitle + Words.DraftSuffix;
-    var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId, includeFeeNote = false })!;
+    var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId })!;
     // P50 moved the image surface to Files, so what the report uses is
     // counted from the preparations that grid reads. The Preview images
     // offer still depends on there being at least one.
@@ -88,14 +87,10 @@
 
     // A delivery may attach a subset of the generation's documents (v28 P22),
     // so what it needs is a confirmed report, not every artifact confirmed.
-    // A preparation whose send failed or was cancelled is spent: it is not
-    // offered for sending again, and a fresh preparation may be made.
-    var preparationSpent = preparation?.LatestSendState
-        is Pegasus.Core.Operations.StaffMailState.Failed
-        or Pegasus.Core.Operations.StaffMailState.Cancelled;
-    var canPrepareDelivery = leaseForReport
+    // The form is offered again after a send, so the same report can be sent
+    // again (operator, 6 October 2026).
+    var canSendReport = leaseForReport
         && generation is not null
-        && (preparation is null || preparationSpent)
         && generation.State == CaseReportGenerationState.Confirmed
         && reportArtifact?.Status == CaseReportArtifactStatus.Confirmed;
     var repairSpecArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
@@ -148,19 +143,6 @@
                     }
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
-                    @if (reportRetryArtifact is not null)
-                    {
-                        <input type="hidden" name="includeFeeNote" value="@(generation!.Snapshot.Report.IncludeFeeNote ? "true" : "false")" />
-                    }
-                    else
-                    {
-                        @* R34B: the packaging choice sits beside the button it
-                           changes, and freezes with the snapshot (issue 912). *@
-                        <label class="choice" for="report-include-fee-note">
-                            <input type="checkbox" id="report-include-fee-note" name="includeFeeNote" value="true" data-include-fee-note />
-                            <span>@ReportLabels.IncludeFeeNote</span>
-                        </label>
-                    }
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" data-busy-done="@OperatorLabels.Busy.Done.Generated" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                         <span>@ReportLabels.GenerateReport</span>
@@ -326,9 +308,7 @@
                            data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@storedReport.FileName" data-no-inplace
                            data-open-on-arrival="@(Model.OpenReportArtifactId == storedReport.Id ? "true" : "false")">
                             <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                            <span>@(generation.Snapshot.Report.IncludeFeeNote
-                                ? ReportLabels.OpenReportWithFeeNote
-                                : ReportLabels.OpenReport)</span>
+                            <span>@ReportLabels.OpenReport</span>
                         </a>
                     }
                     @if (cardFeeNote is { } separateFeeNote)
@@ -350,11 +330,11 @@
 
         @if (generation is not null)
         {
-            @if (canPrepareDelivery)
+            @if (canSendReport)
             {
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="PrepareReportDelivery"
-                      asp-route-id="@caseId" asp-route-section="report" class="recip-form" data-prepare-delivery>
-                    <input type="hidden" name="operationKey" value="@Model.PrepareDeliveryOperationKey" />
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="SendReport"
+                      asp-route-id="@caseId" asp-route-section="report" class="recip-form" data-send-report>
+                    <input type="hidden" name="operationKey" value="@Model.SendReportOperationKey" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                     <input type="hidden" name="generationId" value="@generation.Id" />
@@ -413,9 +393,9 @@
                         </div>
                     }
                     @* P23: what the attached report will be called, read from
-                       the same policy the preparation freezes. The message is
+                       the same policy the send names it with. The message is
                        the Case report delivery template rendered for this Case;
-                       staff edit it here, and Prepare delivery freezes what is
+                       staff edit it here, and Send report sends what is
                        submitted. *@
                     <span class="lbl">@ReportLabels.FileName</span>
                     <div class="fv mono" data-report-file-name>@Model.ReportDeliveryFileName</div>
@@ -423,35 +403,9 @@
                     <textarea id="report-message" name="coveringMessage" rows="9" required
                               maxlength="@Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength"
                               data-report-message>@Model.ReportDeliveryMessage</textarea>
-                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Preparing" class="btn btn--small btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                        <span>@ReportLabels.PrepareDelivery</span>
-                    </button>
-                </form>
-            }
-            @if (preparation is not null && !preparationSpent && !Model.AssessmentIsReadOnly)
-            {
-                <dl class="detail-list" data-report-delivery>
-                    <div><dt>@ReportLabels.DeliveryPrepared</dt><dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd></div>
-                    <div><dt>@ReportLabels.Attach</dt><dd data-report-prepared-attachments>@string.Join(", ", preparation.Preparation.Artifacts.Select(artifact => artifact.FileName))</dd></div>
-                    @if (!string.IsNullOrWhiteSpace(preparation.Preparation.ReportFileName))
-                    {
-                        <div><dt>@ReportLabels.FileName</dt><dd class="mono" data-report-prepared-file-name>@(preparation.Preparation.ReportFileName).pdf</dd></div>
-                        <div><dt>@ReportLabels.Message</dt><dd data-report-prepared-message>@preparation.Preparation.CoveringMessage</dd></div>
-                    }
-                    @if (preparation.Addressing.Cc.Count > 0)
-                    {
-                        <div><dt>Cc</dt><dd>@string.Join(", ", preparation.Addressing.Cc.Select(recipient => recipient.Address))</dd></div>
-                    }
-                </dl>
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="SendPreparedReport"
-                      asp-route-id="@caseId" asp-route-section="report" class="button-row" data-send-prepared>
-                    <input type="hidden" name="preparationId" value="@preparation.Preparation.Id" />
-                    <input type="hidden" name="expectedPreparationVersion" value="@preparation.Preparation.Version" />
-                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                        <span>@ReportLabels.SendPreparedReport</span>
+                        <span>@ReportLabels.SendReport</span>
                     </button>
                 </form>
             }

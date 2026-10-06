@@ -33,7 +33,6 @@ public sealed partial class DetailsModel(
     ILinkIntake linkIntake,
     IVrmSuggestionStore vrmSuggestions,
     Pegasus.Web.Intake.StaffIntakeActions intakeActions,
-    IIntakeSubmissionGroupStore submissionGroups,
     IGetPreCaseImagePreparations getPreparations,
     Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
     TimeProvider timeProvider,
@@ -67,7 +66,7 @@ public sealed partial class DetailsModel(
 
     public IntakeReceipt? Receipt => Context.Receipt;
 
-    public IntakeSubmissionGroup? SubmissionGroup { get; private set; }
+    public IntakeSubmissionGroup? SubmissionGroup => Context.SubmissionGroup;
 
     /// <summary>
     /// The receipt or completed members that supply the material this item
@@ -131,8 +130,8 @@ public sealed partial class DetailsModel(
         .ToArray();
 
     /// <summary>
-    /// VRM observations from each represented receipt. Group action semantics
-    /// remain with its Upload Group page, so this list is review-only there.
+    /// VRM observations from each represented receipt. A group's list is
+    /// review-only; its one agreeing reading prefills Register images.
     /// </summary>
     public IReadOnlyList<ImageVrmSuggestion> RegistrationReadings { get; private set; } = [];
 
@@ -281,6 +280,13 @@ public sealed partial class DetailsModel(
             RegisterDialog,
             async (actor, context) =>
             {
+                if (context.SubmissionGroup is not null)
+                {
+                    var groupRecord = await intakeActions.RegisterGroupImagesAsync(
+                        actor, context, vehicleRegistration, reason, operationKey, cancellationToken);
+                    return $"Registered as vehicle images {groupRecord.ImageIntakeReference}.";
+                }
+
                 if (!context.CanRegisterImages || context.Receipt is not { } receipt)
                 {
                     throw new InvalidOperationException("Images cannot be registered from this item.");
@@ -478,7 +484,6 @@ public sealed partial class DetailsModel(
         RegistrationReadings = context.RegistrationReadings;
         if (context.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
         {
-            SubmissionGroup = await submissionGroups.GetAsync(context.Item.Origin.Id, cancellationToken);
             if (SubmissionGroup is not null)
             {
                 var receipts = new List<IntakeReceipt>();
