@@ -393,7 +393,7 @@ report, the fee note, the Repair Spec or the images.
 | Storing failed, or any other fault | "The report could not be generated." |
 
 A fee-note preview shows the recorded fee and description without saving
-anything. Native Hand to Engineer opens engineering work without an EVA
+anything. Native Assign Engineer opens engineering work without an EVA
 export; EVA is optional and never gates report readiness.
 
 The report prints its images six to a page, two across and three down, in
@@ -500,7 +500,7 @@ September 2026): there is no per-field review, so no blocker names a value
 because a lookup, an extraction or the Automation actor recorded it. Where a
 value came from is its source tag
 ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)),
-and Hand to Engineer is the only review
+and Assign Engineer is the only review
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)).
 VAT comes only from the
 Current repair spec

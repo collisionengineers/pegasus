@@ -13,7 +13,7 @@
   valuation calculation together, and the page keeps editing.
 - One Actions menu offers only what Core allows for the current state;
   Create audit alone is always listed on an Inspection + Audit Case, greyed
-  out with its reason when refused. Hand to Engineer is the only way out of
+  out with its reason when refused. Assign Engineer is the only way out of
   Review.
 - The Engineer sections (Damage, Valuation, Estimate, Settlement, Report)
   are editable by every enabled staff role in Not ready, Review and With
@@ -107,6 +107,9 @@ second stale notice in Report (operator, 28 September 2026).
 While a linked message is currently classified a cancellation and the Case
 is open, the Next action also carries **Cancellation received** with **Open
 message** ([FRD-13](frd-13-case-lifecycle-and-workflow.md#cancellation-messages)).
+In Review the Next action is **Assign Engineer**, with the Actions menu's own
+control that opens its dialog; where the menu does not offer it, the step is
+named without a control (issue 1025).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Delivery is the Next action only once the report is
@@ -245,10 +248,10 @@ Completed or Query Case offers no Edit, since its sections read and Return
 to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
-- **Hand to Engineer**, in Review. Its dialog selects an
+- **Assign Engineer**, in Review. Its dialog selects an
   eligible enabled staff account. The one handoff assigns them and
   enters With Engineer. There is no reviewed checkbox and no separate start
-  action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#hand-to-engineer)).
+  action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)).
 - **Send to EVA**, when the Principal's report-generation policy offers it.
   Sending never changes the Case state
   ([FRD-07](frd-07-eva-and-external-engineering-handoff.md)).

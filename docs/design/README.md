@@ -186,8 +186,8 @@ at `/Cases/{id}` keeps the Triage page's own layout (v31 C, operator,
 Images, Files (Documents and Correspondence) and Notes tabs with the finding
 read-only, Record finding in a dialog and the composer for replies.
 
-The **Actions** menu holds exactly the progressions the state permits — Hand
-to Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
+The **Actions** menu holds exactly the progressions the state permits — Assign
+Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
 or Engineer, Archive, Place on Hold or Release Hold, Correct principal — and,
 on an Inspection + Audit Case, Create audit in every state: a disabled
 `.btn` inside a `.menu-gated` span whose `title` states Core's refusal on

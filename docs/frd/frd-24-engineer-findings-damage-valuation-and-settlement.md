@@ -320,7 +320,7 @@ Job states and attribution are owned by
 
 ### Valuation readiness
 
-Any valuation check required before Review or Hand to Engineer must be
+Any valuation check required before Review or Assign Engineer must be
 resolvable at that stage by an authorised human staff member. The Engineer sections are
 editable before handoff in Not ready and Review, so availability is not a
 reason to defer such a check. Engineer's Value, settlement and report

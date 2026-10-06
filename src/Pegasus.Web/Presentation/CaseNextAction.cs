@@ -9,13 +9,15 @@ namespace Pegasus.Web.Presentation;
 /// <summary>
 /// One step of a Case's Next action: its words, the section its link opens,
 /// the blocker it names while the report is not ready, and whether it opens
-/// Create audit rather than a section.
+/// the Actions menu's Create audit or Assign Engineer dialog rather than a
+/// section.
 /// </summary>
 public sealed record CaseNextActionStep(
     string Label,
     string SectionKey,
     AssessmentReadinessItem? Blocker = null,
-    bool OpensCreateAudit = false);
+    bool OpensCreateAudit = false,
+    bool OpensAssignEngineer = false);
 
 /// <summary>
 /// The one Next action of a Case: the Case page's aside states it and the
@@ -26,7 +28,9 @@ public sealed record CaseNextActionStep(
 public static class CaseNextAction
 {
     /// <summary>
-    /// The next permitted lifecycle action and the section it links to. With
+    /// The next permitted lifecycle action and the section it links to. In
+    /// Review it is Assign Engineer, which opens the Actions menu's dialog
+    /// (issue 1025). With
     /// Engineer, while the report is not ready, it names the first blocker at
     /// the section that clears it, and at the Report section when that blocker
     /// has none, and carries that blocker. Delivery is the next action only
@@ -102,7 +106,7 @@ public static class CaseNextAction
         }
         if (workflow.State == CaseLifecycleState.Review)
         {
-            return new(CaseWorkspaceLabels.HandToEngineer, "overview");
+            return new(CaseWorkspaceLabels.AssignEngineer, "overview", OpensAssignEngineer: true);
         }
         if (workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held)
         {

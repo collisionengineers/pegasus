@@ -8,8 +8,8 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// The Case workspace's workflow actions: hold and release, return to Review, Engineer
-/// handoff, and the linked replacement for a
+/// The Case workspace's workflow actions: hold and release, return to Review, Assign
+/// Engineer, and the linked replacement for a
 /// case created in error. Every action redirects back to the workspace. The
 /// Actions-menu items run under the session's lease or, outside a session,
 /// one claimed for the action (operator, 29 September 2026).
@@ -121,7 +121,7 @@ public sealed class WorkflowModel(
                     expectedVersion,
                     actor,
                     operationKey,
-                    Pegasus.Web.Presentation.CaseWorkspaceLabels.HandToEngineer,
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.AssignEngineer,
                     lease,
                     engineerId,
                     Readiness(
@@ -129,7 +129,7 @@ public sealed class WorkflowModel(
                         imagesComplete,
                         evidenceReference)),
                 cancellationToken),
-            "The case was handed to the Engineer.");
+            Pegasus.Web.Presentation.OperatorLabels.WorkCentre.Assigned);
 
     public Task<IActionResult> OnPostSetSignOffEngineerAsync(
         Guid id,
