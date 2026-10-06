@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 
@@ -20,6 +21,8 @@ internal sealed class EfSentReportInstructionTidyStore(
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumItems, 1);
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // A mailbox an Administrator has withdrawn is never written to.
+        var approvedState = ApprovedMailboxState.Approved.ToString();
         var rows = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
             .Where(operation => operation.Purpose == StaffMailPurpose.CaseReport
                 && operation.State == StaffMailState.Sent
@@ -37,7 +40,7 @@ internal sealed class EfSentReportInstructionTidyStore(
                 pair => pair.message.MailboxId!.Value,
                 mailbox => mailbox.Id,
                 (pair, mailbox) => new { pair.operation, pair.message, mailbox })
-            .Where(trio => trio.mailbox.MailboxIdentity != null)
+            .Where(trio => trio.mailbox.MailboxIdentity != null && trio.mailbox.State == approvedState)
             .Join(
                 db.Set<CaseReportGenerationEntity>().AsNoTracking(),
                 trio => trio.operation.ContextId,

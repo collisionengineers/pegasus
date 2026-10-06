@@ -384,6 +384,8 @@ public sealed record LinkReportEvidenceRequest(
 /// the polling policy supplied one unambiguous authoritative Case identity.
 /// <paramref name="GenerationId"/> is the report generation the send carried,
 /// when the send was Pegasus's own: it names the work the evidence proves.
+/// <paramref name="SendOperationId"/> is that send's own operation, whose
+/// recorded after-send list becomes the Case's tasks.
 /// </summary>
 public sealed record AutoLinkReportEvidenceRequest(
     Guid CaseId,
@@ -391,7 +393,8 @@ public sealed record AutoLinkReportEvidenceRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    Guid? GenerationId = null);
+    Guid? GenerationId = null,
+    Guid? SendOperationId = null);
 
 public enum AutoLinkReportEvidenceDisposition
 {

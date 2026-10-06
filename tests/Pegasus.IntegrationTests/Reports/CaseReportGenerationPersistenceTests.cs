@@ -2,6 +2,7 @@ using Pegasus.Core.Cases;
 using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Azure;
 using Azure.Core;
 using Azure.Storage.Blobs;
@@ -1200,6 +1201,100 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(2, (await harness.GenerationRowsAsync()).Single().Artifacts.Count);
     }
 
+    /// <summary>
+    /// Whether the report carries vehicle images is the Principal's report
+    /// sending rule (operator, 6 October 2026), read with the Principal's
+    /// name and address: a Principal without the rule has them.
+    /// </summary>
+    [Fact]
+    public async Task TheSourceReaderReadsWhetherTheReportHasVehicleImagesFromThePrincipal()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        Assert.True((await harness.ReadSourceAsync())!.Projection.IncludeVehicleImages);
+
+        await harness.SetReportImagesRuleAsync(false);
+
+        Assert.False((await harness.ReadSourceAsync())!.Projection.IncludeVehicleImages);
+    }
+
+    /// <summary>
+    /// A report generated without vehicle images freezes that with its
+    /// generation and still pins every image, which its images document
+    /// prints. A later change to the rules does not alter it.
+    /// </summary>
+    [Fact]
+    public async Task AReportFrozenWithoutVehicleImagesKeepsThatAndStillPinsItsImages()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SetReportImagesRuleAsync(false);
+
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, report.Outcome);
+        Assert.False(report.Generation!.Snapshot.Report.IncludeVehicleImages);
+        Assert.Equal(
+            new[] { harness.CloseUp.VersionId, harness.Overview.VersionId }.Order(),
+            report.Generation.Snapshot.Images.Select(image => image.VersionId).Order());
+
+        await harness.SetReportImagesRuleAsync(true);
+
+        var reloaded = await harness.Store.GetAsync(
+            harness.StaffActor, harness.CaseId, report.Generation.Id, CancellationToken.None);
+        Assert.False(reloaded!.Snapshot.Report.IncludeVehicleImages);
+    }
+
+    /// <summary>
+    /// The same Generate replayed after the Principal's image rule changed
+    /// would be a different report, so it is refused like any other change
+    /// to the command, and the frozen generation is left as it was.
+    /// </summary>
+    [Fact]
+    public async Task SameOperationKeyAfterThePrincipalsImageRuleChangedIsAConflict()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        await harness.SetReportImagesRuleAsync(false);
+
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                .ExecuteAsync(harness.Request(), CancellationToken.None));
+        Assert.True((await harness.GenerationRowsAsync()).Single().Snapshot.Report.IncludeVehicleImages);
+    }
+
+    /// <summary>
+    /// A generation frozen before the rule existed holds no member for it:
+    /// it reads as a report with vehicle images, and replays as one.
+    /// </summary>
+    [Fact]
+    public async Task ASnapshotFrozenBeforeTheImageRuleReadsAsIncludingVehicleImages()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var generationId = report.Generation!.Id;
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var generation = await context.Set<CaseReportGenerationEntity>()
+                .SingleAsync(item => item.Id == generationId);
+            var frozen = JsonNode.Parse(generation.SnapshotJson)!.AsObject();
+            Assert.True(frozen["report"]!.AsObject().Remove("includeVehicleImages"));
+            generation.SnapshotJson = frozen.ToJsonString();
+            await context.SaveChangesAsync();
+        }
+
+        var reloaded = await harness.Store.GetAsync(
+            harness.StaffActor, harness.CaseId, generationId, CancellationToken.None);
+        var replay = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        Assert.True(reloaded!.Snapshot.Report.IncludeVehicleImages);
+        Assert.Equal(generationId, replay.Generation!.Id);
+    }
+
     [Theory]
     [InlineData(CaseReportArtifactKind.FeeNote, CaseArtifactCustodyDisposition.Confirmed)]
     [InlineData(CaseReportArtifactKind.FeeNote, CaseArtifactCustodyDisposition.Pending)]
@@ -2028,15 +2123,25 @@ public sealed class CaseReportGenerationPersistenceTests
             string? leaseToken = null)
         {
             var send = new RecordingReportSend();
+            var mailbox = TestMailbox();
+            // A Principal whose rules send every report to one fixed address,
+            // from the default staff-send mailbox; the form is drawn from them.
+            var facts = new ReportDispatchFacts(
+                generation.Snapshot.CaseReference,
+                null,
+                null,
+                PrincipalReportSendingRules.Default with { SendTo = ["digital@collisionengineers.co.uk"] },
+                null)
+            {
+                DefaultMailboxAddress = mailbox.Address
+            };
             await new SendCaseReport(
                     Store,
                     new EfCaseReportSendHistoryQueries(Factory),
-                    new FixedRecipientSuggestions(new(
-                        generation.Snapshot.CaseReference,
-                        PrincipalReportRecipientSettings.Normalize(false, ["digital@collisionengineers.co.uk"]),
-                        null)),
-                    new FixedApprovedMailboxes(TestMailbox()),
-                    send)
+                    new FixedDispatchFacts(facts),
+                    new FixedApprovedMailboxes(mailbox),
+                    send,
+                    Clock)
                 .ExecuteAsync(
                     new(
                         StaffActor,
@@ -2046,7 +2151,8 @@ public sealed class CaseReportGenerationPersistenceTests
                         generation.Id,
                         generation.Version,
                         "send-report",
-                        "Please find attached our report."),
+                        "Please find attached our report.",
+                        DispatchFingerprint: facts.Fingerprint),
                     default);
             return Assert.Single(send.Commands);
         }
@@ -2076,7 +2182,8 @@ public sealed class CaseReportGenerationPersistenceTests
         }
 
         public Task RequireDeliveryReadyAsync(StaffReportSendCommand command) =>
-            new ReportSendReadiness(Store).RequireReadyAsync(command.Report, default);
+            new ReportSendReadiness(Store, new EfFiledEstimateAttachmentQueries(Factory))
+                .RequireReadyAsync(command.Report, default);
 
         public async Task ChangeSignatoryAsync(string change)
         {
@@ -2209,6 +2316,27 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Records a revised assessment, which every later freeze reads.</summary>
         public void ReviseAssessment(Func<CaseAssessmentProjection, CaseAssessmentProjection> revise) =>
             snapshotSource.TransformAssessment(revise);
+
+        /// <summary>
+        /// Stores the Principal's report sending rules with the given images
+        /// rule, and has every later freeze read it, as the real source does.
+        /// </summary>
+        public async Task SetReportImagesRuleAsync(bool reportImages)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var principalId = await context.Cases
+                .Where(item => item.Id == CaseId)
+                .Select(item => item.PrincipalId)
+                .SingleAsync();
+            var principal = await context.Set<PrincipalEntity>().SingleAsync(item => item.Id == principalId);
+            principal.ReportSendingRulesJson = EfOrganizationAdministration.ToReportSendingJson(
+                PrincipalReportSendingRules.Default with
+                {
+                    Attach = ReportSendingAttachments.Default with { ReportImages = reportImages },
+                });
+            await context.SaveChangesAsync();
+            snapshotSource.IncludeVehicleImages = reportImages;
+        }
 
         public static byte[] SignatureBytes => FakeSnapshotSource.SignatureBytes;
 
@@ -2659,6 +2787,9 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>The Audit work, once the test gives the Case one; the current work is then the Audit's.</summary>
         public Guid? AuditWorkId { get; set; }
 
+        /// <summary>The Principal's images rule, as the real source reads it with the Principal.</summary>
+        public bool IncludeVehicleImages { get; set; } = true;
+
         public Task<CaseReportFreezeInputs?> GetAsync(
             Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
@@ -2667,7 +2798,9 @@ public sealed class CaseReportGenerationPersistenceTests
             var workId = work == CaseWorkSelector.Current && AuditWorkId is { } auditWorkId ? auditWorkId : caseId;
             return Task.FromResult<CaseReportFreezeInputs?>(
                 requestedCaseId == caseId
-                    ? new(projection with { Assessment = current }, Readiness(current), "RPT31001", 1) { WorkId = workId }
+                    ? new(
+                        projection with { Assessment = current, IncludeVehicleImages = IncludeVehicleImages },
+                        Readiness(current), "RPT31001", 1) { WorkId = workId }
                     : null);
         }
 
@@ -2974,12 +3107,12 @@ public sealed class CaseReportGenerationPersistenceTests
         FolderBindings: [],
         Generation: 3);
 
-    private sealed class FixedRecipientSuggestions(ReportRecipientSuggestions suggestions)
+    private sealed class FixedDispatchFacts(ReportDispatchFacts facts)
         : IReportRecipientSuggestionQueries
     {
-        public Task<ReportRecipientSuggestions?> GetAsync(
+        public Task<ReportDispatchFacts?> GetAsync(
             Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
-            Task.FromResult<ReportRecipientSuggestions?>(suggestions);
+            Task.FromResult<ReportDispatchFacts?>(facts);
     }
 
     private sealed class FixedApprovedMailboxes(params ApprovedMailbox[] mailboxes)

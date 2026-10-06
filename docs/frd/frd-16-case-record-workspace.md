@@ -118,7 +118,10 @@ stored (operator, 27 September 2026). Once the report is sent, the Next
 action is **Create audit** on an Inspection + Audit Case that has no Audit
 yet, with the Actions menu's own control (greyed with its reason where Core
 refuses it), and **Mark completed** on any other Case (operator, 2 October
-2026).
+2026). Once Report sent is recorded, the Next action also lists the Case's
+open tasks, oldest first, each linking to [Tasks](#tasks); while one is open,
+Mark completed is greyed there with the reason "Complete or cancel every open
+task first." on hover (operator, 6 October 2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 Below 1441px the aside folds into a strip above the sections.
@@ -276,10 +279,13 @@ to Engineer needs no session. The rules behind each action are in
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
 - **Mark completed**
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query)).
+  While the Case has an open task it is greyed with the reason "Complete or
+  cancel every open task first." on hover (operator, 6 October 2026).
 - **Return to Review** or **Return to Engineer**, in Completed or Query when
   engineering changes are needed. Both record a reason.
 - **Archive**, on a closed Case
-  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)).
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)), greyed the same
+  way while the Case has an open task.
 - **Place on Hold** (reason and optional Review on date) or **Release Hold**
   (reason).
 - **Correct principal**, which records Created in error and creates the
@@ -579,10 +585,6 @@ that report opens in the viewer by itself, once. A report still being filed
 shows the warning notice "The report is still being filed to Box." in amber,
 never as a confirmation.
 
-**Still to do.** Once the shown report has been sent, the Report section lists
-the Case's open tasks under its delivery result, read-only, with a link to
-Tasks, which owns them. It shows nothing while no task is open.
-
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
 In the Audit view the report card's status begins with the Audit reference
@@ -714,18 +716,20 @@ Cancelled), open tasks first. Tasks belong to the Case, so both views of an
 Inspection + Audit Case show the same list. Like Files and Notes the section
 loads when it comes into view and acts through its own posts.
 
-In the edit session an open task offers **Complete** and **Cancel task**, and
-the head of the list has an **Add task** field. Each posts under the session's
-lease with one fixed recorded reason, so there is no reason box, and the
-session carries on. A Completed or Query Case, and a Case a colleague is editing,
-show the list without these. There is no due date yet, and the section does
-not assign a task.
+In the edit session an open task offers **Complete**, **Cancel task** and
+**Assign**, a choice of the enabled named staff, and the head of the list has
+an **Add task** field. Each posts under the session's lease with one fixed
+recorded reason, so there is no reason box, and the session carries on. A
+Completed or Query Case, and a Case a colleague is editing, show the list
+without these. There is no due date yet.
 
 Tasks also appear here without anyone adding them: when Report sent is
 recorded, the after-send tasks the delivery froze are created as open,
 unassigned tasks
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
-An open task stops the Case being completed or archived.
+An open task stops the Case being completed or archived: once Report sent is
+recorded the Next action lists the open tasks, and Mark completed and Archive
+are greyed with their reason ([Case workspace](#case-workspace)).
 
 The workspace keeps the missing-material reason, next chase, last recorded
 outcome and next permitted action together. A Triage Case's due target and
@@ -826,8 +830,30 @@ card offers Open fee note beside Open report (issue 912).
 The delivery form offers the Case's known addresses on every recipient field
 (v28 P21), the documents to attach (v28 P22), and states the name the report
 will be attached under (v28 P23) and the covering message it will carry, in an
-editable box pre-filled from the Case report delivery template, before Prepare
-delivery is pressed.
+editable box pre-filled from the Case report delivery template, before Send
+report is pressed.
+
+The form also shows what the Principal's report sending rules decided
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)):
+
+- an "Already sent on 3 Oct 2026 14:02 to a@x, b@y" line when a report of this
+  work has already been sent;
+- a From line: the instruction's mailbox and "reply in the instruction's
+  thread", or "New message from ... (no instruction e-mail on this Case)";
+- a notice when a rule stops the delivery, with an Override reason box for
+  staff with casework. The box is also offered when only an answer below can
+  decide the Stop;
+- a Yes or No question for each undecided rule condition, each required;
+- To and Cc seeded from the plan, with one line naming what set the Cc and what
+  was removed;
+- the documents to attach, with required companions ticked and marked
+  "(required for this Principal)". A required companion that is not generated
+  says so and withholds Send report, and its Generate is in the More menu. The
+  filed estimates the rules attach, and any warning, appear as hints;
+- the file name, a read-only "After sending" list of what staff still owe, and
+  a Done tick for each hold.
+
+The layout of this form is as built and awaits its design sign-off.
 
 Report-draft generation and preview sit
 on the Report section

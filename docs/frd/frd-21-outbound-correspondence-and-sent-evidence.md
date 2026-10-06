@@ -76,7 +76,9 @@ It records what happened on the send: moved, already in Deleted Items, no
 longer in the mailbox, or failed. A move writes the Case history event
 `instruction_moved_to_deleted_items`; each failure writes
 `instruction_move_failed` with a failure code, and after three failures
-Pegasus stops and leaves the instruction where it is. The tidy never moves
+Pegasus stops and leaves the instruction where it is. A mailbox asking Pegasus
+to slow down is not a failure: the run stops and the move is tried again later.
+A mailbox that is no longer Approved is left alone. The tidy never moves
 anything but that instruction, never deletes it permanently, never runs for a
 send that is not a report, a send that is not confirmed Sent, or a report
 sent without a retained instruction, and never changes the Case, its state or
@@ -133,7 +135,14 @@ surfaces show no send control and no composer. The technical decision is
 no automatic, scheduled or Automation Actor send.
 
 **From which mailbox.** Reply and Forward send as the approved mailbox that
-holds the retained message. Compose sends as the default approved mailbox.
+holds the retained message. A report reply does the same: it sends as the
+approved mailbox that holds the Case's instruction e-mail. A report that is a
+new message sends from the Principal's send-from mailbox, or from the default
+staff-send mailbox when the Principal names none
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)).
+A report send fails closed, naming the address, unless that mailbox is
+Approved, identity bound, bound for staff send and Sent evidence, and at a
+valid generation. Compose sends as the default approved mailbox.
 The sender is never a staff member's own address or any mailbox outside the
 allowlist, and the composer shows the sender read-only. An Administrator
 picks the single default in Mailbox settings and records a reason. Only a

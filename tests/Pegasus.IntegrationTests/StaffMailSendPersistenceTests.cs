@@ -529,6 +529,106 @@ public sealed class StaffMailSendPersistenceTests
             new string('B', 64), DateTimeOffset.UtcNow, CancellationToken.None));
     }
 
+    /// <summary>
+    /// A report send is never held up by another unfinished operation on the
+    /// instruction it answers (operator, 6 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AReportSendIsNotHeldUpByAnUnfinishedReplyToTheSameMessage()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var reply = await store.PrepareAsync(
+            ReplyCommand(mailboxId, retainedMessageId, "unfinished-reply"),
+            new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        var report = await store.PrepareAsync(
+            ReportReplyCommand(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), mailboxId, retainedMessageId, "report-send"),
+            new string('B', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.Equal(StaffMailState.Prepared, reply.State);
+        Assert.NotEqual(reply.Id, report.Id);
+        Assert.Equal(StaffMailPurpose.CaseReport, report.Purpose);
+        Assert.Equal(retainedMessageId, report.OriginalRetainedMessageId);
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM StaffMailSendOperations WHERE OriginalRetainedMessageId = '{retainedMessageId:D}'"));
+    }
+
+    /// <summary>
+    /// An unfinished report send never holds up a reply to the instruction
+    /// it answers, while two replies to one message still wait for each
+    /// other.
+    /// </summary>
+    [Fact]
+    public async Task AnUnfinishedReportSendDoesNotHoldUpAReplyButRepliesStillHoldUpEachOther()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var report = await store.PrepareAsync(
+            ReportReplyCommand(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), mailboxId, retainedMessageId, "report-send"),
+            new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        var reply = await store.PrepareAsync(
+            ReplyCommand(mailboxId, retainedMessageId, "first-reply"),
+            new string('B', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.Equal(StaffMailState.Prepared, report.State);
+        Assert.Equal(StaffMailState.Prepared, reply.State);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.PrepareAsync(
+            ReplyCommand(mailboxId, retainedMessageId, "second-reply"),
+            new string('C', 64), DateTimeOffset.UtcNow, CancellationToken.None));
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM StaffMailSendOperations WHERE OriginalRetainedMessageId = '{retainedMessageId:D}'"));
+    }
+
+    /// <summary>
+    /// The message page's latest operation is its own correspondence: a
+    /// report reply to the same message is the Case's send and is never
+    /// returned, even when it is the newer and the unfinished one.
+    /// </summary>
+    [Fact]
+    public async Task TheLatestOperationForAMessageIsNeverAReportSend()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var reply = await store.PrepareAsync(
+            ReplyCommand(actor, mailboxId, retainedMessageId, "earlier-reply"),
+            new string('A', 64),
+            new DateTimeOffset(2026, 10, 6, 10, 0, 0, TimeSpan.Zero), CancellationToken.None);
+        reply = await MoveToTerminalAsync(store, actor.SubjectId, reply, StaffMailState.Failed);
+        _ = await store.PrepareAsync(
+            ReportReplyCommand(actor, mailboxId, retainedMessageId, "later-report"),
+            new string('B', 64),
+            new DateTimeOffset(2026, 10, 6, 11, 0, 0, TimeSpan.Zero), CancellationToken.None);
+        var reportOnly = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        _ = await store.PrepareAsync(
+            ReportReplyCommand(reportOnly, mailboxId, retainedMessageId, "report-only"),
+            new string('C', 64),
+            new DateTimeOffset(2026, 10, 6, 11, 0, 0, TimeSpan.Zero), CancellationToken.None);
+
+        var latest = await store.GetLatestForOriginalAsync(
+            actor.SubjectId, retainedMessageId, CancellationToken.None);
+
+        Assert.NotNull(latest);
+        Assert.Equal(reply.Id, latest.Id);
+        Assert.Equal(StaffMailPurpose.GeneralCorrespondence, latest.Purpose);
+        Assert.Null(await store.GetLatestForOriginalAsync(
+            reportOnly.SubjectId, retainedMessageId, CancellationToken.None));
+    }
+
     [Fact]
     public async Task SubmittedOperationIsAvailableAfterAStoreRestartForReadOnlyReconciliation()
     {
@@ -1339,7 +1439,7 @@ public sealed class StaffMailSendPersistenceTests
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {nowUtc})");
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"QRY"}, {lineageId}, {true}, {0L})");
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, ReportSendingRulesJson, Version) VALUES ({principalId}, {organizationId}, {"QRY"}, {lineageId}, {true}, {EfOrganizationAdministration.DefaultReportSendingJson}, {0L})");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {1}, {"QRY260001"}, {"inspection"}, {"review"}, {"pending"}, {true}, {true}, {nowUtc}, {0L}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(db);
@@ -1460,7 +1560,7 @@ public sealed class StaffMailSendPersistenceTests
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {nowUtc})");
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"CHS"}, {lineageId}, {true}, {0L})");
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, ReportSendingRulesJson, Version) VALUES ({principalId}, {organizationId}, {"CHS"}, {lineageId}, {true}, {EfOrganizationAdministration.DefaultReportSendingJson}, {0L})");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {1}, {"CHS260001"}, {"inspection"}, {"review"}, {"pending"}, {true}, {true}, {nowUtc}, {0L}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(db);
@@ -1571,6 +1671,15 @@ public sealed class StaffMailSendPersistenceTests
         new(retainedMessageId, mailboxId, "immutable-message", "<message@example.invalid>",
             "conversation"),
         [new("recipient@example.invalid", null)], [], "Subject", "Body", [], operationKey);
+
+    /// <summary>A report send that replies to the retained instruction, as SendCaseReport composes it.</summary>
+    private static StaffMailSendCommand ReportReplyCommand(
+        ActionActor actor, Guid mailboxId, Guid retainedMessageId, string operationKey) =>
+        ReplyCommand(actor, mailboxId, retainedMessageId, operationKey) with
+        {
+            Purpose = StaffMailPurpose.CaseReport,
+            ReportDispatch = new([], [], null, null, ["Send the WhatsApp."])
+        };
 
     private static void AssertOperationContext(
         StaffMailOperation operation, StaffMailSendCommand command)

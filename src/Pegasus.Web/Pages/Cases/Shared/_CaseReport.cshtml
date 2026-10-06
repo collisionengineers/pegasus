@@ -32,9 +32,15 @@
     // view shows the Audit report alone (operator, 2 October 2026).
     var auditView = !Model.IsInspectionView && Model.Works is { HasAudit: true };
     var generation = Model.CurrentReportGeneration;
-    var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
-        ? CaseReportDeliveryPolicy.SuggestedReview(suggestions)
+    // The one dispatch plan (the Principal's report sending rules) every part
+    // of the delivery form follows, made once when the page loads.
+    var plan = Model.DeliveryDispatchPlan;
+    var suggestedRecipients = plan is { } dispatchPlan
+        ? CaseReportDeliveryPolicy.SuggestedReview(dispatchPlan)
         : new ReportRecipientReview([], []);
+    var lastSent = Model.ReportSendHistory.LastSentAtUtc is { } sentAt
+        ? Pegasus.Core.LondonCalendar.TimeAt(sentAt).ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)
+        : null;
     var labels = CaseWorkspaceLabels.Editors.Report;
     var draftPreparation = Model.ReportDraftPreparation;
     var draftCondition = Model.ReportDraftCondition;
@@ -340,6 +346,54 @@
                     <input type="hidden" name="generationId" value="@generation.Id" />
                     <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
+                    <input type="hidden" name="dispatchFingerprint" value="@Model.DeliveryRecipientSuggestions?.Fingerprint" />
+                    @if (lastSent is not null)
+                    {
+                        @* The Sent item already proves a report left for this
+                           work: say when and to whom before another is sent. *@
+                        <p class="muted" data-report-already-sent>@ReportLabels.AlreadySent(lastSent, string.Join(", ", Model.ReportSendHistory.LastRecipients ?? []))</p>
+                    }
+                    @if (plan is not null)
+                    {
+                        <span class="lbl">@ReportLabels.From</span>
+                        <div class="fv" data-report-from>@(plan.Mode == ReportDispatchMode.ReplyInThread
+                            ? ReportLabels.FromReply(plan.MailboxAddress ?? string.Empty)
+                            : ReportLabels.FromNewMessage(plan.MailboxAddress ?? string.Empty))</div>
+                        @if (plan.Stop is { } stopText)
+                        {
+                            <div class="notice notice--warning" role="status" data-report-stop>
+                                <span><strong>@(ReportLabels.Stopped).</strong> @stopText</span>
+                            </div>
+                        }
+                        @if (plan.Stop is not null || plan.StopPossible)
+                        {
+                            @* A rule's Stop refuses the send unless casework staff
+                               say why they override it. A Stop that only an answer
+                               below can decide is offered its reason box too, since
+                               the same click answers and sends. *@
+                            <label class="lbl" for="report-stop-override">@ReportLabels.OverrideReason</label>
+                            <input id="report-stop-override" name="stopOverrideReason" type="text" required="@(plan.Stop is not null)" data-report-stop-override />
+                        }
+                        @foreach (var missing in plan.MissingCompanions)
+                        {
+                            <div class="notice notice--warning" role="status" data-report-missing-companion="@missing">
+                                <span>@ReportLabels.MissingCompanion(CaseReportDeliveryPolicy.CompanionWords(missing))</span>
+                            </div>
+                        }
+                        @if (plan.Undecided.Count > 0)
+                        {
+                            <span class="lg">@ReportLabels.Questions</span>
+                            @foreach (var question in plan.Undecided)
+                            {
+                                var decisionName = $"decision-{question.RuleIndex}-{question.ConditionIndex}";
+                                <div class="cluster" data-report-question>
+                                    <span>@question.Question</span>
+                                    <label class="choice"><input type="radio" name="@decisionName" value="true" required /><span>@ReportLabels.Yes</span></label>
+                                    <label class="choice"><input type="radio" name="@decisionName" value="false" required /><span>@ReportLabels.No</span></label>
+                                </div>
+                            }
+                        }
+                    }
                     <span class="lg">@Words.ReviewedRecipients</span>
                     @* P21: the addresses this Case already knows, offered by the
                        browser's own picker on every recipient field. *@
@@ -368,6 +422,16 @@
                         }
                     </div>
                     <button type="button" class="btn btn--small" data-add-report-recipient="report-recipient-cc" data-report-recipient-name="ccRecipients">@Words.AddCc</button>
+                    @if (plan is not null)
+                    {
+                        var ccHint = ReportLabels.CcHint(
+                            plan.Cc.Select(copy => copy.Source),
+                            plan.Removed.Select(removal => ReportLabels.Removal(removal.Address, removal.Reason)));
+                        if (ccHint.Length > 0)
+                        {
+                            <span class="muted" data-report-cc-hint>@ccHint</span>
+                        }
+                    }
                     @* P22: which of this generation's documents the delivery
                        attaches. A document the generation does not hold is not
                        offered; the report is always attached. *@
@@ -378,12 +442,13 @@
                             @foreach (var (attachKind, attachLabel) in attachable)
                             {
                                 var attachId = "report-attach-" + attachKind.ToString().ToLowerInvariant();
-                                var always = attachKind == CaseReportArtifactKind.AssessmentReport;
+                                var companionRequired = plan?.RequiredCompanions.Contains(attachKind) == true;
+                                var always = attachKind == CaseReportArtifactKind.AssessmentReport || companionRequired;
                                 <label class="choice" for="@attachId">
                                     <input type="checkbox" id="@attachId" name="attach" value="@attachKind"
                                            checked="@(always || attachKind == CaseReportArtifactKind.FeeNote)"
                                            disabled="@always" data-report-attach-choice="@attachKind" />
-                                    <span>@attachLabel</span>
+                                    <span>@(attachLabel + (companionRequired ? " " + ReportLabels.RequiredForPrincipal : string.Empty))</span>
                                 </label>
                                 @if (always)
                                 {
@@ -397,16 +462,65 @@
                        the Case report delivery template rendered for this Case;
                        staff edit it here, and Send report sends what is
                        submitted. *@
+                    @if (plan is not null)
+                    {
+                        @if (plan.FiledEstimates.Count > 0)
+                        {
+                            <span class="lbl">@ReportLabels.FiledEstimate</span>
+                            <div class="fv" data-report-filed-estimates>@string.Join(", ", plan.FiledEstimates.Select(estimate => estimate.FileName))</div>
+                        }
+                        @foreach (var warning in plan.Warnings)
+                        {
+                            <span class="muted" data-report-warning>@warning</span>
+                        }
+                    }
                     <span class="lbl">@ReportLabels.FileName</span>
                     <div class="fv mono" data-report-file-name>@Model.ReportDeliveryFileName</div>
                     <label class="lbl" for="report-message">@ReportLabels.Message</label>
                     <textarea id="report-message" name="coveringMessage" rows="9" required
                               maxlength="@Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength"
                               data-report-message>@Model.ReportDeliveryMessage</textarea>
-                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--small btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                        <span>@ReportLabels.SendReport</span>
-                    </button>
+                    @if (plan is { AfterSendTasks.Count: > 0 })
+                    {
+                        <span class="lbl">@ReportLabels.AfterSending</span>
+                        <div class="stack" data-report-after-sending>
+                            @foreach (var task in plan.AfterSendTasks)
+                            {
+                                <div class="fv">@task</div>
+                            }
+                        </div>
+                    }
+                    @if (plan is not null)
+                    {
+                        @* Each hold the Principal's rules set is ticked off as
+                           done; Core refuses the send otherwise. A hold that
+                           only an answer above can decide has its tick too,
+                           not required. *@
+                        @foreach (var hold in plan.Holds)
+                        {
+                            <div class="stack" data-report-hold-row>
+                                <span>@hold</span>
+                                <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" required data-report-hold /><span>@ReportLabels.HoldDone</span></label>
+                            </div>
+                        }
+                        @foreach (var hold in plan.PossibleHolds)
+                        {
+                            <div class="stack" data-report-hold-row>
+                                <span>@hold</span>
+                                <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" data-report-hold /><span>@ReportLabels.HoldDone</span></label>
+                            </div>
+                        }
+                    }
+                    @if (plan is not { MissingCompanions.Count: > 0 })
+                    {
+                        @* A required companion that is not generated withholds
+                           Send: the notice above says which, and its Generate
+                           offer is in the menu. *@
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--small btn--primary">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                            <span>@ReportLabels.SendReport</span>
+                        </button>
+                    }
                 </form>
             }
         }
