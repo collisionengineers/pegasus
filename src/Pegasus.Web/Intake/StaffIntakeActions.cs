@@ -52,6 +52,46 @@ public sealed partial class StaffIntakeActions(
     }
 
     /// <summary>
+    /// Register images for an Unidentified upload group: the whole group
+    /// becomes one Image-initiated Case under the registration given, originating
+    /// from the member the item's context chose. The store moves every image-only
+    /// member to the registered decision in the same transaction.
+    /// </summary>
+    public async Task<ImageIntakeRecord> RegisterGroupImagesAsync(
+        ActionActor actor,
+        UnidentifiedItemContext context,
+        string? vehicleRegistration,
+        string reason,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!context.CanRegisterImages
+            || context.SubmissionGroup is not { } group
+            || context.GroupRegistrationReceipt is not { } primary)
+        {
+            throw new InvalidOperationException("Images cannot be registered from this item.");
+        }
+
+        var normalized = ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration);
+        var origin = await originResolver.ResolveOriginAsync(primary.Id, cancellationToken)
+            ?? throw new InvalidOperationException("The material has no completed evaluation to register from.");
+        var record = await registerImageIntake.ExecuteAsync(
+            new(origin, normalized, actor, operationKey, reason, SubmissionGroupId: group.Id),
+            cancellationToken);
+        await ConfirmMatchingReadingsAsync(context.RegistrationReadings, record, actor, cancellationToken);
+        try
+        {
+            await reconcile.SynchronizeForSubmissionGroupAsync(group.Id, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not UnidentifiedOperationConflictException && IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            LogCommandFailed(logger, "synchronize", group.Id, exception);
+        }
+
+        return record;
+    }
+
+    /// <summary>
     /// Open the Triage: a Triage request held for want of a registration is
     /// promoted by someone supplying one; the receipt's accepted Triage-match
     /// record is passed back as recorded.

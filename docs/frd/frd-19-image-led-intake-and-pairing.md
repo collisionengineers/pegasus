@@ -44,6 +44,9 @@ Image-only material a member of staff has classified as images received
 ([FRD-08](frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction))
 may be registered by staff from the message record or the Unidentified item
 while no Case holds it; automation never widens to it.
+An upload group's Unidentified item registers the whole group as one Image
+intake under the registration staff enter, while no member has reached a
+Case or an Image intake; the item resolves to that Image intake.
 
 An Image-initiated Case is a separate, image-first lifecycle projected over
 the ImageIntake record. It never allocates a Principal, a Case/PO, or a
