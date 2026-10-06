@@ -10,8 +10,8 @@
   one Dismiss.
 - Every count comes from a Core query. A failed read shows "unavailable",
   never `0`.
-- `/Cases` is one page of queues grouped as Workflow, Pre-Case work and
-  Exceptions. Each queue keeps its own row shape.
+- `/Cases` is one page whose rail is one continuous list of queues, with no
+  groups. Each queue keeps its own row shape.
 - `/Search` is the advanced search.
 - Due dates are calendar days at midnight Europe/London. Targets are
   settings; the day rules are not.
@@ -199,21 +199,20 @@ row of that list, or to the list's heading when none is left.
 
 ### Cases: queues and filters
 
-`/Cases` is one page. Its rail groups the queues, each with its own count:
-
-| Group | Queues |
-| --- | --- |
-| Workflow | Not ready, Review, With Engineer, Completed, Query, Triage |
-| Pre-Case work | Awaiting instruction |
-| Exceptions | Held, Unidentified |
+`/Cases` is one page. Its rail is one continuous list with no heading, group
+labels or dividers (operator, issue 1046, 6 October 2026). Each queue carries
+its own count, in this order: Not ready, Review, With Engineer, Query, Triage,
+Awaiting instruction, Held, Unidentified. Every queue button looks the same.
 
 `?tab=` selects the queue. Not ready contains only formal instructed Cases.
-Triage lists Triage Cases, which never appear in the other workflow queues.
+Triage lists Triage Cases, which never appear in the Case queues.
 A vehicle-images record still awaiting an instruction is listed under
-Awaiting instruction in Pre-Case work, never in a workflow queue
+Awaiting instruction, never in a Case queue
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection)).
-Completed and Query are reversible workflow states. Cancellation, rejection
-and Created in error are recorded dispositions, not a Closed queue.
+Completed and Query are reversible workflow states. Query has a queue;
+Completed has none, and a Completed Case is found through Search's State
+filter. Cancellation, rejection and Created in error are recorded
+dispositions, not a Closed queue.
 
 Filters are Principal (every queue) and, on Not ready only, Missing with the
 exact options `All`, `Instructions`, `Images`, `Both missing`, plus Clear.
@@ -452,7 +451,7 @@ permits it ([FRD-13](frd-13-case-lifecycle-and-workflow.md)).
 
 Acceptance covers every rail route and its count, the `/Unidentified`
 redirect, `/Triage` and `/Triage/{id}` answering Not found, the Cases rail
-groups and filters, the five Work Centre counts, the Activity figures and
+order and filters, the five Work Centre counts, the Activity figures and
 their unavailable state, the Needs attention kinds
 against Core queries, the Triage Case page in its read, edit, conflict,
 Completed and Cancelled states, and the Search filters with the two entries
