@@ -2161,6 +2161,28 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("GlassEstimateId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long?>("GlassMileageMiles")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("GlassNatCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool?>("GlassPlaceholder")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("GlassRegistration")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("GlassVehicleId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<bool>("IsCurrent")
                         .HasColumnType("bit");
 
@@ -2290,6 +2312,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_Discard", "([State] = 'Draft' AND [DiscardedBy] IS NULL AND [DiscardedAtUtc] IS NULL AND [DiscardReason] IS NULL) OR ([State] = 'Discarded' AND [DiscardedBy] IS NOT NULL AND [DiscardedAtUtc] IS NOT NULL AND [DiscardReason] IS NOT NULL)");
 
+                            t.HasCheckConstraint("CK_CaseRepairSpecifications_Glass", "([GlassVehicleId] IS NULL AND [GlassEstimateId] IS NULL AND [GlassNatCode] IS NULL AND [GlassPlaceholder] IS NULL AND [GlassRegistration] IS NULL AND [GlassMileageMiles] IS NULL) OR ([GlassVehicleId] IS NOT NULL AND [GlassEstimateId] IS NOT NULL AND [GlassNatCode] IS NOT NULL AND [GlassPlaceholder] IS NOT NULL AND [GlassRegistration] IS NOT NULL AND [GlassMileageMiles] IS NOT NULL)");
+
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_SourceRoute", "[SourceRoute] IN ('Manual', 'Glasses', 'AudatexPdf', 'Json', 'AiDraft')");
 
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_State", "[State] IN ('Draft', 'Discarded')");
@@ -2416,55 +2440,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("CaseReportApprovals", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseReportDeliveryIntentEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ActorSubjectId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("ConcurrencyToken")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("GenerationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<long>("GenerationVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("PayloadHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<string>("PayloadJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset>("PreparedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<long>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GenerationId", "OperationKey")
-                        .IsUnique();
-
-                    b.ToTable("CaseReportDeliveryIntents", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseReportGenerationEntity", b =>
@@ -8458,15 +8433,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
                         .WithMany()
                         .HasForeignKey("CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseReportDeliveryIntentEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseReportGenerationEntity", null)
-                        .WithMany()
-                        .HasForeignKey("GenerationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

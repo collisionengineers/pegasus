@@ -165,6 +165,21 @@ public sealed partial class GlassRepairEstimateGateway(
                 "The Glass's account already holds a live session.");
         }
 
+        // The spec on the screen may belong to a Glass's estimate already: the
+        // launch then reopens that estimate on its stock vehicle instead of
+        // making another (operator, 6 October 2026). Whoever holds the Case
+        // edit owns Glass's for it, so a colleague's session still live on the
+        // same vehicle ends here.
+        var link = request.SpecificationId is { } specificationId
+            ? await caseAuthority.FindEstimateAsync(request.CaseId, specificationId, cancellationToken)
+            : null;
+        if (link is not null)
+        {
+            GlassRepairEstimateSessionPolicy.RequireUnchangedEstimateVehicle(
+                link.Registration, link.MileageMiles, facts.Registration, facts.MileageMiles);
+            await store.SupersedeAsync(request.CaseId, link.VehicleId, request.Actor, cancellationToken);
+        }
+
         var now = timeProvider.GetUtcNow();
         var correlation = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var digest = Sha256Hex(correlation);
@@ -176,6 +191,15 @@ public sealed partial class GlassRepairEstimateGateway(
             LeaseToken = request.LeaseToken,
             PegasusCallback = options.CallbackFor(correlation).AbsoluteUri,
         };
+        if (link is not null)
+        {
+            provider.Linked = true;
+            provider.NatCode = link.NatCode;
+            provider.Placeholder = link.Placeholder;
+            provider.MvaVehicleId = link.VehicleId;
+            provider.EreId = link.EstimateId;
+            provider.EstimateIds.Add(link.EstimateId);
+        }
         var prepared = new GlassRepairEstimateSession(
             request.SessionId,
             request.CaseId,
@@ -190,8 +214,8 @@ public sealed partial class GlassRepairEstimateGateway(
             request.OperationKey.Trim(),
             now,
             now + options.SessionLifetime,
-            ProviderVehicleId: null,
-            ProviderEstimateId: null,
+            ProviderVehicleId: link?.VehicleId,
+            ProviderEstimateId: link?.EstimateId,
             FailureCode: null);
 
         var creation = await store.CreateAsync(
@@ -254,6 +278,11 @@ public sealed partial class GlassRepairEstimateGateway(
         // Claim this version before any external work, including a resumed
         // Prepared session. A concurrent Resume cannot also create a vehicle.
         session = await WriteAsync(session, session.State, null, provider, digest, null, cancellationToken);
+        // An earlier start on this vehicle went unanswered. The vehicle is
+        // known, and the portal answers a start on a vehicle with the estimate
+        // it holds, so starting again makes no second vehicle and no second
+        // estimate (captures of 6 October 2026).
+        var restarted = provider.EstimateStartAttempted;
         provider.Cookies.Clear();
         var client = NewClient(provider.Cookies);
         try
@@ -291,8 +320,21 @@ public sealed partial class GlassRepairEstimateGateway(
             }
             if (provider.Placeholder)
             {
-                provider.NatCode = await StageAsync(session, "RequirePlaceholder", () => client.RequirePlaceholderAsync(
-                    provider.MvaVehicleId, provider.NatCode, estimateStarted: false, cancellationToken));
+                provider.NatCode = await StageAsync(session, "RequirePlaceholder", () => restarted
+                    ? EitherWayAsync(started => client.RequirePlaceholderAsync(
+                        provider.MvaVehicleId, provider.NatCode, started, cancellationToken))
+                    : client.RequirePlaceholderAsync(
+                        provider.MvaVehicleId, provider.NatCode, estimateStarted: false, cancellationToken));
+            }
+            else if (restarted)
+            {
+                await StageAsync(session, "RequireVehicle", () => EitherWayAsync(async started =>
+                {
+                    await client.RequireVehicleAsync(
+                        provider.MvaVehicleId, provider.NatCode!, provider.Registration, provider.MileageMiles,
+                        started, cancellationToken);
+                    return started;
+                }));
             }
             else
             {
@@ -367,22 +409,50 @@ public sealed partial class GlassRepairEstimateGateway(
     }
 
     /// <summary>
-    /// Reopens a live estimate at the provider: fresh cookies, the grid
+    /// A vehicle whose first start went unanswered may or may not hold an
+    /// estimate, and the portal locks the repair profile only once it does:
+    /// the vehicle is proved as not started and, when its profile is locked,
+    /// as started.
+    /// </summary>
+    private static async Task<T> EitherWayAsync<T>(Func<bool, Task<T>> prove)
+    {
+        try
+        {
+            return await prove(false);
+        }
+        catch (GlassMvaStageException locked) when (locked.FailureCode == GlassFailure.DetailsProfile)
+        {
+            return await prove(true);
+        }
+    }
+
+    /// <summary>
+    /// Reopens an estimate at the provider: fresh cookies, the grid
     /// selection re-asserted because it is server-side session state, and the
     /// calculation restarted as the portal restarts one — <c>ere_id</c> 0 on
-    /// the vehicle — under the callback this session already minted. Only an
-    /// answer naming one of the session's own estimates is opened.
+    /// the vehicle — under the callback this session minted. Only an answer
+    /// naming one of the session's own estimates is opened. A session reopening
+    /// the estimate its repair spec belongs to made nothing at the provider,
+    /// so whatever stops it is a plain failure and the next launch reopens it
+    /// again; only an answer naming another estimate stays for reconciliation.
     /// </summary>
     private async Task<GlassRepairEstimateSession> ReopenAsync(
         GlassRepairEstimateSession session, ProviderState provider,
         PerUserExternalCredentialMaterial credential, string digest, Results results,
         CancellationToken cancellationToken)
     {
-        var (vehicleId, ereId, estimatorUrl) = RequireReopenable(provider);
+        var (vehicleId, ereId) = RequireReopenable(provider);
         // The callback this session accepts never changes — the store refuses a
         // write that carries a different one — so the resumed launch reuses the
-        // address the first one minted rather than trying to mint a second.
-        var callback = PegasusCallbackOf(estimatorUrl);
+        // address the first one minted rather than trying to mint a second. A
+        // session that has not opened its estimator yet still holds the one it
+        // was prepared with.
+        var callback = provider.EstimatorUrl is { } estimatorUrl
+            ? PegasusCallbackOf(estimatorUrl)
+            : new Uri(
+                provider.PegasusCallback
+                    ?? throw new InvalidOperationException("The Glass's session names no callback to reopen under."),
+                UriKind.Absolute);
         session = await WriteAsync(session, session.State, null, provider, digest, results, cancellationToken);
         provider.Cookies.Clear();
         var client = NewClient(provider.Cookies);
@@ -408,15 +478,21 @@ public sealed partial class GlassRepairEstimateGateway(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await WriteAsync(session, GlassRepairEstimateSessionState.Unknown,
+            await WriteAsync(session,
+                provider.Linked ? GlassRepairEstimateSessionState.Failed : GlassRepairEstimateSessionState.Unknown,
                 GlassFailure.Interrupted, provider, digest, results, CancellationToken.None);
             throw;
         }
         catch (Exception failure)
             when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
-            return await SettleUnknownAsync(
-                session, AsFailure(failure), provider, digest, results, CancellationToken.None);
+            var stopped = AsFailure(failure);
+            return provider.Linked && stopped.FailureCode != GlassFailure.StartEreId
+                ? await SettleAsync(
+                    session,
+                    new GlassMvaStageException(stopped.FailureCode, outcomeUnknown: false, stopped.Detail),
+                    provider, digest, results, CancellationToken.None)
+                : await SettleUnknownAsync(session, stopped, provider, digest, results, CancellationToken.None);
         }
     }
 
@@ -901,18 +977,19 @@ public sealed partial class GlassRepairEstimateGateway(
     }
 
     /// <summary>
-    /// A session past Prepared whose provider identities were not all recorded:
-    /// the provider may have acted, and neither a retry nor local expiry can
-    /// prove it did not.
+    /// A session past Prepared whose vehicle was never recorded: the provider
+    /// may have made one, and neither a retry nor local expiry can prove it
+    /// did not. A start that went unanswered on a recorded vehicle is not
+    /// uncertain in this way: starting again on that vehicle answers the
+    /// estimate it holds, so the launch stages take it up where they stopped.
     /// </summary>
     private static bool IsUncertain(GlassRepairEstimateSession session, ProviderState provider) =>
         session.State != GlassRepairEstimateSessionState.Prepared
-        && (provider.MvaVehicleId is null
-            || (provider.EstimateStartAttempted && provider.EreId is null));
+        && provider.MvaVehicleId is null;
 
-    private static (string VehicleId, string EreId, string EstimatorUrl) RequireReopenable(ProviderState provider) =>
-        provider is { MvaVehicleId: { } vehicleId, EreId: { } ereId, EstimatorUrl: { } estimatorUrl }
-            ? (vehicleId, ereId, estimatorUrl)
+    private static (string VehicleId, string EreId) RequireReopenable(ProviderState provider) =>
+        provider is { MvaVehicleId: { } vehicleId, EreId: { } ereId }
+            ? (vehicleId, ereId)
             : throw new InvalidOperationException(
                 "The Glass's session has no vehicle or estimate to resume, so its outcome stays for reconciliation.");
 
@@ -1146,6 +1223,18 @@ public sealed partial class GlassRepairEstimateGateway(
                 cancellationToken);
         }
 
+        // The estimate belongs to its stock vehicle, and the repair spec to
+        // the estimate: a return for a vehicle a live spec already stands on
+        // updates that spec, and any other return makes the spec and records
+        // the vehicle on it (operator, 6 October 2026).
+        var link = provider is { MvaVehicleId: { } linkedVehicle, EreId: { } linkedEstimate, NatCode: { } linkedType }
+            ? new GlassEstimateLink(
+                linkedVehicle, linkedEstimate, linkedType, provider.Placeholder,
+                provider.Registration, provider.MileageMiles)
+            : null;
+        var specification = link is null
+            ? null
+            : await caseAuthority.FindSpecificationAsync(session.CaseId, link.VehicleId, cancellationToken);
         try
         {
             var imported = await StageAsync(session, "ImportDraft", () => import.ExecuteAsync(
@@ -1160,7 +1249,15 @@ public sealed partial class GlassRepairEstimateGateway(
                     results.Xml.VersionId!.Value,
                     results.Xml.Sha256!,
                     $"{session.OperationKey}:import",
-                    Name: string.Empty),
+                    Name: string.Empty)
+                {
+                    // The estimate lands under the staff member's session and
+                    // never ends it: their page catches up on the import as on
+                    // any system write (operator, 6 October 2026).
+                    KeepsLease = true,
+                    GlassEstimate = link,
+                    EstimateId = specification,
+                },
                 cancellationToken));
             results.ImportedEstimateId = imported.EstimateId;
         }
@@ -1171,7 +1268,10 @@ public sealed partial class GlassRepairEstimateGateway(
         {
             // The Case moved on while the operator was in Glass's. Everything
             // the provider produced is already retained; the estimate lands
-            // when the staff member takes the Case back.
+            // under the staff member's current session, or when they take the
+            // Case back. The reason is said here, once: the session records no
+            // code, as nothing failed at Glass's.
+            LogImportHeld(logger, session.Id, session.CaseId, stale.GetType().Name, stale.Message);
             return await WriteAsync(
                 session,
                 GlassRepairEstimateSessionState.AwaitingImport,
@@ -1466,6 +1566,12 @@ public sealed partial class GlassRepairEstimateGateway(
 
     [LoggerMessage(
         Level = LogLevel.Warning,
+        Message = "Glass's session {SessionId} for case {CaseId} holds its estimate for landing: {Reason} {Detail}")]
+    private static partial void LogImportHeld(
+        ILogger logger, Guid sessionId, Guid caseId, string reason, string detail);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
         Message = "Glass's session {SessionId} for case {CaseId} settled {State} at {FailureCode} {Detail}")]
     private static partial void LogSettled(
         ILogger logger, Guid sessionId, Guid caseId, GlassRepairEstimateSessionState state, string failureCode, string detail);
@@ -1640,6 +1746,14 @@ public sealed partial class GlassRepairEstimateGateway(
         public string? PegasusCallback { get; set; }
 
         public bool EstimateStartAttempted { get; set; }
+
+        /// <summary>
+        /// The session reopens the estimate a repair spec belongs to, so its
+        /// vehicle and estimate were recorded before it began and it makes
+        /// neither. Absent from state protected before it existed, which reads
+        /// as false.
+        /// </summary>
+        public bool Linked { get; set; }
 
         public string? MvaVehicleId { get; set; }
 

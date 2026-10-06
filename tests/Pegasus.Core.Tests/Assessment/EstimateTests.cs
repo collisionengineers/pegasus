@@ -1092,6 +1092,93 @@ public sealed class EstimateTests
         Assert.Equal(ImportSha256, Assert.Single(save.Saved).Source.Sha256);
     }
 
+    private static readonly GlassEstimateLink GlassEstimate =
+        new("33584499", "1954488", "10203040", Placeholder: false, "AB12CDE", 33000);
+
+    /// <summary>
+    /// The same Glass's estimate saved again is the same repair spec (operator,
+    /// 6 October 2026): the return replaces the spec's lines and source and
+    /// keeps its header, and takes no labour-rate card of its own.
+    /// </summary>
+    [Fact]
+    public async Task AGlassReturnForItsSpecUpdatesThatSpecAndKeepsItsHeader()
+    {
+        var save = new FakeSpecificationStore();
+        var linked = Estimate(Details(), Line("repair", workUnits: 1m)) with
+        {
+            Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", new string('b', 64)),
+        };
+        // Another spec holds this export's hash; the spec being updated is not it.
+        var other = Estimate(Details()) with
+        {
+            Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:other", "v1", ImportSha256),
+        };
+        var import = new ImportRawEstimate(
+            [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
+            Retained,
+            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
+            new StubList(linked, other),
+            save, NoCards);
+
+        await import.ExecuteAsync(
+            ImportRequest(operationKey: "op-import-update") with
+            {
+                EstimateId = linked.SpecificationId,
+                GlassEstimate = GlassEstimate,
+            },
+            CancellationToken.None);
+
+        var saved = Assert.Single(save.Saved);
+        Assert.Equal(linked.SpecificationId, saved.EstimateId);
+        Assert.Equal(linked.Details, saved.Details);
+        Assert.Equal(GlassEstimate, saved.GlassEstimate);
+        Assert.Equal(ImportSha256, saved.Source.Sha256);
+        Assert.Null(saved.SelectedRateCardId);
+        Assert.Empty(save.SourceReplayBindings);
+    }
+
+    [Fact]
+    public async Task AGlassReturnForADiscardedSpecLandsAsANewSpecThatBelongsToTheEstimate()
+    {
+        var save = new FakeSpecificationStore();
+        var discarded = Estimate(Details()) with
+        {
+            State = RepairSpecificationState.Discarded,
+            Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", new string('b', 64)),
+        };
+        var import = new ImportRawEstimate(
+            [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
+            Retained,
+            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
+            new StubList(discarded),
+            save, NoCards);
+
+        await import.ExecuteAsync(
+            ImportRequest(operationKey: "op-import-fresh") with
+            {
+                EstimateId = discarded.SpecificationId,
+                GlassEstimate = GlassEstimate,
+            },
+            CancellationToken.None);
+
+        var saved = Assert.Single(save.Saved);
+        Assert.Null(saved.EstimateId);
+        Assert.Equal(GlassEstimate, saved.GlassEstimate);
+    }
+
+    [Fact]
+    public void OnlyAGlassReturnForItsSpecMayImportIntoAnExistingEstimate()
+    {
+        var request = new SaveEstimateRequest(
+            CaseId, 4, Engineer, "op-import-named", ImportRawEstimate.ImportReason, Lease,
+            Guid.NewGuid(), Details(), [],
+            new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", ImportSha256));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateImportedSave(request));
+
+        Assert.Contains("creates a new source-backed estimate only", refusal.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AnImportRefusesBytesThatDoNotMatchTheHashItRecorded()
     {

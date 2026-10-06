@@ -189,12 +189,11 @@ The Audit report's reference is its Our Ref, its file name (for example
 counted among Audit sends only. It has its own fee note and fee, counted
 separately. Report image choices are shared, because they belong to the
 Case's files. Once the Audit exists, the Inspection report is generated,
-prepared, sent and marked sent from the Inspection view, on the Inspection's
+sent and marked sent from the Inspection view, on the Inspection's
 own work and without changing the Case's state, which is the Audit's
 (operator, 1 October 2026), and a sent Inspection report may be generated
 and sent again when needed, counted among Inspection sends (operator,
-2 October 2026); a delivery prepared for it before Create audit is refused at
-send, because Create audit changed the Case. The Audit report never
+2 October 2026). The Audit report never
 overwrites or reissues the Inspection report.
 
 Audit outcome or reference evidence that is missing, conflicting, ambiguous,
@@ -273,9 +272,16 @@ artifact the generation holds attaches and a partly confirmed generation
 yields nothing; with a choice, exactly the chosen documents must be present
 and confirmed, so a companion still being filed never silently drops out of a
 delivery that asked for it and never blocks one that did not. The report is
-always attached. The preparation pins each chosen attachment by document,
-version, hash and length, and the send re-checks that every pinned attachment
-is still a confirmed artifact, byte for byte.
+always attached. The send names each chosen attachment by document,
+version, hash and length, and re-checks just before the mail is submitted that
+every one is still a confirmed artifact, byte for byte.
+
+**One step (operator, 6 October 2026).** A report is sent in one step. The
+Report section's delivery form holds the recipients, the documents to attach,
+the report's name and the covering message, and its one **Send report** sends
+them. There is no separate preparation and no second confirmation. The
+staff-send operation is the record of what was sent. The form stays offered
+after a send, whatever its outcome, so the same report can be sent again.
 
 **What a delivery is called (v28 P23).** The attached report is named for the
 people who read it — the Case's reference, the vehicle's registration and the
@@ -286,33 +292,29 @@ the Case report delivery template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
 this Case: a first report has no "supersedes" line; a later one says plainly
 that it supersedes the report dated the day the superseded generation carried.
-Before Prepare delivery, staff read the message in an editable box and may
-change it. Prepare delivery freezes the text they submit, which cannot be blank
-or longer than 5000 characters. The report's name and that message are frozen
-with the preparation, so what was reviewed is what is sent. Send uses only the
-frozen message, and custody keeps its own name for the same bytes. A send is a
-staff send that actually left the approved mailbox; a prepared-but-unsent
-delivery is not one. The subject stays the Case or Audit reference. A send the
-mailbox provider refuses is shown as a failed send; that preparation is spent,
-and Prepare delivery is offered again so a fresh preparation can be sent.
+Before Send report, staff read the message in an editable box and may
+change it. The text they submit is what is sent; it cannot be blank
+or longer than 5000 characters. Custody keeps its own name for the same bytes.
+A send is a staff send that actually left the approved mailbox. The subject
+stays the Case or Audit reference. A send the mailbox provider refuses is
+shown as a failed send.
 
-**Report and fee note.** They are separately addressable files in custody.
-The operator generating the report chooses whether the fee note is a separate
-document or the report's final pages, with the Include fee note choice beside
-Generate report (issue 912). The snapshot records that choice, so a
-combined report is one file under the report's name and reproduces the same
-way. A later request for a separate fee note names the current confirmed,
-non-stale generation and adds the fee note from that generation's frozen
-date and fee facts. It does not re-freeze the report. The request is refused
-when there is no current generation, the generation is stale, or the report
-already contains its fee note. Fee facts, readiness and accepted fee terms
-are the same either way.
+**Report and fee note.** Every report ends with its fee note: one file under
+the report's name, the fee note's pages last (operator, 6 October 2026). The
+separate fee note is its own file in custody and can always be generated. A
+Principal that wants it separately is sent both: the report with its fee note,
+and the separate fee note attached beside it. A request for the separate fee
+note names the current confirmed, non-stale generation and adds the fee note
+from that generation's frozen date and fee facts. It does not re-freeze the
+report. The request is refused when there is no current generation or the
+generation is stale. Fee facts, readiness and accepted fee terms are the same
+in both files.
 
 **Staleness.** One Core rule over normalised effective values marks a
 generation stale only when an accepted report fact changes. Notes, no-op
 saves and recipient edits do not. A ready generation records
 `case_report_generation_ready` in history. Stale generations cannot be
-prepared or sent.
+sent.
 
 **Views and downloads.** A preview creates no file and no Sent evidence.
 Viewing one records `case_report_draft_previewed`, distinct from generation
@@ -323,9 +325,11 @@ bytes, so it records the same event, and Case history shows it as Report
 downloaded. That includes the report opening by itself after Generate report.
 
 **Version checks.** Snapshot assembly reads the Case version first and
-refuses a changed version before freezing. Generation and preparation
+refuses a changed version before freezing. Generation
 commands carry the version shown in the browser and refuse a stale one
-rather than re-reading. An operation key replays only the same file kind,
+rather than re-reading. A send is made under the Case's edit lease and names
+its generation and that generation's version; system work that moved the Case
+after the page was read does not refuse it. An operation key replays only the same file kind,
 packaging choice and target generation; reusing it for a different command
 is a conflict. The signatory tuple is rechecked in the freeze transaction.
 Confirming or removing source evidence, or changing the signatory's
@@ -334,12 +338,13 @@ generations in the same transaction. Report outputs are not report inputs
 and do not invalidate their own generation. Other retained files stay source
 evidence whatever their transport label.
 
-**Recipients.** A delivery preparation needs current addressing. Principal
+**Recipients.** A delivery needs current addressing. Principal
 recipient settings can include the original instruction sender and any
 number of extra addresses. The original sender comes from the originating
 instruction, never the latest reply; an unresolved sender adds no invented
-address. Claim Source is never copied implicitly. Recipients are frozen in
-the preparation, but the preparing human staff member may edit To and Cc before that freeze.
+address. Claim Source is never copied implicitly. The settings only suggest:
+the human staff member sending the report may edit To and Cc, and what they
+submit is what the delivery is addressed to.
 Every delivery still needs a staff-controlled send. Default report dates and
 displayed times use Europe/London.
 
@@ -612,7 +617,7 @@ The Case's own states are in
 
 - Any missing, unknown or conflicting outcome data stops rendering.
 - A stale version in the browser is refused, never replaced.
-- A stale generation cannot be prepared or sent.
+- A stale generation cannot be sent.
 - A fee-note request against a report that already contains one is refused.
 - A missing printed fact, such as a total loss with no salvage category, is
   a named readiness item: preview and Generate refuse before any generation

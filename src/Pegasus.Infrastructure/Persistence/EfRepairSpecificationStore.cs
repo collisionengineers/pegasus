@@ -424,11 +424,14 @@ public sealed class EfRepairSpecificationStore(
             RequireAssessmentEditable(workflow);
             // The workflow lock and source census share this transaction: two
             // concurrent completions cannot create two estimates for one
-            // Case/hash. A discarded import no longer holds its source.
+            // Case/hash. A discarded import no longer holds its source. A
+            // Glass's return that updates its spec answers only for that
+            // spec's own source.
             var existingImport = await context.CaseRepairSpecifications.Include(item => item.Lines)
                 .FirstOrDefaultAsync(item => item.WorkId == workId
                     && item.State != discarded
-                    && item.SourceSha256 == request.Source.Sha256, cancellationToken);
+                    && item.SourceSha256 == request.Source.Sha256
+                    && (request.EstimateId == null || item.Id == request.EstimateId), cancellationToken);
             if (existingImport is not null)
             {
                 return Map(existingImport);
@@ -439,7 +442,7 @@ public sealed class EfRepairSpecificationStore(
         {
             return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
-        Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now, request.KeepsLease);
 
         var edit = await ApplyEditAsync(context, workId, request, now, leaveUnchanged: false, cancellationToken);
         var entity = edit.Entity;
@@ -447,9 +450,16 @@ public sealed class EfRepairSpecificationStore(
         if (importedDocument)
         {
             // v1 of an imported specification is the import itself (v28 P43).
+            // A Glass's return that updates its spec numbers after the
+            // versions that spec already has.
+            var latest = await context.CaseRepairSpecificationSnapshots
+                .Where(item => item.SpecificationId == entity.Id)
+                .OrderByDescending(item => item.Number)
+                .FirstOrDefaultAsync(cancellationToken);
             EfRepairSpecificationSnapshotStore.Freeze(
                 context, workId, Map(entity), request.Actor, RepairSpecificationSnapshotKind.Imported,
-                "Imported " + Pegasus.Core.Assessment.RepairSpecificationRouteWords.Of(request.Source.Route), now);
+                "Imported " + Pegasus.Core.Assessment.RepairSpecificationRouteWords.Of(request.Source.Route), now,
+                latest);
         }
         if (edit.ChangesCurrent)
         {
@@ -571,9 +581,22 @@ public sealed class EfRepairSpecificationStore(
         entity.LastOperationKey = request.OperationKey;
         ApplyDetails(entity, request.Details);
         ApplySupplementary(entity, request.Supplementary);
+        if (request.GlassEstimate is { } glass)
+        {
+            entity.GlassVehicleId = glass.VehicleId;
+            entity.GlassEstimateId = glass.EstimateId;
+            entity.GlassNatCode = glass.NatCode;
+            entity.GlassPlaceholder = glass.Placeholder;
+            entity.GlassRegistration = glass.Registration;
+            entity.GlassMileageMiles = glass.MileageMiles;
+        }
         AddLines(context, entity, request.Lines, request.Actor, now);
         IReadOnlyList<Guid> replacedCurrent = [];
-        if (existing is null && RepairSpecificationPolicy.BecomesCurrentWhenCreated(request.Actor))
+        // What comes back from Glass's is the spec in use at once, also when
+        // the return updates a spec that was not (operator, 25 September and
+        // 6 October 2026).
+        if ((existing is null || (request.GlassEstimate is not null && !entity.IsCurrent))
+            && RepairSpecificationPolicy.BecomesCurrentWhenCreated(request.Actor))
         {
             replacedCurrent = await MakeCurrentAsync(context, workId, entity, cancellationToken);
         }
@@ -1125,8 +1148,15 @@ public sealed class EfRepairSpecificationStore(
         return await RequiredWorkflowAsync(context, caseId, cancellationToken);
     }
 
+    /// <summary>
+    /// The guard every specification write passes: the Case open and writable,
+    /// the lease proven, the version not from the future. The write advances
+    /// the Case and ends the lease it was made under, unless it is one the
+    /// staff member's session continues past (<see cref="SaveEstimateRequest.KeepsLease"/>).
+    /// </summary>
     private static void Guard(
-        CaseWorkflowEntity workflow, long expectedVersion, ActionActor actor, string lease, DateTimeOffset now)
+        CaseWorkflowEntity workflow, long expectedVersion, ActionActor actor, string lease, DateTimeOffset now,
+        bool keepLease = false)
     {
         ArchivedCaseGuard.RequireMutable(workflow);
         if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
@@ -1137,8 +1167,14 @@ public sealed class EfRepairSpecificationStore(
         }
         CaseMutationGuard.RequireLease(workflow, actor, lease, now);
         CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
-        workflow.Version++;
-        CaseMutationGuard.ClearLease(workflow);
+        if (keepLease)
+        {
+            CaseMutationGuard.Advance(workflow);
+        }
+        else
+        {
+            CaseMutationGuard.Complete(workflow);
+        }
     }
 
     private static void RequireAssessmentEditable(CaseWorkflowEntity workflow)

@@ -1011,9 +1011,7 @@ public static class CaseWorkspaceLabels
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
-        public const string IncludeFeeNote = "Include fee note";
         public const string OpenReport = "Open report";
-        public const string OpenReportWithFeeNote = "Open report with fee note";
         public const string OpenFeeNote = "Open fee note";
         public const string DownloadFeeNote = "Fee note";
         public const string GenerationStaleNotice =
@@ -1056,9 +1054,7 @@ public static class CaseWorkspaceLabels
         public static string MessageRefused =>
             $"Enter the message, at most {Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength} characters.";
 
-        public const string PrepareDelivery = "Prepare delivery";
-        public const string DeliveryPrepared = "Delivery prepared";
-        public const string SendPreparedReport = "Send prepared report";
+        public const string SendReport = "Send report";
         public const string SendObservedSent = "The report send was observed as sent.";
         public const string SendAccepted = "The report send was accepted.";
         public const string SendInProgress = "The report send is in progress.";
@@ -1101,7 +1097,6 @@ public static class CaseWorkspaceLabels
     public static class GlassSession
     {
         public const string Launch = "Glass's";
-        public const string Resume = "Resume";
         public const string Close = "Close session";
         public const string CloseReason = "Reason";
         public const string ExternalClosedConfirmation = "Glass's is closed and no estimate remains open";

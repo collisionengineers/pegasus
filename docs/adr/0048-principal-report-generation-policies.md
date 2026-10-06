@@ -58,8 +58,8 @@ ADR-0038 is superseded. The UI presents the choice as two sequential
 decisions in the Principal Contact — Pegasus or EVA, then, only for EVA, ZIP
 export, manual API submission, or automatic API submission at Review — which
 together persist one of the four policy values, alongside the recipient
-settings. Report preparation freezes the resolved recipients in its immutable
-delivery preparation and still requires a staff send action.
+settings. The recipient settings only suggest a report's recipients: the
+delivery still requires a staff send action.
 
 ## Links
 

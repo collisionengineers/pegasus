@@ -277,7 +277,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     private const string FoundationTableSpec = """
         AppliedValuationSnapshots
         AutomaticEvaReviewSubmissions
-        CaseReportDeliveryIntents
         CaseReportGenerations
         ContactPrincipalLinks
         ContactRoles
@@ -298,7 +297,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     private const string FoundationWebGrantSpec = """
         AppliedValuationSnapshots:SELECT,INSERT
         AutomaticEvaReviewSubmissions:SELECT,INSERT
-        CaseReportDeliveryIntents:SELECT,INSERT,UPDATE
         CaseReportGenerations:SELECT,INSERT,UPDATE
         ContactPrincipalLinks:SELECT,INSERT,DELETE
         ContactRoles:SELECT,INSERT,DELETE

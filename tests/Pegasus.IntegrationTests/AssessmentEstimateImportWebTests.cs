@@ -299,6 +299,114 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
+    /// a.QDOS26070 (6 October 2026): every save writes the spec's lines afresh,
+    /// so the second commit of one page named lines the first had replaced and
+    /// was refused ("An estimate line changed before this edit was saved"). The
+    /// page and a commit answered in place carry each line's identity by the
+    /// row it posts from, and a commit that posts the carried ids saves.
+    /// </summary>
+    [Fact]
+    public async Task ACommitAnsweredInPlaceCarriesTheLinesNewIdentitiesSoTheNextCommitSaves()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var importHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        using var importResponse = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(importHtml), caseId, NewOperationKey(), AudatexEstimateFixture.Build()));
+        Assert.Equal(HttpStatusCode.Redirect, importResponse.StatusCode);
+        var draft = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
+        var editorHtml = await EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
+
+        // The page carries the shown lines' identities by the row each posts from.
+        Assert.Equal(LineIdentities(draft), InputValue(editorHtml, "estimateLineIds"));
+
+        using var first = await PostEstimateCommitAsync(client, caseId, editorHtml, draft, draft.Lines, store.WorkflowVersion);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var answer = await first.Content.ReadAsStringAsync();
+        var written = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
+        Assert.Equal(2, store.SavedEstimates.Count);
+        Assert.NotEqual(draft.Lines[0].Id, written.Lines[0].Id);
+        // The answer carries the ids the save gave the lines, and no section.
+        Assert.Contains("data-estimate-line-ids", answer, StringComparison.Ordinal);
+        Assert.Equal(LineIdentities(written), InputValue(answer, "estimateLineIds"));
+        Assert.DoesNotContain("id=\"section-estimate\"", answer, StringComparison.Ordinal);
+
+        // A commit still naming the replaced lines is refused, as before.
+        using var stale = await PostEstimateCommitAsync(client, caseId, editorHtml, draft, draft.Lines, store.WorkflowVersion);
+        Assert.Equal(HttpStatusCode.OK, stale.StatusCode);
+        Assert.Contains("An estimate line changed before this edit was saved.", await stale.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(2, store.SavedEstimates.Count);
+
+        // The commit the script sends next posts the carried ids, and saves.
+        using var second = await PostEstimateCommitAsync(client, caseId, editorHtml, draft, written.Lines, store.WorkflowVersion);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        var secondAnswer = await second.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("changed before this edit was saved", secondAnswer, StringComparison.Ordinal);
+        Assert.Equal(3, store.SavedEstimates.Count);
+        var rewritten = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
+        Assert.Equal(LineIdentities(rewritten), InputValue(secondAnswer, "estimateLineIds"));
+    }
+
+    /// <summary>"row:id" per line, in position order, as the page and the commit answer carry them.</summary>
+    private static string LineIdentities(RepairSpecificationVersion estimate) =>
+        string.Join(
+            ' ',
+            estimate.Lines.OrderBy(line => line.Position).Select((line, index) => $"{index}:{line.Id:D}"));
+
+    /// <summary>
+    /// The estimate editor committed as the page script commits it: the shown
+    /// spec's rows, each naming the line it stands for, with the script's header
+    /// so the commit is answered in place.
+    /// </summary>
+    private static async Task<HttpResponseMessage> PostEstimateCommitAsync(
+        HttpClient client,
+        Guid caseId,
+        string editorHtml,
+        RepairSpecificationVersion estimate,
+        IReadOnlyList<CaseEstimateLineRecord> lines,
+        long expectedVersion)
+    {
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(editorHtml)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("estimateId", estimate.SpecificationId.ToString("D")),
+            new("expectedVersion", expectedVersion.ToString(CultureInfo.InvariantCulture)),
+            new("estimateName", estimate.Details.Name),
+            new("estimateVatPercent", estimate.Details.VatPercent.ToString(CultureInfo.InvariantCulture)),
+        };
+        foreach (var line in lines.OrderBy(line => line.Position))
+        {
+            fields.Add(new("lineId", line.Id.ToString("D")));
+            fields.Add(new("lineOperation", EstimateOperations.FromLineType(line.Type).ToString()));
+            fields.Add(new("lineDescription", line.Description ?? string.Empty));
+            fields.Add(new("linePartNumber", line.PartNumber ?? string.Empty));
+            fields.Add(new("lineQuantity", line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("lineLabourHours", line.WorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePaintHours", line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePartPounds", line.Price?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+        }
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/Cases/{caseId:D}?handler=Save&section=estimate")
+        {
+            Content = new FormUrlEncodedContent(fields)
+        };
+        request.Headers.Add("X-Requested-With", "fetch");
+        request.Headers.Accept.ParseAdd("text/html");
+        return await client.SendAsync(request);
+    }
+
+    /// <summary>
     /// An imported line with no value arrives <c>Unpriced</c> — "To be
     /// confirmed". Pricing it is the point of the editor, and
     /// <c>AssessmentPolicy</c> refuses a line that is both marked To be
