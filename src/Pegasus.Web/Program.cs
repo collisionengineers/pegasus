@@ -973,13 +973,14 @@ if (!app.Environment.IsDevelopment())
         // frame-ancestors is 'self', not 'none': the evidence viewer previews a
         // PDF in a same-origin iframe. frame-src admits only that existing
         // source and the in-page Blob URLs used by saved report and estimate
-        // previews. The clickjacking protection this header exists for is
-        // unchanged, because frame-ancestors still refuses every other origin.
-        // Development does not set the header at all, so this policy is tested
-        // through the Production profile.
+        // previews. img-src admits the Blob URLs the Upload page draws its
+        // chosen images from before they are sent. The clickjacking protection
+        // this header exists for is unchanged, because frame-ancestors still
+        // refuses every other origin. Development does not set the header at
+        // all, so this policy is tested through the Production profile.
         context.Response.Headers.ContentSecurityPolicy =
             "default-src 'self'; object-src 'none'; base-uri 'self'; " +
-            "frame-src 'self' blob:; frame-ancestors 'self'";
+            "img-src 'self' blob:; frame-src 'self' blob:; frame-ancestors 'self'";
         context.Response.Headers.XContentTypeOptions = "nosniff";
         await next(context);
     });
