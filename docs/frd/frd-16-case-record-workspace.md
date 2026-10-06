@@ -440,42 +440,52 @@ The field set is owned by
 
 ### Valuation
 
-Valuation opens with one row of three boxes: **Retail value**, **Trade
-value** and **Engineer's Value**, the figures the report prints in its
-Vehicle Data table (operator, 26 September 2026). They are fields of the Case
-form, greyed while reading, and each save records them.
+Valuation draws its sources as rows and opens the chosen one (operator,
+6 October 2026): under that source's row stand the calculation and one row of
+three boxes, **Retail value**, **Trade value** and **Engineer's Value**, the
+figures the report prints in its Vehicle Data table (26 September 2026). With
+no source chosen the same block closes the list. The boxes are fields of the
+Case form, greyed while reading, and each save records them. **On the
+report** closes the section. The section head reads the Engineer's Value the
+Case holds and follows each save without a reload.
 
 Valuation lists each entry with its source, date, time, retail and trade
 values, and guide month (`EXT-10`). A calculated Engineer's Value entry
 carries a mileage when the Case has one. Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
-(automation only). Read and edit show the same cards: each guide source is
-one card with month, retail and trade boxes holding that source's
+(automation only). Read and edit show the same rows: each guide source is
+one row with retail, trade and month boxes holding that source's
 latest recorded figures (no mileage: the Case's own is used, operator, 24
 September 2026), greyed while reading; any box may be blank and is
 saved as entered. While editing, the boxes are
-inputs that belong to the Case form, and the card has **Get valuation**,
+inputs that belong to the Case form, and the row has **Get valuation**,
 which asks the connected provider for the Case's accepted registration and
 mileage in that month and fills the boxes in place, without redrawing the
 page. Glass's is the connected source; its valuation's PDF report is filed on
 the Case's Documents after the figures have answered and appears there on the
 next load ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 A source with no connected provider shows "{Source} valuation is
-unavailable. Contact an administrator or report a problem." on its card from
+unavailable. Contact an administrator or report a problem." on its row from
 the start and offers no Get valuation (28 September 2026); a connected source
 that cannot answer shows the same sentence when pressed.
-The card has no Save of its own (23 September 2026): each save records
-every card whose figures changed, a card left blank or unchanged records
+A row has no Save of its own (23 September 2026): each save records
+every row whose figures changed, a row left blank or unchanged records
 nothing, and the same source and month replaces the earlier card; a typed
-figure saves the same way. A **Valuation month** and **AI market research**
-above the cards create a `MarketResearch` job and show a
-"Researching · {month}" card until it completes; a re-run replaces the card.
+figure saves the same way. AI market research has its own standing row
+(operator, 6 October 2026) holding its latest figures, a **Valuation month**
+and its own **Get valuation**, which create a `MarketResearch` job; the row
+reads "Researching · {month}" until it completes, and a re-run replaces its
+figures. A recorded research row also states the month, mileage and date it
+was asked with.
 The result is filed without the Case edit lease, so it returns while the
-Engineer is still editing and does not end the edit; the card says so
+Engineer is still editing and does not end the edit; the row says so
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
 Read and edit list the same value increases, every active preset with a tick
-on each the latest recorded calculation applied, and the calculator opens on
-that applied selection. Choosing a card as the basis fills Retail value and
+on each the recorded calculation applied, and the calculator opens on that
+applied selection, while the Engineer's Value holds that calculation's figure.
+A different figure saved over it is the Engineer's own: the calculator then
+opens blank and no source opens while reading (operator, 6 October 2026).
+Choosing a card as the basis fills Retail value and
 Trade value from it, and the calculation fills Engineer's Value; any box can
 be overtyped. The calculator has no Apply of its own (operator, 23 September
 2026). Each card has **Use this value** while editing (operator, 28 September
@@ -484,9 +494,13 @@ the calculation against that card even when it is unchanged, including for a
 card typed in the same edit. A save also records a calculation that changed
 since the last save — a different basis card, the basis card's retail or
 trade, or any of its controls. Any other save records no calculation. The
-calculation lines show what the save will use, from the retail as typed and
-the claimant's VAT as the form holds it, and say why when a figure cannot be
-worked out
+calculation shows what the save will use, from the retail as typed and the
+claimant's VAT as the form holds it: its result fills Engineer's Value, which
+is the one place the figure stands, the commercial VAT and previous total
+loss amounts show beside their controls, and it says why when a figure cannot
+be worked out. There is no second total and no applied block; while
+Engineer's Value holds a recorded calculation's figure, its label carries
+that calculation's source as one word (operator, 6 October 2026)
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 The calculator applies presets and custom lines through Core. Valuation
 sources are owned by
