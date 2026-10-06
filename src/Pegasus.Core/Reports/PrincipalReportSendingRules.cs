@@ -11,9 +11,11 @@ namespace Pegasus.Core.Reports;
 /// chosen contact (its organisation id) with the condition's ids.
 /// <see cref="Outcome"/> compares the Case's recorded assessment outcome code.
 /// <see cref="SenderNot"/> holds when the originating instruction's effective
-/// sender is none of the addresses. <see cref="ImagesFrom"/> and
-/// <see cref="Mentions"/> have no Case fact of their own, so they stay
-/// undecided until staff answer them on the delivery form.
+/// sender is none of the addresses. <see cref="Mentions"/> is searched for in
+/// the instruction e-mail's subject and text, ignoring case and spaces, and is
+/// asked only when the Case holds no instruction text. <see cref="ImagesFrom"/>
+/// and <see cref="BodyshopMentions"/> have no Case fact of their own, so they
+/// stay undecided until staff answer them on the delivery form.
 /// </remarks>
 public enum ReportSendingConditionKind
 {
@@ -22,7 +24,8 @@ public enum ReportSendingConditionKind
     ImagesFrom,
     Mentions,
     SenderNot,
-    Outcome
+    Outcome,
+    BodyshopMentions
 }
 
 public enum ReportSendingRuleMatch
@@ -57,13 +60,15 @@ public sealed record ReportSendingRule(
     ReportSendingActions Then);
 
 /// <summary>
-/// What goes with the report. <see cref="FeeNoteSeparate"/> false means the
-/// fee note is the report's final pages. <see cref="VehicleImagesDocument"/>
-/// and <see cref="FigureBreakdown"/> name the generation's images pack and
-/// Repair Spec companions, required before the delivery is prepared.
-/// <see cref="Estimate"/> and <see cref="Audatex"/> attach the Case's
-/// recognised filed estimate documents. <see cref="ReportImages"/> false is
-/// a warning that this Principal's report should carry no vehicle images.
+/// What goes with the report. Every report ends with its fee note;
+/// <see cref="FeeNoteSeparate"/> means the separate fee note is attached beside
+/// it when one is generated. <see cref="VehicleImagesDocument"/> and
+/// <see cref="FigureBreakdown"/> name the generation's images pack and Repair
+/// Spec companions, required before the report is sent. <see cref="Audatex"/>
+/// attaches the Case's recognised filed estimates in the Audatex format and
+/// <see cref="Estimate"/> the recognised ones in any other format.
+/// <see cref="ReportImages"/> false means this Principal's report is generated
+/// without vehicle images.
 /// </summary>
 public sealed record ReportSendingAttachments(
     bool FeeNoteSeparate = true,
@@ -92,7 +97,6 @@ public enum ReportSendingRulesRule
     AddressInCcAndNeverCc,
     SendToOnlyNeedsAddresses,
     TextRequired,
-    TextTooLong,
     UnknownContact,
     UnknownOutcome,
     EmptyRule,
@@ -115,9 +119,8 @@ public sealed class ReportSendingRulesException(
 /// <summary>
 /// A Principal's report sending rules (Report Sending SOP v5, 2 October 2026):
 /// who the report goes to and from, who is copied, what goes with it, what
-/// holds or stops the delivery, and what staff must do after sending. Null on
-/// a Principal means the SOP has no entry, and delivery keeps its plain
-/// behaviour (original sender plus the configured extra addresses).
+/// holds or stops the delivery, and what staff must do after sending. Every
+/// Principal has them; one the SOP does not name has <see cref="Default"/>.
 /// </summary>
 /// <param name="SendFromMailbox">The approved mailbox address a new message leaves from when the Case has no retained instruction e-mail; a reply always leaves from the mailbox that holds the instruction.</param>
 /// <param name="SendTo">Fixed To addresses, which replace the original sender. Empty means the original instruction sender.</param>
@@ -142,8 +145,6 @@ public sealed record PrincipalReportSendingRules(
     IReadOnlyList<ReportSendingRule> Rules,
     ReportAttachmentNamePattern? AttachmentName)
 {
-    public const int MaximumTextLength = 500;
-
     /// <summary>The SOP's defaults: reply to the original sender, keep their Cc list, separate fee note.</summary>
     public static PrincipalReportSendingRules Default { get; } = new(
         null, [], false, true, [], [], ReportSendingAttachments.Default, false, null, [], [], null);
@@ -187,13 +188,13 @@ public sealed record PrincipalReportSendingRules(
 
     /// <summary>
     /// The one shape stored rules take: addresses trimmed, valid and unique
-    /// without case; texts trimmed, present where given and within
-    /// <see cref="MaximumTextLength"/>; contact ids parseable; outcome codes
-    /// known; every rule with a condition and an action; name tokens known.
+    /// without case; texts trimmed and present where given; contact ids
+    /// parseable; outcome codes known; every rule with a condition and an
+    /// action; name tokens known.
     /// </summary>
-    public static PrincipalReportSendingRules Normalize(PrincipalReportSendingRules? rules)
+    public static PrincipalReportSendingRules Normalize(PrincipalReportSendingRules rules)
     {
-        rules ??= Default;
+        ArgumentNullException.ThrowIfNull(rules);
         var sendFrom = string.IsNullOrWhiteSpace(rules.SendFromMailbox)
             ? null
             : Address(rules.SendFromMailbox, nameof(SendFromMailbox));
@@ -302,10 +303,6 @@ public sealed record PrincipalReportSendingRules(
         if (string.IsNullOrEmpty(trimmed))
         {
             throw new ReportSendingRulesException(ReportSendingRulesRule.TextRequired, field, ruleIndex);
-        }
-        if (trimmed.Length > MaximumTextLength)
-        {
-            throw new ReportSendingRulesException(ReportSendingRulesRule.TextTooLong, field, ruleIndex);
         }
         return trimmed;
     }
