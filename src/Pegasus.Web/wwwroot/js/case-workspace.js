@@ -44,6 +44,10 @@
     var commitInFlight = false;
     var commitWaiters = [];
     var commitStatus = null;
+    // System work (custody, a lookup, a filing) moves the Case under the
+    // lease without ending it (operator, 6 October 2026); the page catches up
+    // with it once nothing is in flight.
+    var catchUpWanted = false;
     // One editor: the record's Save form. The Repair Spec and the valuation
     // calculator are controls of it.
     var editorLabels = {
@@ -474,7 +478,7 @@
         new ResizeObserver(measure).observe(block);
     }
 
-    // ---- the edit session: save as you go, heartbeat, expiry ---------------
+    // ---- the edit session: save as you go, heartbeat, catching up ---------
     function caseForm() { return document.getElementById('case-edit-form'); }
     function editorFor(control) {
         var form = control.form || (control.closest ? control.closest('form') : null);
@@ -530,6 +534,7 @@
         if (submitting) { return; }
         if (commitPending) { commitPending = false; commitNow(); return; }
         if (commitTimer !== null) { return; }
+        if (catchUpWanted) { catchUp(); return; }
         var waiters = commitWaiters;
         commitWaiters = [];
         waiters.forEach(function (waiter) { waiter.run(); });
@@ -579,7 +584,7 @@
     }
     function paintCommitStatus() {
         var line = record.querySelector('[data-lease-line]');
-        if (!line || line.classList.contains('is-expiring')) { return; }
+        if (!line) { return; }
         line.classList.remove('is-refused');
         if (!commitStatus) { line.hidden = true; line.textContent = ''; return; }
         var words = commitStatus.kind === 'saving' ? line.getAttribute('data-lease-saving-text')
@@ -619,8 +624,6 @@
     function bindHeartbeat() {
         stopHeartbeat();
         var form = record.querySelector('[data-case-heartbeat]');
-        var renew = record.querySelector('[data-case-renew]');
-        var line = record.querySelector('[data-lease-line]');
         if (!form) {
             return;
         }
@@ -628,21 +631,9 @@
         if (!(seconds > 0)) {
             return;
         }
-        if (renew) {
-            renew.hidden = true;
-        }
         var generation = heartbeatGeneration;
-        function expired() {
-            stopHeartbeat();
-            if (line) {
-                line.textContent = line.getAttribute('data-lease-expired-text') || '';
-                line.classList.add('is-expiring');
-                line.hidden = false;
-            }
-            if (renew) {
-                renew.hidden = false;
-            }
-        }
+        // Editing never expires while the page is open: a beat keeps the
+        // lease, and picks up one that lapsed while nobody claimed it.
         function beat() {
             if (!heartbeat || generation !== heartbeatGeneration) {
                 return;
@@ -652,15 +643,30 @@
                 body: new FormData(form),
                 credentials: 'same-origin'
             }).then(function (response) {
-                if (generation !== heartbeatGeneration || response.status === 204) {
+                if (generation !== heartbeatGeneration) {
                     return;
                 }
-                // 409 and 403 are the server refusing the lease itself, and 404 is
-                // a Case that no longer exists (a stale tab after a wipe). Anything
-                // else - a faulted request, a replica restarting - says nothing
-                // about the lease, and the next beat settles it.
-                if (response.status === 409 || response.status === 403 || response.status === 404) {
-                    expired();
+                // The answer is the Case's version: system work that moved it
+                // is drawn as the page catches up.
+                if (response.ok) {
+                    return response.json().then(function (answer) {
+                        if (generation === heartbeatGeneration && answer
+                            && Number(answer.version) > Number(record.getAttribute('data-case-version'))) {
+                            requestCatchUp();
+                        }
+                    });
+                }
+                // 409 is the lease held by someone else now: the page draws
+                // the Case as it stands, keeping what the operator typed. 403
+                // and 404 (a Case that no longer exists, a stale tab after a
+                // wipe) end the beat. Anything else - a faulted request, a
+                // replica restarting - says nothing about the lease, and the
+                // next beat settles it.
+                if (response.status === 409) {
+                    stopHeartbeat();
+                    requestCatchUp();
+                } else if (response.status === 403 || response.status === 404) {
+                    stopHeartbeat();
                 }
             }).catch(function () {
                 // One failed beat is not a lost lease; the next beat settles it.
@@ -673,6 +679,102 @@
             }
         };
         document.addEventListener('visibilitychange', heartbeatOnVisible);
+    }
+
+    // A control holds a value not yet sent while it differs from its
+    // default: the value it was drawn with, or, for a Case control, the one
+    // its last landed commit sent. Script-filled hidden controls belong to a
+    // composite, which holds the queue until its commit lands.
+    function unsentControl(control) {
+        if (control.type === 'checkbox' || control.type === 'radio') { return control.checked !== control.defaultChecked; }
+        if (control.tagName === 'SELECT') {
+            return Array.prototype.some.call(control.options, function (option) { return option.selected !== option.defaultSelected; });
+        }
+        if (control.type === 'hidden' || control.type === 'file' || typeof control.defaultValue !== 'string') { return false; }
+        return control.value !== control.defaultValue;
+    }
+    function holdsUnsent(host) {
+        return Array.prototype.some.call(host.querySelectorAll('input, select, textarea'), unsentControl);
+    }
+    function sendingState(form) {
+        return Array.prototype.map.call(form.elements, function (control) {
+            return {
+                control: control,
+                value: control.value,
+                checked: control.checked,
+                selected: control.tagName === 'SELECT'
+                    ? Array.prototype.map.call(control.options, function (option) { return option.selected; })
+                    : null
+            };
+        });
+    }
+    // A landed commit makes what it sent each control's default; a control
+    // changed since it was sent keeps its difference, still to be sent.
+    function markSent(sent) {
+        (sent || []).forEach(function (state) {
+            var control = state.control;
+            if (control.type === 'checkbox' || control.type === 'radio') {
+                if (control.checked === state.checked) { control.defaultChecked = state.checked; }
+            } else if (control.tagName === 'SELECT') {
+                var same = Array.prototype.every.call(control.options, function (option, index) {
+                    return option.selected === state.selected[index];
+                });
+                if (same) {
+                    Array.prototype.forEach.call(control.options, function (option) { option.defaultSelected = option.selected; });
+                }
+            } else if (control.type !== 'hidden' && control.type !== 'file' && typeof control.defaultValue === 'string'
+                && control.value === state.value) {
+                control.defaultValue = state.value;
+            }
+        });
+    }
+    function requestCatchUp() {
+        catchUpWanted = true;
+        if (!queueBusy()) { settleQueue(); }
+    }
+    // The control the operator is in keeps its place and what they have
+    // typed into it.
+    function focusedControl() {
+        var control = document.activeElement;
+        if (!control || !control.id || !main || !main.contains(control)) { return null; }
+        return {
+            id: control.id,
+            typed: typeof control.defaultValue === 'string' && control.type !== 'hidden' && control.value !== control.defaultValue,
+            value: control.value,
+            start: control.selectionStart,
+            end: control.selectionEnd
+        };
+    }
+    function refocus(saved) {
+        if (!saved) { return; }
+        var control = document.getElementById(saved.id);
+        if (!control || control === document.activeElement) { return; }
+        if (saved.typed) { control.value = saved.value; }
+        control.focus({ preventScroll: true });
+        try {
+            if (saved.start !== null && saved.start !== undefined) { control.setSelectionRange(saved.start, saved.end); }
+        } catch (_) { /* Not every control has a selection. */ }
+    }
+    // The page drawn again as the Case now stands, holding the queue so no
+    // commit or action reads a half-drawn record. A section holding a value
+    // not yet sent stays as the operator has it.
+    function catchUp() {
+        catchUpWanted = false;
+        submitting = true;
+        var focused = focusedControl();
+        fetch(window.location.href, {
+            credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
+        }).then(function (response) {
+            if (!response.ok || !samePage(response.url || window.location.href)) { throw new Error('catch up: ' + response.status); }
+            return response.text();
+        }).then(function (html) {
+            if (swap(html, null, null, { catchUp: true })) { refocus(focused); }
+        }).catch(function () {
+            // The next beat or commit catches up again.
+        }).finally(function () {
+            submitting = false;
+            settleQueue();
+        });
     }
 
     // ---- in-place actions: every form in the record posts by fetch and the
@@ -741,21 +843,28 @@
         var owned = '#' + id + ' [data-carry-forward], [data-carry-forward][form="' + id + '"]';
         Array.prototype.forEach.call(parsed.querySelectorAll(owned), function (input) {
             var current = form.elements.namedItem(input.name);
-            if (current && current.hasAttribute && current.hasAttribute('data-carry-forward')) { current.value = input.value; }
+            if (current && current.hasAttribute && current.hasAttribute('data-carry-forward')) {
+                current.value = input.value;
+                // A section that draws from what was carried redraws now.
+                current.dispatchEvent(new CustomEvent('pegasus:carried-forward', { bubbles: true }));
+            }
         });
     }
-    function swap(html, command, preferred) {
+    function swap(html, command, preferred, options) {
         glassRefreshGeneration += 1;
         var parsed = new DOMParser().parseFromString(html, 'text/html');
         var incoming = parsed.querySelector('[data-case-record]');
         if (!incoming) {
             return false;
         }
+        var incomingVersion = incoming.getAttribute('data-case-version');
         var commit = null;
         try { commit = JSON.parse(incoming.getAttribute('data-editor-commit') || 'null'); } catch (_) { /* An unrecognised response cannot confirm a commit. */ }
         var confirmed = command && commit && commit.editor === command.editor
             && commit.operationKey === command.operationKey && String(commit.expectedVersion) === command.expectedVersion;
-        var mayAdvance = confirmed && String(commit.version) === incoming.getAttribute('data-case-version')
+        // The Case may stand past the commit's own version: system work moved
+        // it under the lease, and the page catches up with that next.
+        var mayAdvance = confirmed && Number(incomingVersion) >= Number(commit.version)
             && incoming.getAttribute('data-case-editing') === 'true';
         var isCommit = !!command && command.editor === 'case-edit-form'
             && record.getAttribute('data-case-editing') === 'true';
@@ -767,7 +876,12 @@
         // the server now draws it.
         var commitLanded = isCommit && mayAdvance;
         var commitRefused = isCommit && !confirmed;
-        var keepSections = commitLanded || commitRefused;
+        // Catching up redraws each section that holds nothing unsent. A
+        // session that ended (a colleague took the Case over) keeps every
+        // section, so what the operator typed stays to copy (FRD-14).
+        var catchingUp = !!(options && options.catchUp);
+        var editingEnded = catchingUp && incoming.getAttribute('data-case-editing') !== 'true';
+        var keepSections = commitLanded || commitRefused || catchingUp;
         // The section a head Edit was pressed on keeps its place; any other
         // swap keeps the section at the reading line.
         var saved = preferred || anchor();
@@ -781,10 +895,11 @@
                 if (lease && newLease && lease.value === command.editLeaseToken
                     && (!version || version.value === command.expectedVersion)) {
                     lease.value = newLease.value;
-                    if (version) { version.value = String(commit.version); }
+                    if (version) { version.value = incomingVersion; }
                 }
             });
             carryForward(parsed);
+            markSent(command.sent);
             // Staged crops and rotations are recorded now: Files is drawn
             // afresh from the response, and holds no typed control to lose.
             var form = caseForm();
@@ -805,9 +920,9 @@
         swapRoots.forEach(function (selector) {
             if (keepSections && (selector === '#case-main' || selector === '[data-case-viewer-host]')) { return; }
             if (commitRefused && selector !== '[data-case-notices]' && selector !== '[data-case-aside]') { return; }
-            // A dialog the operator has open stays open across a commit; its
-            // forms already carry the new authority.
-            if (commitLanded && selector === '[data-case-dialogs]' && openDialog) { return; }
+            // A dialog the operator has open stays open across a commit or a
+            // catch up; its forms already carry the new authority.
+            if ((commitLanded || catchingUp) && selector === '[data-case-dialogs]' && openDialog) { return; }
             var current = document.querySelector(selector);
             var next = parsed.querySelector(selector);
             if (!current || !next) {
@@ -824,6 +939,32 @@
             // The ribbon's status word says it; the notice would say it again.
             var confirmation = document.querySelector('[data-case-notices] [data-confirmation]');
             if (confirmation) { confirmation.remove(); }
+        }
+        var lazyRedrawn = [];
+        if (catchingUp && !editingEnded) {
+            // Each section that holds nothing unsent is drawn as the Case now
+            // stands. A nested section moves with its parent; one under a
+            // parent that stays is weighed on its own.
+            Array.prototype.forEach.call(parsed.querySelectorAll('#case-main .record-section[id]'), function (next) {
+                if (document.contains(next)) { return; }
+                var current = document.getElementById(next.id);
+                if (!current || !main.contains(current) || holdsUnsent(current)) { return; }
+                current.replaceWith(next);
+                if (next.hasAttribute('data-lazy')) { lazyRedrawn.push(next); }
+            });
+            // The forms kept as the operator has them, the Save form among
+            // them, take the Case's current authority.
+            var currentLease = incoming.querySelector('[name="editLeaseToken"]');
+            if (currentLease) {
+                Array.prototype.forEach.call(document.querySelectorAll('form'), function (form) {
+                    var lease = form.querySelector('[name="editLeaseToken"]');
+                    var version = form.querySelector('[name="expectedVersion"], [name="expectedCaseVersion"]');
+                    if (!lease) { return; }
+                    lease.value = currentLease.value;
+                    if (version) { version.value = incomingVersion; }
+                });
+            }
+            carryForward(parsed);
         }
         (commitRefused ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current', 'data-case-view']).forEach(function (name) {
             var value = incoming.getAttribute(name);
@@ -843,15 +984,25 @@
                 if (selected && selected.hasAttribute('data-lazy')) { mount(selected, applyTabState); }
             } else { applyScrollState(); }
         }
+        // A section that was loaded is loaded again as the Case now stands.
+        lazyRedrawn.forEach(function (placeholder) { mount(placeholder); });
+        if (catchingUp && !editingEnded) {
+            if (layout === 'tabs') { applyTabState(); } else { spy(); }
+        }
         updateSectionFields();
         measure();
         if (!keepSections) { keep(saved); }
         if (commitLanded) {
             setCommitStatus('saved', clockNow());
+            // Past the commit's own version: system work landed alongside it.
+            if (Number(incomingVersion) !== Number(command.expectedVersion) + 1) { catchUpWanted = true; }
         } else if (commitRefused) {
             var refusal = document.querySelector('[data-case-notices] [role="alert"]');
             setCommitStatus('refused', refusal ? refusal.textContent.trim() : 'The change was not saved.');
             abandonWaiters();
+            // The refusal drew only the notices and the aside: the rest of
+            // the Case, and the ribbon's authority, catch up next.
+            catchUpWanted = true;
         } else if (incoming.getAttribute('data-case-editing') !== 'true') {
             setCommitStatus(null);
         }
@@ -953,7 +1104,7 @@
         } : null;
         var isCommit = !!command && command.editor === 'case-edit-form'
             && record.getAttribute('data-case-editing') === 'true';
-        if (isCommit) { commitInFlight = true; setCommitStatus('saving'); }
+        if (isCommit) { commitInFlight = true; setCommitStatus('saving'); command.sent = sendingState(form); }
         var done = false;
         var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
         var method = ((submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get').toUpperCase();
@@ -1016,7 +1167,13 @@
                 : isCommit
                     ? error.message + ' Your last change was not saved; it is still on the page.'
                     : error.message + ' Your last change is still on the page.';
-            if (isCommit) { setCommitStatus('refused', error.message); abandonWaiters(); }
+            if (isCommit) {
+                setCommitStatus('refused', error.message);
+                abandonWaiters();
+                // Whether it landed or not, the page reads the Case's
+                // authority again; the change stays on the page unsent.
+                catchUpWanted = true;
+            }
             showActionError(failure);
         }).finally(function () {
             form.removeAttribute('aria-busy');
@@ -2251,20 +2408,27 @@
 
 
 // --- valuation -----------------------------------------------------------------
-// --- Valuation: the calculator's preview, basis cards and additions -----------
-// The lines are Core's arithmetic: every change posts the selection to the
-// PreviewValuation handler and the returned partial replaces the lines. The
-// calculator's controls and the Basis radios belong to the Case form, so the
-// ribbon Save records a changed calculation (one Save, 23 September 2026).
-// Choosing a card fills the Retail and Trade boxes in place, and each
-// calculation fills the Engineer's Value box; the operator may overtype any
-// of them (operator, 26 September 2026).
+// --- Valuation: the calculator's preview, source rows and additions -----------
+// The figures are Core's arithmetic: every change posts the selection to the
+// PreviewValuation handler. The proposal it answers fills the Engineer's Value
+// box, which is the one place the figure stands, and the commercial VAT and
+// previous total loss amounts go to their cells' label lines (operator,
+// 6 October 2026). The calculator's controls and the Basis radios belong to
+// the Case form, so the Case's save records a changed calculation (one Save,
+// 23 September 2026). Choosing a source fills the Retail and Trade boxes in
+// place and moves the calculation under its row; the operator may overtype
+// any of the three boxes (operator, 26 September 2026).
 //
 // The preview shows what the Save will use (operator, 28 September 2026): it
 // posts the chosen card's retail as typed and the claimant's VAT position as
 // the form holds it, so an unsaved figure is calculated, not the recorded one.
-// While a preview is pending the lines are dimmed, and a failed one says so;
+// While a preview is pending the amounts are dimmed, and a failed one says so;
 // a calculation Core cannot work out shows its own reason.
+//
+// The section head's figure and the recorded source's word on the Engineer's
+// Value label are the Case as saved: each commit carries them forward and
+// they are redrawn then, with no reload. The word shows only while the box
+// holds the recorded calculation's figure.
 //
 // Use this value on a card is the visible decision to use that card's figure:
 // it chooses the card as the basis, fills the boxes, and switches on the
@@ -2296,8 +2460,10 @@
             }
             calc.dataset.valuationBound = 'true';
             var section = calc.closest('.record-section') || document;
-            var host = section.querySelector('[data-valuation-lines-host]');
+            var host = section.querySelector('[data-valuation-preview-host]');
             var basisName = section.querySelector('[data-valuation-basis-name]');
+            var open = section.querySelector('[data-valuation-open]');
+            var savedInput = section.querySelector('[data-valuation-recorded-state]');
             var sourceInput = section.querySelector('[data-valuation-source-input]');
             var useInput = section.querySelector('[data-valuation-use-input]');
             var previewUrl = calc.getAttribute('data-preview-url');
@@ -2325,26 +2491,56 @@
             }
 
             function busy(on) {
-                if (!host) { return; }
-                if (on) { host.setAttribute('aria-busy', 'true'); } else { host.removeAttribute('aria-busy'); }
+                if (on) { calc.setAttribute('aria-busy', 'true'); } else { calc.removeAttribute('aria-busy'); }
             }
 
-            // The lines could not be refreshed: say so where the figure was,
-            // rather than leaving the last figure standing as if it were current.
+            // What each adjustment comes to, in its own cell's label line:
+            // Core's amounts from the preview, or nothing where there are none.
+            function paintAmounts(proposal) {
+                ['vat', 'ptl'].forEach(function (name) {
+                    var cell = section.querySelector('[data-valuation-amount="' + name + '"]');
+                    if (cell) {
+                        cell.textContent = proposal ? (proposal.getAttribute('data-valuation-' + name + '-amount') || '') : '';
+                    }
+                });
+            }
+
+            // The calculation could not be refreshed: say so, rather than
+            // leaving the last amounts standing as if they were current.
             function showFailure() {
                 if (!host) { return; }
-                var lines = document.createElement('div');
-                lines.className = 'lines';
-                lines.setAttribute('data-valuation-lines', '');
                 var notice = document.createElement('div');
                 notice.className = 'notice notice--danger';
                 notice.setAttribute('role', 'alert');
                 notice.setAttribute('data-valuation-error', '');
                 notice.textContent = calc.getAttribute('data-text-preview-failed')
                     || 'The calculation could not be updated.';
-                lines.appendChild(notice);
                 host.textContent = '';
-                host.appendChild(lines);
+                host.appendChild(notice);
+                paintAmounts(null);
+            }
+
+            // The Case as saved: the section head's figure, and the recorded
+            // source's word on the Engineer's Value label while the box holds
+            // the recorded calculation's figure. A commit carries the saved
+            // state forward, so both follow it with no reload; a figure typed
+            // over the calculation takes the word away at once.
+            function paintSaved(landed) {
+                var state = null;
+                try { state = savedInput ? JSON.parse(savedInput.value) : null; } catch (_) { /* An unreadable state redraws nothing. */ }
+                if (!state) { return; }
+                var head = section.querySelector('[data-valuation-head]');
+                if (landed && head && state.head) { head.textContent = state.head; }
+                var word = section.querySelector('[data-valuation-recorded-word]');
+                var box = section.querySelector('[data-valuation-value="engineer"]');
+                if (!word || !box) { return; }
+                var holds = state.value !== null && state.word
+                    && parseFloat(box.value) === parseFloat(state.value);
+                word.hidden = !holds;
+                if (holds) {
+                    word.textContent = state.word;
+                    word.classList.toggle('src-tag--ai', !!state.research);
+                }
             }
 
             // The Engineer's Value box holds the last calculated figure until
@@ -2396,6 +2592,7 @@
                     busy(false);
                     host.innerHTML = html;
                     var proposal = host.querySelector('[data-valuation-proposal]');
+                    paintAmounts(proposal);
                     if (proposal) {
                         lastProposal = proposal.getAttribute('data-valuation-proposal');
                         fill(section, '[data-valuation-value="engineer"]', lastProposal);
@@ -2422,11 +2619,16 @@
                 timer = window.setTimeout(preview, 250);
             }
 
-            // The chosen card is drawn selected and named in the calculator's head.
+            // The chosen source is drawn selected, named in the calculator's
+            // head, and opens: the calculation and the three values move to
+            // stand under its row.
             function markChosen(card, name) {
                 section.querySelectorAll('[data-valuation-card]').forEach(function (other) {
                     other.classList.toggle('sel', other === card);
                 });
+                if (open && card && open.previousElementSibling !== card) {
+                    card.after(open);
+                }
                 if (basisName) {
                     basisName.textContent = 'from ' + (name || 'guide') + ' retail';
                 }
@@ -2485,7 +2687,16 @@
                 }
                 schedule();
             });
+            section.addEventListener('pegasus:carried-forward', function (event) {
+                if (event.target === savedInput) { paintSaved(true); }
+            });
             section.addEventListener('input', function (event) {
+                if (event.target && event.target.matches
+                    && event.target.matches('[data-valuation-value="engineer"]')) {
+                    // Typed or filled: the recorded source's word stands only
+                    // beside the recorded calculation's own figure.
+                    paintSaved(false);
+                }
                 if (event.isTrusted && event.target && event.target.matches
                     && event.target.matches('[data-valuation-value="engineer"]')) {
                     // Typed over by the Engineer: that figure is their own, so

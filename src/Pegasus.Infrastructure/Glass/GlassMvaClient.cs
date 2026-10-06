@@ -33,7 +33,8 @@ internal sealed class GlassMvaStageException(
     /// What the provider's own answer said, in numbers and flags only, for
     /// the host log, or the export reader's reason after
     /// <see cref="GlassReaderReason"/> has cut it to position numbers, field
-    /// names and code values. Never a registration, a body, a token or a URL.
+    /// names and code values, or <c>regex=timeout</c> when the adapter's own
+    /// read budget ran out. Never a registration, a body, a token or a URL.
     /// </summary>
     public string? Detail { get; } = detail;
 }
@@ -49,6 +50,7 @@ internal static class GlassFailure
     public const string LoginRequest = "glass.login.request";
     public const string LoginCsrf = "glass.login.csrf";
     public const string LoginRedirect = "glass.login.redirect";
+    public const string LoginRejected = "glass.login.rejected";
     public const string LoginLanding = "glass.login.landing";
     public const string LookupRequest = "glass.lookup.request";
     public const string LookupNotFound = "glass.lookup.notfound";
@@ -80,16 +82,17 @@ internal static class GlassFailure
     public const string StartStatus = "glass.start.status";
     public const string StartUrl = "glass.start.url";
     public const string StartCaller = "glass.start.caller";
+    public const string StartEreId = "glass.start.ere_id";
     public const string RelayRequest = "glass.relay.request";
     public const string RelayShape = "glass.relay.shape";
     public const string RelayEstimate = "glass.relay.ere_id";
     public const string RelayOutcome = "glass.relay.outcome";
-    public const string ExportRequest = "glass.export.request";
+    public const string ExportRequest = GlassRepairEstimateSessionPolicy.ExportRequestFailureCode;
     public const string ExportNone = "glass.export.none";
-    public const string ExportAmbiguous = "glass.export.ambiguous";
-    public const string ExportOffOrigin = "glass.export.off_origin";
-    public const string DownloadRequest = "glass.download.request";
-    public const string DownloadOversize = "glass.download.oversize";
+    public const string ExportAmbiguous = GlassRepairEstimateSessionPolicy.ExportAmbiguousFailureCode;
+    public const string ExportOffOrigin = GlassRepairEstimateSessionPolicy.ExportOffOriginFailureCode;
+    public const string DownloadRequest = GlassRepairEstimateSessionPolicy.DownloadRequestFailureCode;
+    public const string DownloadOversize = GlassRepairEstimateSessionPolicy.DownloadOversizeFailureCode;
     public const string ExportUnreadable = GlassRepairEstimateSessionPolicy.ExportUnreadableFailureCode;
     public const string ExportEmpty = "glass.export.empty";
     public const string IdentityRegistration = "glass.identity.registration";
@@ -136,12 +139,17 @@ internal sealed record GlassEstimateLaunch(string EreId, Uri OriginalCallback, U
 /// </para>
 ///
 /// <para>
-/// <b>Nothing retries blindly.</b> Only the candidate list is read again,
-/// and only when the provider answered readable JSON that reported nothing
-/// yet: twice more, 250 ms apart, because the portal's own page reads it
-/// after the lookup and a list that is not ready is an empty answer, not a
-/// refusal. The plate search itself is never repeated; the portal does not
-/// repeat it either. Vehicle creation, inserting a placeholder and starting
+/// <b>Nothing retries blindly.</b> Only two reads are repeated. The candidate
+/// list is read again, and only when the provider answered readable JSON that
+/// reported nothing yet: twice more, 250 ms apart, because the portal's own
+/// page reads it after the lookup and a list that is not ready is an empty
+/// answer, not a refusal. A vehicle created moments earlier has its detail
+/// fragments proved once more, 500 ms later, when the first reading does not
+/// identify it, and only on a launch (the gateway repeats it): two of 28
+/// launches on 2 October 2026 failed that proof on a new vehicle and
+/// succeeded moments later with nothing changed (issue 1030), and the reads
+/// change nothing at Glass's. The plate search itself is never repeated; the
+/// portal does not repeat it either. Vehicle creation, inserting a placeholder and starting
 /// the estimate change state inside the Glass's account, so a lost answer to
 /// any of them is reported as unknown rather than repeated.
 /// </para>
@@ -193,6 +201,14 @@ internal sealed partial class GlassMvaClient(
     /// </summary>
     private const int MaximumTextBytes = 4 * 1024 * 1024;
 
+    /// <summary>
+    /// How long any one pattern below may take to match. Every pattern is
+    /// bounded, so this guards against a stalled host, not against
+    /// backtracking: the 100 ms it replaced ran out on the sign-in page's
+    /// first read after a restart (issue 1021, 5 October 2026).
+    /// </summary>
+    private const int MatchTimeoutMilliseconds = 1000;
+
     /// <summary>The grid every stock and export stage addresses.</summary>
     private const string Grid = "stocklistGrid";
 
@@ -206,15 +222,17 @@ internal sealed partial class GlassMvaClient(
     /// <summary>
     /// Signs in and proves the session is authenticated (stages 1–4): read the
     /// login page, take its single-use CSRF token, post the form, require a
-    /// same-origin redirect rather than a re-rendered login form, and require
-    /// the landing page to be the stock list and not the login form again.
+    /// same-origin redirect rather than a re-rendered login form, refuse the
+    /// redirect to the portal's "Login failed" page as a rejected credential,
+    /// and require the landing page to be the stock list and not the login
+    /// form again.
     /// </summary>
     public async Task SignInAsync(string username, string password, CancellationToken cancellationToken)
     {
         var login = options.MarketValueAssessor("login/index");
         var page = await TextAsync(
             new HttpRequestMessage(HttpMethod.Get, login), ajax: false, GlassFailure.LoginRequest, cancellationToken);
-        var csrf = CsrfToken().Match(page);
+        var csrf = Matched(() => CsrfToken().Match(page), GlassFailure.LoginCsrf);
         if (!csrf.Success)
         {
             throw new GlassMvaStageException(GlassFailure.LoginCsrf);
@@ -240,6 +258,18 @@ internal sealed partial class GlassMvaClient(
             // following an off-origin redirect would carry this session's
             // cookies to whatever host named itself.
             throw new GlassMvaStageException(GlassFailure.LoginRedirect);
+        }
+
+        // The portal answers a rejected credential with a redirect to its own
+        // "Login failed" page (glassesvaluation.har, 1 October 2026). Nothing
+        // follows it and nothing signs in again: another attempt is another
+        // failed sign-in on an account that may be shared.
+        if (string.Equals(
+            Absolute(location, login).AbsolutePath.TrimEnd('/'),
+            options.MarketValueAssessor("login/login-failed").AbsolutePath,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new GlassMvaStageException(GlassFailure.LoginRejected);
         }
 
         var landing = await TextAsync(
@@ -325,7 +355,7 @@ internal sealed partial class GlassMvaClient(
             ajax: true,
             GlassFailure.ReportRequest,
             cancellationToken);
-        var links = Links(answer, ReportLink());
+        var links = Links(answer, ReportLink(), GlassFailure.ReportRequest);
         return links.Count switch
         {
             1 when options.IsMarketValueAssessor(links[0]) => links[0],
@@ -430,20 +460,54 @@ internal sealed partial class GlassMvaClient(
     /// Proves the created vehicle is the one the estimate will be started for
     /// (stages 12–14): its detail fragments load and its valuation page names
     /// both the requested repair profile and the type number the lookup
-    /// settled on.
+    /// settled on. <paramref name="estimateStarted"/> says whether the
+    /// provider has already allocated an estimate on this vehicle, which
+    /// changes what its repair-profile control looks like (see
+    /// <see cref="VehicleControlsAsync"/>).
     /// </summary>
     public async Task RequireVehicleAsync(
         string vehicleId, string natCode, string registration, long mileageMiles,
-        CancellationToken cancellationToken)
+        bool estimateStarted, CancellationToken cancellationToken)
     {
-        var inputs = await VehicleControlsAsync(vehicleId, cancellationToken);
-        if (string.IsNullOrWhiteSpace(natCode) || Field(inputs, "id") != vehicleId || Field(inputs, "natcode") != natCode
-            || !GlassRepairEstimateSessionPolicy.SameRegistration(Field(inputs, "registration_number"), registration)
-            || !long.TryParse(Field(inputs, "mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
-            || mileage != mileageMiles)
+        var inputs = await VehicleControlsAsync(vehicleId, estimateStarted, cancellationToken);
+        var refusal =
+            IdentityRefusal(inputs, "id", "id", Field(inputs, "id") == vehicleId)
+            ?? (string.IsNullOrWhiteSpace(natCode)
+                // The session holds no type number to compare the control with.
+                ? "control=natcode state=absent"
+                : IdentityRefusal(inputs, "natcode", "natcode", Field(inputs, "natcode") == natCode))
+            ?? IdentityRefusal(inputs, "registration", "registration_number",
+                GlassRepairEstimateSessionPolicy.SameRegistration(Field(inputs, "registration_number"), registration))
+            ?? IdentityRefusal(inputs, "mileage", "mileage",
+                long.TryParse(Field(inputs, "mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
+                    && mileage == mileageMiles);
+        if (refusal is not null)
         {
-            throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+            throw new GlassMvaStageException(GlassFailure.DetailsIdentity, detail: refusal);
         }
+    }
+
+    /// <summary>
+    /// The first identity control that failed its proof, as flags for the
+    /// host log (never a value), or null when it held: the control by the
+    /// name the operator guide uses, and <c>absent</c> when the page has no
+    /// usable control of that name, <c>contradictory</c> when its repeats
+    /// disagree, or <c>different</c> when it names another vehicle.
+    /// </summary>
+    private static string? IdentityRefusal(
+        Dictionary<string, string>[] inputs, string control, string name, bool proved)
+    {
+        if (proved)
+        {
+            return null;
+        }
+
+        var controls = inputs.Where(input => input.GetValueOrDefault("name") == name).ToArray();
+        var state = controls.Length == 0 || controls.All(input => input.ContainsKey("disabled")) ? "absent"
+            : controls.Select(input => input.ContainsKey("disabled") ? null : input.GetValueOrDefault("value"))
+                .Distinct(StringComparer.Ordinal).Count() > 1 ? "contradictory"
+            : "different";
+        return $"control={control} state={state}";
     }
 
     /// <summary>
@@ -455,9 +519,9 @@ internal sealed partial class GlassMvaClient(
     /// when the session already recorded it) and the repair profile.
     /// </summary>
     public async Task<string> RequirePlaceholderAsync(
-        string vehicleId, string? natCode, CancellationToken cancellationToken)
+        string vehicleId, string? natCode, bool estimateStarted, CancellationToken cancellationToken)
     {
-        var inputs = await VehicleControlsAsync(vehicleId, cancellationToken);
+        var inputs = await VehicleControlsAsync(vehicleId, estimateStarted, cancellationToken);
         var stated = Field(inputs, "natcode");
         if (Field(inputs, "id") != vehicleId
             || string.IsNullOrEmpty(stated) || !stated.All(char.IsAsciiDigit)
@@ -474,10 +538,16 @@ internal sealed partial class GlassMvaClient(
     /// Stages 12–14's reads: the vehicle's detail fragments and its valuation
     /// page, whose named controls are the only things that establish identity
     /// (scripts, comments and unrelated text can carry the right numbers for
-    /// the wrong vehicle), and which must offer the configured repair profile.
+    /// the wrong vehicle), and whose repair-profile control must say the
+    /// configured profile. Before an estimate exists the control is enabled
+    /// and must offer that profile. Once <c>start-ere</c> has allocated one
+    /// the portal locks the control and marks the profile that started the
+    /// estimate selected (<c>glasses12.har</c> entries 1826 and 1840,
+    /// 7 September 2026), so after a start the control must be disabled with
+    /// exactly that profile selected (operator, 5 October 2026, issue 1026).
     /// </summary>
     private async Task<Dictionary<string, string>[]> VehicleControlsAsync(
-        string vehicleId, CancellationToken cancellationToken)
+        string vehicleId, bool estimateStarted, CancellationToken cancellationToken)
     {
         await TextAsync(
             new HttpRequestMessage(
@@ -501,31 +571,64 @@ internal sealed partial class GlassMvaClient(
             ajax: true,
             GlassFailure.DetailsRequest,
             cancellationToken);
-        try
+        // Only named controls establish identity. Scripts, comments and unrelated
+        // text in the page can contain the right numbers for the wrong vehicle.
+        return Matched(() =>
         {
-            // Only named controls establish identity. Scripts, comments and unrelated
-            // text in the page can contain the right numbers for the wrong vehicle.
             var controls = InertHtml().Replace(value, string.Empty);
             var inputs = InputControl().Matches(controls).Cast<Match>()
                 .Select(match => Attributes(match.Groups[1].Value)).ToArray();
             var profiles = SelectControl().Matches(controls).Cast<Match>()
                 .Where(match => Attributes(match.Groups[1].Value).GetValueOrDefault("name") == "ere_profile")
                 .ToArray();
-            if (profiles.Length != 1 || Attributes(profiles[0].Groups[1].Value).ContainsKey("disabled")
-                || !OptionControl().Matches(profiles[0].Groups[2].Value).Cast<Match>()
-                    .Select(match => Attributes(match.Groups[1].Value))
-                    .Any(option => !option.ContainsKey("disabled")
-                        && option.GetValueOrDefault("value") == options.RepairProfileId))
+            if (ProfileRefusal(profiles, estimateStarted) is { } refusal)
             {
-                throw new GlassMvaStageException(GlassFailure.DetailsProfile);
+                throw new GlassMvaStageException(GlassFailure.DetailsProfile, detail: $"profile={refusal}");
             }
 
             return inputs;
-        }
-        catch (RegexMatchTimeoutException)
+        }, GlassFailure.DetailsIdentity);
+    }
+
+    /// <summary>
+    /// Why the repair-profile control is not what the vehicle's phase
+    /// requires, as a flag for the host log (never a value), or null when it
+    /// is: <c>absent</c> or <c>multiple</c> when there is not exactly one
+    /// control; <c>disabled</c> before a start when the control is locked;
+    /// <c>enabled</c> after a start when it is not locked; <c>option</c> when
+    /// the configured profile is not the option the phase requires — an
+    /// enabled one before a start, the one selected option after it.
+    /// </summary>
+    private string? ProfileRefusal(Match[] profiles, bool estimateStarted)
+    {
+        if (profiles.Length != 1)
         {
-            throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+            return profiles.Length == 0 ? "absent" : "multiple";
         }
+
+        var disabled = Attributes(profiles[0].Groups[1].Value).ContainsKey("disabled");
+        if (disabled != estimateStarted)
+        {
+            return disabled ? "disabled" : "enabled";
+        }
+
+        var offered = OptionControl().Matches(profiles[0].Groups[2].Value).Cast<Match>()
+            .Select(match => Attributes(match.Groups[1].Value))
+            .ToArray();
+        if (estimateStarted)
+        {
+            var selected = offered.Where(option => option.ContainsKey("selected")).ToArray();
+            return selected.Length == 1
+                && !selected[0].ContainsKey("disabled")
+                && selected[0].GetValueOrDefault("value") == options.RepairProfileId
+                    ? null
+                    : "option";
+        }
+
+        return offered.Any(option => !option.ContainsKey("disabled")
+            && option.GetValueOrDefault("value") == options.RepairProfileId)
+                ? null
+                : "option";
     }
 
     /// <summary>
@@ -550,7 +653,19 @@ internal sealed partial class GlassMvaClient(
                 WebUtility.HtmlDecode(match.Groups[2].Success ? match.Groups[2].Value
                     : match.Groups[3].Success ? match.Groups[3].Value : match.Groups[4].Value)))
             {
-                throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+                // An attribute stated twice cannot be read as either: say which
+                // identity control it sat on, when the tag had named one.
+                var control = attributes.GetValueOrDefault("name") switch
+                {
+                    "id" => "id",
+                    "natcode" => "natcode",
+                    "registration_number" => "registration",
+                    "mileage" => "mileage",
+                    _ => null,
+                };
+                throw new GlassMvaStageException(
+                    GlassFailure.DetailsIdentity,
+                    detail: control is null ? "state=duplicate" : $"control={control} state=duplicate");
             }
         }
         return attributes;
@@ -602,9 +717,19 @@ internal sealed partial class GlassMvaClient(
     /// Never retried. <c>start-ere</c> allocates the estimate inside the Glass's
     /// account, so a lost answer leaves an estimate that may exist; the gateway
     /// records that as unknown and a person reconciles it.
+    ///
+    /// <para>
+    /// A start that reopens a session's estimate passes that session's
+    /// <paramref name="expectedEstimateIds"/>, as the portal reopens one with
+    /// <c>ere_id</c> 0 on the vehicle and the provider answers the estimate
+    /// that vehicle holds. An answer naming any other estimate is refused as
+    /// unknown — a start with id 0 may have created one — and its URL is
+    /// never returned. A first start passes none, and any answer is recorded.
+    /// </para>
     /// </remarks>
     public async Task<GlassEstimateLaunch> StartEstimateAsync(
-        string existingEreId, Uri pegasusCallback, CancellationToken cancellationToken)
+        string existingEreId, Uri pegasusCallback, IReadOnlyCollection<string>? expectedEstimateIds,
+        CancellationToken cancellationToken)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, options.MarketValueAssessor("ere/start-ere"))
         {
@@ -628,7 +753,18 @@ internal sealed partial class GlassMvaClient(
             throw new GlassMvaStageException(GlassFailure.StartUrl, outcomeUnknown: true);
         }
 
-        return Rewrite(launch, pegasusCallback);
+        var launched = Rewrite(launch, pegasusCallback);
+        if (expectedEstimateIds is not null && !expectedEstimateIds.Contains(launched.EreId, StringComparer.Ordinal))
+        {
+            // The answered id is a provider number; anything else is not repeated.
+            var answered = launched.EreId.All(char.IsAsciiDigit) ? launched.EreId : "non-numeric";
+            throw new GlassMvaStageException(
+                GlassFailure.StartEreId,
+                outcomeUnknown: true,
+                detail: $"expected_ids={expectedEstimateIds.Count} answered={answered}");
+        }
+
+        return launched;
     }
 
     /// <summary>
@@ -655,7 +791,8 @@ internal sealed partial class GlassMvaClient(
         }.Uri;
         var request = new HttpRequestMessage(HttpMethod.Get, relay);
         request.Headers.Referrer = options.EstimatorBaseUri;
-        var html = await TextAsync(request, ajax: false, GlassFailure.RelayRequest, cancellationToken);
+        var html = await TextAsync(
+            request, ajax: false, GlassFailure.RelayRequest, cancellationToken, redirectOutcomeUnknown: true);
 
         var arguments = CallbackArguments(html);
         if (arguments.Count != 10)
@@ -692,7 +829,7 @@ internal sealed partial class GlassMvaClient(
                 ajax: true,
                 GlassFailure.ExportRequest,
                 cancellationToken);
-            var links = Links(grid, ExportLink());
+            var links = Links(grid, ExportLink(), GlassFailure.ExportRequest);
             if (links.Count == 1)
             {
                 return options.IsMarketValueAssessor(links[0])
@@ -753,7 +890,7 @@ internal sealed partial class GlassMvaClient(
             throw new GlassMvaStageException(GlassFailure.StartUrl, outcomeUnknown: true);
         }
 
-        var callerMatch = CallbackPath().Match(stated["caller"]);
+        var callerMatch = Matched(() => CallbackPath().Match(stated["caller"]), GlassFailure.StartCaller, outcomeUnknown: true);
         if (!Uri.TryCreate(stated["caller"], UriKind.Absolute, out var caller)
             || !callerMatch.Success
             || !options.IsMarketValueAssessor(caller)
@@ -855,16 +992,13 @@ internal sealed partial class GlassMvaClient(
                 detail: detail);
         }
 
-        try
+        return Matched(() =>
         {
             var html = InertHtml().Replace(body, string.Empty);
             var boxes = ValueBox().Matches(html);
-            return new(Figure(html, boxes, "three_phase_transacted"), Figure(html, boxes, "three_phase_glass_trade"));
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new GlassMvaStageException(GlassFailure.ValuationUnreadable);
-        }
+            return new GlassGuideFigures(
+                Figure(html, boxes, "three_phase_transacted"), Figure(html, boxes, "three_phase_glass_trade"));
+        }, GlassFailure.ValuationUnreadable);
     }
 
     private static decimal Figure(string html, MatchCollection boxes, string boxId)
@@ -983,14 +1117,14 @@ internal sealed partial class GlassMvaClient(
     private static int CandidateOrdinal(JsonElement candidates, string natCode)
     {
         var html = Text(candidates, "html") ?? string.Empty;
-        var blocks = CandidateBlock().Matches(html);
+        var blocks = Matched(() => CandidateBlock().Matches(html).ToArray(), GlassFailure.CandidatesRequest);
         var matched = 0;
         var ordinal = 0;
-        for (var index = 0; index < blocks.Count; index++)
+        for (var index = 0; index < blocks.Length; index++)
         {
             var candidate = blocks[index];
             var position = int.Parse(candidate.Groups[1].Value, CultureInfo.InvariantCulture);
-            var end = index + 1 < blocks.Count ? blocks[index + 1].Index : html.Length;
+            var end = index + 1 < blocks.Length ? blocks[index + 1].Index : html.Length;
             if (html.AsSpan(candidate.Index, end - candidate.Index).Contains(natCode, StringComparison.Ordinal))
             {
                 matched++;
@@ -1054,12 +1188,36 @@ internal sealed partial class GlassMvaClient(
     }
 
     /// <summary>Every download link of one kind a page offers, as absolute addresses.</summary>
-    private List<Uri> Links(string html, Regex link) =>
-        [.. link.Matches(html)
-            .Select(match => Absolute(
-                new Uri(WebUtility.HtmlDecode(match.Groups[1].Value), UriKind.RelativeOrAbsolute),
-                options.MarketValueAssessorBaseUri))
-            .Distinct()];
+    private List<Uri> Links(string html, Regex link, string failureCode) =>
+        Matched(
+            () => link.Matches(html)
+                .Select(match => Absolute(
+                    new Uri(WebUtility.HtmlDecode(match.Groups[1].Value), UriKind.RelativeOrAbsolute),
+                    options.MarketValueAssessorBaseUri))
+                .Distinct()
+                .ToList(),
+            failureCode);
+
+    /// <summary>
+    /// One read of a provider page by a pattern. The patterns below are
+    /// bounded, so their match budget guards against a stalled host, not
+    /// against backtracking; a budget that runs out is the stage's own
+    /// refusal, with <c>regex=timeout</c> as its detail, and never a
+    /// transport failure. A stage that may already have acted at the
+    /// provider says so, as it does for any other refusal.
+    /// </summary>
+    internal static T Matched<T>(Func<T> match, string failureCode, bool outcomeUnknown = false)
+    {
+        ArgumentNullException.ThrowIfNull(match);
+        try
+        {
+            return match();
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            throw new GlassMvaStageException(failureCode, outcomeUnknown, "regex=timeout");
+        }
+    }
 
     /// <summary>
     /// The month Glass's values against, in Europe/London — the provider's own
@@ -1097,12 +1255,17 @@ internal sealed partial class GlassMvaClient(
         bool ajax,
         string failureCode,
         CancellationToken cancellationToken,
-        bool outcomeUnknown = false)
+        bool outcomeUnknown = false,
+        bool redirectOutcomeUnknown = false)
     {
         using var response = await SendAsync(request, ajax, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new GlassMvaStageException(failureCode, outcomeUnknown);
+            // A redirect where the provider's answer was expected (the sign-in
+            // page, say) leaves open whether the request was acted on first.
+            throw new GlassMvaStageException(
+                failureCode,
+                outcomeUnknown || (redirectOutcomeUnknown && (int)response.StatusCode is >= 300 and < 400));
         }
 
         var content = await ReadAsync(response, MaximumTextBytes, failureCode, outcomeUnknown, cancellationToken);
@@ -1237,64 +1400,64 @@ internal sealed partial class GlassMvaClient(
             : null;
 
     [GeneratedRegex(@"<!--.*?-->|<(script|style)\b[^>]*>.*?</\1\s*>",
-        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex InertHtml();
 
     [GeneratedRegex("<input\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex InputControl();
 
     [GeneratedRegex("<select\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>(.*?)</select\\s*>",
-        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex SelectControl();
 
     [GeneratedRegex("<option\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex OptionControl();
 
     [GeneratedRegex("([a-zA-Z_:][a-zA-Z0-9_:.-]*)(?:\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+)))?",
-        RegexOptions.CultureInvariant, 100)]
+        RegexOptions.CultureInvariant, MatchTimeoutMilliseconds)]
     private static partial Regex HtmlAttribute();
 
     [GeneratedRegex(
         @"name=""csrf_token""[^>]{0,200}?value=""([0-9a-fA-F]{32})""",
         RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex CsrfToken();
 
     [GeneratedRegex(
         @"^https://[^/]+/ere/ere-callback/ere_id/(\d+)/ere_session/([^/?]+)$",
         RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex CallbackPath();
 
     [GeneratedRegex(
         @"class=""three_phase_car_info car(\d+)""",
         RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex CandidateBlock();
 
     [GeneratedRegex(
         @"href=""([^""]{0,400}?/ndp_download/[^""]{0,200}?\.xml)""",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex ExportLink();
 
     [GeneratedRegex(
         @"href=""([^""]{0,400}?/ndp_download/[^""]{0,200}?\.pdf)""",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex ReportLink();
 
     [GeneratedRegex(
         @"<div\b[^>]*\bid=""(three_phase_[a-z_]+)""[^>]*\bclass=""three_phase_value_box""",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex ValueBox();
 
     [GeneratedRegex(
         @"class=""three_phase_value_text""\s*>([^<]*)<",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
+        MatchTimeoutMilliseconds)]
     private static partial Regex ValueText();
 }

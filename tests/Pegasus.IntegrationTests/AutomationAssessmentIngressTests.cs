@@ -135,9 +135,11 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(1, handedOff.Version);
         }
         lease = await BeginEditAsync(client, token, caseId, 1, rpcId: 87);
+        // Under a proven lease only a version the Case has not reached is
+        // refused; an older one is system work having moved the Case.
         foreach (var arguments in new[]
         {
-            Arguments(0, lease.LeaseToken, occurrenceId, hash, "mcp:stale-import"),
+            Arguments(2, lease.LeaseToken, occurrenceId, hash, "mcp:future-version-import"),
             Arguments(1, "wrong-lease", occurrenceId, hash, "mcp:wrong-lease"),
             Arguments(1, lease.LeaseToken, Guid.NewGuid(), hash, "mcp:foreign-source"),
             Arguments(1, lease.LeaseToken, currentOccurrenceId, hash, "mcp:mismatched-version"),

@@ -1,0 +1,88 @@
+diff --git a/tests/Pegasus.IntegrationTests/CaseValuationV26WebTests.cs b/tests/Pegasus.IntegrationTests/CaseValuationV26WebTests.cs
+index a512a2c83..eadd8f118 100644
+--- a/tests/Pegasus.IntegrationTests/CaseValuationV26WebTests.cs
++++ b/tests/Pegasus.IntegrationTests/CaseValuationV26WebTests.cs
+@@ -1122,6 +1122,83 @@ public sealed class CaseValuationV26WebTests
+         Assert.Empty(store.Saves);
+     }
+ 
++    // TEMPORARY v33 capture, never committed: dumps the rendered Case page for the mockup round.
++    [Fact]
++    public async Task V33CaptureTemp()
++    {
++        var directory = Environment.GetEnvironmentVariable("PEGASUS_V33_CAPTURE");
++        if (string.IsNullOrWhiteSpace(directory))
++        {
++            return;
++        }
++        Directory.CreateDirectory(directory);
++
++        // As the operator's screenshots: Glass's fetched, nothing applied, no presets.
++        {
++            var store = new RecordingCaseDetailsStore { EngineerValue = "9064.00" };
++            var valuation = new RecordingValuationSection(store.CaseId);
++            valuation.AddGuide(ValuationSource.Glasses, 9_064m, 7_347m);
++            await File.WriteAllTextAsync(Path.Combine(directory, "read-fetched.html"), await ReadValuationAsync(store, valuation));
++            using var workspace = await EnterEngineerEditModeAsync(store, services =>
++            {
++                valuation.Register(services);
++                services.AddSingleton<IGuideValuationProvider>(new FakeGuideValuationProvider(ValuationSource.Glasses, 9_064m, 7_347m));
++            });
++            await File.WriteAllTextAsync(
++                Path.Combine(directory, "edit-fetched.html"),
++                await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation"));
++        }
++
++        // Nothing recorded at all.
++        {
++            var store = new RecordingCaseDetailsStore();
++            var valuation = new RecordingValuationSection(store.CaseId);
++            await File.WriteAllTextAsync(Path.Combine(directory, "read-empty.html"), await ReadValuationAsync(store, valuation));
++        }
++
++        // A recorded calculation, presets and an AI market research card.
++        {
++            var store = new RecordingCaseDetailsStore { EngineerValue = "13425.00" };
++            var valuation = new RecordingValuationSection(store.CaseId);
++            var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
++            valuation.AddGuide(ValuationSource.AiMarketResearch, 12_900m, 10_400m);
++            var towBar = valuation.AddPreset("Tow bar", 150m);
++            valuation.AddPreset("Roof bars", 90m);
++            valuation.SetApplied(glasses, towBar, 175m);
++            await File.WriteAllTextAsync(Path.Combine(directory, "read-applied.html"), await ReadValuationAsync(store, valuation));
++            using var workspace = await EnterEngineerEditModeAsync(store, services =>
++            {
++                valuation.Register(services);
++                services.AddSingleton<IGuideValuationProvider>(new FakeGuideValuationProvider(ValuationSource.Glasses, 12_500m, 10_250m));
++            });
++            await File.WriteAllTextAsync(
++                Path.Combine(directory, "edit-applied.html"),
++                await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation"));
++        }
++
++        // A figure typed over a recorded calculation.
++        {
++            var store = new RecordingCaseDetailsStore { EngineerValue = "8750.00" };
++            var valuation = new RecordingValuationSection(store.CaseId);
++            var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
++            var towBar = valuation.AddPreset("Tow bar", 150m);
++            valuation.SetApplied(glasses, towBar, 175m);
++            await File.WriteAllTextAsync(Path.Combine(directory, "read-own.html"), await ReadValuationAsync(store, valuation));
++        }
++
++        // Research pending.
++        {
++            var store = new RecordingCaseDetailsStore { EngineerValue = "9064.00" };
++            var valuation = new RecordingValuationSection(store.CaseId);
++            valuation.AddGuide(ValuationSource.Glasses, 9_064m, 7_347m);
++            valuation.SetPending(new DateOnly(2031, 5, 1));
++            using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
++            await File.WriteAllTextAsync(
++                Path.Combine(directory, "edit-pending.html"),
++                await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation"));
++        }
++    }
++
+     /// <summary>The scripted Glass's, answering the Case's own 42,000 miles.</summary>
+     private static ScriptedGlass ScriptedGlassFor42000Miles()
+     {

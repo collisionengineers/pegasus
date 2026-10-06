@@ -158,7 +158,7 @@ internal sealed class EfVehicleLookupWorkStore(
         var workflow = await context.CaseWorkflows
             .SingleAsync(item => item.CaseId == work.CaseId, cancellationToken);
         var beforeCaseVersion = workflow.Version;
-        CaseMutationGuard.Complete(workflow);
+        CaseMutationGuard.Advance(workflow);
         var lookupRequest = new VehicleLookupRequest(request.Registration);
         outcome.Result.EnsureValidFor(lookupRequest);
         var expectedMileage = VehicleMileagePolicy.Calculate(outcome.Result.MotTests);
@@ -257,11 +257,18 @@ internal sealed class EfVehicleLookupWorkStore(
         work.LeaseToken = null;
         work.LeaseExpiresAtUtc = null;
 
+        var filled = beforeAssessment.Keys.Union(afterAssessment.Keys, StringComparer.Ordinal)
+            .Where(path => !string.Equals(
+                beforeAssessment.GetValueOrDefault(path),
+                afterAssessment.GetValueOrDefault(path),
+                StringComparison.Ordinal))
+            .ToDictionary(path => path, path => beforeAssessment.GetValueOrDefault(path), StringComparer.Ordinal);
         var outcomeHistory = new VehicleOutcomeHistory(
             observationId,
             workItemId,
             work.AttemptCount,
-            ToCode(result.Outcome));
+            ToCode(result.Outcome),
+            filled.Count == 0 ? null : filled);
         var resultJson = JsonSerializer.Serialize(outcomeHistory, JsonOptions);
         var outcomeOperationKey = OutcomeOperationKey(workItemId, work.AttemptCount);
         context.CaseWorkflowEvents.Add(new()
@@ -664,9 +671,47 @@ internal sealed class EfVehicleLookupWorkStore(
 
     private sealed record MotTestEnvelope(int Version, MotTestObservation[] Observations);
 
+    /// <summary>
+    /// The assessment values lookups filled on the Case since
+    /// <paramref name="sinceVersion"/>, each with its value before the first of
+    /// them: what a Save prepared at that version shows for those fields.
+    /// </summary>
+    internal static async Task<IReadOnlyDictionary<string, string?>> FilledSinceAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        long sinceVersion,
+        CancellationToken cancellationToken)
+    {
+        var outcomes = await context.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == caseId
+                && item.AfterVersion > sinceVersion
+                && item.EventType.StartsWith("vehicle_lookup_")
+                && item.ResultJson != null)
+            .OrderBy(item => item.AfterVersion)
+            .Select(item => item.ResultJson!)
+            .ToListAsync(cancellationToken);
+        var filledFrom = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var json in outcomes)
+        {
+            var history = JsonSerializer.Deserialize<VehicleOutcomeHistory>(json, JsonOptions);
+            foreach (var (path, before) in history?.Filled ?? new Dictionary<string, string?>())
+            {
+                filledFrom.TryAdd(path, before);
+            }
+        }
+
+        return filledFrom;
+    }
+
+    /// <summary>
+    /// One lookup outcome's history. <see cref="Filled"/> is each assessment
+    /// value the outcome changed, with its value before.
+    /// </summary>
     private sealed record VehicleOutcomeHistory(
         Guid ObservationId,
         Guid WorkItemId,
         int AttemptNumber,
-        string Outcome);
+        string Outcome,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        IReadOnlyDictionary<string, string?>? Filled = null);
 }

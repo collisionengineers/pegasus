@@ -1,5 +1,9 @@
 using System.Net;
 using System.Text;
+using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 
 namespace Pegasus.IntegrationTests;
 
@@ -53,8 +57,8 @@ internal static class GlassProviderFixture
     /// <summary>The placeholder's detail form: no registration, no mileage, the unqualified type number.</summary>
     public static string PlaceholderDetail(
         string registration = "", long mileage = 0, string vehicleId = PlaceholderVehicleId,
-        string natCode = PlaceholderNatCode, string profile = ProfileId) =>
-        VehicleDetail(registration, mileage, vehicleId, natCode, profile);
+        string natCode = PlaceholderNatCode, string profile = ProfileId, bool locked = false) =>
+        VehicleDetail(registration, mileage, vehicleId, natCode, profile, locked);
 
     /// <summary>The operator's Save &amp; Exit, as the provider composes it.</summary>
     public const string SavedQuery =
@@ -72,16 +76,24 @@ internal static class GlassProviderFixture
         + Uri.EscapeDataString(
             caller ?? $"https://mva.test/ere/ere-callback/ere_id/{EreId}/ere_session/{EreSession}");
 
-    // Named fields and repeated id match the captured MVA detail form.
+    // Named fields and repeated id match the captured MVA detail form. Once an
+    // estimate exists the portal renders the repair-profile control locked with
+    // the profile that started it selected (glasses12.har entries 1826 and
+    // 1840), which is what locked serves.
     public static string VehicleDetail(string registration = Registration, long mileage = MileageMiles,
-        string vehicleId = VehicleId, string natCode = NatCode, string profile = ProfileId) => $"""
+        string vehicleId = VehicleId, string natCode = NatCode, string profile = ProfileId, bool locked = false) => $"""
         <form><input name="id" value="{vehicleId}" type="hidden" />
         <input name="natcode" value="{natCode}" type="hidden" />
         <input name="registration_number" value="{registration}" />
         <input name="mileage" value="{mileage}" /></form>
         <form><input name="id" value="{vehicleId}" type="hidden" />
-        <select name="ere_profile"><option value="{profile}">Repair profile</option></select></form>
+        {ProfileSelect(profile, locked)}</form>
         """;
+
+    private static string ProfileSelect(string profile, bool locked) => locked
+        ? "<select name=\"ere_profile\" id=\"ere_profile\" tabindex=\"6\" style=\"width:140px\" disabled=\"1\">"
+            + $"<option value=\"{profile}\" selected=\"selected\">Repair profile</option></select>"
+        : $"<select name=\"ere_profile\"><option value=\"{profile}\">Repair profile</option></select>";
 
     /// <summary>The provider answers this with a byte-order mark at both ends.</summary>
     public static string StartEre(string launchUrl) =>
@@ -95,8 +107,24 @@ internal static class GlassProviderFixture
     public const string StockedVehicleId = "33636950";
     public const string ReportPath = "/ndp_download/18390/pdf_v34638_20261001152551.pdf";
 
-    /// <summary>A valuation report: only its PDF signature is ever read.</summary>
-    public const string ReportPdf = "%PDF-1.4\n% synthetic valuation report\n%%EOF\n";
+    /// <summary>The valuation report for the fixture's own vehicle: a real PDF that names its plate.</summary>
+    public static byte[] ReportPdf { get; } = ValuationReport(Registration);
+
+    /// <summary>
+    /// A one-page "Values Only" report in the captured shape, whose text names
+    /// the vehicle's plate as Glass's prints it, so the filing's registration
+    /// check reads it as it reads the portal's own.
+    /// </summary>
+    public static byte[] ValuationReport(string registration)
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        var page = builder.AddPage(PageSize.A4);
+        page.AddText("Vehicle Valuation Report", 12, new PdfPoint(36, 780), font);
+        page.AddText("Synthetic Sportage 1.6 Station Wagon 5d", 10, new PdfPoint(36, 760), font);
+        page.AddText("- " + registration, 10, new PdfPoint(36, 745), font);
+        return builder.Build();
+    }
 
     /// <summary>
     /// The valuation page in the captured shape: a script first, the Glass's
@@ -183,6 +211,9 @@ internal static class GlassProviderFixture
         mva.Set("GET /index/get-selected-vehicle-count/grid/stocklistGrid", new(
             HttpStatusCode.OK, "{\"grid\":\"stocklistGrid\",\"error\":false,\"count\":\"1\"}"));
         mva.Set("POST /ere/start-ere", new(HttpStatusCode.OK, StartEre(LaunchUrl())));
+        // The portal locks the vehicle's repair-profile control as soon as
+        // start-ere has allocated the estimate (issue 1026).
+        LockProfileOnStart(mva, VehicleDetail(), VehicleDetail(locked: true));
         mva.Set("GET /ere/ere-callback/", new(
             HttpStatusCode.OK,
             Relay("\"928.3\", \"773.58\", \"0\", \"0\", \"352\", \"421.58\", \"0\", " + EreId + ", 1, \"\"")));
@@ -194,7 +225,8 @@ internal static class GlassProviderFixture
             ContentType: "application/xml"));
         mva.Set("GET /pdf-print/storess/template/0/printaction/vehicle-valuation/vehicles/", new(
             HttpStatusCode.OK, ReportLink()));
-        mva.Set("GET /ndp_download/18390/", new(HttpStatusCode.OK, ReportPdf, ContentType: "application/pdf"));
+        mva.Set("GET /ndp_download/18390/", new(
+            HttpStatusCode.OK, string.Empty, ContentType: "application/pdf", Bytes: ReportPdf));
     }
 
     /// <summary>
@@ -209,6 +241,36 @@ internal static class GlassProviderFixture
             "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
             new(HttpStatusCode.OK, UnknownPlate));
         mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, PlaceholderDetail()));
+        LockProfileOnStart(mva, PlaceholderDetail(), PlaceholderDetail(locked: true));
+    }
+
+    /// <summary>
+    /// After <c>start-ere</c> is answered the vehicle's details page is the
+    /// locked one, as the portal renders a vehicle that has an estimate. A
+    /// vehicle created or inserted afterwards has none yet, so a later launch
+    /// on the same script gets the open page back. Registering again replaces
+    /// the earlier hooks.
+    /// </summary>
+    private static void LockProfileOnStart(ScriptedGlass mva, string openPage, string lockedPage)
+    {
+        const string Details = "GET /index/vehicle-details-value/";
+        var locked = false;
+        mva.OnServed("POST /ere/start-ere", glass =>
+        {
+            glass.Set(Details, new(HttpStatusCode.OK, lockedPage));
+            locked = true;
+        });
+        foreach (var newVehicle in new[] { "GET /index/create-new-vehicle", "POST /index/unqualified-vehicle-insert" })
+        {
+            mva.OnServed(newVehicle, glass =>
+            {
+                if (locked)
+                {
+                    glass.Set(Details, new(HttpStatusCode.OK, openPage));
+                    locked = false;
+                }
+            });
+        }
     }
 }
 
@@ -227,7 +289,8 @@ public sealed record Reply(
     string Body,
     string? Location = null,
     string? SetCookie = null,
-    string ContentType = "text/html");
+    string ContentType = "text/html",
+    byte[]? Bytes = null);
 
 /// <summary>What one request carried, for the assertions that read it back.</summary>
 internal sealed record Recorded(
@@ -242,10 +305,20 @@ internal sealed class ScriptedGlass : HttpMessageHandler
 {
     private readonly Dictionary<string, Reply> standing = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Queue<Reply>> queued = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Action<ScriptedGlass>> hooks = new(StringComparer.Ordinal);
 
     public List<Recorded> Requests { get; } = [];
 
     public void Set(string route, Reply reply) => standing[route] = reply;
+
+    /// <summary>
+    /// Runs the action each time the route is chosen for a request, after its
+    /// reply is picked, so the provider's own state can move on as a result of
+    /// the call (a started estimate locks its vehicle's profile). One action
+    /// per route; registering again replaces it. Not on <see cref="Reply"/>,
+    /// which is theory data.
+    /// </summary>
+    public void OnServed(string route, Action<ScriptedGlass> served) => hooks[route] = served;
 
     public void Enqueue(string route, params Reply[] replies)
     {
@@ -285,10 +358,14 @@ internal sealed class ScriptedGlass : HttpMessageHandler
             : route is not null && standing.TryGetValue(route, out var standingReply)
                 ? standingReply
                 : new Reply(HttpStatusCode.NotFound, string.Empty);
+        if (route is not null && hooks.TryGetValue(route, out var served))
+        {
+            served(this);
+        }
 
         var response = new HttpResponseMessage(reply.Status)
         {
-            Content = new ByteArrayContent(Encoding.UTF8.GetBytes(reply.Body)),
+            Content = new ByteArrayContent(reply.Bytes ?? Encoding.UTF8.GetBytes(reply.Body)),
         };
         response.Content.Headers.TryAddWithoutValidation("Content-Type", reply.ContentType);
         if (reply.Location is not null)

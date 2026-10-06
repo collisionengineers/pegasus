@@ -1,0 +1,147 @@
+/* v33 mockup only. Everything a design adds to the live site.css and
+   case-workspace.css, scoped to the Valuation section. Tokens are the live
+   ones; no new colour, radius or spacing scale. */
+
+/* Sections other than Valuation are collapsed heads in this mockup. */
+.v33-frame .section-placeholder{display:none}
+
+/* An amount in a cell's label line. */
+#section-valuation .v-amt{float:right;margin-left:8px;font:600 11px var(--mono);letter-spacing:0;text-transform:none;color:var(--ink)}
+#section-valuation .v-none{font-size:12.5px;padding:6px 0 0}
+#section-valuation [data-out="record"]:empty,#section-valuation [data-out="calc-note"]:empty,#section-valuation [data-out="eng-tag"]:empty{display:none}
+#section-valuation [data-out="calc-note"] .notice{margin-top:10px}
+#section-valuation .fg.v-one{grid-template-columns:minmax(0,1fr)}
+
+/* The recorded calculation as one line: the live block's own three facts. */
+#section-valuation .v-record{display:flex;flex-wrap:wrap;gap:4px 22px;margin:10px 0 0;font-size:12.5px;border:0;background:transparent}
+#section-valuation .v-record .definition{display:flex;gap:8px;align-items:baseline;margin:0;padding:0;border:0}
+#section-valuation .v-record dt{color:var(--quiet);font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+#section-valuation .v-record dd{margin:0;min-width:0;font-size:12.5px;font-weight:400}
+
+/* AI market research with its own standing card. */
+#section-valuation .valuation-card.v-ai .val-month{min-width:0}
+#section-valuation .valuation-card.v-ai .val-month .fi{display:block}
+#section-valuation .v-ai-live{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* ---- sources as rows (C, D, E) ---- */
+#section-valuation .v-srcs{border:1px solid var(--line);border-radius:var(--radius);background:#fff;min-width:0}
+#section-valuation .v-src{display:grid;grid-template-columns:118px minmax(0,1fr) minmax(0,1fr) 150px 106px 116px;gap:6px 10px;align-items:start;padding:7px 10px;border-top:1px solid var(--line);min-width:0}
+#section-valuation .v-src--head{padding:7px 10px 0;border-top:0}
+#section-valuation .v-src--head+.v-src{border-top:0;padding-top:4px}
+#section-valuation .v-src--head .lbl{font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding-left:9px}
+#section-valuation .v-src-name{display:flex;align-items:center;flex-wrap:wrap;gap:2px 6px;min-height:30px;font-size:12.5px;font-weight:700;min-width:0}
+#section-valuation .v-src.sel{outline:2px solid var(--navy);outline-offset:-2px}
+.case-record.is-editing #section-valuation .v-src[tabindex="0"]{cursor:pointer}
+.case-record.is-editing #section-valuation .v-src[tabindex="0"]:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
+#section-valuation .v-src .fc .fv,#section-valuation .v-src .fc .fi{min-height:30px;padding:3px 8px;font-size:12.5px}
+#section-valuation .v-src-get{grid-column:5;grid-row:1;justify-self:end}
+#section-valuation .v-src-use{grid-column:6;grid-row:1;justify-self:end}
+#section-valuation .v-src-get .btn,#section-valuation .v-src-use .btn{white-space:nowrap}
+#section-valuation .v-src-note{grid-column:2/-1;grid-row:2;min-width:0;font-size:12px}
+#section-valuation .v-src-note .notice{margin:0;padding:5px 8px;font-size:12px}
+#section-valuation .v-src-note .notice .link-button{color:inherit;text-decoration:underline}
+#section-valuation .v-src.is-pending .fv{opacity:.65}
+#section-valuation .v-src--ai .v-src-name{display:block;padding-top:6px;line-height:1.35}
+#section-valuation .v-src--ai .v-src-name .src-tag{margin-left:4px}
+/* Reading: no buttons, so no column is kept for them. */
+.case-record:not(.is-editing) #section-valuation .v-srcs .v-src{grid-template-columns:118px minmax(0,1fr) minmax(0,1fr) 150px}
+.case-record:not(.is-editing) #section-valuation .v-src--head span:last-child{display:none}
+/* Two thirds of the width (C): Use this value keeps its column; the
+   provider's part, Get valuation or the notice, is the second line. */
+#section-valuation .v-srcs--stack5 .v-src{grid-template-columns:104px minmax(0,1fr) minmax(0,1fr) 128px 116px}
+#section-valuation .v-srcs--stack5 .v-src-use{grid-column:5}
+#section-valuation .v-srcs--stack5 .v-src-get{grid-column:2;grid-row:2;justify-self:start}
+#section-valuation .v-srcs--stack5 .v-src:has(.v-src-get) .v-src-note{grid-column:3/-1}
+/* A narrow pane (E): both buttons join the second line. */
+#section-valuation .v-srcs--stack .v-src{grid-template-columns:92px minmax(0,1fr) minmax(0,1fr) 124px}
+#section-valuation .v-srcs--stack .v-src--head span:last-child{display:none}
+#section-valuation .v-srcs--stack .v-src-use{grid-column:4;grid-row:2}
+#section-valuation .v-srcs--stack .v-src-get{grid-column:2;grid-row:2;justify-self:start}
+#section-valuation .v-srcs--stack .v-src-note{grid-column:2/4}
+#section-valuation .v-srcs--stack .v-src:has(.v-src-get) .v-src-note{grid-column:3/4}
+
+/* ---- A: the calculation directly under the three boxes ---- */
+#section-valuation[data-design="a"] .v-calc .adds,#section-valuation[data-design="d"] .v-calc .adds{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 14px}
+
+/* ---- B: worksheet ---- */
+#section-valuation .v-sheet{border:1px solid var(--line);border-radius:var(--radius);background:#fff}
+#section-valuation .v-sheet-head{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;margin:0;padding:10px 12px 8px}
+#section-valuation .v-row{display:grid;grid-template-columns:190px minmax(0,1fr) 170px;gap:12px;align-items:center;min-height:44px;padding:4px 12px;border-top:1px dashed var(--line);font-size:12.5px}
+#section-valuation .v-row-label{font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+#section-valuation .v-row-control{min-width:0}
+#section-valuation .v-row-control>.fc{max-width:280px}
+#section-valuation .v-row-control .v-basis{font-size:12px;color:var(--muted)}
+#section-valuation .v-row-amount{text-align:right;font-family:var(--mono);font-weight:600;white-space:nowrap;min-width:0}
+#section-valuation .v-row-amount .fv{justify-content:flex-end}
+#section-valuation .v-row-amount .fi{text-align:right}
+#section-valuation .v-row--add+.v-row--add{border-top:0}
+#section-valuation .v-row .add{grid-template-columns:20px minmax(0,1fr);max-width:420px}
+#section-valuation .v-row-amount .off{opacity:.55}
+#section-valuation .v-sheet-note:empty{display:none}
+#section-valuation .v-sheet-note{padding:0 12px 10px}
+#section-valuation .v-total{border-top:2px solid var(--ink);padding:10px 12px 12px;background:var(--surface-2);border-radius:0 0 var(--radius) var(--radius)}
+
+/* ---- C: three columns ---- */
+#section-valuation .v-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+#section-valuation .v-cols-left{grid-column:span 2;display:grid;gap:10px;min-width:0}
+#section-valuation .v-cols-right{min-width:0}
+#section-valuation .v-cols-right .fg.g2+.fg.v-one{margin-top:10px}
+
+/* ---- D: the chosen source opens ---- */
+#section-valuation .v-open{display:grid;gap:10px;padding:10px 12px 12px;border-top:1px solid var(--line);border-left:3px solid var(--navy);background:var(--surface-2)}
+#section-valuation .v-open .v-calc{background:#fff}
+#section-valuation .v-srcs+.v-open,#section-valuation .v-ai-live+.v-open{border:1px solid var(--line);border-left:3px solid var(--navy);border-radius:var(--radius)}
+
+/* ---- E: sources beside one pane for the value ---- */
+#section-valuation .v-panes{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:12px;align-items:start}
+#section-valuation .v-pane{min-width:0;display:grid;gap:10px;align-content:start}
+#section-valuation .v-pane>h3{margin-bottom:0}
+#section-valuation .v-pane .v-srcs{border:0}
+#section-valuation .v-pane .v-src,#section-valuation .v-pane .v-src--head{padding-left:0;padding-right:0}
+#section-valuation .v-pane .v-src.sel{outline-offset:3px}
+#section-valuation .v-pane .v-src--head{padding-bottom:4px}
+#section-valuation .v-pane-head{margin-top:4px}
+#section-valuation .v-pane .adds-head{margin:4px 0 0}
+#section-valuation .v-result{background:var(--surface-2)}
+#section-valuation .v-result .fi.chk.choice,#section-valuation .v-total .fi.chk.choice{background:transparent}
+#section-valuation .v-lines{border:0;padding:0;background:transparent}
+#section-valuation .v-lines[hidden]{display:none}
+#section-valuation .v-result-total .fv,#section-valuation .v-result-total .fi{font-size:15px;font-weight:600}
+
+@media(max-width:1180px){
+  #section-valuation .v-cols,#section-valuation .v-panes{grid-template-columns:minmax(0,1fr)}
+  #section-valuation .v-cols-left{grid-column:auto}
+  #section-valuation[data-design="a"] .v-calc .adds,#section-valuation[data-design="d"] .v-calc .adds{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #section-valuation .v-ai-live{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .case-record.is-editing #section-valuation .v-srcs .v-src{grid-template-columns:104px minmax(0,1fr) minmax(0,1fr) 128px 116px}
+  .case-record.is-editing #section-valuation .v-srcs .v-src-use{grid-column:5;grid-row:1}
+  .case-record.is-editing #section-valuation .v-srcs .v-src-get{grid-column:2;grid-row:2;justify-self:start}
+  .case-record.is-editing #section-valuation .v-srcs .v-src-note{grid-column:2/-1}
+  .case-record.is-editing #section-valuation .v-srcs .v-src:has(.v-src-get) .v-src-note{grid-column:3/-1}
+  .case-record.is-editing #section-valuation .v-srcs .v-src--head span:last-child{display:block}
+}
+@media(max-width:760px){
+  .case-record.is-editing #section-valuation .v-srcs .v-src,.case-record:not(.is-editing) #section-valuation .v-srcs .v-src{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  #section-valuation .v-srcs .v-src--head{display:none}
+  #section-valuation .v-srcs .v-src-name{grid-column:1/-1}
+  #section-valuation .v-srcs .v-src>.fc:nth-of-type(4){grid-column:1/-1}
+  .case-record.is-editing #section-valuation .v-srcs .v-src-get,.case-record.is-editing #section-valuation .v-srcs .v-src-use{grid-column:auto;grid-row:auto;justify-self:start}
+  .case-record.is-editing #section-valuation .v-srcs .v-src-note,.case-record.is-editing #section-valuation .v-srcs .v-src:has(.v-src-get) .v-src-note{grid-column:1/-1;grid-row:auto}
+  #section-valuation .v-row{grid-template-columns:minmax(0,1fr) 130px}
+  #section-valuation .v-row-label{grid-column:1/-1}
+  #section-valuation[data-design="a"] .v-calc .adds,#section-valuation[data-design="d"] .v-calc .adds,#section-valuation .v-ai-live{grid-template-columns:minmax(0,1fr)}
+}
+
+/* ---- mockup strip: demo control, not product UI ---- */
+.v33-mock{position:fixed;left:10px;bottom:10px;z-index:400;width:200px;background:#1d1d1f;color:#f3f1ec;border-radius:4px;font-size:12px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.v33-mock summary{cursor:pointer;padding:8px 12px;font-weight:650;list-style:none}
+.v33-mock summary::-webkit-details-marker{display:none}
+.v33-mock-body{display:grid;gap:8px;padding:4px 12px 12px;max-height:70vh;overflow:auto}
+.v33-mock nav{display:flex;gap:4px;flex-wrap:wrap}
+.v33-mock nav a{display:grid;place-items:center;min-width:30px;height:26px;padding:0 6px;border:1px solid #55524c;border-radius:3px;color:#f3f1ec;text-decoration:none;font-weight:600}
+.v33-mock nav a[aria-current="page"]{background:#f3f1ec;color:#1d1d1f}
+.v33-mock label{display:grid;gap:3px;color:#c9c5bc}
+.v33-mock select{width:100%;min-width:0;text-overflow:ellipsis;min-height:28px;border-radius:3px;border:1px solid #55524c;background:#2a2a2d;color:#f3f1ec;font:inherit;padding:2px 6px}
+.v33-mock p{margin:0;color:#a8a49b;line-height:1.5}
+.v33-mock a.plain{color:#f3f1ec}
+@media print{.v33-mock{display:none}}

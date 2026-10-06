@@ -84,6 +84,12 @@ unsaved edit and its Save are untouched.
   asked for.
 - Filing a document marks the Case's current report Stale, as any filed
   document does.
+- The filed report must name the Case registration in its own text (operator,
+  5 October 2026; issue 1032). A report that names another registration, or
+  none, is not filed, and the host log carries only `registration=different`
+  or `registration=absent`. Two presses' reports on the shared account can
+  therefore share a file name at Glass's without effect: a wrong-vehicle file
+  is refused, and no per-account serialisation is built.
 - A host restart before the queued report work runs loses that valuation's
   report; the figures and the stock-list entry stand.
 - The secrets and their grants are release steps: Bicep carries the references,

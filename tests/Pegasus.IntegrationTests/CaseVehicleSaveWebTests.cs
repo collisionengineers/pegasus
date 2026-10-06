@@ -218,7 +218,8 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // The save sent 43 until the lease it reclaims read only the Case's workflow row,
         // then 37, 35 once its edit basis read the data in two fewer commands, and 34 once
         // the save writes the work the request names and stales that work's report alone
-        // (the Inspection view edits, 2 October 2026).
+        // (the Inspection view edits, 2 October 2026), and 35 once it takes the workflow
+        // mutation lock every claim and heartbeat takes (6 October 2026).
         // Measured again at the lane's base (2ee268507) in this scenario: 62 and 43.
         Assert.True(
             pageCommands == CasePageCommands,
@@ -234,7 +235,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
 
     private const int CasePageCommands = 48;
 
-    private const int CaseSaveCommands = 34;
+    private const int CaseSaveCommands = 35;
 
     /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
@@ -320,7 +321,8 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // commit is 66 (the save and 31 for the answer) with 33,453 bytes. Before those
         // folds CI measured 105 (43 and 62) against 84 (43 and 41). The Next action's
         // linked-cancellation read (one statement) makes them 83 (35 and 48) and 67
-        // (the save and 32); the save at 34 makes them 82 and 66.
+        // (the save and 32); the save at 34 makes them 82 and 66, and at 35 (the workflow
+        // mutation lock) 83 and 67.
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");

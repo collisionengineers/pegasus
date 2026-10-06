@@ -482,7 +482,7 @@ internal sealed class EfExternalWorkStore(
                 {
                     var beforeVersion = workflow.Version;
                     workflow.State = CaseLifecycleState.NotReady.ToString();
-                    CaseMutationGuard.Complete(workflow);
+                    CaseMutationGuard.Advance(workflow);
                     context.CaseHistory.Add(new()
                     {
                         Id = Guid.NewGuid(),
@@ -649,7 +649,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 {
                     var beforeVersion = workflow.Version;
                     workflow.State = CaseLifecycleState.NotReady.ToString();
-                    CaseMutationGuard.Complete(workflow);
+                    CaseMutationGuard.Advance(workflow);
                     context.CaseHistory.Add(new()
                     {
                         Id = Guid.NewGuid(),

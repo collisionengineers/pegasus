@@ -70,6 +70,17 @@ public sealed partial class DetailsModel
     /// <summary>The listed Create audit is live: its dialog renders and its button opens it.</summary>
     public bool CanCreateAudit => OffersCreateAudit && CreateAuditCondition is null;
 
+    /// <summary>
+    /// Assign Engineer is live: a Review Case whose data the viewer may act on,
+    /// with an eligible Engineer to choose. Its dialog renders, and the Actions
+    /// menu and the Next action both open it (issue 1025).
+    /// </summary>
+    public bool CanAssignEngineer =>
+        Case is { Workflow.State: CaseLifecycleState.Review }
+        && !ColleagueIsEditing
+        && !IsPostReportReadOnly
+        && EvaHandoff is { EngineerOptions.Count: > 0 };
+
     /// <summary>The Audit reference the dialog announces: <c>a.{Case/PO}</c>.</summary>
     public string? ProposedAuditReference =>
         Case is { } details

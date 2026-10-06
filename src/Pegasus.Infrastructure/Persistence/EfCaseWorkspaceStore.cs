@@ -63,6 +63,9 @@ public sealed class EfCaseWorkspaceStore(
                 cancellationToken);
         }
 
+        // The same lock every claim, heartbeat and lifecycle write takes, so
+        // none of them interleaves with this save's read of the workflow.
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var workflow = await context.CaseWorkflows
             .Include(item => item.DueWork)
             .Include(item => item.Case)
@@ -70,12 +73,12 @@ public sealed class EfCaseWorkspaceStore(
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
 
-        CaseMutationGuard.RequireVersion(workflow, request.ExpectedVersion);
+        var now = UtcNow();
+        CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
         AssessmentPolicy.RequireOriginalReportScope(
             CaseWorkspacePolicy.AssessmentFields(request).Keys,
             CaseTypeCodes.Parse(workflow.Case.Type));
-        var now = UtcNow();
-        CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
         ArchivedCaseGuard.RequireMutable(workflow);
         // Read the persisted configuration under the same transaction as the
         // guarded Case so the readiness written below is never based on a
@@ -165,8 +168,21 @@ public sealed class EfCaseWorkspaceStore(
             context, snapshot, registrationBefore, cancellationToken);
         assessmentFields.RemoveAll(item => removedLookupFacts.Contains(item));
         var requestedFields = CaseWorkspacePolicy.AssessmentFields(request);
+        if (request.ExpectedVersion < workflow.Version && workId == currentWorkId)
+        {
+            // System work moved the version under this lease: a lookup that
+            // filled the work since the page read it keeps what it filled.
+            requestedFields = CaseWorkspacePolicy.KeepSystemFills(
+                request.CaseId,
+                request.ExpectedVersion,
+                workflow.Version,
+                requestedFields,
+                await EfVehicleLookupWorkStore.FilledSinceAsync(
+                    context, request.CaseId, request.ExpectedVersion, cancellationToken),
+                assessmentFields.ToDictionary(
+                    item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal));
+        }
         var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields, request.Actor.Kind);
-        AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
             workId,

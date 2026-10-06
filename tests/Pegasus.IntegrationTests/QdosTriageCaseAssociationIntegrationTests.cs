@@ -251,16 +251,18 @@ public sealed partial class QdosTriageIntegrationTests
             1,
             actor,
             "claim-second-case-association-lease");
+        // Under a proven lease an older version is system work having moved
+        // the Case; only a version the Case has not reached is refused.
         var staleCaseVersionRequest = consumedLeaseRequest with
         {
-            ExpectedCaseVersion = 0,
+            ExpectedCaseVersion = 2,
             OperationKey = "unlink-case-with-stale-version",
-            Reason = "A stale canonical workflow version must fail",
+            Reason = "A canonical workflow version the case has not reached must fail",
             CaseEditLeaseToken = secondCaseLease.Token
         };
         var staleCaseVersion = await Assert.ThrowsAsync<CaseVersionConflictException>(
             () => unlink.ExecuteAsync(staleCaseVersionRequest, CancellationToken.None));
-        Assert.Equal(0, staleCaseVersion.ExpectedVersion);
+        Assert.Equal(2, staleCaseVersion.ExpectedVersion);
         Assert.Equal(1, staleCaseVersion.ActualVersion);
 
         var wrongCaseTokenRequest = staleCaseVersionRequest with

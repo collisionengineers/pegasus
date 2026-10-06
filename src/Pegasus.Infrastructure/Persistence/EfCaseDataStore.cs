@@ -97,7 +97,7 @@ public sealed class EfCaseDataStore(
             context,
             request.CaseId,
             cancellationToken);
-        RequireVersion(workflow, request.ExpectedVersion);
+        RequireVersionUnderLease(workflow, request.ExpectedVersion);
         RequireLease(workflow, request.Actor, request.EditLeaseToken, UtcNow());
         ArchivedCaseGuard.RequireMutable(workflow);
         if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
@@ -262,8 +262,8 @@ public sealed class EfCaseDataStore(
         return tracking ? query : query.AsNoTracking();
     }
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
+    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
 
     private static void RequireLease(
         CaseWorkflowEntity workflow,

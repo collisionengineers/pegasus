@@ -232,14 +232,24 @@ public interface IFileGuideValuationReport
 /// the provider's PDF, named for the source, registration and month. It is
 /// retained as a Case artifact — not added as a staff document — so filing it
 /// neither moves the Case's version nor touches the edit session the Engineer
-/// may still have open with the figures unsaved.
+/// may still have open with the figures unsaved. The report is kept only when
+/// its own text names the Case registration (operator, 5 October 2026): the
+/// provider's shared account makes a file for another vehicle possible, and
+/// such a file is refused with a flags-only reason, never the plate.
 /// </summary>
-public sealed class FileGuideValuationReport(ICaseArtifactCustody custody) : IFileGuideValuationReport
+public sealed class FileGuideValuationReport(ICaseArtifactCustody custody, IExtractPdfPageText pdfText)
+    : IFileGuideValuationReport
 {
     public const string MediaType = "application/pdf";
 
+    /// <summary>A valuation report is one page; this bounds what is read of any other answer.</summary>
+    private const int MaximumTextCharacters = 20_000;
+
     private readonly ICaseArtifactCustody _custody =
         custody ?? throw new ArgumentNullException(nameof(custody));
+
+    private readonly IExtractPdfPageText _pdfText =
+        pdfText ?? throw new ArgumentNullException(nameof(pdfText));
 
     public async Task<CaseArtifactCustodyResult> ExecuteAsync(
         FileGuideValuationReportRequest request,
@@ -262,6 +272,20 @@ public sealed class FileGuideValuationReport(ICaseArtifactCustody custody) : IFi
         if (!IsPdf(content))
         {
             throw new InvalidOperationException("The provider's valuation report is not a PDF.");
+        }
+
+        var extraction = await _pdfText.ExtractAsync(content, MaximumTextCharacters, cancellationToken);
+        var pages = extraction?.Pages.Where(page => !string.IsNullOrWhiteSpace(page.Text)).ToArray() ?? [];
+        if (pages.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "The provider's valuation report names no registration (registration=absent).");
+        }
+
+        if (!pages.Any(page => GlassRepairEstimateSessionPolicy.NamesRegistration(page.Text, request.Registration)))
+        {
+            throw new InvalidOperationException(
+                "The provider's valuation report names another registration (registration=different).");
         }
 
         // The key is the provider's record of the valuation, never the Case

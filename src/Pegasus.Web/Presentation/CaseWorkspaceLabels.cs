@@ -14,7 +14,7 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public static class CaseWorkspaceLabels
 {
-    public const string HandToEngineer = "Hand to Engineer";
+    public const string AssignEngineer = "Assign Engineer";
 
     /// <summary>
     /// The v26 frame's own words: the ribbon controls, the Actions menu, the
@@ -23,7 +23,6 @@ public static class CaseWorkspaceLabels
     public static class Frame
     {
         public const string EditCase = "Edit Case";
-        public const string EditingExpired = "Editing expired · changes are not kept";
         public const string Edit = "Edit";
         /// <summary>
         /// Save as you go (operator, 29 September 2026): Done ends the session,
@@ -40,7 +39,6 @@ public static class CaseWorkspaceLabels
         public const string Tabs = "Tabs";
         public const string CollapseSection = "Collapse section";
         public const string ExpandSection = "Expand section";
-        public const string RenewEditing = "Renew editing";
         public const string TakeOver = "Take over";
         public const string Editing = "Editing";
         public const string Archived = "Archived";
@@ -797,16 +795,25 @@ public static class CaseWorkspaceLabels
         public const string ClaimantVatRegistered = "Claimant is VAT registered";
         public const string ValueIncreases = "Value increases";
         public const string OtherAddition = "Other…";
-        public const string AppliedEngineersValue = "Applied Engineer's Value";
         public const string NoneYet = "None yet";
-        public const string AppliedBy = "Applied by";
-        public const string Adjustments = "Adjustments";
-        public const string NoAdjustments = "None";
         public const string Applied = "Applied";
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
-        public const string GuideRetail = "Guide retail";
-        public const string ProposedEngineersValue = "Proposed Engineer's Value";
+
+        /// <summary>
+        /// What an adjustment comes to, shown in its own cell's label line
+        /// (operator, 6 October 2026): the commercial VAT added and the
+        /// previous total loss taken off, each empty where it does not apply.
+        /// </summary>
+        public static string VatAmount(ValuationCalculation calculation) =>
+            calculation.CommercialVatApplied
+                ? "+ " + ValuationCalculationPolicy.FormatMoney(calculation.CommercialVatAmount)
+                : string.Empty;
+
+        public static string PriorTotalLossAmount(ValuationCalculation calculation) =>
+            calculation.PriorTotalLossPercentage is null
+                ? string.Empty
+                : "− " + ValuationCalculationPolicy.FormatMoney(calculation.PriorTotalLossAmount);
 
         // Use this value (operator, 28 September 2026): the visible action that
         // says "use this card's figure". The Save records it on the one Case Save.
@@ -814,7 +821,7 @@ public static class CaseWorkspaceLabels
         public const string UsingThisValue = "Using this value";
         public const string UseNeedsRetail = "Enter the retail value on this card to use it.";
 
-        // The calculation lines say why they cannot show a figure, never "None yet".
+        // The calculation says why it cannot be worked out, never "None yet".
         public const string PreviewFailed = "The calculation could not be updated. Change a figure to try again.";
         public const string PresetChanged = "A value increase changed since the page opened. Refresh the page.";
         public const string BasisGone = "The chosen card is no longer on the Case. Refresh the page.";
