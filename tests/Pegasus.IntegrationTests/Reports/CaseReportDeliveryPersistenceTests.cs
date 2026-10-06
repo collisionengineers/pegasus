@@ -331,7 +331,7 @@ public sealed class CaseReportDeliveryPersistenceTests
             .ListAsync(harness.CaseId, CancellationToken.None);
         var facts = await harness.FactsAsync();
 
-        Assert.Equal([new FiledEstimateAttachment(filed, ReportDispatchPolicy.AudatexProvider)], listed);
+        Assert.Equal([new FiledEstimateAttachment(filed, Pegasus.Core.Assessment.EstimateFormats.AudatexProvider)], listed);
         Assert.Equal(listed, facts!.FiledEstimates);
     }
 
@@ -890,7 +890,7 @@ public sealed class CaseReportDeliveryPersistenceTests
         /// </summary>
         public async Task<StaffMailAttachment> SeedFiledEstimateAsync(
             bool? recognised = true,
-            string? provider = ReportDispatchPolicy.AudatexProvider,
+            string? provider = Pegasus.Core.Assessment.EstimateFormats.AudatexProvider,
             bool removed = false,
             bool current = true,
             DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed,
