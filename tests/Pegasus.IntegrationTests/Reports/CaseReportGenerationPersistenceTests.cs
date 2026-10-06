@@ -1174,20 +1174,6 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     [Fact]
-    public async Task SameOperationKeyWithChangedReportPackagingIsAConflict()
-    {
-        await using var harness = await Harness.CreateAsync();
-        await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
-            .ExecuteAsync(harness.Request(), CancellationToken.None);
-
-        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
-            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
-                .ExecuteAsync(harness.Request(includeFeeNote: true), CancellationToken.None));
-
-        Assert.False((await harness.GenerationRowsAsync()).Single().Snapshot.Report.IncludeFeeNote);
-    }
-
-    [Fact]
     public async Task SameOperationKeyWithChangedTargetGenerationIsAConflict()
     {
         await using var harness = await Harness.CreateAsync();
@@ -1370,26 +1356,6 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Single((await harness.GenerationRowsAsync()).Single().Artifacts);
     }
 
-    [Fact]
-    public async Task SeparateFeeNoteIsRefusedWhenTheReportAlreadyContainsIt()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
-            .ExecuteAsync(harness.Request(includeFeeNote: true), CancellationToken.None);
-
-        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
-                .ExecuteAsync(
-                    harness.Request(
-                        CaseReportArtifactKind.FeeNote,
-                        "case-report-fee-embedded",
-                        targetGenerationId: report.Generation!.Id),
-                    CancellationToken.None));
-
-        Assert.Contains("unavailable", refusal.Message, StringComparison.Ordinal);
-        Assert.Single((await harness.GenerationRowsAsync()).Single().Artifacts);
-    }
-
     /// <summary>
     /// Once the Audit exists, the Inspection report already sent is generated
     /// again on its own work (operator, 2 October 2026): the new generation
@@ -1557,46 +1523,6 @@ public sealed class CaseReportGenerationPersistenceTests
             0,
             await harness.Store.MarkStaleAsync(
                 harness.CaseId, CaseReportStaleReasons.EstimateChanged, CancellationToken.None));
-    }
-
-    /// <summary>
-    /// R34B: choosing the combined document freezes that choice in the
-    /// immutable snapshot and still produces exactly one artifact, under the
-    /// report's own file name. The fee note is inside those bytes, so no
-    /// second fee-note artifact is written.
-    /// </summary>
-    [Fact]
-    public async Task TheCombinedReportFreezesItsPackagingChoiceAndStoresOneArtifact()
-    {
-        await using var harness = await Harness.CreateAsync();
-
-        var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
-            .ExecuteAsync(harness.Request(includeFeeNote: true), CancellationToken.None);
-
-        Assert.Equal(CaseReportGenerationOutcome.Generated, generated.Outcome);
-        var artifact = Assert.Single(generated.Generation!.Artifacts);
-        Assert.Equal(CaseReportArtifactKind.AssessmentReport, artifact.Kind);
-        Assert.Equal(CaseReportArtifactStatus.Confirmed, artifact.Status);
-        Assert.DoesNotContain("fee_note", artifact.FileName, StringComparison.OrdinalIgnoreCase);
-        Assert.True(generated.Generation.Snapshot.Report.IncludeFeeNote);
-
-        // Reloaded from the persisted snapshot JSON, not from the caller's
-        // request: an issued report renders the same way again.
-        var reloaded = await harness.Store.GetCurrentAsync(
-            harness.StaffActor, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
-        Assert.True(reloaded!.Snapshot.Report.IncludeFeeNote);
-        Assert.Single(reloaded.Artifacts);
-
-        // The plain report is a different frozen deliverable, so it freezes
-        // its own generation rather than reusing the combined one.
-        var plain = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
-            .ExecuteAsync(
-                harness.Request(CaseReportArtifactKind.AssessmentReport, "case-report-plain"),
-                CancellationToken.None);
-
-        Assert.NotEqual(generated.Generation.Id, plain.Generation!.Id);
-        Assert.False(plain.Generation.Snapshot.Report.IncludeFeeNote);
-        Assert.Equal(2, (await harness.GenerationRowsAsync()).Count);
     }
 
     [Fact]
@@ -2044,10 +1970,9 @@ public sealed class CaseReportGenerationPersistenceTests
         public GenerateCaseReportRequest Request(
             CaseReportArtifactKind kind = CaseReportArtifactKind.AssessmentReport,
             string operationKey = OperationKey,
-            bool includeFeeNote = false,
             Guid? targetGenerationId = null) => new(
                 StaffActor, CaseId, 1, Lease.Token, operationKey, kind,
-                "Generate the immutable case report", includeFeeNote, targetGenerationId);
+                "Generate the immutable case report", targetGenerationId);
 
         public async Task<CaseReportFreezeInputs?> ReadSourceAsync(IGetAssessmentWorkspace? workspace = null)
         {
