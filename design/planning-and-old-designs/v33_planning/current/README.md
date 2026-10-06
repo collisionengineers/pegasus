@@ -23,13 +23,17 @@ Every state is also reachable by query string: `state=` and `opt=record:line,ai:
 | [pegasus_valuation_e_v33.html](pegasus_valuation_e_v33.html) | E · Side by side |
 | [pegasus_valuation_live_v33.html](pegasus_valuation_live_v33.html) | Today: the captured section in six states |
 | [build-valuation-designs.mjs](build-valuation-designs.mjs) | `node build-valuation-designs.mjs` rebuilds all seven files from `captured/`, `lib/` and the live CSS in this checkout |
-| [captured/](captured/capture-test.patch) | The Case page as rendered (read and edit), the Valuation section in six states, and the temporary test that produced them |
+| [captured/](captured/capture-test.patch) | The Case page as rendered before the change (read and edit), the Valuation section in six states, and the temporary tests that produced those pages and the Stage 2 ones |
 | [lib/](lib/valuation-fixtures.mjs) | The five designs' descriptions and states, the design CSS and the runtime |
 | [check-valuation-designs.py](check-valuation-designs.py) | Self-check and screenshot capture (Playwright) |
 | [v33-valuation-shots/](v33-valuation-shots/verification.json) | Screenshots and the dated self-check record |
+| [check-valuation-implementation.py](check-valuation-implementation.py) | Stage 2: the implemented section opened with the application's own stylesheet and scripts, checked and screenshot |
+| [v33-conformance/](v33-conformance/verification.json) | Stage 2: screenshots of the implemented section in seven states and the dated check record |
 | [v33-notes.md](v33-notes.md) | What changes, live rules mirrored, departures, lettered sign-off items, known limits |
 | [discussion-log.md](discussion-log.md) | The operator's brief and each round |
 
 ## Status
 
-Stage 1 is delivered and waiting. Nothing in the application has changed. Items A to O in [v33-notes.md](v33-notes.md) await the operator; Stage 2 starts only when they are settled.
+On 6 October 2026 the operator chose design D and settled items A to N ([v33-notes.md](v33-notes.md), section 9). Stage 2, the Razor implementation of D, was delivered in the same pull request; FRD-16 and FRD-24 own the behaviour from then on. Item O is open: this folder is kept as historical reference until the operator says otherwise.
+
+The mockup pages were built before Stage 2 from the stylesheet as it then stood. Rebuilding them from this checkout would restyle Today's captured section with the new stylesheet, so the committed pages are the record.

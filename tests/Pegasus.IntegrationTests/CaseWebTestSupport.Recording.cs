@@ -274,10 +274,17 @@ internal static partial class CaseWebTestSupport
             SaveCaseWorkspaceRequest request, CancellationToken cancellationToken) =>
             ((ISaveCaseWorkspace)this).ExecuteAsync(request, cancellationToken);
 
+        /// <summary>The Engineer's Value the Case holds, for a test that needs one saved.</summary>
+        public string? EngineerValue { get; set; }
+
         private CaseAssessmentProjection EngineeringAssessment() => new(
             CaseId, "QDOS3100042", CaseVersion, State, null,
             [new(AssessmentVocabulary.ReportDate, "2031-05-06", ActorKind.Staff,
-                "recorded-engineer", _now)],
+                "recorded-engineer", _now),
+             .. EngineerValue is null
+                ? Array.Empty<AssessmentFieldValue>()
+                : [new AssessmentFieldValue(AssessmentVocabulary.ValueEngineer, EngineerValue, ActorKind.Staff,
+                    "recorded-engineer", _now)]],
             [], new("AB12CDE", null, null, null, null, null, "tbc", null, DateOnly.FromDateTime(_now.UtcDateTime), null, null,
                 null, "Case claimant", "CLM-42"));
 

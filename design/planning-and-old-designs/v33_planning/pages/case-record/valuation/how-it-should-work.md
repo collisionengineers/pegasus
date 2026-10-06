@@ -1,6 +1,6 @@
 # Valuation: how it should work
 
-Nothing here is decided yet. The operator's brief of 6 October 2026 named three problems; the rules below are proposals, each open until Stage 1 sign-off. The lettered items are in [v33-notes.md](../../../current/v33-notes.md).
+Decided with the operator on 6 October 2026: design D, and the answers recorded under "Decided" below. The lettered items are in [v33-notes.md](../../../current/v33-notes.md).
 
 ## What the operator has already settled
 
@@ -9,14 +9,14 @@ Nothing here is decided yet. The operator's brief of 6 October 2026 named three 
 
 ## Proposed rules
 
-- **D3.** The Engineer's Value box is the only place the figure stands in the section; there is no "Proposed Engineer's Value" total and no "Applied Engineer's Value" block. *Open: item B.*
-- **D4.** The calculation is drawn against the box it fills, in the place the chosen design gives it. *Open: items A and H.*
-- **D5.** The section head's figure and the recorded calculation are redrawn by each save. *Open: item C.*
-- **D6.** A recorded calculation is shown only while the box holds its figure, and never as "None yet". *Open: items D and E.*
-- **D7.** AI market research has one standing place among the sources. *Open: item F.*
-- **D8.** On the report closes the section. *Open: item G.*
-- **D9.** The sources are drawn as the chosen design draws them, with the same boxes, buttons and notice. *Open: items I and J.*
-- **D10.** What a save records is unchanged. *Open: items K, L and M.*
+- **D3.** The Engineer's Value box is the only place the figure stands in the section; there is no "Proposed Engineer's Value" total and no "Applied Engineer's Value" block.
+- **D4.** The sources are rows. The chosen one opens: the calculation, then the three values, stand under its row. With no source chosen that block closes the list.
+- **D5.** The section head's figure and the recorded source's word are redrawn by each save.
+- **D6.** While the Engineer's Value holds a recorded calculation's figure, its label carries that calculation's source as one word, the calculator opens on that calculation and that source opens while reading. A different figure saved over it shows none of that, and the page never reads "None yet" beside a figure.
+- **D7.** AI market research has its own standing row with its figures, its Valuation month and its own Get valuation.
+- **D8.** On the report closes the section.
+- **D9.** A source row holds the same three boxes, the same two buttons and the same notice a card held.
+- **D10.** What a save records is unchanged.
 
 ## Where this lands
 
@@ -33,3 +33,13 @@ Nothing here is decided yet. The operator's brief of 6 October 2026 named three 
 - `docs/design/README.md`, Valuation: cards or rows, the calculation's place.
 - `.agents/skills/pegasus-ui-guardrails/references/case-workspace.md`, Valuation: the same, and the three values' place if item H reverses it.
 - Tests that pin today's markup: `CaseValuationV26WebTests`, `CaseValuationWebTests`, `CaseWorkspaceScriptContractTests`.
+
+## Decided 6 October 2026
+
+- Design D ("Option D").
+- The recorded calculation shows as the source's word on the Engineer's Value label (item D).
+- AI market research has its own row (item F).
+- A figure typed over a recorded calculation hides the record (item E).
+- The recording rule stays (item L).
+- Items B, C, G, J, K and M: taken as drawn or as today; the operator was told so and asked for no change.
+- Open: whether this planning folder is kept or removed (item O).

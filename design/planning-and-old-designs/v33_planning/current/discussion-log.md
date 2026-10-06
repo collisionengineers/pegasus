@@ -23,3 +23,20 @@ Chronological. The operator's words are quoted; the rest records what was explor
 **No question was put to the operator before building.** The brief named the problems and the count; the choices it leaves open are the lettered items.
 
 **Items raised.** A to O in [v33-notes.md](v33-notes.md).
+
+## Round 2 — 6 October 2026
+
+**The choice** (operator): "Option D"
+
+**Four questions put to the operator before Stage 2**, because each changes what is built, with the option design D's page showed listed first. The operator chose that option each time:
+
+1. Item D, how a recorded calculation shows: "Source word".
+2. Item F, where AI market research sits: "Own row".
+3. Item E, a figure typed over a recorded calculation: "Hide the record".
+4. Item L, the recording rule: "Keep the rule".
+
+The operator was told in the same message that items B, C, G, H, I, J, K and M would be taken as drawn in D or as today's rule. No change was asked for.
+
+**What was built.** Design D in the application, with the FRD-16, FRD-24, design authority and guardrail edits in the same pull request. The departures from the mockup are in [v33-notes.md](v33-notes.md), section 9.
+
+**Items closed.** A to N. Item O (this folder kept or removed) stays open.

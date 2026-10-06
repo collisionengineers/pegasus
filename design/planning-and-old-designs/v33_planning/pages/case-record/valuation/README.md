@@ -20,6 +20,8 @@ The three values; the sources (five guide sources and AI market research); the c
 
 `current/v33-valuation-shots/NN-<design>-<state>-<width>.png`: `00`–`17` for three states of today's section and of each design at 1580, 1440 and 760; `18`–`37` for four more states of each design at 1580. Each is the whole section. The count and the section heights are in `verification.json`.
 
+`current/v33-conformance/<state>-<width>.png`: the implemented section in seven states at 1580, 1440 and 760, for comparison with design D's shots.
+
 ## Notes
 
 See [v33-notes.md](../../../current/v33-notes.md).

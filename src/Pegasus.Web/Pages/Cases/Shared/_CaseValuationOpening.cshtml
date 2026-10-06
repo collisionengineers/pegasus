@@ -1,8 +1,15 @@
 @*
-    The calculation the last commit recorded (selection.Opening): a commit
-    records a calculation that differs from it, so the script carries the new
-    one forward after every commit. The Valuation calculator renders it while
-    editing, and a commit answered in place renders it again.
+    What a commit moves on in the Valuation section, carried forward by the
+    script after every commit. The calculator renders it while editing, and a
+    commit answered in place renders it again.
+
+    - selection.Opening: the calculation the last commit recorded. A commit
+      records a calculation that differs from it.
+    - The saved state (operator, 6 October 2026): the section head's figure
+      and the recorded calculation's source as the Case now holds them, so
+      the head and the Engineer's Value label follow each save without a
+      reload. It is disabled, so it posts nothing.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 <input type="hidden" name="selection.Opening" value="@Model.OpeningValuationCanonical" form="case-edit-form" data-carry-forward />
+<input type="hidden" name="valuationSaved" value="@Model.ValuationSaved" form="case-edit-form" disabled data-carry-forward data-valuation-recorded-state />
