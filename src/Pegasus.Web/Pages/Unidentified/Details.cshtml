@@ -205,12 +205,6 @@
                                     <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
                                 </a>
                             }
-                            else if (Model.IsUploadGroup && Model.SubmissionGroup is { } registerGroup)
-                            {
-                                <a class="btn" asp-page="/UploadGroupStatus" asp-route-id="@registerGroup.Id" data-unidentified-action="register">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
-                                </a>
-                            }
                             @if (Model.CanOpenTriage)
                             {
                                 <a class="btn" href="?dialog=@Record.TriageDialog" data-dialog-open="unidentified-triage-dialog" data-unidentified-action="triage">

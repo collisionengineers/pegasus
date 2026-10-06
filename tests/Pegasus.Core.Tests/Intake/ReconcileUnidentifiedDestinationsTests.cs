@@ -232,6 +232,103 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     }
 
     [Fact]
+    public async Task AGroupRegisteredAsOneImageIntakeResolvesItsGroupOriginItem()
+    {
+        var harness = new Harness();
+        var groupId = Guid.NewGuid();
+        var first = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
+        var second = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
+        harness.AddCompleteGroup(groupId, first, second);
+        var intakeId = Guid.NewGuid();
+        var detail = Detail(intakeId, first, "AB12CDE-01");
+        harness.ImageIntakes.DetailsByOriginReceipt[first.Id] =
+            detail with { Record = detail.Record with { SubmissionGroupId = groupId } };
+        var item = harness.AddOpenItem(6, UnidentifiedOrigin.SubmissionGroup(groupId));
+
+        var written = await harness.Reconciler.SynchronizeForSubmissionGroupAsync(groupId, CancellationToken.None);
+
+        Assert.True(written);
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(item.Id, resolve.UnidentifiedItemId);
+        Assert.Equal(UnidentifiedResolutionTargetKind.ImageIntake, resolve.TargetKind);
+        Assert.Equal(intakeId.ToString("N"), resolve.TargetId);
+        Assert.Equal("AB12CDE-01", resolve.TargetReference);
+    }
+
+    [Fact]
+    public async Task AMemberRegisteredOutsideItsGroupLeavesTheGroupOriginItemOpen()
+    {
+        var harness = new Harness();
+        var groupId = Guid.NewGuid();
+        var first = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
+        var second = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting);
+        harness.AddCompleteGroup(groupId, first, second);
+        harness.ImageIntakes.DetailsByOriginReceipt[first.Id] = Detail(Guid.NewGuid(), first, "AB12CDE-01");
+        harness.AddOpenItem(6, UnidentifiedOrigin.SubmissionGroup(groupId));
+
+        var written = await harness.Reconciler.SynchronizeForSubmissionGroupAsync(groupId, CancellationToken.None);
+
+        Assert.False(written);
+        Assert.Empty(harness.Resolve.Requests);
+    }
+
+    [Theory]
+    [InlineData("eligible", true)]
+    [InlineData("member-at-case", false)]
+    [InlineData("member-registered", false)]
+    [InlineData("member-unprocessed", false)]
+    [InlineData("item-closed", false)]
+    public async Task AnUploadGroupItemOffersRegisterImagesOnlyWhileTheWholeGroupIsUndecided(
+        string shape,
+        bool expected)
+    {
+        var harness = new Harness();
+        var groupId = Guid.NewGuid();
+        var first = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting);
+        var second = shape switch
+        {
+            "member-at-case" => ManuallyLinked(
+                Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting), Guid.NewGuid(), "QDOS26100", 1),
+            "member-registered" => Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered),
+            _ => Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting)
+        };
+        harness.AddCompleteGroup(groupId, first, second);
+        if (shape == "member-unprocessed")
+        {
+            harness.Receipts.Receipts.Remove(second.Id);
+        }
+        var origin = UnidentifiedOrigin.SubmissionGroup(groupId);
+        var item = shape == "item-closed"
+            ? harness.AddResolvedItem(
+                6, origin, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                UnidentifiedResolutionTargetKind.Closed, "closed", null)
+            : harness.AddOpenItem(6, origin);
+        var context = new GetUnidentifiedItemContext(
+            harness.Store,
+            harness.Receipts,
+            harness.ImageIntakes,
+            harness.Triages,
+            new GetIntakeOfferedActions(
+                harness.ImageIntakes,
+                harness.Triages,
+                new FixedPrincipalGate(null),
+                new UnusedVrmSuggestions()),
+            harness.Groups);
+
+        var result = await context.ExecuteAsync(
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            item.Id,
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Null(result.Receipt);
+        Assert.False(result.CanOpenTriage);
+        Assert.Equal(groupId, result.SubmissionGroup?.Id);
+        Assert.Equal(expected, result.CanRegisterImages);
+        Assert.Equal(expected ? first.Id : null, result.GroupRegistrationReceipt?.Id);
+    }
+
+    [Fact]
     public async Task AResolveFailureIsCountedAndNeverStopsTheSweep()
     {
         var harness = new Harness();
@@ -618,7 +715,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
                 harness.ImageIntakes,
                 harness.Triages,
                 new FixedPrincipalGate(established ? Guid.NewGuid() : null),
-                new UnusedVrmSuggestions()));
+                new UnusedVrmSuggestions()),
+            harness.Groups);
 
         var result = await context.ExecuteAsync(
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
@@ -842,6 +940,33 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public FakeTriageQueries Triages { get; } = new();
 
         public ReconcileUnidentifiedDestinations Reconciler { get; }
+
+        /// <summary>A complete manual upload group whose members were processed into these receipts.</summary>
+        public void AddCompleteGroup(Guid groupId, params IntakeReceipt[] receipts)
+        {
+            var members = new List<IntakeSubmissionGroupMember>();
+            for (var ordinal = 0; ordinal < receipts.Length; ordinal++)
+            {
+                var staged = Guid.NewGuid();
+                var fileName = $"member-{ordinal}.jpg";
+                Receipts.Receipts[receipts[ordinal].Id] = receipts[ordinal];
+                members.Add(new(groupId, ordinal, staged, fileName, ImageHash, false)
+                {
+                    ProcessedReceiptId = receipts[ordinal].Id
+                });
+                Statuses.Statuses[staged] = new(
+                    staged, fileName, Now, QueuedIntakeStatusKind.Complete, receipts[ordinal].Id, null);
+            }
+
+            Groups.Groups[groupId] = new(
+                groupId,
+                IntakeSourceChannel.ManualUpload,
+                $"group-{groupId:N}",
+                receipts.Length,
+                "staff",
+                Now,
+                members);
+        }
 
         public UnidentifiedItem AddOpenItem(long sequence, UnidentifiedOrigin origin)
         {
