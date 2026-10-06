@@ -18,18 +18,19 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// Cases (v26): the workflow rail with queried counts, the open
+/// Cases (v26): the rail of queues with queried counts, the open
 /// scope as a table (decision L) and a fixed-width quick detail of the selected
 /// row.
 /// </summary>
 /// <remarks>
-/// The rail groups are Workflow (Not ready, Review, With Engineer, Complete, Query),
-/// Pre-Case work (Triage, Awaiting instruction) and Exceptions (Held,
-/// Unidentified). The Unidentified scope lists open items, with closed items
+/// The rail is one continuous list with no groups (issue 1046): Not ready,
+/// Review, With Engineer, Query, Triage, Awaiting instruction, Held and
+/// Unidentified. Completed Cases have no queue; Search's State filter finds
+/// them. The Unidentified scope lists open items, with closed items
 /// behind its Show filter (received file D5); nothing here lists a Blocked
 /// receipt or links to a received item (received file D1, D2).
 ///
-/// The group is <c>?tab=</c>; the earlier <c>?queue=</c> is accepted as
+/// The queue is <c>?tab=</c>; the earlier <c>?queue=</c> is accepted as
 /// an alias and hyphenated spellings normalise to the same keys. A request
 /// carrying a search-only parameter belongs to <c>/Search</c> and is
 /// redirected there permanently with its values intact.
@@ -85,29 +86,24 @@ public sealed class IndexModel(
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
-    /// <summary>One rail entry: its key, label, group and icon.</summary>
-    public sealed record Tab(string Key, string Label, string Group, string Icon, bool IsException = false);
-
-    public const string WorkflowGroup = "Workflow";
-    public const string PreCaseGroup = "Pre-Case work";
-    public const string ExceptionsGroup = "Exceptions";
+    /// <summary>One rail entry: its key, label and icon.</summary>
+    public sealed record Tab(string Key, string Label, string Icon);
 
     /// <summary>
-    /// The rail, in rail order; the group labels are the section labels.
-    /// Every label comes from <see cref="OperatorLabels.CaseStage"/> (D3) or
-    /// is the record kind's own settled name.
+    /// The rail, in rail order. Every label comes from
+    /// <see cref="OperatorLabels.CaseStage"/> (D3) or is the record kind's own
+    /// settled name.
     /// </summary>
     public static readonly IReadOnlyList<Tab> Tabs =
     [
-        new("not_ready", OperatorLabels.CaseStage(CaseLifecycleState.NotReady), WorkflowGroup, "icon-clock"),
-        new("review", OperatorLabels.CaseStage(CaseLifecycleState.Review), WorkflowGroup, "icon-check-circle"),
-        new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), WorkflowGroup, "icon-user"),
-        new("complete", OperatorLabels.CaseStage(CaseLifecycleState.PostReportComplete), WorkflowGroup, "icon-check"),
-        new("query", OperatorLabels.CaseStage(CaseLifecycleState.Query), WorkflowGroup, "icon-reply"),
-        new("triage", "Triage", WorkflowGroup, "icon-file-text"),
-        new("awaiting", "Awaiting instruction", PreCaseGroup, "icon-image"),
-        new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), ExceptionsGroup, "icon-pause", IsException: true),
-        new("unidentified", "Unidentified", ExceptionsGroup, "icon-alert-triangle", IsException: true)
+        new("not_ready", OperatorLabels.CaseStage(CaseLifecycleState.NotReady), "icon-clock"),
+        new("review", OperatorLabels.CaseStage(CaseLifecycleState.Review), "icon-check-circle"),
+        new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), "icon-user"),
+        new("query", OperatorLabels.CaseStage(CaseLifecycleState.Query), "icon-reply"),
+        new("triage", "Triage", "icon-file-text"),
+        new("awaiting", "Awaiting instruction", "icon-image"),
+        new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), "icon-pause"),
+        new("unidentified", "Unidentified", "icon-alert-triangle")
     ];
 
     /// <summary>
@@ -149,7 +145,7 @@ public sealed class IndexModel(
     public string? PrincipalFilter { get; set; }
 
     /// <summary>
-    /// The Not ready group's Missing filter: <c>instructions</c>, <c>images</c>
+    /// The Not ready queue's Missing filter: <c>instructions</c>, <c>images</c>
     /// or <c>both</c>, read from each case's recorded completeness facts. The
     /// options are exclusive — "Instructions" means the instruction is the
     /// only thing missing — because "Both missing" exists for the remainder.
@@ -174,7 +170,7 @@ public sealed class IndexModel(
 
     /// <summary>Whether the scope lists Case rows, so the Principal filter applies.</summary>
     public static bool ListsCases(string queue) =>
-        queue is "not_ready" or "review" or "with_engineer" or "complete" or "query" or "held";
+        queue is "not_ready" or "review" or "with_engineer" or "query" or "held";
 
     public CaseStageCounts StageCounts { get; private set; } = new(0, 0, 0, 0);
 
@@ -188,7 +184,6 @@ public sealed class IndexModel(
         "not_ready" => StageCounts.NotReady,
         "review" => StageCounts.Review,
         "with_engineer" => StageCounts.WithEngineer,
-        "complete" => StageCounts.Complete,
         "query" => StageCounts.Query,
         "triage" => TriageCount,
         "awaiting" => StageCounts.AwaitingInstruction,
@@ -494,7 +489,6 @@ public sealed class IndexModel(
         {
             "review" => [CaseLifecycleState.Review],
             "with_engineer" => [CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport],
-            "complete" => [CaseLifecycleState.PostReportComplete],
             "query" => [CaseLifecycleState.Query],
             _ => [CaseLifecycleState.Held]
         };

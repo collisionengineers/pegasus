@@ -1,8 +1,11 @@
 using System.Net;
-using System.Text;
+using System.Reflection;
+using System.Text.RegularExpressions;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Glass;
+using Pegasus.Infrastructure.Intake;
 using static Pegasus.IntegrationTests.GlassProviderFixture;
 
 namespace Pegasus.IntegrationTests;
@@ -54,11 +57,47 @@ public sealed class GlassGuideValuationProviderTests
 
         var pdf = await quote.Report!.FetchPdfAsync(default);
 
-        Assert.Equal(ReportPdf, Encoding.UTF8.GetString(pdf));
+        Assert.Equal(ReportPdf, pdf);
         var print = Assert.Single(harness.Mva.Requests, request => request.Path.StartsWith("/pdf-print/", StringComparison.Ordinal));
         Assert.Equal("/pdf-print/storess/template/0/printaction/vehicle-valuation/vehicles/" + VehicleId, print.Path);
         var download = Assert.Single(harness.Mva.Requests, request => request.Path == ReportPath);
         Assert.Contains("NDP=session-cookie", download.Cookie, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The shared account can hand back another vehicle's print (issue 1032):
+    /// the filing reads the report's text and keeps only the Case's own.
+    /// </summary>
+    [Fact]
+    public async Task TheReportIsFiledWhenItNamesTheCaseRegistration()
+    {
+        var harness = Harness.Create();
+        var quote = await harness.Provider.GetAsync(Request(), default);
+        var custody = new RecordingCustody();
+
+        await new FileGuideValuationReport(custody, new PdfPigPageTextExtractor()).ExecuteAsync(
+            new(Request().Actor, Guid.NewGuid(), ValuationSource.Glasses, Registration, April, quote.Report!),
+            default);
+
+        Assert.Single(custody.Requests);
+    }
+
+    [Fact]
+    public async Task AReportThatNamesAnotherRegistrationIsNeverFiled()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set("GET /ndp_download/18390/", new(
+            HttpStatusCode.OK, string.Empty, ContentType: "application/pdf", Bytes: ValuationReport("MP23KTV")));
+        var quote = await harness.Provider.GetAsync(Request(), default);
+        var custody = new RecordingCustody();
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new FileGuideValuationReport(custody, new PdfPigPageTextExtractor()).ExecuteAsync(
+                new(Request().Actor, Guid.NewGuid(), ValuationSource.Glasses, Registration, April, quote.Report!),
+                default));
+
+        Assert.Contains("registration=different", refused.Message, StringComparison.Ordinal);
+        Assert.Empty(custody.Requests);
     }
 
     [Theory]
@@ -140,6 +179,29 @@ public sealed class GlassGuideValuationProviderTests
     }
 
     /// <summary>
+    /// A rejected credential is the portal's own redirect to its "Login failed"
+    /// page (issue 1030). The card says the same approved sentence, the log
+    /// names the code, and nothing signs in again or asks for anything else.
+    /// </summary>
+    [Fact]
+    public async Task ARejectedPasswordIsUnavailableAndLoggedByItsOwnCodeAfterOneSignIn()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set("POST /login/index", new(
+            HttpStatusCode.Found, string.Empty, Location: "https://mva.test/login/login-failed"));
+
+        var unavailable = await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
+            harness.Provider.GetAsync(Request(), default));
+
+        var stage = Assert.IsType<GlassMvaStageException>(unavailable.InnerException);
+        Assert.Equal(GlassFailure.LoginRejected, stage.FailureCode);
+        Assert.Equal(1, harness.Mva.Count("POST /login/index"));
+        Assert.Equal(0, harness.Mva.Count("GET /index"));
+        Assert.Contains(harness.Logger.Messages, message => message.Contains("glass.login.rejected", StringComparison.Ordinal));
+        Assert.DoesNotContain(harness.Logger.Messages, message => message.Contains("valuation-test", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// A vehicle older than Glass's values is not a failure to report: the
     /// card says so (operator, 2 October 2026). The log names it by its code
     /// and never holds the provider's message.
@@ -207,6 +269,66 @@ public sealed class GlassGuideValuationProviderTests
             Assert.True(unavailable.InnerException is HttpRequestException or OperationCanceledException);
             Assert.Contains(harness.Logger.Messages, message => message.Contains("glass.transport.failed", StringComparison.Ordinal));
         }
+    }
+
+    /// <summary>
+    /// Issue 1021: the sign-in page's first read after a restart ran out of
+    /// the adapter's match budget and was logged as a transport failure. A
+    /// read budget that runs out is the stage's own refusal, named by the
+    /// stage, and says whether the provider may already have acted.
+    /// </summary>
+    [Fact]
+    public void AReadBudgetThatRunsOutIsTheStagesOwnRefusalNeverTransport()
+    {
+        var timedOut = new RegexMatchTimeoutException("input", "pattern", TimeSpan.FromMilliseconds(1));
+
+        var refused = Assert.Throws<GlassMvaStageException>(() =>
+            GlassMvaClient.Matched<Match>(() => throw timedOut, "glass.login.csrf"));
+        Assert.Equal("glass.login.csrf", refused.FailureCode);
+        Assert.Equal("regex=timeout", refused.Detail);
+        Assert.False(refused.OutcomeUnknown);
+
+        var uncertain = Assert.Throws<GlassMvaStageException>(() =>
+            GlassMvaClient.Matched<Match>(() => throw timedOut, "glass.start.caller", outcomeUnknown: true));
+        Assert.True(uncertain.OutcomeUnknown);
+
+        Assert.Equal(1, GlassMvaClient.Matched(() => 1, "glass.login.csrf"));
+    }
+
+    /// <summary>
+    /// A read budget that somehow escapes its stage is a page the adapter
+    /// could not read, never the network.
+    /// </summary>
+    [Fact]
+    public async Task AReadBudgetThatEscapesItsStageIsUnreadableNotTransport()
+    {
+        var harness = Harness.Create(transport: _ => new Failing(
+            new RegexMatchTimeoutException("input", "pattern", TimeSpan.FromMilliseconds(100))));
+
+        await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
+            harness.Provider.GetAsync(Request(), default));
+
+        Assert.Contains(harness.Logger.Messages, message =>
+            message.Contains("glass.valuation.unreadable RegexMatchTimeoutException", StringComparison.Ordinal));
+        Assert.DoesNotContain(harness.Logger.Messages, message =>
+            message.Contains("glass.transport.failed", StringComparison.Ordinal));
+    }
+
+    /// <summary>Every pattern the adapter reads a page with has a budget a stalled host can meet.</summary>
+    [Fact]
+    public void EveryPatternHasAtLeastOneSecondToMatch()
+    {
+        var patterns = typeof(GlassMvaClient)
+            .GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .Where(method => method.ReturnType == typeof(Regex) && method.GetParameters().Length == 0)
+            .ToArray();
+
+        Assert.True(patterns.Length >= 12, $"Expected the adapter's twelve patterns, found {patterns.Length}.");
+        Assert.All(patterns, method =>
+        {
+            var budget = ((Regex)method.Invoke(null, null)!).MatchTimeout;
+            Assert.True(budget >= TimeSpan.FromSeconds(1), $"{method.Name} matches within {budget}.");
+        });
     }
 
     [Fact]
@@ -330,6 +452,20 @@ public sealed class GlassGuideValuationProviderTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromException<HttpResponseMessage>(failure);
+    }
+
+    private sealed class RecordingCustody : ICaseArtifactCustody
+    {
+        public List<CaseArtifactCustodyRequest> Requests { get; } = [];
+
+        public Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult<CaseArtifactCustodyResult>(new(
+                CaseArtifactCustodyDisposition.Confirmed, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                "box-file", "box-version", request.Sha256, request.ContentLength, request.MediaType, null, null));
+        }
     }
 
     private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<GlassGuideValuationProvider>

@@ -1,0 +1,31 @@
+@*
+    What the calculation answers with (operator, 6 October 2026): Core's own
+    figures for the selection the calculator posted, for the script to place.
+    The proposal fills the Engineer's Value box, which is the one place the
+    figure stands, and the commercial VAT and previous total loss amounts go
+    to their own cells' label lines; there are no lines and no second total.
+    The PreviewValuation handler returns this for every change. Null means
+    there is nothing to work out: no basis chosen yet ("None yet"), or the
+    posted selection could not be calculated, in which case
+    ViewData["ValuationRefusal"] holds Core's own reason (deductions beyond
+    the value, no retail to start from) and it is shown as an alert, never as
+    "None yet".
+*@
+@using System.Globalization
+@using Pegasus.Core.Assessment
+@using ValuationLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation
+@model Pegasus.Core.Assessment.ValuationCalculation?
+@if (Model is null && ViewData["ValuationRefusal"] is string refusal)
+{
+    <div class="notice notice--danger" role="alert" data-valuation-error>@refusal</div>
+}
+else if (Model is null)
+{
+    <div class="muted" data-valuation-none>@ValuationLabels.NoneYet</div>
+}
+else
+{
+    <span hidden data-valuation-proposal="@Model.Proposal.ToString("0.00", CultureInfo.InvariantCulture)"
+          data-valuation-vat-amount="@ValuationLabels.VatAmount(Model)"
+          data-valuation-ptl-amount="@ValuationLabels.PriorTotalLossAmount(Model)"></span>
+}

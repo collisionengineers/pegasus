@@ -58,7 +58,7 @@ public sealed class CaseListDueWebTests
         Assert.Contains("<td class=\"nowrap\">18 Jun 2040</td>", list, StringComparison.Ordinal);
         Assert.Matches(new Regex(@"<span>Due</span>\s*<strong>18 Jun 2040</strong>"), list);
         Assert.Matches(
-            new Regex(@"<span>Current work</span>\s*<strong>" + Regex.Escape(CaseWorkspaceLabels.HandToEngineer) + "</strong>"),
+            new Regex(@"<span>Current work</span>\s*<strong>" + Regex.Escape(CaseWorkspaceLabels.AssignEngineer) + "</strong>"),
             list);
         Assert.DoesNotContain("Chasing stopped", list, StringComparison.Ordinal);
 

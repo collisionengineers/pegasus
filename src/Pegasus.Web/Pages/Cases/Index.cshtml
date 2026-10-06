@@ -51,10 +51,8 @@ else
 {
 <section class="pane-layout pane-layout--3 queue-layout cases-queue" data-cases-queue="@Model.Queue">
     <aside class="pane">
-        <div class="pane-head">
-            <h2>Workflow</h2>
-        </div>
-        @* The rail: buttons carrying tab=X in one GET form, so a scope opens
+        @* The rail: one continuous list with no headings or dividers (issue
+           1046), buttons carrying tab=X in one GET form, so a scope opens
            with a plain native submit and keeps the Principal filter. Counts
            are queried figures, never placeholders. *@
         <form method="get" action="/Cases" class="scope-list" data-row-list>
@@ -62,26 +60,16 @@ else
             {
                 <input type="hidden" name="principal" value="@Model.PrincipalFilter" />
             }
-            @{ var groupOrdinal = 0; }
-            @foreach (var group in IndexModel.Tabs.GroupBy(tab => tab.Group))
+            @foreach (var tab in IndexModel.Tabs)
             {
-                if (groupOrdinal++ > 0)
-                {
-                    <div class="queue-group-divider"></div>
-                }
-                <div class="queue-group-label">@group.Key</div>
-                @foreach (var tab in group)
-                {
-                    <button type="submit" name="tab" value="@tab.Key"
-                            class="scope-button @(tab.IsException ? "queue-exception" : null)"
-                            aria-pressed="@(Model.Queue == tab.Key ? "true" : "false")">
-                        <span class="scope-visual-icon">
-                            <svg class="icon" aria-hidden="true"><use href="#@tab.Icon" /></svg>
-                        </span>
-                        <span>@tab.Label</span>
-                        <span>@Model.Count(tab)</span>
-                    </button>
-                }
+                <button type="submit" name="tab" value="@tab.Key" class="scope-button"
+                        aria-pressed="@(Model.Queue == tab.Key ? "true" : "false")">
+                    <span class="scope-visual-icon">
+                        <svg class="icon" aria-hidden="true"><use href="#@tab.Icon" /></svg>
+                    </span>
+                    <span>@tab.Label</span>
+                    <span>@Model.Count(tab)</span>
+                </button>
             }
         </form>
     </aside>

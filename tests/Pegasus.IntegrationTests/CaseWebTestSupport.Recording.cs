@@ -260,7 +260,6 @@ internal static partial class CaseWebTestSupport
     }
 
     internal sealed partial class RecordingCaseDetailsStore :
-        IRenewCaseEditLease,
         IHeartbeatCaseEditLease,
         IReleaseCaseEditLease,
         IGetAssessmentAccess,
@@ -274,10 +273,17 @@ internal static partial class CaseWebTestSupport
             SaveCaseWorkspaceRequest request, CancellationToken cancellationToken) =>
             ((ISaveCaseWorkspace)this).ExecuteAsync(request, cancellationToken);
 
+        /// <summary>The Engineer's Value the Case holds, for a test that needs one saved.</summary>
+        public string? EngineerValue { get; set; }
+
         private CaseAssessmentProjection EngineeringAssessment() => new(
             CaseId, "QDOS3100042", CaseVersion, State, null,
             [new(AssessmentVocabulary.ReportDate, "2031-05-06", ActorKind.Staff,
-                "recorded-engineer", _now)],
+                "recorded-engineer", _now),
+             .. EngineerValue is null
+                ? Array.Empty<AssessmentFieldValue>()
+                : [new AssessmentFieldValue(AssessmentVocabulary.ValueEngineer, EngineerValue, ActorKind.Staff,
+                    "recorded-engineer", _now)]],
             [], new("AB12CDE", null, null, null, null, null, "tbc", null, DateOnly.FromDateTime(_now.UtcDateTime), null, null,
                 null, "Case claimant", "CLM-42"));
 
@@ -304,8 +310,6 @@ internal static partial class CaseWebTestSupport
                 assessment.Reference, CaseVersion));
         }
 
-        public string RenewedLeaseToken { get; } = "opaque-renewed-case-lease";
-        public List<RenewCaseEditLeaseRequest> LeaseRenewals { get; } = [];
         public List<HeartbeatCaseEditLeaseRequest> LeaseHeartbeats { get; } = [];
         public List<ReleaseCaseEditLeaseRequest> LeaseReleases { get; } = [];
 
@@ -321,20 +325,6 @@ internal static partial class CaseWebTestSupport
                 request.Actor.SubjectId,
                 CaseVersion,
                 _now.AddMinutes(5)));
-        }
-
-        Task<CaseEditLease> IRenewCaseEditLease.ExecuteAsync(
-            RenewCaseEditLeaseRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            LeaseRenewals.Add(request);
-            return Task.FromResult(new CaseEditLease(
-                request.CaseId,
-                RenewedLeaseToken,
-                request.Actor.SubjectId,
-                request.ExpectedVersion,
-                _now.AddMinutes(10)));
         }
 
         Task IReleaseCaseEditLease.ExecuteAsync(

@@ -106,7 +106,7 @@ public sealed class EfTriageStore(
         var reason = $"Automatically linked by accepted principal and current typed Case identity ({current.MatchPolicyKey} v{current.MatchPolicyVersion}).";
         var beforeCaseVersion = workflow.Version;
         triage.LinkedInstructionCaseId = candidate.InstructionCaseId;
-        CaseMutationGuard.Complete(workflow);
+        CaseMutationGuard.Advance(workflow);
         context.CaseWorkflowEvents.Add(new()
         {
             Id = Guid.NewGuid(), CaseId = workflow.CaseId, Workflow = workflow,

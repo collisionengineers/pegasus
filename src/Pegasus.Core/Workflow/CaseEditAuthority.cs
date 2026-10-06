@@ -3,9 +3,10 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Workflow;
 
 /// <summary>
-/// The single owner of the decision every staff case mutation is guarded by: the case must stand at
-/// the version the editor loaded, and the caller must present the live edit lease it holds. A
-/// missing, expired, wrong-holder, or stale-version mutation is refused without overwriting newer
+/// The single owner of the decision every staff case mutation is guarded by: the caller must
+/// present the edit lease it holds, and no staff write may have landed since the editor loaded the
+/// case. Only staff work ends a lease; system work moves the version under it without ending the
+/// session. A missing, wrong-holder, or superseded mutation is refused without overwriting newer
 /// work. The holder resumes their own lease from any window; an explicit authorised takeover by a
 /// colleague rotates it before another edit. Infrastructure supplies the persisted material
 /// and the fixed-time token comparison; the refusal order is business policy and lives here.
@@ -85,10 +86,28 @@ public static class CaseEditAuthority
     }
 
     /// <summary>
-    /// Refuses a mutation that does not present the live lease its actor holds. The caller has
+    /// The version rule for a write under a proven lease. Every staff write ends the lease it was
+    /// made under, and a page receives a token only with the version it was issued at or a later
+    /// one, so a presented token that still matches proves no staff write has landed since the page
+    /// read its version: anything that moved the version since was system work, which never ends a
+    /// member of staff's edit session (operator, 6 October 2026). The caller has already proven
+    /// the lease; a version from the future is refused.
+    /// </summary>
+    public static void RequireVersionUnderLease(Guid caseId, long caseVersion, long expectedVersion)
+    {
+        if (expectedVersion > caseVersion)
+        {
+            throw new CaseVersionConflictException(caseId, expectedVersion, caseVersion);
+        }
+    }
+
+    /// <summary>
+    /// Refuses a mutation that does not present the lease its actor holds. The caller has
     /// already compared the presented token against the retained hash in fixed time;
     /// <paramref name="presentedTokenMatchesRetainedHash"/> is false when it does not match or when
-    /// the retained hash cannot be read, so an unprovable token fails closed.
+    /// the retained hash cannot be read, so an unprovable token fails closed. A staff holder whose
+    /// lease lapsed but whose token still matches carries on: nobody claimed the Case since, and the
+    /// caller extends the lease again. The Automation Actor's lease ends at its expiry.
     /// </summary>
     public static void RequireLease(
         Guid caseId,
@@ -104,23 +123,32 @@ public static class CaseEditAuthority
     {
         ArgumentNullException.ThrowIfNull(actor);
         if (string.IsNullOrWhiteSpace(presentedLeaseToken)
-            || !IsHeld(leaseExpiresAtUtc, nowUtc)
             || !hasRetainedLeaseTokenHash
             || string.IsNullOrWhiteSpace(retainedLeaseHolder))
         {
             throw new CaseEditLeaseExpiredException(caseId, caseVersion);
         }
 
-        if (!IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor)
-            || !presentedTokenMatchesRetainedHash)
+        var isHolder = IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor);
+        if (IsHeld(leaseExpiresAtUtc, nowUtc))
         {
-            throw new CaseEditLeaseConflictException(caseId, caseVersion);
+            if (!isHolder || !presentedTokenMatchesRetainedHash)
+            {
+                throw new CaseEditLeaseConflictException(caseId, caseVersion);
+            }
+
+            return;
+        }
+
+        if (actor.Kind != ActorKind.Staff || !isHolder || !presentedTokenMatchesRetainedHash)
+        {
+            throw new CaseEditLeaseExpiredException(caseId, caseVersion);
         }
     }
 
     /// <summary>
-    /// A heartbeat extends only a live lease. Once it expires, another editor may claim it;
-    /// the former holder must make a new claim and receive a rotated token too.
+    /// A heartbeat answers to the same rule as a write: it extends the holder's lease, and picks
+    /// up a staff holder's lapsed lease that nobody claimed since.
     /// </summary>
     public static void RequireHeartbeat(
         Guid caseId,
@@ -132,23 +160,18 @@ public static class CaseEditAuthority
         bool hasRetainedLeaseTokenHash,
         DateTimeOffset? leaseExpiresAtUtc,
         bool presentedTokenMatchesRetainedHash,
-        DateTimeOffset nowUtc)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        if (string.IsNullOrWhiteSpace(presentedLeaseToken)
-            || !IsHeld(leaseExpiresAtUtc, nowUtc)
-            || !hasRetainedLeaseTokenHash
-            || string.IsNullOrWhiteSpace(retainedLeaseHolder))
-        {
-            throw new CaseEditLeaseExpiredException(caseId, caseVersion);
-        }
-
-        if (!IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor)
-            || !presentedTokenMatchesRetainedHash)
-        {
-            throw new CaseEditLeaseConflictException(caseId, caseVersion);
-        }
-    }
+        DateTimeOffset nowUtc) =>
+        RequireLease(
+            caseId,
+            caseVersion,
+            actor,
+            presentedLeaseToken,
+            retainedLeaseHolderKind,
+            retainedLeaseHolder,
+            hasRetainedLeaseTokenHash,
+            leaseExpiresAtUtc,
+            presentedTokenMatchesRetainedHash,
+            nowUtc);
 }
 
 /// <summary>

@@ -8,7 +8,6 @@
 .case-record .ribbon-ref .ribbon-value{display:block}
 .case-record .ribbon-chips .status .icon{width:12px;height:12px}
 .case-record .lease-line{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
-.case-record .lease-line.is-expiring{color:var(--amber);font-weight:700}
 .case-record .lease-line.is-refused{color:var(--red);font-weight:700}
 .case-record .case-edit-badge{margin-right:2px}
 .case-record .ribbon-actions form{display:contents}
@@ -162,44 +161,48 @@
 
 
 /* ==== valuation ==== */
-/* ---- Valuation (v26): tools row, guide cards, calculator, applied history ---- */
-#section-valuation .val-tools{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
-#section-valuation .val-tools form{display:contents}
-#section-valuation .val-tools .val-month{flex:0 0 170px;min-width:0}
-#section-valuation .val-tools .val-month .fi{display:block}
-#section-valuation .val-tools .val-get{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-bottom:1px}
-#section-valuation .val-tools .val-get .lbl{font:600 10.5px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-right:2px}
-#section-valuation .val-tools .spacer{flex:1}
-#section-valuation .guides{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-#section-valuation .valuation-card{position:relative;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;background:#fff;cursor:default;min-width:0}
-.case-record.is-editing #section-valuation .valuation-card:not(.seam):not(.is-pending){cursor:pointer}
-#section-valuation .valuation-card.sel{outline:2px solid var(--navy);outline-offset:-1px}
-.case-record.is-editing #section-valuation .valuation-card[tabindex="0"]:focus-visible{outline:2px solid var(--red);outline-offset:2px}
-#section-valuation .valuation-card.is-pending{opacity:.65}
-#section-valuation .valuation-card h3{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:12.5px;font-weight:700;min-width:0}
-#section-valuation .valuation-card .pick{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);font-weight:500;cursor:pointer}
-#section-valuation .valuation-card .pick input{accent-color:var(--navy);margin:0}
-/* A source card (23 September 2026): the figures are the record's own .fc
-   cells, greyed boxes while reading and inputs while editing, a little more
-   compact than a section's fields so five cards fit their row. */
-#section-valuation .valuation-card .fg{gap:6px 8px}
-#section-valuation .valuation-card .fg.meta{margin-top:6px}
-#section-valuation .valuation-card .fc .fv,#section-valuation .valuation-card .fc .fi{min-height:28px;padding:3px 7px;font-size:12.5px}
-#section-valuation .valuation-card .meta{margin-top:6px;font-size:11px;color:var(--muted)}
-#section-valuation .valuation-card .notice{margin-top:8px;padding:6px 8px;font-size:12px}
-#section-valuation .valuation-card .notice .link-button{color:inherit;text-decoration:underline}
-#section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:8px}
-#section-valuation [data-valuation-lines-host][aria-busy="true"]{opacity:.65}
-#section-valuation .valuation-card.is-pending .meta::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:pegasus-spin .8s linear infinite}
-#section-valuation .valuation-card .gated{margin-left:0}
-#section-valuation .calc{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);grid-template-rows:auto 1fr;gap:14px;align-items:start}
-/* The calculation runs down its column beside the report switches and the lines. */
-#section-valuation .calc>.calc-inputs{grid-row:span 2}
+/* ---- Valuation (v33 design D, 6 October 2026): the sources as rows; under the chosen one, the calculation and the three values ---- */
+#section-valuation .valuation-sources{border:1px solid var(--line);border-radius:var(--radius);background:#fff;min-width:0}
+/* A source row: its name, its three boxes under the column heads, and while
+   editing its two buttons. Reading keeps no column for the buttons. */
+#section-valuation .valuation-source{display:grid;grid-template-columns:118px minmax(0,1fr) minmax(0,1fr) 150px;gap:6px 10px;align-items:start;padding:7px 10px;border-top:1px solid var(--line);min-width:0}
+.case-record.is-editing #section-valuation:not(.is-locked) .valuation-source{grid-template-columns:118px minmax(0,1fr) minmax(0,1fr) 150px 106px 116px}
+#section-valuation .valuation-source--head{padding:7px 10px 0;border-top:0}
+#section-valuation .valuation-source--head+.valuation-source{border-top:0;padding-top:4px}
+#section-valuation .valuation-source--head .lbl{font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding-left:9px}
+#section-valuation .valuation-source h3{margin:0;padding-top:6px;min-height:30px;font-size:12.5px;font-weight:700;line-height:1.35;min-width:0}
+#section-valuation .valuation-source h3 .src-tag{margin-left:2px}
+/* The column heads name the boxes; each box's own label is kept for a screen
+   reader and shown once the columns fold. */
+#section-valuation .valuation-source>.fc>label,#section-valuation .valuation-source>.fc>.lbl{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0)}
+#section-valuation .valuation-source .fc .fv,#section-valuation .valuation-source .fc .fi{min-height:30px;padding:3px 8px;font-size:12.5px}
+#section-valuation .valuation-source.sel{outline:2px solid var(--navy);outline-offset:-2px}
+.case-record.is-editing #section-valuation .valuation-source[tabindex="0"]{cursor:pointer}
+.case-record.is-editing #section-valuation .valuation-source[tabindex="0"]:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
+#section-valuation .valuation-source-get{grid-column:5;grid-row:1;justify-self:end}
+#section-valuation .valuation-source-use{grid-column:6;grid-row:1;justify-self:end}
+#section-valuation .valuation-source-get .btn,#section-valuation .valuation-source-use .btn{white-space:nowrap}
+#section-valuation .valuation-source-note{grid-column:2/-1;min-width:0;margin:0;font-size:12px}
+#section-valuation .valuation-source .notice{padding:5px 8px}
+#section-valuation .valuation-source .notice .link-button{color:inherit;text-decoration:underline}
+#section-valuation .valuation-source-note.meta{font-size:11px;color:var(--muted)}
+#section-valuation .valuation-source.is-pending .fv.derived{opacity:.65}
+#section-valuation .valuation-source-note.researching{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+#section-valuation .valuation-source-note.researching>span:first-child::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:pegasus-spin .8s linear infinite}
+/* The chosen source opens: the calculation, then the three values it ends in.
+   With no source chosen the same block closes the list. */
+#section-valuation .valuation-open{display:grid;gap:10px;padding:10px 12px 12px;border-top:1px solid var(--line);border-left:3px solid var(--navy);background:var(--surface-2)}
+#section-valuation .valuation-open .calc-inputs{background:#fff}
+#section-valuation .valuation-sources+.valuation-open{border:1px solid var(--line);border-radius:var(--radius)}
+/* What an adjustment comes to, in its own cell's label line. */
+#section-valuation .calc-amount{float:right;margin-left:8px;font:600 11px var(--mono);letter-spacing:0;text-transform:none;color:var(--ink)}
+#section-valuation .calc-inputs[aria-busy="true"] .calc-amount{opacity:.65}
+#section-valuation [data-valuation-preview-host] .notice{margin-top:10px}
+#section-valuation [data-valuation-none]{padding-top:6px;font-size:12.5px}
 #section-valuation .adds-head{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;margin:12px 0 6px}
 #section-valuation .adds-head.none{display:none}
-#section-valuation .adds{display:grid;gap:4px}
+#section-valuation .adds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 14px}
 #section-valuation .add{display:grid;grid-template-columns:20px 1fr 110px;gap:8px;align-items:center;min-height:32px;font-size:12.5px}
-#section-valuation .add.add--custom{grid-template-columns:20px 1fr 110px}
 #section-valuation .add input[type=checkbox]{width:15px;height:15px;min-height:0;margin:0;accent-color:var(--red)}
 #section-valuation .add input[type=number],#section-valuation .add input[type=text]{min-height:30px;padding:3px 8px;font-size:12px;border:1px solid var(--line-strong);border-radius:var(--radius);width:100%;min-width:0}
 #section-valuation .add .amt{text-align:right;font-family:var(--mono)}
@@ -211,21 +214,26 @@
 #section-valuation .fc .fi.chk.choice{border:0;padding-left:0;display:none;align-items:center;gap:7px;min-height:var(--control);font-size:12.5px}
 .case-record.is-editing #section-valuation .fc .fi.chk.choice{display:inline-flex}
 #section-valuation .fc .fi.chk.choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
-#section-valuation .lines{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);padding:8px 12px;font-size:12.5px}
-#section-valuation .lines .ln{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dashed var(--line)}
-#section-valuation .lines .ln:last-child{border-bottom:0}
-#section-valuation .lines .ln b{font-family:var(--mono);font-weight:600;white-space:nowrap}
-#section-valuation .lines .ln.tot{border-top:2px solid var(--ink);margin-top:4px;padding-top:6px}
-#section-valuation .lines .ln.tot b{font-size:15px;color:var(--red)}
-#section-valuation .hist{margin-top:10px}
-#section-valuation .hist .definition-list{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
-#section-valuation .hist .definition--wide{grid-column:auto}
-#section-valuation .hist .definition{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;font-size:12.5px;margin:0}
-#section-valuation .hist .definition dt{color:var(--quiet);font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;align-self:center}
-#section-valuation .hist .definition dd{margin:0;min-width:0;overflow-wrap:anywhere}
-#section-valuation .hist .definition dd.derived{color:var(--quiet)}
-@media(max-width:1180px){#section-valuation .guides{grid-template-columns:repeat(2,1fr)}#section-valuation .calc{grid-template-columns:1fr;grid-template-rows:none}#section-valuation .calc>.calc-inputs{grid-row:auto}}
-@media(max-width:760px){#section-valuation .guides{grid-template-columns:1fr}#section-valuation .val-tools .val-month{flex-basis:100%}}
+/* Narrower: Use this value keeps its column; the provider's part, Get
+   valuation or the notice, takes the second line. */
+@media(max-width:1180px){
+  .case-record.is-editing #section-valuation:not(.is-locked) .valuation-source{grid-template-columns:104px minmax(0,1fr) minmax(0,1fr) 128px 116px}
+  #section-valuation .valuation-source-use{grid-column:5}
+  #section-valuation .valuation-source-get{grid-column:2;grid-row:2;justify-self:start}
+  #section-valuation .valuation-source:has(.valuation-source-get) .valuation-source-note{grid-column:3/-1;grid-row:2;align-self:center}
+  #section-valuation .adds{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+/* Narrowest: the column heads go and each box shows its own label. */
+@media(max-width:760px){
+  #section-valuation .valuation-source,.case-record.is-editing #section-valuation:not(.is-locked) .valuation-source{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  #section-valuation .valuation-source--head{display:none}
+  #section-valuation .valuation-source h3{grid-column:1/-1}
+  #section-valuation .valuation-source>.fc>label,#section-valuation .valuation-source>.fc>.lbl{position:static;width:auto;height:auto;margin:0 0 3px 9px;clip:auto}
+  #section-valuation .valuation-source>div.fc:nth-of-type(3){grid-column:1/-1}
+  #section-valuation .valuation-source-get,#section-valuation .valuation-source-use{grid-column:auto;grid-row:auto;justify-self:start}
+  #section-valuation .valuation-source-note,#section-valuation .valuation-source:has(.valuation-source-get) .valuation-source-note{grid-column:1/-1;grid-row:auto}
+  #section-valuation .adds{grid-template-columns:minmax(0,1fr)}
+}
 
 
 #section-settlement select.fi.is-driven{display:none}

@@ -34,8 +34,13 @@ public sealed class CaseTaskArchivePersistenceTests
             CreateRequest(harness, taskId, 0, harness.AdministratorActor, "task-wrong-holder", lease.Token),
             default));
 
+        // A lapsed lease carries on only while nobody claims the Case; once a
+        // colleague has it, the lapsed token is no authority.
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(5).Add(TimeSpan.FromSeconds(1)));
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => harness.CreateTask.ExecuteAsync(
+        await harness.AcquireLease.ExecuteAsync(
+            new(harness.TaskCaseId, 0, harness.AdministratorActor, "claim-task-after-lapse"),
+            default);
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => harness.CreateTask.ExecuteAsync(
             CreateRequest(harness, taskId, 0, harness.UserActor, "task-expired-lease", lease.Token),
             default));
 
@@ -345,11 +350,13 @@ public sealed class CaseTaskArchivePersistenceTests
         var assignLease = await harness.AcquireLease.ExecuteAsync(
             new(harness.TaskCaseId, created.CaseVersion, harness.UserActor, "claim-task-reassign"),
             default);
+        // Under a proven lease only a version the Case has not reached is
+        // refused; an older one is system work having moved it.
         await Assert.ThrowsAsync<CaseVersionConflictException>(() => harness.AssignTask.ExecuteAsync(
             new(
                 harness.TaskCaseId,
                 firstTaskId,
-                0,
+                created.CaseVersion + 1,
                 created.Version,
                 harness.UserActor,
                 "task-stale-case",

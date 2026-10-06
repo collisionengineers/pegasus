@@ -95,10 +95,6 @@ public sealed partial class DetailsModel
 
         ApplyAssessmentAccess(actor, Case.Workflow);
         await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
-        if (LeaseToken is not null)
-        {
-            RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
-        }
         Assessment = workspace?.Assessment;
         CurrentSpecification = workspace?.CurrentSpecification;
 
@@ -138,7 +134,7 @@ public sealed partial class DetailsModel
             // The calculator's opening calculation is the one the script carries
             // forward, so it is read wherever the calculator is editable.
             var valuation = SectionIsEditable("valuation")
-                ? reads.Start(token => ReadValuationSectionAsync(id, actor, work, token, openingOnly: true))
+                ? reads.Start(token => ReadValuationSectionAsync(id, actor, work, token))
                 : null;
             var files = recordsPreparation
                 ? reads.Start(token => getCaseFilesSection.ExecuteAsync(sectionQuery, token))

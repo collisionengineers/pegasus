@@ -21,10 +21,6 @@ namespace Pegasus.Core.Operations;
 /// <param name="AwaitingInstruction">
 /// Unassociated image-initiated records still awaiting instruction.
 /// </param>
-/// <param name="Complete">
-/// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReportComplete"/>,
-/// the completed workflow queue.
-/// </param>
 /// <param name="Query">
 /// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.Query"/>,
 /// a separate reversible workflow queue.
@@ -35,7 +31,6 @@ public sealed record CaseStageCounts(
     int Held,
     int WithEngineer,
     int AwaitingInstruction = 0,
-    int Complete = 0,
     int Query = 0);
 
 /// <summary>

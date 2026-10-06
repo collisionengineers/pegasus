@@ -8,7 +8,7 @@
   `Query` is a return trip from Completed. `Held` is a pause.
 - Not ready becomes Review by itself when every required instruction item
   and image is present. Nobody ticks a "reviewed" box.
-- **Hand to Engineer** is the only way from Review to With Engineer. Sending
+- **Assign Engineer** is the only way from Review to With Engineer. Sending
   work to EVA never moves a Case.
 - **Mark report sent** needs a real Sent email item. **Mark completed** can be
   undone. A Case is never permanently closed.
@@ -65,12 +65,13 @@ from, why it is required, and what would clear it. Pegasus never shows an
 overall score, a percentage, or a summary such as "3 items outstanding". On
 the Case record each report blocker links to the section that clears it. A
 recorded value is never a blocker because of who recorded it: there is no
-per-field review, and Hand to Engineer is the only review (operator, 25
+per-field review, and Assign Engineer is the only review (operator, 25
 September 2026). Once the Case is With Engineer, while the report is not ready the
 Next action lists every report blocker, each linking to its section, and the
 Report section's head keeps the one **Not ready** availability label (in Not
-ready and Review the Next action names the outstanding requirement or Hand to
-Engineer, and the report blockers follow it) ([FRD-16](frd-16-case-record-workspace.md#case-workspace),
+ready and Review the Next action names the outstanding requirement or Assign
+Engineer, which opens the Actions menu's dialog, and the report blockers
+follow it) ([FRD-16](frd-16-case-record-workspace.md#case-workspace),
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 
 **Required items are configuration.** Instruction completeness and image
@@ -105,9 +106,9 @@ saved as it is made, so the blocker goes, the state moves and the action
 appears within the round trip
 ([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
 
-### Hand to Engineer
+### Assign Engineer
 
-In Review, staff choose **Hand to Engineer** and pick an eligible enabled
+In Review, staff choose **Assign Engineer** and pick an eligible enabled
 staff account. In one operation, under a Case edit lease — the session's, or
 one claimed for the action ([FRD-16](frd-16-case-record-workspace.md#actions-menu))
 — and the current version, Pegasus assigns the Engineer, sets the Sign-off
@@ -339,7 +340,7 @@ away clears the row. The Case's state still changes only by a staff action.
 | From | To | Trigger |
 | --- | --- | --- |
 | Not ready | Review | Every required item present (automatic) |
-| Review | With Engineer | Hand to Engineer, or the headless start command |
+| Review | With Engineer | Assign Engineer, or the headless start command |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
 | With Engineer | Completed | Mark completed |
@@ -372,8 +373,8 @@ away clears the row. The Case's state still changes only by a staff action.
 
 Core tests cover every transition in the table above, readiness from stored
 facts, chase scheduling across the Held boundary, the four dispositions, and
-Create audit's offer and refusal in each state. Integration tests cover Hand
-to Engineer under a lease, Mark report sent against retained Sent evidence,
+Create audit's offer and refusal in each state. Integration tests cover Assign
+Engineer under a lease, Mark report sent against retained Sent evidence,
 Create audit with its replay and refusals, and Archive. Deployment and live
 acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).

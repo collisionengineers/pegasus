@@ -537,6 +537,44 @@ public sealed class CaseWorkspaceTests
         return configure is null ? request : configure(request);
     }
 
+    /// <summary>
+    /// A lookup filled the Vehicle type after the page loaded the Case. The Save posts
+    /// every control, so the value the page still shows from before the fill is not the
+    /// operator's answer and the fill stands; the filled value itself changes nothing;
+    /// any other value would overwrite what the system wrote unseen and is refused.
+    /// </summary>
+    [Fact]
+    public void ASaveKeepsWhatASystemFillWroteSinceThePageLoadedTheCase()
+    {
+        var filledFrom = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.VehicleType] = null
+        };
+        var current = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.VehicleType] = "car"
+        };
+        IReadOnlyDictionary<string, string?> Keep(string? posted) => CaseWorkspacePolicy.KeepSystemFills(
+            Guid.Empty,
+            expectedVersion: 3,
+            caseVersion: 4,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.VehicleType] = posted,
+                [AssessmentVocabulary.Outcome] = "total_loss"
+            },
+            filledFrom,
+            current);
+
+        var untouched = Keep(null);
+        Assert.False(untouched.ContainsKey(AssessmentVocabulary.VehicleType));
+        Assert.Equal("total_loss", untouched[AssessmentVocabulary.Outcome]);
+        Assert.Equal("car", Keep("car")[AssessmentVocabulary.VehicleType]);
+        var conflict = Assert.Throws<CaseVersionConflictException>(() => Keep("van"));
+        Assert.Equal(3, conflict.ExpectedVersion);
+        Assert.Equal(4, conflict.ActualVersion);
+    }
+
     private static ValuationDetails GuideCard(ValuationSource source, DateOnly? guideMonth) =>
         new(source, new DateOnly(2030, 5, 6), new TimeOnly(10, 30), 42_000, 12_500m, 10_250m, guideMonth);
 }

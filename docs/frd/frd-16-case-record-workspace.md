@@ -13,7 +13,7 @@
   valuation calculation together, and the page keeps editing.
 - One Actions menu offers only what Core allows for the current state;
   Create audit alone is always listed on an Inspection + Audit Case, greyed
-  out with its reason when refused. Hand to Engineer is the only way out of
+  out with its reason when refused. Assign Engineer is the only way out of
   Review.
 - The Engineer sections (Damage, Valuation, Estimate, Settlement, Report)
   are editable by every enabled staff role in Not ready, Review and With
@@ -55,7 +55,8 @@ Case at the same route renders as the Triage Case page instead
 
 When a colleague holds the lease the ribbon shows who, and offers **Take
 over**. Any staff member may take over; no reason is needed and the takeover
-is recorded in history. Renew editing works without script. The rule is in
+is recorded in history. There is no Renew editing: editing lasts while the
+page is open (operator, 6 October 2026). The rule is in
 [FRD-14](frd-14-record-edit-leases.md#take-over).
 
 **The section row** sits under the ribbon. It lists the section links, marks
@@ -107,6 +108,9 @@ second stale notice in Report (operator, 28 September 2026).
 While a linked message is currently classified a cancellation and the Case
 is open, the Next action also carries **Cancellation received** with **Open
 message** ([FRD-13](frd-13-case-lifecycle-and-workflow.md#cancellation-messages)).
+In Review the Next action is **Assign Engineer**, with the Actions menu's own
+control that opens its dialog; where the menu does not offer it, the step is
+named without a control (issue 1025).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Delivery is the Next action only once the report is
@@ -148,7 +152,21 @@ version, the lease and the key the next save sends, and the Files section
 when a crop or rotation was recorded. A save that ends editing redirects to
 the page, as every other command does. A refusal refuses the whole save, keeps
 every typed value in its box, says why in the ribbon's status word and as a
-notice, and the next change tries again. The ribbon has **Done**, which ends editing and releases
+notice, and the next change tries again. A decision's partner field (the
+salvage category and value of a total loss, the reason a vehicle is
+unroadworthy, the agreed sum of a contract repair) is a readiness item, never
+a save refusal, so each field saves as it is left (operator, 6 October 2026).
+
+**Catching up.** System work moves the Case under the session without ending
+it ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). When a save's
+answer, or the minute heartbeat's, shows the Case past the version the page
+holds, or a save is refused or not confirmed, the page catches up once
+nothing is in flight: it reads the Case again and draws afresh the ribbon,
+the notices, the aside, the dialogs (unless one is open) and each section
+that holds no value not yet sent, keeping the place, the focused control and
+what is typed in it. A section holding a value not yet sent stays as the
+operator has it. When a colleague now holds the Case, every section stays as
+it is, so what the operator typed remains to copy. The ribbon has **Done**, which ends editing and releases
 the lease; there is no Save and no Cancel, because nothing is unsaved: a
 wrong value is retyped, and the history names each change. Ctrl S saves now,
 a composite's typing included; without script the ribbon's **Save now** is
@@ -173,8 +191,8 @@ the Principal's claim number everywhere it appears. Our ref is the separate,
 immutable Case reference. The Registration, Make and Model inputs live in
 the Vehicle section's edit state, not on Overview.
 
-While editing, the lease line shows its expiry, and a stale version shows the
-current and proposed values as a non-destructive conflict. A Case save needs
+While editing, a refused save shows the current and proposed values as a
+non-destructive conflict. A Case save needs
 no reason; its history line names the changed fields. Holds, releases,
 corrections and a return to engineering record a reason.
 
@@ -245,10 +263,10 @@ Completed or Query Case offers no Edit, since its sections read and Return
 to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
-- **Hand to Engineer**, in Review. Its dialog selects an
+- **Assign Engineer**, in Review. Its dialog selects an
   eligible enabled staff account. The one handoff assigns them and
   enters With Engineer. There is no reviewed checkbox and no separate start
-  action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#hand-to-engineer)).
+  action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)).
 - **Send to EVA**, when the Principal's report-generation policy offers it.
   Sending never changes the Case state
   ([FRD-07](frd-07-eva-and-external-engineering-handoff.md)).
@@ -422,42 +440,52 @@ The field set is owned by
 
 ### Valuation
 
-Valuation opens with one row of three boxes: **Retail value**, **Trade
-value** and **Engineer's Value**, the figures the report prints in its
-Vehicle Data table (operator, 26 September 2026). They are fields of the Case
-form, greyed while reading, and each save records them.
+Valuation draws its sources as rows and opens the chosen one (operator,
+6 October 2026): under that source's row stand the calculation and one row of
+three boxes, **Retail value**, **Trade value** and **Engineer's Value**, the
+figures the report prints in its Vehicle Data table (26 September 2026). With
+no source chosen the same block closes the list. The boxes are fields of the
+Case form, greyed while reading, and each save records them. **On the
+report** closes the section. The section head reads the Engineer's Value the
+Case holds and follows each save without a reload.
 
 Valuation lists each entry with its source, date, time, retail and trade
 values, and guide month (`EXT-10`). A calculated Engineer's Value entry
 carries a mileage when the Case has one. Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
-(automation only). Read and edit show the same cards: each guide source is
-one card with month, retail and trade boxes holding that source's
+(automation only). Read and edit show the same rows: each guide source is
+one row with retail, trade and month boxes holding that source's
 latest recorded figures (no mileage: the Case's own is used, operator, 24
 September 2026), greyed while reading; any box may be blank and is
 saved as entered. While editing, the boxes are
-inputs that belong to the Case form, and the card has **Get valuation**,
+inputs that belong to the Case form, and the row has **Get valuation**,
 which asks the connected provider for the Case's accepted registration and
 mileage in that month and fills the boxes in place, without redrawing the
 page. Glass's is the connected source; its valuation's PDF report is filed on
 the Case's Documents after the figures have answered and appears there on the
 next load ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 A source with no connected provider shows "{Source} valuation is
-unavailable. Contact an administrator or report a problem." on its card from
+unavailable. Contact an administrator or report a problem." on its row from
 the start and offers no Get valuation (28 September 2026); a connected source
 that cannot answer shows the same sentence when pressed.
-The card has no Save of its own (23 September 2026): each save records
-every card whose figures changed, a card left blank or unchanged records
+A row has no Save of its own (23 September 2026): each save records
+every row whose figures changed, a row left blank or unchanged records
 nothing, and the same source and month replaces the earlier card; a typed
-figure saves the same way. A **Valuation month** and **AI market research**
-above the cards create a `MarketResearch` job and show a
-"Researching · {month}" card until it completes; a re-run replaces the card.
+figure saves the same way. AI market research has its own standing row
+(operator, 6 October 2026) holding its latest figures, a **Valuation month**
+and its own **Get valuation**, which create a `MarketResearch` job; the row
+reads "Researching · {month}" until it completes, and a re-run replaces its
+figures. A recorded research row also states the month, mileage and date it
+was asked with.
 The result is filed without the Case edit lease, so it returns while the
-Engineer is still editing and does not end the edit; the card says so
+Engineer is still editing and does not end the edit; the row says so
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
 Read and edit list the same value increases, every active preset with a tick
-on each the latest recorded calculation applied, and the calculator opens on
-that applied selection. Choosing a card as the basis fills Retail value and
+on each the recorded calculation applied, and the calculator opens on that
+applied selection, while the Engineer's Value holds that calculation's figure.
+A different figure saved over it is the Engineer's own: the calculator then
+opens blank and no source opens while reading (operator, 6 October 2026).
+Choosing a card as the basis fills Retail value and
 Trade value from it, and the calculation fills Engineer's Value; any box can
 be overtyped. The calculator has no Apply of its own (operator, 23 September
 2026). Each card has **Use this value** while editing (operator, 28 September
@@ -466,9 +494,13 @@ the calculation against that card even when it is unchanged, including for a
 card typed in the same edit. A save also records a calculation that changed
 since the last save — a different basis card, the basis card's retail or
 trade, or any of its controls. Any other save records no calculation. The
-calculation lines show what the save will use, from the retail as typed and
-the claimant's VAT as the form holds it, and say why when a figure cannot be
-worked out
+calculation shows what the save will use, from the retail as typed and the
+claimant's VAT as the form holds it: its result fills Engineer's Value, which
+is the one place the figure stands, the commercial VAT and previous total
+loss amounts show beside their controls, and it says why when a figure cannot
+be worked out. There is no second total and no applied block; while
+Engineer's Value holds a recorded calculation's figure, its label carries
+that calculation's source as one word (operator, 6 October 2026)
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 The calculator applies presets and custom lines through Core. Valuation
 sources are owned by
@@ -814,9 +846,10 @@ Inspection's values only.
 
 ## Edge cases and fail-closed behaviour
 
-- A lost or expired edit lease shows the holder; the next save is refused
-  and the typed values stay on screen. A stale version is a non-destructive
-  conflict showing current and proposed values.
+- A lease a colleague now holds shows the holder; the next save is refused
+  and the typed values stay on screen. A save over a value the system filled
+  since the page loaded it is a non-destructive conflict showing current and
+  proposed values.
 - A refused or unknown save response keeps the proposed values for review;
   the next change tries again.
 - A change not yet sent lands before Done, Refresh, navigation or an
