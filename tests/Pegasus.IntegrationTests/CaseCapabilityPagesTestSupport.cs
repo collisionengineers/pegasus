@@ -835,6 +835,10 @@ internal static partial class CaseWebTestSupport
         public Guid CaseId { get; } = Guid.NewGuid();
 
         public long CaseVersion { get; private set; } = 7;
+
+        /// <summary>System work moving the Case under the editor's lease, which it leaves held.</summary>
+        public void AdvanceBySystemWork() => CaseVersion++;
+
         public bool AcceptWorkspaceSaves { get; init; }
 
         /// <summary>The workflow state the projection reports; Not ready unless a test says otherwise.</summary>

@@ -23,14 +23,48 @@ public sealed class CaseEditAuthorityTests
         Assert.Equal(8, exception.ActualVersion);
     }
 
+    /// <summary>
+    /// Editing never expires while the page is open (operator, 6 October 2026): a staff holder
+    /// whose lease lapsed while nobody claimed the Case still presents the retained token, and
+    /// carries on. The Automation Actor's lease ends at its expiry, and a token that no longer
+    /// matches (a colleague claimed the lapsed Case) has no edit authority.
+    /// </summary>
     [Fact]
-    public void ExpiredLeaseIsRefusedAsHavingNoEditAuthority()
+    public void AStaffHoldersLapsedLeaseNobodyClaimedCarriesOn()
     {
-        var exception = Assert.Throws<CaseEditLeaseExpiredException>(() =>
-            Require(leaseExpiresAtUtc: Now));
+        Require(leaseExpiresAtUtc: Now);
+        Require(leaseExpiresAtUtc: Now.AddDays(-1));
 
-        Assert.Equal(CaseId, exception.CaseId);
-        Assert.Equal(4, exception.CaseVersion);
+        var automation = ActionActor.Automation("pegasus-automation");
+        var expired = Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            Require(
+                actor: automation,
+                retainedLeaseHolderKind: ActorKind.Automation,
+                retainedLeaseHolder: automation.SubjectId,
+                leaseExpiresAtUtc: Now));
+        Assert.Equal(CaseId, expired.CaseId);
+        Assert.Equal(4, expired.CaseVersion);
+        Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            Require(leaseExpiresAtUtc: Now, presentedTokenMatchesRetainedHash: false));
+        Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            Require(leaseExpiresAtUtc: Now, retainedLeaseHolder: Guid.NewGuid().ToString("D")));
+    }
+
+    /// <summary>
+    /// Every staff write ends its lease, so a token that still matches proves only system work
+    /// moved the Case since the page read it: the write is accepted from that older version. A
+    /// version from the future is refused.
+    /// </summary>
+    [Fact]
+    public void UnderAProvenLeaseAVersionMovedOnlyBySystemWorkIsAccepted()
+    {
+        CaseEditAuthority.RequireVersionUnderLease(CaseId, caseVersion: 9, expectedVersion: 9);
+        CaseEditAuthority.RequireVersionUnderLease(CaseId, caseVersion: 9, expectedVersion: 7);
+
+        var exception = Assert.Throws<CaseVersionConflictException>(() =>
+            CaseEditAuthority.RequireVersionUnderLease(CaseId, caseVersion: 9, expectedVersion: 10));
+        Assert.Equal(10, exception.ExpectedVersion);
+        Assert.Equal(9, exception.ActualVersion);
     }
 
     [Fact]
@@ -42,18 +76,6 @@ public sealed class CaseEditAuthorityTests
             Require(hasRetainedLeaseTokenHash: false));
         Assert.Throws<CaseEditLeaseExpiredException>(() =>
             Require(retainedLeaseHolder: null));
-        Assert.Throws<CaseEditLeaseExpiredException>(() =>
-            CaseEditAuthority.RequireLease(
-                CaseId,
-                caseVersion: 4,
-                HolderActor,
-                presentedLeaseToken: "a-live-token",
-                retainedLeaseHolderKind: ActorKind.Staff,
-                retainedLeaseHolder: Holder,
-                hasRetainedLeaseTokenHash: true,
-                leaseExpiresAtUtc: null,
-                presentedTokenMatchesRetainedHash: true,
-                Now));
     }
 
     [Fact]
@@ -339,13 +361,13 @@ public sealed class CaseEditAuthorityTests
     }
 
     [Fact]
-    public void HeartbeatExtendsOnlyBeforeExpiry()
+    public void HeartbeatPicksUpTheHoldersLapsedLeaseUntilAnotherClaimsIt()
     {
         RequireHeartbeat(nowUtc: Now.AddMinutes(5).AddTicks(-1));
+        RequireHeartbeat(nowUtc: Now.AddMinutes(5));
+        RequireHeartbeat(nowUtc: Now.AddDays(1));
         Assert.Throws<CaseEditLeaseExpiredException>(() =>
-            RequireHeartbeat(nowUtc: Now.AddMinutes(5)));
-        Assert.Throws<CaseEditLeaseExpiredException>(() =>
-            RequireHeartbeat(nowUtc: Now.AddDays(1)));
+            RequireHeartbeat(nowUtc: Now.AddDays(1), presentedTokenMatchesRetainedHash: false));
     }
 
     [Fact]

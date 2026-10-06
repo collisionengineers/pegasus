@@ -138,10 +138,10 @@
         }
         @if (editing)
         {
-            @* The status word of the session: what the last commit did,
-               or that editing has expired (save as you go, operator,
-               29 September 2026). *@
-            <span class="lease-line" data-lease-line data-lease-expired-text="@Frame.EditingExpired"
+            @* The status word of the session: what the last commit did
+               (save as you go, operator, 29 September 2026). Editing never
+               expires while the page is open (operator, 6 October 2026). *@
+            <span class="lease-line" data-lease-line
                   data-lease-saving-text="@Frame.Saving" data-lease-saved-text="@Frame.Saved" hidden></span>
             @* Done ends editing and frees the Case; every change is
                already recorded, so there is nothing to discard. *@
@@ -151,19 +151,6 @@
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
-            </form>
-            @* Script hides this and beats instead; without script it is
-               how editing is kept. *@
-            <form method="post" asp-page-handler="RenewLease" data-case-renew>
-                <input type="hidden" name="id" value="@summary.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <input type="hidden" name="view" value="@Model.ViewRoute" />
-                <button type="submit" data-busy-label="@OperatorLabels.Busy.Renewing" class="btn btn--small">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
-                    <span>@Frame.RenewEditing</span>
-                </button>
             </form>
             <form method="post" asp-page-handler="HeartbeatLease" data-case-heartbeat
                   data-heartbeat-seconds="@((int)CaseEditAuthority.HeartbeatInterval.TotalSeconds)" hidden>

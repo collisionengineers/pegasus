@@ -185,21 +185,22 @@ public sealed class VehicleWorkflowTerminalTests
         Assert.Equal(1, await ExternalWorkCountAsync(database, caseId));
     }
 
+    /// <summary>
+    /// A lookup outcome is system work: it advances the canonical workflow and leaves the
+    /// editor's lease standing (operator, 6 October 2026), so the editor's next lease-guarded
+    /// action at the version their page read still lands.
+    /// </summary>
     [Fact]
-    public async Task QueuedOutcomeAdvancesCanonicalWorkflowAndMakesConcurrentEditorStale()
+    public async Task QueuedOutcomeAdvancesCanonicalWorkflowAndKeepsTheConcurrentEditorsLease()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(
             configureServices: services =>
                 services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay));
         var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
         var workItemId = Guid.NewGuid();
-        const string editLeaseToken = "active-editor-lease";
-        var leaseHash = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(editLeaseToken)));
+        var editLeaseToken = await PrepareCanonicalRegistrationAsync(database, caseId, "AB12CDE");
         await using (var context = await database.CreateContextAsync())
         {
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE CaseWorkflows SET EditLeaseToken = {editLeaseToken}, EditLeaseTokenHash = {leaseHash}, EditLeaseRequestHash = {leaseHash}, EditLeaseHolder = {Staff.SubjectId}, EditLeaseHolderKind = {nameof(ActorKind.Staff)}, EditLeaseOperationKey = {"active-editor"}, EditLeaseExpiresAtUtc = {FixedUtcNow.AddMinutes(5)} WHERE CaseId = {caseId}");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO ExternalWorkItems (Id, CaseId, Kind, OperationKey, State, AttemptCount, DueAtUtc) VALUES ({workItemId}, {caseId}, {ExternalWorkKinds.VehicleLookup}, {"seeded-vehicle-work"}, {"pending"}, {0}, {FixedUtcNow})");
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -241,17 +242,31 @@ public sealed class VehicleWorkflowTerminalTests
             $"SELECT Version FROM Cases WHERE Id = '{caseId:D}'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflowEvents WHERE CaseId = '{caseId:D}' AND EventType = 'vehicle_lookup_not_found'"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
+        Assert.Equal(1, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseTokenHash IS NOT NULL"));
 
+        var requested = await scope.ServiceProvider.GetRequiredService<IRequestVehicleLookup>().ExecuteAsync(
+            new(
+                caseId,
+                0,
+                "AB12CDE",
+                Staff,
+                "editor-vehicle-request-behind-outcome",
+                editLeaseToken),
+            CancellationToken.None);
+        Assert.False(requested.IsReplay);
+        Assert.Equal(2, await ExternalWorkCountAsync(database, caseId));
+        Assert.Equal(2L, await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        // A version the Case has not reached is still refused.
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
             scope.ServiceProvider.GetRequiredService<IRequestVehicleLookup>().ExecuteAsync(
                 new(
                     caseId,
-                    0,
+                    3,
                     "AB12CDE",
                     Staff,
-                    "stale-editor-vehicle-request",
+                    "editor-vehicle-request-from-the-future",
                     editLeaseToken),
                 CancellationToken.None));
     }

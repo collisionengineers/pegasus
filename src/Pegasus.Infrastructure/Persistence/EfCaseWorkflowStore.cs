@@ -303,8 +303,8 @@ public sealed class EfCaseWorkflowStore(
         }
 
         ArchivedCaseGuard.RequireNotArchived(workflow);
-        RequireVersion(workflow, request.ExpectedVersion);
         RequireLease(workflow, request.Actor, request.LeaseToken, now);
+        RequireVersionUnderLease(workflow, request.ExpectedVersion);
         var tokenHash = Hash(request.LeaseToken);
         var expiresAtUtc = now + EditLeaseDuration;
         workflow.EditLeaseToken = request.LeaseToken;
@@ -337,14 +337,15 @@ public sealed class EfCaseWorkflowStore(
     }
 
     /// <summary>
-    /// Keeps the holder's own live lease from lapsing while their editor stays open. It is
-    /// deliberately not <see cref="RenewAsync"/>: an open page beats every minute for as long as
-    /// it is open, and renewal records one <c>CaseEditLeaseOperations</c> row per call in a table
-    /// nothing prunes. FRD-01 counts a heartbeat as telemetry, so this writes no operation row, no
-    /// operation key, and no request hash, so <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/>
-    /// keeps the claim key that replays the lease. It also asks for no expected version: a
-    /// version cannot move under a live lease, because every mutation clears the lease as it
-    /// commits.
+    /// Keeps the holder's own lease from lapsing while their editor stays open, and picks up a
+    /// staff holder's lapsed lease nobody claimed since. It is deliberately not
+    /// <see cref="RenewAsync"/>: an open page beats every minute for as long as it is open, and
+    /// renewal records one <c>CaseEditLeaseOperations</c> row per call in a table nothing prunes.
+    /// FRD-01 counts a heartbeat as telemetry, so this writes no operation row, no operation key,
+    /// and no request hash, so <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/> keeps the
+    /// claim key that replays the lease. It asks for no expected version and answers the current
+    /// one: system work moves the version under a lease without ending it, and the page catches
+    /// up from that answer.
     /// </summary>
     public async Task<CaseEditLease> HeartbeatAsync(
         HeartbeatCaseEditLeaseRequest request,
@@ -1056,8 +1057,8 @@ public sealed class EfCaseWorkflowStore(
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         ArchivedCaseGuard.RequireMutable(workflow);
-        RequireVersion(workflow, request.ExpectedCaseVersion);
         RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
+        RequireVersionUnderLease(workflow, request.ExpectedCaseVersion);
         var due = await context.CaseDueWork
                 .Include(item => item.Workflow)
                 .ThenInclude(workflow => workflow.Case)
@@ -1211,9 +1212,9 @@ public sealed class EfCaseWorkflowStore(
         {
             ArchivedCaseGuard.RequireMutable(workflow);
         }
-        RequireVersion(workflow, request.ExpectedVersion);
         var now = timeProvider.GetUtcNow();
         RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
+        RequireVersionUnderLease(workflow, request.ExpectedVersion);
         var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
         var beforeVersion = workflow.Version;
         var beforeState = workflow.State;
@@ -1342,8 +1343,7 @@ public sealed class EfCaseWorkflowStore(
         var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
         var beforeVersion = workflow.Version;
         ApplyReportEvidenceLink(workflow, pastWork, evaluation.Evidence, request.Actor, now);
-        workflow.Version = checked(workflow.Version + 1);
-        ClearLease(workflow);
+        CaseMutationGuard.Advance(workflow);
         var afterJson = JsonSerializer.Serialize(HistoryValue(workflow));
         AddEvent(
             context,
@@ -1828,6 +1828,9 @@ public sealed class EfCaseWorkflowStore(
 
     private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
         CaseMutationGuard.RequireVersion(workflow, expectedVersion);
+
+    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
 
     private static void RequireLease(CaseWorkflowEntity workflow, ActionActor actor, string token, DateTimeOffset now) =>
         CaseMutationGuard.RequireLease(workflow, actor, token, now);

@@ -95,10 +95,6 @@ public sealed partial class DetailsModel
 
         ApplyAssessmentAccess(actor, Case.Workflow);
         await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
-        if (LeaseToken is not null)
-        {
-            RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
-        }
         Assessment = workspace?.Assessment;
         CurrentSpecification = workspace?.CurrentSpecification;
 

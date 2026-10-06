@@ -55,7 +55,8 @@ Case at the same route renders as the Triage Case page instead
 
 When a colleague holds the lease the ribbon shows who, and offers **Take
 over**. Any staff member may take over; no reason is needed and the takeover
-is recorded in history. Renew editing works without script. The rule is in
+is recorded in history. There is no Renew editing: editing lasts while the
+page is open (operator, 6 October 2026). The rule is in
 [FRD-14](frd-14-record-edit-leases.md#take-over).
 
 **The section row** sits under the ribbon. It lists the section links, marks
@@ -148,7 +149,21 @@ version, the lease and the key the next save sends, and the Files section
 when a crop or rotation was recorded. A save that ends editing redirects to
 the page, as every other command does. A refusal refuses the whole save, keeps
 every typed value in its box, says why in the ribbon's status word and as a
-notice, and the next change tries again. The ribbon has **Done**, which ends editing and releases
+notice, and the next change tries again. A decision's partner field (the
+salvage category and value of a total loss, the reason a vehicle is
+unroadworthy, the agreed sum of a contract repair) is a readiness item, never
+a save refusal, so each field saves as it is left (operator, 6 October 2026).
+
+**Catching up.** System work moves the Case under the session without ending
+it ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). When a save's
+answer, or the minute heartbeat's, shows the Case past the version the page
+holds, or a save is refused or not confirmed, the page catches up once
+nothing is in flight: it reads the Case again and draws afresh the ribbon,
+the notices, the aside, the dialogs (unless one is open) and each section
+that holds no value not yet sent, keeping the place, the focused control and
+what is typed in it. A section holding a value not yet sent stays as the
+operator has it. When a colleague now holds the Case, every section stays as
+it is, so what the operator typed remains to copy. The ribbon has **Done**, which ends editing and releases
 the lease; there is no Save and no Cancel, because nothing is unsaved: a
 wrong value is retyped, and the history names each change. Ctrl S saves now,
 a composite's typing included; without script the ribbon's **Save now** is
@@ -173,8 +188,8 @@ the Principal's claim number everywhere it appears. Our ref is the separate,
 immutable Case reference. The Registration, Make and Model inputs live in
 the Vehicle section's edit state, not on Overview.
 
-While editing, the lease line shows its expiry, and a stale version shows the
-current and proposed values as a non-destructive conflict. A Case save needs
+While editing, a refused save shows the current and proposed values as a
+non-destructive conflict. A Case save needs
 no reason; its history line names the changed fields. Holds, releases,
 corrections and a return to engineering record a reason.
 
@@ -814,9 +829,10 @@ Inspection's values only.
 
 ## Edge cases and fail-closed behaviour
 
-- A lost or expired edit lease shows the holder; the next save is refused
-  and the typed values stay on screen. A stale version is a non-destructive
-  conflict showing current and proposed values.
+- A lease a colleague now holds shows the holder; the next save is refused
+  and the typed values stay on screen. A save over a value the system filled
+  since the page loaded it is a non-destructive conflict showing current and
+  proposed values.
 - A refused or unknown save response keeps the proposed values for review;
   the next change tries again.
 - A change not yet sent lands before Done, Refresh, navigation or an
