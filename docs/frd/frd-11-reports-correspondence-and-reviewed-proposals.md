@@ -353,7 +353,7 @@ Principal's report sending rules, in the order of Report Sending SOP rule R12.
 3. A Principal set to send only to its fixed addresses has no Cc at all.
 4. The addresses the Principal never copies, and the ones a rule removes, are
    taken out. Removals always win: an address staff type into To or Cc is taken
-   out too, and the form says what was removed and why.
+   out at send too. The form says what the plan removed and why.
 5. Duplicates are dropped without regard to case, and an address already in To
    is not copied.
 
@@ -414,8 +414,8 @@ as Send report.
   report generated without them
   ([Report generation entry point](#report-generation-entry-point)); the images
   document carries them.
-- **Fee note.** A Principal that expects a separate fee note has it ticked when
-  it is generated, and gets a warning when it is not.
+- **Fee note.** A confirmed separate fee note is offered ticked under Attach. A
+  Principal that expects one gets a warning when none is confirmed.
 - **After sending.** The Principal's reminders, the reminders of each rule that
   holds, and "Send the figures to the garage." for a repairable outcome when the
   Principal asks for it are shown on the form and recorded with the send. They
@@ -424,9 +424,10 @@ as Send report.
 - **Name.** A Principal may set the report's name: one pattern for a first send
   and one for every later send, using {ref}, {reg} and {outcome}. Without one,
   the default naming above applies.
-- **Changes.** A send carries the rules and Case facts its form was drawn from.
-  If the Principal's rules or the Case's instruction changed since, the send is
-  refused and the form is read again.
+- **Changes.** A send carries the rules and Case facts its form was drawn from
+  (the rules, the instruction, its sender, the Claim Source, the Repairer, the
+  outcome and the instruction text). If any changed since, the send is refused
+  and the form is read again.
 - **Other mail on the instruction.** A report send is never held up by another
   unfinished message on the same instruction, and never holds one up.
 

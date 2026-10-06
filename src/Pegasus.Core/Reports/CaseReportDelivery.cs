@@ -375,7 +375,7 @@ public static class CaseReportDeliveryPolicy
     /// rules ask.
     /// </summary>
     public const string DispatchChanged =
-        "The report was not sent. This Principal's report sending rules or the Case's instruction changed; check the form and send again.";
+        "The report was not sent. This Principal's report sending rules or the Case's facts changed; check the form and send again.";
 
     /// <summary>
     /// Which generated documents one send attaches. The operator's choice
