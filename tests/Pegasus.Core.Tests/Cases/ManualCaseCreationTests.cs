@@ -31,6 +31,32 @@ public sealed class ManualCaseCreationTests
         Assert.Equal("AB12CDE", store.Request.Data.VehicleRegistration);
     }
 
+    /// <summary>
+    /// Creating a Case directly is casework (ADR-0064): the Automation Actor
+    /// creates one in its own name; a system worker or Principal cannot.
+    /// </summary>
+    [Fact]
+    public async Task TheAutomationActorCreatesACaseAndOtherActorsCannot()
+    {
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => useCase.ExecuteAsync(
+            Request("manual-create-system") with { Actor = ActionActor.SystemWorker("worker") },
+            CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => useCase.ExecuteAsync(
+            Request("manual-create-principal") with { Actor = ActionActor.Principal(Guid.NewGuid()) },
+            CancellationToken.None));
+        Assert.Null(store.Request);
+
+        await useCase.ExecuteAsync(
+            Request("mcp:manual-create-automation") with { Actor = ActionActor.Automation("grant-1") },
+            CancellationToken.None);
+
+        Assert.Equal(ActorKind.Automation, store.Request!.Actor.Kind);
+        Assert.Equal("mcp:manual-create-automation", store.Request.OperationKey);
+    }
+
     [Fact]
     public async Task RefusesAStandaloneAuditOutsideTheRetainedClassificationRoute()
     {

@@ -24,6 +24,12 @@ internal enum TriageLinkAction
     Unlink
 }
 
+internal enum TriageAssignAction
+{
+    Assign,
+    Unassign
+}
+
 /// <summary>
 /// Triage automation (FRD-10 § Triage automation contract): every tool calls
 /// the same Core query or command staff use on a Triage Case, under
@@ -50,6 +56,10 @@ internal sealed class TriageMcpTools(
     IReopenTriage reopen,
     ILinkTriageCase linkCase,
     IUnlinkTriageCase unlinkCase,
+    IAssignTriage assign,
+    IUnassignTriage unassign,
+    IAddTriageNote addNote,
+    ICaseEngineerChoices engineerChoices,
     AutomationEditLease leases,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
@@ -263,6 +273,60 @@ internal sealed class TriageMcpTools(
                 cancellationToken),
             cancellationToken);
     }
+
+    [McpServerTool(Name = "pegasus_triage_assign", Title = "Assign or unassign Triage", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Assign names the member of staff who owns the Triage, chosen from the enabled staff the Triage page offers; Unassign removes the assignee. The assignee is separate from the acting Automation actor, and neither takes a reason: each writes its own history text, as the staff actions do.")]
+    public Task<TriageDetailToolResult> AssignAsync(
+        [Description(TriageIdDescription)] Guid caseId,
+        [Description(VersionDescription)] long expectedVersion,
+        [Description("Assign or Unassign.")] string action,
+        [Description(KeyDescription)] string operationKey,
+        [Description("Assign only: the staff identifier of an enabled member of staff.")] Guid? assigneeId = null,
+        [Description(LeaseDescription)] string? editLeaseToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        var parsedAction = Enum.TryParse<TriageAssignAction>(action?.Trim(), ignoreCase: true, out var parsed)
+            && Enum.IsDefined(parsed)
+                ? parsed
+                : throw new McpException("action must be Assign or Unassign.");
+        return MutateAsync("pegasus_triage_assign", caseId, expectedVersion, operationKey, editLeaseToken,
+            async (actor, key, token) =>
+            {
+                if (parsedAction == TriageAssignAction.Unassign)
+                {
+                    if (assigneeId is not null)
+                    {
+                        throw new McpException("Unassign takes no assigneeId.");
+                    }
+
+                    await unassign.ExecuteAsync(new(caseId, expectedVersion, actor, key) { EditLeaseToken = token }, cancellationToken);
+                    return;
+                }
+
+                // The assignee is chosen from the eligible roster, as on the
+                // Triage page; a choice outside it is no choice.
+                var staffId = assigneeId ?? throw new McpException("Assign needs assigneeId.");
+                var roster = await engineerChoices.GetAsync(actor, cancellationToken);
+                if (roster.All(choice => choice.StaffId != staffId))
+                {
+                    throw new McpException("The assignee is not an enabled member of staff.");
+                }
+
+                await assign.ExecuteAsync(new(caseId, expectedVersion, staffId, actor, key, string.Empty) { EditLeaseToken = token }, cancellationToken);
+            }, cancellationToken);
+    }
+
+    [McpServerTool(Name = "pegasus_triage_note_add", Title = "Add Triage note", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Adds a note to the Triage's permanent history, as a member of staff adds one: append-only, attributed to the Automation actor, never edited or replaced; a correction is another note. At most 500 characters.")]
+    public Task<TriageDetailToolResult> AddNoteAsync(
+        [Description(TriageIdDescription)] Guid caseId,
+        [Description(VersionDescription)] long expectedVersion,
+        [Description("The note text, at most 500 characters.")] string note,
+        [Description(KeyDescription)] string operationKey,
+        [Description(LeaseDescription)] string? editLeaseToken = null,
+        CancellationToken cancellationToken = default) =>
+        MutateAsync("pegasus_triage_note_add", caseId, expectedVersion, operationKey, editLeaseToken,
+            (actor, key, token) => addNote.ExecuteAsync(new(caseId, expectedVersion, actor, key, note) { EditLeaseToken = token }, cancellationToken), cancellationToken);
 
     private async Task<TriageDetailToolResult> MutateAsync(
         string tool,

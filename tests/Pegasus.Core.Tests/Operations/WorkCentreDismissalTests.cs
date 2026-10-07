@@ -54,13 +54,29 @@ public sealed class WorkCentreDismissalTests
     }
 
     [Fact]
-    public async Task OnlyAStaffMemberWhoDoesCaseworkCanDismiss()
+    public async Task TheAutomationActorDismissesInItsOwnName()
+    {
+        var store = new InMemoryWorkCentreDismissals();
+        var recordId = Guid.NewGuid();
+
+        await new DismissWorkCentreItem(store, new FixedTimeProvider(NowUtc)).ExecuteAsync(
+            new DismissWorkCentreItemRequest(recordId, ActionActor.Automation("grant-1")),
+            CancellationToken.None);
+
+        Assert.Equal("grant-1", store.DismissedBy[recordId]);
+    }
+
+    [Fact]
+    public async Task OnlyACaseworkActorCanDismiss()
     {
         var store = new InMemoryWorkCentreDismissals();
         var dismiss = new DismissWorkCentreItem(store, new FixedTimeProvider(NowUtc));
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => dismiss.ExecuteAsync(
-            new DismissWorkCentreItemRequest(Guid.NewGuid(), ActionActor.Automation("worker")),
+            new DismissWorkCentreItemRequest(Guid.NewGuid(), ActionActor.SystemWorker("worker")),
+            CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => dismiss.ExecuteAsync(
+            new DismissWorkCentreItemRequest(Guid.NewGuid(), ActionActor.Principal(Guid.NewGuid())),
             CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() => dismiss.ExecuteAsync(
             new DismissWorkCentreItemRequest(Guid.Empty, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])),

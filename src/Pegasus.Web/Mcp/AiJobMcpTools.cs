@@ -4,6 +4,8 @@ using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.AiWork;
+using Pegasus.Core.Assessment;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Mcp;
 
@@ -47,24 +49,33 @@ internal enum AiJobTransitionAction
     Progress,
     Complete,
     Fail,
-    Release
+    Release,
+    Cancel,
+    Confirm
 }
 
 /// <summary>
 /// The AI job ledger tools (ADR-0035, FRD-10 § AI job and estimate tools):
-/// the pull side of the ledger for an external AI client. Every tool
-/// requires the <c>automation.jobs</c> scope; creation is limited to the
-/// scheduled Unidentified-queue pass (operator decision D5); take and progress are
-/// refused while the Administrator Send to AI switch is off. The five
-/// transitions of a held job are one tool with an action, since each is the
-/// same job id, expected version and operation key with one extra field.
+/// the ledger for an external AI client. Every tool requires the
+/// <c>automation.jobs</c> scope. The Automation Actor creates any kind, through
+/// the same Core command and subject checks as the staff action that starts it
+/// (ADR-0064: a job is how an external agent picks up work); take and progress
+/// are refused while the Administrator Send to AI switch is off. The
+/// transitions of a job are one tool with an action, since each is the same
+/// job id, expected version and operation key with one extra field: the
+/// client's own Take, Progress, Complete, Fail and Release, and the
+/// staff-equivalent Cancel and Confirm.
 /// </summary>
 [McpServerToolType]
 internal sealed class AiJobMcpTools(
     IAiJobQueries queries,
     ICreateAiJob create,
+    IStartMarketResearch startMarketResearch,
     IWorkAiJob work,
+    ICancelAiJob cancel,
+    IConfirmAiJob confirm,
     ICompleteMarketResearchAiJob completeMarketResearch,
+    GetRetainedMail getRetainedMail,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     ICursorProtector cursors)
@@ -126,11 +137,16 @@ internal sealed class AiJobMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Creates an Unidentified-queue pass job, the only kind an external scheduler may start. Requires a mcp:-prefixed operation key; replaying the same key returns the same job.")]
+    [Description("Creates one AI job of any kind through the same Core command and subject checks as the staff action that starts it, so external agents on automated runs can queue work for each other. Estimate needs caseId (a Case With Engineer or later that has an Engineer's Value) and takes an optional instruction and targetPercentOfEngineerValue. MarketResearch needs caseId and guideMonth; while one is already queued or taken for the Case, that job is returned instead. QueryResponse needs messageId, a retained post-report query linked to its Case. UnidentifiedResolution needs unidentifiedReference, an open item. UnidentifiedQueuePass needs instruction. Refused while the Administrator has stopped AI work. Requires a mcp:-prefixed operation key; replaying the same key returns the same job.")]
     public async Task<AiJobToolItem> CreateAsync(
-        [Description("Must be UnidentifiedQueuePass.")] string kind,
-        [Description("Short instruction for the pass, at most 500 characters.")] string instruction,
+        [Description("Estimate, MarketResearch, QueryResponse, UnidentifiedResolution or UnidentifiedQueuePass.")] string kind,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("Estimate: optional direction, at most 500 characters; omitted, the job asks for an estimate for the Case. UnidentifiedQueuePass: required, at most 500 characters. The other kinds carry the fixed instruction staff send, and a value is refused for them.")] string? instruction = null,
+        [Description("Estimate and MarketResearch: the Case identifier.")] Guid? caseId = null,
+        [Description("Estimate only: optional target from 0 to 80 percent of the Case's recorded Engineer's Value; guidance for the drafter, never an accepted figure.")] int? targetPercentOfEngineerValue = null,
+        [Description("MarketResearch only: the guide month the research is for, yyyy-MM.")] string? guideMonth = null,
+        [Description("QueryResponse only: the retained message identifier (pegasus_mail_list) of the post-report query the reply answers.")] Guid? messageId = null,
+        [Description("UnidentifiedResolution only: the open item's exact U-reference, for example U17.")] string? unidentifiedReference = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
@@ -142,26 +158,140 @@ internal sealed class AiJobMcpTools(
             key,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
-                if (ParseKind(kind) != AiJobKind.UnidentifiedQueuePass)
+                var parsedKind = ParseKind(kind);
+                RefuseUnused(parsedKind, caseId, targetPercentOfEngineerValue, guideMonth, messageId, unidentifiedReference);
+                if (parsedKind is not (AiJobKind.Estimate or AiJobKind.UnidentifiedQueuePass)
+                    && instruction is not null)
                 {
                     throw new McpException(
-                        "The Automation Actor creates only UnidentifiedQueuePass jobs.");
+                        $"The {parsedKind} job carries the fixed instruction staff send; omit instruction.");
                 }
 
-                var created = await create.ExecuteAsync(
-                    new(
-                        AiJobKind.UnidentifiedQueuePass,
-                        null,
-                        null,
-                        instruction,
-                        null,
-                        context.Actor,
-                        key),
-                    cancellationToken);
+                var created = parsedKind switch
+                {
+                    AiJobKind.Estimate => await create.ExecuteAsync(
+                        new(
+                            AiJobKind.Estimate,
+                            RequireCase(caseId, parsedKind),
+                            null,
+                            instruction ?? string.Empty,
+                            targetPercentOfEngineerValue,
+                            context.Actor,
+                            key),
+                        cancellationToken),
+                    AiJobKind.MarketResearch => await startMarketResearch.ExecuteAsync(
+                        new(
+                            RequireCase(caseId, parsedKind),
+                            guideMonth is null
+                                ? throw new McpException("A MarketResearch job needs guideMonth, yyyy-MM.")
+                                : ParseGuideMonth(guideMonth),
+                            context.Actor,
+                            key),
+                        cancellationToken),
+                    AiJobKind.QueryResponse => await CreateQueryResponseAsync(
+                        context, key, messageId, cancellationToken),
+                    AiJobKind.UnidentifiedResolution => await create.ExecuteAsync(
+                        new(
+                            AiJobKind.UnidentifiedResolution,
+                            null,
+                            string.IsNullOrWhiteSpace(unidentifiedReference)
+                                ? throw new McpException("An UnidentifiedResolution job needs unidentifiedReference.")
+                                : unidentifiedReference.Trim(),
+                            AiJobPolicy.UnidentifiedResolutionInstruction,
+                            null,
+                            context.Actor,
+                            key),
+                        cancellationToken),
+                    _ => await create.ExecuteAsync(
+                        new(
+                            AiJobKind.UnidentifiedQueuePass,
+                            null,
+                            null,
+                            instruction ?? throw new McpException("An UnidentifiedQueuePass job needs instruction."),
+                            null,
+                            context.Actor,
+                            key),
+                        cancellationToken)
+                };
                 return Map(created);
             }),
             cancellationToken);
     }
+
+    /// <summary>
+    /// A Query response answers one retained post-report query linked to its
+    /// Case, as the message page's action does; its instruction is the
+    /// message identifier.
+    /// </summary>
+    private async Task<AiJobRecord> CreateQueryResponseAsync(
+        AutomationActorContext context,
+        string key,
+        Guid? messageId,
+        CancellationToken cancellationToken)
+    {
+        var id = AutomationMcpErrors.RequireId(
+            messageId ?? throw new McpException("A QueryResponse job needs messageId."),
+            "retained message identifier");
+        var detail = await getRetainedMail.ExecuteAsync(context.Actor, id, cancellationToken)
+            ?? throw new McpException("The retained message was not found.");
+        if (!AiJobPolicy.IsQueryResponseSource(detail) || detail.Summary.CaseId is not { } queryCaseId)
+        {
+            throw new McpException(
+                "A QueryResponse job answers a retained post-report query that is linked to its Case.");
+        }
+
+        return await create.ExecuteAsync(
+            new(
+                AiJobKind.QueryResponse,
+                queryCaseId,
+                detail.Summary.CaseReference,
+                id.ToString("D"),
+                null,
+                context.Actor,
+                key),
+            cancellationToken);
+    }
+
+    /// <summary>A subject field another kind needs is refused rather than ignored.</summary>
+    private static void RefuseUnused(
+        AiJobKind kind,
+        Guid? caseId,
+        int? targetPercent,
+        string? guideMonth,
+        Guid? messageId,
+        string? unidentifiedReference)
+    {
+        var unused = new List<string>();
+        if (caseId is not null && kind is not (AiJobKind.Estimate or AiJobKind.MarketResearch))
+        {
+            unused.Add("caseId");
+        }
+        if (targetPercent is not null && kind != AiJobKind.Estimate)
+        {
+            unused.Add("targetPercentOfEngineerValue");
+        }
+        if (guideMonth is not null && kind != AiJobKind.MarketResearch)
+        {
+            unused.Add("guideMonth");
+        }
+        if (messageId is not null && kind != AiJobKind.QueryResponse)
+        {
+            unused.Add("messageId");
+        }
+        if (unidentifiedReference is not null && kind != AiJobKind.UnidentifiedResolution)
+        {
+            unused.Add("unidentifiedReference");
+        }
+        if (unused.Count > 0)
+        {
+            throw new McpException($"The {kind} job does not take {string.Join(", ", unused)}.");
+        }
+    }
+
+    private static Guid RequireCase(Guid? caseId, AiJobKind kind) =>
+        AutomationMcpErrors.RequireId(
+            caseId ?? throw new McpException($"The {kind} job needs caseId."),
+            "case identifier");
 
     [McpServerTool(
         Name = "pegasus_ai_job_transition",
@@ -171,17 +301,17 @@ internal sealed class AiJobMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Moves one AI job for this client. Take claims a queued job under a 30-minute lease. Progress renews the lease and records progressNote. Complete marks a non-MarketResearch job Draft ready with resultKind (Estimate, ProposedResolution or DraftReply, matching the job kind) and the optional resultReference and resultText; nothing is applied to the record, staff confirm through the record's own action. Fail marks the job Failed with reason; it is not re-queued. Release returns a taken job to Queued before its lease ends, with an optional reason. Take and Progress are refused while the Administrator has stopped AI work. MarketResearch completes through pegasus_ai_job_complete_market_research.")]
+    [Description("Moves one AI job. The client's own transitions: Take claims a queued job under a 30-minute lease. Progress renews the lease and records progressNote. Complete marks a non-MarketResearch job Draft ready with resultKind (Estimate, ProposedResolution or DraftReply, matching the job kind) and the optional resultReference and resultText; nothing is applied to the record. Fail marks the job Failed with reason; it is not re-queued. Release returns a taken job to Queued before its lease ends, with an optional reason. Progress, Complete, Fail and Release act only on a job this client holds. The staff-equivalent transitions act on any client's job: Cancel stops a queued, taken or Draft ready job with reason; Confirm marks a Draft ready QueryResponse or UnidentifiedQueuePass job Completed once its result has been used, as the Work Centre's Complete job does (an Estimate job completes when staff use its estimate, an UnidentifiedResolution job through the item's own resolution). Take and Progress are refused while the Administrator has stopped AI work. MarketResearch completes through pegasus_ai_job_complete_market_research.")]
     public async Task<AiJobToolItem> TransitionAsync(
         [Description("The job identifier from pegasus_ai_job_list.")] Guid jobId,
         [Description("The job version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Take, Progress, Complete, Fail or Release.")] string action,
+        [Description("Take, Progress, Complete, Fail, Release, Cancel or Confirm.")] string action,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         [Description("Progress: the note, at most 500 characters.")] string? progressNote = null,
         [Description("Complete: Estimate, ProposedResolution or DraftReply.")] string? resultKind = null,
         [Description("Complete: reference to the draft written through the attributed tools, at most 200 characters.")] string? resultReference = null,
         [Description("Complete: proposal or draft text, at most 4000 characters.")] string? resultText = null,
-        [Description("Fail: the reason, at most 500 characters. Release: optional.")] string? reason = null,
+        [Description("Fail and Cancel: the reason, at most 500 characters. Release: optional.")] string? reason = null,
         CancellationToken cancellationToken = default)
     {
         var parsedAction = ParseAction(action);
@@ -204,7 +334,10 @@ internal sealed class AiJobMcpTools(
                     new(id, expectedVersion, context.Actor, key, Require(reason, "Fail", "reason")), cancellationToken),
                 AiJobTransitionAction.Release => work.ReleaseAsync(
                     new(id, expectedVersion, context.Actor, key, reason), cancellationToken),
-                _ => throw new McpException("action must be Take, Progress, Complete, Fail or Release.")
+                AiJobTransitionAction.Cancel => cancel.ExecuteAsync(
+                    new(id, expectedVersion, context.Actor, key, Require(reason, "Cancel", "reason")), cancellationToken),
+                AiJobTransitionAction.Confirm => ConfirmAsync(id, expectedVersion, context, key, cancellationToken),
+                _ => throw new McpException(ActionValues)
             });
             return Map(job);
         });
@@ -279,6 +412,30 @@ internal sealed class AiJobMcpTools(
             cancellationToken);
     }
 
+    /// <summary>
+    /// Confirm closes only a job the Work Centre completes by hand; the others
+    /// complete through their record's own act (FRD-27).
+    /// </summary>
+    private async Task<AiJobRecord> ConfirmAsync(
+        Guid jobId,
+        long expectedVersion,
+        AutomationActorContext context,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        var job = (await queries.ListOpenAsync(cancellationToken))
+            .FirstOrDefault(candidate => candidate.JobId == jobId);
+        if (job is null || !AiJobPolicy.CompletesByHand(job))
+        {
+            throw new McpException(
+                "Only a Draft ready QueryResponse or UnidentifiedQueuePass job is confirmed by hand.");
+        }
+
+        return await confirm.ExecuteAsync(new(jobId, expectedVersion, context.Actor, key), cancellationToken);
+    }
+
+    private const string ActionValues = "action must be Take, Progress, Complete, Fail, Release, Cancel or Confirm.";
+
     private static Guid RequireJobId(Guid jobId) => AutomationMcpErrors.RequireId(jobId, "job identifier");
 
     private static string Require(string? value, string action, string name) =>
@@ -289,7 +446,7 @@ internal sealed class AiJobMcpTools(
     private static AiJobTransitionAction ParseAction(string? action) =>
         Enum.TryParse<AiJobTransitionAction>(action?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
-            : throw new McpException("action must be Take, Progress, Complete, Fail or Release.");
+            : throw new McpException(ActionValues);
 
     private static AiJobResultKind ParseResultKind(string? resultKind) =>
         Enum.TryParse<AiJobResultKind>(resultKind?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)

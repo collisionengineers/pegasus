@@ -195,7 +195,9 @@ the five metrics and the Activity figures count records and do not change.
 There is no undo and no list of dismissed rows, and no notice: the row's
 leaving is the answer. Every row of every section ends in the same
 icon-only Dismiss (v32 item B); after a dismissal the page returns to the next
-row of that list, or to the list's heading when none is left.
+row of that list, or to the list's heading when none is left. The Automation
+Actor dismisses a record the same way with `pegasus_work_centre_dismiss`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
 
 ### Cases: queues and filters
 

@@ -676,7 +676,7 @@ public sealed class MessageModel(
             {
                 return NotFound();
             }
-            if (!IsPostReportQuery(detail) || detail.Summary.CaseId is not { } caseId)
+            if (!AiJobPolicy.IsQueryResponseSource(detail) || detail.Summary.CaseId is not { } caseId)
             {
                 ModelState.AddModelError(
                     string.Empty,
@@ -1645,7 +1645,7 @@ public sealed class MessageModel(
 
     private async Task LoadAiJobContextAsync(CancellationToken cancellationToken)
     {
-        IsQueryResponseSource = IsPostReportQuery(Detail);
+        IsQueryResponseSource = AiJobPolicy.IsQueryResponseSource(Detail);
         if (IsQueryResponseSource)
         {
             if (CurrentCase is null)
@@ -1669,14 +1669,6 @@ public sealed class MessageModel(
                 cancellationToken);
         }
     }
-
-    private static bool IsPostReportQuery(RetainedMailDetail detail) =>
-        detail.Summary.CaseId is not null
-        && detail.Classification?.Current is
-        {
-            Outcome: MailClassificationOutcome.Classified,
-            Category.IsPostReport: true
-        };
 
     private async Task LoadAssociationSafelyAsync(
         ActionActor actor,

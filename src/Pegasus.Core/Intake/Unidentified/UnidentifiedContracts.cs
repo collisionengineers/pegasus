@@ -766,10 +766,7 @@ public sealed class CloseUnidentified(IResolveUnidentified resolve) : ICloseUnid
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Actor);
-        if (request.Actor.Kind != ActorKind.Staff)
-        {
-            throw new UnauthorizedAccessException("Only staff can close an Unidentified item with a reason.");
-        }
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
 
         return _resolve.ExecuteAsync(
             new ResolveUnidentifiedRequest(
@@ -787,11 +784,12 @@ public sealed class CloseUnidentified(IResolveUnidentified resolve) : ICloseUnid
 }
 
 /// <summary>
-/// Reopen (Received file D2): a member of staff withdraws a resolution — a
-/// closure or a destination — with a reason, and the item returns to the open
-/// list. The store appends the "Resolved to Open" history row; the withdrawn
-/// destination stays on that history. Automation reconciliation reopens through
-/// the store under its own actor; this is the staff act.
+/// Reopen (Received file D2): a member of staff or the Automation Actor
+/// (ADR-0064) withdraws a resolution — a closure or a destination — with a
+/// reason, and the item returns to the open list. The store appends the
+/// "Resolved to Open" history row; the withdrawn destination stays on that
+/// history. Automation reconciliation reopens through the store under its own
+/// actor; this is the casework act.
 /// </summary>
 public interface IReopenUnidentified
 {
@@ -810,11 +808,6 @@ public sealed class ReopenUnidentified(IUnidentifiedStore store) : IReopenUniden
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Actor);
-        if (request.Actor.Kind != ActorKind.Staff)
-        {
-            throw new UnauthorizedAccessException("Only staff can reopen an Unidentified item with a reason.");
-        }
-
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         return _store.ReopenAsync(request, cancellationToken);
     }

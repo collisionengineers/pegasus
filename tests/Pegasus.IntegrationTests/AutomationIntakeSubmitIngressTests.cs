@@ -135,11 +135,63 @@ public sealed class AutomationIntakeSubmitIngressTests
             Assert.Empty(list.GetProperty("items").EnumerateArray());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        // Reopen and Close with reason are the staff acts too (ADR-0064).
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(10, "pegasus_unidentified_get", new { reference })))
+        {
+            version = (await ReadStructuredContentAsync(response)).GetProperty("item").GetProperty("version").GetInt64();
+        }
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(11, "pegasus_unidentified_reopen", new
+        {
+            reference,
+            expectedVersion = version,
+            reason = "The external file was the wrong one.",
+            operationKey = "mcp:unidentified-reopen"
+        })))
+        {
+            var reopened = await ReadStructuredContentAsync(response);
+            Assert.Equal("Open", reopened.GetProperty("state").GetString());
+            version = reopened.GetProperty("version").GetInt64();
+        }
+
+        // Closed names no destination.
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(12, "pegasus_unidentified_resolve", new
+        {
+            reference,
+            expectedVersion = version,
+            reason = "Not ours.",
+            targetKind = "Closed",
+            targetId = "closed",
+            operationKey = "mcp:unidentified-close-with-target"
+        })))
+        {
+            Assert.Contains("no destination", await ReadErrorTextAsync(response), StringComparison.Ordinal);
+        }
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(13, "pegasus_unidentified_resolve", new
+        {
+            reference,
+            expectedVersion = version,
+            reason = "Not ours.",
+            targetKind = "Closed",
+            operationKey = "mcp:unidentified-close"
+        })))
+        {
+            var closed = await ReadStructuredContentAsync(response);
+            Assert.NotEqual("Open", closed.GetProperty("state").GetString());
+        }
+
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
               AND EventKind = N'pegasus_unidentified_resolve'
+              AND Outcome = N'Succeeded'
+            """));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation'
+              AND EventKind = N'pegasus_unidentified_reopen'
               AND Outcome = N'Succeeded'
             """));
     }
@@ -171,6 +223,13 @@ public sealed class AutomationIntakeSubmitIngressTests
                 targetId = "x",
                 targetReference = (string?)null,
                 operationKey = "mcp:unidentified-resolve-scope"
+            }),
+            ToolCallPayload(3, "pegasus_unidentified_reopen", new
+            {
+                reference = "U1",
+                expectedVersion = 0,
+                reason = "Scope probe.",
+                operationKey = "mcp:unidentified-reopen-scope"
             })
         };
         foreach (var payload in payloads)
