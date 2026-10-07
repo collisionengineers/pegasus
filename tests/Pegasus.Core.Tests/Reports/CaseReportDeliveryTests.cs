@@ -434,7 +434,7 @@ public sealed class CaseReportDeliveryTests
             Guid.NewGuid(), new string('e', 64), "image/png",
             estimate.SpecificationId, estimate.Version, ReportRepairCosts.For(estimate), 5_000m, Guid.NewGuid(),
             CaseReportContentSwitches.None, ReportGuideSources.None,
-            new DateOnly(2026, 9, 6), false, 120m, ["Engineering assessment"], [], [],
+            new DateOnly(2026, 9, 6), 120m, ["Engineering assessment"], [], [],
             AssessmentReportContract.TemplateVersion, "fake",
             AssessmentReportRenderingTests.Snapshot(AssessmentReportOutcome.Repairable))
         {
