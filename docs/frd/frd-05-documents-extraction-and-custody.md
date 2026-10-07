@@ -331,9 +331,10 @@ name ignoring case, with one of six fixed design tints. An occurrence may
 carry any number of tags.
 
 Tags carry meaning for the report (operator, 26 September 2026). A new
-image is in the report. The first image in the
-report tagged Close-up prints as the Close-up and the first other one tagged
-Overview as the Overview; the rest print as supporting images. Tagging an
+image is in the report. The first image in the report tagged Overview prints
+as the Overview, at place 1, and the first other one tagged Close-up as the
+Close-up, at place 2; the rest print as supporting images (operator,
+7 October 2026). Tagging an
 image Third party or Reflection takes it out of the report; staff may put it
 back in ([FRD-06](frd-06-vehicle-and-engineering-evidence.md)).
 

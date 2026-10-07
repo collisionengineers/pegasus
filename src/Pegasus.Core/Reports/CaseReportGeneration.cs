@@ -647,7 +647,6 @@ public static class CaseReportReadiness
     public const string CurrentEstimateRequirement = "Current repair spec";
     public const string LabourRateRequirement = "Repair spec labour rate";
     public const string RepairerVatRequirement = "Repairer VAT status";
-    public const string CloseUpImageRequirement = "Close-up image";
     public const string OverviewImageRequirement = "Overview image";
     public const string ImageSourceRequirement = "Report image sources";
     public const string ValuationCommentaryRequirement = "Valuation commentary";
@@ -761,14 +760,9 @@ public static class CaseReportReadiness
         }
 
         // The image tag decides how an image in the report prints (operator,
-        // 26 September 2026), so each blocker asks for a tag.
+        // 26 September 2026). The one image a report needs is its Overview;
+        // the Close-up is optional (operator, 7 October 2026).
         var images = CaseAssetPreparationPolicy.ForReport(input.Preparations);
-        Require(
-            images.Any(image => image.Role == CaseAssetReportRole.CloseUp),
-            new(
-                CloseUpImageRequirement, "Case files",
-                "The report prints one Close-up image and no image in the report is tagged Close-up.",
-                "Tag one Case image Close-up on the Files section."));
         Require(
             images.Any(image => image.Role == CaseAssetReportRole.Overview),
             new(

@@ -33,7 +33,7 @@ public sealed class CaseReportGenerationTests
         Assert.Empty(result.Reasons);
         Assert.Equal(SignatoryId, result.Signatory!.StaffId);
         Assert.Equal(
-            [CaseAssetReportRole.CloseUp, CaseAssetReportRole.Overview],
+            [CaseAssetReportRole.Overview, CaseAssetReportRole.CloseUp],
             result.Images.Select(image => image.Role));
     }
 
@@ -291,15 +291,20 @@ public sealed class CaseReportGenerationTests
         Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
     }
 
+    /// <summary>
+    /// The one image a report needs is its Overview; the Close-up is optional
+    /// (operator, 7 October 2026).
+    /// </summary>
     [Fact]
-    public void AMissingCloseUpBlocksGeneration()
+    public void AMissingCloseUpDoesNotBlockGeneration()
     {
         var result = CaseReportReadiness.Evaluate(ReadyInput() with
         {
             Preparations = [Preparation(OverviewOccurrence, CaseAssetReportRole.Overview)],
         });
 
-        AssertBlocked(result, CaseReportReadiness.CloseUpImageRequirement);
+        Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
+        Assert.Equal(CaseAssetReportRole.Overview, Assert.Single(result.Images).Role);
     }
 
     [Fact]
@@ -513,7 +518,6 @@ public sealed class CaseReportGenerationTests
         {
             CaseReportReadiness.SignatoryRequirement,
             CaseReportReadiness.CurrentEstimateRequirement,
-            CaseReportReadiness.CloseUpImageRequirement,
             CaseReportReadiness.OverviewImageRequirement,
         })
         {
@@ -557,10 +561,6 @@ public sealed class CaseReportGenerationTests
         // The post-review Engineer's Value item is the one blocker for the missing value.
         var engineerValue = Assert.Single(reasons, reason => reason.Field == AssessmentVocabulary.ValueEngineer);
         Assert.Contains("the Valuation section", engineerValue.HowToResolve, StringComparison.Ordinal);
-        Assert.Contains(
-            "the Files section",
-            HowToResolve(CaseReportReadiness.CloseUpImageRequirement),
-            StringComparison.Ordinal);
         Assert.Contains(
             "the Files section",
             HowToResolve(CaseReportReadiness.OverviewImageRequirement),
@@ -684,7 +684,7 @@ public sealed class CaseReportGenerationTests
         var store = new FakeStore
         {
             Freeze = new(CaseReportFreezeOutcome.NotReady, null, null,
-                [new AssessmentReadinessItem("Close-up image", "Case files", "why", "how")]),
+                [new AssessmentReadinessItem("Overview image", "Case files", "why", "how")]),
         };
         var renderer = new RecordingRenderer();
         var custody = new RecordingCustody();
@@ -692,7 +692,7 @@ public sealed class CaseReportGenerationTests
         var result = await Use(store, renderer, custody).ExecuteAsync(Request(), default);
 
         Assert.Equal(CaseReportGenerationOutcome.NotReady, result.Outcome);
-        Assert.Equal("Close-up image", Assert.Single(result.Reasons).Requirement);
+        Assert.Equal("Overview image", Assert.Single(result.Reasons).Requirement);
         Assert.Empty(renderer.Kinds);
         Assert.Equal(0, custody.Calls);
     }
