@@ -353,9 +353,10 @@ public sealed partial class CaseCreateWebTests
         var snapshot = await ReadAddressSnapshotAsync(factory.Services, receipt.Id);
         Assert.Equal(InspectionAddressResolutionState.Supplied, snapshot.State);
         Assert.Equal("1 Example Street, Exampleton EX1 1EX", snapshot.ResolvedValue);
-        Assert.Equal(DevelopmentOfflineIdentity.AdministratorId, snapshot.ResolvedByStaffId);
+        Assert.Equal(ActorKind.Staff, snapshot.ResolvedByKind);
+        Assert.Equal(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), snapshot.ResolvedBy);
         Assert.Contains(
-            "ext18-address-resolution/v1/",
+            "ext18-address-resolution/v2/",
             await ReadEvidenceJsonAsync(factory.Services, receipt.Id),
             StringComparison.Ordinal);
 

@@ -63,6 +63,12 @@ read from text.
 - Where the source has no address at all, a staff member types the physical
   location at Case creation. It is kept with that person as its source. The
   ban is on Pegasus inferring an address, not on a person stating one.
+- The Automation actor settles an address as staff do: it accepts or
+  corrects the extracted suggestion, or supplies the location where there
+  is none (operator, 7 October 2026;
+  [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). The
+  settlement records its settler's actor kind and identity, so an address
+  the Actor settled reads as the Actor's, never as staff's.
 
 The Principal-domain reference package holds no address and no mode default.
 No address is ever inferred from a Principal or domain match.

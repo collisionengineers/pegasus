@@ -379,30 +379,33 @@ internal static class CaseDataSnapshotFactory
                 resolution.State,
                 principalIsImageBased)
             || string.IsNullOrWhiteSpace(resolution.ResolvedValue)
-            || resolution.ResolvedByStaffId is not { } staffId
+            || resolution.ResolvedByKind is not { } settlerKind
+            || string.IsNullOrWhiteSpace(resolution.ResolvedBy)
             || resolution.ResolvedAtUtc is not { } resolvedAtUtc)
         {
             return;
         }
 
-        var actor = staffId.ToString("D");
+        var actor = resolution.ResolvedBy;
         // Where the value came from, in the terms the case record keeps: an
         // accepted suggestion is the extraction the acceptance confirmed, and
-        // both a correction and a supplied address are a person's own words,
-        // so both carry staff provenance.
+        // both a correction and a supplied address are keyed values, as any
+        // Case-data edit is. The label names who keyed it: a member of staff
+        // or the Automation actor (ADR-0064), never staff for the Actor.
         var sourceKind = resolution.State == InspectionAddressResolutionState.Accepted
             ? CaseDataCodes.CaseAcceptance
             : CaseDataCodes.StaffCorrection;
+        var settledBy = InspectionAddressResolutionPolicy.SettlerWord(settlerKind);
         var addressLabel = resolution.State switch
         {
-            InspectionAddressResolutionState.Corrected => "staff-corrected inspection address",
-            InspectionAddressResolutionState.Supplied => "staff-supplied inspection address",
+            InspectionAddressResolutionState.Corrected => $"{settledBy}-corrected inspection address",
+            InspectionAddressResolutionState.Supplied => $"{settledBy}-supplied inspection address",
             _ => "accepted inspection address"
         };
         var modeLabel = resolution.State switch
         {
-            InspectionAddressResolutionState.Corrected => "staff-corrected inspection mode",
-            InspectionAddressResolutionState.Supplied => "staff-supplied inspection mode",
+            InspectionAddressResolutionState.Corrected => $"{settledBy}-corrected inspection mode",
+            InspectionAddressResolutionState.Supplied => $"{settledBy}-supplied inspection mode",
             _ => "accepted inspection mode"
         };
         UpsertConfirmed(

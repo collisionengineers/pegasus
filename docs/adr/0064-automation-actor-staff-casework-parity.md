@@ -5,7 +5,7 @@ date: 2026-10-07
 supersedes: [ADR-0021, ADR-0031]
 superseded_by: []
 related_capabilities: [MCP-01, MCP-02, MCP-06]
-related_frd: [frd-10, frd-11, frd-14, frd-21, frd-24, frd-25, frd-27]
+related_frd: [frd-06, frd-10, frd-11, frd-14, frd-21, frd-24, frd-25, frd-27]
 tags: [mcp, automation, ai, assessment, estimate]
 ---
 
@@ -118,8 +118,8 @@ fact the call did not name.
   adds `pegasus_case_action`, `pegasus_directory_search`,
   `pegasus_report_list`, `pegasus_report_action` and
   `pegasus_document_action`, making 47; the queue and job delivery adds
-  eight more, making 55; sending adds `pegasus_report_send` and
-  `pegasus_mail_send`, making 57.
+  eight more, making 55; the report preparation delivery adds four, making
+  59; sending adds `pegasus_report_send` and `pegasus_mail_send`, making 61.
 - This is the first of four deliveries, all now delivered: the Case
   lifecycle, report and document tools; the queue and job tools; and outward
   sending under `automation.send`.
@@ -133,8 +133,18 @@ fact the call did not name.
   unassigns and notes a Triage, closes and reopens Unidentified items,
   creates a Case directly, accepts a received item and retries its
   allocation, moves and dismisses mail, and dismisses Work Centre records.
-  Settling an inspection address stays with staff: its record names the
-  member of staff who settled it.
+- Inspection address, report wording and image preparation: delivered
+  (operator, 7 October 2026). `pegasus_intake_action`
+  `resolve_inspection_address` settles a received item's inspection address
+  as **Create case** does. A settled address records its settler's actor
+  kind and identity rather than a staff identifier, so one the Actor settled
+  reads as the Actor's; migration `20261007181000_InspectionAddressSettlerKind`
+  rewrote each earlier settlement as a member of staff's.
+  `pegasus_report_wording_get` and `pegasus_report_wording_save` read and
+  change the report's wording blocks, and `pegasus_image_preparation_get`
+  and `pegasus_image_prepare` read and change each image's crop, rotation,
+  order and page of its own, both through the Case save
+  ([FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#report-wording-and-images)).
 
 ## Links
 
