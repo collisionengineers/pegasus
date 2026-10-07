@@ -1936,7 +1936,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
-        Assert.Equal(1, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
+        var findings = await context.Set<DocumentOccurrenceEntity>().AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+        // Market research is a document type, not an image tag.
+        Assert.Equal(DocumentSemanticRole.MarketResearch, findings.SemanticRole);
+        Assert.False(await context.Set<DocumentOccurrenceTagEntity>().AnyAsync(item => item.OccurrenceId == findings.Id));
         var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
         Assert.Equal(engineerLease.Version, workflow.Version);
         Assert.Equal(harness.EngineerActor.SubjectId, workflow.EditLeaseHolder);

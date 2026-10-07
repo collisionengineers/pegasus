@@ -448,7 +448,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261005120000_GrantWorkerCaseManualChases",
                 "20261005150000_PrincipalDefaultFee",
                 "20261006150000_DropCaseReportDeliveryIntents",
-                "20261006160000_RepairSpecificationGlassEstimate"
+                "20261006160000_RepairSpecificationGlassEstimate",
+                "20261007140000_MarketResearchDocumentRole"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

@@ -75,7 +75,7 @@ internal sealed class DocumentMcpTools(
         [Description("The leaf file name; path components are rejected.")] string fileName,
         [Description("The document media type.")] string mediaType,
         [Description("The complete document content encoded as base64.")] string contentBase64,
-        [Description("The document semantic role name: OriginalSource, Instruction, Image, Correspondence, EngineerReport, AuditReport, or Other.")] string semanticRole,
+        [Description("The document semantic role name: OriginalSource, Instruction, Image, Correspondence, EngineerReport, AuditReport, MarketResearch, or Other.")] string semanticRole,
         [Description("The case version observed by the caller; a stale value fails closed.")] long expectedCaseVersion,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
