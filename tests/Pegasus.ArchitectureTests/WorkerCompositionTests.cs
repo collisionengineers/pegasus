@@ -308,6 +308,40 @@ public sealed class WorkerCompositionTests
     }
 
     /// <summary>
+    /// The Functions host validates the whole graph at build in Development, so
+    /// every shared use case has to be constructible even where this host never
+    /// calls it. The paged queries take a cursor protector; the Worker serves no
+    /// page, and composes the one that says so rather than leaving them
+    /// unconstructible (the local Worker process exited 134 on exactly this).
+    /// </summary>
+    [Theory]
+    [InlineData("DevelopmentOffline")]
+    [InlineData("Production")]
+    public void TheWorkerComposesAnUnavailableCursorProtectorSoThePagedQueriesConstruct(string profile)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var services = CreateWorkerServices(CreateConfiguration(profile, root), new TestHostEnvironment(root));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+
+            Assert.IsType<Pegasus.Infrastructure.Support.UnavailableCursorProtector>(
+                provider.GetRequiredService<Pegasus.Core.ICursorProtector>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Pegasus.Core.Cases.IListCaseDocumentsByCursor>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Pegasus.Core.Cases.IListCaseHistoryByCursor>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Pegasus.Core.Assessment.IListCaseEstimatesByCursor>());
+            Assert.Throws<InvalidOperationException>(() =>
+                provider.GetRequiredService<Pegasus.Core.ICursorProtector>().Protect("scope", "key", Guid.NewGuid()));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Features:LiveVehicleLookup composes the live DVLA/DVSA adapter in the
     /// offline Worker and nothing of Graph: the mailbox stays the local folder.
     /// </summary>

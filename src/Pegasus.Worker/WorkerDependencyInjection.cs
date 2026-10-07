@@ -115,6 +115,9 @@ public static class WorkerDependencyInjection
         services.AddScoped<EfIdentityAuditStore>();
         services.AddScoped<IActionHistoryWriter>(serviceProvider =>
             serviceProvider.GetRequiredService<EfIdentityAuditStore>());
+        // The shared use cases include the paged queries the Web serves; this
+        // host serves none, and says so if one is ever asked for.
+        services.AddSingleton<Pegasus.Core.ICursorProtector, Pegasus.Infrastructure.Support.UnavailableCursorProtector>();
         azureClientRegistration.AddTo(services);
 
         if (developmentOffline)
