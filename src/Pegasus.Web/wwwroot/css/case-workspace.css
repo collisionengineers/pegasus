@@ -454,8 +454,8 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 @media(max-width:760px){#section-settlement .metric-strip{grid-template-columns:repeat(2,1fr)}#section-settlement .metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 
 /* ---- Report (v26): preview card, generation, recipients, image strip -------- */
-#section-report .panel-actions .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
-#section-report .panel-actions .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+#section-report .panel-actions .choice,#section-report .recip-form .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
+#section-report .panel-actions .choice input,#section-report .recip-form .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
 #section-report .pv{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;flex-wrap:wrap}
 #section-report .pv-thumb{width:56px;height:76px;border-radius:2px;background:#fdfcfa;border:1px solid #e4dfd8;position:relative;flex-shrink:0}
 #section-report .pv-thumb::before{content:"";position:absolute;inset:7px 7px auto;height:6px;background:var(--red)}
@@ -471,7 +471,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-report .recip-form{display:grid;gap:8px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
 #section-report .recip-form .lg,#section-report .recip-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
 #section-report .recip-form .stack{gap:4px}
-#section-report .recip-form input{min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
+#section-report .recip-form input:not([type=checkbox]){min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
 #section-report .recip-form .btn{justify-self:start}
 #section-report .thumbs{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
 #section-report .th{aspect-ratio:4/3;border-radius:3px;position:relative;cursor:zoom-in;overflow:hidden;border:1px solid var(--line);display:flex;align-items:flex-end;padding:5px;font:600 9.5px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);background:var(--surface-3);text-decoration:none}
