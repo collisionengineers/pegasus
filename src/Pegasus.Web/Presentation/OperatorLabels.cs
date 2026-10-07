@@ -170,6 +170,24 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// One state per <see cref="CaseStage(CaseLifecycleState)"/> name, in enum
+    /// order: the first state of each stage stands for it, so a state filter
+    /// lists With Engineer once.
+    /// </summary>
+    public static IReadOnlyList<CaseLifecycleState> CaseStages { get; } = Enum.GetValues<CaseLifecycleState>()
+        .DistinctBy(CaseStage)
+        .ToArray();
+
+    /// <summary>
+    /// Every state that reads as <paramref name="state"/>'s stage: both With
+    /// Engineer states for either of them, otherwise the state alone.
+    /// </summary>
+    public static IReadOnlyList<CaseLifecycleState> CaseStageStates(CaseLifecycleState state) =>
+        Enum.GetValues<CaseLifecycleState>()
+            .Where(candidate => CaseStage(candidate) == CaseStage(state))
+            .ToArray();
+
+    /// <summary>
     /// One named closure outcome, as the operator chooses it. The words are
     /// <see cref="CaseStage(CaseLifecycleState)"/>'s own terminal names without
     /// the "Closed · " prefix, which the chooser's heading already carries.

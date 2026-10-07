@@ -63,9 +63,9 @@
             <label for="search-state">State</label>
             <select id="search-state" name="state">
                 <option value="">All states</option>
-                @foreach (var state in Enum.GetValues<CaseLifecycleState>())
+                @foreach (var state in OperatorLabels.CaseStages)
                 {
-                    <option value="@state" selected="@(Model.State == state)">@OperatorLabels.CaseStage(state)</option>
+                    <option value="@state" selected="@(Model.State is { } chosen && OperatorLabels.CaseStage(chosen) == OperatorLabels.CaseStage(state))">@OperatorLabels.CaseStage(state)</option>
                 }
             </select>
         </div>
