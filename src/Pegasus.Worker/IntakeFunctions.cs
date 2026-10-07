@@ -201,15 +201,26 @@ public sealed partial class PendingWorkRecoveryFunction(
 }
 
 /// <summary>Replays only automatic EVA Review intentions that committed with a Case transition.</summary>
+/// <remarks>
+/// The processor is optional for the same reason the Web host's manual route
+/// is: only Production composes the EVA API. A host without it has nothing to
+/// replay, and says so once per tick at Debug rather than failing the timer.
+/// </remarks>
 public sealed partial class AutomaticEvaReviewSubmissionFunction(
-    ProcessAutomaticEvaReviewSubmissions processAutomaticEvaReviewSubmissions,
-    ILogger<AutomaticEvaReviewSubmissionFunction> logger)
+    ILogger<AutomaticEvaReviewSubmissionFunction> logger,
+    ProcessAutomaticEvaReviewSubmissions? processAutomaticEvaReviewSubmissions = null)
 {
     [Function(nameof(AutomaticEvaReviewSubmissionFunction))]
     public async Task RunAsync(
         [TimerTrigger("%AutomaticEvaReviewSubmissionSchedule%", RunOnStartup = false, UseMonitor = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
+        if (processAutomaticEvaReviewSubmissions is null)
+        {
+            LogRouteNotComposed(logger);
+            return;
+        }
+
         var processed = await processAutomaticEvaReviewSubmissions.ExecuteAsync(50, cancellationToken);
         LogProcessed(logger, processed);
     }
@@ -217,6 +228,10 @@ public sealed partial class AutomaticEvaReviewSubmissionFunction(
     [LoggerMessage(Level = LogLevel.Information,
         Message = "Processed {Count} automatic EVA Review submissions.")]
     private static partial void LogProcessed(ILogger logger, int count);
+
+    [LoggerMessage(Level = LogLevel.Debug,
+        Message = "The EVA API route is not composed on this host; no automatic Review submissions were replayed.")]
+    private static partial void LogRouteNotComposed(ILogger logger);
 }
 
 public sealed partial class UnifiedWorkFunction(

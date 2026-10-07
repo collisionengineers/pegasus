@@ -76,7 +76,7 @@ internal static class WorkerAzureClientFactory
 
     private const string DevelopmentStorageKey = "AzureWebJobsStorage";
     private const string IntakeStorageConnectionStringKey = "IntakeStorage:ConnectionString";
-    private const string IntakeArtifactContainerName = "transient-intake";
+    internal const string IntakeArtifactContainerName = "transient-intake";
     private const string IntakeWorkQueueName = "intake-work";
     private const string AzuriteAccountName = "devstoreaccount1";
 
