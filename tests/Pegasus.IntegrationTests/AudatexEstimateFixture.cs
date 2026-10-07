@@ -16,13 +16,18 @@ internal static class AudatexEstimateFixture
     /// A synthetic Audatex-shaped report: labour and paint tables whose work
     /// units print one point below their description rows, a parts table with
     /// a priced and an unpriced row, an extras table with inline prices, and
-    /// the document's own section totals.
+    /// the document's own section totals. Each LABOUR and PAINT WORK heading
+    /// prints its time basis unless that basis is null; a materials total
+    /// prints a MATERIAL COST section.
     /// </summary>
     internal static byte[] Build(
         string partsSubTotal = "£620.20",
         string labourTotalWorkUnits = "21.0",
         bool extraOrphanAmount = false,
-        bool includeIdentity = true)
+        bool includeIdentity = true,
+        int? labourUnitsPerHour = 10,
+        int? paintUnitsPerHour = 10,
+        string? paintMaterials = null)
     {
         var builder = new PdfDocumentBuilder();
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
@@ -41,6 +46,10 @@ internal static class AudatexEstimateFixture
         // LABOUR: guide + description rows with the work-unit value on its
         // own baseline 1pt below, a continuation row, and the printed total.
         Text(20, 660, "LABOUR");
+        if (labourUnitsPerHour is { } labourBasis)
+        {
+            Text(291, 660, $"Time Basis {labourBasis} WU = 1 HR. Price = £80.00/HR");
+        }
         Text(20, 648, "Number");
         Text(159, 648, "Description");
         Text(485, 648, "Work");
@@ -62,6 +71,10 @@ internal static class AudatexEstimateFixture
         Text(515, 600, labourTotalWorkUnits);
 
         Text(20, 580, "PAINT WORK");
+        if (paintUnitsPerHour is { } paintBasis)
+        {
+            Text(291, 580, $"Time Basis {paintBasis} WU = 1 HR. Price = £80.00/HR");
+        }
         Text(20, 568, "Number");
         Text(159, 568, "Description");
         Text(485, 568, "Work");
@@ -73,6 +86,13 @@ internal static class AudatexEstimateFixture
         Text(291, 544, "Work");
         Text(324, 544, "Units");
         Text(515, 544, "16.2");
+
+        if (paintMaterials is not null)
+        {
+            Text(20, 536, "MATERIAL COST - PAINT");
+            Text(103, 528, "Total Paint And Material Cost");
+            Text(501, 528, paintMaterials);
+        }
 
         Text(20, 520, "PARTS");
         Text(20, 508, "Guide");
