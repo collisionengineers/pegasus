@@ -22,7 +22,7 @@ public sealed class EfIntakeWorkStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sourceIdentity);
-        var channel = ToCode(sourceIdentity.Channel);
+        var channel = EfIntakeReceiptStore.ToCode(sourceIdentity.Channel);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.IntakeStagedReceipts
             .AsNoTracking()
@@ -134,7 +134,7 @@ public sealed class EfIntakeWorkStore(
         string operationKey,
         CancellationToken cancellationToken)
     {
-        var channel = ToCode(receipt.SourceIdentity.Channel);
+        var channel = EfIntakeReceiptStore.ToCode(receipt.SourceIdentity.Channel);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.ReadCommitted,
@@ -745,7 +745,7 @@ public sealed class EfIntakeWorkStore(
         entity.MediaType,
         entity.SourceLength,
         entity.SourceHash,
-        new(ParseSourceChannel(entity.SourceChannel), entity.ExternalReceiptToken),
+        new(EfIntakeReceiptStore.ParseSourceChannel(entity.SourceChannel), entity.ExternalReceiptToken),
         entity.ReceivedAtUtc,
         entity.Actor,
         entity.StorageKey,
@@ -772,24 +772,6 @@ public sealed class EfIntakeWorkStore(
         entity.ProcessedReceiptId,
         entity.Revision,
         entity.EvaluatedAtUtc);
-
-    private static string ToCode(IntakeSourceChannel value) => value switch
-    {
-        IntakeSourceChannel.ManualUpload => "manual_upload",
-        IntakeSourceChannel.Mailbox => "mailbox",
-        IntakeSourceChannel.Automation => "automation",
-        IntakeSourceChannel.PrincipalApi => "principal_api",
-        _ => throw new InvalidOperationException($"Unknown IntakeSourceChannel value '{(int)value}'.")
-    };
-
-    private static IntakeSourceChannel ParseSourceChannel(string value) => value switch
-    {
-        "manual_upload" => IntakeSourceChannel.ManualUpload,
-        "mailbox" => IntakeSourceChannel.Mailbox,
-        "automation" => IntakeSourceChannel.Automation,
-        "principal_api" => IntakeSourceChannel.PrincipalApi,
-        _ => throw new InvalidDataException($"Unknown persisted intake source channel '{value}'.")
-    };
 
     private static string ToCode(IntakeWorkState value) => value switch
     {

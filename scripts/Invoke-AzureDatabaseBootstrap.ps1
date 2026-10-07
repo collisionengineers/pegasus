@@ -396,24 +396,15 @@ function Get-MigrationPermissionMatrix {
     # accepted submission and reads rows back for idempotent replay and the
     # Principal's own result lookup. The Worker processes the staged files and
     # reads the row to bind each one to the Principal whose credential
-    # submitted it; it never writes one. The row is created when the
-    # submission is received and completed in place once the request has been
-    # durably retained — the staged receipt id the result lookup reads back —
-    # so Web also holds UPDATE. A submission is never removed: no DELETE for
-    # either role.
-    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+    # submitted it; it never writes one. A submission is never removed: no
+    # DELETE for either role. 20260829212237_GrantProviderSubmissionAcceptRecovery
+    # once gave both roles UPDATE to write the staged-receipt back-reference;
+    # 20261007180000_SimplifyPrincipalSubmissions removed that column and
+    # revoked UPDATE, because nothing updates a submission row any more.
+    foreach ($permission in @('SELECT', 'INSERT')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalSubmissions")
     }
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|PrincipalSubmissions')
-    # 20260829212237_GrantProviderSubmissionAcceptRecovery: the accept path
-    # was made recoverable. Web writes the four accept records in four
-    # separate transactions, so a process loss between them used to leave a
-    # submission whose staged receipt id was never written back — the result
-    # lookup then answered Received forever, and the Accepted history row was
-    # never appended. A Worker reconciliation pass now completes those records
-    # in place, which is why the Worker holds UPDATE here and no longer only
-    # SELECT. It still never inserts a submission and never removes one.
-    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|PrincipalSubmissions')
     # 20260829095336_CaseValuations: the Web Case workspace creates and edits
     # valuation rows, and the Assessment workspace reads the current Engineer
     # value in the same process. Worker has no caller and no grant. Valuations

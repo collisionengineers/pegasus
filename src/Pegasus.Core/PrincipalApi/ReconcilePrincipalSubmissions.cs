@@ -18,9 +18,8 @@ public sealed record ReconcilePrincipalSubmissionsResult(
 
 /// <summary>
 /// The one owner of the Principal API accept-recovery rule: a submission whose
-/// durable intake receipt exists but whose Principal row or initial Accepted
-/// history write was interrupted is completed by the existing intake
-/// reconciliation timer. A bare submission reservation is not a candidate at
+/// durable intake receipt exists but whose initial Accepted history write was
+/// interrupted is completed by the existing intake reconciliation timer. A bare submission reservation is not a candidate at
 /// all — the store excludes it — because a retry still owns its intake
 /// attempt and no sweep can ever complete it.
 /// </summary>
@@ -70,32 +69,19 @@ public sealed class ReconcilePrincipalSubmissions(
 
             try
             {
-                var wasRepaired = false;
-                if (candidate.StagedReceiptId is null)
-                {
-                    await submissionStore.RecordStagedReceiptAsync(
-                        candidate.SubmissionId,
-                        candidate.RetainedStagedReceiptId,
-                        cancellationToken);
-                    wasRepaired = true;
-                }
-
-                if (!candidate.HasAcceptedHistory)
-                {
-                    // Stamped with when the submission was received, not with
-                    // this sweep's clock: the acceptance happened then, and a
-                    // row claiming now would be ordered after the Replayed row
-                    // it precedes. The originating request's correlation id
-                    // went with the process that never wrote this row, so the
-                    // row carries the submission's own operation key and says
-                    // where it came from instead of presenting a substitute as
-                    // a request id.
-                    //
-                    // False means the inline request appended its own row
-                    // between the candidate read and this write: that row is
-                    // the acceptance, this pass repaired nothing, and neither
-                    // fact is hidden.
-                    wasRepaired |= await actionHistory.TryAppendAsync(
+                // Stamped with when the submission was received, not with this
+                // sweep's clock: the acceptance happened then, and a row
+                // claiming now would be ordered after the Replayed row it
+                // precedes. The originating request's correlation id went with
+                // the process that never wrote this row, so the row carries the
+                // submission's own operation key and says where it came from
+                // instead of presenting a substitute as a request id.
+                //
+                // False means the inline request appended its own row between
+                // the candidate read and this write: that row is the
+                // acceptance, this pass repaired nothing, and neither fact is
+                // hidden.
+                if (await actionHistory.TryAppendAsync(
                         new(
                             PrincipalSubmissionPolicy.AcceptedHistoryId(candidate.SubmissionId),
                             PrincipalSubmissionPolicy.ActionHistoryAggregateType,
@@ -106,10 +92,7 @@ public sealed class ReconcilePrincipalSubmissions(
                             "Accepted",
                             PrincipalSubmissionPolicy.OperationKey(candidate.SubmissionId),
                             RecoveredAcceptReason),
-                        cancellationToken);
-                }
-
-                if (wasRepaired)
+                        cancellationToken))
                 {
                     repaired++;
                 }

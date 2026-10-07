@@ -6302,44 +6302,19 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("BodySha256")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
                     b.Property<string>("DeclaredInstructionJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("IdempotencyKey")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("KeyId")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("nchar(16)")
-                        .IsFixedLength();
-
                     b.Property<Guid>("PrincipalId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("PrincipalReference")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTimeOffset>("ReceivedAtUtc")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<Guid?>("StagedReceiptId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("PrincipalId", "IdempotencyKey")
-                        .IsUnique();
+                    b.HasIndex("PrincipalId");
 
                     b.ToTable("PrincipalSubmissions", (string)null);
                 });

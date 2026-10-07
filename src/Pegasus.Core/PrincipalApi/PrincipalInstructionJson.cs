@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Pegasus.Core.Documents;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.PrincipalApi;
 
@@ -14,43 +15,50 @@ namespace Pegasus.Core.PrincipalApi;
 /// </summary>
 public static class PrincipalInstructionJson
 {
-    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
-    {
-        ReadCommentHandling = JsonCommentHandling.Disallow,
-        AllowTrailingCommas = false
-    };
-
     /// <summary>
-    /// How the declaration is stored alongside its submission. Enums are written
-    /// by name: a retained submission must still say what it said after an enum
-    /// gains or reorders a member.
+    /// The request, the stored declaration and the responses. Enums are
+    /// written by name, so a retained declaration still says what it said
+    /// after an enum gains or reorders a member.
     /// </summary>
-    public static readonly JsonSerializerOptions StorageOptions = new(JsonSerializerDefaults.Web)
+    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() }
     };
 
     public static string Serialize(PrincipalInstruction instruction) =>
-        JsonSerializer.Serialize(instruction, StorageOptions);
+        JsonSerializer.Serialize(instruction, Options);
 
     public static PrincipalInstruction? Deserialize(string? json) =>
         string.IsNullOrWhiteSpace(json)
             ? null
-            : JsonSerializer.Deserialize<PrincipalInstruction>(json, StorageOptions);
+            : JsonSerializer.Deserialize<PrincipalInstruction>(json, Options);
 
     /// <summary>
     /// The declared instruction and its files, or a
     /// <see cref="PrincipalInstructionValidationException"/> naming the field at
-    /// fault. Malformed JSON is reported as the body being unreadable rather
-    /// than as a field.
+    /// fault. Text is normalised and bounded exactly as the case store does it.
     /// </summary>
     public static (PrincipalInstruction Instruction, IReadOnlyList<PrincipalSubmissionFile> Files) Parse(
         ReadOnlyMemory<byte> body)
     {
-        PrincipalSubmissionBody? parsed;
+        var parsed = Read(body);
+        return (Instruction(parsed), Files(parsed));
+    }
+
+    /// <summary>
+    /// Only the files, for intake recovering them from a retained body. The
+    /// instruction was checked when the body was received and is read from
+    /// the stored declaration, not from here.
+    /// </summary>
+    public static IReadOnlyList<PrincipalSubmissionFile> ParseFiles(ReadOnlyMemory<byte> body) =>
+        Files(Read(body));
+
+    private static PrincipalSubmissionBody Read(ReadOnlyMemory<byte> body)
+    {
         try
         {
-            parsed = JsonSerializer.Deserialize<PrincipalSubmissionBody>(body.Span, Options);
+            return JsonSerializer.Deserialize<PrincipalSubmissionBody>(body.Span, Options)
+                ?? throw new PrincipalInstructionValidationException("body", "The submission body is empty.");
         }
         catch (JsonException exception)
         {
@@ -58,103 +66,139 @@ public static class PrincipalInstructionJson
                 "body",
                 $"The submission is not valid JSON: {exception.Message}");
         }
-
-        if (parsed is null)
-        {
-            throw new PrincipalInstructionValidationException("body", "The submission body is empty.");
-        }
-
-        var claimant = parsed.Claimant ?? new();
-        var handler = parsed.FileHandler ?? new();
-        var vehicle = parsed.Vehicle ?? new();
-        var incident = parsed.Incident ?? new();
-        var inspection = parsed.Inspection ?? new();
-        var instruction = new PrincipalInstruction(
-            PrincipalInstructionKinds.Parse(parsed.CaseType),
-            PrincipalReportVerdicts.Parse(parsed.OriginalReportVerdict),
-            parsed.Principal,
-            parsed.ClaimNumber,
-            claimant.Name,
-            claimant.ContactNumber,
-            claimant.Address,
-            handler.Name,
-            handler.EmailAddress,
-            handler.PhoneNumber,
-            vehicle.Registration,
-            vehicle.Make,
-            vehicle.Model,
-            vehicle.Mileage,
-            vehicle.MileageUnit,
-            incident.DateOfIncident,
-            incident.Circumstances,
-            inspection.DateRequested,
-            inspection.Location,
-            parsed.VatStatus,
-            parsed.Notes);
-        return (instruction, Files(parsed.Files));
     }
 
-    private static PrincipalSubmissionFile[] Files(IReadOnlyList<PrincipalSubmissionFileBody>? files)
+    private static PrincipalInstruction Instruction(PrincipalSubmissionBody body)
     {
-        // A Principal may declare an instruction with no files at all
-        // (operator, 2026-09-28): the files are optional for every kind.
-        if (files is null)
+        var caseType = PrincipalInstructionVocabulary.CaseTypes.TryGetValue(body.CaseType?.Trim() ?? string.Empty, out var type)
+            ? type
+            : throw new PrincipalInstructionValidationException(
+                "caseType",
+                $"The case type must be one of: {string.Join(", ", PrincipalInstructionVocabulary.CaseTypes.Keys)}.");
+        AuditAssessment? verdict = null;
+        if (!string.IsNullOrWhiteSpace(body.OriginalReportVerdict))
         {
-            return [];
+            verdict = PrincipalInstructionVocabulary.ReportVerdicts.TryGetValue(body.OriginalReportVerdict.Trim(), out var value)
+                ? value
+                : throw new PrincipalInstructionValidationException(
+                    "originalReportVerdict",
+                    $"The original report verdict must be one of: {string.Join(", ", PrincipalInstructionVocabulary.ReportVerdicts.Keys)}.");
         }
 
-        return files
-            .Select((file, index) =>
-            {
-                var ordinal = file.Ordinal ?? index;
-                var field = $"files[{ordinal}]";
-                if (string.IsNullOrWhiteSpace(file.FileName))
-                {
-                    throw new PrincipalInstructionValidationException($"{field}.fileName", "A file name is required.");
-                }
-                if (string.IsNullOrWhiteSpace(file.MediaType))
-                {
-                    throw new PrincipalInstructionValidationException($"{field}.mediaType", "A media type is required.");
-                }
-                if (string.IsNullOrWhiteSpace(file.ContentBase64))
-                {
-                    throw new PrincipalInstructionValidationException($"{field}.contentBase64", "File content is required.");
-                }
+        // Only a standalone Audit audits another firm's report, so only it
+        // states a verdict on one. The report file itself is optional and may
+        // arrive later (operator, 2026-09-28).
+        if (caseType == CaseType.Audit && verdict is null)
+        {
+            throw new PrincipalInstructionValidationException(
+                "originalReportVerdict",
+                "An Audit instruction must state the original report verdict.");
+        }
+        if (caseType != CaseType.Audit && verdict is not null)
+        {
+            throw new PrincipalInstructionValidationException(
+                "originalReportVerdict",
+                "Only an Audit instruction carries an original report verdict.");
+        }
 
-                byte[] content;
-                try
-                {
-                    content = Convert.FromBase64String(file.ContentBase64);
-                }
-                catch (FormatException)
-                {
-                    throw new PrincipalInstructionValidationException(
-                        $"{field}.contentBase64",
-                        "The file content is not valid base64.");
-                }
+        var claimant = body.Claimant ?? new();
+        var handler = body.FileHandler ?? new();
+        var vehicle = body.Vehicle ?? new();
+        var incident = body.Incident ?? new();
+        var inspection = body.Inspection ?? new();
+        if (vehicle.Mileage < 0)
+        {
+            throw new PrincipalInstructionValidationException(
+                "vehicle.mileage",
+                "The vehicle mileage cannot be negative.");
+        }
 
-                DocumentSemanticRole? role;
-                try
-                {
-                    role = PrincipalFileRoles.Parse(file.Role);
-                }
-                catch (ArgumentException exception)
-                {
-                    throw new PrincipalInstructionValidationException($"{field}.role", exception.Message);
-                }
+        // The case store's own normalisation and bounds, reporting the field by
+        // its path in the request body.
+        try
+        {
+            var draft = new InstructionDraft(
+                SuggestedPrincipalCode: null,
+                ClaimantName: CaseDataPolicy.Text(claimant.Name, CaseDataLimits.PersonName, "claimant.name"),
+                ClaimNumber: CaseDataPolicy.Text(body.ClaimNumber, CaseDataLimits.ClaimNumber, "claimNumber"),
+                VehicleRegistration: CaseDataPolicy.Registration(vehicle.Registration, "vehicle.registration"),
+                VehicleMake: CaseDataPolicy.Text(vehicle.Make, CaseDataLimits.VehicleText, "vehicle.make"),
+                VehicleModel: CaseDataPolicy.Text(vehicle.Model, CaseDataLimits.VehicleText, "vehicle.model"),
+                VehicleMileage: vehicle.Mileage,
+                AccidentCircumstances: CaseDataPolicy.Paragraphs(
+                    incident.Circumstances, CaseDataLimits.AccidentCircumstances, "incident.circumstances"),
+                DateOfIncident: incident.DateOfIncident,
+                InspectionAddress: CaseDataPolicy.Text(inspection.Location, CaseDataLimits.Address, "inspection.location"),
+                InspectionDate: inspection.DateRequested,
+                VehicleMileageUnit: CaseDataPolicy.Text(vehicle.MileageUnit, CaseDataLimits.MileageUnit, "vehicle.mileageUnit"),
+                VatStatus: CaseDataPolicy.Text(body.VatStatus, CaseDataLimits.VatStatus, "vatStatus"),
+                ClaimantAddress: CaseDataPolicy.Paragraphs(claimant.Address, CaseDataLimits.Address, "claimant.address"),
+                ClaimantContactNumber: CaseDataPolicy.Text(claimant.ContactNumber, CaseDataLimits.Telephone, "claimant.contactNumber"),
+                FileHandlerName: CaseDataPolicy.Text(handler.Name, CaseDataLimits.PersonName, "fileHandler.name"),
+                FileHandlerEmailAddress: CaseDataPolicy.Text(handler.EmailAddress, CaseDataLimits.EmailAddress, "fileHandler.emailAddress"),
+                FileHandlerPhoneNumber: CaseDataPolicy.Text(handler.PhoneNumber, CaseDataLimits.Telephone, "fileHandler.phoneNumber"),
+                Notes: CaseDataPolicy.Paragraphs(body.Notes, AddCaseNote.MaximumLength, "notes"));
+            return new(caseType, verdict, draft);
+        }
+        catch (ArgumentException exception) when (exception.ParamName is { } field)
+        {
+            throw new PrincipalInstructionValidationException(field, exception.Message);
+        }
+    }
 
-                return new PrincipalSubmissionFile(ordinal, file.FileName, file.MediaType, content, role);
-            })
-            .ToArray();
+    /// <summary>
+    /// The files in the order sent, then the original report. A Principal may
+    /// declare an instruction with no files at all (operator, 2026-09-28).
+    /// </summary>
+    private static PrincipalSubmissionFile[] Files(PrincipalSubmissionBody body)
+    {
+        var files = (body.Files ?? [])
+            .Select((file, index) => File(file, $"files[{index}]", PrincipalInstructionPolicy.AssetSourceLabel(index)));
+        return body.OriginalReport is { } report
+            ? [.. files, File(report, "originalReport", PrincipalInstructionPolicy.OriginalReportSourceLabel)]
+            : [.. files];
+    }
+
+    /// <summary>
+    /// One file, typed by its extension as every other intake route types a
+    /// file it is given by name.
+    /// </summary>
+    private static PrincipalSubmissionFile File(PrincipalSubmissionFileBody file, string field, string sourceLabel)
+    {
+        if (string.IsNullOrWhiteSpace(file.FileName)
+            || file.FileName.Length > PrincipalSubmissionPolicy.MaximumFileNameLength
+            || !string.Equals(Path.GetFileName(file.FileName), file.FileName, StringComparison.Ordinal))
+        {
+            throw new PrincipalInstructionValidationException(
+                $"{field}.fileName",
+                $"A file name of at most {PrincipalSubmissionPolicy.MaximumFileNameLength} characters, with no directory part, is required.");
+        }
+
+        var mediaType = IntakeUploadFilePolicy.MediaTypeFor(file.FileName)
+            ?? throw new PrincipalInstructionValidationException(
+                $"{field}.fileName",
+                "The file type is not supported.");
+        if (string.IsNullOrWhiteSpace(file.ContentBase64))
+        {
+            throw new PrincipalInstructionValidationException($"{field}.contentBase64", "File content is required.");
+        }
+
+        try
+        {
+            return new(field, sourceLabel, file.FileName, mediaType, Convert.FromBase64String(file.ContentBase64));
+        }
+        catch (FormatException)
+        {
+            throw new PrincipalInstructionValidationException(
+                $"{field}.contentBase64",
+                "The file content is not valid base64.");
+        }
     }
 }
 
 public sealed record PrincipalSubmissionFileBody(
-    int? Ordinal = null,
     string? FileName = null,
-    string? MediaType = null,
-    string? Role = null,
-    [property: JsonPropertyName("contentBase64")] string? ContentBase64 = null);
+    string? ContentBase64 = null);
 
 public sealed record PrincipalInstructionClaimantBody(
     string? Name = null,
@@ -184,15 +228,11 @@ public sealed record PrincipalInstructionInspectionBody(
 /// <summary>
 /// API-01's request body. It has no instruction date: the time Pegasus received
 /// the submission is the Case's Received date, which is its instruction date
-/// (operator, 24 September 2026). A member this contract does not name,
-/// including the retired <c>instructionDate</c>, is ignored rather than
-/// refused: <see cref="PrincipalInstructionJson.Options"/> and
-/// <see cref="PrincipalInstructionJson.StorageOptions"/> keep System.Text.Json's
-/// default unmapped-member handling, so retained request bodies (re-read by
-/// PrincipalApiIntakeSourceReader) and stored declarations keep parsing.
+/// (operator, 24 September 2026). A member this contract does not name is
+/// ignored rather than refused (System.Text.Json's default unmapped-member
+/// handling).
 /// </summary>
 public sealed record PrincipalSubmissionBody(
-    string? Principal = null,
     string? ClaimNumber = null,
     string? CaseType = null,
     string? OriginalReportVerdict = null,
@@ -203,4 +243,5 @@ public sealed record PrincipalSubmissionBody(
     PrincipalInstructionInspectionBody? Inspection = null,
     string? VatStatus = null,
     string? Notes = null,
-    IReadOnlyList<PrincipalSubmissionFileBody>? Files = null);
+    IReadOnlyList<PrincipalSubmissionFileBody>? Files = null,
+    PrincipalSubmissionFileBody? OriginalReport = null);
