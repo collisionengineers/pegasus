@@ -26,15 +26,13 @@ internal static class TriageFindingFillWriter
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Whether anything was filled. <paramref name="beforeVersion"/> is the
-    /// version the caller already advanced the Case from in this transaction
-    /// (a link), so the fill shares that write; null advances the Case here.
-    /// This never saves — the caller's transaction does.
+    /// Whether anything was filled. The fill advances the Case once of its
+    /// own, after any link in the same transaction, because every Case event
+    /// holds its own version. This never saves — the caller's transaction does.
     /// </summary>
     public static async Task<bool> ApplyAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
-        long? beforeVersion,
         RoadworthinessFinding? roadworthiness,
         AssessmentFinding? assessment,
         string operationKey,
@@ -80,11 +78,8 @@ internal static class TriageFindingFillWriter
             return false;
         }
 
-        var fromVersion = beforeVersion ?? workflow.Version;
-        if (beforeVersion is null)
-        {
-            CaseMutationGuard.Advance(workflow);
-        }
+        var fromVersion = workflow.Version;
+        CaseMutationGuard.Advance(workflow);
 
         var resultJson = JsonSerializer.Serialize(new { Filled = filled }, JsonOptions);
         const string reason = "The linked Triage finding filled the Case's empty findings.";

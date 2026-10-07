@@ -22,7 +22,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     /// <summary>
     /// The Worker links a Triage that already holds a finding and fills the
     /// linked Case's empty findings from it (operator, 7 October 2026), under
-    /// its own runtime role, in the link's one Case version.
+    /// its own runtime role: the link and the fill each advance the Case once.
     /// </summary>
     [Fact]
     public async Task WorkerRuntimeAutomaticallyLinksTriageFillsTheCaseAndReplays()
@@ -90,7 +90,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             item.CaseId == caseId && item.EventType == history.EventType));
         // The instructed Case and the Triage Case, which is a Case too.
         Assert.Equal(2, await context.Cases.CountAsync());
-        Assert.Equal(1, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+        Assert.Equal(2, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
         var filled = await context.CaseAssessmentFields.AsNoTracking()
             .Where(item => item.WorkId == caseId)
             .OrderBy(item => item.FieldPath)
