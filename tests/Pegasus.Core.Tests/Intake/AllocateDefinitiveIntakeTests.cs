@@ -269,8 +269,7 @@ public sealed class AllocateDefinitiveIntakeTests
 
     // Automatic allocation used to assert ImagesComplete: true as a
     // constant, so an audit with an instruction, a report and no photographs
-    // was born Review-ready while the EVA export refused the same case for
-    // having no images. These drive AttemptAutomaticAsync and assert on what
+    // was born Review-ready. These drive AttemptAutomaticAsync and assert on what
     // acceptance actually received, so they prove the wiring rather than
     // re-implementing it.
     [Fact]

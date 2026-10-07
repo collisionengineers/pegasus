@@ -299,10 +299,6 @@ public sealed class WorkerCompositionTests
             // No thumbnail cache here, so the sweep has nothing to make.
             Assert.IsType<Pegasus.Infrastructure.Custody.NoDocumentThumbnailCandidates>(
                 provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>());
-            // The offline Worker composes no EVA route; its timer still activates
-            // and replays nothing rather than failing on absent credentials.
-            Assert.Null(scopedServices.GetService<Pegasus.Core.Eva.ISubmitCaseToEva>());
-            Assert.Null(scopedServices.GetService<ProcessAutomaticEvaReviewSubmissions>());
             // Staff identity is the Web's: the Worker composes neither the
             // account administration nor the per-staff vendor credentials.
             Assert.Null(scopedServices.GetService<Pegasus.Core.Identity.ICreateStaffAccount>());
@@ -705,15 +701,7 @@ public sealed class WorkerCompositionTests
         ["Dvsa:ClientId"] = "resolved-key-vault-reference",
         ["Dvsa:ClientSecret"] = "resolved-key-vault-reference",
         ["Dvsa:ApiKey"] = "resolved-key-vault-reference",
-        ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default",
-        // EXT-04: production now composes the EVA API submission route,
-        // so its configuration is part of what a production Worker needs.
-        ["Eva:BaseUri"] = "https://sentry.evasoftware.co.uk/api/",
-        ["Eva:ClientId"] = "eva-client",
-        ["Eva:ClientSecret"] = "eva-secret",
-        ["Eva:RequestFrom"] = "COLLENGAPI",
-        ["Eva:InspectionType"] = "Vehicle Damage Inspection",
-        ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk"
+        ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default"
     };
 
     private static string CreateTemporaryRoot()

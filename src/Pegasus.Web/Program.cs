@@ -9,7 +9,6 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Vehicle;
@@ -36,7 +35,6 @@ using Azure.Storage.Queues;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Pegasus.Infrastructure.Custody;
-using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Transport;
@@ -184,15 +182,6 @@ if (productionProfile)
         "Box:HoldingFolderId",
         "Box:ConfigJson",
         "Box:ClientSecret",
-        // EXT-04. Listed here so a deployment missing EVA's credentials fails
-        // at startup naming the key, rather than at the first submission with
-        // a case in front of an operator.
-        "Eva:BaseUri",
-        "Eva:ClientId",
-        "Eva:ClientSecret",
-        "Eva:RequestFrom",
-        "Eva:InspectionType",
-        "Eva:InstructionEmail",
         // The Glass's gateway is built from these on first use;
         // listed here so a deployment without them fails at startup naming the
         // key, rather than at the Engineer's Launch on a Case record.
@@ -729,15 +718,11 @@ documentStorage: composesLocalArtifactRoot
                 : BoxCustodyOptions.ProductionRootFolderId))));
 // The staff-identity surfaces need this host's Identity and key ring.
 builder.Services.AddPegasusStaffIdentity();
-// EXT-04: the manual Send to EVA route. Production only — the offline
-// profile reaches no vendor — and the options are read lazily for the same
-// unresolved-Key-Vault-reference reason as Box's.
+// Glass's valuation (ADR-0060): Production only — the offline profile
+// reaches no vendor — and its Key Vault-held account is read on each
+// valuation for the same unresolved-Key-Vault-reference reason as Box's.
 if (productionProfile)
 {
-    builder.Services.AddEvaApiSubmission(
-        _ => EvaApiOptions.Create(key => builder.Configuration[key]));
-    // Glass's valuation (ADR-0060): Production only, like EVA, and its
-    // Key Vault-held account is read on each valuation for the same reason.
     builder.Services.AddGlassGuideValuation(
         _ => Pegasus.Infrastructure.Glass.GlassValuationAccount.Create(key => builder.Configuration[key]));
 }

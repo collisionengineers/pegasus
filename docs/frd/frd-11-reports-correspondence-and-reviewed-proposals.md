@@ -412,8 +412,8 @@ report, the fee note, the Repair Spec or the images.
 | Storing failed, or any other fault | "The report could not be generated." |
 
 A fee-note preview shows the recorded fee and description without saving
-anything. Native Assign Engineer opens engineering work without an EVA
-export; EVA is optional and never gates report readiness.
+anything. Assign Engineer opens engineering work. The Case export
+([FRD-07](frd-07-case-export.md)) never gates report readiness.
 
 The report prints its images six to a page, two across and three down, in
 the order the Engineer set (operator, 27 September 2026). The Overview prints
@@ -664,7 +664,7 @@ Deployment and live acceptance are separate evidence tiers
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-07](frd-07-case-export.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md),

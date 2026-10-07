@@ -222,13 +222,12 @@ public sealed class AllocateIntake(
     /// assets. It used to be a constant `true`, so every automatic case was
     /// born claiming complete images whatever arrived — and since the Review
     /// gate reduces to this one flag, an audit with an instruction, a report
-    /// and no photographs went straight to Review while the EVA export refused
-    /// the very same case for having no images.
+    /// and no photographs went straight to Review.
     /// </summary>
     private static CaseCompleteness AutomaticCompleteness(IntakeReceipt receipt) =>
         new(InstructionComplete: true,
             // The one owner of which assets are photographs, so Review and
-            // the EVA export agree by construction rather than by a second rule.
+            // the case export agree by construction rather than by a second rule.
             ImagesComplete: InstructionEvidenceImages.Select(receipt.AssetRecords).Count > 0);
 
     public async Task<IntakeAllocationResult?> AttemptAutomaticAsync(

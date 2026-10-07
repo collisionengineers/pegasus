@@ -358,8 +358,8 @@ the page comes back on the Images tab. In report follows the same rule
 ([FRD-16](frd-16-case-record-workspace.md)).
 
 Third party replaces the former one-way `ThirdPartyVehicleConfirmedAtUtc`
-flag and keeps its EVA-exclusion behaviour
-([FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes)).
+flag and keeps the image out of the Case export
+([FRD-07](frd-07-case-export.md#export-case)).
 The migration that introduced tags turned every recorded confirmation into a
 Third party tag on the same occurrence, keeping its original moment, actor
 and operation key, then dropped the three flag columns and their index.
@@ -399,7 +399,7 @@ test subtree. Deployment and live acceptance are separate evidence tiers
 - Capabilities: `AI-04`, `DOC-01`–`DOC-05`, `DOC-07`, `DOC-08`, `EXT-14`,
   `INT-10`–`INT-12`, `INT-14`–`INT-16` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-07](frd-07-case-export.md),
   [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-18](frd-18-manual-upload.md),

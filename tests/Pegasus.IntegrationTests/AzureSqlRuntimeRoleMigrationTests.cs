@@ -317,13 +317,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
     private const string FoundationTableSpec = """
         AppliedValuationSnapshots
-        AutomaticEvaReviewSubmissions
         CaseReportGenerations
         ContactPrincipalLinks
         ContactRoles
         DocumentContentCacheEntries
         EditScopes
-        EvaSubmissions
         GeneratedCaseArtifacts
         GlassRepairEstimateSessions
         IntakeOcrOperations
@@ -337,13 +335,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
     private const string FoundationWebGrantSpec = """
         AppliedValuationSnapshots:SELECT,INSERT
-        AutomaticEvaReviewSubmissions:SELECT,INSERT
         CaseReportGenerations:SELECT,INSERT,UPDATE
         ContactPrincipalLinks:SELECT,INSERT,DELETE
         ContactRoles:SELECT,INSERT,DELETE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE
         EditScopes:SELECT,INSERT,UPDATE,DELETE
-        EvaSubmissions:SELECT,INSERT
         GeneratedCaseArtifacts:SELECT,INSERT,UPDATE
         GlassRepairEstimateSessions:SELECT,INSERT,UPDATE,DELETE
         IntakeOcrOperations:SELECT,INSERT
@@ -356,8 +352,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         """;
 
     private const string FoundationWorkerGrantSpec = """
-        AutomaticEvaReviewSubmissions:SELECT,INSERT,UPDATE
-        EvaSubmissions:SELECT,INSERT
         CaseReportGenerations:SELECT,UPDATE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
         GeneratedCaseArtifacts:SELECT,UPDATE
@@ -476,7 +470,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                     permission.permission_name COLLATE DATABASE_DEFAULT
                 """));
         // The third-party vehicle flag is gone: image tags carry the
-        // classification, and the EVA exclusion reads the Third party tag.
+        // classification, and the case export exclusion reads the Third party tag.
         Assert.Equal(
             0,
             await database.ScalarAsync<int>(
@@ -503,7 +497,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     /// <summary>
     /// The image-tag tables and the exact permissions each runtime caller
     /// needs: Web reads the vocabulary, adds to it and moves tags on and off;
-    /// the Worker only reads, because the EVA export asks which images wear
+    /// the Worker only reads, because the case export asks which images wear
     /// Third party. Neither may update either table, and only Web may delete a
     /// tag from an image.
     /// </summary>
@@ -798,8 +792,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         foreach (var role in new[] { WebRole, WorkerRole })
         {
             var expectedDeniedTables = role == WorkerRole
-                ? tables.Where(table => table is not ("DocumentContentCacheEntries" or "EditScopes" or "AutomaticEvaReviewSubmissions" or "EvaSubmissions")).ToArray()
-                : tables.Where(table => table is not ("ContactRoles" or "ContactPrincipalLinks" or "EditScopes" or "AutomaticEvaReviewSubmissions" or "EvaSubmissions" or "GlassRepairEstimateSessions" or "UserExternalCredentials")).ToArray();
+                ? tables.Where(table => table is not ("DocumentContentCacheEntries" or "EditScopes")).ToArray()
+                : tables.Where(table => table is not ("ContactRoles" or "ContactPrincipalLinks" or "EditScopes" or "GlassRepairEstimateSessions" or "UserExternalCredentials")).ToArray();
             Assert.Equal(expectedDeniedTables, (await ReadDeniedDeleteTablesAsync(database, role))
                 .Where(tables.Contains)
                 .ToArray());
@@ -1425,12 +1419,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             VALUES (N'Contact', '{contactOrganizationId:D}', N'Staff', N'permission-fixture', REPLICATE('a', 64), 0, 1, SYSDATETIMEOFFSET());
             UPDATE dbo.EditScopes SET Generation = 2 WHERE RecordId = '{contactOrganizationId:D}';
             DELETE FROM dbo.EditScopes WHERE RecordId = '{contactOrganizationId:D}';
-            INSERT INTO dbo.AutomaticEvaReviewSubmissions (Id, CaseId, WorkflowVersion, OperationKey, State, CreatedAtUtc, DueAtUtc)
-            SELECT TOP (0) NEWID(), Id, 1, N'permission-fixture', N'Pending', SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET() FROM dbo.Cases;
             REVERT;
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
-            UPDATE dbo.AutomaticEvaReviewSubmissions SET State = N'Completed' WHERE Id = '00000000-0000-0000-0000-000000000000';
             DELETE FROM [dbo].[DocumentContentCacheEntries]
             WHERE [Id] = '00000000-0000-0000-0000-000000000000';
             REVERT;

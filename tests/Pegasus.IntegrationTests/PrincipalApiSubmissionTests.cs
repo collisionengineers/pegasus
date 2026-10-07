@@ -595,7 +595,7 @@ public sealed class PrincipalApiSubmissionTests
     public async Task APrincipalCreatedCaseReadsItsDataSnapshotBack()
     {
         // The snapshot records the origin channel exactly as the receipt wrote
-        // it — "principal_api". Reading it back is the path the EVA send page
+        // it — "principal_api". Reading it back is the path the case export
         // and the assessment tools take through ICaseDataQueries, so a reader
         // that does not know the channel fails the case after allocation
         // rather than at submission, where nothing would have been retained.

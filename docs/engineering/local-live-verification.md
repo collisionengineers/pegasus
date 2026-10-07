@@ -52,7 +52,6 @@ in the same folder by the operator.
 
 | Area | Why | Owner |
 | --- | --- | --- |
-| EVA API submission, automatic Review intents | no EVA route is composed offline by decision; intents stay Pending and the Case offers export only | [FRD-07](../frd/README.md) |
 | Staff mail send, report send, Triage reply | `Unavailable` offline until a Graph test mailbox is approved | [FRD-21](../frd/README.md) |
 | Graph subscriptions, webhooks, folder move, deleted-mail search | folder adapters replace Graph | [FRD-26](../frd/README.md) |
 | OCR (INT-16) | Document Intelligence needs the Worker managed identity | [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) |

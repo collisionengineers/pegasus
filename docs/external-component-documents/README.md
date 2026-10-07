@@ -7,7 +7,6 @@ intentional differences; operations records observed activation.
 
 | Component | Supplied material |
 | --- | --- |
-| EVA | [PDF](eva/eva-api-docs.pdf), [extracted text](eva/eva-api-pdf-extracted.md), [drag-and-drop example](eva/drag-and-drop-example.json) |
 | Experian | [API schema](experian/experian-velocity-api-schema.yaml) |
 | Cazana | [API specification](cazana/cazana-api-spec.json) |
 | Brego | [Notes](brego/brego.md), [API example](brego/api1.json) |

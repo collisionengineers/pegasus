@@ -3,8 +3,7 @@ namespace Pegasus.Infrastructure.Glass;
 /// <summary>
 /// What the Glass's repair-estimate adapter needs to exist.
 ///
-/// Shaped like <see cref="Eva.EvaApiOptions"/> on purpose: a positional record
-/// with one validating factory, so a malformed value fails at composition with
+/// A positional record with one validating factory, so a malformed value fails at composition with
 /// the offending key named rather than at the first launch with a null
 /// reference.
 ///

@@ -294,11 +294,6 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.CaseWorkflows.Add(workflowEntity);
-        if (initialState == CaseInitialState.Review)
-        {
-            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                context, workflowEntity, workflowEntity.Version, acceptedAtUtc);
-        }
         await CaseGuidance.ApplyCreationAsync(context, workflowEntity, null, acceptedAtUtc, request.OperationKey, cancellationToken);
         if (initialState == CaseInitialState.NotReady)
         {

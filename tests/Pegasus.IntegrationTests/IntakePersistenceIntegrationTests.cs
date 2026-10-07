@@ -222,7 +222,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261007180000_SimplifyPrincipalSubmissions",
                 "20261007180000_GrantWorkerTriageFindings",
                 "20261007181000_InspectionAddressSettlerKind",
-                "20261007182000_StaffMailSendActorKind"
+                "20261007182000_StaffMailSendActorKind",
+                "20261007180000_RemoveEva"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -397,14 +398,22 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseDueWork'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseManualChases'"));
-        Assert.Equal(4, await database.ScalarAsync<int>(
+        Assert.Equal(3, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.tables
             WHERE name IN (
                 N'EditScopes',
                 N'ContactRoles',
-                N'ContactPrincipalLinks',
-                N'AutomaticEvaReviewSubmissions')
+                N'ContactPrincipalLinks')
+            """));
+        // 20261007180000_RemoveEva dropped the three EVA tables.
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM sys.tables
+            WHERE name IN (
+                N'EvaSubmissions',
+                N'AutomaticEvaReviewSubmissions',
+                N'EvaFirstHandoffProxies')
             """));
         Assert.Equal(0, await database.ScalarAsync<int>(
             """
@@ -428,16 +437,18 @@ public sealed class IntakePersistenceIntegrationTests
             WHERE object_id = OBJECT_ID(N'WorkflowConfigurations')
               AND name IN (N'RequireInstructions', N'RequireImages', N'ChaseIntervalDays')
             """));
-        Assert.Equal(3, await database.ScalarAsync<int>(
+        Assert.Equal(2, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns
             WHERE object_id = OBJECT_ID(N'Principals')
-              AND name IN (
-                  N'ReportGenerationPolicy', N'IncludeOriginalInstructionSender',
-                  N'ReportRecipientAddressesJson')
+              AND name IN (N'IncludeOriginalInstructionSender', N'ReportRecipientAddressesJson')
             """));
         Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'EvaManualSubmission'"));
+            """
+            SELECT COUNT(*) FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'Principals')
+              AND name IN (N'EvaManualSubmission', N'ReportGenerationPolicy')
+            """));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Cases') AND name = N'OriginIntakeReceiptId' AND is_nullable = 1"));
         Assert.Equal(7, await database.ScalarAsync<int>(

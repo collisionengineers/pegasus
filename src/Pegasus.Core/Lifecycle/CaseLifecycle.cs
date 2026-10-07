@@ -126,45 +126,6 @@ public sealed class AssignCaseEngineer(
     }
 }
 
-public sealed class SetCaseSignOffEngineer(
-    ICaseWorkflowStore store,
-    IStaffAccountQueries staffAccounts) : ISetCaseSignOffEngineer
-{
-    private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly IStaffAccountQueries _staffAccounts = staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
-
-    public async Task<CaseWorkflowRecord> ExecuteAsync(
-        SetCaseSignOffEngineerRequest request,
-        CancellationToken cancellationToken)
-    {
-        CaseLifecycleRules.ValidateMutation(request);
-        if (request.SignOffEngineerId == Guid.Empty)
-        {
-            throw new ArgumentException("A Sign-off Engineer identifier is required.", nameof(request));
-        }
-
-        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        var isReplay = await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken);
-        if (current.State is not (CaseLifecycleState.Review
-                or CaseLifecycleState.ReportPreparation
-                or CaseLifecycleState.PostReport)
-            && !isReplay)
-        {
-            throw new InvalidOperationException(
-                "A Sign-off Engineer can be selected only while the case is in Review or With Engineer.");
-        }
-
-        if (!isReplay)
-        {
-            CaseSignOffEngineerResolver.RequireEligible(
-                await _staffAccounts.ListSignOffEngineersAsync(cancellationToken),
-                request.SignOffEngineerId);
-        }
-
-        return await _store.SetSignOffEngineerAsync(request, cancellationToken);
-    }
-}
-
 public static class CaseSignOffEngineerResolver
 {
     public static SignOffEngineerProfile? Resolve(

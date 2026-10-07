@@ -7,8 +7,7 @@ namespace Pegasus.IntegrationTests;
 /// managed read compared a null against the recorded media type and refused a
 /// file that was otherwise exactly right. The Evidence gallery, the
 /// case-document download and the case export all failed identically, each
-/// turning the exception into a 404 or a flat refusal, and nothing caught it
-/// because the EVA hand-off — the only other caller — had never run.
+/// turning the exception into a 404 or a flat refusal.
 /// </summary>
 public sealed class BoxManagedRevisionTests
 {

@@ -362,7 +362,6 @@ public sealed class CaseReportDeliveryPersistenceTests
                     SequenceLineageId = lineageId,
                     Code = "DVRP",
                     IsActive = true,
-                    ReportGenerationPolicy = "Pegasus",
                     IncludeOriginalInstructionSender = true,
                     ReportRecipientAddressesJson = "[]",
                     Version = 0
