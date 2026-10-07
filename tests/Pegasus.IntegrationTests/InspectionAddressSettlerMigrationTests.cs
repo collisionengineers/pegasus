@@ -17,6 +17,8 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class InspectionAddressSettlerMigrationTests
 {
+    private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
+
     private const string Predecessor = "20261007160000_RemoveReportDateOverride";
     private const string ReceiptId = "52000000-0000-0000-0000-000000000001";
 
@@ -37,7 +39,7 @@ public sealed class InspectionAddressSettlerMigrationTests
                 occurredAtUtc = DateTimeOffset.Parse("2031-05-06T10:30:00+00:00", System.Globalization.CultureInfo.InvariantCulture),
                 operationId,
             },
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            WebJson));
         var evidenceJson =
             $$"""{"version":1,"data":[{"source":"pdf_content","strength":"weak","finding":"information","signal":"other-signal","detail":"Unrelated."},{"source":"staff_correction","strength":"strong","finding":"information","signal":"ext18-address-resolution/v1/{{v1}}","detail":"Inspection address supplied by staff; no address evidence was extracted from the source."}]}""";
 

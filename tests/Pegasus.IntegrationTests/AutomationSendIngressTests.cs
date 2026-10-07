@@ -22,6 +22,12 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AutomationSendIngressTests
 {
+    private static readonly string[] Handler = ["handler@principal.example"];
+    private static readonly string[] Desk = ["desk@principal.example"];
+    private static readonly string[] Invoice = ["Invoice"];
+    private static readonly string[] FeeNote = ["FeeNote"];
+    private static readonly string[] NotAnAddress = ["not an address"];
+
     private const string SendScopes = "automation.cases automation.send";
 
     [Fact]
@@ -42,7 +48,7 @@ public sealed class AutomationSendIngressTests
             subject = "Subject",
             body = "Body",
             operationKey = "mcp:no-send-scope-mail",
-            to = new[] { "handler@principal.example" },
+            to = Handler,
         })))
         {
             using var document = await ReadJsonRpcAsync(mail);
@@ -94,7 +100,7 @@ public sealed class AutomationSendIngressTests
             expectedVersion = version,
             operationKey = "mcp:report-send-bad-attach",
             coveringMessage = "Please find our report attached.",
-            attach = new[] { "Invoice" },
+            attach = Invoice,
         })))
         {
             Assert.Contains("attach takes", await ReadErrorTextAsync(badAttach), StringComparison.Ordinal);
@@ -107,9 +113,9 @@ public sealed class AutomationSendIngressTests
             expectedVersion = version,
             operationKey = "mcp:report-send",
             coveringMessage = "Please find our report attached.",
-            to = new[] { "handler@principal.example" },
-            cc = new[] { "desk@principal.example" },
-            attach = new[] { "FeeNote" },
+            to = Handler,
+            cc = Desk,
+            attach = FeeNote,
         }));
         var result = await ReadStructuredContentAsync(sent);
         Assert.Equal(generationId, result.GetProperty("generationId").GetGuid());
@@ -193,7 +199,7 @@ public sealed class AutomationSendIngressTests
         using (var stale = await PostMcpAsync(client, token, ToolCallPayload(20, "pegasus_mail_send", new
         {
             mode = "new", caseId, expectedVersion = version + 7, subject = "Images", body = "Please send the images.",
-            operationKey = "mcp:mail-stale", to = new[] { "handler@principal.example" },
+            operationKey = "mcp:mail-stale", to = Handler,
         })))
         {
             Assert.Contains("changed since it was read", await ReadErrorTextAsync(stale), StringComparison.Ordinal);
@@ -209,7 +215,7 @@ public sealed class AutomationSendIngressTests
         using (var badAddress = await PostMcpAsync(client, token, ToolCallPayload(22, "pegasus_mail_send", new
         {
             mode = "new", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
-            operationKey = "mcp:mail-bad-address", to = new[] { "not an address" },
+            operationKey = "mcp:mail-bad-address", to = NotAnAddress,
         })))
         {
             Assert.Contains("plain e-mail address", await ReadErrorTextAsync(badAddress), StringComparison.Ordinal);
@@ -224,8 +230,8 @@ public sealed class AutomationSendIngressTests
             subject = "Images",
             body = "Please send the images.",
             operationKey = "mcp:mail-new",
-            to = new[] { "handler@principal.example" },
-            cc = new[] { "desk@principal.example" },
+            to = Handler,
+            cc = Desk,
             chaser = true,
         }));
         var result = await ReadStructuredContentAsync(sent);
@@ -286,7 +292,7 @@ public sealed class AutomationSendIngressTests
         using var refused = await PostMcpAsync(client, token, ToolCallPayload(30, "pegasus_mail_send", new
         {
             mode = "new", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
-            operationKey = "mcp:mail-offline", to = new[] { "handler@principal.example" },
+            operationKey = "mcp:mail-offline", to = Handler,
         }));
 
         Assert.Contains("unavailable", await ReadErrorTextAsync(refused), StringComparison.OrdinalIgnoreCase);
