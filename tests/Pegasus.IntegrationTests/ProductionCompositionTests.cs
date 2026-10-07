@@ -273,7 +273,11 @@ public sealed class ProductionCompositionTests
     {
         using var bare = BuildGlassProduction(
             GlassConfiguration(),
-            services => services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>());
+            services =>
+            {
+                services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>();
+                services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
+            });
         using (var scope = bare.CreateScope())
         {
             Assert.False(scope.ServiceProvider.GetRequiredService<IFetchGuideValuation>()
@@ -284,6 +288,7 @@ public sealed class ProductionCompositionTests
         using var connected = BuildGlassProduction(GlassConfiguration(), services =>
         {
             services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>();
+            services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
             services.AddGlassGuideValuation(_ =>
             {
                 reads++;

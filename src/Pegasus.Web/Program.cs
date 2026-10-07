@@ -760,6 +760,11 @@ builder.Services.AddScoped<Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork
 builder.Services.AddScoped<
     Pegasus.Core.Assessment.IScheduleGuideValuationReport,
     Pegasus.Web.Background.GuideValuationReportScheduler>();
+// Get valuation files its report through that scheduler, so the fetch use
+// case is composed here, beside it.
+builder.Services.AddScoped<
+    Pegasus.Core.Assessment.IFetchGuideValuation,
+    Pegasus.Core.Assessment.FetchGuideValuation>();
 builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
 builder.Services.AddScoped<Pegasus.Web.Intake.StaffIntakeActions>();
 if (developmentOfflineProfile)
