@@ -1286,20 +1286,26 @@
         });
         if (nextVersion !== null) { record.setAttribute('data-case-version', nextVersion); }
     }
+    // A tag or In report can move every image's place (operator, 7 October
+    // 2026), so the whole grid is drawn again in the order and with the
+    // places the server now holds; staged rotation and crop stay on the form.
     function redrawImageTile(parsed, id, focusInReport) {
         var current = document.querySelector('[data-image-tile="' + id + '"]');
-        var next = parsed.querySelector('[data-image-tile="' + id + '"]');
-        if (!current || !next) { return; }
-        var grid = current.parentElement;
+        var grid = current ? current.closest('[data-image-grid]') : null;
+        var nextGrid = parsed.querySelector('[data-image-grid]');
+        if (!grid || !nextGrid || !nextGrid.querySelector('[data-image-tile="' + id + '"]')) { return; }
         if (window.pegasusCasePreparation && window.pegasusCasePreparation.adopt) {
-            window.pegasusCasePreparation.adopt(id, next);
+            Array.prototype.forEach.call(nextGrid.querySelectorAll('[data-preparation-card]'), function (tile) {
+                window.pegasusCasePreparation.adopt(tile.getAttribute('data-preparation-occurrence'), tile);
+            });
         }
-        current.replaceWith(next);
-        bindMounted(grid);
+        grid.replaceWith(nextGrid);
+        bindMounted(nextGrid.parentElement);
         var count = document.querySelector('[data-image-report-count]');
         var nextCount = parsed.querySelector('[data-image-report-count]');
         if (count && nextCount) { count.textContent = nextCount.textContent; }
-        var target = next.querySelector(focusInReport ? '[data-image-in-report]' : 'details.tag-picker > summary');
+        var next = nextGrid.querySelector('[data-image-tile="' + id + '"]');
+        var target = next && next.querySelector(focusInReport ? '[data-image-in-report]' : 'details.tag-picker > summary');
         if (target) { target.focus(); }
     }
     // A new tag joins the vocabulary every picker offers. The picker it was
@@ -1538,10 +1544,20 @@
         var id = form.getAttribute('id');
         if (id && document.getElementById(id)) { return document.getElementById(id); }
         var action = form.getAttribute('action');
+        // Every image tile's In report and tag forms share their actions, so
+        // the form found again names the same image and tag: the first match
+        // by action alone would act on another image.
+        function names(candidate, field) {
+            var own = form.elements.namedItem(field);
+            var theirs = candidate.elements.namedItem(field);
+            return !own || (theirs && theirs.value === own.value);
+        }
         var dialogs = document.querySelector('[data-case-dialogs]');
         var candidates = Array.prototype.slice.call(record.querySelectorAll('form[action]'))
             .concat(dialogs ? Array.prototype.slice.call(dialogs.querySelectorAll('form[action]')) : []);
-        return candidates.find(function (candidate) { return candidate.getAttribute('action') === action; }) || null;
+        return candidates.find(function (candidate) {
+            return candidate.getAttribute('action') === action && names(candidate, 'occurrenceId') && names(candidate, 'tagId');
+        }) || null;
     }
 
     // The frame owns this shortcut even inside a field; site.js handles it on
@@ -2961,6 +2977,12 @@
         Unknown: []
     };
 
+    // Full screen is the operator's, not one drawing of the section's: a
+    // redrawn Repair Spec (Glass's return, a spec tab, a catch up) opens as
+    // the one it replaced, at the same place.
+    var expanded = false;
+    var expandedTop = 0;
+
     function bindGrid(form) {
         var body = form.querySelector('[data-estimate-grid-body]');
         var template = form.querySelector('[data-estimate-line-template]');
@@ -3475,6 +3497,7 @@
         }
         var use = button.querySelector('use');
         function apply(on) {
+            expanded = on;
             section.classList.toggle('is-expanded', on);
             document.body.classList.toggle('has-expanded', on);
             var label = on ? button.getAttribute('data-label-close') : button.getAttribute('data-label-expand');
@@ -3484,13 +3507,20 @@
             if (use) {
                 use.setAttribute('href', on ? '#icon-x' : '#icon-external-link');
             }
-            if (on) {
-                section.scrollTop = 0;
-            }
         }
         button.addEventListener('click', function () {
-            apply(!section.classList.contains('is-expanded'));
+            var on = !section.classList.contains('is-expanded');
+            apply(on);
+            if (on) {
+                section.scrollTop = 0;
+                expandedTop = 0;
+            }
         });
+        section.addEventListener('scroll', function () {
+            if (section.classList.contains('is-expanded')) {
+                expandedTop = section.scrollTop;
+            }
+        }, { passive: true });
         function onKeydown(event) {
             if (event.key === 'Escape' && section.isConnected && section.classList.contains('is-expanded')) {
                 event.preventDefault();
@@ -3498,15 +3528,22 @@
             }
         }
         document.addEventListener('keydown', onKeydown);
-        // A section swapped out of the page must not leave the body expanded.
+        // A section swapped out of the page must not leave the body expanded,
+        // unless the section drawn in its place has taken full screen on.
         var observer = new MutationObserver(function () {
             if (!section.isConnected) {
-                document.body.classList.remove('has-expanded');
+                if (!document.querySelector('[data-estimate-section].is-expanded')) {
+                    document.body.classList.remove('has-expanded');
+                }
                 document.removeEventListener('keydown', onKeydown);
                 observer.disconnect();
             }
         });
         observer.observe(document.body, { childList: true, subtree: true });
+        if (expanded) {
+            apply(true);
+            section.scrollTop = expandedTop;
+        }
     }
 
     function bindRange(root) {
@@ -3604,10 +3641,12 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();
 
-// --- images: the grid's own acts (v28 P41 drag, P27 click to include) --------
-// Drag writes through the order controls the preparation binder already owns,
-// so the tile, the viewer and the Case Save cannot disagree; a click on the
-// image presses the tile's own In report button, posted at once.
+// --- images: the grid's own acts (v28 P41 drag, typed order) -----------------
+// Drag and a typed order both move the tile and write through the order
+// controls the preparation binder already owns, so the tile, the viewer and
+// the Case Save cannot disagree. The Overview and the Close-up hold places 1
+// and 2 by their tags (operator, 7 October 2026): nothing moves them or lands
+// above them. A click on the image opens the viewer.
 (function () {
     'use strict';
 
@@ -3619,20 +3658,44 @@
             grid.dataset.imageGridBound = 'true';
             var dragging = null;
 
+            var renumbering = false;
+
             function tileOf(element) {
                 return element ? element.closest('[data-image-tile][data-preparation-card]') : null;
             }
+            function inReport() {
+                return Array.prototype.filter.call(
+                    grid.querySelectorAll('[data-image-tile][data-preparation-card]'),
+                    function (tile) { return tile.getAttribute('data-preparation-in-report') === 'true'; });
+            }
+            function isFixed(tile) {
+                return tile.getAttribute('data-preparation-fixed') === 'true';
+            }
+            // Puts a movable tile at a place among the images in the report,
+            // never above the fixed ones.
+            function place(tile, at) {
+                var tiles = inReport();
+                var fixedCount = tiles.filter(isFixed).length;
+                var movable = tiles.filter(function (other) { return !isFixed(other) && other !== tile; });
+                var index = Math.min(Math.max(at - fixedCount - 1, 0), movable.length);
+                if (index < movable.length) {
+                    grid.insertBefore(tile, movable[index]);
+                } else if (movable.length) {
+                    movable[movable.length - 1].after(tile);
+                } else if (fixedCount) {
+                    tiles.filter(isFixed)[fixedCount - 1].after(tile);
+                }
+            }
             function renumber() {
-                var at = 0;
-                grid.querySelectorAll('[data-image-tile][data-preparation-card]').forEach(function (tile) {
+                renumbering = true;
+                inReport().forEach(function (tile, index) {
                     var order = tile.querySelector('[data-preparation-order]');
-                    if (!order || tile.getAttribute('data-preparation-in-report') !== 'true') { return; }
-                    at += 1;
-                    if (order.value !== String(at)) {
-                        order.value = String(at);
+                    if (order && order.value !== String(index + 1)) {
+                        order.value = String(index + 1);
                         order.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                 });
+                renumbering = false;
             }
 
             grid.addEventListener('dragstart', function (event) {
@@ -3658,7 +3721,11 @@
                 if (!dragging || !over || over === dragging) { return; }
                 event.preventDefault();
                 over.classList.remove('is-drop');
-                grid.insertBefore(dragging, over);
+                if (isFixed(over)) {
+                    place(dragging, 1);
+                } else {
+                    grid.insertBefore(dragging, over);
+                }
                 renumber();
             });
             grid.addEventListener('dragend', function () {
@@ -3667,19 +3734,15 @@
                 grid.querySelectorAll('.is-drop').forEach(function (tile) { tile.classList.remove('is-drop'); });
             });
 
-            // P27: while the tile carries its report controls, clicking the
-            // image itself toggles whether the report uses it.
-            grid.addEventListener('click', function (event) {
-                if (event.target.closest('[data-image-report], .image-tile-actions')) { return; }
-                var link = event.target.closest('a[data-evidence-item]');
-                var tile = tileOf(link);
-                if (!link || !tile || !tile.querySelector('[data-image-in-report]')) { return; }
-                event.preventDefault();
-                event.stopPropagation();
-                window.pegasusCasePreparation.toggleInReport(
-                    tile.getAttribute('data-preparation-occurrence'),
-                    tile.getAttribute('data-preparation-in-report') !== 'true');
-            }, true);
+            // A typed order moves the tile to that place, and every image in
+            // the report is numbered again in the order the tiles then stand.
+            grid.addEventListener('change', function (event) {
+                var order = event.target.closest('[data-preparation-order]');
+                var tile = tileOf(order);
+                if (renumbering || !order || !tile || order.readOnly || order.value === '') { return; }
+                place(tile, Math.floor(Number(order.value)) || 1);
+                renumber();
+            });
         });
     }
 
@@ -4497,17 +4560,16 @@
         return value;
     }
     // In report is posted at once through the tile's own form (operator, 26
-    // September 2026), so the tile, the viewer and a click on the image all
-    // press the same button.
+    // September 2026), so the tile and the viewer press the same button.
     function toggleInReport(id, on) {
         var value = get(id);
         var form = document.querySelector('[data-image-in-report-form="' + id + '"]');
         if (!value || !form || value.inReport === on) { return; }
         form.requestSubmit();
     }
-    // A document action (a tag, In report) changed the image on the server while
-    // the Case form holds unsaved changes: take the preparation version, the
-    // report flag and the order the server now holds, and keep the staged
+    // A document action (a tag, In report) changed the images on the server
+    // while the Case form holds unsaved changes: take the preparation version,
+    // the report flag and the place the server now holds, and keep the staged
     // rotation and crop.
     function adopt(id, tile) {
         var store = staged();
@@ -4517,9 +4579,11 @@
         var inReport = tile.getAttribute('data-preparation-in-report') === 'true';
         if (inReport !== value.inReport) {
             value.inReport = inReport;
-            value.order = tile.getAttribute('data-preparation-order') ? number(tile.getAttribute('data-preparation-order'), null) : null;
             if (!inReport) { value.fullPage = false; }
         }
+        // A document action waits for staged edits to commit, so the place
+        // the server now holds already counts any order staged here.
+        value.order = tile.getAttribute('data-preparation-order') ? number(tile.getAttribute('data-preparation-order'), null) : null;
         if (value.changed) { writeHidden(); }
     }
     window.pegasusCasePreparation = {

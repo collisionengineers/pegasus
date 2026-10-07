@@ -691,21 +691,22 @@ internal static class ReportChrome
             right?.Invoke(rightSlot);
         });
 
-    /// <summary>An image of the grid: it fills its slot inside a hairline frame, as the template draws one.</summary>
+    /// <summary>An image of the grid: it sits in its slot inside a hairline frame, as the template draws one.</summary>
     private static void Frame(IContainer slot, byte[] image) => slot
         .Border(0.5f)
         .BorderColor(Grid)
-        .Element(framed => Fill(framed, image));
+        .Element(framed => Fit(framed, image));
 
     /// <summary>
-    /// An image prepared to its slot's shape fills the slot. A prepared
-    /// image is a whole number of pixels each way, so it is fitted to the
-    /// slot by the part of a pixel that leaves.
+    /// An image prints whole in its slot (operator, 7 October 2026): fitted
+    /// inside it at its own shape and centred, so nothing of it is trimmed.
     /// </summary>
-    internal static void Fill(IContainer slot, byte[] image) => slot
+    internal static void Fit(IContainer slot, byte[] image) => slot
+        .AlignCenter()
+        .AlignMiddle()
         .Image(image)
         .UseOriginalImage()
-        .FitUnproportionally();
+        .FitArea();
 
     internal static string Slug(string value) => new(value.ToUpperInvariant()
         .Select(character => char.IsLetterOrDigit(character) ? character : '_').ToArray());

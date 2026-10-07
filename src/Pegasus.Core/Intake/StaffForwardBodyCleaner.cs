@@ -72,6 +72,41 @@ public static partial class StaffForwardBodyCleaner
     }
 
     /// <summary>
+    /// The subject without the leading "FW:" and "Fwd:" prefixes a staff
+    /// forward added, in any case and however many there are; any "Re:" after
+    /// them stays. One pass over the text.
+    /// </summary>
+    public static string WithoutForwardPrefixes(string? subject)
+    {
+        var value = subject?.Trim() ?? string.Empty;
+        var start = 0;
+        while (true)
+        {
+            while (start < value.Length && char.IsWhiteSpace(value[start]))
+            {
+                start++;
+            }
+
+            if (StartsWithAt(value, start, "FW:"))
+            {
+                start += 3;
+            }
+            else if (StartsWithAt(value, start, "Fwd:"))
+            {
+                start += 4;
+            }
+            else
+            {
+                return value[start..];
+            }
+        }
+
+        static bool StartsWithAt(string text, int index, string prefix) =>
+            text.Length - index >= prefix.Length
+            && string.Compare(text, index, prefix, 0, prefix.Length, StringComparison.OrdinalIgnoreCase) == 0;
+    }
+
+    /// <summary>
     /// The original sender named by a forwarded body's own header block —
     /// the address on its "From:" line. Read straight from the retained
     /// body so the operator surface can name the real sender from the first

@@ -318,7 +318,7 @@ public sealed class GetOperationsSnapshot(
         // inputs already hold the two no-finding states, so only the Finding
         // recorded total is read here.
         var findingRecordedRead = listTriage.CountAsync(
-            query.Actor, TriageState.FindingRecorded, cancellationToken);
+            query.Actor, [TriageState.FindingRecorded], cancellationToken);
         await Task.WhenAll(attentionRead, stagesRead, findingRecordedRead);
         var inputs = await attentionRead;
         var caseStages = await stagesRead;
@@ -414,8 +414,8 @@ public sealed class GetOperationsSnapshot(
     {
         // The Triage kind is work without a finding, so both no-finding states
         // are queried directly.
-        var openRead = listTriage.ListAllAsync(actor, TriageState.Open, cancellationToken);
-        var awaitingRead = listTriage.ListAllAsync(actor, TriageState.AwaitingInformation, cancellationToken);
+        var openRead = listTriage.ListAllAsync(actor, [TriageState.Open], cancellationToken);
+        var awaitingRead = listTriage.ListAllAsync(actor, [TriageState.AwaitingInformation], cancellationToken);
         var dueRead = ReadDueWorkAsync(asOfUtc, cancellationToken);
         var heldRead = ReadCasesAsync(actor, CaseLifecycleState.Held, cancellationToken);
         var reviewRead = ReadCasesAsync(actor, CaseLifecycleState.Review, cancellationToken);

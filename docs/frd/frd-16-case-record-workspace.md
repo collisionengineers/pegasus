@@ -90,7 +90,7 @@ readiness list: every blocker, one row each with the requirement, its source,
 why it is outstanding, what clears it and a link to the section that clears
 it ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 Where a tab inside that section clears it, the link opens that tab too
-(operator, 1 October 2026): a missing Close-up, Overview or report image
+(operator, 1 October 2026): a missing Overview or report image
 source opens Files on **Images**, and the agreed fee or its description
 lines open Report on **Fee**.
 The rows run in page order (operator, 2 October 2026): section by section
@@ -611,7 +611,9 @@ confirmed**, **Box audit folder: preparing** while it is being created, or
 
 **Documents** lists every live file as a row: filename, role, size, origin,
 recorded time and custody-state chip, with Preview, Save as and, while
-editing, delete. When an Audit lists **Original report missing**, each
+editing, delete. A market research findings file carries the Market research
+role ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
+When an Audit lists **Original report missing**, each
 non-image row also offers **Mark as original report** while editing: the
 route for a report Pegasus did not recognise when it was filed. That action
 assigns the Audit report role, clears the requirement and fills the
@@ -718,10 +720,13 @@ read-only in Completed. An image has one place (v28 P50): whether the report
 uses it, its order and the tools that change them are on its tile under
 Files, and non-destructive crops leave the retained source and its hash
 untouched. A new image is in the report. The tile has no report
-role: its tag decides how it prints, the first tagged `Close-up` first and
-the first other one tagged `Overview` second, the rest as supporting images
-in order (operator, 26 September 2026). The Close-up prints on page 1 and the
-Overview leads the image pages
+role: its tag decides how it prints, the first tagged `Overview` first and
+the first other one tagged `Close-up` second, the rest as supporting images
+in order (operator, 7 October 2026). The tile's order is the place its image
+prints, shown as soon as the image is in the report. The two tagged places
+are fixed: their order cannot be changed and they have no grip, and ordering
+moves only the rest. The Overview prints on page 1 and the
+Close-up leads the image pages
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 Beneath the grid a line counts what the report uses, out of the images that
 can print
@@ -729,9 +734,11 @@ can print
 an image still being stored is in neither number. The tile also carries
 Rotate and **Full page** (v28 P41): Full page is a flag on an image the
 report uses, so the image prints on a page of its own; the grip drags a tile
-above the one it lands on and the order the tiles then stand in is the
-report's order. While the Case edits, clicking the image itself presses its
-In report (v28 P27). The Report section carries no image surface.
+above the one it lands on, and a typed order moves the tile to that place;
+the order the tiles then stand in is the report's order. The tile shows the
+whole image. Clicking the image opens the full-screen viewer, while editing
+or reading; In report is pressed on the tile or in the viewer (operator,
+7 October 2026). The Report section carries no image surface.
 
 The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
 repairer's document) carries the repair specification set (`EXT-09`): named
@@ -797,15 +804,16 @@ is owned by
 The Report section's More menu offers the three documents as previews (v28
 P42) — the report, the Repair Spec and the images — each opening the document
 the Case would actually produce rather than a picture of one, and offers
-Generate for a companion document the confirmed generation does not yet hold,
-in or out of edit mode as Generate report is. Generate fee note is offered for
-every confirmed report, and once the separate fee note is confirmed the report
-card offers Open fee note beside Open report (issue 912).
+Generate for the Repair Spec or the images when the confirmed generation does
+not yet hold it, in or out of edit mode as Generate report is. Generate report
+makes the separate fee note with the report (operator, 7 October 2026), and
+once the separate fee note is confirmed the report card offers Open fee note
+beside Open report (issue 912).
 The delivery form offers the Case's known addresses on every recipient field
-(v28 P21), the documents to attach (v28 P22), and states the name the report
-will be attached under (v28 P23) and the covering message it will carry, in an
-editable box pre-filled from the Case report delivery template, before Prepare
-delivery is pressed.
+(v28 P21), the documents to attach (v28 P22), with Report and Fee note ticked,
+and states the name the report will be attached under (v28 P23) and the
+covering message it will carry, in an editable box pre-filled from the Case
+report delivery template, before Send report is pressed.
 
 Report-draft generation and preview sit
 on the Report section

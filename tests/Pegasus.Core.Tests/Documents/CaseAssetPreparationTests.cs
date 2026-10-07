@@ -178,20 +178,26 @@ public sealed class CaseAssetPreparationTests
         Assert.Equal(CaseAssetRotation.Clockwise90, validated.Rotation);
     }
 
+    /// <summary>
+    /// The save numbers the images in the report by their places (operator,
+    /// 7 October 2026): the Overview 1 and the Close-up 2 whatever order they
+    /// were given, then the rest in staff order.
+    /// </summary>
     [Fact]
-    public void ReorderingTheImagesInTheReportRenormalizesToAContiguousSequence()
+    public void ReorderingTheImagesInTheReportRenormalizesToTheirPlaces()
     {
-        var a = Item(inReport: true, order: 5);
+        var a = Item(inReport: true, order: 1);
         var b = Item(inReport: true, tags: [ImageTagVocabulary.CloseUpId], order: 2);
         var c = Item(inReport: true, order: 9);
+        var overview = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], order: 7);
         var unordered = Item(inReport: true);
 
-        var result = CaseAssetPreparationPolicy.ValidateSet(CaseId, [a, unordered, b, c], NoConfirmedSources);
+        var result = CaseAssetPreparationPolicy.ValidateSet(CaseId, [a, unordered, b, c, overview], NoConfirmedSources);
 
         Assert.Equal(
-            [b.OccurrenceId, a.OccurrenceId, c.OccurrenceId, unordered.OccurrenceId],
+            [overview.OccurrenceId, b.OccurrenceId, a.OccurrenceId, c.OccurrenceId, unordered.OccurrenceId],
             result.OrderBy(item => item.Order).Select(item => item.OccurrenceId).ToArray());
-        Assert.Equal([1, 2, 3, 4], result.OrderBy(item => item.Order).Select(item => item.Order).ToArray());
+        Assert.Equal([1, 2, 3, 4, 5], result.OrderBy(item => item.Order).Select(item => item.Order).ToArray());
     }
 
     [Fact]
@@ -300,13 +306,13 @@ public sealed class CaseAssetPreparationTests
     }
 
     /// <summary>
-    /// The tag decides how an image in the report prints (operator, 26
-    /// September 2026): the first image tagged Close-up, then the first other
-    /// one tagged Overview, then the rest in order as Supporting. An image out
-    /// of the report never prints, whatever it is tagged.
+    /// The tag decides how an image in the report prints (operator, 7 October
+    /// 2026): the first image tagged Overview at place 1, then the first other
+    /// one tagged Close-up at place 2, then the rest in order as Supporting.
+    /// An image out of the report never prints, whatever it is tagged.
     /// </summary>
     [Fact]
-    public void ForReportPrintsTheTaggedCloseUpThenOverviewThenTheRestInOrder()
+    public void ForReportPrintsTheTaggedOverviewThenCloseUpThenTheRestInOrder()
     {
         var closeUp = Item(inReport: true, tags: [ImageTagVocabulary.CloseUpId], order: 3, fullPage: true);
         var overview = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], order: 4);
@@ -319,13 +325,13 @@ public sealed class CaseAssetPreparationTests
 
         Assert.Equal(
             [
-                (closeUp.OccurrenceId, CaseAssetReportRole.CloseUp, (int?)null),
-                (overview.OccurrenceId, CaseAssetReportRole.Overview, (int?)null),
-                (supportingOne.OccurrenceId, CaseAssetReportRole.Supporting, (int?)1),
-                (supportingTwo.OccurrenceId, CaseAssetReportRole.Supporting, (int?)2),
+                (overview.OccurrenceId, CaseAssetReportRole.Overview, (int?)1),
+                (closeUp.OccurrenceId, CaseAssetReportRole.CloseUp, (int?)2),
+                (supportingOne.OccurrenceId, CaseAssetReportRole.Supporting, (int?)3),
+                (supportingTwo.OccurrenceId, CaseAssetReportRole.Supporting, (int?)4),
             ],
             report.Select(item => (item.OccurrenceId, item.Role, item.Order)).ToArray());
-        Assert.True(report[0].FullPage);
+        Assert.True(report[1].FullPage);
     }
 
     /// <summary>
@@ -344,8 +350,8 @@ public sealed class CaseAssetPreparationTests
 
         Assert.Equal(
             [
-                (overview.OccurrenceId, CaseAssetReportRole.Overview, (int?)null),
-                (supporting.OccurrenceId, CaseAssetReportRole.Supporting, (int?)1),
+                (overview.OccurrenceId, CaseAssetReportRole.Overview, (int?)1),
+                (supporting.OccurrenceId, CaseAssetReportRole.Supporting, (int?)2),
             ],
             report.Select(item => (item.OccurrenceId, item.Role, item.Order)).ToArray());
     }
@@ -353,7 +359,8 @@ public sealed class CaseAssetPreparationTests
     /// <summary>
     /// Images nobody has ordered follow the order they arrived, then their
     /// file names, never their identifiers: the gallery, the supporting
-    /// images and the first image tagged Overview all read this order.
+    /// images and the first image tagged Overview all read this order, and
+    /// the save numbers them by place, the Overview first.
     /// </summary>
     [Fact]
     public void ImagesWithNoOrderFollowArrivalThenFileName()
@@ -390,21 +397,21 @@ public sealed class CaseAssetPreparationTests
             CaseId, [lastIn, sameMomentLaterName, ordered, sameMomentEarlierName, firstIn], NoConfirmedSources);
         Assert.Equal(
             [
-                ordered.OccurrenceId, firstIn.OccurrenceId, sameMomentEarlierName.OccurrenceId,
+                firstIn.OccurrenceId, ordered.OccurrenceId, sameMomentEarlierName.OccurrenceId,
                 sameMomentLaterName.OccurrenceId, lastIn.OccurrenceId,
             ],
             saved.OrderBy(item => item.Order).Select(item => item.OccurrenceId).ToArray());
     }
 
-    /// <summary>One image tagged both Close-up and Overview prints once, as the Close-up.</summary>
+    /// <summary>One image tagged both Overview and Close-up prints once, as the Overview.</summary>
     [Fact]
-    public void AnImageTaggedCloseUpAndOverviewPrintsOnceAsTheCloseUp()
+    public void AnImageTaggedOverviewAndCloseUpPrintsOnceAsTheOverview()
     {
         var both = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId, ImageTagVocabulary.CloseUpId], order: 1);
 
         var image = Assert.Single(CaseAssetPreparationPolicy.ForReport([both]));
 
-        Assert.Equal(CaseAssetReportRole.CloseUp, image.Role);
+        Assert.Equal(CaseAssetReportRole.Overview, image.Role);
     }
 
     [Theory]

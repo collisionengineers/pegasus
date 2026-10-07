@@ -475,7 +475,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await context.Database.MigrateAsync();
 
         Assert.Equal(
-            ["Close-up", "Market research", "Overview", "Reflection", "Third party"],
+            ["Close-up", "Overview", "Reflection", "Third party"],
             await ReadValuesAsync(
                 database,
                 """

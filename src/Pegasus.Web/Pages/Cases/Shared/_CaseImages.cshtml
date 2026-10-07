@@ -16,7 +16,6 @@
     // Documents tab reads. Custody does not filter it: an image still being
     // stored, or whose storage failed, is on the Case and draws as the
     // placeholder tile.
-    var images = Model.ReportOrderedCaseImageFiles;
     var vocabulary = Model.TagVocabulary;
     // v28 P50: whether the report uses an image and its order live on its
     // tile, with the count of what the report uses under the grid. The tag
@@ -24,14 +23,19 @@
     // 2026), so the tile has no role of its own. Only an image that can
     // print is counted: one still being stored joins when it confirms.
     var printableCount = Model.AssetPreparations.Count(item => item.CanPrint);
-    var includedCount = CaseAssetPreparationPolicy.ForReport(Model.AssetPreparations).Count;
+    // Each tile's order number is where it prints, so an image nobody has
+    // ordered shows its place at once. The Overview and the Close-up hold
+    // places 1 and 2 by their tags (operator, 7 October 2026).
+    var reportImages = Model.ReportImagesByOccurrence;
+    var images = Model.ReportOrderedCaseImageFiles(reportImages);
+    var includedCount = reportImages.Count;
 
     // The tile is the image's preparation card (v26 § Crop and tag): the crop
     // taken on the viewer stage, the Report section's card and this tile all
     // stage into the same one Case form, so a crop taken anywhere is the crop
     // the report shows.
-    IHtmlContent? PreparationMetadata(CaseAssetPreparation? item, string previewHref) =>
-        item is null || !mayPrepareImages ? null : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-in-report="{(item.InReport ? "true" : "false")}" data-preparation-order="{item.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}" data-preparation-full-page="{(item.FullPage ? "true" : "false")}" data-preparation-preview="{previewHref}""" + "\"");
+    IHtmlContent? PreparationMetadata(CaseAssetPreparation? item, PreparedReportImage? placed, bool placeFixed, string previewHref) =>
+        item is null || !mayPrepareImages ? null : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-in-report="{(item.InReport ? "true" : "false")}" data-preparation-order="{placed?.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-fixed="{(placeFixed ? "true" : "false")}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}" data-preparation-full-page="{(item.FullPage ? "true" : "false")}" data-preparation-preview="{previewHref}""" + "\"");
 }
 
 @if (images.Count == 0 && Model.ImageIntakes.Count == 0)
@@ -66,13 +70,15 @@ else
             var downloadHref = Model.DownloadUrl(file);
             var thumbnailHref = Model.ThumbnailUrl(file);
             var preparation = Model.PreparationFor(occurrence.Id);
+            var placed = reportImages.GetValueOrDefault(occurrence.Id);
+            var placeFixed = placed is { Role: not CaseAssetReportRole.Supporting };
             var mayCrop = mayPrepareImages && preparation is not null;
             var isRotated = preparation is not null && preparation.Rotation != CaseAssetRotation.None;
             var rotationBadge = isRotated ? ((int)preparation!.Rotation).ToString(CultureInfo.InvariantCulture) + "°" : string.Empty;
             var firstTag = occurrence.Tags.FirstOrDefault();
             var visibleTags = occurrence.Tags.Take(TagLabels.VisibleChips).ToArray();
             var hiddenTagCount = occurrence.Tags.Count - visibleTags.Length;
-            <li class="image-tile@(mayEdit ? " image-tile--tools" : null)" data-image-tile="@occurrence.Id" @PreparationMetadata(preparation, previewHref)>
+            <li class="image-tile@(mayEdit ? " image-tile--tools" : null)" data-image-tile="@occurrence.Id" @PreparationMetadata(preparation, placed, placeFixed, previewHref)>
                 <a href="@previewHref"
                    class="th"
                    data-evidence-item
@@ -96,10 +102,14 @@ else
                        image: the report decision and its order, then one
                        toolbar. In report is posted at once like a tag
                        (operator, 26 September 2026); the viewer's In report
-                       box and a click on the image press it. The order, the
+                       box presses it too, and a click on the image opens the
+                       viewer (operator, 7 October 2026). The order, the
                        drag handle, Rotate and Full page stage into the one
                        Case form (P41, P50), so they show once the script has
-                       seeded them; without script the form below edits them. *@
+                       seeded them; without script the form below edits them.
+                       The Overview's and the Close-up's places are their
+                       tags', so their order is read-only and they have no
+                       drag handle. *@
                     <div class="image-tile-panel image-tile-actions">
                         @if (preparation is not null)
                         {
@@ -120,7 +130,7 @@ else
                                 </form>
                                 <label class="image-tile-order" title="@ReportImageLabels.Order" data-image-report data-image-order-cell hidden>
                                     <span>@ReportImageLabels.Order</span>
-                                    <input class="fi num" type="number" min="1" step="1" value="@preparation.Order" data-preparation-order />
+                                    <input class="fi num" type="number" min="1" step="1" value="@placed?.Order" readonly="@placeFixed" data-preparation-order />
                                 </label>
                             </div>
                         }
@@ -144,7 +154,10 @@ else
                                     <button type="button" class="icon-button" data-preparation-rotate="90" title="@ReportImageLabels.Rotate" aria-label="@ReportImageLabels.Rotate"><svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg></button>
                                     <button type="button" class="icon-button" data-image-full-page hidden="@(preparation.InReport ? null : "hidden")" aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.PrintOnItsOwnPage"><svg class="icon" aria-hidden="true"><use href="#icon-file-image" /></svg></button>
                                 </span>
-                                <span class="grip" data-image-report hidden draggable="true" title="@ReportImageLabels.DragToReorder" aria-hidden="true"><svg class="icon"><use href="#icon-grip-vertical" /></svg></span>
+                                @if (!placeFixed)
+                                {
+                                    <span class="grip" data-image-report hidden draggable="true" title="@ReportImageLabels.DragToReorder" aria-hidden="true"><svg class="icon"><use href="#icon-grip-vertical" /></svg></span>
+                                }
                             }
                         </div>
                     </div>
@@ -170,7 +183,7 @@ else
                         @if (preparation is { InReport: true })
                         {
                             <span class="image-tile-status-in">@ReportImageLabels.InReport</span>
-                            @if (preparation.Order is { } order)
+                            @if (placed?.Order is { } order)
                             {
                                 <span>@ReportImageLabels.Order @order</span>
                             }
@@ -203,7 +216,7 @@ else
                             @if (preparation.InReport)
                             {
                                 <label>@ReportImageLabels.Order
-                                    <input name="preparationEdits[0].Order" type="number" min="1" step="1" value="@preparation.Order" />
+                                    <input name="preparationEdits[0].Order" type="number" min="1" step="1" value="@placed?.Order" readonly="@placeFixed" />
                                 </label>
                             }
                             <label>@ReportImageLabels.Rotation

@@ -411,8 +411,7 @@ public static class CaseWorkspaceLabels
                     or CaseReportReadiness.RepairerVatRequirement
             } => "estimate",
             {
-                Requirement: CaseReportReadiness.CloseUpImageRequirement
-                    or CaseReportReadiness.OverviewImageRequirement
+                Requirement: CaseReportReadiness.OverviewImageRequirement
                     or CaseReportReadiness.ImageSourceRequirement
             } => "files",
             _ => null
@@ -428,8 +427,7 @@ public static class CaseWorkspaceLabels
         {
             { Field: AssessmentVocabulary.AgreedFee or AssessmentVocabulary.FeeDescriptionLines } => "fee",
             {
-                Requirement: CaseReportReadiness.CloseUpImageRequirement
-                    or CaseReportReadiness.OverviewImageRequirement
+                Requirement: CaseReportReadiness.OverviewImageRequirement
                     or CaseReportReadiness.ImageSourceRequirement
             } => "images",
             _ => null
@@ -945,7 +943,7 @@ public static class CaseWorkspaceLabels
     /// The report-image preparation surface (B06): where each image sits in
     /// the generated report. Named "Report position" rather than "Report
     /// images" because an image's own classification is now its tags; this
-    /// vocabulary is composition — one Close-up, one Overview, ordered
+    /// vocabulary is composition — one Overview, one Close-up, ordered
     /// Supporting.
     /// </summary>
     /// <summary>
@@ -1003,9 +1001,7 @@ public static class CaseWorkspaceLabels
     public static class ReportDelivery
     {
         public const string GenerateReport = "Generate report";
-        public const string GenerateFeeNote = "Generate fee note";
         public const string ReportGenerated = "The report was generated.";
-        public const string FeeNoteGenerated = "The fee note was generated.";
         public const string ReportNotGenerated = "The report could not be generated.";
         public const string FeeNoteNotGenerated = "The fee note could not be generated.";
         public const string GenerationPending =

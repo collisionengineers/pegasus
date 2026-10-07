@@ -510,15 +510,15 @@ public sealed record AssessmentReportSnapshot(
     public bool IsImageBased => AssessmentMethod == "image_based";
 
     /// <summary>
-    /// The images in printed order: Close-up first, Overview second, then
-    /// Supporting by its persisted order.
+    /// The images in printed order: Overview first, Close-up second, then
+    /// Supporting by its persisted order (operator, 7 October 2026).
     /// </summary>
     [JsonIgnore]
     public IReadOnlyList<ReportImageEvidence> OrderedPhotos => Photos
         .OrderBy(photo => photo.Role switch
         {
-            CaseAssetReportRole.CloseUp => 0,
-            CaseAssetReportRole.Overview => 1,
+            CaseAssetReportRole.Overview => 0,
+            CaseAssetReportRole.CloseUp => 1,
             _ => 2,
         })
         .ThenBy(photo => photo.Order ?? int.MaxValue)

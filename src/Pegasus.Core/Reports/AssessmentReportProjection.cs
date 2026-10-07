@@ -17,7 +17,7 @@ namespace Pegasus.Core.Reports;
 /// <para>
 /// <see cref="Photos"/> are the operator's prepared report images
 /// (<see cref="Pegasus.Core.Documents.CaseAssetPreparationPolicy.ForReport"/>):
-/// Close-up, Overview, then Supporting in order, each with its rotation, crop
+/// Overview, Close-up, then Supporting in order, each with its rotation, crop
 /// and full-page flag, joined to its confirmed custody version.
 /// </para>
 /// <para>
