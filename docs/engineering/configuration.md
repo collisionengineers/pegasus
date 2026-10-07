@@ -72,6 +72,26 @@ version and a configuration read-back, not a release. The selected repository
   submitted text and the captured diagnostic snapshot, including a server
   exception and stack when available. The report is also retained in Pegasus.
 
+## Local opt-in features
+
+The `DevelopmentOffline` profile accepts four opt-ins that a hosted local test
+instance uses to reach the vendors it is allowed to. Each is read only in that
+profile; a Production host carrying one refuses to start naming the key, as it
+does for `Features:LocalIntake`.
+
+| Setting | Effect |
+| --- | --- |
+| `Features:LiveVehicleLookup` | The Worker composes the live DVLA/DVSA adapter from `Dvla:*` and `Dvsa:*` (parsed at start) instead of the replay folder; the Web records requests as `production_live`. |
+| `Features:LiveBoxCustody` | Both hosts compose the production storage shape (blob-backed intake artifacts, cached document reads, Box case custody) over the run's Azurite `transient-intake` container, with the fenced local-test Box root `425169015650`. It cannot be combined with `Features:LocalDocumentCustody`. |
+| `Features:LiveGlass` | The Web composes the Glass's gateway from `Glass:*` at start. Without it, or in any host without Glass's, the Case page offers no Glass's control and refuses the command. |
+| `Features:PasswordSignIn` | The automatic offline sign-in stops answering; the Identity cookie and `/Account/SignIn` are used, and `--initialize-development` sets `DevelopmentOffline:AdministratorPassword` on the local Administrator each time it runs. |
+
+`Features:AutomationMcp` with `AutomationMcp:UseDevelopmentKeys` and
+`Features:PrincipalApi` already compose offline and need no further switch.
+The lifecycle passes these settings to the hosts from the ignored local
+settings file described in the [runbook](../runbook.md#local-live-integration-run);
+no tracked file carries them.
+
 ## Glass's valuation
 
 `Glass:ValuationAccount:Username` and `Glass:ValuationAccount:Password` are
