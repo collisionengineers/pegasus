@@ -94,6 +94,42 @@ public sealed class CaseWorkspaceScriptContractTests
     }
 
     /// <summary>
+    /// A section showing another's value follows a save (operator, 7 October 2026):
+    /// a landed commit asks for a catch up, which runs once nothing waits on the
+    /// queue, so Done or a link away reads nothing extra first. Files and Notes stay
+    /// as loaded, and the control the operator is in is the one they are in when the
+    /// redraw lands, found again by its place when it has no id.
+    /// </summary>
+    [Fact]
+    public void ALandedSaveRedrawsTheSectionsThatShowWhatItChanged()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var settle = FunctionBody(script, "function settleQueue() {", "    ");
+        Assert.Contains(
+            "if (redrawWanted && !commitWaiters.length) { catchUp({ afterSave: true }); return; }",
+            settle,
+            StringComparison.Ordinal);
+        Assert.True(
+            settle.IndexOf("if (catchUpWanted) { catchUp(); return; }", StringComparison.Ordinal)
+                < settle.IndexOf("if (redrawWanted", StringComparison.Ordinal),
+            "A catch up for system work runs before the redraw a save asked for.");
+
+        var swap = FunctionBody(script, "function swap(html, command, preferred, options) {", "    ");
+        Assert.Contains("redrawWanted = true;", swap, StringComparison.Ordinal);
+        Assert.Contains("if (!keepSections) { redrawWanted = false; }", swap, StringComparison.Ordinal);
+        Assert.Contains("if (afterSave && next.hasAttribute('data-lazy')) { return; }", swap, StringComparison.Ordinal);
+
+        var catchUp = FunctionBody(script, "function catchUp(options) {", "    ");
+        Assert.True(
+            catchUp.IndexOf("var focused = focusedControl();", StringComparison.Ordinal)
+                > catchUp.IndexOf("return response.text();", StringComparison.Ordinal),
+            "The focused control is read when the redraw lands, not when the read begins.");
+        Assert.Contains("index: host ? Array.prototype.indexOf.call(host.querySelectorAll(FOCUSABLE), control) : -1,", script, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Choosing a repair spec keeps the page where it is (operator, 1 October 2026).
     /// A spec tab, New repair spec and Compare's From and To redraw only the Repair
     /// Spec section and the dialogs drawn after it, never navigating to the page top
@@ -129,11 +165,11 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.DoesNotContain("swap(", show, StringComparison.Ordinal);
     }
 
-    private static string FunctionBody(string script, string signature)
+    private static string FunctionBody(string script, string signature, string indent = "        ")
     {
         var start = script.IndexOf(signature, StringComparison.Ordinal);
         Assert.True(start >= 0, $"{signature} is missing from case-workspace.js.");
-        var end = script.IndexOf("\n        }", start, StringComparison.Ordinal);
+        var end = script.IndexOf("\n" + indent + "}", start, StringComparison.Ordinal);
         Assert.True(end > start, $"{signature} has no closing brace at the viewer's indent.");
         return script[start..end];
     }
