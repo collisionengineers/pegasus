@@ -480,25 +480,25 @@ public sealed class IndexModel(
 
     private async Task<IReadOnlyList<QueueRow>> LoadCasesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        // With Engineer is two Core states read as one group (D3): both
-        // pages are read and merged, so the group can carry up to two pages.
-        CaseLifecycleState[] states = Queue switch
+        // With Engineer is two Core states read as one stage (D3), searched
+        // together so the stage pages as one list.
+        var stage = Queue switch
         {
-            "review" => [CaseLifecycleState.Review],
-            "with_engineer" => [CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport],
-            "query" => [CaseLifecycleState.Query],
-            _ => [CaseLifecycleState.Held]
+            "review" => CaseLifecycleState.Review,
+            "with_engineer" => CaseLifecycleState.ReportPreparation,
+            "query" => CaseLifecycleState.Query,
+            _ => CaseLifecycleState.Held
         };
-        var results = await Task.WhenAll(states.Select(state => _searchCases.ExecuteAsync(
+        var result = await _searchCases.ExecuteAsync(
             new(
                 actor,
-                new(State: state, Principal: PrincipalFilter),
+                new(States: OperatorLabels.CaseStageStates(stage), Principal: PrincipalFilter),
                 CurrentPage,
                 PageSize),
-            cancellationToken)));
+            cancellationToken);
         HasPreviousPage = CurrentPage > 1;
-        HasNextPage = results.Any(result => result.HasNextPage);
-        var items = results.SelectMany(result => result.Items).ToArray();
+        HasNextPage = result.HasNextPage;
+        var items = result.Items.ToArray();
         Principals = PrincipalOptions(items);
         var engineers = await EngineerNamesAsync(items, cancellationToken);
         return items.Select(item => CaseRow(item, engineers)).ToArray();
@@ -512,7 +512,7 @@ public sealed class IndexModel(
         var result = await _searchCases.ExecuteAsync(
             new(
                 actor,
-                new(State: CaseLifecycleState.NotReady, Principal: PrincipalFilter),
+                new(States: [CaseLifecycleState.NotReady], Principal: PrincipalFilter),
                 Page: 1,
                 PageSize: MergedPageSize),
             cancellationToken);
