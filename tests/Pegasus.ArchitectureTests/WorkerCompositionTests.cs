@@ -307,6 +307,8 @@ public sealed class WorkerCompositionTests
             // account administration nor the per-staff vendor credentials.
             Assert.Null(scopedServices.GetService<Pegasus.Core.Identity.ICreateStaffAccount>());
             Assert.Null(scopedServices.GetService<Pegasus.Core.Identity.IPerUserExternalCredentialReader>());
+            // Get valuation files through the Web's scheduler; the Worker has none.
+            Assert.Null(scopedServices.GetService<Pegasus.Core.Assessment.IFetchGuideValuation>());
 
             WorkerFunctionSet.AssertEveryFunctionActivates(scopedServices);
         }

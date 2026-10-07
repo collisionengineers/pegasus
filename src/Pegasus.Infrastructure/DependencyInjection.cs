@@ -522,8 +522,9 @@ public static class DependencyInjection
         // Guide providers register beside their adapter (Glass's through
         // AddGlassGuideValuation); a host that composes none answers Get
         // valuation with the card's notice. A fetched valuation's report is
-        // filed by the host's own scheduler.
-        services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
+        // filed by the host's own scheduler, so the fetch use case is
+        // registered beside that scheduler (Web), not here: the Worker has
+        // none, and its host validates every registration at build.
         services.AddScoped<IFillGlassVin, EfGlassVinFill>();
         services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
