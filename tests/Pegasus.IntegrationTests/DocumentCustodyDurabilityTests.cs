@@ -1288,7 +1288,7 @@ public sealed class DocumentCustodyDurabilityTests
                 .GetRequiredService<IReadImageTagVocabulary>()
                 .ListAsync(CancellationToken.None);
             Assert.Equal(
-                [.. new[] { ImageTagVocabulary.OverviewName, ImageTagVocabulary.CloseUpName, ImageTagVocabulary.ThirdPartyName, ImageTagVocabulary.ReflectionName, ImageTagVocabulary.MarketResearchName }.OrderBy(name => name, StringComparer.Ordinal)],
+                [.. new[] { ImageTagVocabulary.OverviewName, ImageTagVocabulary.CloseUpName, ImageTagVocabulary.ThirdPartyName, ImageTagVocabulary.ReflectionName }.OrderBy(name => name, StringComparer.Ordinal)],
                 vocabulary.Where(tag => tag.IsBuiltIn).Select(tag => tag.Name).OrderBy(name => name, StringComparer.Ordinal));
             Assert.Contains(vocabulary, tag => tag.Id == created.Tag.Id);
         }

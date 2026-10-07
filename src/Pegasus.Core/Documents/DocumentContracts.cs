@@ -91,6 +91,12 @@ public enum DocumentSemanticRole
     Correspondence,
     EngineerReport,
     AuditReport,
+
+    /// <summary>
+    /// Market research findings produced outside Pegasus and filed against the
+    /// Case: evidence beside the valuation, never read as a value.
+    /// </summary>
+    MarketResearch,
     Other
 }
 
