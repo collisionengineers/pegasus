@@ -47,22 +47,20 @@ public sealed partial class DetailsModel
     /// The Images tab's tile order: the report's own order first, then the
     /// images the report does not use in their existing document order.
     /// </summary>
-    public IReadOnlyList<CaseFile> ReportOrderedCaseImageFiles
-    {
-        get
-        {
-            var images = CaseImageFiles;
-            var reportOrder = CaseAssetPreparationPolicy.ForReport(AssetPreparations)
-                .Select((image, index) => (image.OccurrenceId, Index: index))
-                .ToDictionary(item => item.OccurrenceId, item => item.Index);
-            return
-            [
-                .. images.OrderBy(file => reportOrder.TryGetValue(file.Occurrence.Id, out var index)
-                    ? index
-                    : int.MaxValue)
-            ];
-        }
-    }
+    public IReadOnlyList<CaseFile> ReportOrderedCaseImageFiles(IReadOnlyDictionary<Guid, PreparedReportImage> places) =>
+    [
+        .. CaseImageFiles.OrderBy(file => places.TryGetValue(file.Occurrence.Id, out var image)
+            ? image.Order
+            : int.MaxValue)
+    ];
+
+    /// <summary>
+    /// Each image the report prints, by occurrence: its place and how it
+    /// prints. The tile's order number is this place, so an image nobody has
+    /// ordered shows where it prints.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, PreparedReportImage> ReportImagesByOccurrence =>
+        CaseAssetPreparationPolicy.ForReport(AssetPreparations).ToDictionary(image => image.OccurrenceId);
 
     /// <summary>
     /// Whether a file is one of the Case's images: the image role and a media

@@ -5,7 +5,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Documents;
 
 /// <summary>
-/// How an image in the report prints: the one Close-up, the one Overview, or
+/// How an image in the report prints: the one Overview, the one Close-up, or
 /// one of the ordered Supporting images. It is never chosen or stored: the
 /// image's tags decide it (operator, 26 September 2026), through
 /// <see cref="CaseAssetPreparationPolicy.ForReport"/>. Distinct from
@@ -315,40 +315,53 @@ public static class CaseAssetPreparationPolicy
             normalized.Add(item with { FullPage = false });
         }
 
-        var ordered = InReportOrder(inReport);
-        for (var index = 0; index < ordered.Count; index++)
+        var placed = Placed(InReportOrder(inReport));
+        for (var index = 0; index < placed.Count; index++)
         {
-            normalized.Add(ordered[index] with { Order = index + 1 });
+            normalized.Add(placed[index].Item with { Order = index + 1 });
         }
 
         return normalized;
     }
 
     /// <summary>
-    /// The report's ordered image set (operator, 26 September 2026): of the
-    /// images in the report, in their order, the first tagged Close-up prints
-    /// as the Close-up, the first other one tagged Overview as the Overview,
-    /// and the rest as Supporting in that order. The Close-up comes first and
-    /// the Overview second. An image out of the report is left out, and so is
-    /// one that cannot print.
+    /// The report's ordered image set (operator, 7 October 2026): of the
+    /// images in the report, the first tagged Overview prints at place 1, the
+    /// first other one tagged Close-up at place 2, and the rest as Supporting
+    /// in the order staff set. The tags fix those two places; ordering moves
+    /// only the rest. Each image's <see cref="PreparedReportImage.Order"/> is
+    /// its place. An image out of the report is left out, and so is one that
+    /// cannot print.
     /// </summary>
     public static IReadOnlyList<PreparedReportImage> ForReport(IReadOnlyList<CaseAssetPreparation> current)
     {
         ArgumentNullException.ThrowIfNull(current);
-        var ordered = InReportOrder(current.Where(item => item.InReport && item.CanPrint));
-        var closeUp = ordered.FirstOrDefault(item => item.TagIds.Contains(ImageTagVocabulary.CloseUpId));
-        var overview = ordered.FirstOrDefault(item =>
-            item.OccurrenceId != closeUp?.OccurrenceId
-            && item.TagIds.Contains(ImageTagVocabulary.OverviewId));
-        var supporting = ordered
-            .Where(item => item.OccurrenceId != closeUp?.OccurrenceId && item.OccurrenceId != overview?.OccurrenceId)
-            .Select((item, index) => Prepared(item, CaseAssetReportRole.Supporting, index + 1));
-
         return
         [
-            .. closeUp is null ? [] : new[] { Prepared(closeUp, CaseAssetReportRole.CloseUp, null) },
-            .. overview is null ? [] : new[] { Prepared(overview, CaseAssetReportRole.Overview, null) },
-            .. supporting
+            .. Placed(InReportOrder(current.Where(item => item.InReport && item.CanPrint)))
+                .Select((placed, index) => Prepared(placed.Item, placed.Role, index + 1))
+        ];
+    }
+
+    /// <summary>
+    /// The images in the report in their places: the first tagged Overview,
+    /// then the first other one tagged Close-up, then the rest in staff order.
+    /// An image tagged both prints once, as the Overview.
+    /// </summary>
+    private static List<(CaseAssetPreparation Item, CaseAssetReportRole Role)> Placed(
+        List<CaseAssetPreparation> ordered)
+    {
+        var overview = ordered.FirstOrDefault(item => item.TagIds.Contains(ImageTagVocabulary.OverviewId));
+        var closeUp = ordered.FirstOrDefault(item =>
+            item.OccurrenceId != overview?.OccurrenceId
+            && item.TagIds.Contains(ImageTagVocabulary.CloseUpId));
+        return
+        [
+            .. overview is null ? [] : new[] { (overview, CaseAssetReportRole.Overview) },
+            .. closeUp is null ? [] : new[] { (closeUp, CaseAssetReportRole.CloseUp) },
+            .. ordered
+                .Where(item => item.OccurrenceId != overview?.OccurrenceId && item.OccurrenceId != closeUp?.OccurrenceId)
+                .Select(item => (item, CaseAssetReportRole.Supporting))
         ];
     }
 

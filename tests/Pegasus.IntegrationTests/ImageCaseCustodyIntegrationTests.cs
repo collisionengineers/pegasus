@@ -347,7 +347,6 @@ public sealed class ImageCaseCustodyIntegrationTests
         // standalone Audit, whose folder is named by its own a. Case/PO.
         var (caseId, caseRootRemoteId) = await SeedCaseWithFolderAsync(
             services, memberReceiptIds[0], "a.IMG26001", "audit");
-        var workflows = services.GetRequiredService<ICaseWorkflowQueries>();
         var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
 
         // The fold uploads nothing, so nobody holds the bytes: once it commits,
@@ -498,27 +497,9 @@ public sealed class ImageCaseCustodyIntegrationTests
             Assert.Equal(pngBytes, buffer.ToArray());
         }
 
-        // The Overview came from the record, so only the Close-up is asked
-        // for. Tagging the second photograph clears it.
+        // The Overview came from the record, and it is the one image the
+        // report needs (operator, 7 October 2026), so no image is asked for.
         var preparations = services.GetRequiredService<ICaseAssetPreparationQueries>();
-        Assert.Equal(
-            [CaseReportReadiness.CloseUpImageRequirement],
-            DocumentCustodyDurabilityTests.ImageBlockers(
-                await preparations.ListForCaseAsync(caseId, CancellationToken.None)));
-        var tagWorkflow = await workflows.GetAsync(caseId, CancellationToken.None);
-        var tagLease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
-            new(caseId, tagWorkflow!.Version, StaffActor(), $"close-up-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        await services.GetRequiredService<ITagCaseImage>().ExecuteAsync(
-            new(
-                caseId,
-                occurrenceIds[1],
-                ImageTagVocabulary.CloseUpId,
-                StaffActor(),
-                $"close-up-tag:{Guid.NewGuid():N}",
-                tagLease.Version,
-                tagLease.Token),
-            CancellationToken.None);
         Assert.Empty(DocumentCustodyDurabilityTests.ImageBlockers(
             await preparations.ListForCaseAsync(caseId, CancellationToken.None)));
     }

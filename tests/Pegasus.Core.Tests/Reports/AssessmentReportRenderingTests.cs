@@ -293,7 +293,7 @@ public sealed class AssessmentReportRenderingTests
     }
 
     [Fact]
-    public void ImagesArePrintedCloseUpFirstOverviewSecondThenSupportingByOrder()
+    public void ImagesArePrintedOverviewFirstCloseUpSecondThenSupportingByOrder()
     {
         var photo = Snapshot(AssessmentReportOutcome.Repairable).Photos.Single();
         var snapshot = Snapshot(AssessmentReportOutcome.Repairable) with
@@ -308,7 +308,7 @@ public sealed class AssessmentReportRenderingTests
         };
 
         Assert.Equal(
-            ["close-up", "overview", "supporting-1", "supporting-2"],
+            ["overview", "close-up", "supporting-1", "supporting-2"],
             snapshot.OrderedPhotos.Select(item => item.CustodyReference));
     }
 
