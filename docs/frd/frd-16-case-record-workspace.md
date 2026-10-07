@@ -121,6 +121,11 @@ refuses it), and **Mark completed** on any other Case (operator, 2 October
 2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
+While a Triage Case is linked to the Case, a **Linked cases** card follows
+Views and precedes Figures: one row per linked Triage, its `t.` Case/PO as a
+link, its state and its current finding; there is no card while nothing is
+linked (operator, 7 October 2026;
+[FRD-03](frd-03-triage.md#triage-findings-on-the-linked-case)).
 Below 1441px the aside folds into a strip above the sections.
 
 Actions post in place and the record's parts refresh without navigation.

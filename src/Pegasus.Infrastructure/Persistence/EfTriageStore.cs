@@ -117,9 +117,46 @@ public sealed class EfTriageStore(
             OccurredAtUtc = UtcNow(), BeforeVersion = beforeCaseVersion, AfterVersion = workflow.Version
         });
         AppendHistory(context, triage, AutomaticLinkEvent, actor, operationKey, reason, requestHash);
+        await FillFromCurrentFindingAsync(
+            context, workflow, beforeCaseVersion, triage.CaseId, operationKey, UtcNow(), cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    /// <summary>
+    /// A Triage linked with a finding fills the Case's empty findings from its
+    /// current one, the finding no later one supersedes, sharing the link's
+    /// version (<see cref="TriageFindingFill"/>).
+    /// </summary>
+    private static async Task FillFromCurrentFindingAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        long beforeCaseVersion,
+        Guid triageCaseId,
+        string operationKey,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var finding = await context.TriageFindings.AsNoTracking()
+            .Where(item => item.TriageCaseId == triageCaseId
+                && !context.TriageFindings.Any(later => later.SupersedesFindingId == item.Id))
+            .OrderByDescending(item => item.RecordedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (finding is null)
+        {
+            return;
+        }
+
+        await TriageFindingFillWriter.ApplyAsync(
+            context,
+            workflow,
+            beforeCaseVersion,
+            finding.Roadworthiness is null ? null : ParseRoadworthiness(finding.Roadworthiness),
+            finding.Assessment is null ? null : ParseAssessment(finding.Assessment),
+            operationKey,
+            now,
+            cancellationToken);
     }
 
     private async Task<TriageCaseLinkCandidate?> FindAutomaticLinkCandidateAsync(
@@ -1144,6 +1181,7 @@ public sealed class EfTriageStore(
             context.TriageResponseEvidenceLinks.RemoveRange(responseLinks);
         }
 
+        var recordedAtUtc = UtcNow();
         context.TriageFindings.Add(new()
         {
             Id = Guid.NewGuid(),
@@ -1155,8 +1193,25 @@ public sealed class EfTriageStore(
             Actor = request.Actor.SubjectId,
             OperationKey = request.OperationKey.Trim(),
             Reason = request.Reason.Trim(),
-            RecordedAtUtc = UtcNow()
+            RecordedAtUtc = recordedAtUtc
         });
+        // A linked Triage's first finding fills the Case's empty findings as
+        // system work beside the editor's session; a superseding one changes
+        // nothing on the Case (TriageFindingFill).
+        if (!superseding && triage.LinkedInstructionCaseId is { } linkedCaseId)
+        {
+            var linkedWorkflow = await context.CaseWorkflows.SingleAsync(
+                item => item.CaseId == linkedCaseId, cancellationToken);
+            await TriageFindingFillWriter.ApplyAsync(
+                context,
+                linkedWorkflow,
+                beforeVersion: null,
+                request.Roadworthiness,
+                request.Assessment,
+                request.OperationKey.Trim(),
+                recordedAtUtc,
+                cancellationToken);
+        }
         triage.State = ToCode(TriageState.FindingRecorded);
         AppendHistory(context, triage, eventType, request.Actor, request.OperationKey.Trim(), request.Reason.Trim(), requestHash);
         EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
@@ -1338,6 +1393,11 @@ public sealed class EfTriageStore(
             operationKey,
             request.Reason.Trim(),
             requestHash);
+        if (linking)
+        {
+            await FillFromCurrentFindingAsync(
+                context, workflow, beforeCaseVersion, triage.CaseId, operationKey, now, cancellationToken);
+        }
         EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -1897,7 +1957,7 @@ public sealed class EfTriageStore(
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
 
-    private static RoadworthinessFinding ParseRoadworthiness(string value) => value switch
+    internal static RoadworthinessFinding ParseRoadworthiness(string value) => value switch
     {
         "roadworthy" => RoadworthinessFinding.Roadworthy,
         "unroadworthy" => RoadworthinessFinding.Unroadworthy,
@@ -1911,7 +1971,7 @@ public sealed class EfTriageStore(
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
 
-    private static AssessmentFinding ParseAssessment(string value) => value switch
+    internal static AssessmentFinding ParseAssessment(string value) => value switch
     {
         "repairable" => AssessmentFinding.Repairable,
         "total_loss" => AssessmentFinding.TotalLoss,

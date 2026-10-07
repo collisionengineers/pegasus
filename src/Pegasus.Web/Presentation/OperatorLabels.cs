@@ -1725,7 +1725,8 @@ public static class OperatorLabels
     /// The source tag of a recorded assessment value: the vehicle lookup's
     /// writes read Lookup, an Original report cell filled from the filed report
     /// Extracted, the agreed fee a new Case took from its Principal Principal,
-    /// any other Automation actor's AI, a Pegasus worker's Automatic; a staff
+    /// the findings a linked Triage filled Triage, any other Automation
+    /// actor's AI, a Pegasus worker's Automatic; a staff
     /// value carries none.
     /// </summary>
     public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
@@ -1733,6 +1734,7 @@ public static class OperatorLabels
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
         ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
         ActorKind.Automation when field.RecordedBy == PrincipalDefaultFeePolicy.RecorderId => SourceTagWord.Principal,
+        ActorKind.Automation when field.RecordedBy == Pegasus.Core.Triage.TriageFindingFill.RecorderId => SourceTagWord.Triage,
         ActorKind.Automation => SourceTagWord.Ai,
         ActorKind.SystemWorker => SourceTagWord.Automatic,
         _ => null
@@ -1747,6 +1749,7 @@ public static class OperatorLabels
         public static readonly SourceTagWord Principal = new("Principal", string.Empty);
         public static readonly SourceTagWord PrincipalApi = new(PrincipalSubmissionApi.Source, string.Empty);
         public static readonly SourceTagWord Automatic = new("Automatic", string.Empty);
+        public static readonly SourceTagWord Triage = new("Triage", string.Empty);
         public static readonly SourceTagWord Ai = new("AI", "ai");
 
         public string CssClass => Tone.Length == 0 ? "src-tag" : "src-tag src-tag--" + Tone;

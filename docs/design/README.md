@@ -170,6 +170,12 @@ with the Case's state chip as the ribbon draws it. The current view reads plain
 (`aria-current="page"`) and the other is a link; the Audit view is the
 default. Before the Audit exists, and on a standalone Audit or a Triage Case,
 there is no card. The ribbon keeps the Case/PO and gains no Audit reference.
+
+While a Triage Case is linked to the Case, a **Linked cases** card follows
+Views and precedes Figures, in the same context-card pattern: one `next-row`
+per linked Triage with its `t.` Case/PO as a link, its state chip and its
+current finding ("Roadworthy · Repairable"). There is no card while nothing
+is linked (operator, 7 October 2026).
 The Inspection view edits as the Audit view does, writing the Inspection's
 own values (operator, 2 October 2026). In Files,
 an Audit folder chip follows the Case folder chip in the same tones: **Box

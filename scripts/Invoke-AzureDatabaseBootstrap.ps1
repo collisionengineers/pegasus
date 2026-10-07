@@ -612,6 +612,9 @@ function Get-MigrationPermissionMatrix {
     # chaser's chase when the Sent poll observes the send. It never deletes one.
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseManualChases')
     $expected.Add('pegasus_worker_runtime_role|G|INSERT|CaseManualChases')
+    # 20261007180000_GrantWorkerTriageFindings: the Worker's automatic Triage
+    # link reads the Triage's current finding to fill the Case's empty findings.
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|TriageFindings')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

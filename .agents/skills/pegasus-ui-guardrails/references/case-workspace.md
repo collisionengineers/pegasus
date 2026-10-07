@@ -9,7 +9,8 @@ The Case record has no generic page header.
 
 Its stable frame is:
 
-1. Views card in the aside once an Audit exists;
+1. Views card in the aside once an Audit exists, then the Linked cases card while a Triage Case is
+   linked;
 2. sticky 56px Case ribbon;
 3. sticky 40px section row;
 4. Case sections;
@@ -288,8 +289,8 @@ Viewer controls must not overlap the image stage. Keep the crop toolbar coherent
 
 ## Aside
 
-The context aside contains the Views card (only once an Audit exists), then Figures and Next
-action.
+The context aside contains the Views card (only once an Audit exists), the Linked cases card (only
+while a Triage Case is linked; operator, 7 October 2026), then Figures and Next action.
 
 While the report is not ready, Next action lists every report blocker (With Engineer, in place of
 its one line), each row linking to the section that owns the fact rather than repeating it. A stale generation's warning notice sits at the

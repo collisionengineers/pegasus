@@ -57,7 +57,7 @@ exclusion.
 | TRI-04 | Roadworthiness and Assessment findings, each optional, corrected by superseding | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-05 | Outcome-based completion and optional Reply with finding correspondence | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-06 | Reopen and superseding-finding behavior with permanent history | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
-| TRI-07 | Optional later case link, unlink, and relink | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
+| TRI-07 | Optional later case link, unlink, and relink; a link fills the Case's empty findings once | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-08 | Dedicated Triage queue and the Triage Case page at `/Cases/{id}` | [The Triage Case page](frd/frd-15-work-centre-queues-and-search.md#the-triage-case-page) |
 | TRI-09 | Optional Triage assignee, due target and manual chaser | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | CASE-01 | Every active Case type travels end to end to handoff | [States and labels](frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels) |
