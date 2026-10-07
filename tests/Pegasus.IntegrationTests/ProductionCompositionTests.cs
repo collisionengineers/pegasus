@@ -710,6 +710,8 @@ public sealed class ProductionCompositionTests
     {
         var services = NewServices();
         services.AddDataProtection();
+        // The gateway reads the per-staff credential, a staff-identity surface.
+        services.AddPegasusStaffIdentity();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
             .AddInMemoryCollection(configuration)
             .Build());

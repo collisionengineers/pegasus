@@ -298,6 +298,10 @@ public sealed class WorkerCompositionTests
             // and replays nothing rather than failing on absent credentials.
             Assert.Null(scopedServices.GetService<Pegasus.Core.Eva.ISubmitCaseToEva>());
             Assert.Null(scopedServices.GetService<ProcessAutomaticEvaReviewSubmissions>());
+            // Staff identity is the Web's: the Worker composes neither the
+            // account administration nor the per-staff vendor credentials.
+            Assert.Null(scopedServices.GetService<Pegasus.Core.Identity.ICreateStaffAccount>());
+            Assert.Null(scopedServices.GetService<Pegasus.Core.Identity.IPerUserExternalCredentialReader>());
 
             WorkerFunctionSet.AssertEveryFunctionActivates(scopedServices);
         }
