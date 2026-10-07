@@ -41,8 +41,7 @@ else
             var version = entry.Version;
             var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
             var viewable = mayRead && Pegasus.Web.Pages.Cases.DetailsModel.IsViewable(version.MediaType);
-            var isMarketResearch = occurrence.Tags.Any(tag => tag.TagId == ImageTagVocabulary.MarketResearchId)
-                || occurrence.SourceOccurrenceIdentity.StartsWith("market-research:", StringComparison.Ordinal);
+            var isMarketResearch = occurrence.SemanticRole == DocumentSemanticRole.MarketResearch;
             var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
                 || occurrence.Source == DocumentSource.ExternalCorrespondence;
             <div class="doc-row" data-document-row="@occurrence.Id">
@@ -52,14 +51,7 @@ else
                     <small>@OperatorLabels.DocumentOrigin(occurrence.Source) · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc) · @OperatorLabels.FileSize(version.ContentLength)</small>
                 </div>
                 <span class="doc-row-tags">
-                    @if (isMarketResearch)
-                    {
-                        <span class="src-tag src-tag--ai" data-market-research>@ImageTagVocabulary.MarketResearchName</span>
-                    }
-                    else
-                    {
-                        <span class="src-tag">@OperatorLabels.DocumentRole(occurrence.SemanticRole)</span>
-                    }
+                    <span class="src-tag @(isMarketResearch ? "src-tag--ai" : null)">@OperatorLabels.DocumentRole(occurrence.SemanticRole)</span>
                     @if (!mayRead)
                     {
                         <span class="status @(version.CustodyStatus == DocumentCustodyStatus.Failed ? "status--red" : "status--amber") status--plain">@(version.CustodyStatus == DocumentCustodyStatus.Failed ? FilesLabels.StorageNotReady : OperatorLabels.CustodyState(version.CustodyStatus))</span>
