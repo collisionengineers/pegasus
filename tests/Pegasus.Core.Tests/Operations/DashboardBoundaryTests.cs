@@ -1066,14 +1066,14 @@ public sealed class DashboardBoundaryTests
     private sealed class StubSearchCases : ISearchCases
     {
         public IReadOnlyList<CaseSearchItem> Items { get; init; } = [];
-        public List<CaseLifecycleState?> RequestedStates { get; } = [];
+        public List<CaseLifecycleState> RequestedStates { get; } = [];
 
         public Task<SearchCasesResult> ExecuteAsync(
             SearchCasesQuery query,
             CancellationToken cancellationToken)
         {
-            RequestedStates.Add(query.Filters.State);
-            var matching = Items.Where(item => query.Filters.State is null || item.State == query.Filters.State)
+            RequestedStates.AddRange(query.Filters.States ?? []);
+            var matching = Items.Where(item => query.Filters.States is not { Count: > 0 } states || states.Contains(item.State))
                 .ToArray();
             return Task.FromResult(new SearchCasesResult(
                 matching.Skip((query.Page - 1) * query.PageSize)

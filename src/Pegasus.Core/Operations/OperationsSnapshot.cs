@@ -474,7 +474,7 @@ public sealed class GetOperationsSnapshot(
         for (var page = 1; ; page++)
         {
             var result = await searchCases.ExecuteAsync(
-                new(actor, new(State: state), page, SourcePageSize),
+                new(actor, new(States: [state]), page, SourcePageSize),
                 cancellationToken);
             items.AddRange(result.Items);
             if (!result.HasNextPage)
