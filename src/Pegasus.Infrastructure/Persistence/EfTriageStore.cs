@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
@@ -798,18 +799,15 @@ public sealed class EfTriageStore(
         return row is null ? null : ToSummary(row);
     }
 
-    public async Task<IReadOnlyList<TriageSummary>> ListAsync(TriageState? state, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<TriageSummary>> ListAsync(
+        IReadOnlyCollection<TriageState>? states,
+        CancellationToken cancellationToken)
     {
-        if (state is not null && !Enum.IsDefined(state.Value))
-        {
-            throw new ArgumentOutOfRangeException(nameof(state));
-        }
-
+        var stateCodes = ToCodes(states);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var stateCode = state is null ? null : ToCode(state.Value);
         var rows = await TriageWithDraftQuery(
             context,
-            stateCode is null ? null : item => item.State == stateCode).ToListAsync(cancellationToken);
+            stateCodes is null ? null : item => stateCodes.Contains(item.State)).ToListAsync(cancellationToken);
         // The same newest-first order the keyset page uses, so the two read
         // paths cannot disagree about what "the next row" is.
         return rows.OrderByDescending(row => row.Item.CreatedAtUtc)
@@ -818,18 +816,31 @@ public sealed class EfTriageStore(
             .ToArray();
     }
 
-    public async Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken)
+    public async Task<int> CountAsync(
+        IReadOnlyCollection<TriageState>? states,
+        CancellationToken cancellationToken)
     {
-        if (state is not null && !Enum.IsDefined(state.Value))
+        var stateCodes = ToCodes(states);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var triage = context.Triage.AsNoTracking();
+        return await (stateCodes is null ? triage : triage.Where(item => stateCodes.Contains(item.State)))
+            .CountAsync(cancellationToken);
+    }
+
+    /// <summary>The persisted codes of <paramref name="states"/>, or null for every state.</summary>
+    private static string[]? ToCodes(IReadOnlyCollection<TriageState>? states)
+    {
+        if (states is null)
         {
-            throw new ArgumentOutOfRangeException(nameof(state));
+            return null;
         }
 
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var stateCode = state is null ? null : ToCode(state.Value);
-        return await context.Triage
-            .AsNoTracking()
-            .CountAsync(item => stateCode == null || item.State == stateCode, cancellationToken);
+        if (states.Any(state => !Enum.IsDefined(state)))
+        {
+            throw new ArgumentOutOfRangeException(nameof(states));
+        }
+
+        return states.Distinct().Select(ToCode).ToArray();
     }
 
     /// <summary>
@@ -1017,6 +1028,11 @@ public sealed class EfTriageStore(
         var documents = await EfCaseQueryStore.ReadDocumentsAsync(context, caseId, cancellationToken);
         var correspondence = await EfCaseQueryStore.ReadCorrespondenceEmailsAsync(
             context, caseId, cancellationToken, entity.OriginReceiptId);
+        var sentOutcomeReplyVersion = await context.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            .Where(item => item.ContextId == caseId
+                && item.Purpose == StaffMailPurpose.TriageOutcomeReply
+                && item.State == StaffMailState.Sent)
+            .MaxAsync(item => (long?)item.ContextVersion, cancellationToken);
         return new TriageDetail(
             Map(entity),
             entity.CreatedAtUtc,
@@ -1028,6 +1044,7 @@ public sealed class EfTriageStore(
         {
             Documents = documents,
             Correspondence = correspondence,
+            SentOutcomeReplyVersion = sentOutcomeReplyVersion,
             CustodyState = EfCaseQueryStore.ParseCustodyState(entity.Case.CustodyState),
             CustodyFolderRemoteId = entity.Case.CustodyRootRemoteId
         };

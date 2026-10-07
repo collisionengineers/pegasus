@@ -126,7 +126,7 @@ public sealed partial class QdosTriageIntegrationTests
         var reopenedAt = (await GetTriageAsync(factory.Services, triageId)).History
             .Single(entry => entry.OperationKey == "replay-reopen").OccurredAtUtc;
         var openRow = Assert.Single(
-            await services.GetRequiredService<IListTriage>().ListAllAsync(staffActor, TriageState.Open, CancellationToken.None),
+            await services.GetRequiredService<IListTriage>().ListAllAsync(staffActor, [TriageState.Open], CancellationToken.None),
             row => row.CaseId == triageId);
         Assert.Equal(reopenedAt, openRow.StateEnteredAtUtc);
 

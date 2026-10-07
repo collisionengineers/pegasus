@@ -379,8 +379,8 @@ public sealed class IndexModel(
         var stageCountsTask = _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
         var triageTask = _listTriage.CountAsync(
             actor,
-            state: null,
-            cancellationToken: cancellationToken);
+            TriageLifecycleRules.ActiveStates,
+            cancellationToken);
         var openUnidentifiedCountTask = _unidentifiedStore.CountOpenAsync(cancellationToken);
         await Task.WhenAll(stageCountsTask, triageTask, openUnidentifiedCountTask);
         StageCounts = stageCountsTask.Result;
@@ -549,7 +549,7 @@ public sealed class IndexModel(
 
     private async Task<IReadOnlyList<QueueRow>> LoadTriageAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        var page = await _listTriage.ExecuteAsync(new(actor, State: null, CurrentPage, PageSize), cancellationToken);
+        var page = await _listTriage.ExecuteAsync(new(actor, TriageLifecycleRules.ActiveStates, CurrentPage, PageSize), cancellationToken);
         HasPreviousPage = page.Page > 1;
         HasNextPage = page.Page < page.TotalPages;
         var assignees = await ActorDisplayNames.ResolveStaffNamesAsync(

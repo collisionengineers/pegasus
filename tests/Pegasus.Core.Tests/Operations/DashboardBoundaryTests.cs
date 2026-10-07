@@ -954,7 +954,7 @@ public sealed class DashboardBoundaryTests
         {
             PageReads++;
             var matches = Items
-                .Where(item => query.State is null || item.State == query.State)
+                .Where(item => query.States is null || query.States.Contains(item.State))
                 .ToArray();
             var page = matches
                 .Skip((query.Page - 1) * query.PageSize)
@@ -965,18 +965,26 @@ public sealed class DashboardBoundaryTests
 
         public Task<int> CountAsync(
             ActionActor actor,
-            TriageState? state,
+            IReadOnlyCollection<TriageState>? states,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(Items.Count(item => state is null || item.State == state));
+            Task.FromResult(Items.Count(item => states is null || states.Contains(item.State)));
 
         public Task<IReadOnlyList<TriageSummary>> ListAllAsync(
             ActionActor actor,
-            TriageState? state,
+            IReadOnlyCollection<TriageState>? states,
             CancellationToken cancellationToken = default)
         {
-            ListAllStates.Add(state);
+            if (states is null)
+            {
+                ListAllStates.Add(null);
+            }
+            else
+            {
+                ListAllStates.AddRange(states.Select(state => (TriageState?)state));
+            }
+
             return Task.FromResult<IReadOnlyList<TriageSummary>>(
-                Items.Where(item => state is null || item.State == state).ToArray());
+                Items.Where(item => states is null || states.Contains(item.State)).ToArray());
         }
     }
 
