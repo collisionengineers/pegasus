@@ -4,9 +4,13 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Triage;
 
+/// <summary>
+/// One offset page of the Triages in any of <paramref name="States"/>; every
+/// state when <see langword="null"/>.
+/// </summary>
 public sealed record ListTriageQuery(
     ActionActor Actor,
-    TriageState? State,
+    IReadOnlyCollection<TriageState>? States,
     int Page = 1,
     int PageSize = 25);
 
@@ -44,17 +48,17 @@ public interface IListTriage
 
     Task<int> CountAsync(
         ActionActor actor,
-        TriageState? state,
+        IReadOnlyCollection<TriageState>? states,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Every Triage in <paramref name="state"/> (every state when
+    /// Every Triage in any of <paramref name="states"/> (every state when
     /// <see langword="null"/>), in the list's order, read once rather than
     /// page by page.
     /// </summary>
     Task<IReadOnlyList<TriageSummary>> ListAllAsync(
         ActionActor actor,
-        TriageState? state,
+        IReadOnlyCollection<TriageState>? states,
         CancellationToken cancellationToken = default);
 }
 
@@ -101,14 +105,14 @@ public sealed class ListTriage(ITriageQueries queries) : IListTriage
                 nameof(query),
                 "The requested page size is outside the supported range.");
         }
-        if (query.State is { } state && !Enum.IsDefined(state))
+        if (query.States?.Any(state => !Enum.IsDefined(state)) == true)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(query),
                 "The Triage state is not recognized.");
         }
 
-        var matches = await queries.ListAsync(query.State, cancellationToken);
+        var matches = await queries.ListAsync(query.States, cancellationToken);
         var items = matches
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
@@ -118,34 +122,34 @@ public sealed class ListTriage(ITriageQueries queries) : IListTriage
 
     public Task<int> CountAsync(
         ActionActor actor,
-        TriageState? state,
+        IReadOnlyCollection<TriageState>? states,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (state is { } requested && !Enum.IsDefined(requested))
+        if (states?.Any(state => !Enum.IsDefined(state)) == true)
         {
-            throw new ArgumentOutOfRangeException(nameof(state));
+            throw new ArgumentOutOfRangeException(nameof(states));
         }
 
-        return queries.CountAsync(state, cancellationToken);
+        return queries.CountAsync(states, cancellationToken);
     }
 
     public Task<IReadOnlyList<TriageSummary>> ListAllAsync(
         ActionActor actor,
-        TriageState? state,
+        IReadOnlyCollection<TriageState>? states,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (state is { } requested && !Enum.IsDefined(requested))
+        if (states?.Any(state => !Enum.IsDefined(state)) == true)
         {
             throw new ArgumentOutOfRangeException(
-                nameof(state),
+                nameof(states),
                 "The Triage state is not recognized.");
         }
 
-        return queries.ListAsync(state, cancellationToken);
+        return queries.ListAsync(states, cancellationToken);
     }
 }
 

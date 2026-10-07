@@ -132,8 +132,8 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(0, stages.WithEngineer);
         var triageCount = await services.GetRequiredService<IListTriage>().CountAsync(
             StaffActor(),
-            state: null,
-            cancellationToken: CancellationToken.None);
+            TriageLifecycleRules.ActiveStates,
+            CancellationToken.None);
         var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
             .CountOpenAsync(CancellationToken.None);
         Assert.Equal(0, triageCount);
@@ -240,8 +240,8 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(0, stages.WithEngineer);
         var triageCount = await services.GetRequiredService<IListTriage>().CountAsync(
             StaffActor(),
-            state: null,
-            cancellationToken: CancellationToken.None);
+            TriageLifecycleRules.ActiveStates,
+            CancellationToken.None);
         var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
             .CountOpenAsync(CancellationToken.None);
         Assert.Equal(0, triageCount);
@@ -291,6 +291,57 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotContain(queryReference, searchHtml, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Issue 1044: the Triage queue and the shell count hold the active Triage
+    /// states only. A Completed or Cancelled Triage leaves both and is found
+    /// through Search, which shows its Triage state.
+    /// </summary>
+    [Fact]
+    public async Task TheTriageQueueListsActiveTriageOnlyAndSearchFindsTheCompletedAndCancelled()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var open = await OpenTriageForPagingAsync(services, 1);
+        var completed = await OpenTriageForPagingAsync(services, 2);
+        var cancelled = await OpenTriageForPagingAsync(services, 3);
+        await using (var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            await context.Triage.Where(item => item.CaseId == completed.CaseId)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.State, "completed"));
+            await context.Triage.Where(item => item.CaseId == cancelled.CaseId)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.State, "cancelled"));
+        }
+
+        Assert.Equal(1, await services.GetRequiredService<IListTriage>().CountAsync(
+            StaffActor(),
+            TriageLifecycleRules.ActiveStates,
+            CancellationToken.None));
+
+        using var queueResponse = await client.GetAsync("/Cases?tab=triage");
+        var queueHtml = await queueResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, queueResponse.StatusCode);
+        Assert.Contains(open.Reference, queueHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(completed.Reference, queueHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(cancelled.Reference, queueHtml, StringComparison.Ordinal);
+        Assert.Equal(1, QueueCount(queueHtml, "Triage"));
+        Assert.Equal(1, ShellCasesCount(queueHtml));
+
+        foreach (var (record, label) in new[] { (completed, "Completed"), (cancelled, "Cancelled") })
+        {
+            using var searchResponse = await client.GetAsync(
+                $"/Search?registration={record.NormalizedVehicleRegistration}");
+            var searchHtml = await searchResponse.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
+            Assert.Contains(record.Reference, searchHtml, StringComparison.Ordinal);
+            Assert.Contains(label, searchHtml, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public async Task CasesShellCountsOpenTriageAndUnidentifiedButExcludesClosedUnidentified()
     {
@@ -333,8 +384,8 @@ public sealed class TriageQueuesWebTests
         var unidentified = services.GetRequiredService<IUnidentifiedStore>();
         Assert.Equal(1, await services.GetRequiredService<IListTriage>().CountAsync(
             StaffActor(),
-            state: null,
-            cancellationToken: CancellationToken.None));
+            TriageLifecycleRules.ActiveStates,
+            CancellationToken.None));
         Assert.Equal(1, await unidentified.CountOpenAsync(CancellationToken.None));
         Assert.Equal(
             "No further action is required.",
@@ -1171,7 +1222,7 @@ public sealed class TriageQueuesWebTests
                 CancellationToken.None));
     }
 
-    private static async Task OpenTriageForPagingAsync(IServiceProvider services, int index)
+    private static async Task<TriageRecord> OpenTriageForPagingAsync(IServiceProvider services, int index)
     {
         var registration = $"PG{index:00}AGE";
         var sourceIdentity = new IntakeSourceIdentity(
@@ -1204,7 +1255,7 @@ public sealed class TriageQueuesWebTests
             sourceIdentity,
             sourceHash);
         var evaluationRevisionId = await StageAndCompleteEvaluationAsync(services, receiptId);
-        await services.GetRequiredService<ICreateTriageFromIntake>().ExecuteAsync(
+        return await services.GetRequiredService<ICreateTriageFromIntake>().ExecuteAsync(
             new(
                 new TriageOrigin(receiptId, sourceIdentity, sourceHash, evaluationRevisionId),
                 registration,

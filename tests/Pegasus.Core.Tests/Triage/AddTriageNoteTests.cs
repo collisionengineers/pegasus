@@ -91,7 +91,7 @@ public sealed class AddTriageNoteTests
 
     private sealed class NoteStore(TriageRecord current) : ITriageStore
     {
-        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+        public Task<int> CountAsync(IReadOnlyCollection<TriageState>? state, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
         public Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
@@ -132,7 +132,7 @@ public sealed class AddTriageNoteTests
         }
 
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
-            TriageState? state,
+            IReadOnlyCollection<TriageState>? state,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<TriageSummary?> GetByOriginReceiptAsync(

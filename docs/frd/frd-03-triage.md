@@ -151,7 +151,9 @@ Triage outcome template from Administration
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which the
 user can edit. A sent reply is linked to the
 Triage through the normal email evidence rules, but neither composing nor
-sending is a gate.
+sending is a gate. Once the outcome reply is sent it is no longer offered;
+Reopen and a fresh completion offer it again (operator, issue 1047,
+7 October 2026).
 `Cancelled` closes a Triage without a finding. Neither outcome turns a Triage
 finding into an instruction for a later Case.
 

@@ -40,6 +40,12 @@ public sealed class TriageCaseView(TriageDetail triage)
 
     public bool ReplyOperationBlocked { get; set; }
 
+    /// <summary>
+    /// The outcome reply for this completion has been sent; only Reopen and a
+    /// fresh completion offer Reply with finding again (FRD-03).
+    /// </summary>
+    public bool OutcomeReplySent => TriageLifecycleRules.OutcomeReplySent(Triage);
+
     public ApprovedMailbox? ReplyMailbox { get; set; }
 
     public string ReplyOperationKey { get; set; } = string.Empty;
@@ -62,12 +68,16 @@ public sealed class TriageCaseView(TriageDetail triage)
 
     /// <summary>
     /// Reply with finding is offered: the Triage is Completed, a reply can be
-    /// sent and no send is in flight.
+    /// sent, no send is in flight and the outcome reply has not been sent.
     /// </summary>
-    public bool OffersReply => IsOutcomeReply && CanSendReply && !ReplyOperationBlocked;
+    public bool OffersReply => IsOutcomeReply && OffersComposer;
 
-    /// <summary>The composer is offered: the state has a reply, a reply can be sent and no send is in flight.</summary>
-    public bool OffersComposer => ReplyPurpose is not null && CanSendReply && !ReplyOperationBlocked;
+    /// <summary>
+    /// The composer is offered: the state has a reply, a reply can be sent, no
+    /// send is in flight and the outcome reply has not been sent.
+    /// </summary>
+    public bool OffersComposer =>
+        ReplyPurpose is not null && CanSendReply && !ReplyOperationBlocked && !OutcomeReplySent;
 
     /// <summary>The completion notice carries a Reply with finding link when a reply can be sent.</summary>
     public bool NoticeOffersReply { get; set; }
@@ -617,6 +627,14 @@ public sealed partial class DetailsModel
             return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
+        // A repeated post, or a page opened before the outcome reply was sent,
+        // lands on the sent reply rather than sending it twice.
+        if (TriageLifecycleRules.OutcomeReplySent(triage))
+        {
+            TempData["TriageStatus"] = Labels.Sent(purpose);
+            return RedirectToPage(new { id });
+        }
+
         if (triage.Record.Version != expectedVersion)
         {
             ModelState.AddModelError(
@@ -898,7 +916,7 @@ public sealed partial class DetailsModel
 
                 var replyRecipients = TriageReplyRecipients(retainedMail);
                 view.ReplyTo = string.Join("; ", replyRecipients.Select(r => r.Address));
-                view.ReplySubject = TriageReplySubject(retainedMail.Summary.Subject);
+                view.ReplySubject = TriageReplySubject(retainedMail.Summary);
                 if (view.IsOutcomeReply)
                 {
                     // The Administrator's saved template, or the built-in
@@ -1152,8 +1170,20 @@ public sealed partial class DetailsModel
                 and not StaffMailState.Failed
                 and not StaffMailState.Cancelled;
 
+    /// <summary>
+    /// The reply answers the message's Reply-To, or From without one; a
+    /// Collision Engineers staff forward is answered to its proven original
+    /// sender instead of the forwarding desk (FRD-21 Reply targets).
+    /// </summary>
     private static StaffMailRecipient[] TriageReplyRecipients(RetainedMailDetail detail) =>
-        ParseTriageRecipients(detail.ReplyToAddresses);
+        StaffForwardOriginalSender(detail.Summary) is { } originalSender
+            ? ParseTriageRecipients(originalSender)
+            : ParseTriageRecipients(detail.ReplyToAddresses);
+
+    private static string? StaffForwardOriginalSender(RetainedMailSummary summary) =>
+        PrincipalMailRoutePolicy.StaffForwardOriginalSender(
+            summary.SenderAddress,
+            summary.EffectiveSenderAddress);
 
     private static StaffMailRecipient[] ParseTriageRecipients(string? value) =>
         (value ?? string.Empty)
@@ -1175,10 +1205,15 @@ public sealed partial class DetailsModel
         System.Net.Mail.MailAddress.TryCreate(value, out var parsed)
         && string.Equals(parsed.Address, value, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The reply keeps the original's subject with one "Re:".</summary>
-    private static string TriageReplySubject(string? subject)
+    /// <summary>
+    /// The reply keeps the original's subject with one "Re:"; a staff forward's
+    /// own "FW:" is dropped first.
+    /// </summary>
+    private static string TriageReplySubject(RetainedMailSummary summary)
     {
-        var value = subject?.Trim() ?? string.Empty;
+        var value = StaffForwardOriginalSender(summary) is null
+            ? summary.Subject?.Trim() ?? string.Empty
+            : StaffForwardBodyCleaner.WithoutForwardPrefixes(summary.Subject);
         return value.StartsWith("Re:", StringComparison.OrdinalIgnoreCase)
             ? value
             : $"Re: {value}".TrimEnd();
