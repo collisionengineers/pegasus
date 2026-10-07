@@ -17,12 +17,13 @@
 - A write presented without a lease token holds the record's edit lease for
   that one command. The explicit lease tools remain for multi-step work.
 - The Actor does the casework a staff member does: Unidentified items, Triage
-  Cases, received items and direct Case creation, Case details and notes,
-  findings, valuation, estimates, the Case's lifecycle acts, reports and their
-  approval, the Case's documents, AI jobs, mail dismiss and folder moves, and
-  Work Centre dismiss. It sends reports to the Principal and e-mail under its
-  own `automation.send` scope. It never puts an estimate in use, never runs a
-  Glass's session and never touches Glass's credentials.
+  Cases, received items and their inspection address, direct Case creation,
+  Case details and notes, findings, valuation, estimates, the Case's
+  lifecycle acts, reports and their approval, report wording, image
+  preparation, the Case's documents, AI jobs, mail dismiss and folder moves,
+  and Work Centre dismiss. It sends reports to the Principal and e-mail under
+  its own `automation.send` scope. It never puts an estimate in use, never
+  runs a Glass's session and never touches Glass's credentials.
 - A tool counts as delivered only after a real caller has proved success,
   authorisation failure, validation failure and history.
 
@@ -50,7 +51,8 @@ use (**Use repair spec**), and it never runs a Glass's session, which signs in
 with the staff member's own Glass's account (operator, 7 October 2026;
 [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). The
 `Manage*` rights stay with staff Administrators. The Case lifecycle, report
-and document tools, report approval among them, the queue and job tools and
+and document tools, report approval among them, the queue and job tools,
+settling an inspection address, report wording, image preparation and
 outward sending are delivered (operator, 7 October 2026). Sending has its own
 scope, `automation.send`, so a grant can hold casework without sending.
 
@@ -191,6 +193,23 @@ a document occurrence while custody content and history are kept, retries
 failed custody, and adds a word to the shared image-tag vocabulary, through
 the staff Custody commands.
 
+**Report wording and images.** <a id="report-wording-and-images"></a>
+`pegasus_report_wording_get` reads a work's report wording blocks as the
+Report section offers them, each with the sentence composed from the Case's
+fields; `pegasus_report_wording_save` renames, rewords, moves, takes off or
+puts back a block, or adds or deletes a paragraph of the Actor's own, through
+the Case save's Report wording section. A block it does not name keeps its
+heading, wording, place and presence, and wording equal to the composed
+sentence is no change, by the same rule as the Case page's Save
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)). While a
+Case's report cannot yet be projected there are no blocks, and a save is
+refused. `pegasus_image_preparation_get` reads each image's place, role,
+rotation, crop and page of its own with its preparation version;
+`pegasus_image_prepare` crops, rotates, orders and sets a page of its own
+through the Case save's Image preparation section, each image guarded by its
+preparation version. Whether an image is in the report stays
+`pegasus_document_action` `set_in_report`.
+
 Estimates go through the named estimate tools, with the same actor, lease,
 version and replay checks as the Case UI
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Unidentified reason
@@ -288,17 +307,23 @@ replays by its operation key.
 
 - `pegasus_intake_get` reads one received item as the Create case page
   reviews it: version, decision, existing Case, classified case type, draft,
-  missing identity-critical fields, allocation attempt, inspection address
-  state and the item's files, which a Triage reply attaches by asset id.
-- `pegasus_intake_action` with `accept` turns a received item into a Case
-  as **Create case** does: the reviewed draft is recorded (named draft fields
-  replace the item's), then the Case is allocated for the Principal and case
-  type. An Audit is accepted only for an item classified as one. With
-  `allocate` it retries a failed allocation with a reason, naming the
-  attempt, as the Intake log's **Retry allocation** does.
-- Settling an inspection address stays a staff act: its record names the
-  member of staff, so `accept` is refused while the address still needs a
-  staff decision. A Principal that inspects by images needs none.
+  missing identity-critical fields, allocation attempt, the inspection
+  address state, suggestion and fingerprint, and who settled it, and the
+  item's files, which a Triage reply attaches by asset id.
+- `pegasus_intake_action` with `resolve_inspection_address` settles the
+  inspection address as **Create case** does: it accepts the suggested
+  address, corrects it, or, where nothing was suggested, supplies one
+  ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
+  Accepting or correcting names the suggestion's fingerprint. The settlement
+  records the Actor as its settler, by actor kind and identity, and the
+  Case's address carries an Automation label, never a staff one.
+- With `accept` it turns a received item into a Case as **Create case**
+  does: the reviewed draft is recorded (named draft fields replace the
+  item's), then the Case is allocated for the Principal and case type.
+  `accept` is refused while the address is unsettled; a Principal that
+  inspects by images needs no settling. An Audit is accepted only for an
+  item classified as one. With `allocate` it retries a failed allocation with
+  a reason, naming the attempt, as the Intake log's **Retry allocation** does.
 - `pegasus_case_create` creates a Case directly, as staff **Add case** does
   ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)): an
   Inspection or Inspection and Audit Case with its identity-critical facts,
@@ -384,7 +409,7 @@ tranche rule above.
 
 ### Tool inventory
 
-The Actor's whole inventory, 57 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 61 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -403,7 +428,7 @@ its one command when none is given.
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
 | `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |
 | `automation.intake` | `pegasus_intake_get` | One received item as the Create case page reviews it | none |
-| `automation.intake` | `pegasus_intake_action` | `accept` a received item as a Case, or `allocate` (retry) a failed allocation | item version and key |
+| `automation.intake` | `pegasus_intake_action` | `resolve_inspection_address` (accept, correct or supply it), `accept` a received item as a Case, or `allocate` (retry) a failed allocation | item version and key |
 | `automation.intake` | `pegasus_case_create` | Create a Case or Triage Case directly | key only |
 | `automation.intake` | `pegasus_unidentified_list`, `pegasus_unidentified_get` | The open Unidentified queue; one item by U-reference with its sources and history | none |
 | `automation.intake` | `pegasus_unidentified_source_download` | A retained source as native content | none |
@@ -419,6 +444,8 @@ its one command when none is given.
 | `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
 | `automation.documents` | `pegasus_report_list` | A work's report generations and artifacts, its report approval and its report-Sent evidence | none |
 | `automation.documents` | `pegasus_report_action` | Generate the report, Repair Spec or images; record report approval; link or unlink report-Sent evidence | one-command lease |
+| `automation.documents` | `pegasus_report_wording_get`, `pegasus_image_preparation_get` | A work's report wording blocks with their composed sentences; each image's report place, role, rotation, crop, page of its own and preparation version | none |
+| `automation.documents` | `pegasus_report_wording_save`, `pegasus_image_prepare` | Change wording blocks through the Case save; crop, rotate, order and set a page of its own for images through the Case save | one-command lease |
 | `automation.assessment` | `pegasus_assessment_get`, `pegasus_estimate_list`, `pegasus_estimate_get`, `pegasus_valuation_list` | The recorded assessment surface; a Case's estimate headers; one estimate in full; the valuation cards | none |
 | `automation.assessment` | `pegasus_assessment_update`, `pegasus_valuation_save`, `pegasus_estimate_save`, `pegasus_estimate_act`, `pegasus_estimate_import` | The assessment, valuation and estimate writes above | one-command lease |
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
@@ -466,7 +493,10 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
 - Mail is filed against an instruction Case; a Triage Case is answered only
   with `triage_reply`, and a cancelled Triage takes no reply.
 - `pegasus_intake_action accept` is refused while the item's inspection
-  address needs a staff decision; the Actor does not settle an address.
+  address is unsettled; `resolve_inspection_address` settles it first. A
+  stale item version or suggestion fingerprint is refused and writes nothing.
+- `pegasus_report_wording_save` is refused while the Case's report cannot
+  be projected, since there is no composed sentence to compare with.
 - Confirm is refused for a job that is not a `Draft ready` QueryResponse or
   UnidentifiedQueuePass; those others complete through their record's own
   act.
@@ -488,6 +518,7 @@ acceptance are separate evidence tiers
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
+  [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
