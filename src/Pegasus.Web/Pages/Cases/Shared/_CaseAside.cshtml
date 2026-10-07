@@ -2,6 +2,7 @@
 @using System.Globalization
 @using Pegasus.Core.AiWork
 @using Pegasus.Core.Reports
+@using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @{
@@ -56,6 +57,33 @@
                     }
                     <partial name="Shared/_StatusChip" model="@Model.StateChipText" />
                 </div>
+            </div>
+        </section>
+    }
+    @* Linked cases (operator, 7 October 2026): every Triage Case linked to
+       this Case, its t. Case/PO as a link, its state chip and its current
+       finding. Absent while nothing is linked. *@
+    @if (Model.Case!.LinkedTriage is { Count: > 0 } linkedTriage)
+    {
+        <section class="panel context-card" data-case-linked-triage>
+            <div class="panel-head"><h2>@Frame.LinkedCases</h2></div>
+            <div class="panel-body stack">
+                @foreach (var triage in linkedTriage)
+                {
+                    var finding = string.Join(" · ", new[]
+                    {
+                        triage.Roadworthiness is { } roadworthiness ? TriageCaseView.RoadworthinessLabel(roadworthiness) : null,
+                        triage.Assessment is { } assessment ? TriageCaseView.AssessmentLabel(assessment) : null
+                    }.OfType<string>());
+                    <div class="next-row" data-case-linked-triage-row="@triage.CaseId.ToString("D")">
+                        <a asp-page="/Cases/Details" asp-route-id="@triage.CaseId">@triage.Reference</a>
+                        <partial name="Shared/_StatusChip" model="@TriageCaseView.StateLabel(triage.State)" />
+                        @if (finding.Length > 0)
+                        {
+                            <span>@finding</span>
+                        }
+                    </div>
+                }
             </div>
         </section>
     }
