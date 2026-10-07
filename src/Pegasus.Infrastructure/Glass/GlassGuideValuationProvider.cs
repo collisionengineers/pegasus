@@ -17,6 +17,10 @@ namespace Pegasus.Infrastructure.Glass;
 /// mode, and the stocked vehicle's "Values Only" report is offered to the Case
 /// as the valuation's evidence (operator, 1 October 2026). A valuation whose
 /// stock save failed still answers its figures; it has no report to offer.
+/// The stocked vehicle's details page names its VIN, which Glass's looked up
+/// from the registration; the quote carries it to fill the Case's empty VIN
+/// (operator, 7 October 2026). A VIN that cannot be read leaves the figures
+/// and the report as they are.
 /// </para>
 ///
 /// <para>
@@ -75,16 +79,27 @@ public sealed partial class GlassGuideValuationProvider(
         }
 
         var quote = new GuideValuationQuote(figures.Retail, figures.Trade, request.GuideMonth, request.Mileage);
+        string vehicleId;
         try
         {
-            var vehicleId = await client.CreateVehicleAsync(request.Registration, miles, request.GuideMonth, cancellationToken);
-            return quote with { Report = new GlassValuationReport(client, vehicleId) };
+            vehicleId = await client.CreateVehicleAsync(request.Registration, miles, request.GuideMonth, cancellationToken);
         }
         catch (Exception exception) when (Unavailable(exception, cancellationToken))
         {
             // The figures stand without the stock save, as the portal shows
             // them before it stocks; there is just no report to file.
             LogStockSaveFailed(logger, request.CaseId, request.GuideMonth, Code(exception), Detail(exception));
+            return quote;
+        }
+
+        quote = quote with { Report = new GlassValuationReport(client, vehicleId) };
+        try
+        {
+            return quote with { Vin = await client.VehicleVinAsync(vehicleId, cancellationToken) };
+        }
+        catch (Exception exception) when (Unavailable(exception, cancellationToken))
+        {
+            LogVinUnread(logger, request.CaseId, request.GuideMonth, Code(exception), Detail(exception));
             return quote;
         }
     }
@@ -133,6 +148,12 @@ public sealed partial class GlassGuideValuationProvider(
         Level = LogLevel.Warning,
         Message = "Glass's valuation for case {CaseId} in {GuideMonth} answered its figures but was not saved to the stock list at {FailureCode} {Detail}")]
     private static partial void LogStockSaveFailed(
+        ILogger logger, Guid caseId, DateOnly guideMonth, string failureCode, string? detail);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Glass's valuation for case {CaseId} in {GuideMonth} answered its figures but its VIN was not read at {FailureCode} {Detail}")]
+    private static partial void LogVinUnread(
         ILogger logger, Guid caseId, DateOnly guideMonth, string failureCode, string? detail);
 
     /// <summary>

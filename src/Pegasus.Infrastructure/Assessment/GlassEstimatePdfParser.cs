@@ -580,7 +580,7 @@ internal static class GlassEstimatePdfParser
                 RepairSpecificationSourceRoute.Glasses, new(Parts: partsTotal,
                     PanelWorkUnits: bodyHours is null && auxiliaryHours is null ? null : InHours((bodyHours ?? 0) + (auxiliaryHours ?? 0)),
                     PaintWorkUnits: InHours(SummaryHoursOf(Section.Paint)), Materials: totalMaterial - partsTotal,
-                    Net: net, Vat: vat, Gross: gross));
+                    Net: net, Vat: vat, Gross: gross), vin);
         }
 
         /// <summary>A printed count of the sheet's time unit, as hours at the precision an estimate line keeps.</summary>

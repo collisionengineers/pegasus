@@ -125,9 +125,12 @@
     var specificationId = Model.CurrentSpecification?.SpecificationId;
     var imagePackHref = Url.Page("/Cases/Details", "PreviewImagePack", new { id = caseId })!;
     var reportDate = Model.AssessmentEditorValue(AssessmentVocabulary.ReportDate);
-    var reportDateText = DateOnly.TryParseExact(Model.Assessment?.Field(AssessmentVocabulary.ReportDate)?.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDateValue)
-        ? reportDateValue.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
-        : null;
+    // A recorded Report date is the date the report prints; without one, the
+    // current report carries the day it was generated (operator, 7 October 2026).
+    var reportDateShown = DateOnly.TryParseExact(Model.Assessment?.Field(AssessmentVocabulary.ReportDate)?.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDateValue)
+        ? reportDateValue
+        : generation?.Snapshot.ReportDate;
+    var reportDateText = reportDateShown?.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
     var feeNote = Model.FeeNote;
     var culture = CultureInfo.GetCultureInfo("en-GB");
     string FeeMoney(decimal value) => "£" + value.ToString("N2", culture);
@@ -417,8 +420,7 @@
                     <input id="f-report-date" class="fi" type="date" name="reportDate" form="case-edit-form" value="@reportDate" />
                 }
             </div>
-            @{ await Field(AssessmentVocabulary.ReportDateOverride, labels[AssessmentVocabulary.ReportDateOverride]);
-                await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span3");
+            @{ await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span3");
             }
             @* The valuation commentary itself, beside the switch that prints it:
                the Engineer's words, frozen into the report when the switch is on. *@

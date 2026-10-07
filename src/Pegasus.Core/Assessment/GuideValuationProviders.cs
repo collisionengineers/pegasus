@@ -32,6 +32,13 @@ public sealed record GuideValuationQuote(
     /// the figures have been answered; none when the source offers no report.
     /// </summary>
     public IGuideValuationReport? Report { get; init; }
+
+    /// <summary>
+    /// The VIN the source names for the valued vehicle; none when it names
+    /// none. It fills the work's VIN only where the work holds none
+    /// (<see cref="GlassVinFillPolicy"/>).
+    /// </summary>
+    public string? Vin { get; init; }
 }
 
 /// <summary>
@@ -122,7 +129,8 @@ public interface IFetchGuideValuation
 public sealed class FetchGuideValuation(
     IEnumerable<IGuideValuationProvider> providers,
     ICaseDataQueries caseData,
-    IScheduleGuideValuationReport reports) : IFetchGuideValuation
+    IScheduleGuideValuationReport reports,
+    IFillGlassVin vins) : IFetchGuideValuation
 {
     private readonly IReadOnlyList<IGuideValuationProvider> _providers =
         [.. providers ?? throw new ArgumentNullException(nameof(providers))];
@@ -130,6 +138,8 @@ public sealed class FetchGuideValuation(
         caseData ?? throw new ArgumentNullException(nameof(caseData));
     private readonly IScheduleGuideValuationReport _reports =
         reports ?? throw new ArgumentNullException(nameof(reports));
+    private readonly IFillGlassVin _vins =
+        vins ?? throw new ArgumentNullException(nameof(vins));
 
     public bool IsConnected(ValuationSource source) =>
         ValuationSources.IsGuide(source) && _providers.Any(candidate => candidate.Source == source);
@@ -191,6 +201,13 @@ public sealed class FetchGuideValuation(
             await _reports.ScheduleAsync(
                 new(request.Actor, request.CaseId, request.Source, registration, quote.GuideMonth, report),
                 cancellationToken);
+        }
+
+        // The valued vehicle's VIN fills the work's empty VIN (operator,
+        // 7 October 2026); the figures are answered either way.
+        if (quote.Vin is { } vin)
+        {
+            await _vins.FillAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
         }
 
         return quote;

@@ -55,7 +55,11 @@ card's month (the current month in London when none is entered), and answers
 Retail Transacted as the card's retail and Glass's Trade as its trade. It then
 saves the vehicle to the account's stock list in that month, as the portal does
 after every valuation (operator, 1 October 2026). The figures are answered even
-if the stock save fails; that valuation then has no report.
+if the stock save fails; that valuation then has no report. The stocked
+vehicle's details page names the VIN Glass's looked up from the registration,
+and that VIN fills the Case's VIN only where the Case holds none (operator,
+7 October 2026; [FRD-06](../frd/frd-06-vehicle-and-engineering-evidence.md)).
+A VIN that cannot be read leaves the figures and the report as they are.
 
 **Every failure is the card's existing notice.** Whatever stops a valuation —
 the account, the registration, the provider or the network — the card answers

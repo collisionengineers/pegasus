@@ -13,7 +13,7 @@ public sealed class FetchGuideValuationTests
     public async Task ASourceWithoutAConnectedProviderIsRefusedBeforeTheCaseIsRead()
     {
         var caseData = new RecordingCaseData();
-        var fetch = new FetchGuideValuation([], caseData, new RecordingSchedule());
+        var fetch = new FetchGuideValuation([], caseData, new RecordingSchedule(), new RecordingVins());
 
         await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
             fetch.ExecuteAsync(Request(ValuationSource.Glasses), default));
@@ -26,7 +26,7 @@ public sealed class FetchGuideValuationTests
     [InlineData(ValuationSource.AiMarketResearch)]
     public async Task OnlyAGuideSourceCanBeFetched(ValuationSource source)
     {
-        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule());
+        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             fetch.ExecuteAsync(Request(source), default));
@@ -41,19 +41,19 @@ public sealed class FetchGuideValuationTests
     public void OnlyAGuideSourceWithAProviderIsConnected()
     {
         var fetch = new FetchGuideValuation(
-            [new StubProvider(ValuationSource.Brego)], new RecordingCaseData(), new RecordingSchedule());
+            [new StubProvider(ValuationSource.Brego)], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
 
         Assert.True(fetch.IsConnected(ValuationSource.Brego));
         Assert.False(fetch.IsConnected(ValuationSource.Glasses));
         Assert.False(fetch.IsConnected(ValuationSource.EngineersValue));
-        Assert.False(new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule())
+        Assert.False(new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins())
             .IsConnected(ValuationSource.Brego));
     }
 
     [Fact]
     public async Task AnActorWithoutCaseworkOrAnEmptyKeyIsRefused()
     {
-        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule());
+        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
         var reader = ActionActor.SystemWorker("valuation-worker");
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
@@ -76,7 +76,8 @@ public sealed class FetchGuideValuationTests
         var fetch = new FetchGuideValuation(
             [new AnsweringProvider(ValuationSource.Glasses, report)],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
-            schedule);
+            schedule,
+            new RecordingVins());
 
         var quote = await fetch.ExecuteAsync(request, default);
 
@@ -98,11 +99,50 @@ public sealed class FetchGuideValuationTests
         var fetch = new FetchGuideValuation(
             [new AnsweringProvider(ValuationSource.Glasses, report: null)],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
-            schedule);
+            schedule,
+            new RecordingVins());
 
         await fetch.ExecuteAsync(request, default);
 
         Assert.Empty(schedule.Requests);
+    }
+
+    /// <summary>
+    /// The VIN the source names for the valued vehicle is handed on to fill
+    /// the valued work's empty VIN (operator, 7 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AValuationThatNamesAVinHandsItOnForTheValuedWork()
+    {
+        var vins = new RecordingVins();
+        var request = Request(ValuationSource.Glasses) with { Work = CaseWorkSelector.Primary };
+        var fetch = new FetchGuideValuation(
+            [new AnsweringProvider(ValuationSource.Glasses, report: null, vin: "TESTVEH0A1B2C3D45")],
+            new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
+            new RecordingSchedule(),
+            vins);
+
+        var quote = await fetch.ExecuteAsync(request, default);
+
+        Assert.Equal(17717m, quote.RetailValue);
+        var filled = Assert.Single(vins.Fills);
+        Assert.Equal((Engineer, request.CaseId, CaseWorkSelector.Primary, "TESTVEH0A1B2C3D45"), filled);
+    }
+
+    [Fact]
+    public async Task AValuationThatNamesNoVinFillsNothing()
+    {
+        var vins = new RecordingVins();
+        var request = Request(ValuationSource.Glasses);
+        var fetch = new FetchGuideValuation(
+            [new AnsweringProvider(ValuationSource.Glasses, report: null)],
+            new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
+            new RecordingSchedule(),
+            vins);
+
+        await fetch.ExecuteAsync(request, default);
+
+        Assert.Empty(vins.Fills);
     }
 
     private static FetchGuideValuationRequest Request(ValuationSource source) => new(
@@ -150,12 +190,29 @@ public sealed class FetchGuideValuationTests
             throw new NotSupportedException();
     }
 
-    private sealed class AnsweringProvider(ValuationSource source, IGuideValuationReport? report) : IGuideValuationProvider
+    private sealed class AnsweringProvider(
+        ValuationSource source, IGuideValuationReport? report, string? vin = null) : IGuideValuationProvider
     {
         public ValuationSource Source => source;
 
         public Task<GuideValuationQuote> GetAsync(GuideValuationRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(new GuideValuationQuote(17717m, 15600m, request.GuideMonth, request.Mileage) { Report = report });
+            Task.FromResult(new GuideValuationQuote(17717m, 15600m, request.GuideMonth, request.Mileage)
+            {
+                Report = report,
+                Vin = vin,
+            });
+    }
+
+    private sealed class RecordingVins : IFillGlassVin
+    {
+        public List<(ActionActor Actor, Guid CaseId, CaseWorkSelector Work, string Vin)> Fills { get; } = [];
+
+        public Task FillAsync(
+            ActionActor actor, Guid caseId, CaseWorkSelector work, string vin, CancellationToken cancellationToken)
+        {
+            Fills.Add((actor, caseId, work, vin));
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class StubReport(string identity) : IGuideValuationReport
