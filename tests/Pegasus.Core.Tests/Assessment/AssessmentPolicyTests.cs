@@ -519,11 +519,11 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void TheReportsThreeValuesAreFindingsAnyStaffMemberRecordsOrClears()
+    public void TheReportsThreeValuesAreFieldsAnyCaseworkActorRecordsOrClears()
     {
         // Retail, Trade and Engineer's value are ordinary fields of Valuation
-        // (operator, 26 September 2026): staff type or clear them like any
-        // finding, and automation records none of them.
+        // (operator, 26 September 2026): staff and the Automation actor type
+        // or clear them like any other (operator, 7 October 2026).
         foreach (var path in new[]
         {
             AssessmentVocabulary.ValueRetail,
@@ -531,7 +531,7 @@ public sealed class AssessmentPolicyTests
             AssessmentVocabulary.ValueEngineer
         })
         {
-            foreach (var actor in new[] { Engineer, PlainStaff })
+            foreach (var actor in new[] { Engineer, PlainStaff, Automation })
             {
                 Assert.Equal(
                     "4500.00",
@@ -539,8 +539,6 @@ public sealed class AssessmentPolicyTests
                 Assert.Null(
                     AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = null }, actor)).Fields[path]);
             }
-            Assert.Throws<InvalidOperationException>(() =>
-                AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = "4500.00" }, Automation)));
         }
     }
 
