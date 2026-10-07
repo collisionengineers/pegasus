@@ -520,7 +520,8 @@ internal static partial class CaseWebTestSupport
     /// Generate report as the page calls it: each request is recorded, and
     /// <see cref="During"/> lets a test observe the Case while the generation
     /// runs. By default the artifact is left Pending, so nothing is
-    /// confirmed; <see cref="Outcome"/> answers otherwise and
+    /// confirmed; <see cref="Outcome"/> answers otherwise,
+    /// <see cref="Generation"/> is the generation it answers with, and
     /// <see cref="Failure"/> throws instead of answering.
     /// </summary>
     internal sealed class RecordingGenerateReport : IGenerateCaseReport
@@ -530,6 +531,8 @@ internal static partial class CaseWebTestSupport
         public Action? During { get; init; }
 
         public CaseReportGenerationOutcome Outcome { get; init; } = CaseReportGenerationOutcome.Pending;
+
+        public CaseReportGenerationRecord? Generation { get; init; }
 
         public Exception? Failure { get; init; }
 
@@ -543,7 +546,7 @@ internal static partial class CaseWebTestSupport
             {
                 throw Failure;
             }
-            return Task.FromResult(new CaseReportGenerationResult(Outcome, null, []));
+            return Task.FromResult(new CaseReportGenerationResult(Outcome, Generation, []));
         }
     }
 }
