@@ -1223,17 +1223,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
     private static string InferFileName(MimePart part, MimeLimitState limits)
     {
-        var extension = part.ContentType.MimeType.ToLowerInvariant() switch
-        {
-            "application/pdf" => ".pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ".docx",
-            "message/rfc822" => ".eml",
-            "image/jpeg" => ".jpg",
-            "image/png" => ".png",
-            "application/msword" => ".doc",
-            "application/vnd.ms-outlook" => ".msg",
-            _ => string.Empty
-        };
+        var extension = IntakeUploadFilePolicy.ExtensionFor(part.ContentType.MimeType);
         return $"unnamed-part-{limits.EntityCount}{extension}";
     }
 

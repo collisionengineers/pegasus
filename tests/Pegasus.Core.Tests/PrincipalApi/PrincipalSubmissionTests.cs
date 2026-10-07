@@ -1,6 +1,7 @@
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.PrincipalApi;
@@ -14,43 +15,37 @@ public sealed class PrincipalSubmissionTests
     private static readonly Guid PrincipalId = Guid.Parse("0f149cac-e1d4-4a57-925f-7c35d33d7f5b");
     private static readonly Guid OtherPrincipalId = Guid.Parse("7a1b2c3d-0000-4000-8000-000000000001");
     private const string KeyId = "AAAAAAAAAAAAAAAA";
-    private const string PrincipalCode = "QDOS";
     private static readonly PrincipalCredentialAuthentication Active =
         new(PrincipalId, KeyId, PrincipalCredentialState.Active);
     private static readonly PrincipalCredentialAuthentication Paused =
         new(PrincipalId, KeyId, PrincipalCredentialState.Paused);
 
-    private static PrincipalSubmissionFile File(
-        int ordinal,
-        byte value = 1,
-        DocumentSemanticRole? role = null) =>
-        new(ordinal, $"instruction-{ordinal}.pdf", "application/pdf", new byte[] { value, 2, 3 }, role);
+    private static object File(int index, byte value = 1) => new
+    {
+        fileName = $"instruction-{index}.pdf",
+        contentBase64 = Convert.ToBase64String(new byte[] { value, 2, 3 })
+    };
 
-    private static PrincipalInstruction Instruction(
-        PrincipalInstructionKind kind = PrincipalInstructionKind.Inspection,
-        AuditAssessment? verdict = null,
-        string? principal = null) =>
-        new(
-            kind,
-            verdict,
-            principal,
-            ClaimNumber: "12345/1",
-            ClaimantName: "Alex Mercer",
-            VehicleRegistration: "AB12CDE");
+    private static string Body(
+        string caseType = "inspection",
+        string? verdict = null,
+        string claimNumber = "12345/1",
+        object[]? files = null) =>
+        JsonSerializer.Serialize(new
+        {
+            caseType,
+            originalReportVerdict = verdict,
+            claimNumber,
+            claimant = new { name = "Alex Mercer" },
+            vehicle = new { registration = "AB12CDE" },
+            files = files ?? [File(0)]
+        });
 
     private static PrincipalSubmissionRequest Request(
         PrincipalCredentialAuthentication credential,
         string key = "order-1",
-        PrincipalInstruction? instruction = null,
-        byte body = 9,
-        PrincipalSubmissionFile[]? files = null) =>
-        new(
-            credential,
-            key,
-            instruction ?? Instruction(),
-            files ?? [File(0)],
-            Encoding.UTF8.GetBytes($"{{\"body\":{body}}}"),
-            "trace-1");
+        string? body = null) =>
+        new(credential, key, Encoding.UTF8.GetBytes(body ?? Body()), "trace-1");
 
     private static SubmitPrincipalInstruction Submit(
         FakeStore store,
@@ -74,32 +69,24 @@ public sealed class PrincipalSubmissionTests
         return new(store, history, new FixedTime());
     }
 
-    private static PrincipalSubmissionRecord Submission(
-        Guid id,
-        DateTimeOffset? receivedAtUtc = null,
-        Guid? stagedReceiptId = null) =>
+    private static PrincipalSubmissionRecord Submission(Guid id, DateTimeOffset? receivedAtUtc = null) =>
         new(
             id,
             PrincipalId,
-            KeyId,
-            $"key-{id:N}",
-            "12345/1",
             receivedAtUtc ?? Now - ReconcilePrincipalSubmissions.AcceptHistoryGracePeriod - TimeSpan.FromSeconds(1),
-            PrincipalSubmissionPolicy.Sha256(Request(Active).RawBody),
-            Instruction(),
-            stagedReceiptId);
+            PrincipalInstructionJson.Parse(Encoding.UTF8.GetBytes(Body())).Instruction);
 
-    private static IntakeStagedReceipt StagedReceipt(Guid submissionId, Guid stagedReceiptId) =>
+    private static IntakeStagedReceipt StagedReceipt(Guid submissionId) =>
         new(
-            stagedReceiptId,
+            Guid.NewGuid(),
             PrincipalInstructionPolicy.SourceFileName,
             PrincipalInstructionPolicy.SourceMediaType,
             1,
             "HASH",
-            new(IntakeSourceChannel.PrincipalApi, PrincipalSubmissionPolicy.SubmissionToken(submissionId)),
+            PrincipalSubmissionPolicy.SourceIdentity(submissionId),
             Now - ReconcilePrincipalSubmissions.AcceptHistoryGracePeriod - TimeSpan.FromSeconds(1),
             "principal:0f149cac-e1d4-4a57-925f-7c35d33d7f5b",
-            $"staged:{stagedReceiptId:N}",
+            $"staged:{submissionId:N}",
             Now);
 
     private static ActionHistoryEntry History(Guid submissionId, string outcome) =>
@@ -121,102 +108,62 @@ public sealed class PrincipalSubmissionTests
         var history = new FakeHistory();
 
         var receipt = await Submit(store, intake, history).ExecuteAsync(
-            Request(Active, files: [File(0), File(1, value: 7)]),
+            Request(Active, body: Body(files: [File(0), File(1, value: 7)])),
             CancellationToken.None);
 
         // One submission is one receipt: the request as sent, carrying its files
         // the way an e-mail carries its attachments.
         var source = Assert.Single(intake.Sources);
-        Assert.Equal(IntakeSourceChannel.PrincipalApi, source.SourceIdentity.Channel);
+        Assert.Equal(PrincipalSubmissionPolicy.SourceIdentity(receipt.SubmissionId), source.SourceIdentity);
         Assert.Equal(PrincipalInstructionPolicy.SourceFileName, source.FileName);
         Assert.Equal(PrincipalInstructionPolicy.SourceMediaType, source.MediaType);
-        Assert.Equal(receipt.SubmissionId.ToString("N"), source.SourceIdentity.ExternalReceiptToken);
+        Assert.Equal(PrincipalSubmissionPolicy.SubmissionId(PrincipalId, "order-1"), receipt.SubmissionId);
+        Assert.Equal("12345/1", receipt.PrincipalReference);
         Assert.False(receipt.Replayed);
 
         // The declaration is retained with the submission, so processing never
         // has to re-read the body to know what was instructed.
         var stored = Assert.Single(store.Records.Values);
-        Assert.Equal("12345/1", stored.Instruction?.ClaimNumber);
-        Assert.Equal(PrincipalInstructionKind.Inspection, stored.Instruction?.Kind);
-
-        Assert.Equal(2, receipt.Files.Count);
-        Assert.All(receipt.Files, file => Assert.False(file.IsDuplicate));
+        Assert.Equal("12345/1", stored.Instruction.Draft.ClaimNumber);
+        Assert.Equal(CaseType.Inspection, stored.Instruction.CaseType);
         Assert.Equal(ActorKind.Principal, Assert.Single(history.Entries).Actor.Kind);
     }
 
     [Theory]
-    [InlineData(PrincipalInstructionKind.Inspection, null)]
-    [InlineData(PrincipalInstructionKind.AuditReport, null)]
-    [InlineData(PrincipalInstructionKind.Triage, null)]
-    [InlineData(PrincipalInstructionKind.Audit, AuditAssessment.Repairable)]
-    public async Task AnInstructionIsAcceptedWithNoFiles(PrincipalInstructionKind kind, AuditAssessment? verdict)
+    [InlineData("inspection", null, CaseType.Inspection)]
+    [InlineData("auditreport", null, CaseType.InspectionAndAudit)]
+    [InlineData("triage", null, CaseType.Triage)]
+    [InlineData("audit", "repairable", CaseType.Audit)]
+    public async Task AnInstructionIsAcceptedWithNoFiles(string caseType, string? verdict, CaseType expected)
     {
         var store = new FakeStore();
         var intake = new FakeIntakeSubmission();
 
         // The files are optional for every kind, an Audit included: the
         // declaration alone is a complete submission (operator, 2026-09-28).
-        var receipt = await Submit(store, intake).ExecuteAsync(
-            Request(Active, instruction: Instruction(kind, verdict), files: []),
+        await Submit(store, intake).ExecuteAsync(
+            Request(Active, body: Body(caseType, verdict, files: [])),
             CancellationToken.None);
 
-        Assert.Empty(receipt.Files);
         Assert.Single(intake.Sources);
-        Assert.Equal(kind, Assert.Single(store.Records.Values).Instruction?.Kind);
+        Assert.Equal(expected, Assert.Single(store.Records.Values).Instruction.CaseType);
     }
 
     [Fact]
-    public async Task PausedCredentialIsRefusedBeforeAnythingIsRetained()
+    public async Task AnInvalidDeclarationIsRefusedBeforeAnythingIsRetained()
     {
         var store = new FakeStore();
         var intake = new FakeIntakeSubmission();
 
-        var error = await Assert.ThrowsAsync<PrincipalSubmissionException>(
-            () => Submit(store, intake).ExecuteAsync(Request(Paused), CancellationToken.None));
-
-        Assert.Equal(PrincipalSubmissionError.CredentialPaused, error.Error);
-        Assert.Empty(store.Records);
-        Assert.Empty(intake.Sources);
-    }
-
-    [Fact]
-    public void RequireMaySubmitAllowsActiveAndRefusesPaused()
-    {
-        PrincipalSubmissionPolicy.RequireMaySubmit(Active);
-
-        var error = Assert.Throws<PrincipalSubmissionException>(
-            () => PrincipalSubmissionPolicy.RequireMaySubmit(Paused));
-
-        Assert.Equal(PrincipalSubmissionError.CredentialPaused, error.Error);
-    }
-
-    [Fact]
-    public async Task ABodyNamingAnotherPrincipalIsRefusedRatherThanRedirected()
-    {
-        var store = new FakeStore();
-        var intake = new FakeIntakeSubmission();
-
-        var error = await Assert.ThrowsAsync<PrincipalSubmissionException>(
+        // The report is optional (operator, 2026-09-28); the verdict is not.
+        var error = await Assert.ThrowsAsync<PrincipalInstructionValidationException>(
             () => Submit(store, intake).ExecuteAsync(
-                Request(Active, instruction: Instruction(principal: "OTHER")),
+                Request(Active, body: Body("audit")),
                 CancellationToken.None));
 
-        Assert.Equal(PrincipalSubmissionError.PrincipalMismatch, error.Error);
+        Assert.Equal("originalReportVerdict", error.Field);
         Assert.Empty(store.Records);
         Assert.Empty(intake.Sources);
-    }
-
-    [Fact]
-    public async Task ABodyNamingItsOwnPrincipalIsAccepted()
-    {
-        var store = new FakeStore();
-        var intake = new FakeIntakeSubmission();
-
-        var receipt = await Submit(store, intake).ExecuteAsync(
-            Request(Active, instruction: Instruction(principal: " qdos ")),
-            CancellationToken.None);
-
-        Assert.NotEqual(Guid.Empty, receipt.SubmissionId);
     }
 
     [Fact]
@@ -233,9 +180,32 @@ public sealed class PrincipalSubmissionTests
         Assert.True(replay.Replayed);
         Assert.Single(store.Records);
 
-        var error = await Assert.ThrowsAsync<PrincipalSubmissionException>(
-            () => submit.ExecuteAsync(Request(Active, body: 42), CancellationToken.None));
-        Assert.Equal(PrincipalSubmissionError.IdempotencyKeyConflict, error.Error);
+        // A different declaration and the same declaration with different
+        // files are both a different submission under a reused key.
+        foreach (var body in new[] { Body(claimNumber: "99999/9"), Body(files: [File(0, value: 42)]) })
+        {
+            var error = await Assert.ThrowsAsync<PrincipalSubmissionException>(
+                () => submit.ExecuteAsync(Request(Active, body: body), CancellationToken.None));
+            Assert.Equal(PrincipalSubmissionError.IdempotencyKeyConflict, error.Error);
+        }
+
+        Assert.Single(intake.Sources);
+    }
+
+    [Fact]
+    public async Task OneKeyNamesOneSubmissionPerPrincipal()
+    {
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var submit = Submit(store, intake);
+        var other = new PrincipalCredentialAuthentication(OtherPrincipalId, KeyId, PrincipalCredentialState.Active);
+
+        var mine = await submit.ExecuteAsync(Request(Active), CancellationToken.None);
+        var theirs = await submit.ExecuteAsync(Request(other), CancellationToken.None);
+
+        Assert.NotEqual(mine.SubmissionId, theirs.SubmissionId);
+        Assert.False(theirs.Replayed);
+        Assert.Equal(2, intake.Sources.Count);
     }
 
     private sealed class AcceptingAdmission : IPrincipalAttachmentAdmission
@@ -245,8 +215,13 @@ public sealed class PrincipalSubmissionTests
             CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Before the source is retained only the stored declaration says what a
+    /// key was first used for, so a different declaration is refused; the same
+    /// declaration is the same submission, whose source is then retained.
+    /// </summary>
     [Fact]
-    public async Task AFailedRetentionCannotBeReplacedByAnotherBodyUnderTheReservation()
+    public async Task AFailedRetentionIsCompletedOnlyByTheSameDeclaration()
     {
         var store = new FakeStore();
         var intake = new FakeIntakeSubmission { FailBeforeRetainOnce = true };
@@ -255,153 +230,38 @@ public sealed class PrincipalSubmissionTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             submit.ExecuteAsync(Request(Active), CancellationToken.None));
         var reserved = Assert.Single(store.Records.Values);
-        Assert.Equal(PrincipalSubmissionPolicy.Sha256(Request(Active).RawBody), reserved.BodySha256);
         Assert.Empty(intake.Sources);
 
         var conflict = await Assert.ThrowsAsync<PrincipalSubmissionException>(() =>
-            submit.ExecuteAsync(Request(Active, body: 42), CancellationToken.None));
+            submit.ExecuteAsync(Request(Active, body: Body(claimNumber: "99999/9")), CancellationToken.None));
         Assert.Equal(PrincipalSubmissionError.IdempotencyKeyConflict, conflict.Error);
         Assert.Empty(intake.Sources);
 
-        var completed = await submit.ExecuteAsync(Request(Active), CancellationToken.None);
+        var completed = await submit.ExecuteAsync(
+            Request(Active, body: Body(files: [File(0, value: 42)])),
+            CancellationToken.None);
         Assert.Equal(reserved.Id, completed.SubmissionId);
         Assert.Single(intake.Sources);
     }
 
     [Fact]
-    public async Task InsertRaceLoserCannotRetainItsDifferentBodyUnderTheWinnersIdentity()
-    {
-        var store = new FakeStore
-        {
-            ConflictOnce = true,
-            WinnerBodySha256 = PrincipalSubmissionPolicy.Sha256(Request(Active, body: 42).RawBody)
-        };
-        var intake = new FakeIntakeSubmission();
-
-        var conflict = await Assert.ThrowsAsync<PrincipalSubmissionException>(() =>
-            Submit(store, intake).ExecuteAsync(Request(Active), CancellationToken.None));
-
-        Assert.Equal(PrincipalSubmissionError.IdempotencyKeyConflict, conflict.Error);
-        Assert.Single(store.Records);
-        Assert.Empty(intake.Sources);
-    }
-
-    [Fact]
-    public async Task LosingAConcurrentInsertResolvesToTheWinnersSubmission()
-    {
-        var store = new FakeStore { ConflictOnce = true };
-        var intake = new FakeIntakeSubmission();
-
-        var receipt = await Submit(store, intake).ExecuteAsync(Request(Active), CancellationToken.None);
-
-        Assert.Single(store.Records);
-        Assert.Equal(store.Records.Keys.Single(), receipt.SubmissionId);
-    }
-
-    [Fact]
-    public async Task TheEnvelopeIsBoundedByFileCountBySingleFileAndByTotal()
+    public async Task TheEnvelopeIsBoundedBeforeAnythingIsRetained()
     {
         var store = new FakeStore();
         var intake = new FakeIntakeSubmission();
-        var submit = Submit(store, intake);
 
         var tooMany = Enumerable
             .Range(0, IntakeEnvelopeLimits.MaximumBatchFileCount + 1)
-            .Select(ordinal => File(ordinal, (byte)(ordinal % 250 + 1)))
+            .Select(index => File(index, (byte)(index + 1)))
             .ToArray();
-        Assert.Equal(
-            PrincipalSubmissionError.EnvelopeExceeded,
-            (await Assert.ThrowsAsync<PrincipalSubmissionException>(
-                () => submit.ExecuteAsync(Request(Active, files: tooMany), CancellationToken.None))).Error);
+        var error = await Assert.ThrowsAsync<PrincipalSubmissionException>(
+            () => Submit(store, intake).ExecuteAsync(
+                Request(Active, body: Body(files: tooMany)),
+                CancellationToken.None));
 
-        var oversizeFile = new PrincipalSubmissionFile(
-            0,
-            "big.pdf",
-            "application/pdf",
-            new byte[IntakeEnvelopeLimits.MaximumContentLength + 1]);
-        Assert.Equal(
-            PrincipalSubmissionError.EnvelopeExceeded,
-            (await Assert.ThrowsAsync<PrincipalSubmissionException>(
-                () => submit.ExecuteAsync(Request(Active, files: [oversizeFile]), CancellationToken.None))).Error);
-
-        // Four files each inside the per-file bound still exceed the envelope,
-        // which is the bound base64 in one request body actually costs.
-        var eachUnderTheFileBound = Enumerable
-            .Range(0, 4)
-            .Select(ordinal => new PrincipalSubmissionFile(
-                ordinal,
-                $"big-{ordinal}.pdf",
-                "application/pdf",
-                new byte[IntakeEnvelopeLimits.MaximumContentLength]))
-            .ToArray();
-        Assert.Equal(
-            PrincipalSubmissionError.EnvelopeExceeded,
-            (await Assert.ThrowsAsync<PrincipalSubmissionException>(
-                () => submit.ExecuteAsync(
-                    Request(Active, files: eachUnderTheFileBound),
-                    CancellationToken.None))).Error);
-
+        Assert.Equal(PrincipalSubmissionError.EnvelopeExceeded, error.Error);
+        Assert.Empty(store.Records);
         Assert.Empty(intake.Sources);
-    }
-
-    [Fact]
-    public async Task AnAuditStatesItsVerdictAndAttachesAtMostOneOriginalReport()
-    {
-        var store = new FakeStore();
-        var intake = new FakeIntakeSubmission();
-        var submit = Submit(store, intake);
-
-        // The report is optional (operator, 2026-09-28); the verdict is not.
-        var noVerdict = await Assert.ThrowsAsync<PrincipalInstructionValidationException>(
-            () => submit.ExecuteAsync(
-                Request(Active, instruction: Instruction(PrincipalInstructionKind.Audit)),
-                CancellationToken.None));
-        Assert.Equal("originalReportVerdict", noVerdict.Field);
-
-        // Inspection + Audit audits Collision Engineers' own report, so it has
-        // no incoming report and no verdict to state (FRD-01 § Case types).
-        var strayVerdict = await Assert.ThrowsAsync<PrincipalInstructionValidationException>(
-            () => submit.ExecuteAsync(
-                Request(
-                    Active,
-                    instruction: Instruction(PrincipalInstructionKind.AuditReport, AuditAssessment.TotalLoss)),
-                CancellationToken.None));
-        Assert.Equal("originalReportVerdict", strayVerdict.Field);
-
-        // Two files claiming the role both take the one fixed label, and the
-        // downstream single-match lookup would fail the accepted intake rather
-        // than name the field.
-        var twoReports = await Assert.ThrowsAsync<PrincipalInstructionValidationException>(
-            () => submit.ExecuteAsync(
-                Request(
-                    Active,
-                    instruction: Instruction(PrincipalInstructionKind.Audit, AuditAssessment.Repairable),
-                    files:
-                    [
-                        File(0, role: DocumentSemanticRole.AuditReport),
-                        File(1, value: 7, role: DocumentSemanticRole.AuditReport)
-                    ]),
-                CancellationToken.None));
-        Assert.Equal("files", twoReports.Field);
-
-        var accepted = await submit.ExecuteAsync(
-            Request(
-                Active,
-                instruction: Instruction(PrincipalInstructionKind.Audit, AuditAssessment.Repairable),
-                files: [File(0), File(1, value: 7, role: DocumentSemanticRole.AuditReport)]),
-            CancellationToken.None);
-        Assert.NotEqual(Guid.Empty, accepted.SubmissionId);
-
-        // Files that are not the report are accepted without one.
-        var withoutReport = await submit.ExecuteAsync(
-            Request(
-                Active,
-                key: "order-2",
-                instruction: Instruction(PrincipalInstructionKind.Audit, AuditAssessment.Repairable),
-                body: 10,
-                files: [File(0)]),
-            CancellationToken.None);
-        Assert.NotEqual(accepted.SubmissionId, withoutReport.SubmissionId);
     }
 
     [Fact]
@@ -412,19 +272,13 @@ public sealed class PrincipalSubmissionTests
         var receipt = await Submit(store, intake).ExecuteAsync(Request(Active), CancellationToken.None);
 
         var status = new FakeStatus();
-        var staged = intake.StagedIds.Single();
-        status.Statuses[staged] = new(
-            staged,
-            PrincipalInstructionPolicy.SourceFileName,
-            Now,
-            QueuedIntakeStatusKind.Complete,
-            ProcessedReceiptId: null,
-            FailureCode: null);
+        status.Add(receipt.SubmissionId, QueuedIntakeStatusKind.Complete, processedReceiptId: null);
         var result = new GetPrincipalSubmissionResult(store, status, status, new FakeTriageQueries());
 
         var paused = await result.ExecuteAsync(Paused, receipt.SubmissionId, CancellationToken.None);
         Assert.NotNull(paused);
         Assert.Equal(QueuedIntakeStatusKind.Complete, paused.Status);
+        Assert.Equal("12345/1", paused.PrincipalReference);
 
         // Another Principal's submission and one that does not exist are the
         // same answer: nothing (FRD-09 fails closed on cross-principal reads).
@@ -432,6 +286,20 @@ public sealed class PrincipalSubmissionTests
             OtherPrincipalId, KeyId, PrincipalCredentialState.Active);
         Assert.Null(await result.ExecuteAsync(foreign, receipt.SubmissionId, CancellationToken.None));
         Assert.Null(await result.ExecuteAsync(Active, Guid.NewGuid(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ASubmissionWhoseSourceWasNeverRetainedReadsAsReceived()
+    {
+        var store = new FakeStore();
+        var submissionId = Guid.NewGuid();
+        store.Records[submissionId] = Submission(submissionId);
+        var status = new FakeStatus();
+
+        var result = await new GetPrincipalSubmissionResult(store, status, status, new FakeTriageQueries())
+            .ExecuteAsync(Active, submissionId, CancellationToken.None);
+
+        Assert.Equal(QueuedIntakeStatusKind.Received, result?.Status);
     }
 
     /// <summary>
@@ -446,15 +314,8 @@ public sealed class PrincipalSubmissionTests
         var intake = new FakeIntakeSubmission();
         var receipt = await Submit(store, intake).ExecuteAsync(Request(Active), CancellationToken.None);
         var status = new FakeStatus();
-        var staged = intake.StagedIds.Single();
         var processedId = Guid.NewGuid();
-        status.Statuses[staged] = new(
-            staged,
-            PrincipalInstructionPolicy.SourceFileName,
-            Now,
-            QueuedIntakeStatusKind.Complete,
-            ProcessedReceiptId: processedId,
-            FailureCode: null);
+        status.Add(receipt.SubmissionId, QueuedIntakeStatusKind.Complete, processedId);
         status.Receipts[processedId] = new IntakeReceipt(
             processedId,
             PrincipalInstructionPolicy.SourceFileName,
@@ -496,22 +357,20 @@ public sealed class PrincipalSubmissionTests
     }
 
     [Fact]
-    public async Task AcceptRecoveryRepairsTheRowAndAcceptedHistoryAfterIntakeRetention()
+    public async Task AcceptRecoveryWritesTheAcceptedHistoryAfterIntakeRetention()
     {
         var submissionId = Guid.NewGuid();
-        var stagedReceiptId = Guid.NewGuid();
         var store = new FakeStore();
         var intake = new FakeIntakeSubmission();
         var history = new FakeHistory();
         store.Records[submissionId] = Submission(submissionId);
-        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+        intake.AddStagedReceipt(StagedReceipt(submissionId));
 
         var result = await Reconcile(store, intake, history).ExecuteAsync(50);
 
         Assert.Equal(1, result.Candidates);
         Assert.Equal(1, result.Repaired);
         Assert.Equal(0, result.Failures);
-        Assert.Equal(stagedReceiptId, store.Records[submissionId].StagedReceiptId);
         var accepted = Assert.Single(history.Entries);
         Assert.Equal("Accepted", accepted.Outcome);
         Assert.Equal(PrincipalSubmissionPolicy.AcceptedHistoryId(submissionId), accepted.Id);
@@ -527,35 +386,14 @@ public sealed class PrincipalSubmissionTests
     }
 
     [Fact]
-    public async Task AcceptRecoveryWritesAcceptedWhenOnlyTheBackReferenceWasWritten()
-    {
-        var submissionId = Guid.NewGuid();
-        var stagedReceiptId = Guid.NewGuid();
-        var store = new FakeStore();
-        var intake = new FakeIntakeSubmission();
-        var history = new FakeHistory();
-        store.Records[submissionId] = Submission(submissionId, stagedReceiptId: stagedReceiptId);
-        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
-
-        var result = await Reconcile(store, intake, history).ExecuteAsync(50);
-
-        Assert.Equal(1, result.Candidates);
-        Assert.Equal(1, result.Repaired);
-        Assert.Equal(0, store.RecordStagedReceiptCalls.GetValueOrDefault(submissionId));
-        Assert.Equal(stagedReceiptId, store.Records[submissionId].StagedReceiptId);
-        Assert.Equal("Accepted", Assert.Single(history.Entries).Outcome);
-    }
-
-    [Fact]
     public async Task AcceptRecoveryAddsAcceptedWhenAReplayOnlyWroteReplayed()
     {
         var submissionId = Guid.NewGuid();
-        var stagedReceiptId = Guid.NewGuid();
         var store = new FakeStore();
         var intake = new FakeIntakeSubmission();
         var history = new FakeHistory();
-        store.Records[submissionId] = Submission(submissionId, stagedReceiptId: stagedReceiptId);
-        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+        store.Records[submissionId] = Submission(submissionId);
+        intake.AddStagedReceipt(StagedReceipt(submissionId));
         history.Add(History(submissionId, "Replayed"));
 
         var result = await Reconcile(store, intake, history).ExecuteAsync(50);
@@ -579,12 +417,11 @@ public sealed class PrincipalSubmissionTests
     public async Task AcceptRecoveryLosesTheRaceToTheRequestsOwnAcceptedRow()
     {
         var submissionId = Guid.NewGuid();
-        var stagedReceiptId = Guid.NewGuid();
         var store = new FakeStore();
         var intake = new FakeIntakeSubmission();
         var history = new FakeHistory();
-        store.Records[submissionId] = Submission(submissionId, stagedReceiptId: stagedReceiptId);
-        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+        store.Records[submissionId] = Submission(submissionId);
+        intake.AddStagedReceipt(StagedReceipt(submissionId));
         var reconcile = Reconcile(store, intake, history);
         history.AddAfterSnapshot(History(submissionId, "Accepted") with
         {
@@ -614,7 +451,6 @@ public sealed class PrincipalSubmissionTests
         Assert.Equal(0, result.Candidates);
         Assert.Equal(0, result.Repaired);
         Assert.Equal(0, result.Failures);
-        Assert.Null(store.Records[submissionId].StagedReceiptId);
         Assert.Empty(history.Entries);
     }
 
@@ -638,15 +474,13 @@ public sealed class PrincipalSubmissionTests
         }
 
         var submissionId = Guid.NewGuid();
-        var stagedReceiptId = Guid.NewGuid();
         store.Records[submissionId] = Submission(submissionId);
-        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+        intake.AddStagedReceipt(StagedReceipt(submissionId));
 
         var result = await Reconcile(store, intake, history).ExecuteAsync(50);
 
         Assert.Equal(1, result.Candidates);
         Assert.Equal(1, result.Repaired);
-        Assert.Equal(stagedReceiptId, store.Records[submissionId].StagedReceiptId);
         Assert.Equal("Accepted", Assert.Single(history.Entries).Outcome);
     }
 
@@ -671,26 +505,22 @@ public sealed class PrincipalSubmissionTests
         Assert.Equal(
             PrincipalSubmissionPolicy.AcceptedHistoryId(receipt.SubmissionId),
             history.Entries[0].Id);
-        Assert.Equal(1, store.RecordStagedReceiptCalls[receipt.SubmissionId]);
     }
 
     [Fact]
     public async Task AcceptRecoveryDefersAJustCreatedSubmissionInsideTheGraceWindow()
     {
         var submissionId = Guid.NewGuid();
-        var stagedReceiptId = Guid.NewGuid();
         var store = new FakeStore();
         var intake = new FakeIntakeSubmission();
         var history = new FakeHistory();
         store.Records[submissionId] = Submission(submissionId, receivedAtUtc: Now);
-        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+        intake.AddStagedReceipt(StagedReceipt(submissionId));
 
         var result = await Reconcile(store, intake, history).ExecuteAsync(50);
 
         Assert.Equal(1, result.Candidates);
         Assert.Equal(0, result.Repaired);
-        Assert.Null(store.Records[submissionId].StagedReceiptId);
-        Assert.Empty(store.RecordStagedReceiptCalls);
         Assert.Empty(history.Entries);
     }
 
@@ -704,9 +534,9 @@ public sealed class PrincipalSubmissionTests
         var history = new FakeHistory();
         store.Records[failedId] = Submission(failedId);
         store.Records[repairedId] = Submission(repairedId);
-        intake.AddStagedReceipt(StagedReceipt(failedId, Guid.NewGuid()));
-        intake.AddStagedReceipt(StagedReceipt(repairedId, Guid.NewGuid()));
-        store.RecordFailures[failedId] = new IOException("temporary database failure");
+        intake.AddStagedReceipt(StagedReceipt(failedId));
+        intake.AddStagedReceipt(StagedReceipt(repairedId));
+        history.Failures[failedId] = new IOException("temporary database failure");
 
         var result = await Reconcile(store, intake, history).ExecuteAsync(50);
 
@@ -716,8 +546,6 @@ public sealed class PrincipalSubmissionTests
         // The count alone cannot tell a missing grant from a dropped
         // connection, and the sweep swallows both.
         Assert.Equal("IOException: temporary database failure", result.FirstFailure);
-        Assert.Null(store.Records[failedId].StagedReceiptId);
-        Assert.NotNull(store.Records[repairedId].StagedReceiptId);
         Assert.Equal(repairedId.ToString("D"), Assert.Single(history.Entries).AggregateId);
     }
 
@@ -729,40 +557,11 @@ public sealed class PrincipalSubmissionTests
         var intake = new FakeIntakeSubmission();
         var history = new FakeHistory();
         store.Records[submissionId] = Submission(submissionId);
-        intake.AddStagedReceipt(StagedReceipt(submissionId, Guid.NewGuid()));
-        store.RecordFailures[submissionId] = new OperationCanceledException();
+        intake.AddStagedReceipt(StagedReceipt(submissionId));
+        history.Failures[submissionId] = new OperationCanceledException();
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => Reconcile(store, intake, history).ExecuteAsync(50));
-    }
-
-    [Fact]
-    public async Task PrincipalSubmissionResultChangesFromReceivedAfterAcceptRecovery()
-    {
-        var submissionId = Guid.NewGuid();
-        var stagedReceiptId = Guid.NewGuid();
-        var store = new FakeStore();
-        var intake = new FakeIntakeSubmission();
-        var history = new FakeHistory();
-        store.Records[submissionId] = Submission(submissionId);
-        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
-        var status = new FakeStatus();
-        status.Statuses[stagedReceiptId] = new(
-            stagedReceiptId,
-            PrincipalInstructionPolicy.SourceFileName,
-            Now,
-            QueuedIntakeStatusKind.Processing,
-            ProcessedReceiptId: null,
-            FailureCode: null);
-        var getResult = new GetPrincipalSubmissionResult(store, status, status, new FakeTriageQueries());
-
-        var before = await getResult.ExecuteAsync(Active, submissionId, CancellationToken.None);
-        Assert.Equal(QueuedIntakeStatusKind.Received, before?.Status);
-
-        await Reconcile(store, intake, history).ExecuteAsync(50);
-
-        var after = await getResult.ExecuteAsync(Active, submissionId, CancellationToken.None);
-        Assert.Equal(QueuedIntakeStatusKind.Processing, after?.Status);
     }
 
     private sealed class FixedTime : TimeProvider
@@ -775,96 +574,44 @@ public sealed class PrincipalSubmissionTests
         public Dictionary<Guid, PrincipalSubmissionRecord> Records { get; } = [];
         public List<ActionHistoryEntry> HistoryEntries { get; } = [];
         public FakeIntakeSubmission? Intake { get; set; }
-        public Dictionary<Guid, Exception> RecordFailures { get; } = [];
-        public Dictionary<Guid, int> RecordStagedReceiptCalls { get; } = [];
-        public bool ConflictOnce { get; set; }
-        public string? WinnerBodySha256 { get; set; }
 
-        public Task CreateAsync(PrincipalSubmissionRecord record, CancellationToken cancellationToken)
+        public Task<PrincipalSubmissionRecord> GetOrCreateAsync(
+            PrincipalSubmissionRecord record,
+            CancellationToken cancellationToken)
         {
-            if (ConflictOnce)
+            if (!Records.TryGetValue(record.Id, out var stored))
             {
-                // The winner of the race is another row under the same key,
-                // keyed by its own id as every other row in this fake is.
-                ConflictOnce = false;
-                var winner = record with
-                {
-                    Id = Guid.NewGuid(),
-                    BodySha256 = WinnerBodySha256 ?? record.BodySha256
-                };
-                Records[winner.Id] = winner;
-                throw new PrincipalSubmissionException(PrincipalSubmissionError.OperationConflict);
-            }
-            if (Records.Values.Any(item =>
-                    item.PrincipalId == record.PrincipalId && item.IdempotencyKey == record.IdempotencyKey))
-            {
-                throw new PrincipalSubmissionException(PrincipalSubmissionError.OperationConflict);
+                stored = Records[record.Id] = record;
             }
 
-            Records[record.Id] = record;
-            return Task.CompletedTask;
+            return Task.FromResult(stored);
         }
-
-        public Task<PrincipalSubmissionRecord?> FindByIdempotencyKeyAsync(
-            Guid principalId, string idempotencyKey, CancellationToken cancellationToken) =>
-            Task.FromResult(Records.Values.SingleOrDefault(item =>
-                item.PrincipalId == principalId && item.IdempotencyKey == idempotencyKey));
 
         public Task<PrincipalSubmissionRecord?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Records.GetValueOrDefault(id));
-
-        public Task<string?> FindPrincipalCodeAsync(Guid principalId, CancellationToken cancellationToken) =>
-            Task.FromResult(principalId == PrincipalId ? PrincipalCode : null);
-
-        public Task RecordStagedReceiptAsync(
-            Guid submissionId, Guid stagedReceiptId, CancellationToken cancellationToken)
-        {
-            RecordStagedReceiptCalls[submissionId] =
-                RecordStagedReceiptCalls.GetValueOrDefault(submissionId) + 1;
-            if (RecordFailures.TryGetValue(submissionId, out var exception))
-            {
-                throw exception;
-            }
-            if (Records.TryGetValue(submissionId, out var record))
-            {
-                if (record.StagedReceiptId != stagedReceiptId)
-                {
-                    Records[submissionId] = record with { StagedReceiptId = stagedReceiptId };
-                }
-            }
-
-            return Task.CompletedTask;
-        }
 
         public Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
             int maximumItems,
             CancellationToken cancellationToken)
         {
-            var accepted = AcceptedSubmissionIds();
+            var accepted = HistoryEntries
+                .Where(entry =>
+                    entry.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
+                    && entry.Outcome == "Accepted")
+                .Select(entry => Guid.Parse(entry.AggregateId))
+                .ToHashSet();
             IReadOnlyList<PrincipalSubmissionAcceptCandidate> candidates = Records.Values
-                .Select(record => (Record: record, Retained: Intake?.FindStagedReceiptId(record.Id)))
-                .Where(item => item.Retained is not null
-                    && (item.Record.StagedReceiptId is null || !accepted.Contains(item.Record.Id)))
-                .OrderBy(item => item.Record.ReceivedAtUtc)
-                .ThenBy(item => item.Record.Id)
+                .Where(record => Intake?.IsRetained(record.Id) == true && !accepted.Contains(record.Id))
+                .OrderBy(record => record.ReceivedAtUtc)
+                .ThenBy(record => record.Id)
                 .Take(maximumItems)
-                .Select(item => new PrincipalSubmissionAcceptCandidate(
-                    item.Record.Id,
-                    item.Record.PrincipalId,
-                    item.Record.ReceivedAtUtc,
-                    item.Record.StagedReceiptId,
-                    item.Retained!.Value,
-                    accepted.Contains(item.Record.Id)))
+                .Select(record => new PrincipalSubmissionAcceptCandidate(
+                    record.Id,
+                    record.PrincipalId,
+                    record.ReceivedAtUtc))
                 .ToArray();
             return Task.FromResult(candidates);
         }
-
-        private HashSet<Guid> AcceptedSubmissionIds() => HistoryEntries
-            .Where(entry =>
-                entry.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
-                && entry.Outcome == "Accepted")
-            .Select(entry => Guid.Parse(entry.AggregateId))
-            .ToHashSet();
     }
 
     /// <summary>
@@ -874,15 +621,16 @@ public sealed class PrincipalSubmissionTests
     /// </summary>
     private sealed class FakeIntakeSubmission : IIntakeSubmission
     {
-        private readonly Dictionary<string, (IntakeStagedReceipt Receipt, string Hash)> retained = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, (Guid Id, string Hash)> retained = new(StringComparer.Ordinal);
 
         public List<IntakeSource> Sources { get; } = [];
         public bool FailBeforeRetainOnce { get; set; }
 
-        public IReadOnlyCollection<Guid> StagedIds => retained.Values.Select(item => item.Receipt.Id).ToArray();
-
         public void AddStagedReceipt(IntakeStagedReceipt receipt) =>
-            retained[receipt.SourceIdentity.ExternalReceiptToken] = (receipt, receipt.SourceHash);
+            retained[receipt.SourceIdentity.ExternalReceiptToken] = (receipt.Id, receipt.SourceHash);
+
+        public bool IsRetained(Guid submissionId) =>
+            retained.ContainsKey(PrincipalSubmissionPolicy.SubmissionToken(submissionId));
 
         public Task<ReceivedIntake> ExecuteAsync(
             IntakeSource source, string operationKey, CancellationToken cancellationToken = default)
@@ -893,7 +641,7 @@ public sealed class PrincipalSubmissionTests
                 throw new InvalidOperationException("Simulated failure after reservation.");
             }
             var token = source.SourceIdentity.ExternalReceiptToken;
-            var hash = PrincipalSubmissionPolicy.Sha256(source.Content);
+            var hash = Convert.ToHexString(SHA256.HashData(source.Content.Span));
             if (retained.TryGetValue(token, out var existing))
             {
                 if (!string.Equals(existing.Hash, hash, StringComparison.Ordinal))
@@ -901,23 +649,11 @@ public sealed class PrincipalSubmissionTests
                     throw new IntakeSourceIdentityConflictException();
                 }
 
-                return Task.FromResult(new ReceivedIntake(existing.Receipt.Id, IsDuplicate: true));
+                return Task.FromResult(new ReceivedIntake(existing.Id, IsDuplicate: true));
             }
 
             var id = Guid.NewGuid();
-            retained[token] = (
-                new IntakeStagedReceipt(
-                    id,
-                    source.FileName,
-                    source.MediaType,
-                    source.Content.Length,
-                    hash,
-                    source.SourceIdentity,
-                    source.ReceivedAtUtc,
-                    source.Actor,
-                    $"staged:{id:N}",
-                    Now),
-                hash);
+            retained[token] = (id, hash);
             Sources.Add(source);
             return Task.FromResult(new ReceivedIntake(id, IsDuplicate: false));
         }
@@ -941,17 +677,6 @@ public sealed class PrincipalSubmissionTests
                 operationKey,
                 cancellationToken);
         }
-
-        /// <summary>
-        /// The staged receipt the submission's source was retained as, which
-        /// is what the store's candidate query joins on.
-        /// </summary>
-        public Guid? FindStagedReceiptId(Guid submissionId) =>
-            retained.TryGetValue(
-                PrincipalSubmissionPolicy.SubmissionToken(submissionId),
-                out var item)
-                ? item.Receipt.Id
-                : null;
     }
 
     /// <summary>
@@ -962,6 +687,7 @@ public sealed class PrincipalSubmissionTests
     {
         public List<ActionHistoryEntry> Entries { get; } = [];
         public FakeStore? Store { get; set; }
+        public Dictionary<Guid, Exception> Failures { get; } = [];
 
         public void Add(ActionHistoryEntry entry)
         {
@@ -983,6 +709,10 @@ public sealed class PrincipalSubmissionTests
 
         public Task<bool> TryAppendAsync(ActionHistoryEntry entry, CancellationToken cancellationToken)
         {
+            if (Failures.TryGetValue(Guid.Parse(entry.AggregateId), out var exception))
+            {
+                throw exception;
+            }
             if (Entries.Any(existing => existing.Id == entry.Id))
             {
                 return Task.FromResult(false);
@@ -1012,14 +742,28 @@ public sealed class PrincipalSubmissionTests
 
     private sealed class FakeStatus : IQueuedIntakeStatusQueries, IIntakeReceiptQueries
     {
-        public Dictionary<Guid, QueuedIntakeStatus> Statuses { get; } = [];
+        private readonly Dictionary<IntakeSourceIdentity, QueuedIntakeStatus> statuses = [];
+
         public Dictionary<Guid, IntakeReceipt> Receipts { get; } = [];
 
+        public void Add(Guid submissionId, QueuedIntakeStatusKind kind, Guid? processedReceiptId) =>
+            statuses[PrincipalSubmissionPolicy.SourceIdentity(submissionId)] = new(
+                Guid.NewGuid(),
+                PrincipalInstructionPolicy.SourceFileName,
+                Now,
+                kind,
+                processedReceiptId,
+                FailureCode: null);
+
         public Task<QueuedIntakeStatus?> GetAsync(Guid stagedReceiptId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Statuses.GetValueOrDefault(stagedReceiptId));
+            Task.FromResult(statuses.Values.SingleOrDefault(status => status.StagedReceiptId == stagedReceiptId));
+
+        public Task<QueuedIntakeStatus?> FindBySourceIdentityAsync(
+            IntakeSourceIdentity sourceIdentity,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(statuses.GetValueOrDefault(sourceIdentity));
 
         Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Receipts.GetValueOrDefault(id));
-
     }
 }

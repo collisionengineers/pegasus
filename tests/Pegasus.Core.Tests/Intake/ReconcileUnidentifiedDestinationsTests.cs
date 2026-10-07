@@ -1245,6 +1245,11 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Guid stagedReceiptId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Statuses.TryGetValue(stagedReceiptId, out var status) ? status : null);
+
+        public Task<QueuedIntakeStatus?> FindBySourceIdentityAsync(
+            IntakeSourceIdentity sourceIdentity,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeSubmissionGroupStore : IIntakeSubmissionGroupStore

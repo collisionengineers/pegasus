@@ -22,9 +22,7 @@ public sealed class QdosBoundaryContractTests
 
         // One file inside the per-file cap is accepted; a batch past 30 MiB
         // is refused as an envelope failure.
-        var withinBounds = PrincipalSubmissionPolicy.RequireEnvelope(
-            [PrincipalFile(0, 1024)]);
-        Assert.Single(withinBounds);
+        PrincipalSubmissionPolicy.RequireEnvelope([PrincipalFile(0, 1024)]);
 
         // Four files, each well inside the per-file bound, still sum past the
         // envelope: the envelope is enforced on the batch as well as on one
@@ -56,9 +54,8 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void ThePrincipalApiPerFileBoundAcceptsItsLimitAndRefusesOneByteMore()
     {
-        var atTheLimit = PrincipalSubmissionPolicy.RequireEnvelope(
+        PrincipalSubmissionPolicy.RequireEnvelope(
             [PrincipalFile(0, IntakeEnvelopeLimits.MaximumPrincipalApiFileLength)]);
-        Assert.Single(atTheLimit);
 
         var overTheLimit = Assert.Throws<PrincipalSubmissionException>(
             () => PrincipalSubmissionPolicy.RequireEnvelope(
@@ -73,7 +70,8 @@ public sealed class QdosBoundaryContractTests
     }
 
     private static PrincipalSubmissionFile PrincipalFile(int ordinal, int length) => new(
-        ordinal,
+        $"files[{ordinal}]",
+        $"principal-file:{ordinal}",
         $"provider-{ordinal:00}.pdf",
         "application/pdf",
         new byte[length]);

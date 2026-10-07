@@ -568,6 +568,11 @@ public sealed class QdosIntakeWebTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<QueuedIntakeStatus?>(
                 stagedReceiptId == status.StagedReceiptId ? status : null);
+
+        public Task<QueuedIntakeStatus?> FindBySourceIdentityAsync(
+            IntakeSourceIdentity sourceIdentity,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RemoveNameIdentifierClaimsTransformation : IClaimsTransformation

@@ -115,16 +115,14 @@ public sealed class PrincipalApiSubmissionTests
             senderAddress: "intermediary@example.test");
 
         using var created = await SubmitAsync(
-            client, secret, "order-1", [("instruction.eml", email.MediaType, email.Content)], "PROV-001");
+            client, secret, "order-1", [("instruction.eml", email.Content)], "PROV-001");
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var receipt = await ReadJsonAsync(created);
         var submissionId = receipt.GetProperty("submissionId").GetGuid();
         Assert.Equal($"{Submissions}/{submissionId:D}", created.Headers.Location?.OriginalString);
         Assert.False(receipt.GetProperty("replayed").GetBoolean());
         Assert.Equal("PROV-001", receipt.GetProperty("principalReference").GetString());
-        var file = Assert.Single(receipt.GetProperty("files").EnumerateArray());
-        Assert.Equal("instruction.eml", file.GetProperty("fileName").GetString());
-        Assert.False(file.GetProperty("duplicate").GetBoolean());
+        Assert.False(receipt.TryGetProperty("files", out _));
 
         using (var pending = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{submissionId:D}", secret))
         {
@@ -136,7 +134,7 @@ public sealed class PrincipalApiSubmissionTests
 
         // The same key with the same body: a replay, not a new submission.
         using (var replay = await SubmitAsync(
-                   client, secret, "order-1", [("instruction.eml", email.MediaType, email.Content)], "PROV-001"))
+                   client, secret, "order-1", [("instruction.eml", email.Content)], "PROV-001"))
         {
             Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
             var replayed = await ReadJsonAsync(replay);
@@ -148,7 +146,7 @@ public sealed class PrincipalApiSubmissionTests
         var differentEmail = IntakeTestEvidence.CreateEmail(
             "other.eml", "A different provider instruction", senderAddress: "intermediary@example.test");
         using (var conflict = await SubmitAsync(
-                   client, secret, "order-1", [("other.eml", differentEmail.MediaType, differentEmail.Content)], "PROV-001"))
+                   client, secret, "order-1", [("other.eml", differentEmail.Content)], "PROV-001"))
         {
             Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
         }
@@ -204,7 +202,7 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "recovery-1",
-            [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
+            [("note.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
@@ -214,7 +212,7 @@ public sealed class PrincipalApiSubmissionTests
         {
             var oldReceivedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-2);
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE PrincipalSubmissions SET StagedReceiptId = NULL, ReceivedAtUtc = {oldReceivedAtUtc} WHERE Id = {submissionId}"));
+                $"UPDATE PrincipalSubmissions SET ReceivedAtUtc = {oldReceivedAtUtc} WHERE Id = {submissionId}"));
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
                 $"DELETE FROM ActionHistory WHERE AggregateType = {PrincipalSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
         }
@@ -228,10 +226,6 @@ public sealed class PrincipalApiSubmissionTests
         Assert.Equal(0, result.Failures);
 
         await using var verification = await contextFactory.CreateDbContextAsync();
-        var submission = await verification.PrincipalSubmissions
-            .AsNoTracking()
-            .SingleAsync(item => item.Id == submissionId);
-        Assert.NotNull(submission.StagedReceiptId);
         var history = await verification.ActionHistory
             .AsNoTracking()
             .Where(item => item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
@@ -261,7 +255,7 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "starved-1",
-            [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
+            [("note.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
@@ -271,7 +265,7 @@ public sealed class PrincipalApiSubmissionTests
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE PrincipalSubmissions SET StagedReceiptId = NULL, ReceivedAtUtc = {interruptedAtUtc} WHERE Id = {submissionId}"));
+                $"UPDATE PrincipalSubmissions SET ReceivedAtUtc = {interruptedAtUtc} WHERE Id = {submissionId}"));
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
                 $"DELETE FROM ActionHistory WHERE AggregateType = {PrincipalSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
 
@@ -286,10 +280,6 @@ public sealed class PrincipalApiSubmissionTests
                 {
                     Id = Guid.NewGuid(),
                     PrincipalId = template.PrincipalId,
-                    KeyId = template.KeyId,
-                    IdempotencyKey = $"bare-reservation-{index}",
-                    BodySha256 = template.BodySha256,
-                    PrincipalReference = template.PrincipalReference,
                     ReceivedAtUtc = interruptedAtUtc.AddDays(-1),
                     DeclaredInstructionJson = template.DeclaredInstructionJson
                 });
@@ -306,10 +296,6 @@ public sealed class PrincipalApiSubmissionTests
         Assert.Equal(1, result.Repaired);
         Assert.Equal(0, result.Failures);
         await using var verification = await contextFactory.CreateDbContextAsync();
-        var submission = await verification.PrincipalSubmissions
-            .AsNoTracking()
-            .SingleAsync(item => item.Id == submissionId);
-        Assert.NotNull(submission.StagedReceiptId);
         var accepted = await verification.ActionHistory
             .AsNoTracking()
             .SingleAsync(item => item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
@@ -334,7 +320,7 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "duplicate-accept-1",
-            [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
+            [("note.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
@@ -374,13 +360,13 @@ public sealed class PrincipalApiSubmissionTests
         using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
-        using var created = await SubmitAsync(client, secret, "order-2", [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
+        using var created = await SubmitAsync(client, secret, "order-2", [("note.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
         await PauseQdosCredentialAsync(api);
 
-        using (var refused = await SubmitAsync(client, secret, "order-3", [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]))
+        using (var refused = await SubmitAsync(client, secret, "order-3", [("note.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]))
         {
             Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
         }
@@ -433,19 +419,19 @@ public sealed class PrincipalApiSubmissionTests
 
         using (var oversize = await SubmitAsync(
                    client, secret, "order-4",
-                   [("big.pdf", "application/pdf", new byte[IntakeEnvelopeLimits.MaximumPrincipalApiFileLength + 1])]))
+                   [("big.pdf", new byte[IntakeEnvelopeLimits.MaximumPrincipalApiFileLength + 1])]))
         {
             Assert.Equal(HttpStatusCode.RequestEntityTooLarge, oversize.StatusCode);
         }
         using (var missingKey = await SubmitAsync(
                    client, secret, idempotencyKey: null,
-                   [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]))
+                   [("note.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]))
         {
             Assert.Equal(HttpStatusCode.BadRequest, missingKey.StatusCode);
         }
         Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
 
-        using var created = await SubmitAsync(client, secret, "order-5", [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
+        using var created = await SubmitAsync(client, secret, "order-5", [("note.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
@@ -463,16 +449,16 @@ public sealed class PrincipalApiSubmissionTests
         var secret = await IssueQdosCredentialAsync(api);
 
         using var unsupported = await SubmitAsync(client, secret, "unsupported-file",
-            [("run.exe", "application/octet-stream", new byte[] { 0x4D, 0x5A })]);
+            [("run.exe", new byte[] { 0x4D, 0x5A })]);
         Assert.Equal(HttpStatusCode.BadRequest, unsupported.StatusCode);
 
         using var spoofed = await SubmitAsync(client, secret, "spoofed-file",
-            [("photo.jpg", "image/jpeg", "not a JPEG"u8.ToArray())]);
+            [("photo.jpg", "not a JPEG"u8.ToArray())]);
         Assert.Equal(HttpStatusCode.BadRequest, spoofed.StatusCode);
         Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
 
         using var supported = await SubmitAsync(client, secret, "supported-file",
-            [("photo.jpg", "image/jpeg", new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 })]);
+            [("photo.jpg", new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 })]);
         Assert.Equal(HttpStatusCode.Created, supported.StatusCode);
     }
 
@@ -488,13 +474,10 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "audit-1",
-            [
-                ("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Instruction")),
-                ("original-report.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Original report"))
-            ],
+            [("instruction.pdf", IntakeTestEvidence.CreatePdf("Instruction"))],
             caseType: "audit",
             originalReportVerdict: "total-loss",
-            fileRole: "originalreport");
+            originalReport: ("original-report.pdf", IntakeTestEvidence.CreatePdf("Original report")));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
@@ -531,9 +514,7 @@ public sealed class PrincipalApiSubmissionTests
             caseType: caseType,
             originalReportVerdict: originalReportVerdict);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        var receipt = await ReadJsonAsync(created);
-        Assert.Empty(receipt.GetProperty("files").EnumerateArray());
-        var submissionId = receipt.GetProperty("submissionId").GetGuid();
+        var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
         await DrainAsync(api, submissionId);
 
@@ -571,7 +552,7 @@ public sealed class PrincipalApiSubmissionTests
 
         using var created = await SubmitAsync(
             client, secret, "triage-1",
-            [("request.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Triage"))],
+            [("request.pdf", IntakeTestEvidence.CreatePdf("Triage"))],
             caseType: "triage");
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
@@ -593,36 +574,21 @@ public sealed class PrincipalApiSubmissionTests
     }
 
     [Fact]
-    public async Task ABodyNamingAnotherPrincipalIs403AndAMalformedFieldIs400()
+    public async Task AMalformedFieldIs400NamingTheFieldAndRetainsNothing()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
-        using (var mismatch = await SubmitAsync(
-                   client, secret, "mismatch-1",
-                   [("note.pdf", "application/pdf", "x"u8.ToArray())],
-                   principal: "SOMEONE-ELSE"))
-        {
-            Assert.Equal(HttpStatusCode.Forbidden, mismatch.StatusCode);
-        }
+        using var badType = await SubmitAsync(
+            client, secret, "bad-1",
+            [("note.pdf", "x"u8.ToArray())],
+            caseType: "not-a-case-type");
 
-        using (var badType = await SubmitAsync(
-                   client, secret, "bad-1",
-                   [("note.pdf", "application/pdf", "x"u8.ToArray())],
-                   caseType: "not-a-case-type"))
-        {
-            Assert.Equal(HttpStatusCode.BadRequest, badType.StatusCode);
-        }
-
-        // Nothing was retained by either refusal.
+        Assert.Equal(HttpStatusCode.BadRequest, badType.StatusCode);
+        Assert.Equal("caseType", (await ReadJsonAsync(badType)).GetProperty("field").GetString());
         Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'principal_mismatch' AND Outcome = N'Denied'
-            """));
     }
 
     [Fact]
@@ -647,7 +613,7 @@ public sealed class PrincipalApiSubmissionTests
             senderAddress: "intermediary@example.test");
 
         using var created = await SubmitAsync(
-            client, secret, "order-2", [("instruction.eml", email.MediaType, email.Content)], "PROV-002");
+            client, secret, "order-2", [("instruction.eml", email.Content)], "PROV-002");
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
@@ -728,7 +694,7 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "existing-case-1",
-            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
+            [("instruction.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         var firstId = (await ReadJsonAsync(first)).GetProperty("submissionId").GetGuid();
         await DrainAsync(api, firstId);
@@ -748,7 +714,7 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "existing-case-2",
-            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
+            [("instruction.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, repeated.StatusCode);
         var repeatedId = (await ReadJsonAsync(repeated)).GetProperty("submissionId").GetGuid();
         Assert.NotEqual(firstId, repeatedId);
@@ -821,7 +787,7 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "ambiguous-1",
-            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
+            [("instruction.pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
             claimNumber: "12345/1");
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         await DrainAsync(api, (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid());
@@ -872,7 +838,7 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "ambiguous-2",
-            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
+            [("instruction.pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
             claimNumber: "12345/1");
         Assert.Equal(HttpStatusCode.Created, ambiguous.StatusCode);
         var ambiguousId = (await ReadJsonAsync(ambiguous)).GetProperty("submissionId").GetGuid();
@@ -918,7 +884,7 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "contradicting-1",
-            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
+            [("instruction.pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
             claimNumber: "12345/1");
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         await DrainAsync(api, (await ReadJsonAsync(first)).GetProperty("submissionId").GetGuid());
@@ -927,7 +893,7 @@ public sealed class PrincipalApiSubmissionTests
             client,
             secret,
             "contradicting-2",
-            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
+            [("instruction.pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
             claimNumber: "12345/2");
         Assert.Equal(HttpStatusCode.Created, second.StatusCode);
         await DrainAsync(api, (await ReadJsonAsync(second)).GetProperty("submissionId").GetGuid());
@@ -944,31 +910,21 @@ public sealed class PrincipalApiSubmissionTests
         HttpClient client,
         string secret,
         string? idempotencyKey,
-        IReadOnlyList<(string Name, string MediaType, byte[] Bytes)> files,
+        IReadOnlyList<(string Name, byte[] Bytes)> files,
         string claimNumber = "12345/1",
         string caseType = "inspection",
-        string? principal = null,
         string? originalReportVerdict = null,
-        string? fileRole = null)
+        (string Name, byte[] Bytes)? originalReport = null)
     {
         var body = new Dictionary<string, object?>
         {
-            ["principal"] = principal,
             ["claimNumber"] = claimNumber,
             ["caseType"] = caseType,
             ["originalReportVerdict"] = originalReportVerdict,
             ["claimant"] = new Dictionary<string, object?> { ["name"] = "Alex Mercer" },
             ["vehicle"] = new Dictionary<string, object?> { ["registration"] = "AB12CDE" },
-            ["files"] = files
-                .Select((file, index) => new Dictionary<string, object?>
-                {
-                    ["ordinal"] = index,
-                    ["fileName"] = file.Name,
-                    ["mediaType"] = file.MediaType,
-                    ["role"] = index == 0 ? null : fileRole,
-                    ["contentBase64"] = Convert.ToBase64String(file.Bytes)
-                })
-                .ToArray()
+            ["files"] = files.Select(File).ToArray(),
+            ["originalReport"] = originalReport is { } report ? File(report) : null
         };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, Submissions)
@@ -985,6 +941,12 @@ public sealed class PrincipalApiSubmissionTests
         }
 
         return await client.SendAsync(request);
+
+        static Dictionary<string, object?> File((string Name, byte[] Bytes) file) => new()
+        {
+            ["fileName"] = file.Name,
+            ["contentBase64"] = Convert.ToBase64String(file.Bytes)
+        };
     }
 
     private static async Task<HttpResponseMessage> SendAsync(

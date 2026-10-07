@@ -390,13 +390,6 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
-    // The limiter runs before authentication, so a presented key id is a claim
-    // and not an identity, and it cannot be the partition: naming another
-    // principal's key id would spend that principal's budget with forged
-    // secrets, and minting a fresh well-formed key id per request would hand
-    // the caller a fresh budget each time and bound nothing at all. The
-    // partition is the calling address, as it already is for staff sign-in and
-    // the MCP ingress.
     options.AddPolicy(
         GlassCallbackRateLimitPolicy,
         context => RateLimitPartition.GetFixedWindowLimiter(
@@ -408,6 +401,13 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
+    // The limiter runs before authentication, so a presented key id is a claim
+    // and not an identity, and it cannot be the partition: naming another
+    // principal's key id would spend that principal's budget with forged
+    // secrets, and minting a fresh well-formed key id per request would hand
+    // the caller a fresh budget each time and bound nothing at all. The
+    // partition is the calling address, as it already is for staff sign-in and
+    // the MCP ingress.
     options.AddPolicy(
         PrincipalApi.RateLimitPolicy,
         context => RateLimitPartition.GetFixedWindowLimiter(
