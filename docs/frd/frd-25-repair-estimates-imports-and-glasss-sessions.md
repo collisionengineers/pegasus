@@ -457,6 +457,14 @@ the same Case and hash replay the same import. Printed totals, rates, line
 structure and provider identity must agree. PDF net labour is not reduced
 again by the XML-specific overlap rule.
 
+Each Audatex LABOUR and PAINT WORK section prints its own time basis,
+`Time Basis N WU = 1 HR`; the basis can differ between the two sections of
+one report. The section's work units reconcile to its printed total and are
+then divided by that basis, so every line carries hours, and paint time is
+paint hours. A section without a readable basis refuses the import. The
+printed Total Paint And Material Cost lands on the first paint line, as
+materials sit on lines. Extras keep their printed price.
+
 Readable embedded text is required. An unusable font map, a scan-like page
 or a parser failure gives an explicit refusal, never an OCR request
 ([ADR-0047](../adr/0047-scanned-instruction-ocr-only.md)). The staff Import
