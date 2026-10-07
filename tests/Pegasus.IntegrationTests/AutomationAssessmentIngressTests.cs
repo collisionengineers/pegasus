@@ -181,6 +181,46 @@ public sealed class AutomationAssessmentIngressTests
             occurrenceId, versionId, hash, "mcp:replay-authority", "Glass's 1"), default);
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM ActionHistory WHERE EventKind = N'estimate_created' AND ActorKind = N'Automation'"));
+
+        // The Automation actor edits an imported estimate too (operator, 7 October 2026): an
+        // edit naming every line's lineId keeps the estimate's route and each line's source
+        // evidence.
+        object[] keptLines;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(88, "pegasus_estimate_get",
+            new { caseId, estimateId = importedId })))
+        {
+            keptLines = (await ReadStructuredContentAsync(response))
+                .GetProperty("estimate")
+                .GetProperty("lines")
+                .EnumerateArray()
+                .Select(line => (object)line.EnumerateObject()
+                    .Where(property => property.Name is not ("position" or "recordedByKind" or "amendedBy"))
+                    .ToDictionary(property => property.Name, property => property.Value.Clone()))
+                .ToArray();
+        }
+        Assert.Equal(14, keptLines.Length);
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(89, "pegasus_estimate_save", new
+        {
+            caseId,
+            expectedVersion = 2,
+            editLeaseToken = replayLease.LeaseToken,
+            operationKey = "mcp:edit-imported-estimate",
+            reason = "Automation reviewed the imported estimate.",
+            estimateId = importedId,
+            name = "Glass's 1",
+            lines = keptLines
+        })))
+        {
+            _ = await ReadStructuredContentAsync(response);
+        }
+        var edited = Assert.IsType<RepairSpecificationVersion>(await store.GetVersionAsync(caseId, importedId, default));
+        Assert.Equal(imported.Source.Route, edited.Source.Route);
+        Assert.Equal(14, edited.Lines.Count);
+        Assert.All(edited.Lines, line =>
+        {
+            Assert.Equal(versionId, line.SourceDocumentVersionId);
+            Assert.Equal(hash, line.SourceDocumentSha256);
+        });
     }
 
     private sealed class RetainedEstimateContent(byte[] bytes) : IReadLogicalDocumentVersion
@@ -299,19 +339,6 @@ public sealed class AutomationAssessmentIngressTests
         using var rateDocument = await ReadJsonRpcAsync(rateResponse);
         Assert.Contains("no staff editor on the Case", rateDocument.RootElement.ToString(), StringComparison.Ordinal);
 
-        using var findingResponse = await PostMcpAsync(client, token, ToolCallPayload(44,
-            "pegasus_assessment_update", new
-            {
-                caseId,
-                expectedVersion = lease.CaseVersion,
-                editLeaseToken = lease.LeaseToken,
-                operationKey = "mcp:generic-finding-rejected",
-                reason = "Attempt an Engineer's Value write.",
-                fields = new Dictionary<string, string?> { [AssessmentVocabulary.ValueEngineer] = "12000" }
-            }));
-        using var findingDocument = await ReadJsonRpcAsync(findingResponse);
-        Assert.Contains("is a professional finding", findingDocument.RootElement.ToString(), StringComparison.Ordinal);
-
         using var signatoryResponse = await PostMcpAsync(client, token, ToolCallPayload(45,
             "pegasus_assessment_update", new
             {
@@ -327,7 +354,7 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     [Fact]
-    public async Task AssessmentUpdateWritesOnlyFieldsStaffCanRecord()
+    public async Task AssessmentUpdateWritesWhatStaffRecordFindingsIncluded()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -337,17 +364,14 @@ public sealed class AutomationAssessmentIngressTests
         var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 50);
 
         // An automation value is one staff can change or clear on its Case
-        // section, so a fact the vehicle lookup records, a professional
-        // finding, a case-owned fact and the retired paths (the statement of
-        // truth is the report contract's wording) are each refused, naming
-        // the field. A path no section edits, the Engineer signature, is
-        // refused in the test above.
+        // section, so a fact the vehicle lookup records, a case-owned fact and
+        // the retired paths (the statement of truth is the report contract's
+        // wording) are each refused, naming the field. A path no section
+        // edits, the Engineer signature, is refused in the test above.
         var refusals = new (string Path, string Value, string Refusal)[]
         {
             (AssessmentVocabulary.VehicleFuel, "Petrol", "filled by the DVLA/DVSA vehicle lookup"),
             ("statement_of_truth", "I believe the facts stated are true.", "not part of the assessment vocabulary"),
-            (AssessmentVocabulary.LegalStatus, "roadworthy", "is a professional finding"),
-            (AssessmentVocabulary.ValueTrade, "9000", "is a professional finding"),
             ("incident.assessed", "2031-05-06", "case-detail edit path"),
             ("costs.repairer_vat_registered", "true", "not part of the assessment vocabulary")
         };
@@ -395,6 +419,42 @@ public sealed class AutomationAssessmentIngressTests
             WHERE WorkId = '{caseId:D}'
               AND FieldPath = N'{AssessmentVocabulary.CostRecoveryCharge}'
               AND Value = N'120.00'
+              AND RecordedByKind = N'Automation'
+            """));
+
+        // Professional findings are casework the Automation actor records as
+        // staff do (operator, 7 October 2026), attributed to it. The save
+        // above ended its lease, so this write holds one for itself.
+        var findings = new Dictionary<string, string?>
+        {
+            [AssessmentVocabulary.Outcome] = "total_loss",
+            [AssessmentVocabulary.LegalStatus] = "unroadworthy",
+            [AssessmentVocabulary.UnroadworthyReason] = "Structural damage to the offside sill.",
+            [AssessmentVocabulary.SalvageCategory] = "S",
+            [AssessmentVocabulary.SalvageValue] = "450",
+            [AssessmentVocabulary.ValueRetail] = "10000",
+            [AssessmentVocabulary.ValueTrade] = "9000",
+            [AssessmentVocabulary.ValueEngineer] = "9500"
+        };
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId + 1,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion + 1,
+                operationKey = "mcp:findings",
+                reason = "Automation recorded the findings.",
+                fields = findings
+            })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(lease.CaseVersion + 2, structured.GetProperty("caseVersion").GetInt64());
+        }
+        var findingPaths = string.Join(", ", findings.Keys.Select(path => $"N'{path}'"));
+        Assert.Equal(findings.Count, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseAssessmentFields
+            WHERE WorkId = '{caseId:D}'
+              AND FieldPath IN ({findingPaths})
               AND RecordedByKind = N'Automation'
             """));
     }
@@ -651,7 +711,7 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     [Fact]
-    public async Task CaseUpdateDetailsOverHttpMutatesUnderLeaseWithLoggingParityAndReopensCompleteness()
+    public async Task CaseUpdateDetailsOverHttpSavesThroughTheCaseSaveWithLoggingParity()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -684,6 +744,8 @@ public sealed class AutomationAssessmentIngressTests
             caseVersion = lease.GetProperty("version").GetInt64();
             leaseToken = lease.GetProperty("editLeaseToken").GetString()!;
         }
+        var stateBefore = await factory.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
 
         using (var updateResponse = await PostMcpAsync(
             client,
@@ -708,14 +770,14 @@ public sealed class AutomationAssessmentIngressTests
             Assert.False(result.TryGetProperty("isError", out var isError) && isError.GetBoolean());
             var structured = result.GetProperty("structuredContent");
             Assert.Equal(caseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
-            Assert.Equal("NotReady", structured.GetProperty("state").GetString());
+            Assert.Equal(stateBefore, structured.GetProperty("state").GetString());
             Assert.Equal(
                 "mcp:ingress-details-1",
                 structured.GetProperty("correlationId").GetString());
         }
 
-        // Case-detail values save through the same Core path as a staff edit: they land
-        // as the Case's confirmed case-data value, attributed to the automation.
+        // Case-detail values save through the staff Case save: they land as the
+        // Case's confirmed case-data value, attributed to the automation.
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
@@ -727,12 +789,13 @@ public sealed class AutomationAssessmentIngressTests
               AND ConfirmedByActor = N'pegasus-automation'
             """));
 
-        // The save re-opens completeness review exactly as a staff edit does.
+        // Like a staff Case save, it neither demotes the Case nor reopens
+        // completeness: readiness is evaluated from what the save wrote.
         Assert.Equal(
-            "NotReady",
+            stateBefore,
             await factory.Database.ScalarAsync<string>(
                 $"SELECT State FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT CAST(InstructionComplete AS INT) FROM Cases WHERE Id = '{caseId:D}'"));
 
         // Logging parity: the business save is recorded exactly like a staff save, and the
@@ -741,7 +804,7 @@ public sealed class AutomationAssessmentIngressTests
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
-              AND EventKind = N'case_data_saved'
+              AND EventKind = N'case_workspace_saved'
               AND Outcome = N'Succeeded'
             """));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -856,6 +919,81 @@ public sealed class AutomationAssessmentIngressTests
             "Automation",
             await factory.Database.ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+    }
+
+    /// <summary>
+    /// The Automation Actor may do what a member of staff can (operator, 7 October 2026), Take
+    /// over included: a staff-held Case lease refuses its plain claim and passes to it when it
+    /// asks to take the lease over, the Case's history records the takeover, and the lease it
+    /// took writes.
+    /// </summary>
+    [Fact]
+    public async Task AutomationTakesOverAStaffHeldLeaseOnlyWhenItAsks()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var staffLease = await ClaimAsStaffAsync(mcpFactory, caseId, staff);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        await AssertRefusedByAnotherHolderAsync(
+            client,
+            token,
+            ToolCallPayload(
+                35,
+                "pegasus_edit_begin",
+                new { recordKind = "Case", recordId = caseId, expectedVersion = 0, operationKey = "mcp:takeover-plain-claim" }));
+        Assert.Equal(
+            "Staff",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+
+        string automationToken;
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                36,
+                "pegasus_edit_begin",
+                new { recordKind = "Case", recordId = caseId, expectedVersion = 0, operationKey = "mcp:takeover-claim", takeOver = true })))
+        {
+            var lease = await ReadStructuredContentAsync(response);
+            Assert.Equal(0, lease.GetProperty("version").GetInt64());
+            automationToken = lease.GetProperty("editLeaseToken").GetString()!;
+        }
+        Assert.NotEqual(staffLease.Token, automationToken);
+        Assert.Equal(
+            "Automation",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseWorkflowEvents
+            WHERE CaseId = '{caseId:D}'
+              AND EventType = N'edit_lease_taken_over'
+              AND ActorKind = N'Automation'
+            """));
+
+        using (var write = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                37,
+                "pegasus_assessment_update",
+                new
+                {
+                    caseId,
+                    expectedVersion = 0,
+                    editLeaseToken = automationToken,
+                    operationKey = "mcp:takeover-write",
+                    reason = "Automation wrote under the lease it took over.",
+                    fields = new Dictionary<string, string?> { ["vehicle.condition"] = "good" }
+                })))
+        {
+            Assert.Equal(1, (await ReadStructuredContentAsync(write)).GetProperty("caseVersion").GetInt64());
+        }
     }
 
     /// <summary>
@@ -1030,6 +1168,148 @@ public sealed class AutomationAssessmentIngressTests
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
     }
 
+    /// <summary>
+    /// pegasus_case_update_details is the staff Case save with the caller's changes over the
+    /// Case's current values (operator, 7 October 2026): the one fact it names changes, and
+    /// every fact it does not name — the repairer, the notes, the vehicle, the inspection and
+    /// storage location a member of staff recorded — stays as it was. A call that names
+    /// nothing is refused.
+    /// </summary>
+    [Fact]
+    public async Task CaseUpdateDetailsChangesOnlyTheNamedFactAndKeepsEveryOther()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var staffLease = await ClaimAsStaffAsync(mcpFactory, caseId, staff);
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+                new SaveCaseWorkspaceRequest(caseId, 0, staff, "staff-recorded-facts", null, staffLease.Token)
+                {
+                    Overview = new(
+                        "Jane Recorded",
+                        null,
+                        null,
+                        "CLM-778",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "1 Repair Road, Leeds",
+                        null,
+                        new CaseWorkspaceRepairer(null, null, "Leeds Bodyshop"),
+                        PrincipalNotes: "Principal asked for photos first.",
+                        ClientNotes: "Client is away until Friday."),
+                    Inspection = new(
+                        CaseReportAddressTreatment.PhysicalVehicleLocation,
+                        "5 Yard Lane, Leeds",
+                        null,
+                        "Bay 4",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null),
+                    Vehicle = new("AB12 CDE", "Ford", "Focus", null, null, "2019")
+                },
+                CancellationToken.None);
+        }
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using (var empty = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                15,
+                "pegasus_case_update_details",
+                new { caseId, expectedVersion = version, operationKey = "mcp:details-nothing-named" })))
+        {
+            Assert.Contains(
+                "Name at least one value to change.",
+                await ReadErrorTextAsync(empty),
+                StringComparison.Ordinal);
+        }
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                16,
+                "pegasus_case_update_details",
+                new { caseId, expectedVersion = version, operationKey = "mcp:details-one-fact", claimantName = "Janet Corrected" })))
+        {
+            Assert.Equal(version + 1, (await ReadStructuredContentAsync(response)).GetProperty("caseVersion").GetInt64());
+        }
+
+        await using var readScope = mcpFactory.Services.CreateAsyncScope();
+        var data = await readScope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.NotNull(data);
+        Assert.Equal("Janet Corrected", data.Claimant.Name.Current?.Value);
+        Assert.Equal("CLM-778", data.Claim.Number.Current?.Value);
+        Assert.Equal("Leeds Bodyshop", data.Inspection.RepairerName?.Current?.Value);
+        Assert.Equal("1 Repair Road, Leeds", data.Inspection.RepairerAddress?.Current?.Value);
+        Assert.Equal("Principal asked for photos first.", data.Workspace?.PrincipalNotes);
+        Assert.Equal("Client is away until Friday.", data.Workspace?.ClientNotes);
+        Assert.Equal("5 Yard Lane, Leeds", data.Inspection.Address.Current?.Value);
+        Assert.Equal("Bay 4", data.Inspection.StorageLocation?.Current?.Value);
+        Assert.Equal("Ford", data.Vehicle.Make.Current?.Value);
+        Assert.Equal("Focus", data.Vehicle.Model.Current?.Value);
+        Assert.Equal("2019", data.Vehicle.Year.Current?.Value);
+    }
+
+    /// <summary>
+    /// The Automation Actor adds a Case note as a member of staff does (operator, 7 October
+    /// 2026): one operator note on the Case's timeline, attributed to it, written once for a
+    /// replayed operation key and changing no Case value.
+    /// </summary>
+    [Fact]
+    public async Task CaseNoteAddRecordsOneAutomationNoteOnTheCaseTimeline()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var note = new
+        {
+            caseId,
+            operationKey = "mcp:note-1",
+            note = "Chased the repairer for the estimate."
+        };
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(17, "pegasus_case_note_add", note)))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal("mcp:note-1", structured.GetProperty("correlationId").GetString());
+        }
+        using (var replay = await PostMcpAsync(client, token, ToolCallPayload(18, "pegasus_case_note_add", note)))
+        {
+            _ = await ReadStructuredContentAsync(replay);
+        }
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseWorkflowEvents
+            WHERE CaseId = '{caseId:D}'
+              AND EventType = N'{AddCaseNote.EventType}'
+              AND ActorKind = N'Automation'
+              AND Reason = N'Chased the repairer for the estimate.'
+            """));
+        Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
+    }
+
     private sealed class CapturingEstimateImporter : IImportRawEstimate
     {
         public static readonly Guid EstimateId = Guid.Parse("80b99604-d8b3-4028-9bc4-b744f82c297f");
@@ -1045,13 +1325,14 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     /// <summary>
-    /// FRD-10 § AI job and estimate tools: an AI-draft estimate
-    /// must cite the Estimate job this client holds, always lands as a
-    /// Draft and never as Current, and is listed
-    /// with Pegasus-computed totals.
+    /// FRD-10 § AI job and estimate tools: an estimate the Automation actor
+    /// types in lands as an AI draft in Draft, never as Current, and is
+    /// listed with Pegasus-computed totals. Citing the Estimate job it
+    /// fulfils is optional (operator, 7 October 2026): a cited job must be an
+    /// Estimate job on the case, but need not be taken by this client.
     /// </summary>
     [Fact]
-    public async Task EstimateSaveRequiresTheHeldEstimateJobAndLandsAsAnAiDraft()
+    public async Task EstimateSaveLandsAsAnAiDraftWithOrWithoutACitedJob()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -1068,8 +1349,6 @@ public sealed class AutomationAssessmentIngressTests
                     "ingress-estimate-job", AiJobPolicy.DefaultExpiry),
                 CancellationToken.None);
             jobId = job.JobId;
-            await scope.ServiceProvider.GetRequiredService<IWorkAiJob>()
-                .TakeAsync(new(jobId, job.Version, ActionActor.Automation(ClientId), "ingress-estimate-take"), CancellationToken.None);
         }
 
         using var client = mcpFactory.CreateClient();
@@ -1082,7 +1361,7 @@ public sealed class AutomationAssessmentIngressTests
             new { type = "paint_repair", description = "Paint door", paintWorkUnits = 1.5, materials = 25 }
         };
 
-        // Without the job the save is refused before anything is written.
+        // A cited job that does not exist is refused before anything is written.
         using (var refused = await PostMcpAsync(
             client,
             token,
@@ -1122,7 +1401,6 @@ public sealed class AutomationAssessmentIngressTests
                     editLeaseToken = lease.LeaseToken,
                     operationKey = "mcp:ingress-estimate-1",
                     reason = "Automation drafted an estimate.",
-                    aiJobId = jobId,
                     name = "Claude draft",
                     labourRate = 40,
                     vatPercent = 20,
@@ -1137,7 +1415,9 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal("Draft", estimate.GetProperty("state").GetString());
             Assert.Equal("AiDraft", estimate.GetProperty("sourceRoute").GetString());
             Assert.False(estimate.GetProperty("isCurrent").GetBoolean());
-            Assert.Equal(jobId, estimate.GetProperty("aiJobId").GetGuid());
+            Assert.True(!estimate.TryGetProperty("aiJobId", out var citedJob)
+                || citedJob.ValueKind == JsonValueKind.Null);
+            Assert.Equal("mcp:ingress-estimate-1", structured.GetProperty("correlationId").GetString());
             var totals = estimate.GetProperty("totals");
             Assert.Equal(220.40m, totals.GetProperty("parts").GetDecimal());
             Assert.Equal(100m, totals.GetProperty("panelLabour").GetDecimal());
@@ -1174,7 +1454,7 @@ public sealed class AutomationAssessmentIngressTests
             $"""
             SELECT COUNT(*) FROM CaseRepairSpecifications
             WHERE Id = '{estimateId:D}' AND WorkId = '{caseId:D}' AND State = N'Draft'
-              AND SourceRoute = N'AiDraft' AND IsCurrent = 0 AND AiJobId = '{jobId:D}'
+              AND SourceRoute = N'AiDraft' AND IsCurrent = 0 AND AiJobId IS NULL
               AND Name = N'Claude draft' AND VatPercent = 20
             """));
         Assert.Equal(3, await factory.Database.ScalarAsync<int>(
@@ -1186,7 +1466,7 @@ public sealed class AutomationAssessmentIngressTests
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation' AND EventKind = N'pegasus_estimate_save'
-              AND Outcome = N'Succeeded' AND CorrelationId = N'{jobId:D}'
+              AND Outcome = N'Succeeded' AND CorrelationId = N'mcp:ingress-estimate-1'
             """));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             """
@@ -1209,5 +1489,158 @@ public sealed class AutomationAssessmentIngressTests
             Assert.False(listed.TryGetProperty("lines", out _));
             Assert.False(listed.TryGetProperty("totals", out _));
         }
+
+        // An Estimate job on this case may be cited without being taken. The
+        // save above ended its lease, so this one holds one for itself.
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                14,
+                "pegasus_estimate_save",
+                new
+                {
+                    caseId,
+                    expectedVersion = lease.CaseVersion + 1,
+                    operationKey = "mcp:ingress-estimate-cited",
+                    reason = "Automation drafted the estimate the job asked for.",
+                    aiJobId = jobId,
+                    name = "Claude cited draft",
+                    lines
+                })))
+        {
+            var estimate = (await ReadStructuredContentAsync(response)).GetProperty("estimate");
+            Assert.Equal(jobId, estimate.GetProperty("aiJobId").GetGuid());
+            Assert.Equal("Draft", estimate.GetProperty("state").GetString());
+            Assert.Equal("AiDraft", estimate.GetProperty("sourceRoute").GetString());
+        }
+    }
+
+    /// <summary>
+    /// A line sent To be confirmed with a price is a priced line, and the
+    /// repairer's VAT status decides the VAT: a Registered repairer is
+    /// charged on everything.
+    /// </summary>
+    [Fact]
+    public async Task EstimateSavePricesAToBeConfirmedLineAndChargesVatForARegisteredRepairer()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                20,
+                "pegasus_estimate_save",
+                new
+                {
+                    caseId,
+                    expectedVersion = 0,
+                    operationKey = "mcp:estimate-registered",
+                    reason = "Automation priced the estimate.",
+                    name = "Registered draft",
+                    vatPercent = 20,
+                    repairerVatStatus = "Registered",
+                    lines = new object[]
+                    {
+                        new { type = "new_part", description = "Bumper", price = 100, unpriced = true }
+                    }
+                }));
+        var estimate = (await ReadStructuredContentAsync(response)).GetProperty("estimate");
+        Assert.Equal("Registered", estimate.GetProperty("repairerVatStatus").GetString());
+        Assert.False(estimate.GetProperty("vatTreatmentPending").GetBoolean());
+        var line = Assert.Single(estimate.GetProperty("lines").EnumerateArray());
+        Assert.False(line.GetProperty("unpriced").GetBoolean());
+        Assert.Equal(100m, line.GetProperty("price").GetDecimal());
+        var totals = estimate.GetProperty("totals");
+        Assert.Equal(100m, totals.GetProperty("net").GetDecimal());
+        Assert.Equal(20m, totals.GetProperty("vat").GetDecimal());
+        Assert.Equal(120m, totals.GetProperty("gross").GetDecimal());
+    }
+
+    /// <summary>
+    /// The Automation actor edits any live estimate in place, a member of
+    /// staff's Current one included (operator, 7 October 2026). Naming the
+    /// kept line's lineId keeps that line's evidence, the estimate keeps its
+    /// route, and a header value the edit omits — the discounts here — keeps
+    /// its recorded value.
+    /// </summary>
+    [Fact]
+    public async Task EstimateSaveEditsAStaffEstimateKeepingItsRouteLineEvidenceAndDiscounts()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var staffLease = await ClaimAsStaffAsync(mcpFactory, caseId, staff);
+        Guid estimateId;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var created = await scope.ServiceProvider.GetRequiredService<ISaveEstimate>().ExecuteAsync(
+                new(
+                    caseId,
+                    0,
+                    staff,
+                    "staff-typed-estimate",
+                    "Staff typed the estimate.",
+                    staffLease.Token,
+                    null,
+                    new EstimateDetails("Staff spec", 40m, null, 20m, new EstimateDiscounts(0.1m, 0m, 0m, 0m)),
+                    [new EstimateLineInput("new_part", null, "Wing", null, 200m, false, "PN-1", null, "official", "Manufacturer price list.")],
+                    new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+                CancellationToken.None);
+            estimateId = created.SpecificationId;
+        }
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        Guid lineId;
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(21, "pegasus_estimate_get", new { caseId, estimateId })))
+        {
+            var estimate = (await ReadStructuredContentAsync(response)).GetProperty("estimate");
+            lineId = Assert.Single(estimate.GetProperty("lines").EnumerateArray()).GetProperty("lineId").GetGuid();
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                22,
+                "pegasus_estimate_save",
+                new
+                {
+                    caseId,
+                    expectedVersion = version,
+                    operationKey = "mcp:edit-staff-estimate",
+                    reason = "Automation corrected the wing price.",
+                    estimateId,
+                    name = "Staff spec",
+                    lines = new object[] { new { lineId, type = "new_part", description = "Wing", price = 180 } }
+                })))
+        {
+            var estimate = (await ReadStructuredContentAsync(response)).GetProperty("estimate");
+            Assert.Equal(estimateId, estimate.GetProperty("estimateId").GetGuid());
+            Assert.Equal("Manual", estimate.GetProperty("sourceRoute").GetString());
+            Assert.Equal(0.1m, estimate.GetProperty("discounts").GetProperty("parts").GetDecimal());
+            Assert.Equal(40m, estimate.GetProperty("labourRate").GetDecimal());
+            var line = Assert.Single(estimate.GetProperty("lines").EnumerateArray());
+            Assert.Equal(180m, line.GetProperty("price").GetDecimal());
+            Assert.Equal("official", line.GetProperty("evidenceLabel").GetString());
+            Assert.Equal("Manufacturer price list.", line.GetProperty("justification").GetString());
+            Assert.Equal(ClientId, line.GetProperty("amendedBy").GetString());
+        }
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseRepairSpecifications
+            WHERE Id = '{estimateId:D}' AND SourceRoute = N'Manual'
+            """));
     }
 }

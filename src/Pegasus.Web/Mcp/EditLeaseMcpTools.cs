@@ -59,12 +59,13 @@ internal sealed class EditLeaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Claims the server-owned five-minute edit lease on one Case or Triage Case for multi-step work, using the same guard as staff editing. Fails closed when another editor holds the lease or the expected version is stale. A single write needs no lease call: every write tool takes the lease itself for that one command when editLeaseToken is omitted.")]
+    [Description("Claims the server-owned five-minute edit lease on one Case or Triage Case for multi-step work, using the same guard as staff editing. Fails closed when another editor holds the lease or the expected version is stale, unless takeOver is true: then, like a member of staff's Take over, it takes a lease a member of staff holds (the takeover is recorded in the record's history). A single write needs no lease call: every write tool takes the lease itself for that one command when editLeaseToken is omitted.")]
     public async Task<EditLeaseToolResult> BeginAsync(
         [Description(RecordKindDescription)] string recordKind,
         [Description("The Case identifier, or the Triage Case identifier.")] Guid recordId,
         [Description("The record version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same lease claim.")] string operationKey,
+        [Description("Take over a lease a member of staff holds, ending their edit session; omit to fail closed while any lease is held.")] bool takeOver = false,
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);
@@ -81,7 +82,7 @@ internal sealed class EditLeaseMcpTools(
                 if (kind == EditLeaseRecordKind.Case)
                 {
                     var lease = await acquireCase.ExecuteAsync(
-                        new(recordId, expectedVersion, context.Actor, normalizedKey),
+                        new(recordId, expectedVersion, context.Actor, normalizedKey) { TakeOver = takeOver },
                         cancellationToken);
                     return new EditLeaseToolResult(
                         kind.ToString(), recordId, null, lease.Token, lease.Holder, lease.Version,
@@ -89,7 +90,10 @@ internal sealed class EditLeaseMcpTools(
                 }
 
                 var scopeLease = await editScopes.ClaimAsync(
-                    new(EditScopeKind.Triage, recordId, expectedVersion, context.Actor, normalizedKey),
+                    new(EditScopeKind.Triage, recordId, expectedVersion, context.Actor, normalizedKey)
+                    {
+                        TakeOver = takeOver
+                    },
                     cancellationToken);
                 return new EditLeaseToolResult(
                     kind.ToString(), recordId, await TriageReferenceAsync(recordId, context, cancellationToken),

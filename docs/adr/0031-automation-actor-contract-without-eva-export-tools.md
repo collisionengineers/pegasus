@@ -3,7 +3,7 @@ id: ADR-0031
 status: accepted
 date: 2026-08-25
 supersedes: [ADR-0021]
-superseded_by: []
+superseded_by: [ADR-0064]
 related_capabilities: [MCP-06, AI-09]
 related_frd: [frd-07, frd-10, frd-24, frd-27]
 tags: [mcp, automation, ai, eva]
@@ -15,10 +15,14 @@ tags: [mcp, automation, ai, eva]
 
 Accepted. Supersedes ADR-0021; ADR-0026 and ADR-0027 still refine production
 enablement and external connector authentication.
+[ADR-0064](0064-automation-actor-staff-casework-parity.md) replaces the rule
+that automation never records a professional finding and the consequence
+that it cannot confirm findings (operator, 7 October 2026). The EVA Export
+decision stands.
 
 ## Current applicability
 
-Direct attributed writes are permitted within the current FRD-10 guards, which admit only fields staff can change or clear on the Case record. The per-field confirmation state those writes once carried is retired (operator, 25 September 2026): a recorded value is the Case's value whoever recorded it, shown with its source tag, so the consequence below that Automation values wait for staff review no longer applies; automation still never records a finding. AiWork push and ADR-0035’s AiJobs pull are distinct transports; neither grants finding authority or outward dispatch.
+Direct attributed writes are permitted within the current FRD-10 guards, which admit only fields staff can change or clear on the Case record. The per-field confirmation state those writes once carried is retired (operator, 25 September 2026): a recorded value is the Case's value whoever recorded it, shown with its source tag, so the consequence below that Automation values wait for staff review no longer applies. Automation records professional findings as staff do ([ADR-0064](0064-automation-actor-staff-casework-parity.md)). AiWork push and ADR-0035’s AiJobs pull are distinct transports; neither grants outward dispatch.
 
 ## Context
 

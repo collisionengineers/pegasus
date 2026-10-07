@@ -18,6 +18,7 @@ internal sealed record AssessmentFieldToolItem(
     DateTimeOffset RecordedAtUtc);
 
 internal sealed record EstimateLineToolItem(
+    Guid LineId,
     int Position,
     string Type,
     string? GuideCode,
@@ -31,22 +32,31 @@ internal sealed record EstimateLineToolItem(
     string? Justification,
     string RecordedByKind,
     decimal? PaintWorkUnits = null,
-    int? Quantity = null);
+    int? Quantity = null,
+    decimal? Materials = null,
+    string? AmendedBy = null);
 
 internal sealed record EstimateLineToolInput(
-    string Type,
-    string? GuideCode = null,
-    string? Description = null,
-    decimal? WorkUnits = null,
-    decimal? Price = null,
-    bool Unpriced = false,
-    string? PartNumber = null,
-    string? Betterment = null,
-    string? EvidenceLabel = null,
-    string? Justification = null,
-    decimal? PaintWorkUnits = null,
-    int? Quantity = null,
-    decimal? Materials = null);
+    [property: Description("Line type: rnr (remove and refit), repair, new_part, check_labour, paint_new (paint a new part), paint_repair (paint a repaired panel), paint_blend, paint_prep (paint preparation), specialist_fixed (specialist work at a fixed price) or specialist_wu (specialist work priced by work units at the labour rate). pegasus_vocabulary_get lists them with their meanings.")] string Type,
+    [property: Description("The guide (Glass's/Audatex) operation code, if any.")] string? GuideCode = null,
+    [property: Description("What the line is, as the report prints it.")] string? Description = null,
+    [property: Description("Panel labour hours.")] decimal? WorkUnits = null,
+    [property: Description("Price per unit in pounds, excluding VAT; multiplied by quantity.")] decimal? Price = null,
+    [property: Description("True marks the line To be confirmed: its price is not known yet. A line that carries a price is not To be confirmed, so a price clears this flag.")] bool Unpriced = false,
+    [property: Description("Manufacturer part number.")] string? PartNumber = null,
+    [property: Description("Betterment applied to the line, as text.")] string? Betterment = null,
+    [property: Description("The kind of source the line's figure stands on, one of: official (manufacturer or official repair/price data), reference (a published reference or guide: Glass's/Audatex times, ABP), case (evidence on this Case: photos, documents, repairer estimate), judgement (the assessor's professional judgement). Write the source itself in justification.")] string? EvidenceLabel = null,
+    [property: Description("Why the line is needed and where its figures come from (at most 500 characters).")] string? Justification = null,
+    [property: Description("Paint labour hours.")] decimal? PaintWorkUnits = null,
+    [property: Description("Quantity; defaults to 1.")] int? Quantity = null,
+    [property: Description("Paint and materials on this line, in pounds.")] decimal? Materials = null,
+    [property: Description("The existing line this row is (lineId from pegasus_estimate_get), so the line keeps its source evidence; omit for a new line.")] Guid? LineId = null);
+
+internal sealed record EstimateDiscountsToolInput(
+    [property: Description("Parts discount as a fraction of one, 0 to 1 (0.1 is 10%).")] decimal Parts = 0m,
+    [property: Description("Materials discount as a fraction of one, 0 to 1.")] decimal Materials = 0m,
+    [property: Description("Specialist discount as a fraction of one, 0 to 1.")] decimal Specialist = 0m,
+    [property: Description("Overall discount as a fraction of one, 0 to 1.")] decimal Overall = 0m);
 
 internal sealed record EstimateTotalsToolItem(
     decimal Parts,
@@ -71,12 +81,36 @@ internal sealed record EstimateToolItem(
     bool RegionalUplift,
     decimal? OtherCosts,
     decimal VatPercent,
+    string RepairerVatStatus,
+    IReadOnlyList<string> VatCategories,
+    bool VatTreatmentPending,
+    EstimateDiscountsToolInput Discounts,
     IReadOnlyList<EstimateLineToolItem> Lines,
     EstimateTotalsToolItem Totals,
     string CreatedBy,
     DateTimeOffset CreatedAtUtc);
 
 internal sealed record EstimateSaveToolResult(
+    Guid CaseId,
+    long CaseVersion,
+    EstimateToolItem Estimate,
+    string OperationKey,
+    string CorrelationId);
+
+internal sealed record EstimateSnapshotToolItem(
+    Guid SnapshotId,
+    int Number,
+    string Kind,
+    DateTimeOffset CreatedAtUtc,
+    decimal Gross);
+
+internal sealed record EstimateGetToolResult(
+    Guid CaseId,
+    EstimateToolItem Estimate,
+    IReadOnlyList<EstimateSnapshotToolItem> Snapshots,
+    string CorrelationId);
+
+internal sealed record EstimateActToolResult(
     Guid CaseId,
     long CaseVersion,
     EstimateToolItem Estimate,
@@ -148,32 +182,28 @@ internal sealed record AssessmentUpdateToolResult(
     string OperationKey,
     string CorrelationId);
 
-internal sealed record CaseUpdateDetailsToolResult(
-    Guid CaseId,
-    long CaseVersion,
-    string State,
-    string OperationKey,
-    string CorrelationId);
-
 /// <summary>
-/// Automation Actor assessment tools (the tranche specified by
-/// ADR-0031 / FRD-10 (docs/adr/0031-automation-actor-contract-without-eva-export-tools.md,
-/// docs/frd/frd-10-mcp-automation-and-actor-boundary.md)): direct writes over the same
-/// Core commands, edit lease, and version guards as a staff save, attributed
-/// to the Automation actor and limited to fields a staff member records on
-/// the Case. A recorded value is the Case's value whoever recorded it, shown
-/// with its source tag; there is no per-field review (operator, 25 September
-/// 2026). Structurally absent, on purpose: any finding write, any
-/// report-approval tool, and any tool that dispatches anything outward.
+/// Automation Actor assessment and estimate tools (FRD-10, ADR-0064): direct
+/// writes over the same Core commands, edit lease, and version guards as a
+/// staff save, attributed to the Automation actor and limited to fields a
+/// staff member records on the Case, professional findings included
+/// (operator, 7 October 2026). A recorded value is the Case's value whoever
+/// recorded it, shown with its source tag; there is no per-field review
+/// (operator, 25 September 2026). Only staff put an estimate in use.
 /// </summary>
 [McpServerToolType]
 internal sealed class AssessmentMcpTools(
     IGetCaseAssessment getAssessment,
     ISaveAssessment saveAssessment,
-    ICaseDataQueries caseDataQueries,
-    ISaveCase saveCase,
     ISaveEstimate saveEstimate,
+    IListCaseEstimates caseEstimates,
     IListCaseEstimatesByCursor listEstimates,
+    IDuplicateEstimate duplicateEstimate,
+    IDiscardEstimate discardEstimate,
+    IScaleRepairSpecification scaleEstimate,
+    IRemoveRepairSpecificationScaling removeEstimateScaling,
+    IRestoreRepairSpecificationSnapshot restoreEstimateSnapshot,
+    IRepairSpecificationSnapshotStore estimateSnapshots,
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
@@ -234,25 +264,29 @@ internal sealed class AssessmentMcpTools(
 
     [McpServerTool(
         Name = "pegasus_estimate_save",
-        Title = "Save AI-draft estimate",
+        Title = "Save estimate",
         ReadOnly = false,
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Saves an AI-draft estimate on a case (FRD-10 § AI job and estimate tools): creates a named Draft, or replaces the header and lines of an existing AI-draft estimate when estimateId is supplied. Needs the expected case version like every case mutation (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command), and must cite the Estimate job this client currently holds (aiJobId); the estimate always lands as Draft and never becomes Current here — a staff member does that with Use repair spec. Rates are per hour in pounds; vatPercent is free per estimate and defaults to 20. Line types follow the estimate-line vocabulary (new_part, repair, rnr, paint_*, check_labour, specialist_*); workUnits are labour hours, paintWorkUnits paint hours, price is per unit and multiplied by quantity (default 1).")]
+    [Description("Saves an estimate (repair spec) on a case, as the Case's Repair Spec editor does: creates a named estimate, which lands as an AI draft in Draft, or, with estimateId, edits any live estimate in place (the Current one included; its report goes stale). On an edit, send each kept line's lineId (pegasus_estimate_get) so it keeps its source evidence; header values you omit keep their recorded values. Only a staff member puts an estimate in use (Use repair spec). Citing the Estimate AI job the work fulfils (aiJobId) is optional. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Rates are per hour in pounds. VAT follows the repairer's VAT status: Registered charges VAT on everything, NotRegistered on parts and materials, Unknown (the default) on nothing until the status is known; vatCategories overrides which categories carry VAT. Line types and evidence labels are listed by pegasus_vocabulary_get.")]
     public async Task<EstimateSaveToolResult> SaveEstimateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why the estimate is being recorded (case history reason, at most 500 characters).")] string reason,
-        [Description("The Estimate AI job this draft fulfils; must be taken by this client.")] Guid aiJobId,
         [Description("Estimate name shown on its tab (at most 100 characters).")] string name,
         [Description("The ordered estimate lines; the whole collection is replaced.")] IReadOnlyList<EstimateLineToolInput> lines,
-        [Description("Existing AI-draft estimate to replace; omit to create a new one.")] Guid? estimateId = null,
+        [Description("Existing estimate to edit; omit to create a new one.")] Guid? estimateId = null,
+        [Description("The Estimate AI job this estimate fulfils, if any.")] Guid? aiJobId = null,
         [Description("One hourly rate for both panel and paint labour.")] decimal? labourRate = null,
         [Description("Other costs amount.")] decimal? otherCosts = null,
         [Description("VAT percentage, 0 to 100; defaults to 20.")] decimal? vatPercent = null,
+        [Description("The repairer's VAT status: Registered, NotRegistered or Unknown.")] string? repairerVatStatus = null,
+        [Description("Override of which categories carry VAT: any of Labour, Parts, Materials, Specialist; an empty list charges none.")] IReadOnlyList<string>? vatCategories = null,
+        [Description("Discounts by category, each a fraction of one (0.1 is 10%).")] EstimateDiscountsToolInput? discounts = null,
+        [Description("Whether the regional labour uplift applies.")] bool? regionalUplift = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
@@ -264,12 +298,13 @@ internal sealed class AssessmentMcpTools(
             context,
             "pegasus_estimate_save",
             caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            aiJobId == Guid.Empty ? normalizedKey : aiJobId.ToString("D"),
+            normalizedKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
-                AutomationMcpErrors.RequireId(aiJobId, "AI job identifier");
                 ArgumentNullException.ThrowIfNull(lines);
+                var status = ParseVatStatus(repairerVatStatus);
+                var categories = ParseVatCategories(vatCategories);
 
                 var saved = await leases.RunCaseAsync(
                     caseId,
@@ -277,24 +312,47 @@ internal sealed class AssessmentMcpTools(
                     editLeaseToken,
                     context.Actor,
                     normalizedKey,
-                    token => saveEstimate.ExecuteAsync(
-                        new(
-                            caseId,
-                            expectedVersion,
-                            context.Actor,
-                            normalizedKey,
-                            reason,
-                            token,
-                            estimateId,
+                    async token =>
+                    {
+                        var existing = estimateId is { } id
+                            ? await FindEstimateAsync(caseId, id, cancellationToken)
+                            : null;
+                        var recorded = existing?.Details;
+                        var recordedVat = recorded?.VatPolicy ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown);
+                        return await saveEstimate.ExecuteAsync(
                             new(
-                                name,
-                                labourRate,
-                                otherCosts,
-                                vatPercent ?? EstimatePolicy.DefaultVatPercent),
-                            lines.Select(MapLineInput).ToArray(),
-                            new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
-                            aiJobId),
-                        cancellationToken),
+                                caseId,
+                                expectedVersion,
+                                context.Actor,
+                                normalizedKey,
+                                reason,
+                                token,
+                                estimateId,
+                                new(
+                                    name,
+                                    labourRate ?? recorded?.LabourRate,
+                                    otherCosts ?? recorded?.OtherCosts,
+                                    vatPercent ?? recorded?.VatPercent ?? EstimatePolicy.DefaultVatPercent,
+                                    discounts is { } d
+                                        ? new(d.Parts, d.Materials, d.Specialist, d.Overall)
+                                        : recorded?.Discounts,
+                                    EstimateVatPolicy.Revised(
+                                        recordedVat,
+                                        status ?? recordedVat.RepairerStatus,
+                                        categories ?? recordedVat.Categories),
+                                    recorded?.Rate,
+                                    regionalUplift ?? recorded?.RegionalUplift ?? false),
+                                lines.Select(MapLineInput).ToArray(),
+                                new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
+                                aiJobId,
+                                existing is null && lines.All(line => line.LineId is null)
+                                    ? null
+                                    : lines.Select(line => line.LineId).ToArray())
+                            {
+                                Supplementary = existing?.Supplementary,
+                            },
+                            cancellationToken);
+                    },
                     cancellationToken);
                 var workflow = await workflowQueries.GetAsync(caseId, cancellationToken)
                     ?? throw new McpException("The case was not found.");
@@ -303,7 +361,128 @@ internal sealed class AssessmentMcpTools(
                     workflow.Version,
                     MapEstimate(saved),
                     normalizedKey,
-                    aiJobId.ToString("D"));
+                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+            }),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_estimate_get",
+        Title = "Get case estimate",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Returns one estimate in full: its header (rate, VAT treatment, discounts, uplift), every line with its lineId and evidence, its totals, and the snapshots it can be restored to.")]
+    public async Task<EstimateGetToolResult> GetEstimateAsync(
+        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description("The estimate identifier (pegasus_estimate_list).")] Guid estimateId,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_estimate_get",
+            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            operationKey: null,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                AutomationMcpErrors.RequireId(caseId, "case identifier");
+                AutomationMcpErrors.RequireId(estimateId, "estimate identifier");
+                var estimate = await FindEstimateAsync(caseId, estimateId, cancellationToken);
+                var snapshots = await estimateSnapshots.ListAsync(caseId, estimateId, cancellationToken);
+                return new EstimateGetToolResult(
+                    caseId,
+                    MapEstimate(estimate),
+                    snapshots
+                        .Select(snapshot => new EstimateSnapshotToolItem(
+                            snapshot.Id, snapshot.Number, snapshot.Kind.ToString(),
+                            snapshot.CreatedAtUtc, snapshot.Gross))
+                        .ToArray(),
+                    context.TraceIdentifier);
+            }),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_estimate_act",
+        Title = "Act on case estimate",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Performs one of the Repair Spec acts a member of staff performs on an estimate: duplicate (a new copy; needs a reason), discard (needs a reason; the estimate in use cannot be discarded), scale (scale the estimate to targetPercentOfValue of the Engineer's Value, with optional labour-rate and price floors), remove_scaling, or restore (back to a snapshot from pegasus_estimate_get). Putting an estimate in use stays a staff act. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
+    public async Task<EstimateActToolResult> ActOnEstimateAsync(
+        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("The estimate acted on.")] Guid estimateId,
+        [Description("duplicate, discard, scale, remove_scaling or restore.")] string action,
+        [Description("Why (case history reason); required to duplicate or discard.")] string? reason = null,
+        [Description("scale: the target as a percentage of the Engineer's Value.")] decimal? targetPercentOfValue = null,
+        [Description("scale: the lowest labour rate per hour scaling may reach; defaults to 50.")] decimal? floorLabourRate = null,
+        [Description("scale: the lowest percentage of a price scaling may reach; defaults to 65.")] decimal? floorPricePercent = null,
+        [Description("restore: the snapshot to restore.")] Guid? snapshotId = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_estimate_act",
+            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                AutomationMcpErrors.RequireId(caseId, "case identifier");
+                AutomationMcpErrors.RequireId(estimateId, "estimate identifier");
+                var actor = context.Actor;
+                string Reason() => string.IsNullOrWhiteSpace(reason)
+                    ? throw new McpException("Duplicating or discarding an estimate needs a reason.")
+                    : reason;
+                var result = await leases.RunCaseAsync(
+                    caseId,
+                    expectedVersion,
+                    editLeaseToken,
+                    actor,
+                    key,
+                    token => action?.Trim() switch
+                    {
+                        "duplicate" => duplicateEstimate.ExecuteAsync(
+                            new(caseId, expectedVersion, actor, key, Reason(), token, estimateId),
+                            cancellationToken),
+                        "discard" => discardEstimate.ExecuteAsync(
+                            new(caseId, expectedVersion, actor, key, Reason(), token, estimateId),
+                            cancellationToken),
+                        "scale" => scaleEstimate.ExecuteAsync(
+                            new(caseId, expectedVersion, actor, key, token, estimateId,
+                                targetPercentOfValue
+                                    ?? throw new McpException("Scaling needs targetPercentOfValue."),
+                                new(floorLabourRate ?? ScalingFloors.Default.LabourRatePerHour,
+                                    floorPricePercent ?? ScalingFloors.Default.PricePercent)),
+                            cancellationToken),
+                        "remove_scaling" => removeEstimateScaling.ExecuteAsync(
+                            new(caseId, expectedVersion, actor, key, token, estimateId),
+                            cancellationToken),
+                        "restore" => restoreEstimateSnapshot.ExecuteAsync(
+                            new(caseId, expectedVersion, actor, key, token, estimateId,
+                                snapshotId ?? throw new McpException("Restoring needs snapshotId.")),
+                            cancellationToken),
+                        _ => throw new McpException(
+                            "The action must be duplicate, discard, scale, remove_scaling or restore."),
+                    },
+                    cancellationToken);
+                var workflow = await workflowQueries.GetAsync(caseId, cancellationToken)
+                    ?? throw new McpException("The case was not found.");
+                return new EstimateActToolResult(
+                    caseId,
+                    workflow.Version,
+                    MapEstimate(result),
+                    key,
+                    AutomationMcpAuditor.CorrelationId(context, key));
             }),
             cancellationToken);
     }
@@ -400,7 +579,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records assessment fields that staff can also record on the Case, under the expected case version; present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag until a staff member changes or clears it on the field's Case section. Professional findings, case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
+    [Description("Records assessment fields that staff record on the Case, professional findings included (for example assessment.outcome, assessment.legal_status for roadworthiness, assessment.salvage_category, assessment.values.engineer), under the expected case version; present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command. pegasus_vocabulary_get lists every path with its accepted codes. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag. Case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -460,14 +639,13 @@ internal sealed class AssessmentMcpTools(
     /// <summary>
     /// Refuses a generic automation write of a path with no staff editor on
     /// the Case (FRD-10), the one rule only the Web can answer because it owns
-    /// the editor list. A professional finding, an unknown, case-owned,
-    /// impact-derived or lookup-derived path falls through to Core's
-    /// NormalizeWritableField, which names each.
+    /// the editor list. An unknown, case-owned, impact-derived or
+    /// lookup-derived path falls through to Core's NormalizeWritableField,
+    /// which names each.
     /// </summary>
     internal static void RequireGenericWrite(string path)
     {
-        if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition)
-            || definition.IsFinding
+        if (!AssessmentVocabulary.Definitions.ContainsKey(path)
             || AssessmentVocabulary.DerivedPaths.Contains(path)
             || AssessmentVocabulary.LookupDerivedPaths.Contains(path))
         {
@@ -481,114 +659,63 @@ internal sealed class AssessmentMcpTools(
         }
     }
 
-    [McpServerTool(
-        Name = "pegasus_case_update_details",
-        Title = "Update case details",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Ordinary case-detail editing through the same Core save path as the staff case screen: claimant, claim number, vehicle identity and mileage, accident circumstances, dates, contact, VAT status, and inspection fields. Supplied values are merged over the currently confirmed values; omitted values stay unchanged. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command); the save re-opens completeness review exactly as a staff edit does. Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment' and must be saved together with inspectionAddress.")]
-    public async Task<CaseUpdateDetailsToolResult> UpdateDetailsAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        [Description("Why these details are being corrected (case history reason).")] string reason,
-        [Description("Claimant name.")] string? claimantName = null,
-        [Description("Claim number.")] string? claimNumber = null,
-        [Description("Vehicle registration.")] string? vehicleRegistration = null,
-        [Description("Vehicle make.")] string? vehicleMake = null,
-        [Description("Vehicle model.")] string? vehicleModel = null,
-        [Description("Vehicle mileage (whole number).")] long? vehicleMileage = null,
-        [Description("Vehicle mileage unit, for example miles.")] string? vehicleMileageUnit = null,
-        [Description("Accident circumstances.")] string? accidentCircumstances = null,
-        [Description("Incident date, yyyy-MM-dd.")] string? incidentDate = null,
-        [Description("Contact name.")] string? contactName = null,
-        [Description("Contact email address.")] string? contactEmailAddress = null,
-        [Description("Contact phone number.")] string? contactPhoneNumber = null,
-        [Description("VAT status text.")] string? vatStatus = null,
-        [Description("Inspection date, yyyy-MM-dd; the report prints it as the date the damage was assessed.")] string? inspectionDate = null,
-        [Description("Inspection deadline, yyyy-MM-dd.")] string? inspectionDeadline = null,
-        [Description("Inspection address; must accompany inspectionMode.")] string? inspectionAddress = null,
-        [Description("Inspection mode: physical_address or image_based_assessment.")] string? inspectionMode = null,
-        [Description("Storage location for the vehicle.")] string? storageLocation = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_case_update_details",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
+    /// <summary>
+    /// Why pegasus_assessment_update refuses a vocabulary path, or null when
+    /// it writes it: the vocabulary read names the reason beside the path.
+    /// </summary>
+    internal static string? WriteRefusal(string path) =>
+        AssessmentVocabulary.DerivedPaths.Contains(path)
+            ? "Derived from damage.impacts."
+            : AssessmentVocabulary.LookupDerivedPaths.Contains(path)
+                ? "Filled by the DVLA/DVSA vehicle lookup."
+                : !CaseWorkspaceLabels.Editors.HasStaffEditor(path)
+                    ? "No staff editor on the Case."
+                    : null;
 
-                var current = await caseDataQueries.GetAsync(caseId, CaseWorkSelector.Current, cancellationToken)
-                    ?? throw new McpException("The case was not found.");
-                var merged = new CaseEditableData(
-                    claimantName ?? current.Claimant.Name.Confirmed?.Value,
-                    claimNumber ?? current.Claim.Number.Confirmed?.Value,
-                    vehicleRegistration ?? current.Vehicle.Registration.Confirmed?.Value,
-                    vehicleMake ?? current.Vehicle.Make.Confirmed?.Value,
-                    vehicleModel ?? current.Vehicle.Model.Confirmed?.Value,
-                    vehicleMileage ?? current.Vehicle.Mileage.Confirmed?.Value,
-                    vehicleMileageUnit ?? current.Vehicle.MileageUnit.Confirmed?.Value,
-                    accidentCircumstances ?? current.Accident.Circumstances.Confirmed?.Value,
-                    ParseDate(incidentDate, "incidentDate")
-                        ?? current.Accident.IncidentDate.Confirmed?.Value,
-                    contactName ?? current.Contact.Name.Confirmed?.Value,
-                    contactEmailAddress ?? current.Contact.EmailAddress.Confirmed?.Value,
-                    contactPhoneNumber ?? current.Contact.PhoneNumber.Confirmed?.Value,
-                    vatStatus ?? current.Instruction.VatStatus.Confirmed?.Value,
-                    ParseDate(inspectionDate, "inspectionDate")
-                        ?? current.Inspection.InspectionDate.Confirmed?.Value,
-                    ParseDate(inspectionDeadline, "inspectionDeadline")
-                        ?? current.Inspection.Deadline.Confirmed?.Value,
-                    inspectionAddress ?? current.Inspection.Address.Confirmed?.Value,
-                    ParseInspectionMode(inspectionMode)
-                        ?? current.Inspection.Mode.Confirmed?.Value,
-                    current.Claimant.ContactNumber.Confirmed?.Value,
-                    current.Claimant.Address.Confirmed?.Value,
-                    storageLocation ?? current.Inspection.StorageLocation?.Confirmed?.Value,
-                    ClaimSourceId: current.Workspace?.ClaimSource?.ClaimSourceId,
-                    ClaimSourceVersion: current.Workspace?.ClaimSource?.ClaimSourceVersion,
-                    ClaimSourceName: current.Workspace?.ClaimSource?.Name,
-                    ClaimSourceContactName: current.Workspace?.ClaimSource?.ContactName,
-                    ClaimSourceContactTelephone: current.Workspace?.ClaimSource?.ContactTelephone,
-                    ClaimSourceContactEmailAddress: current.Workspace?.ClaimSource?.ContactEmailAddress,
-                    ClaimSourceOverrideContactName: current.Workspace?.ClaimSource?.OverrideContactName,
-                    ClaimSourceOverrideContactTelephone: current.Workspace?.ClaimSource?.OverrideContactTelephone,
-                    ClaimSourceOverrideContactEmailAddress: current.Workspace?.ClaimSource?.OverrideContactEmailAddress);
-                var saved = await leases.RunCaseAsync(
-                    caseId,
-                    expectedVersion,
-                    editLeaseToken,
-                    context.Actor,
-                    normalizedKey,
-                    token => saveCase.ExecuteAsync(
-                        new(
-                            caseId,
-                            expectedVersion,
-                            context.Actor,
-                            normalizedKey,
-                            reason,
-                            token,
-                            merged),
-                        cancellationToken),
-                    cancellationToken);
-                return new CaseUpdateDetailsToolResult(
-                    saved.Identity.CaseId,
-                    saved.Version,
-                    saved.State.ToString(),
-                    normalizedKey,
-                    normalizedKey);
-            }),
-            cancellationToken);
+    private async Task<RepairSpecificationVersion> FindEstimateAsync(
+        Guid caseId, Guid estimateId, CancellationToken cancellationToken) =>
+        (await caseEstimates.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken))
+            .SingleOrDefault(estimate => estimate.SpecificationId == estimateId)
+            ?? throw new McpException("The estimate was not found on this case.");
+
+    private static RepairerVatStatus? ParseVatStatus(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : Enum.TryParse<RepairerVatStatus>(value.Trim(), ignoreCase: true, out var status)
+                && Enum.IsDefined(status)
+                ? status
+                : throw new McpException("The repairer VAT status must be Registered, NotRegistered or Unknown.");
+
+    private static EstimateVatCategories? ParseVatCategories(IReadOnlyList<string>? values)
+    {
+        if (values is null)
+        {
+            return null;
+        }
+        var categories = EstimateVatCategories.None;
+        foreach (var value in values)
+        {
+            categories |= value?.Trim() switch
+            {
+                nameof(EstimateVatCategories.Labour) => EstimateVatCategories.Labour,
+                nameof(EstimateVatCategories.Parts) => EstimateVatCategories.Parts,
+                nameof(EstimateVatCategories.Materials) => EstimateVatCategories.Materials,
+                nameof(EstimateVatCategories.Specialist) => EstimateVatCategories.Specialist,
+                _ => throw new McpException("A VAT category must be Labour, Parts, Materials or Specialist."),
+            };
+        }
+        return categories;
     }
+
+    private static string[] VatCategoryNames(EstimateVatCategories categories) =>
+        new[]
+        {
+            EstimateVatCategories.Labour, EstimateVatCategories.Parts,
+            EstimateVatCategories.Materials, EstimateVatCategories.Specialist,
+        }
+        .Where(category => (categories & category) == category)
+        .Select(category => category.ToString())
+        .ToArray();
 
     private static AssessmentFieldToolItem MapField(AssessmentFieldValue field) => new(
         field.Path,
@@ -598,6 +725,7 @@ internal sealed class AssessmentMcpTools(
         field.RecordedAtUtc);
 
     private static EstimateLineToolItem MapLine(CaseEstimateLineRecord line) => new(
+        line.Id,
         line.Position,
         line.Type,
         line.GuideCode,
@@ -611,7 +739,9 @@ internal sealed class AssessmentMcpTools(
         line.Justification,
         line.RecordedByKind.ToString(),
         line.PaintWorkUnits,
-        line.Quantity);
+        line.Quantity,
+        line.Materials,
+        line.AmendedBy);
 
     private static EstimateLineInput MapLineInput(EstimateLineToolInput line) => new(
         line.Type,
@@ -644,6 +774,11 @@ internal sealed class AssessmentMcpTools(
             details.RegionalUplift,
             details.OtherCosts,
             details.VatPercent,
+            details.VatPolicy.RepairerStatus.ToString(),
+            VatCategoryNames(details.VatPolicy.Categories),
+            details.VatPolicy.TreatmentPending,
+            new(details.AppliedDiscounts.Parts, details.AppliedDiscounts.Materials,
+                details.AppliedDiscounts.Specialist, details.AppliedDiscounts.Overall),
             estimate.Lines.Select(MapLine).ToArray(),
             new(
                 totals.Printed.Parts,
@@ -687,31 +822,4 @@ internal sealed class AssessmentMcpTools(
         item.WhyOutstanding,
         item.HowToResolve);
 
-    private static DateOnly? ParseDate(string? value, string name)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        return DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", out var parsed)
-            ? parsed
-            : throw new McpException($"The {name} value must be a yyyy-MM-dd date.");
-    }
-
-    private static CaseInspectionMode? ParseInspectionMode(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        return value.Trim() switch
-        {
-            "physical_address" => CaseInspectionMode.PhysicalAddress,
-            "image_based_assessment" => CaseInspectionMode.ImageBasedAssessment,
-            _ => throw new McpException(
-                "The inspection mode must be physical_address or image_based_assessment.")
-        };
-    }
 }

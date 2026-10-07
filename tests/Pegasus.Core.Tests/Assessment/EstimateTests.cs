@@ -109,18 +109,23 @@ public sealed class EstimateTests
     }
 
     /// <summary>
-    /// The editor offers one Specialist operation, which lands as a fixed
-    /// price. A stored Specialist line it leaves Specialist keeps its own
-    /// kind, so hours priced by work units stay priced; a changed operation
-    /// is the editor's.
+    /// The Case editor offers one Specialist and one Paint operation, which
+    /// land as their default types. A stored line it leaves on the same
+    /// operation keeps its own kind: Specialist hours priced by work units
+    /// stay priced, and a paint line keeps its level. An edit naming a finer
+    /// type than the default is that type; a changed operation is the editor's.
     /// </summary>
     [Theory]
     [InlineData("specialist_fixed", "specialist_wu", "specialist_wu")]
     [InlineData("specialist_fixed", "specialist_fixed", "specialist_fixed")]
     [InlineData("check_labour", "specialist_wu", "check_labour")]
     [InlineData("specialist_fixed", "check_labour", "specialist_fixed")]
-    [InlineData("paint_repair", "paint_new", "paint_repair")]
-    public void AnEditedSpecialistLineKeepsItsStoredKind(string edited, string stored, string expected) =>
+    [InlineData("paint_repair", "paint_new", "paint_new")]
+    [InlineData("paint_repair", "paint_prep", "paint_prep")]
+    [InlineData("paint_new", "paint_repair", "paint_new")]
+    [InlineData("paint_prep", "paint_new", "paint_prep")]
+    [InlineData("paint_blend", "paint_new", "paint_blend")]
+    public void AnEditedLineOnItsStoredOperationKeepsItsStoredKind(string edited, string stored, string expected) =>
         Assert.Equal(expected, EstimateOperations.Carry(edited, stored));
 
     /// <summary>
@@ -252,42 +257,98 @@ public sealed class EstimateTests
         Assert.Equal(RepairSpecificationSourceRoute.Manual, validated.Source.Route);
     }
 
+    /// <summary>
+    /// Changing an estimate is casework the Automation actor performs as staff
+    /// do (operator, 7 October 2026); what it types in is an AI draft, and
+    /// citing a job is optional. The system worker holds no casework right.
+    /// </summary>
     [Fact]
-    public void TheAutomationActorMayOnlySaveAiDraftsThatCiteAJob()
+    public void TheAutomationActorSavesAiDraftsWithOrWithoutAJob()
     {
         Assert.Throws<InvalidOperationException>(() =>
             EstimatePolicy.ValidateSave(SaveRequest(Client, RepairSpecificationSourceRoute.Manual, jobId: Guid.NewGuid())));
-        Assert.Throws<InvalidOperationException>(() =>
-            EstimatePolicy.ValidateSave(SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft, jobId: null)));
-        var validated = EstimatePolicy.ValidateSave(
+        var unCited = EstimatePolicy.ValidateSave(
+            SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft, jobId: null));
+        Assert.Equal(RepairSpecificationSourceRoute.AiDraft, unCited.Source.Route);
+        Assert.Null(unCited.AiJobId);
+        var cited = EstimatePolicy.ValidateSave(
             SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft, jobId: Guid.NewGuid()));
-        Assert.Equal(RepairSpecificationSourceRoute.AiDraft, validated.Source.Route);
+        Assert.Equal(RepairSpecificationSourceRoute.AiDraft, cited.Source.Route);
+
+        Assert.Throws<StaffAuthorizationException>(() =>
+            EstimatePolicy.ValidateSave(
+                SaveRequest(ActionActor.SystemWorker("worker"), RepairSpecificationSourceRoute.Manual)));
     }
 
     [Fact]
-    public async Task SaveRefusesAJobThatIsNotAnEstimateJobOnThisCaseHeldByTheClient()
+    public void TheEditorRouteIsAnAiDraftForTheAutomationActorAndManualForStaff()
+    {
+        Assert.Equal(RepairSpecificationSourceRoute.AiDraft, RepairSpecificationPolicy.EditorRoute(Client));
+        Assert.Equal(RepairSpecificationSourceRoute.Manual, RepairSpecificationPolicy.EditorRoute(Engineer));
+        Assert.Equal(RepairSpecificationSourceRoute.Manual, RepairSpecificationPolicy.EditorRoute(User));
+    }
+
+    /// <summary>
+    /// The Automation actor edits a staff estimate's lines by identity as
+    /// staff do: the editor's line identities are not a staff-only route.
+    /// </summary>
+    [Fact]
+    public void TheAutomationActorEditsAnEstimatesLinesByIdentity()
+    {
+        var sourceLine = Line("repair", workUnits: 2m);
+        var existing = Estimate(Details(), sourceLine);
+        var submitted = SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft) with
+        {
+            EstimateId = existing.SpecificationId, ExistingLineIds = [sourceLine.Id],
+            Lines = [LineInput("repair") with { WorkUnits = 3m }],
+        };
+
+        var resolved = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted), existing, Now.AddMinutes(1));
+
+        Assert.Equal(3m, resolved.Lines[0].WorkUnits);
+        Assert.Equal(Client.SubjectId, resolved.Lines[0].AmendedBy);
+        // The estimate keeps its own route: a staff estimate stays Manual.
+        Assert.Equal(RepairSpecificationSourceRoute.Manual, resolved.Source.Route);
+    }
+
+    /// <summary>
+    /// A cited job must be an Estimate job on this case; who holds it, and in
+    /// which state, no longer matters (operator, 7 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task SaveRefusesAJobThatIsNotAnEstimateJobOnThisCase()
     {
         var jobs = new FakeJobStore();
         var store = new FakeSpecificationStore();
-        var save = new SaveEstimate(store, jobs, new FixedClock());
+        var save = new SaveEstimate(store, jobs);
 
         var wrongKind = jobs.Add(Job(AiJobKind.UnidentifiedResolution, CaseId, AiJobState.Taken, Client.SubjectId));
         var wrongCase = jobs.Add(Job(AiJobKind.Estimate, Guid.NewGuid(), AiJobState.Taken, Client.SubjectId));
-        var otherClient = jobs.Add(Job(AiJobKind.Estimate, CaseId, AiJobState.Taken, "other-client"));
-        var lapsed = jobs.Add(Job(AiJobKind.Estimate, CaseId, AiJobState.Taken, Client.SubjectId, Now - TimeSpan.FromMinutes(1)));
-        var held = jobs.Add(Job(AiJobKind.Estimate, CaseId, AiJobState.Taken, Client.SubjectId));
 
-        foreach (var refused in new[] { Guid.NewGuid(), wrongKind, wrongCase, otherClient, lapsed })
+        foreach (var refused in new[] { Guid.NewGuid(), wrongKind, wrongCase })
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 save.ExecuteAsync(SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft, refused), CancellationToken.None));
         }
         Assert.Empty(store.Saved);
 
-        var saved = await save.ExecuteAsync(
-            SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft, held), CancellationToken.None);
-        Assert.Equal(held, saved.AiJobId);
-        Assert.Single(store.Saved);
+        var otherClient = jobs.Add(Job(AiJobKind.Estimate, CaseId, AiJobState.Taken, "other-client"));
+        var lapsed = jobs.Add(Job(AiJobKind.Estimate, CaseId, AiJobState.Taken, Client.SubjectId, Now - TimeSpan.FromMinutes(1)));
+        var completed = jobs.Add(Job(AiJobKind.Estimate, CaseId, AiJobState.Completed, Client.SubjectId));
+        var held = jobs.Add(Job(AiJobKind.Estimate, CaseId, AiJobState.Taken, Client.SubjectId));
+        foreach (var accepted in new[] { otherClient, lapsed, completed, held })
+        {
+            var saved = await save.ExecuteAsync(
+                SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft, accepted), CancellationToken.None);
+            Assert.Equal(accepted, saved.AiJobId);
+        }
+        Assert.Equal(4, store.Saved.Count);
+
+        // No job at all is a save too.
+        var unCited = await save.ExecuteAsync(
+            SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft), CancellationToken.None);
+        Assert.Null(unCited.AiJobId);
     }
 
     [Fact]
@@ -295,7 +356,7 @@ public sealed class EstimateTests
     {
         var jobs = new FakeJobStore();
         var completed = jobs.Add(Job(AiJobKind.Estimate, CaseId, AiJobState.Completed, Client.SubjectId));
-        var save = new SaveEstimate(new FakeSpecificationStore(), jobs, new FixedClock());
+        var save = new SaveEstimate(new FakeSpecificationStore(), jobs);
 
         var saved = await save.ExecuteAsync(
             SaveRequest(Engineer, RepairSpecificationSourceRoute.AiDraft, completed), CancellationToken.None);
@@ -303,22 +364,74 @@ public sealed class EstimateTests
         Assert.Equal(completed, saved.AiJobId);
     }
 
+    /// <summary>
+    /// Every live estimate is editable, whoever edits it: a Manual estimate,
+    /// an AI draft and the spec in use alike (operator, 25 September and 7
+    /// October 2026). Only a discarded estimate is refused.
+    /// </summary>
     [Fact]
-    public void EveryLiveEstimateIsEditableAndTheAutomationOnlyEditsAnAiDraftNotInUse()
+    public void EveryLiveEstimateIsEditableAndADiscardedOneIsNot()
     {
         var manual = Estimate(Details(), Line("repair", workUnits: 1m));
-        var current = manual with { IsCurrent = true };
-        EstimatePolicy.ValidateEditable(manual, Engineer);
-        // The spec in use stays editable in place (operator, 25 September 2026).
-        EstimatePolicy.ValidateEditable(current, Engineer);
+        var aiDraft = manual with { Source = new(RepairSpecificationSourceRoute.AiDraft, null, null, null) };
+        EstimatePolicy.ValidateEditable(manual);
+        EstimatePolicy.ValidateEditable(manual with { IsCurrent = true });
+        EstimatePolicy.ValidateEditable(aiDraft);
+        EstimatePolicy.ValidateEditable(aiDraft with { IsCurrent = true });
 
         var discarded = manual with { State = RepairSpecificationState.Discarded };
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(discarded, Engineer));
+        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(discarded));
+    }
 
-        var aiDraft = manual with { Source = new(RepairSpecificationSourceRoute.AiDraft, null, null, null) };
-        EstimatePolicy.ValidateEditable(aiDraft, Client);
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(manual, Client));
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(aiDraft with { IsCurrent = true }, Client));
+    /// <summary>
+    /// A line's evidence label, justification, guide code and betterment are
+    /// the save's own where it supplies them, and the stored line's where it
+    /// does not; a To be confirmed line the save prices is priced.
+    /// </summary>
+    [Fact]
+    public void AnEditedLineCarriesItsStoredEvidenceUnlessTheSaveSuppliesItsOwn()
+    {
+        var stored = Line("new_part") with
+        {
+            GuideCode = "G-1", Betterment = "10%", EvidenceLabel = "case",
+            Justification = "Repairer estimate p2", Unpriced = true,
+        };
+        var existing = Estimate(Details(), stored);
+        var kept = EstimatePolicy.ApplyEditorEvidence(
+            SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft) with
+            {
+                EstimateId = existing.SpecificationId, ExistingLineIds = [stored.Id],
+                Lines = [LineInput("new_part")],
+            },
+            existing,
+            Now.AddMinutes(1)).Lines[0];
+        Assert.Equal("G-1", kept.GuideCode);
+        Assert.Equal("10%", kept.Betterment);
+        Assert.Equal("case", kept.EvidenceLabel);
+        Assert.Equal("Repairer estimate p2", kept.Justification);
+        Assert.True(kept.Unpriced);
+
+        var supplied = EstimatePolicy.ApplyEditorEvidence(
+            SaveRequest(Client, RepairSpecificationSourceRoute.AiDraft) with
+            {
+                EstimateId = existing.SpecificationId, ExistingLineIds = [stored.Id],
+                Lines =
+                [
+                    LineInput("new_part") with
+                    {
+                        Price = 85m, GuideCode = "G-2", Betterment = "20%",
+                        EvidenceLabel = "official", Justification = "Dealer price list",
+                    },
+                ],
+            },
+            existing,
+            Now.AddMinutes(1)).Lines[0];
+        Assert.Equal("G-2", supplied.GuideCode);
+        Assert.Equal("20%", supplied.Betterment);
+        Assert.Equal("official", supplied.EvidenceLabel);
+        Assert.Equal("Dealer price list", supplied.Justification);
+        Assert.Equal(85m, supplied.Price);
+        Assert.False(supplied.Unpriced);
     }
 
     [Fact]
@@ -363,9 +476,11 @@ public sealed class EstimateTests
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public async Task EveryStaffRoleMayDuplicateAndDiscardAnEstimate(StaffRole role)
+    [InlineData(null)]
+    public async Task EveryCaseworkActorMayDuplicateAndDiscardAnEstimate(StaffRole? role)
     {
-        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+        // A null role is the Automation actor (operator, 7 October 2026).
+        var actor = role is { } staffRole ? ActionActor.Staff(Guid.NewGuid(), [staffRole]) : Client;
         var store = new FakeSpecificationStore();
         var estimateId = Guid.NewGuid();
 

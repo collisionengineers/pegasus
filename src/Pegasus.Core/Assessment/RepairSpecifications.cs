@@ -61,14 +61,33 @@ public static class RepairSpecificationPolicy
     /// </summary>
     public const int PolicyVersion = 4;
 
+    /// <summary>
+    /// The two repair-specification acts that stay staff's alone (operator,
+    /// 7 October 2026): putting an estimate in use (Use repair spec) and a
+    /// Glass's session, which runs under the member of staff's own Glass's
+    /// account. Every other estimate change is casework the Automation actor
+    /// performs as staff do.
+    /// </summary>
     public static void RequireStaffAuthor(ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
         if (actor.Kind != ActorKind.Staff)
         {
             throw new InvalidOperationException(
-                "Only authenticated staff can change a repair specification.");
+                "Only authenticated staff can put a repair specification in use or run a Glass's session.");
         }
+    }
+
+    /// <summary>
+    /// The route an estimate typed into the editor lands on: Manual for
+    /// staff, an AI draft for the Automation actor.
+    /// </summary>
+    public static RepairSpecificationSourceRoute EditorRoute(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.Kind == ActorKind.Automation
+            ? RepairSpecificationSourceRoute.AiDraft
+            : RepairSpecificationSourceRoute.Manual;
     }
 
     /// <summary>

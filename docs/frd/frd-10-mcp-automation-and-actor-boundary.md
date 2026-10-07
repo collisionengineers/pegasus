@@ -16,8 +16,10 @@
   There are no public links.
 - A write presented without a lease token holds the record's edit lease for
   that one command. The explicit lease tools remain for multi-step work.
-- The Actor can work Unidentified items, Triage Cases, AI jobs and estimates. It
-  cannot send mail on its own or touch Glass's credentials.
+- The Actor does the casework a staff member does: Unidentified items, Triage
+  Cases, Case details and notes, findings, valuation, estimates and AI jobs.
+  It never puts an estimate in use, never runs a Glass's session and never
+  touches Glass's credentials. Sending mail is not yet delivered.
 - A tool counts as delivered only after a real caller has proved success,
   authorisation failure, validation failure and history.
 
@@ -38,6 +40,15 @@ The Actor calls only its approved list of ordinary Core actions, with its own
 authentication, identity and permanent history. It has no Administrator,
 configuration, credential, cloud, release, deletion or other management
 authority.
+
+**Casework parity.** Within casework the Actor may do anything a staff member
+with `PerformCasework` can, with two exceptions: it never puts an estimate in
+use (**Use repair spec**), and it never runs a Glass's session, which signs in
+with the staff member's own Glass's account (operator, 7 October 2026;
+[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). The
+`Manage*` rights stay with staff Administrators. Case lifecycle, report and
+document, queue and job, and outward-sending tools are later deliveries;
+until each lands, those acts stay with staff.
 
 **Grants.** Each connector grant has its own durable identity. History keeps
 the grant identity, the shared client ID and the human approver separately.
@@ -93,31 +104,62 @@ editor holds the record, or the version is stale, the claim is refused and
 nothing is written (operator, 1 October 2026). `pegasus_edit_begin`,
 `pegasus_edit_renew` and `pegasus_edit_end` hold a Case or a Triage Case for
 multi-step work, named by `recordKind`, under that record's own scope
-([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)).
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). With `takeOver`,
+`pegasus_edit_begin` takes over a lease a staff member holds, as a staff
+**Take over** does, and the takeover goes into the record's history. Staff
+cannot take over an Automation lease; it lapses within five minutes. An
+Automation lease that lapsed, with nobody claiming the record since, carries
+on with the same token, as a staff lease does (operator, 7 October 2026).
 
-**Assessment writes.** `pegasus_assessment_update` writes only non-finding
-assessment fields a staff member records, and so can change or clear, on the
-Case: the fields a Case section's editor posts and those a section writes
-through its own typed member (damage entries, mileage source, storage per
-day, recovery charge and report date). Any other field is refused and named,
-so every Automation value is one staff can change or clear on its section
-(operator, 24 September 2026). A value it writes is the Case's value, shown
-with its AI source tag until staff change it; there is no per-field review
-(operator, 25 September 2026). Professional
-findings (including the Engineer's Value and its retail and
-trade), Case-owned facts, fields derived from damage entries and the facts
-the DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry)
-are refused. Case facts, including the Inspection date the report prints as
-the date the damage was assessed, change through
-`pegasus_case_update_details`, and `pegasus_assessment_get` returns them
-under `caseOwned`. The Case's Received date, which is its instruction date,
-is read-only: `caseOwned.receivedDate` and the Case summary's
-`receivedAtUtc` carry it, and no tool accepts an instruction date.
+**Assessment writes.** <a id="assessment-writes"></a>
+`pegasus_assessment_update` writes the assessment fields a staff member
+records, and so can change or clear, on the Case: the fields a Case section's
+editor posts and those a section writes through its own typed member (damage
+entries, mileage source, storage per day, recovery charge and report date).
+Professional findings are among them (operator, 7 October 2026): the
+outcome, roadworthiness (`assessment.legal_status`), the unroadworthy reason,
+the salvage category and value, and the Retail, Trade and Engineer's values
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction)).
+As on the Case, a positive agreed contract sum makes the outcome a contract
+repair. Any other field is refused and named, so every Automation value is
+one staff can change or clear on its section (operator, 24 September 2026).
+A value it writes is the Case's value, shown with its AI source tag until
+staff change it; there is no per-field review (operator, 25 September 2026).
+A system fill never overwrites it, as it never overwrites a staff value.
+Case-owned facts, fields derived from damage entries and the facts the
+DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry) are
+refused. `pegasus_vocabulary_get` lists every assessment field path with its
+type, accepted codes, staff label and whether the tool may write it, with the
+estimate line types and evidence labels, the repairer VAT statuses and VAT
+categories, and the valuation sources.
+
+**Valuation.** `pegasus_valuation_list` returns the Case's valuation cards:
+each guide card, the Engineer's Value card and any AI market research card.
+`pegasus_valuation_save` records guide cards and, optionally, adopts the
+valuation calculation against a basis card, as the Valuation section's Save
+does; a card for the same source and guide month replaces the earlier one.
+
+**Case details and notes.** Case facts, including the Inspection date the
+report prints as the date the damage was assessed, change through
+`pegasus_case_update_details`, which calls the staff Case save. An omitted
+value is unchanged, an empty string clears a text or date value, and a value
+the call does not name never changes. It edits the claimant, claim, contact,
+accident, VAT status and repairer; the Principal, Claim source and Client
+notes; the due by date and the Claim source contact; the vehicle's identity,
+year and mileage; the inspection; and the Sign-off Engineer.
+`pegasus_assessment_get` returns Case facts under `caseOwned`. The Case's
+Received date, which is its instruction date, is read-only:
+`caseOwned.receivedDate` and the Case summary's `receivedAtUtc` carry it, and
+no tool accepts an instruction date. `pegasus_case_note_add` adds an
+append-only note to the Case timeline, attributed to the Actor, as staff add
+one; it changes no Case value and needs no version or lease.
+
 Estimates go through the named estimate tools, with the same actor, lease,
 version and replay checks as the Case UI
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Unidentified reason
 codes on the wire are the Core list under `unidentified`. The tool list has
-no autonomous Send and never exposes Glass's credentials or sessions.
+no Send yet: outward sending is a later delivery. It never exposes Glass's
+credentials or runs a Glass's session.
 
 **Network-drive scanning.** An externally scheduled client may scan an
 approved network-drive scope and submit immutable source occurrences through
@@ -180,8 +222,10 @@ stopped automation client is refused before any tool runs.
 | `pegasus_ai_job_create` | `automation.jobs` | Create an Unidentified-queue pass job, the only kind an external scheduler may start |
 | `pegasus_ai_job_transition` | `automation.jobs` | One tool with an `action`: Take claims a queued job under a bounded lease held by the client's name (refused when the job is not queued or the kill switch is on); Progress renews the lease and records a short note (refused after cancellation, lease expiry or while the kill switch is on); Complete marks a non-MarketResearch job `Draft ready`, naming its result kind; Fail marks it `Failed` with a reason; Release returns a taken job to `Queued` before the lease ends |
 | `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document and one AI market research card and mark the client's MarketResearch job `Draft ready`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or completed Case (operator, 28 September 2026) |
-| `pegasus_estimate_save` | `automation.assessment` | Save an AI-draft estimate on a Case; must cite the Estimate job it fulfils and always lands as `Draft` |
+| `pegasus_estimate_save` | `automation.assessment` | Create an estimate on a Case, which lands as an AI-draft `Draft`, or edit any live estimate in place, the Current one included; citing the Estimate job it fulfils is optional |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
+| `pegasus_estimate_get` | `automation.assessment` | One estimate in full: its header, every line with its `lineId` and evidence, its totals and the snapshots it can be restored to |
+| `pegasus_estimate_act` | `automation.assessment` | One Repair Spec act with an `action`: duplicate or discard (each with a reason; the estimate in use cannot be discarded), scale to a percentage of the Engineer's Value, remove_scaling, or restore a snapshot |
 | `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through the canonical Core command using its name, Case and document occurrence/version identities, SHA-256, typed actor, expected Case version, edit lease and operation key; return the estimate identity or the same structured refusal as the Case caller |
 
 `pegasus_estimate_import` and **Import estimate** on the Repair Spec section
@@ -192,22 +236,43 @@ route. Even a source-hash replay needs the current actor, version and lease
 authority and the exact retained source tuple. An unsupported estimate
 document is refused without OCR or partial rows. A staff Import on the Case
 is the Current repair spec at once; the MCP import runs as the Automation
-actor, so it stays a Draft with no AI job reference and cannot become Current
-through MCP. These contracts do not prove live provider acceptance.
+actor, so it stays a Draft until a staff member uses it. These contracts do
+not prove live provider acceptance.
+
+**Estimate saves.** `pegasus_estimate_save` saves through the same Core
+command as the Case's Repair Spec editor (operator, 7 October 2026). A new
+estimate lands as an AI-draft `Draft`. An edit changes any live estimate in
+place; editing the Current one makes a generated report stale. Each kept line
+sends its `lineId` so it keeps its source evidence. The header carries the
+labour rates, the repairer's VAT status, the VAT categories, discounts and
+regional uplift; a header value the call omits keeps its recorded value. An
+`Unknown` VAT status, the default, charges no VAT until the status is known.
+A line marked To be confirmed that carries a price is saved priced: the
+price wins, as on the Case page. Each line carries one evidence label, and
+its source text goes in its justification:
+
+| Label | Meaning |
+| --- | --- |
+| `official` | Manufacturer or official repair or price data |
+| `reference` | A published reference or guide (Glass's or Audatex times, ABP) |
+| `case` | Evidence on this Case: photographs, documents, the repairer's estimate |
+| `judgement` | The assessor's professional judgement |
+
+Only a staff member puts an estimate in use, with **Use repair spec**; no tool
+makes an estimate Current. An AI job is how an external client picks up
+work, not the authority to save, so citing one is optional.
 
 **Scopes.** `automation.jobs` is its own scope with a consent description on
 the Administrator consent page; a token without it cannot see the ledger. The
 estimate tools stay under `automation.assessment` because they write
-assessment values. `pegasus_estimate_save` takes AI drafts only: an estimate
-without a job reference, or naming a job not taken by the calling client, is
-refused. `pegasus_estimate_import` names a retained PDF, XML or JSON file for
-shared extraction and needs no AI job reference. Every scope has a consent
+assessment values. `pegasus_estimate_import` names a retained PDF, XML or
+JSON file for shared extraction. Every scope has a consent
 description on the Administrator consent page. Every tool is proven under the
 tranche rule above.
 
 ### Tool inventory
 
-The Actor's whole inventory, 36 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 42 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -216,8 +281,10 @@ its one command when none is given.
 | --- | --- | --- | --- |
 | `automation.cases` | `pegasus_case_search` | Search Cases by text, reference, registration, claimant, claim number, Principal, state; cursor page | none |
 | `automation.cases` | `pegasus_case_get` | One Case with its paged documents (occurrence and version ids for download) and history | none |
-| `automation.cases` | `pegasus_case_update_details` | Ordinary Case-detail edit through the staff save path | one-command lease |
-| `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work | explicit lease |
+| `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
+| `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
+| `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources | none |
+| `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` takes a lease a staff member holds | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
 | `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |
 | `automation.intake` | `pegasus_unidentified_list`, `pegasus_unidentified_get` | The open Unidentified queue; one item by U-reference with its sources and history | none |
@@ -229,8 +296,8 @@ its one command when none is given.
 | `automation.intake` | `pegasus_triage_case_link` | Link or unlink the Triage and an instruction Case; both records' versions and leases | one-command lease on each record |
 | `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced | one-command lease |
 | `automation.documents` | `pegasus_document_download` | One exact document version as native content | none |
-| `automation.assessment` | `pegasus_assessment_get`, `pegasus_estimate_list` | The recorded assessment surface; a Case's estimate headers | none |
-| `automation.assessment` | `pegasus_assessment_update`, `pegasus_estimate_save`, `pegasus_estimate_import` | Assessment writes above | one-command lease |
+| `automation.assessment` | `pegasus_assessment_get`, `pegasus_estimate_list`, `pegasus_estimate_get`, `pegasus_valuation_list` | The recorded assessment surface; a Case's estimate headers; one estimate in full; the valuation cards | none |
+| `automation.assessment` | `pegasus_assessment_update`, `pegasus_valuation_save`, `pegasus_estimate_save`, `pegasus_estimate_act`, `pegasus_estimate_import` | The assessment, valuation and estimate writes above | one-command lease |
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification through the staff command | version and key |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
@@ -254,9 +321,11 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
   editor holds the record or the version is stale, exactly as its claim would
   be.
 - A stopped automation client is refused by the kill switch.
-- A generic assessment update that names a finding, a Case-owned or derived
-  field, or a field no Case section records is refused, naming the field, and
-  writes nothing.
+- A generic assessment update that names a Case-owned or derived field, a
+  fact only the vehicle lookup records, or a field no Case section records is
+  refused, naming the field, and writes nothing.
+- No tool puts an estimate in use or runs a Glass's session.
+- Staff cannot take over an Automation lease; it lapses within five minutes.
 - Missing production signing or encryption keys fail closed.
 
 ## Acceptance evidence
@@ -281,4 +350,5 @@ acceptance are separate evidence tiers
   [ADR-0011](../adr/0011-restrict-mcp-to-automation-actor.md),
   [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md),
   [ADR-0035](../adr/0035-ai-job-ledger.md),
-  [ADR-0059](../adr/0059-native-mcp-file-content-and-consolidated-tool-inventory.md).
+  [ADR-0059](../adr/0059-native-mcp-file-content-and-consolidated-tool-inventory.md),
+  [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md).

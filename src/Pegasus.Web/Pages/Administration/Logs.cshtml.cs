@@ -449,11 +449,16 @@ public sealed class LogsModel(
             or "pegasus_edit_renew"
             or "pegasus_edit_end"
             or "pegasus_case_update_details"
+            or "pegasus_case_note_add"
+            or "pegasus_valuation_list"
+            or "pegasus_valuation_save"
             or "pegasus_document_add"
             or "pegasus_document_download"
             or "pegasus_estimate_import"
             or "pegasus_estimate_save"
             or "pegasus_estimate_list"
+            or "pegasus_estimate_get"
+            or "pegasus_estimate_act"
             or "pegasus_assessment_get"
             or "pegasus_assessment_update";
 

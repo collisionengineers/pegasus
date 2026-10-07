@@ -208,16 +208,22 @@ public static class EstimateOperations
     };
 
     /// <summary>
-    /// The line type an edited line keeps. No editor offers a choice finer
-    /// than <see cref="EstimateOperation"/>, so a stored Specialist line the
-    /// editor leaves Specialist keeps its own kind — by work units or at a
-    /// fixed price — which decides whether its hours are priced.
+    /// The line type an edited line keeps. The Case editor offers no choice
+    /// finer than <see cref="EstimateOperation"/>, so a stored line it leaves
+    /// on the same operation keeps its own kind: a Specialist line by work
+    /// units or at a fixed price, which decides whether its hours are priced,
+    /// and a paint line's level (new part, repair, preparation). An edit that
+    /// names a finer type than the operation's default is that type.
     /// </summary>
-    public static string Carry(string editedType, string storedType) =>
-        FromLineType(editedType) == EstimateOperation.Specialist
-            && FromLineType(storedType) == EstimateOperation.Specialist
+    public static string Carry(string editedType, string storedType)
+    {
+        var operation = FromLineType(editedType);
+        return operation == FromLineType(storedType)
+            && (operation == EstimateOperation.Specialist
+                || string.Equals(editedType, ToLineType(operation), StringComparison.Ordinal))
                 ? storedType
                 : editedType;
+    }
 
     public static bool TryParse(string? value, out EstimateOperation operation)
     {
@@ -511,11 +517,12 @@ public sealed record EstimateTotals(
 }
 
 /// <summary>
-/// Validation and actor rules for named estimates. Staff work is a staff
-/// authenticated-staff act (<see cref="RepairSpecificationPolicy.RequireStaffAuthor"/>);
-/// the Automation actor may only create or update <c>AiDraft</c> estimates
-/// that cite the Estimate job they fulfil (FRD-10 § AI job and estimate
-/// tools). Every live estimate, the Current one included, is edited in place.
+/// Validation and actor rules for named estimates. Changing an estimate is
+/// casework, for staff and the Automation actor alike (operator, 7 October
+/// 2026); an estimate the Automation actor creates is an <c>AiDraft</c>, and
+/// may cite the Estimate job it fulfils. Only staff put an estimate in use
+/// (<see cref="RepairSpecificationPolicy.RequireStaffAuthor"/>). Every live
+/// estimate, the Current one included, is edited in place.
 /// </summary>
 public static class EstimatePolicy
 {
@@ -526,6 +533,9 @@ public static class EstimatePolicy
     /// <summary>
     /// The editor posts stable line identities, not a copy of hidden source
     /// evidence. Resolve that evidence only after the operation replay check.
+    /// A line's guide code, betterment, evidence label and justification are
+    /// carried unless the save supplies its own; its source provenance always
+    /// is.
     /// </summary>
     public static SaveEstimateRequest ApplyEditorEvidence(
         SaveEstimateRequest request, RepairSpecificationVersion? existing, DateTimeOffset savedAtUtc)
@@ -550,11 +560,12 @@ public static class EstimatePolicy
             var carried = line with
             {
                 Type = EstimateOperations.Carry(line.Type, previous.Type),
-                GuideCode = previous.GuideCode,
-                Unpriced = previous.Unpriced && line.Price is null,
-                Betterment = previous.Betterment,
-                EvidenceLabel = previous.EvidenceLabel,
-                Justification = previous.Justification,
+                GuideCode = line.GuideCode ?? previous.GuideCode,
+                // The line normalizer clears To be confirmed on a priced line.
+                Unpriced = previous.Unpriced || line.Unpriced,
+                Betterment = line.Betterment ?? previous.Betterment,
+                EvidenceLabel = line.EvidenceLabel ?? previous.EvidenceLabel,
+                Justification = line.Justification ?? previous.Justification,
                 Origin = previous.Origin,
                 SourceDocumentIdentity = previous.SourceDocumentIdentity,
                 SourceDocumentVersionId = previous.SourceDocumentVersionId,
@@ -707,8 +718,8 @@ public static class EstimatePolicy
 
     /// <summary>
     /// The eight values an operator can change on a line. The operation is
-    /// compared in the editor's vocabulary, because no editor offers a finer
-    /// choice than <see cref="EstimateOperation"/>: an imported
+    /// compared in the editor's vocabulary, because the Case editor offers no
+    /// finer choice than <see cref="EstimateOperation"/>: an imported
     /// <c>paint_new</c> line the operator never touched comes back as
     /// <c>paint_repair</c>, and that is not an amendment.
     /// </summary>
@@ -839,7 +850,6 @@ public static class EstimatePolicy
         ArgumentNullException.ThrowIfNull(request.Lines);
         if (request.ExistingLineIds is { } identities)
         {
-            RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
             var suppliedIds = identities.OfType<Guid>().ToArray();
             if (identities.Count != request.Lines.Count || suppliedIds.Contains(Guid.Empty)
                 || suppliedIds.Distinct().Count() != suppliedIds.Length
@@ -853,19 +863,12 @@ public static class EstimatePolicy
             throw new ArgumentException("An identifier cannot be empty when supplied.", nameof(request));
         }
         var source = RepairSpecificationPolicy.ValidateSource(request.Source);
-        switch (request.Actor.Kind)
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        if (request.Actor.Kind == ActorKind.Automation
+            && source.Route != RepairSpecificationSourceRoute.AiDraft)
         {
-            case ActorKind.Automation when source.Route != RepairSpecificationSourceRoute.AiDraft:
-                throw new InvalidOperationException(
-                    "The Automation actor can only save AI-draft estimates.");
-            case ActorKind.Automation when request.AiJobId is null:
-                throw new InvalidOperationException(
-                    "An AI-draft estimate must cite the Estimate job it fulfils.");
-            case ActorKind.Automation:
-                break;
-            default:
-                RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
-                break;
+            throw new InvalidOperationException(
+                "An estimate the Automation actor types in is an AI draft.");
         }
         return request with
         {
@@ -875,14 +878,8 @@ public static class EstimatePolicy
         };
     }
 
-    public static void RequireImportActor(ActionActor actor)
-    {
+    public static void RequireImportActor(ActionActor actor) =>
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (actor.Kind != ActorKind.Automation)
-        {
-            RepairSpecificationPolicy.RequireStaffAuthor(actor);
-        }
-    }
 
     /// <summary>
     /// A document import is not an AI-draft save; it creates one new
@@ -935,12 +932,11 @@ public static class EstimatePolicy
     }
 
     /// <summary>
-    /// The job an AI draft cites must be an Estimate job on this case that
-    /// the saving client currently holds (Taken under an unexpired lease).
-    /// A staff Engineer editing an AI draft keeps its job reference; the
-    /// job then only has to be an Estimate job on this case.
+    /// A job an estimate cites must be an Estimate job on this case. Citing
+    /// one is optional (operator, 7 October 2026): a job is how an external
+    /// agent picks up work, not a precondition of saving an estimate.
     /// </summary>
-    public static void ValidateCitedJob(AiJobRecord? job, SaveEstimateRequest request, DateTimeOffset now)
+    public static void ValidateCitedJob(AiJobRecord? job, SaveEstimateRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (job is null)
@@ -951,36 +947,18 @@ public static class EstimatePolicy
         {
             throw new InvalidOperationException("The cited AI job is not an Estimate job on this case.");
         }
-        if (request.Actor.Kind != ActorKind.Automation)
-        {
-            return;
-        }
-        var state = AiJobPolicy.EffectiveState(job.State, job.ExpiresAtUtc, job.LeaseExpiresAtUtc, now);
-        if (state != AiJobState.Taken
-            || !string.Equals(job.TakenBy, request.Actor.SubjectId, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("The cited AI job is not taken by this client.");
-        }
     }
 
     /// <summary>
     /// Every live estimate is edited in place, the Current one included; the
-    /// report it feeds goes stale instead. The Automation actor changes only
-    /// an AI draft that is not yet in use.
+    /// report it feeds goes stale instead.
     /// </summary>
-    public static void ValidateEditable(RepairSpecificationVersion estimate, ActionActor actor)
+    public static void ValidateEditable(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
-        ArgumentNullException.ThrowIfNull(actor);
         if (estimate.State == RepairSpecificationState.Discarded)
         {
             throw new InvalidOperationException("A discarded estimate cannot be changed.");
-        }
-        if (actor.Kind == ActorKind.Automation
-            && (estimate.Source.Route != RepairSpecificationSourceRoute.AiDraft || estimate.IsCurrent))
-        {
-            throw new InvalidOperationException(
-                "The Automation actor can only change AI-draft estimates that are not in use.");
         }
     }
 
@@ -1187,8 +1165,7 @@ public interface IListCaseEstimatesByCursor
 
 public sealed class SaveEstimate(
     IRepairSpecificationStore store,
-    IAiJobStore jobs,
-    TimeProvider timeProvider) : ISaveEstimate
+    IAiJobStore jobs) : ISaveEstimate
 {
     public async Task<RepairSpecificationVersion> ExecuteAsync(
         SaveEstimateRequest request,
@@ -1198,7 +1175,7 @@ public sealed class SaveEstimate(
         if (validated.AiJobId is { } jobId)
         {
             var job = await jobs.GetAsync(jobId, cancellationToken);
-            EstimatePolicy.ValidateCitedJob(job, validated, timeProvider.GetUtcNow());
+            EstimatePolicy.ValidateCitedJob(job, validated);
         }
         return await store.SaveEstimateAsync(validated, cancellationToken);
     }
@@ -1211,7 +1188,6 @@ public sealed class DuplicateEstimate(IRepairSpecificationStore store) : IDuplic
         CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         return store.DuplicateEstimateAsync(request, cancellationToken);
     }
 }
@@ -1223,7 +1199,6 @@ public sealed class DiscardEstimate(IRepairSpecificationStore store) : IDiscardE
         CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         return store.DiscardEstimateAsync(request, cancellationToken);
     }
 }
