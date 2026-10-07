@@ -967,7 +967,11 @@ function Test-PegasusDatabaseReady {
         if ($null -ne $client) { $client.Dispose() }
     }
 
-    $probe = 'exec 2>/dev/null; /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -l 5 -Q "SET NOCOUNT ON; SELECT 1"'
+    # Ready means the engine answers and no run database is still recovering:
+    # after a container restart SQL Server accepts connections to master while
+    # it brings user databases back, and a migration that cannot open the run
+    # database in that window would try to create it over the existing one.
+    $probe = 'exec 2>/dev/null; /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -l 5 -Q "SET NOCOUNT ON; IF EXISTS (SELECT 1 FROM sys.databases WHERE name LIKE N''PegasusDevelopment[_]%'' AND state_desc <> N''ONLINE'') RAISERROR(N''A run database is still recovering.'', 16, 1); SELECT 1"'
     & $Command exec $ContainerName bash -c $probe *> $null
     return $LASTEXITCODE -eq 0
 }

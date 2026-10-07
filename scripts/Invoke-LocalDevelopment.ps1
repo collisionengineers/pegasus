@@ -696,8 +696,10 @@ function Get-WebEnvironment {
     $flags = Get-PegasusLiveIntegrationFlags -Settings $Settings
     if ($flags.boxCustody) {
         # Box custody and the local folder custody are alternatives; the host
-        # refuses both, so the lifecycle hands over exactly one.
-        $environment.Remove('Features__LocalDocumentCustody')
+        # refuses both, so the lifecycle hands over exactly one. An explicit
+        # false is needed: the tracked appsettings.Development.json turns the
+        # local store on, and an absent variable would not override it.
+        $environment['Features__LocalDocumentCustody'] = 'false'
     }
     if ($flags.glass) {
         # The provider returns the staff browser to this run's own origin; the
@@ -800,6 +802,27 @@ function Write-Launcher {
         [System.Text.UTF8Encoding]::new($false))
 }
 
+function ConvertTo-ShellSingleQuoted {
+    param([Parameter(Mandatory)][string]$Value)
+    return "'" + $Value.Replace("'", "'\\''") + "'"
+}
+
+function Write-LauncherShellWrapper {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$PowerShell,
+        [Parameter(Mandatory)][string]$Launcher,
+        [Parameter(Mandatory)][string]$StandardOutput,
+        [Parameter(Mandatory)][string]$StandardError
+    )
+
+    $script = "exec $(ConvertTo-ShellSingleQuoted -Value $PowerShell) -NoLogo -NoProfile -NonInteractive -File " +
+        "$(ConvertTo-ShellSingleQuoted -Value $Launcher) </dev/null " +
+        ">>$(ConvertTo-ShellSingleQuoted -Value $StandardOutput) " +
+        "2>>$(ConvertTo-ShellSingleQuoted -Value $StandardError)`n"
+    [System.IO.File]::WriteAllText($Path, $script, [System.Text.UTF8Encoding]::new($false))
+}
+
 function Start-OwnedLauncher {
     param(
         [Parameter(Mandatory)]
@@ -823,21 +846,46 @@ function Start-OwnedLauncher {
     Write-Launcher -Path $launcher -Command $Command -Arguments $Arguments
     $stdout = Join-Path $Manifest.resources.paths.logs "$Role-$attempt.stdout.log"
     $stderr = Join-Path $Manifest.resources.paths.logs "$Role-$attempt.stderr.log"
-    $process = Start-Process `
-        -FilePath $Tools.PowerShell `
-        -ArgumentList @(
-            '-NoLogo',
-            '-NoProfile',
-            '-NonInteractive',
-            '-File',
-            "`"$launcher`""
-        ) `
-        -WorkingDirectory $WorkingDirectory `
-        -Environment $Environment `
-        -RedirectStandardOutput $stdout `
-        -RedirectStandardError $stderr `
-        @hiddenWindowParameter `
-        -PassThru
+    if ((Get-PegasusPlatform).IsWindows) {
+        $process = Start-Process `
+            -FilePath $Tools.PowerShell `
+            -ArgumentList @(
+                '-NoLogo',
+                '-NoProfile',
+                '-NonInteractive',
+                '-File',
+                "`"$launcher`""
+            ) `
+            -WorkingDirectory $WorkingDirectory `
+            -Environment $Environment `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            @hiddenWindowParameter `
+            -PassThru
+    }
+    else {
+        # On Linux, Start-Process redirection is pumped through this process:
+        # the child writes to pipes this command reads and copies to the files.
+        # When this command exits those pipes close, every later line of output
+        # is lost, and a node process (Azurite) exits on the broken pipe. Let
+        # the shell open the log files itself and exec the launcher over them,
+        # so the owned process writes straight to disk for as long as it lives.
+        # exec keeps the process identifier and start time, so the ownership
+        # record below describes the launcher, not a shell in front of it.
+        $wrapper = Join-Path $Manifest.resources.paths.state "start-$Role-$attempt.sh"
+        Write-LauncherShellWrapper `
+            -Path $wrapper `
+            -PowerShell $Tools.PowerShell `
+            -Launcher $launcher `
+            -StandardOutput $stdout `
+            -StandardError $stderr
+        $process = Start-Process `
+            -FilePath '/bin/sh' `
+            -ArgumentList @("`"$wrapper`"") `
+            -WorkingDirectory $WorkingDirectory `
+            -Environment $Environment `
+            -PassThru
+    }
     try {
         $process.Refresh()
         return [pscustomobject][ordered]@{
@@ -1256,7 +1304,18 @@ function Test-FunctionsRunning {
             return $false
         }
         $status = $response.Content | ConvertFrom-Json
-        return [string]$status.state -eq 'Running'
+        if ([string]$status.state -ne 'Running') {
+            return $false
+        }
+        # A host answers Running with no functions at all when it was started
+        # outside the built output, so readiness also requires that it found
+        # the Worker's functions: the queue trigger and the timers are the run.
+        $functionsResponse = Invoke-LoopbackRequest -Uri (
+            ([string]$Manifest.endpoints.functionsStatus) -replace '/admin/host/status$', '/admin/functions')
+        if ($functionsResponse.StatusCode -ne 200) {
+            return $false
+        }
+        return @($functionsResponse.Content | ConvertFrom-Json).Count -gt 0
     }
     catch {
         return $false
@@ -1622,7 +1681,7 @@ function Start-LocalRun {
                 [string]$manifest.resources.ports.functions,
                 '--no-build'
             ) `
-            -WorkingDirectory $workerDirectory `
+            -WorkingDirectory ([System.IO.Path]::GetDirectoryName($workerAssembly)) `
             -Environment $workerEnvironment `
             -Tools $tools
         Write-OwnedManifest -Manifest $manifest
