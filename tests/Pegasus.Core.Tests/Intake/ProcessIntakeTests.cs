@@ -1059,12 +1059,19 @@ public sealed class ProcessIntakeTests
                 Guid.NewGuid(),
                 "QDOS",
                 new PrincipalInstruction(
-                    PrincipalInstructionKind.Audit,
+                    CaseType.Audit,
                     AuditAssessment.Repairable,
-                    null,
-                    ClaimNumber: "Q-AUDIT",
-                    ClaimantName: "Review Claimant",
-                    VehicleRegistration: "AB12CDE"))));
+                    new InstructionDraft(
+                        SuggestedPrincipalCode: null,
+                        ClaimantName: "Review Claimant",
+                        ClaimNumber: "Q-AUDIT",
+                        VehicleRegistration: "AB12CDE",
+                        VehicleMake: null,
+                        VehicleModel: null,
+                        VehicleMileage: null,
+                        AccidentCircumstances: null,
+                        DateOfIncident: null,
+                        InspectionAddress: null)))));
         var source = CreateSource() with
         {
             FileName = PrincipalInstructionPolicy.SourceFileName,

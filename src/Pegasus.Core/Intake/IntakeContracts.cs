@@ -663,34 +663,7 @@ public sealed record InstructionReviewField(
     /// draft. Printed names and source candidates remain unchanged. A method
     /// keeps this derived identity out of the persisted review-field JSON.
     /// </summary>
-    public string? ToCaseDataFieldName() => Name switch
-    {
-        "Claimant name" => CaseDataFieldNames.ClaimantName,
-        "Claim number" or "Claim reference" => CaseDataFieldNames.ClaimNumber,
-        "Vehicle registration" => CaseDataFieldNames.VehicleRegistration,
-        "Vehicle description" => CaseDataFieldNames.VehicleDescription,
-        "Vehicle make" or "Vehicle make and model" => CaseDataFieldNames.VehicleMake,
-        "Vehicle model" => CaseDataFieldNames.VehicleModel,
-        "Vehicle mileage" => CaseDataFieldNames.VehicleMileage,
-        "Vehicle mileage unit" => CaseDataFieldNames.VehicleMileageUnit,
-        "Accident circumstances" => CaseDataFieldNames.AccidentCircumstances,
-        "Date of incident" or "Incident date" => CaseDataFieldNames.IncidentDate,
-        "Inspection date" => CaseDataFieldNames.InspectionDate,
-        "Inspection address" => CaseDataFieldNames.InspectionAddress,
-        "Claimant contact number" or "Claimant mobile telephone" or "Claimant home telephone"
-            => CaseDataFieldNames.ClaimantContactNumber,
-        "Claimant address" => CaseDataFieldNames.ClaimantAddress,
-        "Contact name" => CaseDataFieldNames.ContactName,
-        "Contact email" => CaseDataFieldNames.ContactEmailAddress,
-        "Contact phone" => CaseDataFieldNames.ContactPhoneNumber,
-        "VAT status" => CaseDataFieldNames.VatStatus,
-        // The repairer the instruction names. The profiles print
-        // these two labels; the Case keeps the name and the address as its
-        // own facts, and a directory link is a separate staff decision.
-        "Repairer name" => CaseDataFieldNames.RepairerName,
-        "Repairer address" => CaseDataFieldNames.RepairerAddress,
-        _ => null
-    };
+    public string? ToCaseDataFieldName() => InstructionDraftFields.CaseDataFieldName(Name);
 }
 
 public sealed record InstructionDraft(

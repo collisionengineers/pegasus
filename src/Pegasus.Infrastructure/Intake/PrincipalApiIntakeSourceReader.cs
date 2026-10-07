@@ -31,7 +31,7 @@ internal sealed class PrincipalApiIntakeSourceReader(IIntakeSourceReader inner) 
 
         try
         {
-            var (_, files) = PrincipalInstructionJson.Parse(source.Content);
+            var files = PrincipalInstructionJson.ParseFiles(source.Content);
             return new(
                 IntakeSourceReadStatus.Readable,
                 // No text is derived from a declaration: every value was stated,
@@ -43,7 +43,7 @@ internal sealed class PrincipalApiIntakeSourceReader(IIntakeSourceReader inner) 
                 RequiresOcr: false,
                 Assets: files
                     .Select(file => new IntakeAssetCandidate(
-                        PrincipalInstructionPolicy.AssetSourceLabel(file.Ordinal, file.Role),
+                        file.SourceLabel,
                         file.FileName,
                         file.MediaType,
                         file.Content,
@@ -53,12 +53,12 @@ internal sealed class PrincipalApiIntakeSourceReader(IIntakeSourceReader inner) 
                 ReaderKey: PrincipalInstructionPolicy.ReaderKey,
                 ReaderVersion: PrincipalInstructionPolicy.ReaderVersion,
                 Attachments: files
-                    .Select(file => new IntakeAttachmentDescriptor(
+                    .Select((file, ordinal) => new IntakeAttachmentDescriptor(
                         file.FileName,
                         file.MediaType,
                         file.Content.Length,
-                        file.Ordinal,
-                        PrincipalInstructionPolicy.AssetSourceLabel(file.Ordinal, file.Role)))
+                        ordinal,
+                        file.SourceLabel))
                     .ToArray());
         }
         catch (PrincipalInstructionValidationException exception)

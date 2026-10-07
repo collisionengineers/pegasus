@@ -136,6 +136,11 @@ public interface IQueuedIntakeStatusQueries
     Task<QueuedIntakeStatus?> GetAsync(
         Guid stagedReceiptId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>The status of the source retained under this identity, or null when none was.</summary>
+    Task<QueuedIntakeStatus?> FindBySourceIdentityAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

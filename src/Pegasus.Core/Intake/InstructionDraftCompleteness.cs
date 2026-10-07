@@ -22,49 +22,8 @@ public static class InstructionDraftCompleteness
     /// in the order they are asked for. An empty list means the draft is
     /// complete.
     /// </summary>
-    public static IReadOnlyList<string> MissingFieldNames(InstructionDraft draft)
-    {
-        ArgumentNullException.ThrowIfNull(draft);
-        var missing = new List<string>(9);
-        if (string.IsNullOrWhiteSpace(draft.ClaimantName))
-        {
-            missing.Add("Claimant name");
-        }
-        if (string.IsNullOrWhiteSpace(draft.ClaimNumber))
-        {
-            missing.Add("Claim number");
-        }
-        if (string.IsNullOrWhiteSpace(draft.VehicleRegistration))
-        {
-            missing.Add("Vehicle registration");
-        }
-        if (string.IsNullOrWhiteSpace(draft.VehicleMake))
-        {
-            missing.Add("Vehicle make");
-        }
-        if (string.IsNullOrWhiteSpace(draft.VehicleModel))
-        {
-            missing.Add("Vehicle model");
-        }
-        if (draft.VehicleMileage is null)
-        {
-            missing.Add("Vehicle mileage");
-        }
-        if (string.IsNullOrWhiteSpace(draft.AccidentCircumstances))
-        {
-            missing.Add("Accident circumstances");
-        }
-        if (draft.DateOfIncident is null)
-        {
-            missing.Add("Date of incident");
-        }
-        if (string.IsNullOrWhiteSpace(draft.InspectionAddress))
-        {
-            missing.Add("Inspection address");
-        }
-
-        return missing;
-    }
+    public static IReadOnlyList<string> MissingFieldNames(InstructionDraft draft) =>
+        Missing(draft, field => field.Required);
 
     /// <summary>
     /// The identity-critical fields this draft has not answered — the ones that
@@ -89,25 +48,8 @@ public static class InstructionDraftCompleteness
     /// the other question — whether a corrected draft is complete enough to be
     /// decided — and changing that would change the intake decision itself.
     /// </remarks>
-    public static IReadOnlyList<string> MissingIdentityCriticalFieldNames(InstructionDraft draft)
-    {
-        ArgumentNullException.ThrowIfNull(draft);
-        var missing = new List<string>(3);
-        if (string.IsNullOrWhiteSpace(draft.ClaimantName))
-        {
-            missing.Add("Claimant name");
-        }
-        if (string.IsNullOrWhiteSpace(draft.ClaimNumber))
-        {
-            missing.Add("Claim number");
-        }
-        if (string.IsNullOrWhiteSpace(draft.VehicleRegistration))
-        {
-            missing.Add("Vehicle registration");
-        }
-
-        return missing;
-    }
+    public static IReadOnlyList<string> MissingIdentityCriticalFieldNames(InstructionDraft draft) =>
+        Missing(draft, field => field.IdentityCritical);
 
     /// <summary>
     /// Whether every required instruction field carries a value. Nothing about
@@ -116,4 +58,15 @@ public static class InstructionDraftCompleteness
     /// </summary>
     public static bool IsComplete(InstructionDraft draft) =>
         MissingFieldNames(draft).Count == 0;
+
+    private static IReadOnlyList<string> Missing(
+        InstructionDraft draft,
+        Func<InstructionDraftField, bool> asked)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        return InstructionDraftFields.All
+            .Where(field => asked(field) && string.IsNullOrWhiteSpace(field.Value(draft)))
+            .Select(field => field.Label)
+            .ToArray();
+    }
 }

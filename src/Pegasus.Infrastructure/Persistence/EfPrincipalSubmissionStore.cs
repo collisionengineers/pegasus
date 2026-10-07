@@ -8,62 +8,45 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// SQL-backed <see cref="IPrincipalSubmissionStore"/> and the
 /// <see cref="IPrincipalSubmissionBindings"/> the intake processor reads. The
-/// unique (PrincipalId, IdempotencyKey) index is the concurrency boundary:
-/// the loser of a same-key race is told so and re-reads, never overwrites.
+/// submission id is derived from the Principal and the idempotency key, so the
+/// primary key is the concurrency boundary: the loser of a same-key race reads
+/// the winner's row, never overwrites it.
 /// </summary>
 internal sealed class EfPrincipalSubmissionStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
     : IPrincipalSubmissionStore, IPrincipalSubmissionBindings
 {
-    // The code the durable intake store writes into
-    // IntakeStagedReceipts.SourceChannel for this channel. Its map is private
-    // to that store and the accept path deliberately leaves it untouched, so
-    // the agreement is held by the two SQL-level accept-recovery tests, which
-    // find no candidate at all if these ever disagree.
-    internal const string PrincipalApiSourceChannel = "principal_api";
-
-    public async Task CreateAsync(PrincipalSubmissionRecord record, CancellationToken cancellationToken)
+    public async Task<PrincipalSubmissionRecord> GetOrCreateAsync(
+        PrincipalSubmissionRecord record,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
+        if (await GetAsync(record.Id, cancellationToken) is { } existing)
+        {
+            return existing;
+        }
+
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         context.PrincipalSubmissions.Add(new PrincipalSubmissionEntity
         {
             Id = record.Id,
             PrincipalId = record.PrincipalId,
-            KeyId = record.KeyId,
-            IdempotencyKey = record.IdempotencyKey,
-            BodySha256 = record.BodySha256,
-            PrincipalReference = record.PrincipalReference,
             ReceivedAtUtc = record.ReceivedAtUtc,
-            DeclaredInstructionJson = PrincipalInstructionJson.Serialize(
-                record.Instruction
-                    ?? throw new ArgumentException(
-                        "A Principal submission carries the instruction its Principal declared.",
-                        nameof(record)))
+            DeclaredInstructionJson = PrincipalInstructionJson.Serialize(record.Instruction)
         });
         try
         {
             await context.SaveChangesAsync(cancellationToken);
+            return record;
         }
         catch (DbUpdateException exception)
             when (exception.GetBaseException() is SqlException { Number: 2601 or 2627 })
         {
-            throw new PrincipalSubmissionException(PrincipalSubmissionError.OperationConflict);
+            // A concurrent request with the same key wrote the row first.
+            return await GetAsync(record.Id, cancellationToken)
+                ?? throw new InvalidOperationException(
+                    $"The Principal submission '{record.Id:D}' conflicted on insert and then could not be read.");
         }
-    }
-
-    public async Task<PrincipalSubmissionRecord?> FindByIdempotencyKeyAsync(
-        Guid principalId,
-        string idempotencyKey,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.PrincipalSubmissions
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.PrincipalId == principalId && item.IdempotencyKey == idempotencyKey,
-                cancellationToken);
-        return entity is null ? null : ToRecord(entity);
     }
 
     public async Task<PrincipalSubmissionRecord?> GetAsync(Guid id, CancellationToken cancellationToken)
@@ -72,24 +55,9 @@ internal sealed class EfPrincipalSubmissionStore(
         var entity = await context.PrincipalSubmissions
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        return entity is null ? null : ToRecord(entity);
-    }
-
-    public async Task RecordStagedReceiptAsync(
-        Guid submissionId,
-        Guid stagedReceiptId,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.PrincipalSubmissions
-            .SingleOrDefaultAsync(item => item.Id == submissionId, cancellationToken);
-        if (entity is null || entity.StagedReceiptId == stagedReceiptId)
-        {
-            return;
-        }
-
-        entity.StagedReceiptId = stagedReceiptId;
-        await context.SaveChangesAsync(cancellationToken);
+        return entity is null
+            ? null
+            : new(entity.Id, entity.PrincipalId, entity.ReceivedAtUtc, ReadDeclaration(entity.Id, entity.DeclaredInstructionJson));
     }
 
     public async Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
@@ -97,22 +65,38 @@ internal sealed class EfPrincipalSubmissionStore(
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        var channel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PrincipalApi);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await AcceptRecoveryStates(context)
+        // The staged-receipt join is an inner join on purpose: a submission
+        // whose retention never happened is a bare reservation, which the sweep
+        // cannot complete and nothing deletes, so admitting it to a bounded
+        // oldest-first window would let one outage's worth of them occupy that
+        // window for good.
+        return await (
+                from submission in context.PrincipalSubmissions.AsNoTracking()
+                join staged in context.IntakeStagedReceipts
+                        .AsNoTracking()
+                        .Where(item => item.SourceChannel == channel)
+                    // The token the accept path writes is the submission id in
+                    // "N" form, matched under the database's own collation
+                    // exactly as the history join below matches the "D" form.
+                    on submission.Id.ToString().Replace("-", string.Empty)
+                        equals staged.ExternalReceiptToken
+                join acceptedHistory in context.ActionHistory
+                        .AsNoTracking()
+                        .Where(item =>
+                            item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
+                            && item.Outcome == "Accepted")
+                    on submission.Id.ToString() equals acceptedHistory.AggregateId into acceptedHistories
+                from acceptedHistory in acceptedHistories.DefaultIfEmpty()
+                where acceptedHistory == null
+                orderby submission.ReceivedAtUtc, submission.Id
+                select new PrincipalSubmissionAcceptCandidate(
+                    submission.Id,
+                    submission.PrincipalId,
+                    submission.ReceivedAtUtc))
             .Take(maximumItems)
             .ToArrayAsync(cancellationToken);
-    }
-
-    public async Task<string?> FindPrincipalCodeAsync(
-        Guid principalId,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.Principals
-            .AsNoTracking()
-            .Where(item => item.Id == principalId && item.IsActive)
-            .Select(item => item.Code)
-            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async Task<PrincipalSubmissionBinding?> FindAsync(
@@ -155,56 +139,4 @@ internal sealed class EfPrincipalSubmissionStore(
         PrincipalInstructionJson.Deserialize(declaredInstructionJson)
             ?? throw new InvalidDataException(
                 $"The retained Principal submission '{submissionId:D}' has no readable declaration.");
-
-    private static PrincipalSubmissionRecord ToRecord(PrincipalSubmissionEntity entity) => new(
-        entity.Id,
-        entity.PrincipalId,
-        entity.KeyId,
-        entity.IdempotencyKey,
-        entity.PrincipalReference,
-        entity.ReceivedAtUtc,
-        entity.BodySha256,
-        PrincipalInstructionJson.Deserialize(entity.DeclaredInstructionJson),
-        entity.StagedReceiptId);
-
-    /// <summary>
-    /// The accept state of a submission, read in one statement: the staged
-    /// receipt its source was retained as, and whether its first
-    /// <c>Accepted</c> history row exists.
-    /// </summary>
-    /// <remarks>
-    /// The staged-receipt join is an inner join on purpose. A submission whose
-    /// retention never happened is a bare reservation: the sweep cannot
-    /// complete it, and nothing deletes it, so admitting it to a bounded
-    /// oldest-first window would let one outage's worth of them occupy that
-    /// window for good. Joining here also answers "which receipt?" in the same
-    /// read, instead of one lookup per candidate.
-    /// </remarks>
-    private static IQueryable<PrincipalSubmissionAcceptCandidate> AcceptRecoveryStates(
-        PegasusDbContext context) =>
-        from submission in context.PrincipalSubmissions.AsNoTracking()
-        join staged in context.IntakeStagedReceipts
-                .AsNoTracking()
-                .Where(item => item.SourceChannel == PrincipalApiSourceChannel)
-            // The token the accept path writes is the submission id in "N"
-            // form, matched under the database's own collation exactly as the
-            // history join below matches the "D" form.
-            on submission.Id.ToString().Replace("-", string.Empty)
-                equals staged.ExternalReceiptToken
-        join acceptedHistory in context.ActionHistory
-                .AsNoTracking()
-                .Where(item =>
-                    item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
-                    && item.Outcome == "Accepted")
-            on submission.Id.ToString() equals acceptedHistory.AggregateId into acceptedHistories
-        from acceptedHistory in acceptedHistories.DefaultIfEmpty()
-        where submission.StagedReceiptId == null || acceptedHistory == null
-        orderby submission.ReceivedAtUtc, submission.Id
-        select new PrincipalSubmissionAcceptCandidate(
-            submission.Id,
-            submission.PrincipalId,
-            submission.ReceivedAtUtc,
-            submission.StagedReceiptId,
-            staged.Id,
-            acceptedHistory != null);
 }

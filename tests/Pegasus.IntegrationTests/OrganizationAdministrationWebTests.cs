@@ -303,7 +303,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var secretMatch = Regex.Match(issuedHtml, "id=\"issued-api-key\" value=\"([^\"]+)\"");
         Assert.True(secretMatch.Success);
         var secret = WebUtility.HtmlDecode(secretMatch.Groups[1].Value);
-        var keyId = Pegasus.Web.PrincipalApi.PrincipalApi.TryReadKeyId("Bearer " + secret)!;
+        var keyId = PrincipalCredentialPolicy.KeyIdOf(secret)!;
         Assert.False(string.IsNullOrWhiteSpace(secret));
 
         using var pauseFromIssuePage = await client.PostAsync(
@@ -349,7 +349,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var resetMatch = Regex.Match(resetHtml, "id=\"issued-api-key\" value=\"([^\"]+)\"");
         Assert.True(resetMatch.Success);
         var resetSecret = WebUtility.HtmlDecode(resetMatch.Groups[1].Value);
-        var resetKeyId = Pegasus.Web.PrincipalApi.PrincipalApi.TryReadKeyId("Bearer " + resetSecret)!;
+        var resetKeyId = PrincipalCredentialPolicy.KeyIdOf(resetSecret)!;
         Assert.Null(await authenticate.ExecuteAsync(keyId, secret, default));
         Assert.NotNull(await authenticate.ExecuteAsync(resetKeyId, resetSecret, default));
 
