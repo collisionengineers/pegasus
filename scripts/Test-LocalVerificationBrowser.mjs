@@ -253,9 +253,13 @@ try {
             // Filing is the Worker's: wait for the Case folder to be confirmed
             // in Box (green custody chip and the Open in Box link), not merely
             // for the document to be listed.
+            // The Files section is a lazily loaded fragment: it fills as the
+            // reader approaches it, so bring it into view and wait for its chip.
             let folder = null;
             for (let i = 0; i < 30 && !folder; i++) {
                 await navigate(`/Cases/${caseId}`);
+                await evaluate("document.getElementById('section-files')?.scrollIntoView()");
+                try { await waitFor("!!document.querySelector('#section-files [data-custody-chip]')", 'The Files section loading', 10); } catch { /* checked below */ }
                 folder = await evaluate("(function () { const chip = document.querySelector('#section-files [data-custody-chip]'); const link = document.querySelector('#section-files [data-open-in-box]'); return chip && chip.classList.contains('status--green') && link ? link.getAttribute('href') : null; })()");
                 if (!folder) { await delay(5000); }
             }
