@@ -1,14 +1,50 @@
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// Validates video file names, media types and bounded content before intake.
-/// Other retained sources are classified by the intake reader, including
-/// unsupported material.
+/// The file types the intake reader opens, and the check video file names,
+/// media types and bounded content must pass before intake. Other retained
+/// sources are classified by the intake reader, including unsupported
+/// material.
 /// </summary>
 public static class IntakeUploadFilePolicy
 {
     public const string Mp4MediaType = "video/mp4";
     public const string MovMediaType = "video/quicktime";
+
+    /// <summary>
+    /// Every file type the intake reader opens, by extension, with the media
+    /// type it is read as. The first extension of a media type is the one a
+    /// nameless file is given.
+    /// </summary>
+    private static readonly (string Extension, string MediaType)[] SupportedTypes =
+    [
+        (".pdf", "application/pdf"),
+        (".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        (".doc", "application/msword"),
+        (".msg", EmailSourceFormat.OutlookMediaType),
+        (".eml", EmailSourceFormat.MediaType),
+        (".jpg", "image/jpeg"),
+        (".jpeg", "image/jpeg"),
+        (".png", "image/png"),
+        (".mp4", Mp4MediaType),
+        (".mov", MovMediaType)
+    ];
+
+    /// <summary>The media type a file name's extension is read as, or null when the reader does not open it.</summary>
+    public static string? MediaTypeFor(string fileName) =>
+        SupportedTypes
+            .FirstOrDefault(type => string.Equals(
+                type.Extension,
+                Path.GetExtension(fileName),
+                StringComparison.OrdinalIgnoreCase))
+            .MediaType;
+
+    /// <summary>The extension a file of this media type is named with, or an empty string when the reader does not open it.</summary>
+    public static string ExtensionFor(string mediaType) =>
+        SupportedTypes
+            .FirstOrDefault(type => string.Equals(type.MediaType, mediaType, StringComparison.OrdinalIgnoreCase))
+            .Extension
+            ?? string.Empty;
 
     public static bool IsAccepted(string? fileName, string? mediaType, ReadOnlySpan<byte> content)
     {

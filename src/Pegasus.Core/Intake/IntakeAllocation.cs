@@ -255,7 +255,7 @@ public sealed class AllocateIntake(
         // the accepted route classification. Both arrive here as one CaseType.
         var caseType = binding is null
             ? receipt.MailClassificationDecision?.CaseType
-            : PrincipalInstructionKinds.ToCaseType(binding.Instruction.Kind);
+            : binding.Instruction.CaseType;
         var principalCode = EstablishedPrincipalCode(receipt, binding)
             ?? throw new InvalidOperationException(
                 "Automatic allocation requires an accepted principal route or a Principal submission binding.");
@@ -334,7 +334,7 @@ public sealed class AllocateIntake(
         if (caseNotes is null
             || result.State.Status != IntakeAllocationProjectionStatus.Succeeded
             || result.State.CaseId is not { } caseId
-            || string.IsNullOrWhiteSpace(binding.Instruction.Notes))
+            || string.IsNullOrWhiteSpace(binding.Instruction.Draft.Notes))
         {
             return;
         }
@@ -344,7 +344,7 @@ public sealed class AllocateIntake(
                 caseId,
                 ActionActor.Principal(binding.PrincipalId),
                 $"principal-note:{receipt.Id:N}",
-                binding.Instruction.Notes),
+                binding.Instruction.Draft.Notes),
             cancellationToken);
     }
 

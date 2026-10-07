@@ -471,7 +471,7 @@ public sealed class EfCaseAcceptanceStore(
         if (request.CaseType != CaseType.Audit
             || !string.Equals(
                 receipt.SourceChannel,
-                EfPrincipalSubmissionStore.PrincipalApiSourceChannel,
+                EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PrincipalApi),
                 StringComparison.Ordinal)
             || !Guid.TryParseExact(receipt.ExternalReceiptToken, "N", out var submissionId))
         {

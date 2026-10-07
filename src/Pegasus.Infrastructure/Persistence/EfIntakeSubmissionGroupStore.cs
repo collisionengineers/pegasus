@@ -74,7 +74,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         var entity = await context.IntakeSubmissionGroups
             .AsNoTracking()
             .SingleOrDefaultAsync(
-                item => item.SourceChannel == ToCode(channel)
+                item => item.SourceChannel == EfIntakeReceiptStore.ToCode(channel)
                     && item.SubmissionToken == submissionToken,
                 cancellationToken);
         return entity is null ? null : await MapAsync(context, entity, cancellationToken);
@@ -176,7 +176,7 @@ public sealed class EfIntakeSubmissionGroupStore(
             cancellationToken);
         var existing = await context.IntakeSubmissionGroups
             .SingleOrDefaultAsync(
-                item => item.SourceChannel == ToCode(channel)
+                item => item.SourceChannel == EfIntakeReceiptStore.ToCode(channel)
                     && item.SubmissionToken == submissionToken,
                 cancellationToken);
         if (existing is null)
@@ -184,7 +184,7 @@ public sealed class EfIntakeSubmissionGroupStore(
             existing = new()
             {
                 Id = groupId,
-                SourceChannel = ToCode(channel),
+                SourceChannel = EfIntakeReceiptStore.ToCode(channel),
                 SubmissionToken = submissionToken,
                 ExpectedMemberCount = expectedMemberCount,
                 Actor = actor,
@@ -341,7 +341,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                 : DiscardIntakeSubmissionGroupResult.Conflict(
                     "This submission already has a different terminal decision.");
         }
-        if (group.SourceChannel != ToCode(IntakeSourceChannel.ManualUpload))
+        if (group.SourceChannel != EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload))
         {
             return DiscardIntakeSubmissionGroupResult.Conflict("Only manual uploads can be discarded here.");
         }
@@ -474,7 +474,7 @@ public sealed class EfIntakeSubmissionGroupStore(
 
         return new(
             entity.Id,
-            ParseChannel(entity.SourceChannel),
+            EfIntakeReceiptStore.ParseSourceChannel(entity.SourceChannel),
             entity.SubmissionToken,
             entity.ExpectedMemberCount,
             entity.Actor,
@@ -521,24 +521,6 @@ public sealed class EfIntakeSubmissionGroupStore(
                 : IntakeDecisionPolicy.CouldNotBeRead(EfIntakeReceiptStore.ParseDecision(processed.Decision))
         };
     }
-
-    private static string ToCode(IntakeSourceChannel channel) => channel switch
-    {
-        IntakeSourceChannel.ManualUpload => "manual_upload",
-        IntakeSourceChannel.Mailbox => "mailbox",
-        IntakeSourceChannel.Automation => "automation",
-        IntakeSourceChannel.PrincipalApi => "principal_api",
-        _ => throw new ArgumentOutOfRangeException(nameof(channel), channel, "Unsupported source channel.")
-    };
-
-    private static IntakeSourceChannel ParseChannel(string channel) => channel switch
-    {
-        "manual_upload" => IntakeSourceChannel.ManualUpload,
-        "mailbox" => IntakeSourceChannel.Mailbox,
-        "automation" => IntakeSourceChannel.Automation,
-        "principal_api" => IntakeSourceChannel.PrincipalApi,
-        _ => throw new InvalidDataException($"Unknown intake source channel '{channel}'.")
-    };
 
     private static string DiscardFingerprint(DiscardIntakeSubmissionGroupRequest request)
     {

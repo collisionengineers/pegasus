@@ -3,7 +3,12 @@ using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Infrastructure.Intake;
 
-/// <summary>Checks a Principal file against its declaration and the ordinary intake reader before custody.</summary>
+/// <summary>
+/// Checks a Principal file before custody. A document is opened by the
+/// ordinary intake reader now, because nothing parses it again before it
+/// reaches a Case; the reader does not open an image or a video, so those are
+/// checked by their leading bytes instead.
+/// </summary>
 internal sealed class PrincipalAttachmentAdmission(
     MimeKitPdfPigOpenXmlIntakeSourceReader reader,
     TimeProvider timeProvider) : IPrincipalAttachmentAdmission
@@ -14,11 +19,16 @@ internal sealed class PrincipalAttachmentAdmission(
     {
         foreach (var file in files)
         {
-            if (!MatchesDeclarationAndHeader(file))
+            if (HeaderMatches(file) is { } matches)
             {
-                throw new PrincipalInstructionValidationException(
-                    $"files[{file.Ordinal}]",
-                    "The file type, media type and content do not agree or are unsupported.");
+                if (!matches)
+                {
+                    throw new PrincipalInstructionValidationException(
+                        file.Field,
+                        "The file content does not match its file type.");
+                }
+
+                continue;
             }
 
             var result = await reader.ReadAsync(
@@ -28,37 +38,28 @@ internal sealed class PrincipalAttachmentAdmission(
                     file.Content,
                     timeProvider.GetUtcNow(),
                     "principal-attachment-admission",
-                    new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, $"principal-file:{file.Ordinal}")),
+                    new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, file.SourceLabel)),
                 cancellationToken);
             if (result.Status != IntakeSourceReadStatus.Readable)
             {
                 throw new PrincipalInstructionValidationException(
-                    $"files[{file.Ordinal}]",
+                    file.Field,
                     result.FailureReason ?? "The file could not be read by the intake reader.");
             }
         }
     }
 
-    private static bool MatchesDeclarationAndHeader(PrincipalSubmissionFile file)
+    /// <summary>Whether an image or a video starts as its type does; null for a document.</summary>
+    private static bool? HeaderMatches(PrincipalSubmissionFile file)
     {
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var mediaType = file.MediaType.Trim().ToLowerInvariant();
         var bytes = file.Content.Span;
-        return (extension, mediaType) switch
+        return file.MediaType switch
         {
-            (".pdf", "application/pdf") => bytes.StartsWith("%PDF-"u8),
-            (".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document") =>
-                bytes.StartsWith(new byte[] { 0x50, 0x4B, 0x03, 0x04 }),
-            (".doc", "application/msword") or (".msg", "application/vnd.ms-outlook") =>
-                bytes.StartsWith(new byte[] { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 }),
-            (".jpg", "image/jpeg") or (".jpeg", "image/jpeg") =>
-                bytes.StartsWith(new byte[] { 0xFF, 0xD8, 0xFF }),
-            (".png", "image/png") =>
-                bytes.StartsWith(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
-            (".eml", "message/rfc822") => true,
-            (".mp4", "video/mp4") or (".mov", "video/quicktime") =>
-                bytes.Length >= 8 && bytes[4..8].SequenceEqual("ftyp"u8),
-            _ => false
+            "image/jpeg" => bytes.StartsWith(new byte[] { 0xFF, 0xD8, 0xFF }),
+            "image/png" => bytes.StartsWith(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
+            IntakeUploadFilePolicy.Mp4MediaType or IntakeUploadFilePolicy.MovMediaType =>
+                IntakeUploadFilePolicy.IsAccepted(file.FileName, file.MediaType, bytes),
+            _ => null
         };
     }
 }

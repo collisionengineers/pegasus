@@ -32,11 +32,14 @@ internal sealed class PrincipalApiAuthenticationHandler(
             return AuthenticateResult.NoResult();
         }
 
-        var keyId = PrincipalApi.TryReadKeyId(header);
-        var secret = PrincipalApi.TryReadSecret(header);
-        var credential = keyId is null || secret is null
+        const string bearer = "Bearer ";
+        var secret = header.StartsWith(bearer, StringComparison.OrdinalIgnoreCase)
+            ? header[bearer.Length..].Trim()
+            : null;
+        var keyId = PrincipalCredentialPolicy.KeyIdOf(secret);
+        var credential = keyId is null
             ? null
-            : await authenticate.ExecuteAsync(keyId, secret, Context.RequestAborted);
+            : await authenticate.ExecuteAsync(keyId, secret!, Context.RequestAborted);
         if (credential is null)
         {
             await DenyAsync(keyId ?? "anonymous", "principal_credential_rejected");
@@ -79,19 +82,14 @@ internal sealed class PrincipalApiAuthenticationHandler(
     /// <summary>
     /// The credential the endpoint acts as, rebuilt from the ticket's claims
     /// so the Core use cases receive the same record the authentication
-    /// decision produced.
+    /// decision produced. The endpoint policy admits only a ticket this
+    /// handler built, so the claims are always present.
     /// </summary>
-    internal static PrincipalCredentialAuthentication? ReadCredential(ClaimsPrincipal user)
-    {
-        var principalId = user.FindFirstValue(PrincipalApi.PrincipalIdClaim);
-        var keyId = user.FindFirstValue(PrincipalApi.KeyIdClaim);
-        var state = user.FindFirstValue(PrincipalApi.CredentialStateClaim);
-        return Guid.TryParse(principalId, out var id)
-            && keyId is not null
-            && Enum.TryParse<PrincipalCredentialState>(state, out var parsedState)
-            ? new(id, keyId, parsedState)
-            : null;
-    }
+    internal static PrincipalCredentialAuthentication ReadCredential(ClaimsPrincipal user) =>
+        new(
+            Guid.Parse(user.FindFirstValue(PrincipalApi.PrincipalIdClaim)!),
+            user.FindFirstValue(PrincipalApi.KeyIdClaim)!,
+            Enum.Parse<PrincipalCredentialState>(user.FindFirstValue(PrincipalApi.CredentialStateClaim)!));
 
     /// <summary>
     /// A refusal here happens before any credential authenticates, so no

@@ -1,5 +1,3 @@
-using Pegasus.Core.Cases;
-
 namespace Pegasus.Web.PrincipalApi;
 
 /// <summary>
@@ -24,40 +22,4 @@ public static class PrincipalApi
     public const string PrincipalIdClaim = "pegasus:principal_id";
     public const string KeyIdClaim = "pegasus:key_id";
     public const string CredentialStateClaim = "pegasus:credential_state";
-
-    /// <summary>
-    /// The key id embedded in a presented <c>Bearer pgs_&lt;key id&gt;_…</c>
-    /// secret, or null when the header does not carry a well-shaped secret.
-    /// Shape only: it names the credential row to verify against, and is never
-    /// evidence that the caller holds it.
-    /// </summary>
-    public static string? TryReadKeyId(string? authorizationHeader)
-    {
-        const string bearer = "Bearer ";
-        if (authorizationHeader is null
-            || !authorizationHeader.StartsWith(bearer, StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var secret = authorizationHeader[bearer.Length..].Trim();
-        if (secret.Length != PrincipalCredentialPolicy.SecretLength)
-        {
-            return null;
-        }
-
-        var keyId = secret.Substring(
-            PrincipalCredentialPolicy.SecretPrefix.Length,
-            PrincipalCredentialPolicy.KeyIdLength);
-        return PrincipalCredentialPolicy.IsWellFormed(keyId, secret) ? keyId : null;
-    }
-
-    public static string? TryReadSecret(string? authorizationHeader)
-    {
-        const string bearer = "Bearer ";
-        return authorizationHeader is not null
-            && authorizationHeader.StartsWith(bearer, StringComparison.OrdinalIgnoreCase)
-            ? authorizationHeader[bearer.Length..].Trim()
-            : null;
-    }
 }

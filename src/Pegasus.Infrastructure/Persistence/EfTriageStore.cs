@@ -197,7 +197,7 @@ public sealed class EfTriageStore(
         var operationKey = request.OperationKey.Trim();
         var actor = request.Actor;
         var vrm = request.NormalizedVehicleRegistration.Trim().ToUpperInvariant();
-        var sourceChannel = ToCode(request.Origin.SourceIdentity.Channel);
+        var sourceChannel = EfIntakeReceiptStore.ToCode(request.Origin.SourceIdentity.Channel);
         var sourceToken = request.Origin.SourceIdentity.ExternalReceiptToken.Trim();
         var sourceHash = request.Origin.SourceHash.ToLowerInvariant();
         var acceptedMatch = request.AcceptedMatchEvidence;
@@ -1802,7 +1802,7 @@ public sealed class EfTriageStore(
             ? new(
                 receiptId,
                 new(
-                    ParseSourceChannel(entity.SourceChannel
+                    EfIntakeReceiptStore.ParseSourceChannel(entity.SourceChannel
                         ?? throw new InvalidDataException("A Triage origin has no source channel.")),
                     entity.ExternalReceiptToken
                         ?? throw new InvalidDataException("A Triage origin has no source receipt token.")),
@@ -1844,24 +1844,6 @@ public sealed class EfTriageStore(
         ParseState(entity.AfterState),
         entity.AfterAssigneeId,
         entity.AfterLinkedInstructionCaseId);
-
-    internal static string ToCode(IntakeSourceChannel value) => value switch
-    {
-        IntakeSourceChannel.ManualUpload => "manual_upload",
-        IntakeSourceChannel.Mailbox => "mailbox",
-        IntakeSourceChannel.Automation => "automation",
-        IntakeSourceChannel.PrincipalApi => "principal_api",
-        _ => throw new ArgumentOutOfRangeException(nameof(value))
-    };
-
-    private static IntakeSourceChannel ParseSourceChannel(string value) => value switch
-    {
-        "manual_upload" => IntakeSourceChannel.ManualUpload,
-        "mailbox" => IntakeSourceChannel.Mailbox,
-        "automation" => IntakeSourceChannel.Automation,
-        "principal_api" => IntakeSourceChannel.PrincipalApi,
-        _ => throw new InvalidDataException($"Unknown persisted intake source channel '{value}'.")
-    };
 
     internal static string ToCode(TriageState value) => value switch
     {

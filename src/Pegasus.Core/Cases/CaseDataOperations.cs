@@ -174,21 +174,21 @@ public static class CaseDataPolicy
 
         var normalized = data with
         {
-            ClaimantName = Text(data.ClaimantName, 300, nameof(data.ClaimantName)),
-            ClaimantContactNumber = Text(data.ClaimantContactNumber, 100, nameof(data.ClaimantContactNumber)),
-            ClaimantAddress = Paragraphs(data.ClaimantAddress, 1000, nameof(data.ClaimantAddress)),
-            ClaimNumber = Text(data.ClaimNumber, 100, nameof(data.ClaimNumber)),
-            VehicleRegistration = Registration(data.VehicleRegistration),
-            VehicleMake = Text(data.VehicleMake, 100, nameof(data.VehicleMake)),
-            VehicleModel = Text(data.VehicleModel, 100, nameof(data.VehicleModel)),
+            ClaimantName = Text(data.ClaimantName, CaseDataLimits.PersonName, nameof(data.ClaimantName)),
+            ClaimantContactNumber = Text(data.ClaimantContactNumber, CaseDataLimits.Telephone, nameof(data.ClaimantContactNumber)),
+            ClaimantAddress = Paragraphs(data.ClaimantAddress, CaseDataLimits.Address, nameof(data.ClaimantAddress)),
+            ClaimNumber = Text(data.ClaimNumber, CaseDataLimits.ClaimNumber, nameof(data.ClaimNumber)),
+            VehicleRegistration = Registration(data.VehicleRegistration, nameof(data.VehicleRegistration)),
+            VehicleMake = Text(data.VehicleMake, CaseDataLimits.VehicleText, nameof(data.VehicleMake)),
+            VehicleModel = Text(data.VehicleModel, CaseDataLimits.VehicleText, nameof(data.VehicleModel)),
             VehicleYear = Text(data.VehicleYear, 10, nameof(data.VehicleYear)),
-            VehicleMileageUnit = Text(data.VehicleMileageUnit, 40, nameof(data.VehicleMileageUnit)),
-            AccidentCircumstances = Paragraphs(data.AccidentCircumstances, 2000, nameof(data.AccidentCircumstances)),
-            ContactName = Text(data.ContactName, 300, nameof(data.ContactName)),
-            ContactEmailAddress = Text(data.ContactEmailAddress, 320, nameof(data.ContactEmailAddress)),
-            ContactPhoneNumber = Text(data.ContactPhoneNumber, 100, nameof(data.ContactPhoneNumber)),
-            VatStatus = Text(data.VatStatus, 100, nameof(data.VatStatus)),
-            InspectionAddress = Text(data.InspectionAddress, 1000, nameof(data.InspectionAddress)),
+            VehicleMileageUnit = Text(data.VehicleMileageUnit, CaseDataLimits.MileageUnit, nameof(data.VehicleMileageUnit)),
+            AccidentCircumstances = Paragraphs(data.AccidentCircumstances, CaseDataLimits.AccidentCircumstances, nameof(data.AccidentCircumstances)),
+            ContactName = Text(data.ContactName, CaseDataLimits.PersonName, nameof(data.ContactName)),
+            ContactEmailAddress = Text(data.ContactEmailAddress, CaseDataLimits.EmailAddress, nameof(data.ContactEmailAddress)),
+            ContactPhoneNumber = Text(data.ContactPhoneNumber, CaseDataLimits.Telephone, nameof(data.ContactPhoneNumber)),
+            VatStatus = Text(data.VatStatus, CaseDataLimits.VatStatus, nameof(data.VatStatus)),
+            InspectionAddress = Text(data.InspectionAddress, CaseDataLimits.Address, nameof(data.InspectionAddress)),
             StorageLocation = Text(data.StorageLocation, 1000, nameof(data.StorageLocation)),
             RepairerAddress = Paragraphs(data.RepairerAddress, 1000, nameof(data.RepairerAddress)),
             ClaimSourceName = Text(data.ClaimSourceName, 300, nameof(data.ClaimSourceName)),
@@ -333,16 +333,16 @@ public static class CaseDataPolicy
         }
     }
 
-    private static string? Registration(string? value)
+    public static string? Registration(string? value, string parameterName)
     {
-        var normalized = Text(value, 20, nameof(CaseEditableData.VehicleRegistration))?
+        var normalized = Text(value, CaseDataLimits.VehicleRegistration, parameterName)?
             .Replace(" ", string.Empty, StringComparison.Ordinal)
             .ToUpperInvariant();
         if (normalized is not null && normalized.Any(character => !char.IsAsciiLetterOrDigit(character)))
         {
             throw new ArgumentException(
                 "The vehicle registration can contain only letters, digits and spaces.",
-                nameof(value));
+                parameterName);
         }
 
         return normalized;
@@ -357,7 +357,7 @@ public static class CaseDataPolicy
     /// of blank lines collapse to one, so the value cannot carry the reader's
     /// layout noise.
     /// </summary>
-    private static string? Paragraphs(string? value, int maximumLength, string parameterName)
+    public static string? Paragraphs(string? value, int maximumLength, string parameterName)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -392,7 +392,7 @@ public static class CaseDataPolicy
         return Bounded(string.Join('\n', normalized), maximumLength, parameterName);
     }
 
-    private static string? Text(string? value, int maximumLength, string parameterName)
+    public static string? Text(string? value, int maximumLength, string parameterName)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
