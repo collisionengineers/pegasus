@@ -469,7 +469,6 @@ public sealed record AssessmentReportSnapshot(
     CaseReportContentSwitches Content,
     ReportGuideSources Guides,
     string? ValuationCommentary = null,
-    bool ReportDateOverridden = false,
     string PayloadVersion = AssessmentReportContract.TemplateVersion,
     string? SupplementaryStatement = null,
     IReadOnlyList<CaseReportWording>? Wording = null)

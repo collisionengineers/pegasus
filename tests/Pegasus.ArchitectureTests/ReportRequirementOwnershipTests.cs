@@ -214,11 +214,11 @@ public sealed class ReportRequirementOwnershipTests
         Assert.Contains(
             "no staff editor", McpRefusal(AssessmentVocabulary.RateCard)!.Message, StringComparison.Ordinal);
         Assert.Null(AutomationRefusal(AssessmentVocabulary.CostRecoveryCharge));
-        // The 20 non-finding Decisions editors, 4 original report, 8 Report,
+        // The 20 non-finding Decisions editors, 4 original report, 7 Report,
         // 14 Damage and 4 Vehicle editors, the vehicle history and condition,
         // and the 5 typed Case-save paths. A new editor changes this count on
         // purpose: it widens what automation may write.
-        Assert.Equal(57, accepted.Count);
+        Assert.Equal(56, accepted.Count);
     }
 
     [Theory]
@@ -408,8 +408,6 @@ public sealed class ReportRequirementOwnershipTests
         });
         yield return NothingElseRecorded(With(
             complete,
-            (AssessmentVocabulary.ReportDateOverride, "true"),
-            (AssessmentVocabulary.ReportDate, null),
             (AssessmentVocabulary.ReportValuationCommentary, "true"),
             (AssessmentVocabulary.ReportValuationCommentaryText, null),
             (AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),

@@ -217,7 +217,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261005150000_PrincipalDefaultFee",
                 "20261006150000_DropCaseReportDeliveryIntents",
                 "20261006160000_RepairSpecificationGlassEstimate",
-                "20261007140000_MarketResearchDocumentRole"
+                "20261007140000_MarketResearchDocumentRole",
+                "20261007160000_RemoveReportDateOverride"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
