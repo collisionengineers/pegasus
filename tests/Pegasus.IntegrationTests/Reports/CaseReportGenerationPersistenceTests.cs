@@ -511,7 +511,7 @@ public sealed class CaseReportGenerationPersistenceTests
         // the Case's files are filed in.
         await harness.RecordStaffAccountAsync();
         await harness.RecordCaseFolderAsync("report-case-folder");
-        Harness.SeededDocument[] pinned = [harness.CloseUp, harness.Overview, .. harness.Supporting];
+        Harness.SeededDocument[] pinned = [harness.Overview, harness.CloseUp, .. harness.Supporting];
         Assert.Equal(pinned.Length, pinned.Select(image => image.Sha256).Distinct().Count());
 
         var box = new UnreachableBox();
@@ -569,7 +569,7 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(pinned.Select(image => image.VersionId), frozen.Select(image => image.VersionId));
         Assert.Equal(
             [
-                CaseAssetReportRole.CloseUp, CaseAssetReportRole.Overview,
+                CaseAssetReportRole.Overview, CaseAssetReportRole.CloseUp,
                 CaseAssetReportRole.Supporting, CaseAssetReportRole.Supporting
             ],
             frozen.Select(image => image.Role));

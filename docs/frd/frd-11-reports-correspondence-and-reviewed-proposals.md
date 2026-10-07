@@ -103,7 +103,7 @@ Contract Repair. A paragraph the Engineer adds is titled New paragraph until
 the Engineer names it (operator, 27 September 2026).
 
 The report prints no Damage table and no Tyres table. The marked damage
-diagram prints on page 1, beside the Close-up image (operator, 27 September
+diagram prints on page 1, beside the Overview image (operator, 7 October
 2026). It is the Case page's plan, turned on its side with the front pointing
 left. When no damage names a plan area it prints with no marks.
 
@@ -402,11 +402,13 @@ anything. Native Assign Engineer opens engineering work without an EVA
 export; EVA is optional and never gates report readiness.
 
 The report prints its images six to a page, two across and three down, in
-the order the Engineer set (operator, 27 September 2026). The Close-up prints
+the order the Engineer set (operator, 27 September 2026). The Overview prints
 on page 1 only, beside the marked damage diagram, and Full page has no effect
-on it. The Overview leads the image pages. An image flagged Full page prints
-on a page of its own (v28 P41). An image fills its frame: it is trimmed to
-the frame's shape after the Engineer's own crop and rotation. Every image
+on it. The Close-up leads the image pages (operator, 7 October 2026). An
+image flagged Full page prints on a page of its own (v28 P41). An image
+prints whole in its frame after the Engineer's own crop and rotation: fitted
+inside it at its own shape and centred, so nothing of it is trimmed
+(operator, 7 October 2026). Every image
 the Engineer includes prints, whatever their number or source file size,
 each as a print-resolution copy; the retained source is unchanged (operator,
 24 September 2026). The renderer opens one source image at a time, when it
@@ -478,7 +480,7 @@ Each fact is recorded in one section of the Case record
 | A Current repair spec with lines, a labour rate and a repairer VAT status the report can word ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report)) | Repair Spec |
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |
 | Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
-| An image in the report tagged Close-up and one tagged Overview, matching their confirmed sources | Files |
+| An image in the report tagged Overview, and every image in the report matching its confirmed source | Files |
 
 A new Case starts with its Principal's default fee as its agreed fee
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),

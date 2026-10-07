@@ -255,7 +255,6 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.LabourRateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.RepairerVatRequirement, "estimate")]
-    [InlineData(null, CaseReportReadiness.CloseUpImageRequirement, "files")]
     [InlineData(null, CaseReportReadiness.OverviewImageRequirement, "files")]
     [InlineData(null, CaseReportReadiness.ImageSourceRequirement, "files")]
     public void BlockerSectionMapsEachBlockerToTheSectionThatClearsIt(

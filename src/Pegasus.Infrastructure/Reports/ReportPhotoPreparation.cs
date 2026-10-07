@@ -10,9 +10,10 @@ namespace Pegasus.Infrastructure.Reports;
 /// What the page prints for one report image: the confirmed bytes decoded
 /// once, shown the way the crop editor showed them (EXIF orientation first,
 /// then the Engineer's whole-turn rotation), and the persisted crop taken as
-/// fractions of that rotated source. An image for a slot is then trimmed
-/// about its centre to the slot's shape, so it fills the slot; an image for a
-/// page of its own keeps its whole crop. Neither is ever enlarged. Bytes that
+/// fractions of that rotated source. Every image keeps its whole crop
+/// (operator, 7 October 2026): one for a slot is sized to fit inside the
+/// slot, and one for a page of its own to its pixel budget. Neither is ever
+/// enlarged. Bytes that
 /// do not decode fail the render closed: the report never prints a
 /// placeholder.
 /// </summary>
@@ -76,17 +77,17 @@ internal static class ReportPhotoPreparation
         var shape = slotHeight is { } height ? ReportChrome.SlotWidth / height : (float?)null;
 
         // The whole geometry is in the source's own pixels: the displayed
-        // source, the rotated source the crop is a fraction of, the part of
-        // it the print keeps about the crop's centre, and the output it fits.
+        // source, the rotated source the crop is a fraction of, the crop the
+        // print keeps whole, and the output it fits.
         var shownWidth = transposed ? info.Height : info.Width;
         var shownHeight = transposed ? info.Width : info.Height;
         var rotatedWidth = quarterTurn ? shownHeight : shownWidth;
         var rotatedHeight = quarterTurn ? shownWidth : shownHeight;
         var cropWidth = Math.Max(1f, (float)crop.Width * rotatedWidth);
         var cropHeight = Math.Max(1f, (float)crop.Height * rotatedHeight);
-        var kept = Kept(cropWidth, cropHeight, shape);
-        var left = (float)crop.Left * rotatedWidth + (cropWidth - kept.Width) / 2f;
-        var top = (float)crop.Top * rotatedHeight + (cropHeight - kept.Height) / 2f;
+        var kept = new SKSize(cropWidth, cropHeight);
+        var left = (float)crop.Left * rotatedWidth;
+        var top = (float)crop.Top * rotatedHeight;
         var scale = Scale(kept, shape);
         var outputWidth = Math.Max(1, (int)Math.Round(kept.Width * scale));
         var outputHeight = Math.Max(1, (int)Math.Round(kept.Height * scale));
@@ -184,24 +185,15 @@ internal static class ReportPhotoPreparation
     }
 
     /// <summary>
-    /// The part of a crop the print keeps: all of it, or for a slot the
-    /// largest part of the slot's shape, width over height.
+    /// What brings the kept crop within its pixel budget, never more than
+    /// one: for a slot, within the slot's own shape at <see cref="SlotPixels"/>
+    /// across, so the whole crop fits inside it.
     /// </summary>
-    private static SKSize Kept(float cropWidth, float cropHeight, float? shape)
-    {
-        if (shape is not { } widthOverHeight)
-        {
-            return new(cropWidth, cropHeight);
-        }
-        return cropWidth / cropHeight > widthOverHeight
-            ? new(cropHeight * widthOverHeight, cropHeight)
-            : new(cropWidth, cropWidth / widthOverHeight);
-    }
-
-    /// <summary>What brings the kept part within its pixel budget, never more than one.</summary>
-    private static float Scale(SKSize kept, float? shape) => shape is null
+    private static float Scale(SKSize kept, float? shape) => shape is not { } widthOverHeight
         ? Math.Min(1f, FullPagePixels / Math.Max(1f, Math.Max(kept.Width, kept.Height)))
-        : Math.Min(1f, SlotPixels / Math.Max(1f, kept.Width));
+        : Math.Min(1f, Math.Min(
+            SlotPixels / Math.Max(1f, kept.Width),
+            SlotPixels / widthOverHeight / Math.Max(1f, kept.Height)));
 
     /// <summary>
     /// The bytes as native data with no second copy. The array stays pinned
