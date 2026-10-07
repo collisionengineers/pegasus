@@ -3,7 +3,7 @@ id: ADR-0048
 status: accepted
 date: 2026-09-10
 supersedes: [ADR-0038]
-superseded_by: [ADR-0064]
+superseded_by: [ADR-0065]
 related_capabilities: [EXT-04]
 related_frd: [frd-04, frd-07]
 tags: [eva, report-generation, principals]
@@ -15,7 +15,7 @@ tags: [eva, report-generation, principals]
 
 Accepted. This record supersedes ADR-0038's manual-only EVA API policy.
 
-Partially superseded by ADR-0064 on 7 October 2026: the report-generation
+Partially superseded by ADR-0065 on 7 October 2026: the report-generation
 policy, the automatic intent and the ZIP and API routes are removed. Only the
 Principal report-recipient settings survive.
 

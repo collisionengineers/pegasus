@@ -404,5 +404,5 @@ acceptance are separate evidence tiers
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 - Technical constraints:
   [ADR-0020](../adr/0020-accepted-qdos-case-association-predicates.md),
-  [ADR-0064](../adr/0064-case-export-replaces-eva-routes.md),
+  [ADR-0065](../adr/0065-case-export-replaces-eva-routes.md),
   [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md).

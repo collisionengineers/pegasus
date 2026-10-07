@@ -122,4 +122,4 @@ prove the Case state and version are unchanged
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-16](frd-16-case-record-workspace.md).
 - Technical constraints:
-  [ADR-0064](../adr/0064-case-export-replaces-eva-routes.md).
+  [ADR-0065](../adr/0065-case-export-replaces-eva-routes.md).
