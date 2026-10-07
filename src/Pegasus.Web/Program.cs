@@ -290,7 +290,12 @@ else
     var queueConnectionString = builder.Configuration["AzureWebJobsStorage"]
         ?? throw new InvalidOperationException(
             "AzureWebJobsStorage is required for DevelopmentOffline queue transport.");
-    intakeWorkQueue = new QueueClient(queueConnectionString, "intake-work");
+    // Pinned like the blob client below: the newest service version the
+    // repository's Azurite pin (3.36.0) speaks.
+    intakeWorkQueue = new QueueClient(
+        queueConnectionString,
+        "intake-work",
+        new QueueClientOptions(QueueClientOptions.ServiceVersion.V2025_11_05));
     allowLocalQueueCreation = true;
     if (liveBoxCustody)
     {
