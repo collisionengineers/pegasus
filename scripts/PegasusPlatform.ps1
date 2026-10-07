@@ -1009,6 +1009,234 @@ function Get-PegasusDatabaseConnectionString {
 }
 
 # ---------------------------------------------------------------------------
+# Local live-integration settings
+# ---------------------------------------------------------------------------
+#
+# An operator-supplied, ignored KEY=VALUE file that opts a DevelopmentOffline
+# run into real vendor integrations (live DVLA/DVSA, Box custody, Glass's) and
+# password sign-in. Its values reach only the Web and Worker process
+# environments; the run manifest records the derived boolean flags and never
+# a value. The lifecycle owns the keys named in Get-PegasusReservedLocalSettingKeys.
+
+$script:PegasusLocalSettingsFileName = 'local.settings.env'
+
+$script:PegasusLocalSettingsHostPrefixes = @{
+    Web = @('Features__', 'Box__', 'Glass__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__')
+    Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__')
+}
+
+$script:PegasusLiveIntegrationFlagKeys = [ordered]@{
+    vehicleLookup = 'Features__LiveVehicleLookup'
+    boxCustody = 'Features__LiveBoxCustody'
+    glass = 'Features__LiveGlass'
+    passwordSignIn = 'Features__PasswordSignIn'
+    automationMcp = 'Features__AutomationMcp'
+    principalApi = 'Features__PrincipalApi'
+}
+
+function Get-PegasusLocalSettingsPath {
+    <#
+        .SYNOPSIS
+        The settings file's owned location beneath the ignored local-development root.
+    #>
+    param([Parameter(Mandatory)][string]$LocalDevelopmentRoot)
+
+    return Join-Path $LocalDevelopmentRoot $script:PegasusLocalSettingsFileName
+}
+
+function Get-PegasusReservedLocalSettingKeys {
+    <#
+        .SYNOPSIS
+        Environment names the lifecycle decides itself; a settings file may not set them.
+    #>
+    return @(
+        'Runtime__Profile',
+        'ConnectionStrings__Pegasus',
+        'ASPNETCORE_URLS',
+        'ASPNETCORE_ENVIRONMENT',
+        'DOTNET_ENVIRONMENT',
+        'AZURE_FUNCTIONS_ENVIRONMENT',
+        'FUNCTIONS_WORKER_RUNTIME',
+        'AzureWebJobsStorage',
+        'IntakeStorage__ConnectionString',
+        'Intake__LocalArtifactPath',
+        'Features__LocalIntake',
+        'Features__LocalDocumentCustody',
+        'Glass__CallbackBaseUri',
+        'PendingWorkRecoverySchedule',
+        'AutomaticEvaReviewSubmissionSchedule',
+        'IntakeStagedArtifactReconciliationSchedule',
+        'SentEvidencePollSchedule'
+    )
+}
+
+function Test-PegasusReservedLocalSettingKey {
+    param([Parameter(Mandatory)][string]$Key)
+
+    if ($Key -in (Get-PegasusReservedLocalSettingKeys)) {
+        return $true
+    }
+    return $Key.StartsWith('ApprovedInbox__', [System.StringComparison]::Ordinal) -or
+        $Key.StartsWith('ApprovedSent__', [System.StringComparison]::Ordinal)
+}
+
+function Assert-PegasusOwnerOnlyFile {
+    <#
+        .SYNOPSIS
+        On Linux, refuses a file that any account other than its owner can read or write.
+    #>
+    param([Parameter(Mandatory)][string]$Path)
+
+    if ((Get-PegasusPlatform).IsWindows) {
+        return
+    }
+
+    $mode = [System.IO.File]::GetUnixFileMode($Path)
+    $shared = [System.IO.UnixFileMode]::GroupRead -bor [System.IO.UnixFileMode]::GroupWrite -bor
+        [System.IO.UnixFileMode]::GroupExecute -bor [System.IO.UnixFileMode]::OtherRead -bor
+        [System.IO.UnixFileMode]::OtherWrite -bor [System.IO.UnixFileMode]::OtherExecute
+    if (($mode -band $shared) -ne 0) {
+        throw "The local settings file must be readable only by its owner (chmod 600): $Path"
+    }
+}
+
+function Read-PegasusLocalSettingsFile {
+    <#
+        .SYNOPSIS
+        Parses the KEY=VALUE settings file into an ordered hashtable.
+
+        .DESCRIPTION
+        Blank lines and lines starting with '#' are ignored. The first '=' splits
+        a line; the value is taken verbatim after it (no quoting, no escaping),
+        so a Box configuration JSON travels as one compact line. An absent file
+        yields an empty table. Every key must be a plain environment name, be
+        unique, match a host allowlist and not be a lifecycle-owned key.
+    #>
+    param([Parameter(Mandatory)][string]$Path)
+
+    $settings = [ordered]@{}
+    if (-not [System.IO.File]::Exists($Path)) {
+        return $settings
+    }
+
+    Assert-PegasusOwnerOnlyFile -Path $Path
+    $allowedPrefixes = @(
+        $script:PegasusLocalSettingsHostPrefixes.Web + $script:PegasusLocalSettingsHostPrefixes.Worker |
+            Select-Object -Unique
+    )
+    $lineNumber = 0
+    foreach ($rawLine in [System.IO.File]::ReadAllLines($Path)) {
+        $lineNumber++
+        $line = $rawLine.TrimEnd("`r")
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.TrimStart().StartsWith('#')) {
+            continue
+        }
+
+        $separator = $line.IndexOf('=')
+        if ($separator -le 0) {
+            throw "Local settings line $lineNumber is not KEY=VALUE."
+        }
+
+        $key = $line.Substring(0, $separator).Trim()
+        $value = $line.Substring($separator + 1)
+        if ($key -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+            throw "Local settings line $lineNumber has an invalid key '$key'."
+        }
+        if ($settings.Contains($key)) {
+            throw "Local settings key '$key' is set more than once."
+        }
+        if (Test-PegasusReservedLocalSettingKey -Key $key) {
+            throw "Local settings key '$key' is owned by the run lifecycle and cannot be supplied."
+        }
+        $prefixed = @($allowedPrefixes | Where-Object { $key.StartsWith($_, [System.StringComparison]::Ordinal) }).Count -gt 0
+        if (-not $prefixed) {
+            throw "Local settings key '$key' is not a recognised Web or Worker setting prefix."
+        }
+
+        $settings[$key] = $value
+    }
+
+    return $settings
+}
+
+function Split-PegasusLocalSettings {
+    <#
+        .SYNOPSIS
+        The subset of the settings one host receives, by its prefix allowlist.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.IDictionary]$Settings,
+        [Parameter(Mandatory)]
+        [ValidateSet('Web', 'Worker')]
+        [string]$HostKind
+    )
+
+    $prefixes = $script:PegasusLocalSettingsHostPrefixes[$HostKind]
+    $subset = [ordered]@{}
+    foreach ($key in $Settings.Keys) {
+        if (Test-PegasusReservedLocalSettingKey -Key $key) {
+            throw "Local settings key '$key' is owned by the run lifecycle and cannot be supplied."
+        }
+        $matched = @($prefixes | Where-Object { $key.StartsWith($_, [System.StringComparison]::Ordinal) }).Count -gt 0
+        if ($matched) {
+            $subset[$key] = [string]$Settings[$key]
+        }
+    }
+    return $subset
+}
+
+function Get-PegasusLiveIntegrationFlags {
+    <#
+        .SYNOPSIS
+        The boolean opt-ins a settings file expresses, by name only. Never a value.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.IDictionary]$Settings
+    )
+
+    $flags = [ordered]@{}
+    foreach ($name in $script:PegasusLiveIntegrationFlagKeys.Keys) {
+        $key = $script:PegasusLiveIntegrationFlagKeys[$name]
+        $flags[$name] = $Settings.Contains($key) -and
+            ([string]$Settings[$key]).Trim().Equals('true', [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    $flags['problemReports'] = $Settings.Contains('GitHub__ProblemReports__Token') -and
+        -not [string]::IsNullOrWhiteSpace([string]$Settings['GitHub__ProblemReports__Token'])
+    return $flags
+}
+
+function Format-PegasusLiveIntegrationFlags {
+    <#
+        .SYNOPSIS
+        'none', or the comma-joined names of the flags that are on.
+    #>
+    param([AllowNull()][object]$Flags)
+
+    if ($null -eq $Flags) {
+        return 'none'
+    }
+    $names = [System.Collections.Generic.List[string]]::new()
+    if ($Flags -is [System.Collections.IDictionary]) {
+        foreach ($name in $Flags.Keys) {
+            if ([bool]$Flags[$name]) { $names.Add([string]$name) }
+        }
+    }
+    else {
+        foreach ($property in $Flags.PSObject.Properties) {
+            if ([bool]$property.Value) { $names.Add([string]$property.Name) }
+        }
+    }
+    if ($names.Count -eq 0) {
+        return 'none'
+    }
+    return ($names -join ',')
+}
+
+# ---------------------------------------------------------------------------
 # Repair hints
 # ---------------------------------------------------------------------------
 
