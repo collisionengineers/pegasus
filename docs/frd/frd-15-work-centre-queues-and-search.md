@@ -309,7 +309,7 @@ each action posts once and holds the record for its one save
 of the Case record's sections, and has no Set principal.
 
 **Ribbon.** The `t.` Case/PO, registration, the claimant read from the
-request (or — when none was read; operator, 7 October 2026), Principal, source, opened date
+request (or Not recorded; operator, 7 October 2026), Principal, source, opened date
 and time, the assignee, the linked Case (its Case/PO as a link, or None) and
 the state chip. Then the state's next step as the one primary button, and one
 **Actions** menu holding every other action the state permits, Cancel Triage
