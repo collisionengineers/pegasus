@@ -435,6 +435,12 @@ public sealed record TriageDetail(
     /// Case record's Files section lists them.
     /// </summary>
     public IReadOnlyList<CaseCorrespondenceEmail> Correspondence { get; init; } = [];
+
+    /// <summary>
+    /// The Triage version the latest sent Reply with finding was composed
+    /// against, by any member of staff; null when none has been sent.
+    /// </summary>
+    public long? SentOutcomeReplyVersion { get; init; }
 }
 
 /// <summary>
@@ -456,11 +462,15 @@ public sealed record TriageListSlice(
 
 public interface ITriageQueries
 {
+    /// <summary>
+    /// The Triages in any of <paramref name="states"/>; every state when
+    /// <see langword="null"/>.
+    /// </summary>
     Task<IReadOnlyList<TriageSummary>> ListAsync(
-        TriageState? state,
+        IReadOnlyCollection<TriageState>? states,
         CancellationToken cancellationToken);
 
-    Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken);
+    Task<int> CountAsync(IReadOnlyCollection<TriageState>? states, CancellationToken cancellationToken);
 
     /// <summary>
     /// The keyset continuation behind the Triage list: at most

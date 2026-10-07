@@ -154,7 +154,14 @@ The reply screen shows the retained targets and the chosen recipients so
 staff can confirm them. If the retained metadata is missing or the target
 list is empty, Reply and Reply all are refused. The transport Sender, To and
 Cc are never used as substitutes. Starting a new message instead is a
-deliberate staff choice.
+deliberate staff choice. The Triage Case composer
+([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)) has
+one exception: when its request is a Collision Engineers staff forward (the
+transport sender is on the staff domain) and the forward names one external
+original sender, To is that original sender, not the forwarding desk, and
+the forward's leading "FW:" or "Fwd:" is dropped before "Re:". A forward
+inside the Principal's own organisation is not unwrapped and answers its own
+Reply-To or From (operator, issue 1042, 7 October 2026).
 
 **What is retained.** The immutable Sent item that Graph writes is the
 evidence. The Sent-evidence poll retains it under the rules in

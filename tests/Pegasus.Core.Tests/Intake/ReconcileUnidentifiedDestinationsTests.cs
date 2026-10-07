@@ -1306,11 +1306,11 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public Dictionary<Guid, TriageDetail> TriageCases { get; } = [];
 
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
-            TriageState? state,
+            IReadOnlyCollection<TriageState>? state,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
-        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+        public Task<int> CountAsync(IReadOnlyCollection<TriageState>? state, CancellationToken cancellationToken) =>
             Task.FromResult(0);
 
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>

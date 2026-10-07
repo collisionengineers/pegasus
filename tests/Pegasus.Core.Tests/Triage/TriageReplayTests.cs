@@ -390,7 +390,7 @@ public sealed class TriageReplayTests
 
     private sealed class ReplayStore : ITriageStore
     {
-        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+        public Task<int> CountAsync(IReadOnlyCollection<TriageState>? state, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
         public TriageRecord? CreationResult { get; init; }
@@ -491,7 +491,7 @@ public sealed class TriageReplayTests
             throw new NotSupportedException("Not used by these tests.");
 
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
-            TriageState? state,
+            IReadOnlyCollection<TriageState>? state,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<TriageSummary>>([]);
 
