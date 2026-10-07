@@ -169,6 +169,7 @@ public static class AutomationMcpExtensions
             .WithTools<DocumentMcpTools>()
             .WithTools<DocumentActionMcpTools>()
             .WithTools<ReportMcpTools>()
+            .WithTools<ReportPreparationMcpTools>()
             .WithTools<AssessmentMcpTools>()
             .WithTools<MailMcpTools>()
             .WithTools<UnidentifiedMcpTools>()

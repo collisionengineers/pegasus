@@ -2152,16 +2152,8 @@ public sealed partial class DetailsModel(
     /// offers. A Case that cannot yet be projected has neither.
     /// </summary>
     private (AssessmentReportSnapshot? Snapshot, IReadOnlyList<ReportWordingBlock> Offered) WordingOf(
-        AssessmentReportProjectionInput projection)
-    {
-        var projected = AssessmentReportProjection.Project(projection with
-        {
-            ReportDate = Pegasus.Core.LondonCalendar.DateAt(clock.GetUtcNow()),
-        });
-        return projected.Snapshot is { } snapshot
-            ? (snapshot, ReportWordingComposition.Offered(snapshot, projection.Wording ?? []))
-            : (null, []);
-    }
+        AssessmentReportProjectionInput projection) =>
+        Pegasus.Web.Presentation.ReportWordingEdits.Offered(projection, clock.GetUtcNow());
 
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 
@@ -2180,15 +2172,9 @@ public sealed partial class DetailsModel(
         IReadOnlyList<ReportWordingEditForm> edits,
         CancellationToken cancellationToken)
     {
-        var inputs = await reportSnapshotSource.GetAsync(caseId, actor, work, reuse: null, cancellationToken);
-        if (inputs is null)
-        {
-            throw new InvalidOperationException("The report wording is unavailable. Refresh the Case and retry.");
-        }
-        var snapshot = WordingOf(inputs.Projection).Snapshot
-            ?? throw new InvalidOperationException("The report wording is unavailable. Refresh the Case and retry.");
-        var presentation = snapshot.Presentation();
-        return new([.. edits.Select(edit => edit.ToRecord(snapshot, presentation))]);
+        var wording = await Pegasus.Web.Presentation.ReportWordingEdits.ReadAsync(
+            reportSnapshotSource, caseId, actor, work, clock.GetUtcNow(), cancellationToken);
+        return new([.. edits.Select(edit => edit.ToRecord(wording.Snapshot, wording.Presentation))]);
     }
 
     /// <summary>
@@ -2935,34 +2921,14 @@ public sealed partial class DetailsModel(
 
         public bool Manual { get; set; }
 
+        // The browser posts a line break as two characters; the composed
+        // sentence it is compared with holds one, which the shared rule
+        // normalises.
         public CaseReportWording ToRecord(
             AssessmentReportSnapshot? snapshot,
-            AssessmentReportPresentation? presentation)
-        {
-            var title = string.IsNullOrWhiteSpace(Title) ? null : Title.Trim();
-            // The browser posts a line break as two characters; the composed
-            // sentence it is compared with holds one.
-            var text = string.IsNullOrWhiteSpace(Text)
-                ? null
-                : ReportWordingComposition.LineBreaks(Text.Trim());
-            if (!Manual && snapshot is not null && presentation is not null)
-            {
-                if (title is not null
-                    && string.Equals(title, ReportWordingComposition.StandardTitle(Key, presentation), StringComparison.Ordinal))
-                {
-                    title = null;
-                }
-                if (text is not null && string.Equals(
-                    text,
-                    ReportWordingComposition.ComposedText(Key, snapshot, presentation).Trim(),
-                    StringComparison.Ordinal))
-                {
-                    text = null;
-                }
-            }
-            var order = !Manual && Order == ReportWordingComposition.StandardIndex(Key) ? null : Order;
-            return new(Key, title, text, order, Included, Manual);
-        }
+            AssessmentReportPresentation? presentation) =>
+            Pegasus.Web.Presentation.ReportWordingEdits.ToRecord(
+                Key, Title, Text, Order, Included, Manual, snapshot, presentation);
     }
 
     public sealed class AssetPreparationEditForm

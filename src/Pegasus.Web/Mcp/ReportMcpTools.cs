@@ -447,7 +447,7 @@ internal sealed class ReportMcpTools(
             ? throw new McpException($"The {verb} action needs a reason.")
             : reason;
 
-    private static CaseWorkSelector ParseWork(string? work) => work?.Trim() switch
+    internal static CaseWorkSelector ParseWork(string? work) => work?.Trim() switch
     {
         null or "" or "current" => CaseWorkSelector.Current,
         "inspection" => CaseWorkSelector.Primary,

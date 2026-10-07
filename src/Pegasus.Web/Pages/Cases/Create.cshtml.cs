@@ -181,7 +181,7 @@ public sealed partial class CreateModel(
     /// in which case this screen shows it and does not ask again.
     /// </summary>
     public bool AddressAlreadySettled =>
-        InspectionAddressResolutionPolicy.IsStaffResolved(AddressResolution.State);
+        InspectionAddressResolutionPolicy.IsSettled(AddressResolution.State);
 
     /// <summary>
     /// Whether the operator is asked for an address at all.
@@ -818,6 +818,7 @@ public sealed partial class CreateModel(
                 receipt.Version,
                 InspectionAddressResolutionState.Unresolved,
                 Ext18InspectionAddressPolicy.Evaluate(receipt),
+                null,
                 null,
                 null,
                 null);
