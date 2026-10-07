@@ -43,6 +43,8 @@ public sealed class AutomationQueueIngressTests
 
         // A physical-address Principal needs its address settled first
         // (resolve_inspection_address): accept refuses and writes nothing.
+        await factory.Database.ExecuteAsync(
+            $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.PhysicalAddressCode}' WHERE Code = N'{QdosPrincipal.Code}'");
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
@@ -131,6 +133,9 @@ public sealed class AutomationQueueIngressTests
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
         _ = await SeedAcceptedCaseAsync(mcpFactory);
+        // A physical-address Principal: its address needs settling.
+        await factory.Database.ExecuteAsync(
+            $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.PhysicalAddressCode}' WHERE Code = N'{QdosPrincipal.Code}'");
         var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
             mcpFactory.Services,
             CaseType.Inspection,
