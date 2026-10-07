@@ -577,8 +577,10 @@ public sealed class PollSentEvidence(
                 || (staffExecution.CaseId is { } resolvedCaseId
                     && caseIdentities.Length > 0
                     && (caseIdentities.Length != 1 || caseIdentities[0] != resolvedCaseId))
-                || !staffExecution.Attachments.Select(value => value.Sha256).Order(StringComparer.Ordinal)
-                    .SequenceEqual((provenance.AttachmentSha256 ?? []).Order(StringComparer.Ordinal), StringComparer.Ordinal))
+                // Custody records its hashes in lower-case hex and the Sent
+                // reader in upper-case; the bytes are what must agree.
+                || !staffExecution.Attachments.Select(value => value.Sha256).Order(StringComparer.OrdinalIgnoreCase)
+                    .SequenceEqual((provenance.AttachmentSha256 ?? []).Order(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase))
             {
                 await RecordOutcomeAsync(
                     lease, item, outcomeId, SentEvidencePollOutcomeKind.Ambiguous,
