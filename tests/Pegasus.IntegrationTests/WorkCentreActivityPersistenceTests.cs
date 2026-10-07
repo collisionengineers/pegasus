@@ -42,11 +42,11 @@ public sealed class WorkCentreActivityPersistenceTests
             // week. A later return to the Engineer is not a second send, so
             // the second entries below count for nothing.
             context.AddRange(
-                Event(today.Id, "state_ReportPreparation", DayStart.AddHours(3)),
-                Event(today.Id, "state_ReportPreparation", DayStart.AddHours(9)),
-                Event(thisWeek.Id, "state_ReportPreparation", WeekStart.AddHours(12)),
-                Event(lastWeek.Id, "state_ReportPreparation", WeekStart.AddDays(-1)),
-                Event(lastWeek.Id, "state_ReportPreparation", DayStart.AddHours(2)));
+                Event(today.Id, "state_ReportPreparation", DayStart.AddHours(3), version: 4),
+                Event(today.Id, "state_ReportPreparation", DayStart.AddHours(9), version: 5),
+                Event(thisWeek.Id, "state_ReportPreparation", WeekStart.AddHours(12), version: 4),
+                Event(lastWeek.Id, "state_ReportPreparation", WeekStart.AddDays(-1), version: 4),
+                Event(lastWeek.Id, "state_ReportPreparation", DayStart.AddHours(2), version: 5));
 
             // Reports sent: sent report e-mails as MI-01 counts them (item F).
             // A sent general e-mail and a failed report send are not reports sent.
