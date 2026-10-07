@@ -24,9 +24,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// Every write is a short serializable transaction and none of them holds a
 /// lock through the renderer or Box: the freeze writes the snapshot and one
 /// Pending artifact row, rendering and custody happen outside, and a second
-/// short transaction records what custody actually did. This is
-/// <c>EvaSubmissionStore</c>'s shape, deliberately not
-/// <c>EfMarketResearchAiJobCompletionStore</c>'s.
+/// short transaction records what custody actually did. This is deliberately
+/// not <c>EfMarketResearchAiJobCompletionStore</c>'s shape.
 /// </para>
 /// <para>
 /// The snapshot hash is the SHA-256 of the canonical serialization of the

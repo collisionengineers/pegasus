@@ -1,16 +1,14 @@
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 
 namespace Pegasus.Core.Tests.Qdos;
 
 /// <summary>
-/// The hand-off was collapsed into the export, and the stage/custody/
-/// evidence gate that used to live in <c>EvaHandoffPolicy.Evaluate</c> went
-/// with the act it gated. Image selection is what remains, and it is now the
-/// only Core policy the export consults — so it is pinned here directly rather
-/// than only through the architecture test's source grep.
+/// Image selection is the only Core policy the case export consults, so it
+/// is pinned here directly rather than only through the architecture test's
+/// source grep.
 /// </summary>
-public sealed class EvaHandoffPolicyTests
+public sealed class CaseExportPolicyTests
 {
     [Fact]
     public void OnlyCurrentConfirmedOwnVehiclePhotographsAreEligible()
@@ -19,7 +17,7 @@ public sealed class EvaHandoffPolicyTests
 
         Assert.Equal(
             [eligible.VersionId],
-            EvaHandoffPolicy.SelectEligibleImages([eligible]).Select(item => item.VersionId));
+            CaseExportPolicy.SelectEligibleImages([eligible]).Select(item => item.VersionId));
 
         foreach (var refused in new[]
         {
@@ -31,7 +29,7 @@ public sealed class EvaHandoffPolicyTests
             eligible with { MediaType = "application/pdf" }
         })
         {
-            Assert.Empty(EvaHandoffPolicy.SelectEligibleImages([refused]));
+            Assert.Empty(CaseExportPolicy.SelectEligibleImages([refused]));
         }
     }
 
@@ -44,11 +42,11 @@ public sealed class EvaHandoffPolicyTests
 
         Assert.Equal(
             [1, 2, 3],
-            EvaHandoffPolicy.SelectEligibleImages([third, first, second])
+            CaseExportPolicy.SelectEligibleImages([third, first, second])
                 .Select(item => item.Ordinal));
     }
 
-    private static EvaHandoffImageCandidate Candidate(
+    private static CaseExportImageCandidate Candidate(
         int ordinal,
         string mediaType = "image/jpeg") => new(
         OccurrenceId: Guid.NewGuid(),

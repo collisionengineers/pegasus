@@ -51,7 +51,7 @@ public static class CaseDataPolicy
     /// calendar date of its origin receipt's received time, or of its creation
     /// for a manual Case, which has no receipt. It is the Case's one instruction
     /// date (operator, 24 September 2026): the report prints it as the date
-    /// instructions were received and the EVA archive sends it as Instruction Date.
+    /// instructions were received and the case export writes it as Instruction Date.
     /// </summary>
     public static DateOnly ReceivedDate(DateTimeOffset? originReceivedAtUtc, DateTimeOffset caseCreatedAtUtc) =>
         LondonCalendar.DateAt(originReceivedAtUtc ?? caseCreatedAtUtc);
@@ -334,7 +334,7 @@ public static class CaseDataPolicy
     /// The accident circumstances are the one case text field that keeps its
     /// line structure. Every other field is a single line, so <see cref="Text"/>
     /// flattens it; the circumstances carry a labelled damage-area block below
-    /// the prose, separated by a blank line, and EVA is sent that shape
+    /// the prose, separated by a blank line, and the case export writes that shape
     /// verbatim. Within a line whitespace still collapses, and runs
     /// of blank lines collapse to one, so the value cannot carry the reader's
     /// layout noise.

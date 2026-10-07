@@ -9,7 +9,7 @@ namespace Pegasus.Core.Documents;
 /// one of the ordered Supporting images. It is never chosen or stored: the
 /// image's tags decide it (operator, 26 September 2026), through
 /// <see cref="CaseAssetPreparationPolicy.ForReport"/>. Distinct from
-/// <see cref="DocumentSemanticRole"/>, which intake and EVA eligibility read.
+/// <see cref="DocumentSemanticRole"/>, which intake and case export eligibility read.
 /// </summary>
 public enum CaseAssetReportRole
 {

@@ -140,7 +140,7 @@ export and the calculation PDF land the same spec:
 
 - An additional operation (the XML's `Extra costs`, which includes Glass's
   own set-up time; the PDF's Auxiliary work or Additional costs `EC` row) is
-  a Specialist line, as EVA files it. With hours it is priced by work units
+  a Specialist line. With hours it is priced by work units
   at the spec's rate; with none, its amount is a fixed Specialist sum.
 - An included operation is a no-charge Other line, with neither hours nor a
   price, noted as included in its row. It is never a new part.

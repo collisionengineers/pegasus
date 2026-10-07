@@ -1,6 +1,5 @@
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Custody;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -9,7 +8,7 @@ namespace Pegasus.Core.Operations;
 /// <summary>
 /// The Service health table (FRD-12 § Operations). Every row
 /// is derived from a fact the system already recorded — a poll cursor, a
-/// work item, a submission attempt, a job, a switch — and names the time of
+/// work item, a job, a switch — and names the time of
 /// that evidence. Nothing here probes a dependency, and a service with no
 /// composed source has no row rather than a guessed one.
 /// </summary>
@@ -18,7 +17,6 @@ public enum ServiceHealthArea
     Mail,
     Intake,
     Custody,
-    Eva,
     Ai,
     Automation
 }
@@ -49,7 +47,6 @@ public enum ServiceHealthDependency
     MicrosoftGraph,
     Worker,
     Box,
-    EvaApi,
     AiConnector,
     AutomationClient
 }
@@ -120,19 +117,9 @@ public interface IAutomationIngressStatusQueries
 /// </summary>
 public static class ServiceHealthPolicy
 {
-    /// <summary>
-    /// How far back an EVA failure still counts as recent on the health row.
-    /// A failure older than this is still on the case; it has just stopped
-    /// being a service-level signal.
-    /// </summary>
-    public static readonly TimeSpan EvaRecentFailureWindow = TimeSpan.FromDays(1);
-
-    public const int MaximumEvaFailures = 20;
-
     public const string SentEvidenceService = "Sent evidence";
     public const string IntakeDispatchService = "Intake dispatch";
     public const string ExternalWorkService = "External work";
-    public const string EvaService = "EVA submissions";
     public const string AiJobsService = "AI jobs";
     public const string AutomationService = "Automation ingress";
 
@@ -180,25 +167,6 @@ public static class ServiceHealthPolicy
         // An empty queue that has never completed anything has no evidence
         // to call itself current on.
         return health.LatestCompletedAtUtc is null
-            ? ServiceHealthState.Configured
-            : ServiceHealthState.Current;
-    }
-
-    /// <summary>
-    /// A failed EVA attempt is never retried by the system (FRD-07), so it
-    /// asks for a person rather than reporting the service down.
-    /// </summary>
-    public static ServiceHealthState EvaState(
-        EvaSubmissionActivity activity,
-        IReadOnlyList<EvaSubmissionFailure> recentFailures)
-    {
-        ArgumentNullException.ThrowIfNull(activity);
-        ArgumentNullException.ThrowIfNull(recentFailures);
-        if (recentFailures.Count > 0)
-        {
-            return ServiceHealthState.ReviewRequired;
-        }
-        return activity.LatestSubmittedAtUtc is null
             ? ServiceHealthState.Configured
             : ServiceHealthState.Current;
     }
@@ -291,7 +259,6 @@ public sealed class GetServiceHealth(
     IApprovedMailboxPollStatusQueries mailboxPolls,
     IServiceHealthQueries healthQueries,
     GetRequestOperations requestOperations,
-    IEvaSubmissionQueries evaSubmissions,
     IAiJobQueries aiJobs,
     ISendToAiControl sendToAiControl,
     IAutomationIngressStatusQueries automationIngress,
@@ -304,8 +271,6 @@ public sealed class GetServiceHealth(
         healthQueries ?? throw new ArgumentNullException(nameof(healthQueries));
     private readonly GetRequestOperations requestOperations =
         requestOperations ?? throw new ArgumentNullException(nameof(requestOperations));
-    private readonly IEvaSubmissionQueries evaSubmissions =
-        evaSubmissions ?? throw new ArgumentNullException(nameof(evaSubmissions));
     private readonly IAiJobQueries aiJobs =
         aiJobs ?? throw new ArgumentNullException(nameof(aiJobs));
     private readonly ISendToAiControl sendToAiControl =
@@ -335,11 +300,6 @@ public sealed class GetServiceHealth(
             actor,
             asOfUtc: nowUtc,
             cancellationToken: cancellationToken);
-        var evaActivityRead = evaSubmissions.GetActivityAsync(cancellationToken);
-        var evaFailuresRead = evaSubmissions.GetRecentFailuresAsync(
-            nowUtc - ServiceHealthPolicy.EvaRecentFailureWindow,
-            ServiceHealthPolicy.MaximumEvaFailures,
-            cancellationToken);
         var aiCountsRead = aiJobs.GetCountsAsync(cancellationToken);
         var recentJobsRead = aiJobs.ListRecentAsync(1, cancellationToken);
         var sendToAiRead = sendToAiControl.IsEnabledAsync(cancellationToken);
@@ -354,8 +314,6 @@ public sealed class GetServiceHealth(
             sentPollRead,
             dispatchRead,
             operationsRead,
-            evaActivityRead,
-            evaFailuresRead,
             aiCountsRead,
             recentJobsRead,
             sendToAiRead,
@@ -398,14 +356,6 @@ public sealed class GetServiceHealth(
 
         var operations = await operationsRead;
         rows.AddRange(ServiceHealthPolicy.ExternalWorkRows(operations.Items));
-
-        var evaActivity = await evaActivityRead;
-        rows.Add(new(
-            ServiceHealthArea.Eva,
-            ServiceHealthPolicy.EvaService,
-            ServiceHealthPolicy.EvaState(evaActivity, await evaFailuresRead),
-            evaActivity.LatestSubmittedAtUtc,
-            ServiceHealthDependency.EvaApi));
 
         var recentJobs = await recentJobsRead;
         DateTimeOffset? aiEvidence = recentJobs.Count == 0

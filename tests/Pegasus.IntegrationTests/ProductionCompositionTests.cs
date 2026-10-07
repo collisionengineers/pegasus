@@ -16,7 +16,7 @@ using Microsoft.Extensions.Options;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
@@ -27,7 +27,6 @@ using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
-using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Web;
@@ -117,23 +116,18 @@ public sealed class ProductionCompositionTests
         var services = NewServices();
         if (boxFirst) services.AddProductionBoxCustody(_ => BoxOptions());
         services.AddProductionApprovedMailboxResolver("https://graph.microsoft.com/v1.0/");
-        services.AddEvaApiSubmission(_ => throw new InvalidOperationException("No provider configuration is read by this client test."));
         if (!boxFirst) services.AddProductionBoxCustody(_ => BoxOptions());
         using var provider = services.BuildServiceProvider();
         var factory = provider.GetRequiredService<IHttpClientFactory>();
         using var box = factory.CreateClient(nameof(BoxContentClient));
         using var graph = factory.CreateClient(nameof(GraphMailClient));
-        using var eva = factory.CreateClient(nameof(EvaApiTransport));
 
         Assert.Equal(BoxJwtAuthorizationHeaderProvider.RequestTimeout, box.Timeout);
         Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
-        Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
         box.DefaultRequestHeaders.Add("X-Composition-Only", "box");
         box.Timeout = TimeSpan.FromSeconds(1);
         Assert.False(graph.DefaultRequestHeaders.Contains("X-Composition-Only"));
-        Assert.False(eva.DefaultRequestHeaders.Contains("X-Composition-Only"));
         Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
-        Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
     }
 
     // The Box and Graph clients are created once inside singletons, so the factory never
@@ -371,7 +365,7 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void ProductionProfileComposesTheStaffDocumentAndEvaSurface()
+    public void ProductionProfileComposesTheStaffDocumentAndExportSurface()
     {
         using var provider = BuildProduction();
         using var scope = provider.CreateScope();
@@ -389,7 +383,7 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void ProductionCustodyAndEvaPortsResolveOnlyApprovedAdaptersAndCoreUseCases()
+    public void ProductionCustodyAndExportPortsResolveOnlyApprovedAdaptersAndCoreUseCases()
     {
         using var provider = BuildProduction();
         using var scope = provider.CreateScope();
@@ -398,8 +392,7 @@ public sealed class ProductionCompositionTests
         Assert.IsType<BoxCaseCustody>(services.GetRequiredService<ICaseCustody>());
         Assert.IsType<BoxDocumentContentStore>(services.GetRequiredService<IDocumentContentStore>());
         Assert.IsType<RetryCaseCustody>(services.GetRequiredService<IRetryCaseCustody>());
-        Assert.IsType<EvaHandoffStore>(services.GetRequiredService<IExportCaseBundle>());
-        Assert.NotNull(services.GetRequiredService<IEvaHandoffProxy>());
+        Assert.IsType<EfCaseExportStore>(services.GetRequiredService<IExportCaseBundle>());
     }
 
     [Fact]

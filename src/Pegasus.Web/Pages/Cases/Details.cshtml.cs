@@ -14,7 +14,6 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Lifecycle;
@@ -90,8 +89,6 @@ public sealed partial class DetailsModel(
     IListCaseValuations listCaseValuations,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
-    IEvaSubmissionModeStore evaModeStore,
-    IEvaSubmissionQueries evaSubmissionQueries,
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
     GlassRepairEstimateAvailability glassAvailability,
@@ -106,7 +103,6 @@ public sealed partial class DetailsModel(
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
-    ISubmitCaseToEva? submitCaseToEva = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
     /// <summary>
@@ -307,7 +303,10 @@ public sealed partial class DetailsModel(
 
     public string SignOffEngineerDisplayName { get; private set; } = Labels.CaseWorkspace.Unassigned;
 
-    public EvaHandoffViewModel? EvaHandoff { get; private set; }
+    public AssignEngineerViewModel? AssignEngineerChoices { get; private set; }
+
+    /// <summary>The operation key the Actions menu's Export case posts.</summary>
+    public string ExportOperationKey { get; } = NewOperationKey();
 
     /// <summary>
     /// The requirements the current configured policy reports as unmet,
@@ -1537,8 +1536,8 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The record's remaining reads: the directory choices, the Principal's
-    /// previous addresses, the Files galleries, the frame's names and EVA
-    /// state, the lease holder, and the Case's AI jobs, read once for both
+    /// previous addresses, the Files galleries, the frame's names and Engineer
+    /// choices, the lease holder, and the Case's AI jobs, read once for both
     /// the Next action's drafts and the Valuation section's pending research.
     /// </summary>
     private async Task LoadExtrasAsync(Guid id, ActionActor actor, CancellationToken cancellationToken)
@@ -1601,7 +1600,7 @@ public sealed partial class DetailsModel(
         var workspaceExtras = await extras;
         EngineerDisplayName = workspaceExtras.EngineerDisplayName;
         SignOffEngineerDisplayName = workspaceExtras.SignOffEngineerDisplayName;
-        EvaHandoff = workspaceExtras.EvaHandoff;
+        AssignEngineerChoices = workspaceExtras.AssignEngineerChoices;
         if (activeLease is not null)
         {
             ViewerHoldsEditAuthority = viewerHoldsLease;
@@ -4624,13 +4623,12 @@ public sealed partial class DetailsModel(
     private sealed record WorkspaceExtras(
         string? EngineerDisplayName,
         string SignOffEngineerDisplayName,
-        EvaHandoffViewModel EvaHandoff);
+        AssignEngineerViewModel AssignEngineerChoices);
 
     /// <summary>
     /// The values the workspace frame names that the case projection does not
-    /// carry directly: the assigned and Sign-off Engineer names, the Engineer
-    /// choices available in Review, and whether API submission is a composed
-    /// route this principal allows.
+    /// carry directly: the assigned and Sign-off Engineer names, and the
+    /// Engineer choices available in Review.
     /// </summary>
     private async Task<WorkspaceExtras> ReadWorkspaceExtrasAsync(
         WorkspaceExtrasInputs inputs,
@@ -4661,46 +4659,18 @@ public sealed partial class DetailsModel(
         var signOffEngineerDisplayName = signOffEngineer?.PrintedName
             ?? Labels.CaseWorkspace.Unassigned;
 
-        IReadOnlyList<EvaHandoffEngineerOption> engineerOptions = roster
+        IReadOnlyList<EngineerOption> engineerOptions = roster
             .Where(account => account.IsEnabled)
-            .Select(account => new EvaHandoffEngineerOption(account.Id, account.UserName))
+            .Select(account => new EngineerOption(account.Id, account.UserName))
             .ToArray();
 
-        var modes = await evaModeStore.GetForPrincipalAsync(
-            workflow.Identity.PrincipalCode,
-            cancellationToken);
-        var canRetryAutomaticFailure = modes.Policy
-            == PrincipalReportGenerationPolicy.EvaAutomaticApiOnReview
-            && await evaSubmissionQueries.CanRetryAutomaticFailureAsync(
-                workflow.CaseId,
-                cancellationToken);
-        var latestEvaSubmission = await evaSubmissionQueries.GetLatestAsync(
-            workflow.CaseId,
-            cancellationToken);
         return new(
             engineerDisplayName,
             signOffEngineerDisplayName,
             new(
-                workflow.CaseId,
-                workflow.Version,
-                workflow.State,
-                inputs.LeaseToken,
-                engineerDisplayName ?? Labels.CaseWorkspace.Unassigned,
                 engineerOptions,
-                signOffEngineerDisplayName,
-                signOffEngineer?.StaffId,
-                profiles.Select(profile => new EvaHandoffEngineerOption(
-                    profile.StaffId,
-                    profile.PrintedName)).ToArray(),
                 details.Data?.Completeness.Values.InstructionComplete ?? false,
-                details.Data?.Completeness.Values.ImagesComplete ?? false,
-                modes.Policy,
-                submitCaseToEva is not null,
-                EvaSubmissionPolicy.AllowsManualSubmission(modes) || canRetryAutomaticFailure,
-                NewOperationKey(),
-                NewOperationKey(),
-                canRetryAutomaticFailure,
-                canRetryAutomaticFailure && latestEvaSubmission is not { IsDelivered: true }));
+                details.Data?.Completeness.Values.ImagesComplete ?? false));
     }
 
     /// <summary>

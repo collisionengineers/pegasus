@@ -8,8 +8,8 @@
   `Query` is a return trip from Completed. `Held` is a pause.
 - Not ready becomes Review by itself when every required instruction item
   and image is present. Nobody ticks a "reviewed" box.
-- **Assign Engineer** is the only way from Review to With Engineer. Sending
-  work to EVA never moves a Case.
+- **Assign Engineer** is the only way from Review to With Engineer. The Case
+  export never moves a Case.
 - **Mark report sent** needs a real Sent email item. **Mark completed** can be
   undone. A Case is never permanently closed.
 - **Close case** records a cancellation or a rejection with a reason.
@@ -121,11 +121,11 @@ to its already-assigned eligible staff member; it is not a second screen step.
 Replaying the same request does not hand off twice. A request that is
 incomplete, stale or unauthorised changes nothing.
 
-This is the only route out of Review. EVA work is optional in Review or With
-Engineer and follows the Principal's report-generation policy
-([FRD-07](frd-07-eva-and-external-engineering-handoff.md)). Sending to EVA,
-by ZIP or by API, never changes the Case state and never proves that EVA
-received or assigned anything.
+This is the only route out of Review. The handoff records the Case's
+`First sent to Engineer` the first time it enters With Engineer; the Work
+Centre counts it ([FRD-15](frd-15-work-centre-queues-and-search.md)). The
+Case export ([FRD-07](frd-07-case-export.md)) is available in every state,
+never changes the Case state and records no handoff.
 
 ### Actions
 
@@ -396,7 +396,7 @@ acceptance are separate evidence tiers
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-22](frd-22-pre-case-gates-matching-and-association.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-07](frd-07-case-export.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-16](frd-16-case-record-workspace.md),
@@ -404,5 +404,5 @@ acceptance are separate evidence tiers
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 - Technical constraints:
   [ADR-0020](../adr/0020-accepted-qdos-case-association-predicates.md),
-  [ADR-0048](../adr/0048-principal-report-generation-policies.md),
+  [ADR-0064](../adr/0064-case-export-replaces-eva-routes.md),
   [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md).

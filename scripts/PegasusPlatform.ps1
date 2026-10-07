@@ -200,7 +200,6 @@ function Get-PegasusWorkerDisabledSettingNames {
     #>
     return @(
         'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
-        'AzureWebJobs.AutomaticEvaReviewSubmissionFunction.Disabled',
         'AzureWebJobs.UnifiedWorkFunction.Disabled',
         'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
         'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
@@ -1098,7 +1097,6 @@ function Get-PegasusReservedLocalSettingKeys {
         'Features__LocalDocumentCustody',
         'Glass__CallbackBaseUri',
         'PendingWorkRecoverySchedule',
-        'AutomaticEvaReviewSubmissionSchedule',
         'IntakeStagedArtifactReconciliationSchedule',
         'SentEvidencePollSchedule'
     )

@@ -14,9 +14,8 @@ authority.
 
 ## Retained sources
 
-- `EVA/` — external EVA API schema evidence; no access or caller proof.
-- `eva_information/` — reviewed EVA notes, example payloads, and screenshots;
-  evidence only.
+- `case_export/` — the two known-good thirteen-field JSON samples the Case
+  export's layout is checked against.
 - `workproviders-and-repairers/` — raw historical provider, repairer, contact,
   and job spreadsheets; no automatic import. Its versioned
   `principal-identification-corpus.v1.json` is a reviewed, hash-bound crosswalk

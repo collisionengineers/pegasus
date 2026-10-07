@@ -575,8 +575,6 @@ internal sealed class EfCaseArtifactCustody(
             if (enteringReview)
             {
                 workflow.StateEnteredAtUtc = nowUtc;
-                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                    db, workflow, checked(workflow.Version + 1), nowUtc);
             }
         }
         else if (mayRecalculateWorkflow)

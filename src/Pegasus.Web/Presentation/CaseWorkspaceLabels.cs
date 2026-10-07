@@ -74,6 +74,7 @@ public static class CaseWorkspaceLabels
         public const string CorrectPrincipal = "Correct principal";
         public const string CreateAudit = "Create audit";
         public const string MarkReportSent = "Mark report sent";
+        public const string ExportCase = "Export case";
         public const string MarkCompleted = "Mark completed";
         public const string ReturnToReview = "Return to Review";
         public const string ReturnToEngineer = "Return to Engineer";

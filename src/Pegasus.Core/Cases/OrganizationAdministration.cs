@@ -34,7 +34,6 @@ public sealed record PrincipalAdministrationSummary(
     long Version,
     int AllocatedCaseCount,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
     PrincipalReportRecipientSettings? ReportRecipients = null,
     string? DefaultInspectionLocationLabel = null,
     string? DefaultInspectionAddress = null,
@@ -70,7 +69,7 @@ public interface IOrganizationAdministrationStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// EXT-04: change an existing principal's EVA submission settings. Unlike
+    /// Change an existing principal's report settings. Unlike
     /// a replacement this creates no new principal and moves no reference — it
     /// is the one principal attribute that may change in place.
     /// </summary>
@@ -250,7 +249,6 @@ public static class OrganizationAdministrationPolicy
                 true,
                 0,
                 predecessor.InspectionMode,
-                predecessor.ReportGenerationPolicy,
                 predecessor.ReportRecipients,
                 SalvageMatrix: predecessor.SalvageMatrix,
                 DefaultFee: predecessor.DefaultFee));
@@ -365,14 +363,13 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// The report route, suggested recipients and default fee change, and
+    /// The suggested recipients, default fee and notes change, and
     /// nothing else does. The code, the organization, the lineage and the
     /// allocation history are untouched.
     /// </summary>
     public static Principal PlanPrincipalReportSettingsUpdate(
         Principal current,
         long expectedVersion,
-        PrincipalReportGenerationPolicy reportGenerationPolicy,
         PrincipalReportRecipientSettings reportRecipients,
         decimal defaultFee,
         string? notesOnEveryCase = null)
@@ -395,21 +392,15 @@ public static class OrganizationAdministrationPolicy
         }
 
         ArgumentNullException.ThrowIfNull(reportRecipients);
-        if (!Enum.IsDefined(reportGenerationPolicy))
-        {
-            throw new ArgumentOutOfRangeException(nameof(reportGenerationPolicy));
-        }
         PrincipalDefaultFeePolicy.Require(defaultFee, nameof(defaultFee));
         var normalizedRecipients = PrincipalReportRecipientSettings.Normalize(
             reportRecipients.IncludeOriginalInstructionSender,
             reportRecipients.AdditionalAddresses);
-        var changed = current.ReportGenerationPolicy != reportGenerationPolicy
-            || !Equals(current.ReportRecipients ?? PrincipalReportRecipientSettings.None, normalizedRecipients)
+        var changed = !Equals(current.ReportRecipients ?? PrincipalReportRecipientSettings.None, normalizedRecipients)
             || current.DefaultFee != defaultFee
             || !string.Equals(current.NotesOnEveryCase, notesOnEveryCase, StringComparison.Ordinal);
         return current with
         {
-            ReportGenerationPolicy = reportGenerationPolicy,
             ReportRecipients = normalizedRecipients,
             DefaultFee = defaultFee,
             NotesOnEveryCase = notesOnEveryCase,

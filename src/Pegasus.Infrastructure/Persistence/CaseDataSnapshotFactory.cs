@@ -165,7 +165,7 @@ internal static class CaseDataSnapshotFactory
             // create path takes whatever an operator keyed, and staff can key a
             // different principal entirely to correct a Principal that posted
             // under the wrong account. Labelling that "authenticated credential
-            // binding" would export a provenance to the EVA archive that no
+            // binding" would export a provenance to the case export archive that no
             // credential ever supplied — the same falsehood AddExtractedValue
             // avoids forty lines below by mapping a person-keyed value to
             // StaffCorrection. A staff-created case records the Principal the
@@ -214,7 +214,7 @@ internal static class CaseDataSnapshotFactory
     /// confirmation at acceptance, not as something a document or a credential
     /// stated. A confirmation is a casework decision, so a system-worker caller
     /// without a route or binding records nothing here. Recording nothing left the case with no Principal at all:
-    /// the EVA export sent an empty Work Provider and the case-match index
+    /// the case export wrote an empty Work Provider and the case-match index
     /// projected no row, so images never associated automatically.
     /// </summary>
     private static void AddStaffAllocatedPrincipal(

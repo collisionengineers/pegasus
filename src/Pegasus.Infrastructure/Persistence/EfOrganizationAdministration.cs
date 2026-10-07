@@ -88,7 +88,6 @@ public sealed class EfOrganizationAdministration(
             request.PrincipalId,
             request.ExpectedVersion,
             request.ExpectedContactVersion,
-            request.ReportGenerationPolicy,
             request.ReportRecipients,
             request.Reason,
             request.NotesOnEveryCase
@@ -119,12 +118,10 @@ public sealed class EfOrganizationAdministration(
         var result = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             before,
             request.ExpectedVersion,
-            request.ReportGenerationPolicy,
             request.ReportRecipients,
             request.DefaultFee,
             request.NotesOnEveryCase);
 
-        entity.ReportGenerationPolicy = result.ReportGenerationPolicy.ToString();
         entity.DefaultFee = result.DefaultFee;
         entity.Organization.NotesOnEveryCase = result.NotesOnEveryCase;
         entity.IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender;
@@ -395,7 +392,6 @@ public sealed class EfOrganizationAdministration(
             SuccessorId = result.SuccessorId,
             IsActive = result.IsActive,
             InspectionMode = PrincipalInspectionModePolicy.ToCode(result.InspectionMode),
-            ReportGenerationPolicy = result.ReportGenerationPolicy.ToString(),
             IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender,
             ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions),
             SalvageMatrixJson = ToSalvageMatrixJson(result.SalvageMatrix),
@@ -478,7 +474,6 @@ public sealed class EfOrganizationAdministration(
             entity.Version,
             allocatedCaseCount,
             PrincipalInspectionModePolicy.Parse(entity.InspectionMode),
-            Enum.Parse<PrincipalReportGenerationPolicy>(entity.ReportGenerationPolicy),
             RecipientSettings(entity),
             entity.DefaultInspectionLocationLabel,
             entity.DefaultInspectionAddress,
@@ -503,7 +498,6 @@ public sealed class EfOrganizationAdministration(
             entity.IsActive,
             entity.Version,
             PrincipalInspectionModePolicy.Parse(entity.InspectionMode),
-            Enum.Parse<PrincipalReportGenerationPolicy>(entity.ReportGenerationPolicy),
             RecipientSettings(entity),
             entity.Organization?.NotesOnEveryCase,
             ReadSalvageMatrix(entity.SalvageMatrixJson),

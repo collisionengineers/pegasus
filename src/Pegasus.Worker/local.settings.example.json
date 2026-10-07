@@ -7,7 +7,6 @@
     "ConnectionStrings__Pegasus": "Server=(localdb)\\MSSQLLocalDB;Database=PegasusDevelopment;Integrated Security=True;Encrypt=False;MultipleActiveResultSets=True",
     "Intake__LocalArtifactPath": "../../artifacts/local-development/default/intake",
     "PendingWorkRecoverySchedule": "0 * * * * *",
-    "AutomaticEvaReviewSubmissionSchedule": "0 * * * * *",
     "IntakeStagedArtifactReconciliationSchedule": "*/10 * * * * *",
     "SentEvidencePollSchedule": "0 * * * * *",
     "ApprovedInbox__MailboxId": "instructions",

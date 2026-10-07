@@ -14,7 +14,7 @@ public sealed class CaseDataOperationsTests
     public void AccidentCircumstancesKeepTheBlankLineAboveTheDamageArea()
     {
         // This is the one case text field that keeps its line
-        // structure, because EVA is sent the labelled damage-area block below
+        // structure, because the case export writes the labelled damage-area block below
         // the prose verbatim. Every other text field still collapses.
         var normalized = CaseDataPolicy.Normalize(new(
             AccidentCircumstances: "The insured reversed into the claimant's vehicle.\n"

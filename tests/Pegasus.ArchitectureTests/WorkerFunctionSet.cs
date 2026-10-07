@@ -20,7 +20,6 @@ internal static class WorkerFunctionSet
     internal static readonly string[] ExpectedNames =
     [
         nameof(PendingWorkRecoveryFunction),
-        nameof(AutomaticEvaReviewSubmissionFunction),
         nameof(UnifiedWorkFunction),
         nameof(UnifiedWorkPoisonFunction),
         nameof(StagedArtifactReconciliationFunction),

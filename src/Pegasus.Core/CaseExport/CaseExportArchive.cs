@@ -5,12 +5,10 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Lifecycle;
-using Pegasus.Core.Workflow;
 
-namespace Pegasus.Core.Eva;
+namespace Pegasus.Core.CaseExport;
 
-public sealed record EvaReplayFields(
+public sealed record CaseExportFields(
     string? WorkPrincipal,
     string? Vrm,
     string? VehicleModel,
@@ -25,7 +23,7 @@ public sealed record EvaReplayFields(
     string? Mileage,
     string? MileageUnit);
 
-public sealed record EvaBundleImage(
+public sealed record CaseExportImage(
     Guid OccurrenceId,
     Guid DocumentId,
     Guid VersionId,
@@ -41,9 +39,9 @@ public sealed record EvaBundleImage(
     bool IsCurrent,
     int Ordinal = 0);
 
-public sealed record EvaBundleImages(IReadOnlyList<EvaBundleImage> RetainedImages);
+public sealed record CaseExportImages(IReadOnlyList<CaseExportImage> RetainedImages);
 
-public sealed record EvaBundle(
+public sealed record CaseExportBundle(
     byte[] Content,
     string Sha256,
     byte[] JsonContent,
@@ -51,16 +49,12 @@ public sealed record EvaBundle(
     string FileName);
 
 /// <summary>
-/// The operator's export of a case as the EVA-format
-/// archive. Since the hand-off was folded into it, it is the only act that produces the package, and
-/// its first success on a case records the once-per-case
-/// <c>First sent to Engineer</c> proxy. Every success updates which workflow
-/// version was exported for Assessment access.
+/// The operator's export of a case: the thirteen-field JSON and the eligible
+/// photographs as one archive. It is a plain download.
 ///
 /// It takes an operation key for exact replay and permanent action history,
-/// but no edit lease: the export does not change the case version. What it
-/// writes is one history row per distinct successful export and, on the first
-/// success only, one <c>EvaFirstHandoffProxies</c> row.
+/// but no edit lease: the export changes no case state or version. What it
+/// writes is one history row per distinct successful export.
 /// </summary>
 public sealed record ExportCaseBundleRequest(
     Guid CaseId,
@@ -68,7 +62,7 @@ public sealed record ExportCaseBundleRequest(
     string OperationKey);
 
 public sealed record ExportCaseBundleResult(
-    EvaBundle? Bundle,
+    CaseExportBundle? Bundle,
     IReadOnlyList<string> UnrecordedFields,
     IReadOnlyList<string> BlockingReasons);
 
@@ -79,7 +73,7 @@ public interface IExportCaseBundle
         CancellationToken cancellationToken = default);
 }
 
-public sealed record EvaHandoffImageCandidate(
+public sealed record CaseExportImageCandidate(
     Guid OccurrenceId,
     Guid DocumentId,
     Guid VersionId,
@@ -97,51 +91,17 @@ public sealed record EvaHandoffImageCandidate(
     IReadOnlyList<Guid> TagIds,
     int Ordinal);
 
-public static class EvaHandoffPolicy
+public static class CaseExportPolicy
 {
     /// <summary>
     /// The history event a successful bundle export writes. The one spelling,
     /// so a surface asking "has this case been exported?" reads the same word
     /// the export wrote.
     /// </summary>
-    public const string BundleExportedHistoryEventKind = "eva_bundle_exported";
+    public const string BundleExportedHistoryEventKind = "case_exported";
 
-    /// <summary>The one wording for "this case has no photographs to send".</summary>
-    public const string NoRetainedImagesReason =
-        "At least one stored vehicle image is required.";
-
-    /// <summary>
-    /// The state a manual send leaves the case in.
-    ///
-    /// <paramref name="isDelivered"/> defaults to true for the export route,
-    /// whose write is atomic with the state change (a failed write commits
-    /// nothing, so by the time this runs the handoff always happened). The
-    /// API route passes the transport's actual
-    /// <see cref="EvaSubmissionResult.IsDelivered"/> explicitly: a Rejected or Unknown outcome never reached EVA, so it is not
-    /// a handoff and must not move the case out of Review — only Succeeded or
-    /// Partial does, because Partial still means EVA created a claim.
-    /// </summary>
-    public static CaseLifecycleState StateAfterManualSend(
-        CaseLifecycleState state,
-        bool isDelivered = true) => state switch
-    {
-        CaseLifecycleState.Review => isDelivered ? CaseLifecycleState.ReportPreparation : state,
-        CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => state,
-        _ => throw new EvaHandoffStateException(state)
-    };
-
-    public static SignOffEngineerProfile ResolveRequiredSignOffEngineer(
-        Guid? persistedSignOffEngineerId,
-        Guid? assignedEngineerId,
-        IReadOnlyList<SignOffEngineerProfile> eligibleProfiles) =>
-        CaseSignOffEngineerResolver.Resolve(
-            persistedSignOffEngineerId,
-            assignedEngineerId,
-            eligibleProfiles)
-        ?? throw new EvaSignOffEngineerRequiredException();
-
-    public static IReadOnlyList<EvaHandoffImageCandidate> SelectEligibleImages(
-        IEnumerable<EvaHandoffImageCandidate> candidates) => candidates
+    public static IReadOnlyList<CaseExportImageCandidate> SelectEligibleImages(
+        IEnumerable<CaseExportImageCandidate> candidates) => candidates
         .Where(candidate => candidate.SemanticRole == DocumentSemanticRole.Image
             && candidate.CustodyConfirmed
             && candidate.IsCurrent
@@ -152,40 +112,12 @@ public static class EvaHandoffPolicy
         .ToArray();
 }
 
-public sealed class EvaHandoffStateException(CaseLifecycleState state)
-    : InvalidOperationException("Send to EVA is available only in Review and With Engineer.")
-{
-    public CaseLifecycleState State { get; } = state;
-}
-
-public sealed class EvaSignOffEngineerRequiredException()
-    : InvalidOperationException("An eligible Sign-off Engineer is required before sending to EVA.");
-
-public sealed record EvaHandoffProxyRequest(
-    Guid CaseId,
-    string BundleSha256,
-    ActionActor Actor);
-
-public sealed record EvaHandoffProxyReceipt(
-    string AdapterKey,
-    string AdapterVersion,
-    DateTimeOffset RecordedAtUtc,
-    bool ClaimsExternalDelivery,
-    bool ClaimsEngineerAssignment);
-
-public interface IEvaHandoffProxy
-{
-    Task<EvaHandoffProxyReceipt> RecordFirstGenerationAsync(
-        EvaHandoffProxyRequest request,
-        CancellationToken cancellationToken = default);
-}
-
 /// <summary>
-/// Produces replay-identical manual EVA bundles without making an EVA or other network call.
+/// Produces replay-identical case export archives without making a network call.
 /// The archive is the ordered thirteen-key JSON and Images/, and nothing else.
 /// JSON keys, archive entries, image order, timestamps, and hashes are explicit.
 /// </summary>
-public static class EvaBundleSchema
+public static class CaseExportArchive
 {
     private static readonly DateTimeOffset DeterministicTimestamp =
         new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
@@ -216,9 +148,9 @@ public static class EvaBundleSchema
     /// reference field still names the bundle, which is what an offline replay
     /// with no case in hand wants.
     /// </summary>
-    public static EvaBundle CreateOfflineReplay(
-        EvaBundleSource source,
-        EvaBundleImages images,
+    public static CaseExportBundle Create(
+        CaseExportSource source,
+        CaseExportImages images,
         string? fileNameReference = null)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -230,7 +162,7 @@ public static class EvaBundleSchema
             string.IsNullOrWhiteSpace(fileNameReference)
                 ? fields.Reference!
                 : fileNameReference);
-        var jsonName = $"EVA-{reference}.json";
+        var jsonName = $"{reference}.json";
         var json = WriteOrderedJson(fields);
         var jsonHash = Hash(json);
         var imageEntries = ValidateAndNameImages(images);
@@ -241,18 +173,18 @@ public static class EvaBundleSchema
             Hash(archive),
             json,
             jsonHash,
-            $"EVA-{reference}.zip");
+            $"{reference}.zip");
     }
 
-    private static EvaReplayFields ValidateSource(EvaBundleSource source)
+    private static CaseExportFields ValidateSource(CaseExportSource source)
     {
         ArgumentNullException.ThrowIfNull(source.Fields);
         ArgumentNullException.ThrowIfNull(source.Provenance);
-        if (!string.Equals(source.MappingKey, CaseEvaMapping.MappingKey, StringComparison.Ordinal)
-            || source.MappingVersion != CaseEvaMapping.MappingVersion)
+        if (!string.Equals(source.MappingKey, CaseExportMapping.MappingKey, StringComparison.Ordinal)
+            || source.MappingVersion != CaseExportMapping.MappingVersion)
         {
             throw new InvalidOperationException(
-                "The EVA bundle requires the current mapping version.");
+                "The case export requires the current mapping version.");
         }
 
         // What this method guards is the archive FORMAT: the current mapping,
@@ -263,24 +195,24 @@ public static class EvaBundleSchema
         // The loop below throws, and the
         // throws are the whole point. It used to also build a second,
         // normalized copy of the provenance array and return it — dead output,
-        // because CreateOfflineReplay reads only the fields. The validation
-        // stayed; the copy went, and with it the rebuilt EvaBundleSource, so
+        // because Create reads only the fields. The validation
+        // stayed; the copy went, and with it the rebuilt CaseExportSource, so
         // what comes back is the normalized fields themselves.
-        var normalized = CaseEvaMapping.MapOfflineReplay(source.Fields);
+        var normalized = CaseExportMapping.NormalizeFields(source.Fields);
         var values = OrderedFields(normalized).ToArray();
         if (source.Provenance.Count != FieldOrder.Length)
         {
-            throw new InvalidDataException("EVA field provenance must cover the exact ordered field set.");
+            throw new InvalidDataException("Export field provenance must cover the exact ordered field set.");
         }
 
         for (var index = 0; index < FieldOrder.Length; index++)
         {
             var item = source.Provenance[index]
-                ?? throw new InvalidDataException("An EVA field provenance entry is missing.");
+                ?? throw new InvalidDataException("An export field provenance entry is missing.");
             var field = values[index];
             if (!string.Equals(item.Name, FieldOrder[index], StringComparison.Ordinal)
                 || !string.Equals(
-                    CaseEvaMapping.MapOfflineReplay(FieldWithValue(item.Name, item.Value))
+                    CaseExportMapping.NormalizeFields(FieldWithValue(item.Name, item.Value))
                         .GetValue(item.Name),
                     field.Value,
                     StringComparison.Ordinal)
@@ -288,14 +220,14 @@ public static class EvaBundleSchema
                 || string.IsNullOrWhiteSpace(item.SourceVersion))
             {
                 throw new InvalidDataException(
-                    "EVA field provenance does not match the accepted ordered field values.");
+                    "Export field provenance does not match the accepted ordered field values.");
             }
         }
 
         return normalized;
     }
 
-    private static List<ImageEntry> ValidateAndNameImages(EvaBundleImages images)
+    private static List<ImageEntry> ValidateAndNameImages(CaseExportImages images)
     {
         var ids = new HashSet<Guid>();
         var retained = new List<ValidatedImage>(images.RetainedImages.Count);
@@ -305,21 +237,16 @@ public static class EvaBundleSchema
             if (!ids.Add(validated.Image.OccurrenceId))
             {
                 throw new InvalidDataException(
-                    "Retained EVA image occurrence identities must be unique.");
+                    "Retained export image occurrence identities must be unique.");
             }
 
             retained.Add(validated);
         }
 
-        if (retained.Count == 0)
-        {
-            throw new InvalidDataException("At least one retained EVA image is required.");
-        }
-
         if (retained.Select(item => item.Image.Ordinal).Any(value => value <= 0)
             || retained.Select(item => item.Image.Ordinal).Distinct().Count() != retained.Count)
         {
-            throw new InvalidDataException("Retained EVA images require distinct persisted evidence ordinals.");
+            throw new InvalidDataException("Retained export images require distinct persisted evidence ordinals.");
         }
 
         return retained
@@ -328,11 +255,11 @@ public static class EvaBundleSchema
             .ToList();
     }
 
-    private static ValidatedImage ValidateImage(EvaBundleImage? image)
+    private static ValidatedImage ValidateImage(CaseExportImage? image)
     {
         if (image is null)
         {
-            throw new InvalidDataException("A retained EVA image is missing.");
+            throw new InvalidDataException("A retained export image is missing.");
         }
         if (image.OccurrenceId == Guid.Empty
             || image.DocumentId == Guid.Empty
@@ -340,30 +267,30 @@ public static class EvaBundleSchema
             || image.Version <= 0)
         {
             throw new InvalidDataException(
-                "Retained EVA images require occurrence, document, and version identities.");
+                "Retained export images require occurrence, document, and version identities.");
         }
         if (!image.CustodyConfirmed || !image.IsCurrent)
         {
             throw new InvalidOperationException(
-                "Every retained EVA image must be the custody-confirmed current document version.");
+                "Every retained export image must be the custody-confirmed current document version.");
         }
         if (image.SemanticRole != DocumentSemanticRole.Image
             || !IsSupportedImageMediaType(image.MediaType))
         {
-            throw new InvalidDataException("Only retained JPEG or PNG image documents may enter EVA.");
+            throw new InvalidDataException("Only retained JPEG or PNG image documents may enter the export.");
         }
         if (string.IsNullOrWhiteSpace(image.FileName)
             || string.IsNullOrWhiteSpace(image.SourceOccurrenceIdentity)
             || image.Content.IsEmpty)
         {
             throw new InvalidDataException(
-                "A retained EVA image is missing content or source provenance.");
+                "A retained export image is missing content or source provenance.");
         }
 
         var actualHash = Hash(image.Content.Span);
         if (!string.Equals(actualHash, image.Sha256, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("A retained EVA image failed SHA-256 integrity validation.");
+            throw new InvalidDataException("A retained export image failed SHA-256 integrity validation.");
         }
 
         return new(image, actualHash);
@@ -374,10 +301,10 @@ public static class EvaBundleSchema
         image.Image,
         image.Sha256);
 
-    private static byte[] WriteOrderedJson(EvaReplayFields fields)
+    private static byte[] WriteOrderedJson(CaseExportFields fields)
     {
         using var stream = new MemoryStream();
-        // Three explicit choices, all of them parity with what EVA accepts.
+        // Three explicit choices, all of them parity with the known-good samples.
         //
         // Indented, two spaces, which is what every known-good sample uses.
         //
@@ -388,7 +315,7 @@ public static class EvaBundleSchema
         // what all three known-good samples use.
         //
         // UnsafeRelaxedJsonEscaping because the predecessor extractor -- the
-        // one whose output EVA actually accepts -- dumps with
+        // one whose output the known-good samples come from -- dumps with
         // ensure_ascii=False, so non-ASCII travels as literal UTF-8. The
         // default JavaScriptEncoder would escape it, and & < > + ' besides,
         // as \uXXXX. The name is about HTML/JS embedding: this is a file
@@ -466,7 +393,7 @@ public static class EvaBundleSchema
         entryStream.Write(content);
     }
 
-    private static IEnumerable<(string Name, string? Value)> OrderedFields(EvaReplayFields fields)
+    private static IEnumerable<(string Name, string? Value)> OrderedFields(CaseExportFields fields)
     {
         yield return ("Work Provider", fields.WorkPrincipal);
         yield return ("VRM", fields.Vrm);
@@ -483,7 +410,7 @@ public static class EvaBundleSchema
         yield return ("Mileage Unit", fields.MileageUnit);
     }
 
-    private static EvaReplayFields FieldWithValue(string name, string value) => name switch
+    private static CaseExportFields FieldWithValue(string name, string value) => name switch
     {
         "Work Provider" => new(value, null, null, null, null, null, null, null, null, null, null, null, null),
         "VRM" => new(null, value, null, null, null, null, null, null, null, null, null, null, null),
@@ -498,10 +425,10 @@ public static class EvaBundleSchema
         "VAT Status" => new(null, null, null, null, null, null, null, null, null, null, value, null, null),
         "Mileage" => new(null, null, null, null, null, null, null, null, null, null, null, value, null),
         "Mileage Unit" => new(null, null, null, null, null, null, null, null, null, null, null, null, value),
-        _ => throw new InvalidDataException($"Unknown EVA field '{name}'.")
+        _ => throw new InvalidDataException($"Unknown export field '{name}'.")
     };
 
-    private static string? GetValue(this EvaReplayFields fields, string name) => name switch
+    private static string? GetValue(this CaseExportFields fields, string name) => name switch
     {
         "Work Provider" => fields.WorkPrincipal,
         "VRM" => fields.Vrm,
@@ -516,7 +443,7 @@ public static class EvaBundleSchema
         "VAT Status" => fields.VatStatus,
         "Mileage" => fields.Mileage,
         "Mileage Unit" => fields.MileageUnit,
-        _ => throw new InvalidDataException($"Unknown EVA field '{name}'.")
+        _ => throw new InvalidDataException($"Unknown export field '{name}'.")
     };
 
     private static bool IsSupportedImageMediaType(string mediaType) =>
@@ -544,10 +471,10 @@ public static class EvaBundleSchema
     private static string Hash(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
 
-    private sealed record ValidatedImage(EvaBundleImage Image, string Sha256);
+    private sealed record ValidatedImage(CaseExportImage Image, string Sha256);
 
     private sealed record ImageEntry(
         string Name,
-        EvaBundleImage Image,
+        CaseExportImage Image,
         string Sha256);
 }

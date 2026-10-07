@@ -9,7 +9,6 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -68,11 +67,6 @@ public sealed class CaseDetailsWebTests
             StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// FRD-07: the EVA handoff is a Review act. Outside
-    /// Review the workspace offers no EVA control and draws no handoff, rather
-    /// than drawing a disabled one.
-    /// </summary>
     [Fact]
     public async Task TheRecordRendersTenOrderedSectionHostsAndJumpLinks()
     {

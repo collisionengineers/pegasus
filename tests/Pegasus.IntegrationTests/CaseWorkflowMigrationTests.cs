@@ -334,7 +334,7 @@ public sealed class CaseWorkflowMigrationTests
                  '2031-05-06T10:30:00+00:00', 'migration:evidence');
             """);
 
-        // This fixture proves the historical custody/EVA chain. The v1
+        // This fixture proves the historical custody and hand-off chain. The v1
         // foundation establishes the documented estate on disposable data;
         // it does not convert this pre-release fixture into that estate.
         await context.Database.MigrateAsync("20260905010654_CaseSignOffEngineer");
@@ -454,7 +454,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261007180000_SimplifyPrincipalSubmissions",
                 "20261007180000_GrantWorkerTriageFindings",
                 "20261007181000_InspectionAddressSettlerKind",
-                "20261007182000_StaffMailSendActorKind"
+                "20261007182000_StaffMailSendActorKind",
+                "20261007180000_RemoveEva"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

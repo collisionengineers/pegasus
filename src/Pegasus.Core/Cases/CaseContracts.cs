@@ -16,7 +16,6 @@ public sealed record Principal(
     bool IsActive,
     long Version,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
     PrincipalReportRecipientSettings? ReportRecipients = null,
     // The record's "Notes on every Case" (Contacts planning, 13 September): shown
     // read-only on every Case of this Principal, read live from the record and
@@ -239,12 +238,8 @@ public interface ILinkedCaseReplacementStore
 
 
 /// <summary>
-/// EXT-04: change an existing principal's EVA submission settings.
-///
-/// ADR-0018 deferred a post-creation edit for the inspection mode and left a
-/// production change as a runbook action. These settings get one, because a
-/// route that can only be switched on while creating a principal cannot be
-/// switched on for the principals that already exist — and QDOS already does.
+/// Change an existing principal's report settings: the report recipients, the
+/// default fee and the notes shown on every Case.
 /// </summary>
 public sealed record UpdatePrincipalReportSettingsRequest(
     Guid PrincipalId,
@@ -252,7 +247,6 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     ActionActor Actor,
     string OperationKey,
     string? Reason,
-    PrincipalReportGenerationPolicy ReportGenerationPolicy,
     PrincipalReportRecipientSettings ReportRecipients,
     decimal DefaultFee,
     long ExpectedContactVersion,
@@ -292,7 +286,7 @@ public interface IReplacePrincipal
 }
 
 /// <summary>
-/// EXT-04: switch a principal's EVA submission settings without replacing it.
+/// Change a principal's report settings without replacing it.
 /// </summary>
 public interface IUpdatePrincipalReportSettings
 {

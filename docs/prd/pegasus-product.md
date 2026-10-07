@@ -10,7 +10,7 @@ Primary users are authorised Collision Engineers staff. Pegasus is an Operations
 Required outcomes:
 
 The 6 September 2026 v1 scope completes engineering and final reports in
-Pegasus; EVA is optional. Staff or the Automation actor initiate every report and chaser send. Per-staff
+Pegasus. Staff or the Automation actor initiate every report and chaser send. Per-staff
 Glass's repair estimates are included, while its valuation service and the
 additional spreadsheet-driven workflow automation remain deferred. These are the current product requirements; earlier limitations are
 historical observations, not competing requirements.

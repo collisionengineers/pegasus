@@ -266,8 +266,9 @@ An item taken outside a session runs under a lease claimed for that one
 action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
 frees the lease it claimed, as does a request abandoned mid-action. While a
-colleague holds the lease the menu offers nothing that needs one: the ribbon
-names them and offers Take over, a Completed or Query Case included. A
+colleague holds the lease the menu offers nothing that needs one, so only
+Export case remains; the ribbon names them and offers Take over, a Completed
+or Query Case included. A
 Completed or Query Case offers no Edit, since its sections read and Return
 to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
@@ -276,9 +277,9 @@ to Engineer needs no session. The rules behind each action are in
   eligible enabled staff account. The one handoff assigns them and
   enters With Engineer. There is no reviewed checkbox and no separate start
   action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)).
-- **Send to EVA**, when the Principal's report-generation policy offers it.
-  Sending never changes the Case state
-  ([FRD-07](frd-07-eva-and-external-engineering-handoff.md)).
+- **Export case**, on every standard Case in every state. It downloads the
+  Case export, needs no lease and never changes the Case
+  ([FRD-07](frd-07-case-export.md#export-case)).
 - **Mark report sent**, in With Engineer. It confirms detected or linked
   Sent evidence and enters post-report work. It never completes the Case and
   never records a manual assertion
@@ -924,7 +925,7 @@ evidence tiers
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
   [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md),
   [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-07](frd-07-case-export.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md),
   [FRD-12](frd-12-operator-experience.md),
