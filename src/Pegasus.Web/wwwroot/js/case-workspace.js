@@ -2961,6 +2961,12 @@
         Unknown: []
     };
 
+    // Full screen is the operator's, not one drawing of the section's: a
+    // redrawn Repair Spec (Glass's return, a spec tab, a catch up) opens as
+    // the one it replaced, at the same place.
+    var expanded = false;
+    var expandedTop = 0;
+
     function bindGrid(form) {
         var body = form.querySelector('[data-estimate-grid-body]');
         var template = form.querySelector('[data-estimate-line-template]');
@@ -3475,6 +3481,7 @@
         }
         var use = button.querySelector('use');
         function apply(on) {
+            expanded = on;
             section.classList.toggle('is-expanded', on);
             document.body.classList.toggle('has-expanded', on);
             var label = on ? button.getAttribute('data-label-close') : button.getAttribute('data-label-expand');
@@ -3484,13 +3491,20 @@
             if (use) {
                 use.setAttribute('href', on ? '#icon-x' : '#icon-external-link');
             }
-            if (on) {
-                section.scrollTop = 0;
-            }
         }
         button.addEventListener('click', function () {
-            apply(!section.classList.contains('is-expanded'));
+            var on = !section.classList.contains('is-expanded');
+            apply(on);
+            if (on) {
+                section.scrollTop = 0;
+                expandedTop = 0;
+            }
         });
+        section.addEventListener('scroll', function () {
+            if (section.classList.contains('is-expanded')) {
+                expandedTop = section.scrollTop;
+            }
+        }, { passive: true });
         function onKeydown(event) {
             if (event.key === 'Escape' && section.isConnected && section.classList.contains('is-expanded')) {
                 event.preventDefault();
@@ -3498,15 +3512,22 @@
             }
         }
         document.addEventListener('keydown', onKeydown);
-        // A section swapped out of the page must not leave the body expanded.
+        // A section swapped out of the page must not leave the body expanded,
+        // unless the section drawn in its place has taken full screen on.
         var observer = new MutationObserver(function () {
             if (!section.isConnected) {
-                document.body.classList.remove('has-expanded');
+                if (!document.querySelector('[data-estimate-section].is-expanded')) {
+                    document.body.classList.remove('has-expanded');
+                }
                 document.removeEventListener('keydown', onKeydown);
                 observer.disconnect();
             }
         });
         observer.observe(document.body, { childList: true, subtree: true });
+        if (expanded) {
+            apply(true);
+            section.scrollTop = expandedTop;
+        }
     }
 
     function bindRange(root) {
