@@ -1,34 +1,24 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Reads one case into the thirteen EVA field values, with their evidence
-/// status and provenance.
-///
-/// This was private to <see cref="EvaHandoffStore"/> until EXT-04 gave the
-/// case a second way to reach EVA. Both routes must state the case
-/// identically — the same mileage, the same vehicle description, the same
-/// resolved inspection address — so there is one reader, not two that agree
-/// today. What the values then become is the caller's business: the export
-/// writes them into the archive, the API submission renames them into EVA's
-/// own field names.
+/// Reads one case into the thirteen export field values, with their evidence
+/// status and provenance, for <see cref="EfCaseExportStore"/>.
 /// </summary>
-public static class EvaCaseEvidenceReader
+public static class CaseExportEvidenceReader
 {
     /// <summary>
-    /// The thirteen EVA fields read off one case, written once.
+    /// The thirteen export fields read off one case, written once.
     ///
-    /// This used to take an <c>includeSuggestions</c> flag, which its own
-    /// comment called "the whole difference between the hand-off and an
-    /// operator export". With one act left there is one answer: a suggested
-    /// value counts, and travels with its real suggested status — which is how
-    /// the lookup-derived mileage the vehicle lookup writes reaches the archive.
+    /// A suggested value counts, and travels with its real suggested status —
+    /// which is how the lookup-derived mileage the vehicle lookup writes
+    /// reaches the archive.
     /// </summary>
-    public static EvaAcceptedCaseEvidence Build(
+    public static CaseExportEvidence Build(
         CaseDataProjection caseData,
         CaseVehicleEvidence? vehicle)
     {
@@ -37,7 +27,7 @@ public static class EvaCaseEvidenceReader
         var acceptedVehicle = vehicle?.CaseId == caseId
             ? vehicle.Confirmed
             : null;
-        return new EvaAcceptedCaseEvidence(
+        return new CaseExportEvidence(
             caseId,
             caseData.Version,
             caseData.AcceptedAtUtc != default,
@@ -69,7 +59,7 @@ public static class EvaCaseEvidenceReader
                 MileageUnit));
     }
 
-    private static EvaAddressResolution ResolveInspection(CaseDataProjection caseData)
+    private static CaseExportAddressResolution ResolveInspection(CaseDataProjection caseData)
     {
         var mode = Accepted(caseData.Inspection.Mode);
         var address = Accepted(caseData.Inspection.Address);
@@ -77,8 +67,8 @@ public static class EvaCaseEvidenceReader
         {
             return new(
                 mode?.Value == CaseInspectionMode.ImageBasedAssessment
-                    ? EvaInspectionMode.ImageBasedAssessment
-                    : EvaInspectionMode.PhysicalAddress,
+                    ? CaseExportInspectionMode.ImageBasedAssessment
+                    : CaseExportInspectionMode.PhysicalAddress,
                 MissingEvidence);
         }
 
@@ -86,25 +76,25 @@ public static class EvaCaseEvidenceReader
         var addressEvidence = FromCaseValue(address, static value => value);
         var evidence = addressEvidence with
         {
-            Status = EvaEvidenceStatus.Accepted,
+            Status = CaseExportEvidenceStatus.Accepted,
             Source = $"{modeEvidence.Source}|{addressEvidence.Source}",
             SourceVersion = $"{modeEvidence.SourceVersion}|{addressEvidence.SourceVersion}"
         };
         return mode.Value switch
         {
             CaseInspectionMode.ImageBasedAssessment => new(
-                EvaInspectionMode.ImageBasedAssessment,
+                CaseExportInspectionMode.ImageBasedAssessment,
                 evidence),
             CaseInspectionMode.PhysicalAddress
                 when !string.Equals(
                     address.Value.Trim(),
-                    CaseEvaMapping.ImageBasedAssessment,
+                    CaseExportMapping.ImageBasedAssessment,
                     StringComparison.Ordinal) => new(
-                        EvaInspectionMode.PhysicalAddress,
+                        CaseExportInspectionMode.PhysicalAddress,
                         evidence),
-            _ => new(EvaInspectionMode.PhysicalAddress, evidence with
+            _ => new(CaseExportInspectionMode.PhysicalAddress, evidence with
             {
-                Status = EvaEvidenceStatus.Suggested
+                Status = CaseExportEvidenceStatus.Suggested
             })
         };
     }
@@ -116,7 +106,7 @@ public static class EvaCaseEvidenceReader
     /// make or model falls back to that component's accepted Case field, so a
     /// partial confirmation cannot drop the other source-backed component.
     /// </summary>
-    private static EvaEvidenceValue VehicleModel(
+    private static CaseExportEvidenceValue VehicleModel(
         ConfirmedVehicleEvidence? vehicle,
         CaseDataProjection caseData)
         => Compose(
@@ -130,7 +120,7 @@ public static class EvaCaseEvidenceReader
                 static value => value));
 
     /// <summary>Make and model joined, skipping whichever the case lacks.</summary>
-    private static EvaEvidenceValue Compose(EvaEvidenceValue? make, EvaEvidenceValue? model)
+    private static CaseExportEvidenceValue Compose(CaseExportEvidenceValue? make, CaseExportEvidenceValue? model)
     {
         var values = new[] { make, model }
             .Where(value => value is not null && !string.IsNullOrWhiteSpace(value.Value))
@@ -140,7 +130,7 @@ public static class EvaCaseEvidenceReader
     }
 
     /// <summary>
-    /// EVA's own two words for the mileage unit. The original
+    /// The export's two words for the mileage unit. The original
     /// extractor resolves this field to exactly "Miles" or "Km", so those are
     /// the only two values a bundle may carry — written once here so the
     /// confirmed-record branch and the case-field branch cannot drift.
@@ -153,14 +143,14 @@ public static class EvaCaseEvidenceReader
             ? MileageUnit(unit)
             : value.Trim();
 
-    private static EvaEvidenceValue FromCaseField<T>(
+    private static CaseExportEvidenceValue FromCaseField<T>(
         CaseField<T> field,
         Func<T, string> format)
         where T : notnull =>
         Accepted(field) is { } value
             ? FromCaseValue(value, format)
             : field.Suggestion is { } suggestion
-                ? FromCaseValue(suggestion, format) with { Status = EvaEvidenceStatus.Suggested }
+                ? FromCaseValue(suggestion, format) with { Status = CaseExportEvidenceStatus.Suggested }
                 : MissingEvidence;
 
     /// <summary>
@@ -170,8 +160,8 @@ public static class EvaCaseEvidenceReader
     /// carries a mileage the documents never supplied. It never overrides a
     /// confirmed value.
     /// </summary>
-    private static EvaEvidenceValue Fallback<T>(
-        EvaEvidenceValue confirmed,
+    private static CaseExportEvidenceValue Fallback<T>(
+        CaseExportEvidenceValue confirmed,
         CaseField<T> field,
         Func<T, string> format)
         where T : notnull =>
@@ -187,7 +177,7 @@ public static class EvaCaseEvidenceReader
                 ? fact
                 : null;
 
-    private static EvaEvidenceValue FromCaseValue<T>(
+    private static CaseExportEvidenceValue FromCaseValue<T>(
         CaseDataValue<T> value,
         Func<T, string> format)
         where T : notnull
@@ -201,12 +191,12 @@ public static class EvaCaseEvidenceReader
             : $";confirmed={value.ConfirmedByActor}@{value.ConfirmedAtUtc:O}";
         return new(
             format(value.Value),
-            EvaEvidenceStatus.Accepted,
+            CaseExportEvidenceStatus.Accepted,
             $"case-data:{value.Source.Kind}:{value.Source.Identity}:{value.Source.Label}{confirmed}",
             sourceVersion);
     }
 
-    private static EvaEvidenceValue FromVehicleField<T>(
+    private static CaseExportEvidenceValue FromVehicleField<T>(
         ConfirmedVehicleField<T>? field,
         Func<T, string> format)
         where T : notnull
@@ -225,21 +215,21 @@ public static class EvaCaseEvidenceReader
             : string.Empty;
         return new(
             format(field.Value),
-            EvaEvidenceStatus.Accepted,
+            CaseExportEvidenceStatus.Accepted,
             $"vehicle:{field.SourceKind}:{field.SourceIdentity}:{field.SourceLabel};confirmed={field.ConfirmedByActor}@{field.ConfirmedAtUtc:O}{external}",
             sourceVersion);
     }
 
-    private static EvaEvidenceValue Combine(EvaEvidenceValue first, EvaEvidenceValue second) => new(
+    private static CaseExportEvidenceValue Combine(CaseExportEvidenceValue first, CaseExportEvidenceValue second) => new(
         string.Join(' ', new[] { first.Value, second.Value }
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value!.Trim())),
         first.IsAccepted && second.IsAccepted
-            ? EvaEvidenceStatus.Accepted
-            : EvaEvidenceStatus.Suggested,
+            ? CaseExportEvidenceStatus.Accepted
+            : CaseExportEvidenceStatus.Suggested,
         $"{first.Source}|{second.Source}",
         $"{first.SourceVersion}|{second.SourceVersion}");
 
-    private static EvaEvidenceValue MissingEvidence { get; } =
-        new(null, EvaEvidenceStatus.Unrecorded, "unrecorded", "unrecorded");
+    private static CaseExportEvidenceValue MissingEvidence { get; } =
+        new(null, CaseExportEvidenceStatus.Unrecorded, "unrecorded", "unrecorded");
 }

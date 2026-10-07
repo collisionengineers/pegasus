@@ -1,5 +1,5 @@
 using Pegasus.Core.Address;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 using Pegasus.Core.Intake;
 using Pegasus.Core.PrincipalApi;
 
@@ -112,14 +112,14 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void TheExportMappingCarriesVersionedProvenanceForEveryField()
     {
-        var export = CaseEvaMapping.MapForOperatorExport(
-            AcceptedEvaEvidence(),
+        var export = CaseExportMapping.MapForOperatorExport(
+            AcceptedExportEvidence(),
             new DateOnly(2031, 5, 4));
 
         Assert.NotNull(export.Source);
         Assert.Equal("AB12CDE", export.Source.Fields.Vrm);
         Assert.Equal(
-            $"{CaseEvaMapping.ImageBasedAssessmentExportValue}\n\n\n\n\n",
+            $"{CaseExportMapping.ImageBasedAssessmentExportValue}\n\n\n\n\n",
             export.Source.Fields.InspectionAddress);
         Assert.Equal(13, export.Source.Provenance.Count);
         Assert.All(export.Source.Provenance, item =>
@@ -132,14 +132,14 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void ARealInspectionAddressPutsItsPostcodeOnTheSixthLine()
     {
-        // The system EVA imports into requires six lines — five body
+        // The importing system requires six lines — five body
         // lines then the postcode — and rejects a bare string. The case stores
         // the address as one collapsed line, so commas separate lines here.
-        var accepted = AcceptedEvaEvidence();
-        var export = CaseEvaMapping.MapForOperatorExport(accepted with
+        var accepted = AcceptedExportEvidence();
+        var export = CaseExportMapping.MapForOperatorExport(accepted with
         {
             Inspection = new(
-                EvaInspectionMode.PhysicalAddress,
+                CaseExportInspectionMode.PhysicalAddress,
                 accepted.Inspection.Evidence with { Value = "109 Valley View, Hoole, CH490DJ" })
         }, new DateOnly(2031, 5, 4));
 
@@ -153,11 +153,11 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void SurplusInspectionAddressLinesJoinTheFifthRatherThanPushOutThePostcode()
     {
-        var accepted = AcceptedEvaEvidence();
-        var export = CaseEvaMapping.MapForOperatorExport(accepted with
+        var accepted = AcceptedExportEvidence();
+        var export = CaseExportMapping.MapForOperatorExport(accepted with
         {
             Inspection = new(
-                EvaInspectionMode.PhysicalAddress,
+                CaseExportInspectionMode.PhysicalAddress,
                 accepted.Inspection.Evidence with
                 {
                     Value = "One, Two, Three, Four, Five, Six, Seven, CH49 0DJ"
@@ -174,11 +174,11 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void AnAddressWithoutAPostcodeLeavesTheSixthLineBlank()
     {
-        var accepted = AcceptedEvaEvidence();
-        var export = CaseEvaMapping.MapForOperatorExport(accepted with
+        var accepted = AcceptedExportEvidence();
+        var export = CaseExportMapping.MapForOperatorExport(accepted with
         {
             Inspection = new(
-                EvaInspectionMode.PhysicalAddress,
+                CaseExportInspectionMode.PhysicalAddress,
                 accepted.Inspection.Evidence with { Value = "Unit 4, Riverside Depot" })
         }, new DateOnly(2031, 5, 4));
 
@@ -192,11 +192,11 @@ public sealed class QdosBoundaryContractTests
         // Pinned deliberately: QDOS's presence-check config in the
         // original extractor is empty, so this field is blank by design and
         // not by failure. Nothing should "fix" it with a default or a prompt.
-        var accepted = AcceptedEvaEvidence();
-        var export = CaseEvaMapping.MapForOperatorExport(
+        var accepted = AcceptedExportEvidence();
+        var export = CaseExportMapping.MapForOperatorExport(
             accepted with
             {
-                VatStatus = new(null, EvaEvidenceStatus.Unrecorded, "unrecorded", "unrecorded")
+                VatStatus = new(null, CaseExportEvidenceStatus.Unrecorded, "unrecorded", "unrecorded")
             },
             new DateOnly(2031, 5, 4));
 
@@ -212,11 +212,11 @@ public sealed class QdosBoundaryContractTests
         // DVSA lookup where the original extractor emitted "". That
         // divergence is what the operator asked for; nobody should "restore
         // parity" by dropping it.
-        var accepted = AcceptedEvaEvidence();
-        var export = CaseEvaMapping.MapForOperatorExport(
+        var accepted = AcceptedExportEvidence();
+        var export = CaseExportMapping.MapForOperatorExport(
             accepted with
             {
-                Mileage = new("208602", EvaEvidenceStatus.Suggested, "vehicle-lookup", "mot/v1")
+                Mileage = new("208602", CaseExportEvidenceStatus.Suggested, "vehicle-lookup", "mot/v1")
             },
             new DateOnly(2031, 5, 4));
 
@@ -224,27 +224,27 @@ public sealed class QdosBoundaryContractTests
         Assert.Equal("208602", export.Source.Fields.Mileage);
         Assert.DoesNotContain("Mileage", export.UnrecordedFields);
         var mileage = Assert.Single(export.Source.Provenance, field => field.Name == "Mileage");
-        Assert.Equal(EvaEvidenceStatus.Suggested, mileage.Status);
+        Assert.Equal(CaseExportEvidenceStatus.Suggested, mileage.Status);
     }
 
     [Fact]
     public void CompletenessAndSuggestionStatusAreOwnedByReviewRatherThanTheMapper()
     {
-        var accepted = AcceptedEvaEvidence();
-        var export = CaseEvaMapping.MapForOperatorExport(accepted with
+        var accepted = AcceptedExportEvidence();
+        var export = CaseExportMapping.MapForOperatorExport(accepted with
         {
             InstructionComplete = false,
             Inspection = accepted.Inspection with
             {
                 Evidence = accepted.Inspection.Evidence with
                 {
-                    Status = EvaEvidenceStatus.Suggested
+                    Status = CaseExportEvidenceStatus.Suggested
                 }
             }
         }, new DateOnly(2031, 5, 4));
 
         Assert.NotNull(export.Source);
-        Assert.Equal(EvaEvidenceStatus.Suggested, Assert.Single(
+        Assert.Equal(CaseExportEvidenceStatus.Suggested, Assert.Single(
             export.Source.Provenance,
             field => field.Name == "Inspection Address").Status);
     }
@@ -260,9 +260,9 @@ public sealed class QdosBoundaryContractTests
         return new(name, suggestedCandidate.Value, candidates, false, hasConflict);
     }
 
-    private static EvaAcceptedCaseEvidence AcceptedEvaEvidence()
+    private static CaseExportEvidence AcceptedExportEvidence()
     {
-        var accepted = new EvaEvidenceValue("confirmed", EvaEvidenceStatus.Accepted, "staff", "1");
+        var accepted = new CaseExportEvidenceValue("confirmed", CaseExportEvidenceStatus.Accepted, "staff", "1");
         return new(
             Guid.NewGuid(),
             1,
@@ -278,8 +278,8 @@ public sealed class QdosBoundaryContractTests
             new DateOnly(2031, 5, 2),
             accepted with { Value = "2031-05-03" },
             new(
-                EvaInspectionMode.ImageBasedAssessment,
-                accepted with { Value = CaseEvaMapping.ImageBasedAssessment }),
+                CaseExportInspectionMode.ImageBasedAssessment,
+                accepted with { Value = CaseExportMapping.ImageBasedAssessment }),
             accepted with { Value = "Impact" },
             accepted with { Value = "VAT registered" },
             accepted with { Value = "12000" },

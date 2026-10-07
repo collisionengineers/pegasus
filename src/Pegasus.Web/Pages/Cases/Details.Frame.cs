@@ -79,7 +79,7 @@ public sealed partial class DetailsModel
         Case is { Workflow.State: CaseLifecycleState.Review }
         && !ColleagueIsEditing
         && !IsPostReportReadOnly
-        && EvaHandoff is { EngineerOptions.Count: > 0 };
+        && AssignEngineerChoices is { EngineerOptions.Count: > 0 };
 
     /// <summary>The Audit reference the dialog announces: <c>a.{Case/PO}</c>.</summary>
     public string? ProposedAuditReference =>

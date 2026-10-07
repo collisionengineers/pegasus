@@ -98,7 +98,7 @@ edits the Audit
 **System work keeps the session.** Automatic processing that changes the
 Case (custody confirmed or failed, an original report recognised, a vehicle
 lookup filling empty fields, a mail correction or association moving the
-Case into Query, an automatic link, the automatic EVA submission) advances
+Case into Query, an automatic link) advances
 the Case version and leaves the editor's lease standing (operator, 6 October
 2026). The holder's next change, sent with the version they loaded, lands. The
 one exception is a value the system filled: the Case save sends every field

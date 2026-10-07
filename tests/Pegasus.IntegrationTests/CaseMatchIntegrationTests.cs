@@ -39,7 +39,7 @@ public sealed class CaseMatchIntegrationTests
     /// <summary>
     /// A manual upload has no accepted mail route and no credential binding, so
     /// the Principal is the one the accepting staff member allocated. The case
-    /// must still carry it as its work provider, or the EVA export sends an
+    /// must still carry it as its work provider, or the case export writes an
     /// empty Work Provider and no index row exists for images to match against.
     /// </summary>
     [Fact]

@@ -22,7 +22,6 @@ public sealed partial class WorkerTimerContractTests
     private static readonly Dictionary<string, string> ExpectedSchedules = new(StringComparer.Ordinal)
     {
         ["PendingWorkRecoverySchedule"] = "0 * * * * *",
-        ["AutomaticEvaReviewSubmissionSchedule"] = "0 * * * * *",
         ["SentEvidencePollSchedule"] = "0 * * * * *",
         ["IntakeStagedArtifactReconciliationSchedule"] = "*/10 * * * * *"
     };

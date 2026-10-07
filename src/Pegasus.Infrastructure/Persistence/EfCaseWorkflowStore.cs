@@ -511,11 +511,6 @@ public sealed class EfCaseWorkflowStore(
         MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
         {
             workflow.State = targetState.ToString();
-            if (targetState == CaseLifecycleState.Review)
-            {
-                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                    context, workflow, checked(workflow.Version + 1), now);
-            }
         }, cancellationToken, targetState.ToString());
 
     public Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
@@ -600,8 +595,6 @@ public sealed class EfCaseWorkflowStore(
             await RequireReviewReadinessAsync(context, workflow, cancellationToken);
             workflow.State = nameof(CaseLifecycleState.Review);
             CaseChaseState.Stop(workflow);
-            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                context, workflow, checked(workflow.Version + 1), now);
         }, cancellationToken);
 
     /// <summary>
@@ -661,11 +654,6 @@ public sealed class EfCaseWorkflowStore(
             workflow.AssignedEngineerId = request.EngineerId;
             workflow.SignOffEngineerId = signOffEngineerId;
             workflow.State = targetState.ToString();
-            if (targetState == CaseLifecycleState.Review)
-            {
-                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                    context, workflow, checked(workflow.Version + 1), now);
-            }
             await MarkReportStaleIfEffectiveSignatoryChangedAsync(
                 context,
                 workflow,
@@ -950,11 +938,6 @@ public sealed class EfCaseWorkflowStore(
             }
 
             workflow.State = request.Destination.ToString();
-            if (request.Destination == CaseReopenDestination.Review)
-            {
-                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                    context, workflow, checked(workflow.Version + 1), now);
-            }
             workflow.ClosureOutcome = null;
             if (request.Destination == CaseReopenDestination.NotReady)
             {

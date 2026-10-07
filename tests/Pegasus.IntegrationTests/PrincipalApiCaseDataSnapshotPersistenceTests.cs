@@ -58,11 +58,11 @@ public sealed class PrincipalApiCaseDataSnapshotPersistenceTests
     /// The staff create path takes whatever an operator keyed, and staff may
     /// key a different principal entirely to correct a provider that posted
     /// under the wrong account. Labelling that "authenticated credential
-    /// binding" would export a provenance to the EVA archive that no credential
+    /// binding" would export a provenance to the case export archive that no credential
     /// supplied — the same discipline <c>AddExtractedValue</c> keeps by mapping
     /// a person-keyed value to <c>StaffCorrection</c>. The case still carries
-    /// the Principal the operator allocated it to, because without it the EVA
-    /// export sends an empty Work Provider and no case-match index row exists;
+    /// the Principal the operator allocated it to, because without it the case
+    /// export writes an empty Work Provider and no case-match index row exists;
     /// it is recorded as the operator's own confirmation at acceptance.
     /// </summary>
     [Fact]

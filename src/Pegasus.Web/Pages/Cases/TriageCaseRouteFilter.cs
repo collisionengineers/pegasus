@@ -21,7 +21,6 @@ public sealed class TriageCaseRouteFilter(IGetCaseKind getCaseKind) : IAsyncPage
         "/Cases/Workflow",
         "/Cases/Closure",
         "/Cases/Documents/Export",
-        "/Cases/Eva/Send"
     };
 
     private readonly IGetCaseKind _getCaseKind = getCaseKind ?? throw new ArgumentNullException(nameof(getCaseKind));

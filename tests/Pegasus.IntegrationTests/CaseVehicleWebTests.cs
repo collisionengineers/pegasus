@@ -13,12 +13,6 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// The Vehicle page — the DVLA and MOT lookup — and the Case workspace's
 /// Vehicle section that calls it.
-///
-/// Collapsing the hand-off into the export removed the EVA half of this file with the act it covered: the
-/// GenerateEvaHandoff handler and the Eva/Download page are gone, and the
-/// export that replaced them is covered where it now lives — the Details
-/// action bar (<c>CaseDetailsWebTests</c>) and the store
-/// (<c>CustodyOutboxIntegrationTests</c>).
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseVehicleWebTests

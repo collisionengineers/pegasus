@@ -48,12 +48,12 @@ public sealed record ImageTagAssignment(
 /// </summary>
 /// <remarks>
 /// The identifiers are fixed rather than generated so the seed, the migration
-/// that converts the third-party vehicle flag, and the EVA exclusion all name
+/// that converts the third-party vehicle flag, and the case export exclusion all name
 /// the same row without a lookup by name.
 ///
 /// <see cref="ThirdPartyId"/> carries the behaviour the removed
 /// <c>ThirdPartyVehicleConfirmedAtUtc</c> flag carried: an image wearing it is
-/// not sent to EVA (<c>EvaHandoffPolicy.SelectEligibleImages</c>).
+/// left out of the case export (<c>CaseExportPolicy.SelectEligibleImages</c>).
 /// </remarks>
 public static class ImageTagVocabulary
 {
@@ -83,8 +83,8 @@ public static class ImageTagVocabulary
     /// run of Unicode whitespace (including a non-breaking space) collapsed
     /// to one ordinary space. Without this, "Third  party" (two spaces) would
     /// pass the uniqueness check as a different name from the built-in
-    /// "Third party" while rendering identically, silently escaping its EVA
-    /// exclusion.
+    /// "Third party" while rendering identically, silently escaping its case
+    /// export exclusion.
     /// </summary>
     public static string Normalize(string name)
     {

@@ -646,7 +646,6 @@ function Get-WorkerEnvironment {
         IntakeStorage__ConnectionString = $storageConnection
         Intake__LocalArtifactPath = [string]$Manifest.resources.paths.intake
         PendingWorkRecoverySchedule = '0 * * * * *'
-        AutomaticEvaReviewSubmissionSchedule = '0 * * * * *'
         IntakeStagedArtifactReconciliationSchedule = '*/10 * * * * *'
         SentEvidencePollSchedule = '0 * * * * *'
         ApprovedInbox__MailboxId = 'instructions'

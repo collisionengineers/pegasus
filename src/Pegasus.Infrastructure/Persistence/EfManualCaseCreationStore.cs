@@ -140,12 +140,7 @@ public sealed class EfManualCaseCreationStore(
             Version = 0
         };
         context.CaseWorkflows.Add(workflow);
-        if (initialState == CaseInitialState.Review)
-        {
-            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                context, workflow, workflow.Version, now);
-        }
-        else
+        if (initialState != CaseInitialState.Review)
         {
             context.CaseDueWork.Add(new()
             {

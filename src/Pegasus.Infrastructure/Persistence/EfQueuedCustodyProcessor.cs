@@ -353,7 +353,7 @@ internal sealed class EfQueuedCustodyProcessor(
                     // A photograph attached to the instruction is a
                     // photograph. Filing every attachment as Instruction hid the
                     // case's own damage images from the evidence gallery's image
-                    // test and from EVA image selection, which both ask this
+                    // test and from case export image selection, which both ask this
                     // question by semantic role. The standalone Audit's
                     // original report is the Audit report.
                     attachment.Id == originalReportAssetId
@@ -768,8 +768,6 @@ internal sealed class EfQueuedCustodyProcessor(
             && completeness.IsReadyForReview())
         {
             workflow.State = CaseLifecycleState.Review.ToString();
-            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                context, workflow, checked(workflow.Version + 1), now);
         }
         var recorded = new List<FiledRetainedContent>(retainedFiles.Count);
         await RecordRetainedCaseFilesAsync(

@@ -9,7 +9,6 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -743,47 +742,6 @@ internal static partial class CaseWebTestSupport
             Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
     }
 
-    internal sealed class StubEvaSubmissionStores(EvaSubmissionModes modes) :
-        IEvaSubmissionQueries,
-        IEvaSubmissionModeStore
-    {
-        Task<EvaSubmissionRecord?> IEvaSubmissionQueries.GetLatestAsync(
-            Guid caseId,
-            CancellationToken cancellationToken) => Task.FromResult<EvaSubmissionRecord?>(null);
-
-        Task<IReadOnlyList<EvaSubmissionFailure>> IEvaSubmissionQueries.GetRecentFailuresAsync(
-            DateTimeOffset sinceUtc,
-            int maximumResults,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>([]);
-
-        Task<EvaSubmissionActivity> IEvaSubmissionQueries.GetActivityAsync(
-            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(null));
-
-        Task<EvaSubmissionModes> IEvaSubmissionModeStore.GetForPrincipalAsync(
-            string principalCode,
-            CancellationToken cancellationToken) => Task.FromResult(modes);
-    }
-
-    /// <summary>
-    /// In-memory stand-in so the page sees a composed transport and applies
-    /// the principal's manual toggle. No request is ever sent anywhere: the
-    /// send-page test is a GET, and a POST would only record here and read
-    /// back as "nothing was submitted".
-    /// </summary>
-    internal sealed class StubSubmitCaseToEva : ISubmitCaseToEva
-    {
-        public List<SubmitCaseToEvaRequest> Requests { get; } = [];
-
-        public Task<SubmitCaseToEvaResult?> ExecuteAsync(
-            SubmitCaseToEvaRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            Requests.Add(request);
-            return Task.FromResult<SubmitCaseToEvaResult?>(null);
-        }
-    }
-
     /// <summary>
     /// The post-redirect-get lands on the Case record, carrying at most the
     /// section it returns to (v26: <c>?section=</c> plus a fragment). Name the
@@ -1052,7 +1010,7 @@ internal static partial class CaseWebTestSupport
 
         /// <summary>
         /// The same case the details surface serves, through the port the data-reading
-        /// case pages (the EVA send page) use.
+        /// case pages use.
         /// </summary>
         public Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(caseId == CaseId ? DataOverride ?? CreateData() : null);

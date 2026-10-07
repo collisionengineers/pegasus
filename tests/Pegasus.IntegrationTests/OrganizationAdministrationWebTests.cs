@@ -94,37 +94,36 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.DoesNotContain("Work Provider", principalIndexHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Organization", principalIndexHtml, StringComparison.Ordinal);
 
-        var evaSubmissionPath =
+        var reportSettingsPath =
             $"/Administration/Contacts/Edit/{principalContactId:D}";
-        var evaSubmissionHtml = await EditContactAsync(client, evaSubmissionPath);
-        Assert.Contains("pegasustest</h2>", evaSubmissionHtml, StringComparison.Ordinal);
-        var evaSubmissionForm = new Dictionary<string, string>
+        var reportSettingsHtml = await EditContactAsync(client, reportSettingsPath);
+        Assert.Contains("pegasustest</h2>", reportSettingsHtml, StringComparison.Ordinal);
+        var reportSettingsForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
-                evaSubmissionHtml,
+                reportSettingsHtml,
                 "__RequestVerificationToken"),
-            ["ReportSettingsOperationKey"] = InputValue(evaSubmissionHtml, "ReportSettingsOperationKey"),
-            ["PrincipalExpectedVersion"] = InputValue(evaSubmissionHtml, "PrincipalExpectedVersion"),
-            ["ExpectedVersion"] = InputValue(evaSubmissionHtml, "ExpectedVersion"),
-            ["ReportGenerationPolicy"] = "EvaManualApi",
-            ["DefaultFee"] = InputValue(evaSubmissionHtml, "DefaultFee")
+            ["ReportSettingsOperationKey"] = InputValue(reportSettingsHtml, "ReportSettingsOperationKey"),
+            ["PrincipalExpectedVersion"] = InputValue(reportSettingsHtml, "PrincipalExpectedVersion"),
+            ["ExpectedVersion"] = InputValue(reportSettingsHtml, "ExpectedVersion"),
+            ["DefaultFee"] = "205.00"
         };
-        using var evaSubmissionPost = await client.PostAsync(
-            $"{evaSubmissionPath}?handler=UpdateReportSettings",
-            new FormUrlEncodedContent(evaSubmissionForm));
+        using var reportSettingsPost = await client.PostAsync(
+            $"{reportSettingsPath}?handler=UpdateReportSettings",
+            new FormUrlEncodedContent(reportSettingsForm));
         Assert.True(
-            evaSubmissionPost.StatusCode == HttpStatusCode.Redirect,
-            $"Expected a redirect but got {evaSubmissionPost.StatusCode}. " +
-                $"Validation errors: {await DescribeValidationErrorsAsync(evaSubmissionPost)}");
-        Assert.Equal(evaSubmissionPath, evaSubmissionPost.Headers.Location?.OriginalString);
+            reportSettingsPost.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {reportSettingsPost.StatusCode}. " +
+                $"Validation errors: {await DescribeValidationErrorsAsync(reportSettingsPost)}");
+        Assert.Equal(reportSettingsPath, reportSettingsPost.Headers.Location?.OriginalString);
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT CASE WHEN ReportGenerationPolicy = 'EvaManualApi' THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
+                $"SELECT CASE WHEN DefaultFee = 205.00 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
-        var locationHtml = await EditContactAsync(client, evaSubmissionPath);
+        var locationHtml = await EditContactAsync(client, reportSettingsPath);
         using var locationPost = await client.PostAsync(
-            $"{evaSubmissionPath}?handler=UpdateLocation",
+            $"{reportSettingsPath}?handler=UpdateLocation",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = InputValue(locationHtml, "__RequestVerificationToken"),
@@ -134,13 +133,13 @@ public sealed partial class OrganizationAdministrationWebTests
                 ["LocationIsImageBasedAssessment"] = bool.TrueString
             }));
         Assert.Equal(HttpStatusCode.Redirect, locationPost.StatusCode);
-        Assert.Equal(evaSubmissionPath, locationPost.Headers.Location?.OriginalString);
+        Assert.Equal(reportSettingsPath, locationPost.Headers.Location?.OriginalString);
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT CASE WHEN DefaultInspectionAddress IS NULL THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
-        await AssertCredentialControlsAsync(factory, client, principalId, evaSubmissionPath);
+        await AssertCredentialControlsAsync(factory, client, principalId, reportSettingsPath);
 
-        var replacePath = evaSubmissionPath;
+        var replacePath = reportSettingsPath;
         var replaceHtml = await EditContactAsync(client, replacePath);
         Assert.Contains("allocated cases remain with their existing references", replaceHtml, StringComparison.Ordinal);
         var replacementOperationKey = InputValue(replaceHtml, "ReplacementOperationKey");

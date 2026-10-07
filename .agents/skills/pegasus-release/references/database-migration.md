@@ -44,8 +44,7 @@ only when the stamp changes.
    $required = @(
      'AZURE_SQL_SERVER_FQDN', 'AZURE_SQL_DATABASE_NAME', 'WEB_IDENTITY_CLIENT_ID',
      'TRANSPORT_STORAGE_ACCOUNT_NAME', 'CUSTODY_STORAGE_ACCOUNT_NAME',
-     'AZURE_TENANT_ID', 'BOX_HOLDING_FOLDER_ID', 'EVA_BASE_URI',
-     'EVA_REQUEST_FROM', 'EVA_INSPECTION_TYPE', 'EVA_INSTRUCTION_EMAIL',
+     'AZURE_TENANT_ID', 'BOX_HOLDING_FOLDER_ID',
      'GLASS_MARKET_VALUE_ASSESSOR_BASE_URI', 'GLASS_ESTIMATOR_BASE_URI',
      'GLASS_REPAIR_PROFILE_ID', 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
      'GITHUB_PROBLEM_REPORT_REPOSITORY')
@@ -71,12 +70,6 @@ only when the stamp changes.
      Box__HoldingFolderId = $values['BOX_HOLDING_FOLDER_ID']
      Box__ConfigJson = '{"boxAppSettings":{"clientID":"migration-host-placeholder","appAuth":{"publicKeyID":"migration-host-placeholder","privateKey":"migration-host-placeholder","passphrase":"migration-host-placeholder"}},"enterpriseID":"migration-host-placeholder"}'
      Box__ClientSecret = 'migration-host-placeholder'
-     Eva__BaseUri = $values['EVA_BASE_URI']
-     Eva__ClientId = 'migration-host-placeholder'
-     Eva__ClientSecret = 'migration-host-placeholder'
-     Eva__RequestFrom = $values['EVA_REQUEST_FROM']
-     Eva__InspectionType = $values['EVA_INSPECTION_TYPE']
-     Eva__InstructionEmail = $values['EVA_INSTRUCTION_EMAIL']
      Glass__MarketValueAssessorBaseUri = $values['GLASS_MARKET_VALUE_ASSESSOR_BASE_URI']
      Glass__EstimatorBaseUri = $values['GLASS_ESTIMATOR_BASE_URI']
      Glass__CallbackBaseUri = $webOrigin
@@ -92,12 +85,11 @@ only when the stamp changes.
    ```
 
    `GitHub__ProblemReports__Token`, `Graph__ChangeNotificationClientState`, `Box__ConfigJson`,
-   `Box__ClientSecret`, `Eva__ClientId`, `Eva__ClientSecret`,
-   `Glass__ValuationAccount__Username`, and `Glass__ValuationAccount__Password`
+   `Box__ClientSecret`, `Glass__ValuationAccount__Username`, and `Glass__ValuationAccount__Password`
    above are intentionally non-empty process-only placeholders, not azd
    configuration or secrets. The migration host validates the GitHub
    configuration but does not dispatch problem reports. The Box value is
-   shape-valid JWT JSON. The migration host builds its deferred Box, EVA and
+   shape-valid JWT JSON. The migration host builds its deferred Box and
    Glass's valuation factories but does not use their external routes.
    The four non-secret `Glass__*` values are the Web host's Production required keys;
    the two provider origins and the profile id are the same

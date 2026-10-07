@@ -66,18 +66,6 @@ param dvlaApiKeySecretUri string
 param dvsaClientIdSecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA OAuth client secret.')
 param dvsaClientSecretSecretUri string
-@description('Versioned Key Vault secret URI containing the EVA API client ID. The credential pair alone decides whether this is EVA test or live.')
-param evaClientIdSecretUri string
-@description('Versioned Key Vault secret URI containing the EVA API client secret.')
-param evaClientSecretSecretUri string
-@description('Approved EVA Sentry API base URI, serving both test and live.')
-param evaBaseUri string
-@description('EVA contact code this deployment submits instructions as.')
-param evaRequestFrom string
-@description('EVA inspection type sent on every instruction.')
-param evaInspectionType string
-@description('Instruction contact address sent to EVA.')
-param evaInstructionEmail string
 @description('Glass Market Value Assessor origin (absolute HTTPS); the sign-in, lookup, launch, relay and export routes are under it.')
 param glassMarketValueAssessorBaseUri string
 @description('Glass repair estimator origin (absolute HTTPS) that a launch is allowed to send the Engineer to.')
@@ -135,12 +123,6 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     dvlaApiKeySecretUri: dvlaApiKeySecretUri
     dvsaClientIdSecretUri: dvsaClientIdSecretUri
     dvsaClientSecretSecretUri: dvsaClientSecretSecretUri
-    evaClientIdSecretUri: evaClientIdSecretUri
-    evaClientSecretSecretUri: evaClientSecretSecretUri
-    evaBaseUri: evaBaseUri
-    evaRequestFrom: evaRequestFrom
-    evaInspectionType: evaInspectionType
-    evaInstructionEmail: evaInstructionEmail
     glassMarketValueAssessorBaseUri: glassMarketValueAssessorBaseUri
     glassEstimatorBaseUri: glassEstimatorBaseUri
     glassRepairProfileId: glassRepairProfileId

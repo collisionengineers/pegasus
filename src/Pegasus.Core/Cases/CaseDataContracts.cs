@@ -78,9 +78,7 @@ public sealed record CasePrincipalData(CaseField<string> PrincipalCode);
 /// <summary>
 /// The claimant. <see cref="ContactNumber"/> and <see cref="Address"/> are the
 /// claimant's own — distinct from <see cref="CaseContactData"/>, which is the
-/// file handler Pegasus corresponds with about the case. EVA keeps the same
-/// separation (ClmTelNo against the inspection-location contact), and the
-/// claimant address is what its claimant block needs.
+/// file handler Pegasus corresponds with about the case.
 /// </summary>
 public sealed record CaseClaimantData(
     CaseField<string> Name,

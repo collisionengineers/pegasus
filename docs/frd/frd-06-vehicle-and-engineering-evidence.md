@@ -102,7 +102,7 @@ keeps its dated results; no fresh evaluation is implied.
 produces a suggestion. Each result stays attached to one retained source
 image. Staff confirmation creates the provisional vehicle identity. Before
 confirmation a suggestion must not create or identify a Case, allocate a
-Case/PO, overwrite a confirmed registration, select an EVA image, satisfy a
+Case/PO, overwrite a confirmed registration, select an export image, satisfy a
 readiness gate, or change Case workflow.
 
 **Automatic registration and pairing.** A confident, unambiguous read at the
@@ -169,7 +169,7 @@ evidence. No recogniser, model or adapter acts on its own.
 
 **Every image is kept.** An automated VRM or colour result may only suggest
 that a photo shows a different vehicle. It does not exclude the photo from
-the Case-vehicle, EVA-export or report-selection pools. An authorised staff
+the Case-vehicle, Case-export or report-selection pools. An authorised staff
 member must confirm that by applying the Third party image tag
 ([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)). Until then
 the photo stays visible as unmatched-vehicle evidence. Neither outcome

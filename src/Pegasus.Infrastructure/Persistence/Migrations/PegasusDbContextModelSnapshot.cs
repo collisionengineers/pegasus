@@ -1182,56 +1182,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AutomaticEvaReviewSubmissionEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("CompletedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset>("DueAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("LeaseExpiresAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("LeaseToken")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<long>("WorkflowVersion")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CaseId")
-                        .IsUnique();
-
-                    b.HasIndex("State", "DueAtUtc");
-
-                    b.ToTable("AutomaticEvaReviewSubmissions", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_AutomaticEvaReviewSubmissions_State", "[State] IN ('Pending', 'Dispatching', 'Completed', 'ReconciliationRequired')");
-                        });
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseAssessmentFieldEntity", b =>
                 {
                     b.Property<Guid>("WorkId")
@@ -3559,128 +3509,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("Purpose");
 
                     b.ToTable("EmailTemplates", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EvaFirstHandoffProxyEntity", b =>
-                {
-                    b.Property<Guid>("CaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ActorSubjectId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("AdapterKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("AdapterVersion")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<bool>("ClaimsEngineerAssignment")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("ClaimsExternalDelivery")
-                        .HasColumnType("bit");
-
-                    b.Property<long?>("LatestExportedWorkflowVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("RecordedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("CaseId");
-
-                    b.ToTable("EvaFirstHandoffProxies", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_EvaFirstHandoffProxies_ExportVersion", "[LatestExportedWorkflowVersion] IS NULL OR [LatestExportedWorkflowVersion] >= 0");
-
-                            t.HasCheckConstraint("CK_EvaFirstHandoffProxies_NoAssignmentClaim", "[ClaimsEngineerAssignment] = 0");
-
-                            t.HasCheckConstraint("CK_EvaFirstHandoffProxies_NoDeliveryClaim", "[ClaimsExternalDelivery] = 0");
-                        });
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EvaSubmissionEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ActorSubjectId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("AttemptCount")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("CaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("EvaId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ExternalRef")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("FailureCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("FailureDetail")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("FileReference")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("ImagesSent")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDelivered")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Outcome")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTimeOffset>("SubmittedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<long>("WorkflowVersion")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CaseId", "OperationKey")
-                        .HasDatabaseName("IX_EvaSubmissions_CaseOperationKey");
-
-                    b.HasIndex("CaseId", "SubmittedAtUtc")
-                        .HasDatabaseName("IX_EvaSubmissions_CaseSubmittedAt");
-
-                    b.ToTable("EvaSubmissions", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_EvaSubmissions_Counts", "[ImagesSent] >= 0 AND [AttemptCount] >= 1 AND [WorkflowVersion] >= 0");
-
-                            t.HasCheckConstraint("CK_EvaSubmissions_DeliveredAgreesWithOutcome", "([IsDelivered] = 1 AND [Outcome] IN ('Succeeded', 'Partial')) OR ([IsDelivered] = 0 AND [Outcome] NOT IN ('Succeeded', 'Partial'))");
-
-                            t.HasCheckConstraint("CK_EvaSubmissions_Outcome", "[Outcome] IN ('Succeeded', 'Rejected', 'Partial', 'Unknown')");
-                        });
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ExternalWorkItemEntity", b =>
@@ -6066,11 +5894,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("PredecessorId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("ReportGenerationPolicy")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
                     b.Property<string>("ReportRecipientAddressesJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -6112,8 +5935,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Principals_DefaultFee", "[DefaultFee] > 0");
 
                             t.HasCheckConstraint("CK_Principals_InspectionMode", "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
-
-                            t.HasCheckConstraint("CK_Principals_ReportGenerationPolicy", "[ReportGenerationPolicy] IN ('Pegasus', 'EvaZip', 'EvaManualApi', 'EvaAutomaticApiOnReview')");
 
                             t.HasCheckConstraint("CK_Principals_Version", "[Version] >= 0");
                         });
@@ -8689,24 +8510,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("SentEvidence");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EvaFirstHandoffProxyEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
-                        .WithOne()
-                        .HasForeignKey("Pegasus.Infrastructure.Persistence.EvaFirstHandoffProxyEntity", "CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EvaSubmissionEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
-                        .WithMany()
-                        .HasForeignKey("CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ExternalWorkItemEntity", b =>

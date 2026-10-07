@@ -157,8 +157,8 @@ internal sealed record CaseUpdateDetailsToolResult(
 
 /// <summary>
 /// Automation Actor assessment tools (the tranche specified by
-/// ADR-0031 / FRD-10 (docs/adr/0031-automation-actor-contract-without-eva-export-tools.md,
-/// docs/frd/frd-10-mcp-automation-and-actor-boundary.md)): direct writes over the same
+/// ADR-0031 / FRD-10 (docs/frd/frd-10-mcp-automation-and-actor-boundary.md)):
+/// direct writes over the same
 /// Core commands, edit lease, and version guards as a staff save, attributed
 /// to the Automation actor and limited to fields a staff member records on
 /// the Case. A recorded value is the Case's value whoever recorded it, shown

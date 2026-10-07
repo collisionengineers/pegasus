@@ -301,7 +301,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// set costs one ancestry walk rather than one per file.
     ///
     /// Every version is materialised in full before any is returned, which is
-    /// what this caller wants — the EVA archive holds the bytes — and what a
+    /// what this caller wants — the case export archive holds the bytes — and what a
     /// streaming caller must not use.
     /// </summary>
     public async Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(

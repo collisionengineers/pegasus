@@ -168,8 +168,7 @@ public static class CaseReportDeliveryNaming
 /// <summary>
 /// The one owner of how a generated report is addressed, which artifacts go,
 /// and when a generation is sendable. Every rule reads persisted facts
-/// only. Generation is not delivery: nothing here records a Sent state, and
-/// EVA is absent because the optional hand-off never gates the report.
+/// only. Generation is not delivery: nothing here records a Sent state.
 /// </summary>
 public static class CaseReportDeliveryPolicy
 {

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Custody;
@@ -419,15 +419,6 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
             ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
             ["Graph:ChangeNotificationClientState"] = "integration-client-state",
-            // EXT-04: Production composes the EVA API submission route, so a
-            // host needs EVA settings to start. These are inert test
-            // credentials; no EVA call is made by composing them.
-            ["Eva:BaseUri"] = "https://sentry.evasoftware.co.uk/api/",
-            ["Eva:ClientId"] = "test-eva-client",
-            ["Eva:ClientSecret"] = "test-eva-secret",
-            ["Eva:RequestFrom"] = "COLLENGAPI",
-            ["Eva:InspectionType"] = "Vehicle Damage Inspection",
-            ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk",
             // Production requires the Glass's adapter settings
             // to start. Reserved test origins; no provider call is made by
             // composing them.

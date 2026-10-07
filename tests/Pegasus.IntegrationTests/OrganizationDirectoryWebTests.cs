@@ -6,7 +6,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// EXT-18/S05 items 6-7: the web-facing surface for a principal's default
-/// inspection-location choice and report-generation policy. A physical default
+/// inspection-location choice and report settings. A physical default
 /// change is retained alongside its reason without ever implying CE attendance
 /// or changing B's separate assessment method.
 /// </summary>
@@ -14,7 +14,7 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class OrganizationDirectoryWebTests
 {
     [Fact]
-    public async Task PrincipalSettingsPageSavesDefaultLocationAndReportPolicyIndependently()
+    public async Task PrincipalSettingsPageSavesDefaultLocationAndReportSettingsIndependently()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -23,11 +23,8 @@ public sealed partial class OrganizationDirectoryWebTests
 
         var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
         var settingsHtml = await GetContactSettingsAsync(client, settingsPath);
-        Assert.Contains("Pegasus", settingsHtml, StringComparison.Ordinal);
-        Assert.Contains(">EVA</option>", settingsHtml, StringComparison.Ordinal);
-        Assert.Contains("ZIP export", settingsHtml, StringComparison.Ordinal);
-        Assert.Contains("Manual API submission", settingsHtml, StringComparison.Ordinal);
-        Assert.Contains("Automatic API submission at Review", settingsHtml, StringComparison.Ordinal);
+        Assert.Contains("Report settings", settingsHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportGenerationPolicy", settingsHtml, StringComparison.Ordinal);
 
         var locationForm = new Dictionary<string, string>
         {
@@ -59,7 +56,6 @@ public sealed partial class OrganizationDirectoryWebTests
             ["ReportSettingsOperationKey"] = InputValue(settingsAfterLocationHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(settingsAfterLocationHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(settingsAfterLocationHtml, "ExpectedVersion"),
-            ["ReportGenerationPolicy"] = "EvaManualApi",
             ["IncludeOriginalInstructionSender"] = bool.TrueString,
             ["AdditionalReportRecipients"] = "reports@example.test",
             ["DefaultFee"] = "225.50"
@@ -76,7 +72,7 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND ReportGenerationPolicy = 'EvaManualApi' AND IncludeOriginalInstructionSender = 1 AND ReportRecipientAddressesJson LIKE '%reports@example.test%' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF' AND DefaultFee = 225.50;"));
+                $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND IncludeOriginalInstructionSender = 1 AND ReportRecipientAddressesJson LIKE '%reports@example.test%' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF' AND DefaultFee = 225.50;"));
 
         using var indexGet = await client.GetAsync("/Administration/Contacts");
         var indexHtml = await indexGet.Content.ReadAsStringAsync();
@@ -96,8 +92,8 @@ public sealed partial class OrganizationDirectoryWebTests
             client, factory, "Stale contact version provider", "STALEW");
         var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
         var settingsHtml = await GetContactSettingsAsync(client, settingsPath);
-        var policyBefore = await factory.Database.ScalarAsync<string>(
-            $"SELECT ReportGenerationPolicy FROM Principals WHERE Id = '{principalId:D}';");
+        var feeBefore = await factory.Database.ScalarAsync<decimal>(
+            $"SELECT DefaultFee FROM Principals WHERE Id = '{principalId:D}';");
 
         await factory.Database.ExecuteAsync(
             $"UPDATE Organizations SET Version = Version + 1 WHERE Id = '{contactId:D}';");
@@ -107,8 +103,7 @@ public sealed partial class OrganizationDirectoryWebTests
             ["ReportSettingsOperationKey"] = InputValue(settingsHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(settingsHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(settingsHtml, "ExpectedVersion"),
-            ["ReportGenerationPolicy"] = "EvaManualApi",
-            ["DefaultFee"] = InputValue(settingsHtml, "DefaultFee")
+            ["DefaultFee"] = "250.00"
         };
 
         using var response = await client.PostAsync(
@@ -121,9 +116,9 @@ public sealed partial class OrganizationDirectoryWebTests
             await response.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
         Assert.Equal(
-            policyBefore,
-            await factory.Database.ScalarAsync<string>(
-                $"SELECT ReportGenerationPolicy FROM Principals WHERE Id = '{principalId:D}';"));
+            feeBefore,
+            await factory.Database.ScalarAsync<decimal>(
+                $"SELECT DefaultFee FROM Principals WHERE Id = '{principalId:D}';"));
     }
 
     /// <summary>

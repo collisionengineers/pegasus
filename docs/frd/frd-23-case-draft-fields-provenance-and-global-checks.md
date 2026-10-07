@@ -45,7 +45,7 @@ calculation rather than claiming a raw source.
 Each datum also carries a value kind (Fact, Suggestion, or Confirmed) and a
 source kind (intake evidence, mail route, case acceptance, staff correction,
 vehicle lookup, Principal setting, or Principal API). `principal_code`
-names the Principal for match indexing and EVA export. It is Confirmed with
+names the Principal for match indexing and the Case export. It is Confirmed with
 source kind case acceptance when staff acceptance names the Principal (see
 [Ways intake starts](frd-02-intake-and-source-identity.md#ways-intake-starts)),
 and Confirmed with source kind staff correction on a Wrong-Principal
@@ -91,7 +91,7 @@ Capture:
 
 | Field | Rule |
 | --- | --- |
-| Principal | Named `Work Provider` in the EVA export. |
+| Principal | Named `Work Provider` in the Case export. |
 | Claimant Name | From the instruction. |
 | Claim Number | The Principal's external reference. |
 | Vehicle Registration | The VRM. |
@@ -107,8 +107,8 @@ The Case's instruction date is its Received date (operator, 24 September
 2026): the Europe/London date its instruction was received, or the date
 staff created the Case directly. It is not read from the instruction,
 entered by staff or stated over the Principal API, and there is no separate
-instruction-date field. EVA's `Instruction Date`
-([FRD-07](frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff))
+instruction-date field. The Case export's `Instruction Date`
+([FRD-07](frd-07-case-export.md#export-case))
 and the date the report says instructions were received
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness))
 print it.
@@ -141,7 +141,7 @@ print it.
 ## Acceptance evidence
 
 Acceptance proves the value kinds and source kinds, the mileage tier order,
-the DVSA discrepancy display, that the instruction date EVA and the report
+the DVSA discrepancy display, that the instruction date the Case export and the report
 print is the Case's Received date, and that a Case cannot enter Review
 without the three global checks or their recorded exceptions. Deployment
 and live evidence are separate tiers

@@ -3,11 +3,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 
 namespace Pegasus.Core.Tests.Qdos;
 
-public sealed class EvaBundleContractTests
+public sealed class CaseExportArchiveTests
 {
     private static readonly Guid OverviewOccurrenceId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid DamageOccurrenceId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -18,31 +18,31 @@ public sealed class EvaBundleContractTests
     {
         var order = Images();
 
-        var first = EvaBundleSchema.CreateOfflineReplay(Source(), order);
-        var replay = EvaBundleSchema.CreateOfflineReplay(Source(), order);
+        var first = CaseExportArchive.Create(Source(), order);
+        var replay = CaseExportArchive.Create(Source(), order);
 
         Assert.Equal(first.Content, replay.Content);
         Assert.Equal(first.Sha256, replay.Sha256);
-        Assert.Equal("EVA-QDOS001.zip", first.FileName);
+        Assert.Equal("QDOS001.zip", first.FileName);
         using var archive = new ZipArchive(new MemoryStream(first.Content), ZipArchiveMode.Read);
         Assert.Equal(
             [
-                "EVA-QDOS001.json",
+                "QDOS001.json",
                 "Images/002 overview.jpg",
                 "Images/003 damage.png",
                 "Images/004 other.jpg"
             ],
             archive.Entries.Select(entry => entry.FullName));
 
-        using var eva = JsonDocument.Parse(first.JsonContent);
-        Assert.Equal(FieldNames, eva.RootElement.EnumerateObject().Select(property => property.Name));
+        using var json = JsonDocument.Parse(first.JsonContent);
+        Assert.Equal(FieldNames, json.RootElement.EnumerateObject().Select(property => property.Name));
     }
 
     [Fact]
     public void RetainedInputSequenceDoesNotChangePersistedEvidenceOrder()
     {
-        var first = EvaBundleSchema.CreateOfflineReplay(Source(), Images());
-        var changed = EvaBundleSchema.CreateOfflineReplay(
+        var first = CaseExportArchive.Create(Source(), Images());
+        var changed = CaseExportArchive.Create(
             Source(),
             Images([OtherOccurrenceId, OverviewOccurrenceId, DamageOccurrenceId]));
 
@@ -56,17 +56,27 @@ public sealed class EvaBundleContractTests
     [Fact]
     public void OneRetainedImageIsExportedExactlyOnceWithoutPreviewSelection()
     {
-        var bundle = EvaBundleSchema.CreateOfflineReplay(
+        var bundle = CaseExportArchive.Create(
             Source(),
             new([Images().RetainedImages[0]]));
 
         using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
         Assert.Equal(
             [
-                "EVA-QDOS001.json",
+                "QDOS001.json",
                 "Images/002 overview.jpg"
             ],
             archive.Entries.Select(entry => entry.FullName));
+    }
+
+    [Fact]
+    public void ACaseWithNoPhotographExportsTheDataFileAlone()
+    {
+        var bundle = CaseExportArchive.Create(Source(), new([]));
+
+        Assert.Equal("QDOS001.zip", bundle.FileName);
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        Assert.Equal(["QDOS001.json"], archive.Entries.Select(entry => entry.FullName));
     }
 
     [Fact]
@@ -83,9 +93,9 @@ public sealed class EvaBundleContractTests
                 .ToArray()
         };
 
-        var first = EvaBundleSchema.CreateOfflineReplay(source, Images());
-        var changed = EvaBundleSchema.CreateOfflineReplay(changedSource, Images());
-        var replay = EvaBundleSchema.CreateOfflineReplay(changedSource, Images());
+        var first = CaseExportArchive.Create(source, Images());
+        var changed = CaseExportArchive.Create(changedSource, Images());
+        var replay = CaseExportArchive.Create(changedSource, Images());
 
         Assert.NotEqual(first.Sha256, changed.Sha256);
         Assert.Equal(changed.Content, replay.Content);
@@ -95,10 +105,10 @@ public sealed class EvaBundleContractTests
     [Fact]
     public void AStaleMappingVersionIsRejected()
     {
-        var source = Source() with { MappingVersion = CaseEvaMapping.MappingVersion - 1 };
+        var source = Source() with { MappingVersion = CaseExportMapping.MappingVersion - 1 };
 
         var exception = Assert.Throws<InvalidOperationException>(
-            () => EvaBundleSchema.CreateOfflineReplay(source, Images()));
+            () => CaseExportArchive.Create(source, Images()));
 
         Assert.Contains("current mapping version", exception.Message, StringComparison.Ordinal);
     }
@@ -106,21 +116,21 @@ public sealed class EvaBundleContractTests
     // The archive-layout regression guard. Before this test the exported layout was
     // pinned only transitively, through two bundles hashing the same -- which
     // holds just as well when both are wrong. The archive shape and the JSON
-    // bytes are now asserted directly, because both are what EVA reads.
+    // bytes are now asserted directly, because both are what the importer reads.
     [Fact]
     public void TheArchiveIsTheIndentedJsonAndImagesAndNothingElse()
     {
-        var bundle = EvaBundleSchema.CreateOfflineReplay(Source(), Images());
+        var bundle = CaseExportArchive.Create(Source(), Images());
 
         using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
         var names = archive.Entries.Select(entry => entry.FullName).ToArray();
 
         // No manifest.sha256, no provenance.json: neither was ever an operator
-        // requirement, and the three known-good EVA samples carry no companion
+        // requirement, and the known-good samples carry no companion
         // file at all.
         Assert.Equal(
             [
-                "EVA-QDOS001.json",
+                "QDOS001.json",
                 "Images/002 overview.jpg",
                 "Images/003 damage.png",
                 "Images/004 other.jpg"
@@ -175,8 +185,8 @@ public sealed class EvaBundleContractTests
     {
         string[] samples =
         [
-            Path.Combine("reference", "eva_information", "Final Format Example 02.json"),
-            Path.Combine("reference", "eva_information", "AX_SP58WVO.json")
+            Path.Combine("reference", "case_export", "Final Format Example 02.json"),
+            Path.Combine("reference", "case_export", "AX_SP58WVO.json")
         ];
 
         foreach (var sample in samples)
@@ -201,7 +211,7 @@ public sealed class EvaBundleContractTests
         return current?.FullName ?? throw new InvalidOperationException("Repository root not found.");
     }
 
-    // The predecessor extractor whose output EVA accepts dumps with
+    // The predecessor extractor whose output the samples come from dumps with
     // ensure_ascii=False, and both retained samples carry raw non-ASCII bytes
     // and zero \u escapes. Utf8JsonWriter's DEFAULT encoder would escape every
     // one of them -- and & < > + ' besides -- so without this the parity
@@ -212,7 +222,7 @@ public sealed class EvaBundleContractTests
     {
         var source = Source();
         const string awkward = "Mr André O’Sullivan-–Björk & Co <Ltd> + 'x'";
-        var bundle = EvaBundleSchema.CreateOfflineReplay(
+        var bundle = CaseExportArchive.Create(
             source with
             {
                 Fields = source.Fields with { ClaimantName = awkward },
@@ -250,7 +260,7 @@ public sealed class EvaBundleContractTests
             .ToArray();
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            EvaBundleSchema.CreateOfflineReplay(
+            CaseExportArchive.Create(
                 Source(),
                 images with { RetainedImages = unconfirmed }));
 
@@ -266,7 +276,7 @@ public sealed class EvaBundleContractTests
         // archive is named by the Pegasus case reference instead.
         const string principalReference = "AKH//47743/1";
         var source = Source();
-        var bundle = EvaBundleSchema.CreateOfflineReplay(
+        var bundle = CaseExportArchive.Create(
             source with
             {
                 Fields = source.Fields with { Reference = principalReference },
@@ -277,7 +287,7 @@ public sealed class EvaBundleContractTests
             Images(),
             "QDOS26015");
 
-        Assert.Equal("EVA-QDOS26015.zip", bundle.FileName);
+        Assert.Equal("QDOS26015.zip", bundle.FileName);
         using var parsed = JsonDocument.Parse(bundle.JsonContent);
         Assert.Equal(principalReference, parsed.RootElement.GetProperty("Reference").GetString());
     }
@@ -292,7 +302,7 @@ public sealed class EvaBundleContractTests
         var large = new byte[300_000];
         new Random(20260930).NextBytes(large);
         var small = "damage image"u8.ToArray();
-        var bundle = EvaBundleSchema.CreateOfflineReplay(
+        var bundle = CaseExportArchive.Create(
             Source(),
             new(
             [
@@ -303,7 +313,7 @@ public sealed class EvaBundleContractTests
         using var unsized = new MemoryStream();
         using (var archive = new ZipArchive(unsized, ZipArchiveMode.Create, leaveOpen: true, Encoding.UTF8))
         {
-            AddReferenceEntry(archive, "EVA-QDOS001.json", bundle.JsonContent);
+            AddReferenceEntry(archive, "QDOS001.json", bundle.JsonContent);
             AddReferenceEntry(archive, "Images/002 overview.jpg", large);
             AddReferenceEntry(archive, "Images/003 damage.png", small);
         }
@@ -324,9 +334,9 @@ public sealed class EvaBundleContractTests
         entryStream.Write(content);
     }
 
-    private static EvaBundleSource Source()
+    private static CaseExportSource Source()
     {
-        var fields = new EvaReplayFields(
+        var fields = new CaseExportFields(
             "QDOS",
             "AB12 CDE",
             "Example Model",
@@ -335,12 +345,12 @@ public sealed class EvaBundleContractTests
             "2031-05-01",
             "2031-05-02",
             "2031-05-03",
-            CaseEvaMapping.ImageBasedAssessment,
+            CaseExportMapping.ImageBasedAssessment,
             "Stationary vehicle impact",
             "No",
             "12000",
             "Miles");
-        var normalized = CaseEvaMapping.MapOfflineReplay(fields);
+        var normalized = CaseExportMapping.NormalizeFields(fields);
         var values = new[]
         {
             normalized.WorkPrincipal,
@@ -359,18 +369,18 @@ public sealed class EvaBundleContractTests
         };
         return new(
             normalized,
-            FieldNames.Select((name, index) => new EvaFieldProvenance(
+            FieldNames.Select((name, index) => new CaseExportFieldProvenance(
                 name,
                 values[index]!,
-                EvaEvidenceStatus.Accepted,
+                CaseExportEvidenceStatus.Accepted,
                 "accepted-case-data",
                 $"case-data/v{index + 1}"))
                 .ToArray(),
-            CaseEvaMapping.MappingKey,
-            CaseEvaMapping.MappingVersion);
+            CaseExportMapping.MappingKey,
+            CaseExportMapping.MappingVersion);
     }
 
-    private static EvaBundleImages Images(IReadOnlyList<Guid>? order = null)
+    private static CaseExportImages Images(IReadOnlyList<Guid>? order = null)
     {
         var images = new[]
         {
@@ -384,7 +394,7 @@ public sealed class EvaBundleContractTests
         return new(ordered);
     }
 
-    private static EvaBundleImage Image(
+    private static CaseExportImage Image(
         Guid occurrenceId,
         string fileName,
         string mediaType,

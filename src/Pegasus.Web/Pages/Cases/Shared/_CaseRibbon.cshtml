@@ -33,9 +33,6 @@
         ? "No registration"
         : summary.Registration!;
     var canAssignEngineer = Model.CanAssignEngineer;
-    var canSendToEva = (Model.EvaHandoff?.ReportGenerationPolicy is PrincipalReportGenerationPolicy.EvaZip or PrincipalReportGenerationPolicy.EvaManualApi
-        || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
-        && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     // The confirmation is a lease-carrying Core action; without detected
     // evidence there is nothing to confirm (D10: a send is never asserted here).
     // The Inspection view marks the Inspection report sent on its own work,
@@ -59,10 +56,9 @@
     var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
     var offersHoldGroup = mayActOnCaseData && !isClosed;
     var offersCreateAudit = Model.OffersCreateAudit;
-    // The menu shows whenever it has an item to offer.
-    var offersActionsMenu = canUnlinkEvidence || canSendChaser || canSendToEva || canAssignEngineer || canConfirmReportSent || canMarkCompleted
-        || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
-        || offersCreateAudit || offersAdverseClosure;
+    // Export case is offered on every standard Case in every state (operator,
+    // 7 October 2026), so the menu always has an item. A Triage Case never
+    // draws this ribbon.
     var outcome = Model.AssessmentEditorValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)
         ?? Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)?.Value;
     var salvageCategory = Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.SalvageCategory)?.Value;
@@ -208,141 +204,139 @@
                 </button>
             </form>
         }
-        @if (offersActionsMenu)
-        {
-            <details class="menu" data-menu data-case-actions>
-                <summary class="btn"><span>@Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
-                <div class="menu-body">
-                    @if (canAssignEngineer)
+        <details class="menu" data-menu data-case-actions>
+            <summary class="btn"><span>@Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+            <div class="menu-body">
+                @if (canAssignEngineer)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-handoff-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                        <span>@CaseWorkspaceLabels.AssignEngineer</span>
+                    </button>
+                }
+                @* The answer is a file, so site.js fetches it (data-busy-download):
+                   the button stays busy until the archive arrives, and a refusal
+                   shows its reason. The Case page's in-place post would discard
+                   the file, so the form opts out of it. *@
+                <form method="post" asp-page="/Cases/Documents/Export" asp-route-caseId="@workflow.CaseId"
+                      asp-page-handler="Bundle" data-no-inplace data-busy-download
+                      data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed" data-case-export>
+                    <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
+                    <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Exporting" data-busy-done="@OperatorLabels.Busy.Done.Exported">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <span>@Frame.ExportCase</span>
+                    </button>
+                </form>
+                @if (canConfirmReportSent)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-report-sent-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <span>@Frame.MarkReportSent</span>
+                    </button>
+                }
+                @if (canMarkCompleted)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-complete-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                        <span>@Frame.MarkCompleted</span>
+                    </button>
+                }
+                @if (canReturnToReview)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-return-review-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                        <span>@Frame.ReturnToReview</span>
+                    </button>
+                }
+                @if (canReturnToEngineer)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-return-engineer-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                        <span>@Frame.ReturnToEngineer</span>
+                    </button>
+                }
+                @if (canArchive)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-archive-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                        <span>@Frame.ArchiveCase</span>
+                    </button>
+                }
+                @if (canUnlinkEvidence)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-unlink-evidence-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-unlink" /></svg>
+                        <span>@Frame.UnlinkReportEvidence</span>
+                    </button>
+                }
+                @if (canSendChaser)
+                {
+                    <a class="btn" asp-page="/Mail/Compose" asp-route-caseReference="@summary.Reference" asp-route-purpose="@Pegasus.Web.Pages.Mail.ComposeModel.ChaserPurpose" data-send-chaser>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <span>@Frame.SendChaser</span>
+                    </a>
+                }
+                @if (offersHoldGroup || offersCreateAudit)
+                {
+                    <div class="menu-sep"></div>
+                    @if (offersHoldGroup)
                     {
-                        <button type="button" class="btn" data-dialog-open="case-handoff-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                            <span>@CaseWorkspaceLabels.AssignEngineer</span>
-                        </button>
-                    }
-                    @if (canSendToEva)
-                    {
-                        @* A real link to the fallback page the dialog's own form
-                           posts to (/Cases/Eva/Send), so the handoff is reachable
-                           with script disabled and enhanced into a dialog. *@
-                        <a class="btn" asp-page="/Cases/Eva/Send" asp-route-caseId="@workflow.CaseId" data-dialog-open="eva-handoff-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                            <span>@OperatorLabels.CaseWorkspace.SendToEva</span>
-                        </a>
-                    }
-                    @if (canConfirmReportSent)
-                    {
-                        <button type="button" class="btn" data-dialog-open="case-report-sent-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                            <span>@Frame.MarkReportSent</span>
-                        </button>
-                    }
-                    @if (canMarkCompleted)
-                    {
-                        <button type="button" class="btn" data-dialog-open="case-complete-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                            <span>@Frame.MarkCompleted</span>
-                        </button>
-                    }
-                    @if (canReturnToReview)
-                    {
-                        <button type="button" class="btn" data-dialog-open="case-return-review-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
-                            <span>@Frame.ReturnToReview</span>
-                        </button>
-                    }
-                    @if (canReturnToEngineer)
-                    {
-                        <button type="button" class="btn" data-dialog-open="case-return-engineer-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
-                            <span>@Frame.ReturnToEngineer</span>
-                        </button>
-                    }
-                    @if (canArchive)
-                    {
-                        <button type="button" class="btn" data-dialog-open="case-archive-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
-                            <span>@Frame.ArchiveCase</span>
-                        </button>
-                    }
-                    @if (canUnlinkEvidence)
-                    {
-                        <button type="button" class="btn" data-dialog-open="case-unlink-evidence-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-unlink" /></svg>
-                            <span>@Frame.UnlinkReportEvidence</span>
-                        </button>
-                    }
-                    @if (canSendChaser)
-                    {
-                        <a class="btn" asp-page="/Mail/Compose" asp-route-caseReference="@summary.Reference" asp-route-purpose="@Pegasus.Web.Pages.Mail.ComposeModel.ChaserPurpose" data-send-chaser>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                            <span>@Frame.SendChaser</span>
-                        </a>
-                    }
-                    @if (offersHoldGroup || offersCreateAudit)
-                    {
-                        @if (canAssignEngineer || canSendToEva || canConfirmReportSent || canMarkCompleted || canReturnToReview || canReturnToEngineer || canArchive || canSendChaser)
+                        @if (isHeld)
                         {
-                            <div class="menu-sep"></div>
-                        }
-                        @if (offersHoldGroup)
-                        {
-                            @if (isHeld)
-                            {
-                                <button type="button" class="btn" data-dialog-open="case-release-hold-dialog">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
-                                    <span>@Frame.ReleaseHold</span>
-                                </button>
-                            }
-                            else
-                            {
-                                <button type="button" class="btn" data-dialog-open="case-hold-dialog">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
-                                    <span>@Frame.PlaceOnHold</span>
-                                </button>
-                            }
-                            <button type="button" class="btn" data-dialog-open="case-correct-principal-dialog">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                                <span>@Frame.CorrectPrincipal</span>
+                            <button type="button" class="btn" data-dialog-open="case-release-hold-dialog">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+                                <span>@Frame.ReleaseHold</span>
                             </button>
                         }
-                        @if (offersCreateAudit)
+                        else
                         {
-                            @if (Model.CreateAuditCondition is { } createAuditCondition)
-                            {
-                                @* Listed on every Inspection + Audit Case; greyed out with
-                                   its blocker on hover (operator, 1 October 2026). The
-                                   wrapper carries the title: a disabled button takes no
-                                   pointer events. *@
-                                <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
-                                    <button type="button" class="btn" disabled aria-disabled="true" data-create-audit>
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                                        <span>@Frame.CreateAudit</span>
-                                    </button>
-                                </span>
-                            }
-                            else
-                            {
-                                <button type="button" class="btn" data-dialog-open="case-create-audit-dialog" data-create-audit>
+                            <button type="button" class="btn" data-dialog-open="case-hold-dialog">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+                                <span>@Frame.PlaceOnHold</span>
+                            </button>
+                        }
+                        <button type="button" class="btn" data-dialog-open="case-correct-principal-dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>@Frame.CorrectPrincipal</span>
+                        </button>
+                    }
+                    @if (offersCreateAudit)
+                    {
+                        @if (Model.CreateAuditCondition is { } createAuditCondition)
+                        {
+                            @* Listed on every Inspection + Audit Case; greyed out with
+                               its blocker on hover (operator, 1 October 2026). The
+                               wrapper carries the title: a disabled button takes no
+                               pointer events. *@
+                            <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
+                                <button type="button" class="btn" disabled aria-disabled="true" data-create-audit>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
                                     <span>@Frame.CreateAudit</span>
                                 </button>
-                            }
+                            </span>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn" data-dialog-open="case-create-audit-dialog" data-create-audit>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                <span>@Frame.CreateAudit</span>
+                            </button>
                         }
                     }
-                    @if (offersAdverseClosure)
-                    {
-                        @* Review point 12: an adverse disposition is not a step
-                           in the workflow, so it stands apart below a divider in
-                           red. It closes the Case; it never deletes one. *@
-                        <div class="menu-sep"></div>
-                        <button type="button" class="btn btn--danger" data-dialog-open="case-close-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>@OperatorLabels.CaseWorkspace.CloseCase</span>
-                        </button>
-                    }
-                </div>
-            </details>
-        }
+                }
+                @if (offersAdverseClosure)
+                {
+                    @* Review point 12: an adverse disposition is not a step
+                       in the workflow, so it stands apart below a divider in
+                       red. It closes the Case; it never deletes one. *@
+                    <div class="menu-sep"></div>
+                    <button type="button" class="btn btn--danger" data-dialog-open="case-close-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>@OperatorLabels.CaseWorkspace.CloseCase</span>
+                    </button>
+                }
+            </div>
+        </details>
     </div>
 </div>

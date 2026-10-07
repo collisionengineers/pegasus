@@ -2156,11 +2156,6 @@ public sealed class CaseEditModeWebTests
         }
     }
 
-    /// <summary>
-    /// The EVA stores the send page reads: the case has never been sent, and its
-    /// principal carries the modes the test states.
-    /// </summary>
-
     private sealed class TwoCasePageReaders(
         RecordingCaseDetailsStore first,
         RecordingCaseDetailsStore second) : IGetCasePageFrame, IGetAssessmentWorkspace

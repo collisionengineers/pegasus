@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace Pegasus.Core.Eva;
+namespace Pegasus.Core.CaseExport;
 
-public enum EvaEvidenceStatus
+public enum CaseExportEvidenceStatus
 {
     Suggested,
     Accepted,
@@ -12,73 +12,73 @@ public enum EvaEvidenceStatus
     Unrecorded
 }
 
-public enum EvaInspectionMode
+public enum CaseExportInspectionMode
 {
     PhysicalAddress,
     ImageBasedAssessment
 }
 
-public sealed record EvaEvidenceValue(
+public sealed record CaseExportEvidenceValue(
     string? Value,
-    EvaEvidenceStatus Status,
+    CaseExportEvidenceStatus Status,
     string Source,
     string SourceVersion)
 {
-    public bool IsAccepted => Status is EvaEvidenceStatus.Accepted;
+    public bool IsAccepted => Status is CaseExportEvidenceStatus.Accepted;
 }
 
-public sealed record EvaAddressResolution(
-    EvaInspectionMode Mode,
-    EvaEvidenceValue Evidence);
+public sealed record CaseExportAddressResolution(
+    CaseExportInspectionMode Mode,
+    CaseExportEvidenceValue Evidence);
 
-public sealed record EvaAcceptedCaseEvidence(
+public sealed record CaseExportEvidence(
     Guid CaseId,
     long CaseVersion,
     bool CaseAccepted,
     bool InstructionComplete,
     bool ImagesComplete,
-    EvaEvidenceValue Reference,
-    EvaEvidenceValue WorkPrincipal,
-    EvaEvidenceValue VehicleRegistration,
-    EvaEvidenceValue VehicleModel,
-    EvaEvidenceValue ClaimantName,
-    EvaEvidenceValue IncidentDate,
+    CaseExportEvidenceValue Reference,
+    CaseExportEvidenceValue WorkPrincipal,
+    CaseExportEvidenceValue VehicleRegistration,
+    CaseExportEvidenceValue VehicleModel,
+    CaseExportEvidenceValue ClaimantName,
+    CaseExportEvidenceValue IncidentDate,
     DateOnly ReceivedDate,
-    EvaEvidenceValue InspectionDate,
-    EvaAddressResolution Inspection,
-    EvaEvidenceValue AccidentCircumstances,
-    EvaEvidenceValue VatStatus,
-    EvaEvidenceValue Mileage,
-    EvaEvidenceValue MileageUnit);
+    CaseExportEvidenceValue InspectionDate,
+    CaseExportAddressResolution Inspection,
+    CaseExportEvidenceValue AccidentCircumstances,
+    CaseExportEvidenceValue VatStatus,
+    CaseExportEvidenceValue Mileage,
+    CaseExportEvidenceValue MileageUnit);
 
-public sealed record EvaFieldProvenance(
+public sealed record CaseExportFieldProvenance(
     string Name,
     string Value,
-    EvaEvidenceStatus Status,
+    CaseExportEvidenceStatus Status,
     string Source,
     string SourceVersion);
 
-public sealed record EvaBundleSource(
-    EvaReplayFields Fields,
-    IReadOnlyList<EvaFieldProvenance> Provenance,
+public sealed record CaseExportSource(
+    CaseExportFields Fields,
+    IReadOnlyList<CaseExportFieldProvenance> Provenance,
     string MappingKey,
     int MappingVersion);
 
 /// <summary>
 /// One operator export of a case: the bundle source, and the fields the case
-/// simply does not hold, so the operator learns about a gap before the file
-/// reaches EVA rather than after.
+/// simply does not hold, so the operator learns about a gap when they
+/// download rather than later.
 /// </summary>
-public sealed record EvaOperatorExport(
-    EvaBundleSource Source,
+public sealed record CaseOperatorExport(
+    CaseExportSource Source,
     IReadOnlyList<string> UnrecordedFields);
 
 /// <summary>
-/// Maps one case into the fixed thirteen-field EVA shape. Since the hand-off
-/// was folded into the export there is one mapping and one act: an operator export. A field the case does not
-/// hold is emitted empty and named, never refused.
+/// Maps one case into the fixed thirteen-field export shape. There is one
+/// mapping and one act: an operator export. A field the case does not hold is
+/// emitted empty and named, never refused.
 /// </summary>
-public static partial class CaseEvaMapping
+public static partial class CaseExportMapping
 {
     /// <summary>
     /// The value the *case* stores for an image-based assessment, and the gate
@@ -89,7 +89,7 @@ public static partial class CaseEvaMapping
     public const string ImageBasedAssessment = "Image Based Assessment";
 
     /// <summary>
-    /// What EVA is *sent* for the same thing — the original extractor's own
+    /// What the export *writes* for the same thing — the original extractor's own
     /// literal, hyphenated and lower-case `b`. Deliberately not the
     /// same constant as <see cref="ImageBasedAssessment"/>: that one is a gate
     /// compared against stored case data, this one is an output value.
@@ -98,13 +98,13 @@ public static partial class CaseEvaMapping
 
     /// <summary>
     /// The inspection address is exported as exactly six lines — five body
-    /// lines and a postcode — because the system EVA imports into requires
-    /// that shape and rejects a bare string. The rule is unconditional: an
+    /// lines and a postcode — because the importing system requires that
+    /// shape and rejects a bare string. The rule is unconditional: an
     /// address the case does not hold still exports as five newlines.
     /// </summary>
     private const int InspectionAddressLines = 6;
 
-    public const string MappingKey = "qdos-eva-13-field-mapping";
+    public const string MappingKey = "case-export-13-field-mapping";
     public const int MappingVersion = 3;
 
     /// <summary>
@@ -112,26 +112,21 @@ public static partial class CaseEvaMapping
     /// field's recorded provenance does not imply the instruction supplied it.
     /// It reaches no shipped file: the archive carries the thirteen-key JSON
     /// and Images/ only, and provenance is an in-memory guard inside
-    /// EvaBundleSchema.ValidateSource.
+    /// CaseExportArchive.ValidateSource.
     /// </summary>
     public const string ExportDateSource = "SystemDefault:Export date";
 
     /// <summary>
-    /// Named source for EVA's Instruction Date: the Case's Received date, which
+    /// Named source for the Instruction Date field: the Case's Received date, which
     /// is its instruction date (operator, 24 September 2026). Every Case has one,
     /// so the field is always accepted and never unrecorded.
     /// </summary>
     public const string ReceivedDateSource = "Case:Received date";
 
     /// <summary>
-    /// Maps a case for the operator's export of it — since the
-    /// hand-off was folded into the export the only mapping, because there is only one act.
-    ///
-    /// It had a sibling, <c>MapForProduction</c>, which guarded EVA delivery
-    /// and failed closed on anything short of accepted, provenanced evidence
-    /// for all thirteen fields. Collapsing two acts into one means one bar, and
-    /// the operator chose this one (2026-08-22): *"A blank field does not block
-    /// the download."* The fail-closed guard was deleted, not merged.
+    /// Maps a case for the operator's export of it — the only mapping, because
+    /// there is only one act. The operator chose its bar (2026-08-22): *"A
+    /// blank field does not block the download."*
     ///
     /// The rules, all of them:
     ///
@@ -142,16 +137,16 @@ public static partial class CaseEvaMapping
     ///    operator direction (2026-08-22), recorded as a named system default
     ///    (<see cref="ExportDateSource"/>).
     /// 3. Any other absent field is emitted empty, keeps status
-    ///    <see cref="EvaEvidenceStatus.Unrecorded"/>, and is named in
-    ///    <see cref="EvaOperatorExport.UnrecordedFields"/> so the operator is
+    ///    <see cref="CaseExportEvidenceStatus.Unrecorded"/>, and is named in
+    ///    <see cref="CaseOperatorExport.UnrecordedFields"/> so the operator is
     ///    told before they download rather than after they import.
     ///
     /// A value the case holds only as a suggestion — a lookup-derived mileage,
-    /// say — travels with its real <see cref="EvaEvidenceStatus.Suggested"/>
+    /// say — travels with its real <see cref="CaseExportEvidenceStatus.Suggested"/>
     /// status. The archive never claims something was accepted that was not.
     /// </summary>
-    public static EvaOperatorExport MapForOperatorExport(
-        EvaAcceptedCaseEvidence evidence,
+    public static CaseOperatorExport MapForOperatorExport(
+        CaseExportEvidence evidence,
         DateOnly today)
     {
         ArgumentNullException.ThrowIfNull(evidence);
@@ -159,25 +154,25 @@ public static partial class CaseEvaMapping
         var resolved = RequiredMappedFields(evidence)
             .Select(field => field.Name == "Inspection Date"
                     && NormalizeValue(field.Value.Value) is null
-                ? (field.Name, Value: new EvaEvidenceValue(
+                ? (field.Name, Value: new CaseExportEvidenceValue(
                     today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                    EvaEvidenceStatus.Accepted,
+                    CaseExportEvidenceStatus.Accepted,
                     ExportDateSource,
                     $"{MappingKey}/v{MappingVersion}"))
                 : field)
             .ToArray();
         var provenance = resolved
-            .Select(field => new EvaFieldProvenance(
+            .Select(field => new CaseExportFieldProvenance(
                 field.Name,
                 NormalizedValue(field) ?? string.Empty,
                 NormalizeValue(field.Value.Value) is null
-                    ? EvaEvidenceStatus.Unrecorded
+                    ? CaseExportEvidenceStatus.Unrecorded
                     : field.Value.Status,
                 Provenanced(field.Value.Source),
                 Provenanced(field.Value.SourceVersion)))
             .ToArray();
         var unrecorded = provenance
-            .Where(field => field.Status == EvaEvidenceStatus.Unrecorded)
+            .Where(field => field.Status == CaseExportEvidenceStatus.Unrecorded)
             .Select(field => field.Name)
             .ToArray();
 
@@ -201,7 +196,7 @@ public static partial class CaseEvaMapping
     /// <summary>
     /// Normalizes explicitly supplied replay fields without inferring evidence or calling a provider.
     /// </summary>
-    public static EvaReplayFields MapOfflineReplay(EvaReplayFields fields)
+    public static CaseExportFields NormalizeFields(CaseExportFields fields)
     {
         ArgumentNullException.ThrowIfNull(fields);
         return new(
@@ -220,8 +215,8 @@ public static partial class CaseEvaMapping
             NormalizeValue(fields.MileageUnit));
     }
 
-    private static IEnumerable<(string Name, EvaEvidenceValue Value)> RequiredMappedFields(
-        EvaAcceptedCaseEvidence evidence)
+    private static IEnumerable<(string Name, CaseExportEvidenceValue Value)> RequiredMappedFields(
+        CaseExportEvidence evidence)
     {
         yield return ("Work Provider", evidence.WorkPrincipal);
         yield return ("VRM", evidence.VehicleRegistration);
@@ -229,9 +224,9 @@ public static partial class CaseEvaMapping
         yield return ("Claimant Name", evidence.ClaimantName);
         yield return ("Reference", evidence.Reference);
         yield return ("Incident Date", evidence.IncidentDate);
-        yield return ("Instruction Date", new EvaEvidenceValue(
+        yield return ("Instruction Date", new CaseExportEvidenceValue(
             evidence.ReceivedDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-            EvaEvidenceStatus.Accepted,
+            CaseExportEvidenceStatus.Accepted,
             ReceivedDateSource,
             $"{MappingKey}/v{MappingVersion}"));
         yield return ("Inspection Date", evidence.InspectionDate);
@@ -248,8 +243,8 @@ public static partial class CaseEvaMapping
     /// not hold is empty rather than absent: every key is always present in
     /// the archive.
     /// </summary>
-    private static EvaReplayFields ToReplayFields(
-        IReadOnlyList<(string Name, EvaEvidenceValue Value)> fields)
+    private static CaseExportFields ToReplayFields(
+        IReadOnlyList<(string Name, CaseExportEvidenceValue Value)> fields)
     {
         var values = fields.ToDictionary(
             field => field.Name,
@@ -275,7 +270,7 @@ public static partial class CaseEvaMapping
     /// One field's value, with the two fields that have their own shape
     /// handled: the VRM's spacing, and the inspection address's six lines.
     /// </summary>
-    private static string? NormalizedValue((string Name, EvaEvidenceValue Value) field) =>
+    private static string? NormalizedValue((string Name, CaseExportEvidenceValue Value) field) =>
         field.Name switch
         {
             "VRM" => NormalizeRegistration(field.Value.Value),

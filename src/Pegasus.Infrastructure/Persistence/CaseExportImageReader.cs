@@ -1,28 +1,23 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Every eligible retained photograph of a case, with its bytes.
-///
-/// This was private to <see cref="EvaHandoffStore"/> until EXT-04 gave the
-/// case a second way to reach EVA. Both routes must send exactly the same
-/// photographs in exactly the same order — an operator comparing the drag-and-
-/// drop bundle against what EVA received should find no difference — and the
-/// only way to guarantee that is one query, not two that agree today.
+/// Every eligible retained photograph of a case, with its bytes, for
+/// <see cref="EfCaseExportStore"/>.
 ///
 /// Eligibility itself stays in Core with
-/// <see cref="EvaHandoffPolicy.SelectEligibleImages"/>; this reads what that
+/// <see cref="CaseExportPolicy.SelectEligibleImages"/>; this reads what that
 /// policy chose. Where the document content cache is composed the bytes are
 /// read through it first, so a repeat export does not ask Box again.
 /// </summary>
-public sealed class EvaCaseImageReader(
+public sealed class CaseExportImageReader(
     IDocumentContentStore contentStore,
     IReadCachedDocumentVersions? cachedVersions = null)
 {
-    public async Task<List<EvaBundleImage>> LoadEligibleImagesAsync(
+    public async Task<List<CaseExportImage>> LoadEligibleImagesAsync(
         PegasusDbContext context,
         Guid caseId,
         string caseReference,
@@ -74,8 +69,8 @@ public sealed class EvaCaseImageReader(
                     version.BoxFileId,
                     version.BoxVersionId))
             .ToArrayAsync(cancellationToken);
-        var eligibleVersionIds = EvaHandoffPolicy.SelectEligibleImages(candidateRows.Select(
-                selected => new EvaHandoffImageCandidate(
+        var eligibleVersionIds = CaseExportPolicy.SelectEligibleImages(candidateRows.Select(
+                selected => new CaseExportImageCandidate(
                     selected.OccurrenceId,
                     selected.DocumentId,
                     selected.VersionId,
@@ -121,7 +116,7 @@ public sealed class EvaCaseImageReader(
             ? await contentStore.ReadVersionsAsync(reads, cancellationToken)
             : await cachedVersions.ReadVersionsAsync(reads, cancellationToken);
 
-        var images = new List<EvaBundleImage>(selectedImages.Length);
+        var images = new List<CaseExportImage>(selectedImages.Length);
         for (var index = 0; index < selectedImages.Length; index++)
         {
             var selected = selectedImages[index];

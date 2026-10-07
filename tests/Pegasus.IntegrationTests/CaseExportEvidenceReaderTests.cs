@@ -1,5 +1,5 @@
 using Pegasus.Core.Cases;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
@@ -7,17 +7,17 @@ using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
-public sealed class EvaCaseEvidenceReaderTests
+public sealed class CaseExportEvidenceReaderTests
 {
     [Fact]
     public void ConfirmedMakeAndAcceptedFactModelComposeIndependently()
     {
-        var evidence = EvaCaseEvidenceReader.Build(
+        var evidence = CaseExportEvidenceReader.Build(
             CaseData(make: Fact("Ford"), model: Fact("Focus")),
             VehicleEvidence(make: ConfirmedVehicleField("Ford")));
 
         Assert.Equal("Ford Focus", evidence.VehicleModel.Value);
-        Assert.Equal(EvaEvidenceStatus.Accepted, evidence.VehicleModel.Status);
+        Assert.Equal(CaseExportEvidenceStatus.Accepted, evidence.VehicleModel.Status);
         Assert.Contains("vehicle:", evidence.VehicleModel.Source, StringComparison.Ordinal);
         Assert.Contains("case-data:IntakeEvidence", evidence.VehicleModel.Source, StringComparison.Ordinal);
     }
@@ -25,12 +25,12 @@ public sealed class EvaCaseEvidenceReaderTests
     [Fact]
     public void AcceptedFactMakeAndConfirmedModelComposeIndependently()
     {
-        var evidence = EvaCaseEvidenceReader.Build(
+        var evidence = CaseExportEvidenceReader.Build(
             CaseData(make: Fact("Ford"), model: Fact("Focus")),
             VehicleEvidence(model: ConfirmedVehicleField("Focus")));
 
         Assert.Equal("Ford Focus", evidence.VehicleModel.Value);
-        Assert.Equal(EvaEvidenceStatus.Accepted, evidence.VehicleModel.Status);
+        Assert.Equal(CaseExportEvidenceStatus.Accepted, evidence.VehicleModel.Status);
         Assert.Contains("case-data:IntakeEvidence", evidence.VehicleModel.Source, StringComparison.Ordinal);
         Assert.Contains("vehicle:", evidence.VehicleModel.Source, StringComparison.Ordinal);
     }
@@ -38,7 +38,7 @@ public sealed class EvaCaseEvidenceReaderTests
     [Fact]
     public void TheInstructionDateIsTheCasesReceivedDate()
     {
-        var evidence = EvaCaseEvidenceReader.Build(CaseData(Fact("Ford"), Fact("Focus")), null);
+        var evidence = CaseExportEvidenceReader.Build(CaseData(Fact("Ford"), Fact("Focus")), null);
 
         Assert.Equal(new DateOnly(2031, 5, 1), evidence.ReceivedDate);
     }

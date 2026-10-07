@@ -23,7 +23,7 @@ namespace Pegasus.Core.Reports;
 /// <para>
 /// <see cref="Sources"/> are every other confirmed case document (any
 /// semantic role), reported by their own custody name, version and hash —
-/// the same provenance triple the EVA bundle's accepted-source manifest
+/// the same provenance triple the case export's field provenance
 /// already carries. This is the closest real analogue to "accepted source
 /// evidence" the domain has today.
 /// </para>
