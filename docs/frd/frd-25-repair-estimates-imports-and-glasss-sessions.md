@@ -105,6 +105,12 @@ correctly paired historical version is still valid evidence. The new spec is
 guarded again in the save transaction. A staff import becomes the Current
 spec; an automation import through MCP stays a Draft.
 
+**A Glass's import fills an empty VIN.** The VIN a Glass's export or
+calculation sheet names fills the Case's VIN in the import's transaction,
+only where the Case holds none
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md); operator, 7 October
+2026).
+
 **Glass's calculation PDFs.** These keep ordered rows from the sheet's
 operation sections (Body, Mechanical, Electrical, Auxiliary work,
 Upholstery, Dent repair, Mechatronics and Special work; at least one),

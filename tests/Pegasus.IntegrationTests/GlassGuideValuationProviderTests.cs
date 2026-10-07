@@ -49,6 +49,52 @@ public sealed class GlassGuideValuationProviderTests
         Assert.Equal(0, mva.Count("GET /pdf-print/"));
     }
 
+    /// <summary>
+    /// Glass's looks the VIN up from the plate when the vehicle is stocked;
+    /// the stocked vehicle's details page names it (operator, 7 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task TheQuoteCarriesTheVinTheStockedVehicleNames()
+    {
+        var harness = Harness.Create();
+
+        var quote = await harness.Provider.GetAsync(Request(), default);
+
+        Assert.Equal(Vin, quote.Vin);
+        var mva = harness.Mva;
+        Assert.True(mva.IndexOf("/index/create-new-vehicle/") < mva.IndexOf("/index/vehicle-details-value/"));
+        Assert.Contains(mva.Requests, request => request.Path == "/index/vehicle-details-value/id/" + VehicleId);
+    }
+
+    [Fact]
+    public async Task AStockedVehicleWithoutAVinAnswersNone()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, VehicleDetail(vin: string.Empty)));
+
+        var quote = await harness.Provider.GetAsync(Request(), default);
+
+        Assert.Null(quote.Vin);
+        Assert.NotNull(quote.Report);
+    }
+
+    [Fact]
+    public async Task AnUnreadVinStillAnswersTheFiguresAndTheReport()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.InternalServerError, string.Empty));
+
+        var quote = await harness.Provider.GetAsync(Request(), default);
+
+        Assert.Equal(17717m, quote.RetailValue);
+        Assert.Equal(15600m, quote.TradeValue);
+        Assert.Equal("glass-stock:" + VehicleId, quote.Report!.Identity);
+        Assert.Null(quote.Vin);
+        Assert.Contains(harness.Logger.Messages, message =>
+            message.Contains("its VIN was not read", StringComparison.Ordinal)
+            && message.Contains("glass.details.request", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task TheReportIsTheValuesOnlyPrintOfTheStockedVehicleOverTheSameSession()
     {
