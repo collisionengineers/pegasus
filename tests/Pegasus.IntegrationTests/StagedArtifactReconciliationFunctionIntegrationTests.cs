@@ -1,4 +1,3 @@
-using Pegasus.Core.Eva;
 using Pegasus.Core.Assessment;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -367,30 +366,13 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
     private sealed class EmptyPrincipalSubmissionStore : IPrincipalSubmissionStore
     {
-        public Task CreateAsync(
+        public Task<PrincipalSubmissionRecord> GetOrCreateAsync(
             PrincipalSubmissionRecord record,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
-        public Task<PrincipalSubmissionRecord?> FindByIdempotencyKeyAsync(
-            Guid principalId,
-            string idempotencyKey,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
         public Task<PrincipalSubmissionRecord?> GetAsync(
             Guid id,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
-        public Task<string?> FindPrincipalCodeAsync(
-            Guid principalId,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
-        public Task RecordStagedReceiptAsync(
-            Guid submissionId,
-            Guid stagedReceiptId,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
@@ -592,6 +574,11 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     {
         public Task<QueuedIntakeStatus?> GetAsync(
             Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<QueuedIntakeStatus?>(null);
+
+        public Task<QueuedIntakeStatus?> FindBySourceIdentityAsync(
+            IntakeSourceIdentity sourceIdentity,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<QueuedIntakeStatus?>(null);
     }

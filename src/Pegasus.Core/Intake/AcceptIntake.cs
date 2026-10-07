@@ -33,10 +33,10 @@ public sealed class AcceptIntake(
         ArgumentNullException.ThrowIfNull(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PrincipalCode);
-        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.SystemWorker))
+        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.Automation or ActorKind.SystemWorker))
         {
             throw new ArgumentException(
-                "Intake acceptance requires a staff or system-worker actor.",
+                "Intake acceptance requires a staff, Automation or system-worker actor.",
                 nameof(request));
         }
         if (request.ReceiptId == Guid.Empty)

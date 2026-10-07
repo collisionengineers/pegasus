@@ -676,7 +676,7 @@ public sealed class MessageModel(
             {
                 return NotFound();
             }
-            if (!IsPostReportQuery(detail) || detail.Summary.CaseId is not { } caseId)
+            if (!AiJobPolicy.IsQueryResponseSource(detail) || detail.Summary.CaseId is not { } caseId)
             {
                 ModelState.AddModelError(
                     string.Empty,
@@ -1401,9 +1401,26 @@ public sealed class MessageModel(
         {
             return null;
         }
-        var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
+        return CorrespondenceSender(Detail, await approvedMailboxes.ListAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// The send-ready approved mailbox that holds <paramref name="detail"/>,
+    /// which Reply and Forward send as, for staff and for the Automation
+    /// Actor's <c>pegasus_mail_send</c> alike; none where it cannot send.
+    /// </summary>
+    internal static ApprovedMailbox? CorrespondenceSender(
+        RetainedMailDetail detail,
+        IReadOnlyList<ApprovedMailbox> mailboxes)
+    {
+        if (string.IsNullOrWhiteSpace(detail.ImmutableMessageId)
+            || detail.Summary.Id == Guid.Empty
+            || detail.Summary.MailboxId == Guid.Empty)
+        {
+            return null;
+        }
         return mailboxes.SingleOrDefault(item =>
-            item.Id == Detail.Summary.MailboxId
+            item.Id == detail.Summary.MailboxId
             && item.State == ApprovedMailboxState.Approved
             && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
             && item.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
@@ -1530,11 +1547,11 @@ public sealed class MessageModel(
         return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 100;
     }
 
-    private static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyRecipients(
+    internal static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyRecipients(
         RetainedMailDetail detail) =>
         (ParseRecipients(detail.ReplyToAddresses), []);
 
-    private static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyAllRecipients(
+    internal static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyAllRecipients(
         RetainedMailDetail detail,
         string ownAddress)
     {
@@ -1645,7 +1662,7 @@ public sealed class MessageModel(
 
     private async Task LoadAiJobContextAsync(CancellationToken cancellationToken)
     {
-        IsQueryResponseSource = IsPostReportQuery(Detail);
+        IsQueryResponseSource = AiJobPolicy.IsQueryResponseSource(Detail);
         if (IsQueryResponseSource)
         {
             if (CurrentCase is null)
@@ -1669,14 +1686,6 @@ public sealed class MessageModel(
                 cancellationToken);
         }
     }
-
-    private static bool IsPostReportQuery(RetainedMailDetail detail) =>
-        detail.Summary.CaseId is not null
-        && detail.Classification?.Current is
-        {
-            Outcome: MailClassificationOutcome.Classified,
-            Category.IsPostReport: true
-        };
 
     private async Task LoadAssociationSafelyAsync(
         ActionActor actor,

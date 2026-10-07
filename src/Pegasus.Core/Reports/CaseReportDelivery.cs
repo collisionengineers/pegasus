@@ -168,19 +168,23 @@ public static class CaseReportDeliveryNaming
 /// <summary>
 /// The one owner of how a generated report is addressed, which artifacts go,
 /// and when a generation is sendable. Every rule reads persisted facts
-/// only. Generation is not delivery: nothing here records a Sent state, and
-/// EVA is absent because the optional hand-off never gates the report.
+/// only. Generation is not delivery: nothing here records a Sent state.
 /// </summary>
 public static class CaseReportDeliveryPolicy
 {
     /// <summary>
-    /// Report delivery is a signed-in staff act. The Automation actor holds
-    /// the ordinary casework right, but that right stops at transport.
+    /// Report delivery is a casework act: a member of staff or the Automation
+    /// Actor sends the report (ADR-0064, 7 October 2026). The system worker
+    /// and a Principal never send one.
     /// </summary>
-    public static void RequireStaff(ActionActor actor)
+    public static void RequireSender(ActionActor actor)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.AccessStaffApplication);
+        ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (actor.Kind is not (ActorKind.Staff or ActorKind.Automation))
+        {
+            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
+        }
     }
 
     /// <summary>
@@ -379,7 +383,7 @@ public static class CaseReportDeliveryPolicy
 
     /// <summary>
     /// The send boundary's re-check, made again just before the mail is
-    /// submitted: a staff actor, the generation still its work's current one
+    /// submitted: a casework sender, the generation still its work's current one
     /// and confirmed at the version the send named, and every attachment
     /// byte-identical to a confirmed artifact row as it is now. A delivery may
     /// attach a subset of the generation's documents (v28 P22), so each
@@ -390,7 +394,7 @@ public static class CaseReportDeliveryPolicy
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(generation);
-        RequireStaff(request.Actor);
+        RequireSender(request.Actor);
         if (request.CaseId != generation.CaseId || request.GenerationId != generation.Id)
         {
             throw new InvalidOperationException(
@@ -473,7 +477,7 @@ public sealed class ReportSendReadiness(ICaseReportGenerationStore generations) 
         ReportSendReadinessRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        CaseReportDeliveryPolicy.RequireStaff(request.Actor);
+        CaseReportDeliveryPolicy.RequireSender(request.Actor);
         var generation = await generations
             .GetAsync(request.Actor, request.CaseId, request.GenerationId, cancellationToken)
             .ConfigureAwait(false)
@@ -484,8 +488,9 @@ public sealed class ReportSendReadiness(ICaseReportGenerationStore generations) 
 }
 
 /// <summary>
-/// Sends one generation's report (operator, 6 October 2026): a signed-in
-/// staff actor, the generation read under the Case's edit lease, the
+/// Sends one generation's report (operator, 6 October 2026): a member of
+/// staff or the Automation Actor (ADR-0064), the generation read under the
+/// Case's edit lease, the
 /// recipients staff reviewed, the documents they chose and the message they
 /// submitted. It is the one
 /// production caller of A's staff report send and hands it one command under
@@ -511,7 +516,7 @@ public sealed class SendCaseReport(
             throw new ArgumentException("A Case and a generation are required.", nameof(request));
         }
 
-        CaseReportDeliveryPolicy.RequireStaff(request.Actor);
+        CaseReportDeliveryPolicy.RequireSender(request.Actor);
 
         // The message staff reviewed and possibly edited is what is sent; the
         // template only pre-filled it.

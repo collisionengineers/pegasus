@@ -199,13 +199,23 @@ public sealed class ValuationTests
         Assert.Equal(withoutMileage, ValuationPolicy.ValidateDetails(withoutMileage));
     }
 
+    /// <summary>
+    /// Recording a guide card is casework: the Automation actor records one as
+    /// staff do (operator, 7 October 2026); an actor without the casework right
+    /// is refused.
+    /// </summary>
     [Fact]
-    public void AGuideCardRequiresAStaffActor()
+    public void AGuideCardRequiresACaseworkActor()
     {
         var details = Details(guideMonth: new DateOnly(2030, 4, 1));
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Equal(
+            details,
             ValuationPolicy.ValidateGuideEntry(ActionActor.Automation("pegasus-automation"), details));
+        Assert.Throws<StaffAuthorizationException>(() =>
+            ValuationPolicy.ValidateGuideEntry(ActionActor.SystemWorker("case-worker"), details));
+        Assert.Throws<StaffAuthorizationException>(() =>
+            ValuationPolicy.ValidateGuideEntry(ActionActor.Principal(Guid.NewGuid()), details));
     }
 
     [Fact]

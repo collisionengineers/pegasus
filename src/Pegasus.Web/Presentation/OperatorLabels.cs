@@ -1199,7 +1199,6 @@ public static class OperatorLabels
         ServiceHealthArea.Mail => "Mail",
         ServiceHealthArea.Intake => "Receiving",
         ServiceHealthArea.Custody => "Box",
-        ServiceHealthArea.Eva => "EVA",
         ServiceHealthArea.Ai => "AI",
         ServiceHealthArea.Automation => "Automation",
         _ => Humanise(area.ToString())
@@ -1221,7 +1220,6 @@ public static class OperatorLabels
         ServiceHealthDependency.MicrosoftGraph => "Microsoft Graph",
         ServiceHealthDependency.Worker => "Worker",
         ServiceHealthDependency.Box => "Box",
-        ServiceHealthDependency.EvaApi => "EVA API",
         ServiceHealthDependency.AiConnector => "AI",
         ServiceHealthDependency.AutomationClient => "Automation client",
         _ => Humanise(dependency.ToString())
@@ -1234,7 +1232,7 @@ public static class OperatorLabels
     /// Two Core service names contain words banned from operator-facing copy
     /// ("Intake dispatch", "Automation ingress"); they are renamed here and
     /// only here. Everything else — mailbox addresses, "Sent evidence",
-    /// "External work", "EVA submissions", "AI jobs" — is already the
+    /// "External work", "AI jobs" — is already the
     /// operator's own word and passes through, as do external-work kind codes
     /// via <see cref="Humanise"/>.
     /// </remarks>
@@ -1725,7 +1723,8 @@ public static class OperatorLabels
     /// The source tag of a recorded assessment value: the vehicle lookup's
     /// writes read Lookup, an Original report cell filled from the filed report
     /// Extracted, the agreed fee a new Case took from its Principal Principal,
-    /// any other Automation actor's AI, a Pegasus worker's Automatic; a staff
+    /// the findings a linked Triage filled Triage, any other Automation
+    /// actor's AI, a Pegasus worker's Automatic; a staff
     /// value carries none.
     /// </summary>
     public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
@@ -1733,6 +1732,7 @@ public static class OperatorLabels
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
         ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
         ActorKind.Automation when field.RecordedBy == PrincipalDefaultFeePolicy.RecorderId => SourceTagWord.Principal,
+        ActorKind.Automation when field.RecordedBy == Pegasus.Core.Triage.TriageFindingFill.RecorderId => SourceTagWord.Triage,
         ActorKind.Automation => SourceTagWord.Ai,
         ActorKind.SystemWorker => SourceTagWord.Automatic,
         _ => null
@@ -1747,6 +1747,7 @@ public static class OperatorLabels
         public static readonly SourceTagWord Principal = new("Principal", string.Empty);
         public static readonly SourceTagWord PrincipalApi = new(PrincipalSubmissionApi.Source, string.Empty);
         public static readonly SourceTagWord Automatic = new("Automatic", string.Empty);
+        public static readonly SourceTagWord Triage = new("Triage", string.Empty);
         public static readonly SourceTagWord Ai = new("AI", "ai");
 
         public string CssClass => Tone.Length == 0 ? "src-tag" : "src-tag src-tag--" + Tone;
@@ -2177,6 +2178,7 @@ public static class OperatorLabels
             "automation.assessment" => "Assessment",
             "automation.mail" => "Mail",
             "automation.jobs" => "AI jobs",
+            "automation.send" => "Sending",
             _ => key
         };
     }
@@ -2295,17 +2297,9 @@ public static class OperatorLabels
         /// </summary>
         public const string AbsentValue = "Not recorded";
 
-        // Sign-off Engineer / Send to EVA labels
         public const string SignOffEngineer = "Sign-off Engineer";
         public const string Unassigned = "Unassigned";
         public const string ReasonForAction = "Reason for action";
-        public const string SetSignOffEngineer = "Set Sign-off Engineer";
-        public const string SendToEva = "Send to EVA";
-        public const string EvaHandoff = "EVA handoff";
-        public const string SendViaApi = "Send via API";
-        public const string EvaApiNotEnabled =
-            "EVA API submission is not enabled for this principal.";
-        // End of the Sign-off Engineer / Send to EVA labels.
 
         // Review point 12: the adverse disposition, named apart from the
         // progression actions it must never sit among.

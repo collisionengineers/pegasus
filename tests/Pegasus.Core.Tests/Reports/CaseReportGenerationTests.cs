@@ -38,22 +38,6 @@ public sealed class CaseReportGenerationTests
     }
 
     [Fact]
-    public void EvaIsNeverAReadinessItem()
-    {
-        // H3/B-F-05: a missing optional EVA hand-off never blocks a complete
-        // Pegasus report, so no readiness input names it at all.
-        var input = ReadyInput();
-
-        Assert.DoesNotContain(
-            typeof(CaseReportReadinessInput).GetProperties(),
-            property => property.Name.Contains("Eva", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(
-            CaseReportReadiness.Evaluate(input with { CurrentEstimate = null }).Reasons,
-            reason => reason.Requirement.Contains("EVA", StringComparison.OrdinalIgnoreCase)
-                || reason.Source.Contains("EVA", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
     public void TheRetiredD18EngineerItemsAreGone()
     {
         var input = ReadyInput();

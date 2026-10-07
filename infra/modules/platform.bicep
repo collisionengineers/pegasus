@@ -37,14 +37,6 @@ param dvsaClientSecretSecretUri string
 param dvsaApiKeySecretUri string
 param dvsaTokenUri string
 param dvsaScope string
-// EXT-04. EVA serves test and live from one host, so the environment is
-// decided entirely by which credential pair these two URIs resolve to.
-param evaClientIdSecretUri string
-param evaClientSecretSecretUri string
-param evaBaseUri string
-param evaRequestFrom string
-param evaInspectionType string
-param evaInstructionEmail string
 // CASE-047 B04. The Glass's adapter is Web-only and built from these at
 // startup; the callback origin is derived below from the Web ingress itself.
 param glassMarketValueAssessorBaseUri string
@@ -464,12 +456,6 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
         { name: 'AutomationMcp__KeyVaultUri', value: keyVault.properties.vaultUri }
         { name: 'AutomationMcp__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${automationMcpClientSecretUri})' }
-        { name: 'Eva__ClientId', value: '@Microsoft.KeyVault(SecretUri=${evaClientIdSecretUri})' }
-        { name: 'Eva__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${evaClientSecretSecretUri})' }
-        { name: 'Eva__BaseUri', value: evaBaseUri }
-        { name: 'Eva__RequestFrom', value: evaRequestFrom }
-        { name: 'Eva__InspectionType', value: evaInspectionType }
-        { name: 'Eva__InstructionEmail', value: evaInstructionEmail }
         { name: 'AutomationMcp__PublicOrigin', value: webPublicOrigin }
         { name: 'AutomationMcp__RedirectUris', value: automationMcpRedirectUris }
         // CASE-047 B04 Glass's Repair Estimate. Program.cs lists these four
@@ -576,11 +562,9 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         // The one-minute recovery timer also runs the due-work sweep and the approved-inbox
         // fallback poll on every fifth minute; they have no schedule or Disabled setting of their own.
         { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
-        { name: 'AutomaticEvaReviewSubmissionSchedule', value: '0 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
         { name: 'SentEvidencePollSchedule', value: '0 * * * * *' }
         { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.AutomaticEvaReviewSubmissionFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.UnifiedWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
@@ -608,12 +592,6 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Dvsa__TokenUri', value: dvsaTokenUri }
         { name: 'Dvsa__ClientId', value: '@Microsoft.KeyVault(SecretUri=${dvsaClientIdSecretUri})' }
         { name: 'Dvsa__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${dvsaClientSecretSecretUri})' }
-        { name: 'Eva__ClientId', value: '@Microsoft.KeyVault(SecretUri=${evaClientIdSecretUri})' }
-        { name: 'Eva__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${evaClientSecretSecretUri})' }
-        { name: 'Eva__BaseUri', value: evaBaseUri }
-        { name: 'Eva__RequestFrom', value: evaRequestFrom }
-        { name: 'Eva__InspectionType', value: evaInspectionType }
-        { name: 'Eva__InstructionEmail', value: evaInstructionEmail }
         { name: 'Dvsa__ApiKey', value: '@Microsoft.KeyVault(SecretUri=${dvsaApiKeySecretUri})' }
         { name: 'Dvsa__Scope', value: dvsaScope }
       ]

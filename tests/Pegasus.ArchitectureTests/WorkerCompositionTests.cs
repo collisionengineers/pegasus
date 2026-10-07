@@ -299,8 +299,195 @@ public sealed class WorkerCompositionTests
             // No thumbnail cache here, so the sweep has nothing to make.
             Assert.IsType<Pegasus.Infrastructure.Custody.NoDocumentThumbnailCandidates>(
                 provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>());
+            // Staff identity is the Web's: the Worker composes neither the
+            // account administration nor the per-staff vendor credentials.
+            Assert.Null(scopedServices.GetService<Pegasus.Core.Identity.ICreateStaffAccount>());
+            Assert.Null(scopedServices.GetService<Pegasus.Core.Identity.IPerUserExternalCredentialReader>());
+            // Get valuation files through the Web's scheduler; the Worker has none.
+            Assert.Null(scopedServices.GetService<Pegasus.Core.Assessment.IFetchGuideValuation>());
 
             WorkerFunctionSet.AssertEveryFunctionActivates(scopedServices);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The Functions host validates the whole graph at build in Development, so
+    /// every shared use case has to be constructible even where this host never
+    /// calls it. The paged queries take a cursor protector; the Worker serves no
+    /// page, and composes the one that says so rather than leaving them
+    /// unconstructible (the local Worker process exited 134 on exactly this).
+    /// </summary>
+    [Theory]
+    [InlineData("DevelopmentOffline")]
+    [InlineData("Production")]
+    public void TheWorkerComposesAnUnavailableCursorProtectorSoThePagedQueriesConstruct(string profile)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var services = CreateWorkerServices(CreateConfiguration(profile, root), new TestHostEnvironment(root));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+
+            Assert.IsType<Pegasus.Infrastructure.Support.UnavailableCursorProtector>(
+                provider.GetRequiredService<Pegasus.Core.ICursorProtector>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Pegasus.Core.Cases.IListCaseDocumentsByCursor>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Pegasus.Core.Cases.IListCaseHistoryByCursor>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Pegasus.Core.Assessment.IListCaseEstimatesByCursor>());
+            Assert.Throws<InvalidOperationException>(() =>
+                provider.GetRequiredService<Pegasus.Core.ICursorProtector>().Protect("scope", "key", Guid.NewGuid()));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Features:LiveVehicleLookup composes the live DVLA/DVSA adapter in the
+    /// offline Worker and nothing of Graph: the mailbox stays the local folder.
+    /// </summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveVehicleLookupComposesTheLiveAdapterWithoutGraph()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            values["Features:LiveVehicleLookup"] = "true";
+            AddLiveVehicleValues(values);
+            var services = CreateWorkerServices(Build(values), new TestHostEnvironment(root));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+
+            Assert.Equal(
+                "Pegasus.Infrastructure.Vehicle.DvlaDvsaProductionAdapter",
+                provider.GetRequiredService<IVehicleLookupAdapter>().GetType().FullName);
+            Assert.Same(
+                VehicleLookupAvailability.ProductionLive,
+                provider.GetRequiredService<VehicleLookupAvailability>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Intake.LocalDurableApprovedInboxSource",
+                provider.GetRequiredService<IApprovedInboxSource>().GetType().FullName);
+            Assert.Null(provider.GetService<Pegasus.Infrastructure.Email.GraphApprovedMailboxOptions>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<IProcessQueuedVehicleLookup>());
+            WorkerFunctionSet.AssertEveryFunctionActivates(scope.ServiceProvider);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>A missing DVLA/DVSA key fails the live opt-in at build, naming the key.</summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveVehicleLookupFailsAtBuildWhenAKeyIsMissing()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            values["Features:LiveVehicleLookup"] = "true";
+            AddLiveVehicleValues(values);
+            values["Dvsa:ClientSecret"] = null;
+
+            var error = Assert.Throws<InvalidOperationException>(() =>
+                CreateWorkerServices(Build(values), new TestHostEnvironment(root)));
+
+            Assert.Contains("Dvsa:ClientSecret", error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Features:LiveBoxCustody composes the production storage shape over the
+    /// run's Azurite container with the development Box root, not the local
+    /// artifact folder: Web and Worker then share one storage truth.
+    /// </summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveBoxCustodyComposesTheProductionStorageShape()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            values["Features:LiveBoxCustody"] = "true";
+            AddLiveBoxValues(values, "425169015650");
+            var services = CreateWorkerServices(Build(values), new TestHostEnvironment(root));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+
+            Assert.IsType<AzureBlobIntakeArtifactStore>(provider.GetRequiredService<IIntakeArtifactStore>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Custody.BoxCaseCustody",
+                provider.GetRequiredService<ICaseCustody>().GetType().FullName);
+            var container = provider.GetRequiredService<Azure.Storage.Blobs.BlobContainerClient>();
+            Assert.Equal("transient-intake", container.Name);
+            Assert.Equal("devstoreaccount1", container.AccountName);
+            Assert.Equal(
+                "Pegasus.Infrastructure.Custody.EfDocumentThumbnailCandidates",
+                provider.GetRequiredService<Pegasus.Core.Documents.IListDocumentThumbnailCandidates>().GetType().FullName);
+            Assert.Contains(
+                services,
+                descriptor => descriptor.ServiceType == typeof(IHostedService)
+                    && descriptor.ImplementationType?.Name == "BoxTokenRenewalService");
+            Assert.Null(provider.GetService<FileSystemIntakeArtifactStore>());
+            WorkerFunctionSet.AssertEveryFunctionActivates(scope.ServiceProvider);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>The offline opt-in is fenced to the development root; the production root is refused at first Box use.</summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveBoxCustodyRefusesTheProductionRoot()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            values["Features:LiveBoxCustody"] = "true";
+            AddLiveBoxValues(values, "405543781910");
+            var services = CreateWorkerServices(Build(values), new TestHostEnvironment(root));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            var error = Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<ICaseCustody>());
+
+            Assert.Contains("425169015650", error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("Features:LiveVehicleLookup")]
+    [InlineData("Features:LiveBoxCustody")]
+    public void ProductionRefusesTheLocalLiveOptIns(string key)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateProductionValues(root);
+            values[key] = "true";
+
+            var error = Assert.Throws<InvalidOperationException>(() =>
+                CreateWorkerServices(Build(values), new TestHostEnvironment(root)));
+
+            Assert.Equal($"{key} requires the DevelopmentOffline runtime profile.", error.Message);
         }
         finally
         {
@@ -448,17 +635,46 @@ public sealed class WorkerCompositionTests
         if (profile.Equals("DevelopmentOffline", StringComparison.Ordinal))
         {
             values["AzureWebJobsStorage"] = "UseDevelopmentStorage=true";
-            // Building AutomaticEvaReviewSubmissionFunction reads the EVA options in
-            // both profiles, and the activation check builds every function.
-            foreach (var (key, value) in CreateProductionValues(root).Where(pair => pair.Key.StartsWith("Eva:", StringComparison.Ordinal)))
-            {
-                values[key] = value;
-            }
         }
 
         return new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();
+    }
+
+    private static Dictionary<string, string?> CreateDevelopmentOfflineValues(string root)
+    {
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var (key, value) in CreateConfiguration("DevelopmentOffline", root).AsEnumerable())
+        {
+            values[key] = value;
+        }
+
+        return values;
+    }
+
+    private static IConfiguration Build(Dictionary<string, string?> values) =>
+        new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+
+    private static void AddLiveVehicleValues(Dictionary<string, string?> values)
+    {
+        foreach (var (key, value) in CreateProductionValues(string.Empty)
+                     .Where(pair => pair.Key.StartsWith("Dvla:", StringComparison.Ordinal)
+                         || pair.Key.StartsWith("Dvsa:", StringComparison.Ordinal)))
+        {
+            values[key] = value;
+        }
+    }
+
+    private static void AddLiveBoxValues(Dictionary<string, string?> values, string rootFolderId)
+    {
+        foreach (var (key, value) in CreateProductionValues(string.Empty)
+                     .Where(pair => pair.Key.StartsWith("Box:", StringComparison.Ordinal)))
+        {
+            values[key] = value;
+        }
+
+        values["Box:RootFolderId"] = rootFolderId;
     }
 
     private static Dictionary<string, string?> CreateProductionValues(string root) => new()
@@ -485,15 +701,7 @@ public sealed class WorkerCompositionTests
         ["Dvsa:ClientId"] = "resolved-key-vault-reference",
         ["Dvsa:ClientSecret"] = "resolved-key-vault-reference",
         ["Dvsa:ApiKey"] = "resolved-key-vault-reference",
-        ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default",
-        // EXT-04: production now composes the EVA API submission route,
-        // so its configuration is part of what a production Worker needs.
-        ["Eva:BaseUri"] = "https://sentry.evasoftware.co.uk/api/",
-        ["Eva:ClientId"] = "eva-client",
-        ["Eva:ClientSecret"] = "eva-secret",
-        ["Eva:RequestFrom"] = "COLLENGAPI",
-        ["Eva:InspectionType"] = "Vehicle Damage Inspection",
-        ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk"
+        ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default"
     };
 
     private static string CreateTemporaryRoot()

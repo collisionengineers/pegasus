@@ -688,7 +688,7 @@ public sealed class ProcessIntake(
         }
 
         var binding = await FindPrincipalBindingAsync(receipt.SourceIdentity, cancellationToken);
-        return binding?.Instruction is { Kind: PrincipalInstructionKind.Audit, OriginalReportVerdict: { } verdict }
+        return binding?.Instruction is { CaseType: CaseType.Audit, OriginalReportVerdict: { } verdict }
             ? new(PrincipalInstructionPolicy.OriginalReportSourceLabel, verdict)
             : null;
     }
@@ -826,18 +826,17 @@ public sealed class ProcessIntake(
             // Assumption: the authenticated Principal's code and the work
             // Principal code are one vocabulary. They are matched by ordinal
             // equality against IPrincipalCaseMatchPolicy.PrincipalCode, and
-            // DeclaredAssessment already feeds binding.PrincipalCode to
-            // PrincipalInstructionPolicy.ToDraft as the Principal code. A
-            // Principal with no case-match policy yields null and is not
-            // blocked from creating cases.
-            var instruction = binding.Instruction;
+            // DeclaredAssessment already stamps binding.PrincipalCode on the
+            // draft as the Principal code. A Principal with no case-match
+            // policy yields null and is not blocked from creating cases.
+            var declared = binding.Instruction.Draft;
             var principalMatchDecision = await caseMatchEvaluator.ExecuteDeclaredAsync(
                 binding.PrincipalCode,
                 new(
-                    instruction.ClaimNumber,
-                    instruction.VehicleRegistration,
-                    instruction.ClaimantName,
-                    instruction.DateOfIncident),
+                    declared.ClaimNumber,
+                    declared.VehicleRegistration,
+                    declared.ClaimantName,
+                    declared.DateOfIncident),
                 cancellationToken);
             if (principalMatchDecision?.Outcome is CaseMatchOutcome.UniqueMatch
                 or CaseMatchOutcome.Ambiguous)
@@ -1201,18 +1200,21 @@ public sealed class ProcessIntake(
         CaseMatchEvaluationResult? caseMatchDecision)
     {
         var instruction = binding.Instruction;
-        var isTriage = instruction.Kind == PrincipalInstructionKind.Triage;
-        var draft = PrincipalInstructionPolicy.ToDraft(instruction, binding.PrincipalCode);
+        var isTriage = instruction.CaseType == CaseType.Triage;
+        var draft = instruction.Draft with
+        {
+            SuggestedPrincipalCode = CasePrincipalCode.Normalize(binding.PrincipalCode)
+        };
         var fields = PrincipalInstructionPolicy.ReviewFields(draft);
         var missingFields = InstructionDraftCompleteness.MissingFieldNames(draft);
         IntakeEvidence[] evidence = isTriage
             ?
             [
                 .. readerEvidence,
-                PrincipalInstructionPolicy.DeclarationEvidence(instruction.Kind),
+                PrincipalInstructionPolicy.DeclarationEvidence(instruction.CaseType),
                 PrincipalInstructionPolicy.TriageEvidence()
             ]
-            : [.. readerEvidence, PrincipalInstructionPolicy.DeclarationEvidence(instruction.Kind)];
+            : [.. readerEvidence, PrincipalInstructionPolicy.DeclarationEvidence(instruction.CaseType)];
 
         // The identity-critical fields are the only ones that may withhold a
         // reference; ordinary detail missing from a declaration leaves the case

@@ -31,6 +31,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class OpeningModel(
     IGlassRepairEstimateSessionReader glassSessions,
+    GlassRepairEstimateAvailability glassAvailability,
     ProviderWorkQueue glassWork,
     TimeProvider timeProvider) : StaffPageModel
 {
@@ -103,9 +104,14 @@ public sealed class OpeningModel(
         return DetailsModel.ReportGlassSession(this, session, GlassLabels.LaunchRefused);
     }
 
+    /// <summary>
+    /// The staff member's own session, on a host that reaches Glass's. A host
+    /// that does not has no window to show: every request here is a 404.
+    /// </summary>
     private async Task<GlassRepairEstimateSession?> OwnSessionAsync(
         Guid sessionId, CancellationToken cancellationToken) =>
-        TryGetActor(out var actor)
+        glassAvailability.Enabled
+        && TryGetActor(out var actor)
         && actor.Kind == ActorKind.Staff
         && Guid.TryParse(actor.SubjectId, out var staffId)
             ? await glassSessions.GetOwnAsync(sessionId, staffId, cancellationToken)

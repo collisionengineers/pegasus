@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Custody;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
@@ -12,7 +11,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// The Service health rows that read tables no other port exposes
 /// — the Sent-items poll cursors, the intake dispatcher by state, and the
-/// EVA failure and pending-work reads — resolved through the registered
+/// pending-work reads — resolved through the registered
 /// adapters against a real database.
 /// </summary>
 [Trait("Category", "SqlServer")]
@@ -96,51 +95,15 @@ public sealed class ServiceHealthPersistenceTests
         Assert.Equal(new IntakeDispatchHealth(0, 0, 0, null), await queries.GetIntakeDispatchHealthAsync(CancellationToken.None));
     }
 
-    [Fact]
-    public async Task EvaFailuresAndActivityReadTheRecordedAttempts()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
-        var caseId = await SeedCaseAsync(database);
-        await using (var context = await database.CreateContextAsync())
-        {
-            context.EvaSubmissions.AddRange(
-                Submission(caseId, EvaSubmissionOutcome.Rejected, FixedUtcNow.AddHours(-2), "validation"),
-                Submission(caseId, EvaSubmissionOutcome.Unknown, FixedUtcNow.AddDays(-3), "timeout"),
-                Submission(caseId, EvaSubmissionOutcome.Succeeded, FixedUtcNow.AddHours(-1), null));
-            await context.SaveChangesAsync();
-        }
-
-        await using var scope = database.CreateAsyncScope();
-        var queries = scope.ServiceProvider.GetRequiredService<IEvaSubmissionQueries>();
-
-        var failures = await queries.GetRecentFailuresAsync(FixedUtcNow.AddDays(-1), 20, CancellationToken.None);
-        var activity = await queries.GetActivityAsync(CancellationToken.None);
-
-        var failure = Assert.Single(failures);
-        Assert.Equal(new EvaSubmissionFailure(caseId, EvaSubmissionOutcome.Rejected, "validation", FixedUtcNow.AddHours(-2)), failure);
-        Assert.Equal(new EvaSubmissionActivity(FixedUtcNow.AddHours(-1)), activity);
-    }
-
-    [Fact]
-    public async Task EvaActivityWithoutAnyAttemptIsEmpty()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
-        await using var scope = database.CreateAsyncScope();
-        var queries = scope.ServiceProvider.GetRequiredService<IEvaSubmissionQueries>();
-
-        Assert.Equal(new EvaSubmissionActivity(null), await queries.GetActivityAsync(CancellationToken.None));
-        Assert.Empty(await queries.GetRecentFailuresAsync(FixedUtcNow.AddDays(-1), 20, CancellationToken.None));
-    }
-
     /// <summary>
-    /// The snapshot reads its ten sources in thirteen statements. Overlapping
+    /// The snapshot reads its eight sources in eleven statements. Overlapping
     /// them changes how long the page waits, not how many statements it
     /// sends, so this pins the count the overlap must not change. The Health
     /// page adds the ingress switch (through the request's own context), the
     /// shell's reads and the metrics read below.
     /// </summary>
     [Fact]
-    public async Task TheSnapshotReadsItsSourcesInThirteenStatements()
+    public async Task TheSnapshotReadsItsSourcesInElevenStatements()
     {
         var counter = new SqlStatementCounter();
         await using var database = await LocalDbTestDatabase.CreateAsync(
@@ -151,7 +114,6 @@ public sealed class ServiceHealthPersistenceTests
             services.GetRequiredService<IApprovedMailboxPollStatusQueries>(),
             services.GetRequiredService<IServiceHealthQueries>(),
             services.GetRequiredService<GetRequestOperations>(),
-            services.GetRequiredService<IEvaSubmissionQueries>(),
             services.GetRequiredService<IAiJobQueries>(),
             services.GetRequiredService<ISendToAiControl>(),
             new IngressSwitch(),
@@ -165,15 +127,14 @@ public sealed class ServiceHealthPersistenceTests
             CancellationToken.None);
 
         // Mailbox polls 1, Sent-items polls 1, intake dispatch 2, external
-        // work 1, EVA activity 1, EVA failures 1, AI counts 2, newest AI job
-        // 1, Send to AI switch 1, Automation activity 2.
-        Assert.Equal(13, counter.Count);
+        // work 1, AI counts 2, newest AI job 1, Send to AI switch 1,
+        // Automation activity 2.
+        Assert.Equal(11, counter.Count);
         Assert.Equal(
             new[]
             {
                 ServiceHealthArea.Intake,
                 ServiceHealthArea.Custody,
-                ServiceHealthArea.Eva,
                 ServiceHealthArea.Ai,
                 ServiceHealthArea.Automation
             },
@@ -198,7 +159,7 @@ public sealed class ServiceHealthPersistenceTests
 
     /// <summary>
     /// The Health page sends its shell's statements plus exactly its own:
-    /// thirteen for the snapshot, whatever the row count. It used to read the
+    /// eleven for the snapshot, whatever the row count. It used to read the
     /// administration metrics too (eight more) and never draw them; the Logs
     /// page draws them. The shell is measured on the Administration hub, which
     /// renders the same layout, the same filters and the same middleware and
@@ -207,7 +168,7 @@ public sealed class ServiceHealthPersistenceTests
     /// for the poll list.
     /// </summary>
     [Fact]
-    public async Task TheHealthPageSendsTheShellsStatementsAndThirteenOfItsOwnWhateverTheRowCount()
+    public async Task TheHealthPageSendsTheShellsStatementsAndElevenOfItsOwnWhateverTheRowCount()
     {
         var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
@@ -228,7 +189,7 @@ public sealed class ServiceHealthPersistenceTests
         counter.Reset();
         _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
         var withNoRows = counter.Count;
-        const int snapshotStatements = 13;
+        const int snapshotStatements = 11;
         Assert.Equal(shell + snapshotStatements, withNoRows);
         Assert.Equal(1, counter.CountContaining("[ApprovedSentPollStates]"));
 
@@ -291,29 +252,6 @@ public sealed class ServiceHealthPersistenceTests
         };
     }
 
-    private static EvaSubmissionEntity Submission(
-        Guid caseId,
-        EvaSubmissionOutcome outcome,
-        DateTimeOffset submittedAtUtc,
-        string? failureCode) =>
-        new()
-        {
-            Id = Guid.NewGuid(),
-            CaseId = caseId,
-            WorkflowVersion = 1,
-            ExternalRef = "EVA31003",
-            OperationKey = $"eva:{Guid.NewGuid():N}",
-            Outcome = outcome.ToString(),
-            IsDelivered = outcome is EvaSubmissionOutcome.Succeeded or EvaSubmissionOutcome.Partial,
-            EvaId = outcome == EvaSubmissionOutcome.Succeeded ? "eva-1" : null,
-            FileReference = outcome == EvaSubmissionOutcome.Succeeded ? "FR-1" : null,
-            FailureCode = failureCode,
-            ImagesSent = outcome == EvaSubmissionOutcome.Succeeded ? 3 : 0,
-            AttemptCount = 1,
-            ActorSubjectId = Guid.NewGuid().ToString("D"),
-            SubmittedAtUtc = submittedAtUtc
-        };
-
     private static ExternalWorkItemEntity Work(Guid caseId, string kind, string state) =>
         new()
         {
@@ -325,72 +263,4 @@ public sealed class ServiceHealthPersistenceTests
             AttemptCount = state == "completed" ? 1 : 0,
             DueAtUtc = FixedUtcNow
         };
-
-    private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database)
-    {
-        await using var context = await database.CreateContextAsync();
-        var organizationId = Guid.NewGuid();
-        var lineageId = Guid.NewGuid();
-        var principalId = Guid.NewGuid();
-        var receiptId = Guid.NewGuid();
-        var caseId = Guid.NewGuid();
-        context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = "EVA test", Version = 0 },
-            new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = FixedUtcNow },
-            new PrincipalEntity
-            {
-                Id = principalId,
-                OrganizationId = organizationId,
-                SequenceLineageId = lineageId,
-                Code = "EVA",
-                IsActive = true,
-                ReportGenerationPolicy = "EvaManualApi",
-                Version = 0
-            },
-            new IntakeReceiptEntity
-            {
-                Id = receiptId,
-                SourceFileName = "eva-origin.pdf",
-                MediaType = "application/pdf",
-                SourceLength = 1,
-                SourceHash = new string('0', 64),
-                SourceChannel = "manual_upload",
-                ExternalReceiptToken = $"eva:{receiptId:N}",
-                ReceivedAtUtc = FixedUtcNow,
-                ProcessedAtUtc = FixedUtcNow,
-                SourceReaderKey = "eva-test",
-                SourceReaderVersion = "1",
-                Version = 0,
-                Decision = "case_created",
-                DecisionReason = "EVA test",
-                EvidenceJson = "[]",
-                FieldsJson = "[]",
-                OcrCandidatesJson = "[]"
-            },
-            new CaseEntity
-            {
-                Id = caseId,
-                PrincipalId = principalId,
-                SequenceLineageId = lineageId,
-                Year = 2031,
-                Sequence = 3,
-                Reference = "EVA31003",
-                Type = "inspection",
-                InitialState = "Review",
-                CustodyState = "Confirmed",
-                OriginIntakeReceiptId = receiptId,
-                CreatedAtUtc = FixedUtcNow,
-                Version = 1,
-                ConcurrencyToken = Guid.NewGuid()
-            },
-            new CaseWorkflowEntity
-            {
-                CaseId = caseId,
-                State = "Review",
-                Version = 1,
-                ConcurrencyToken = Guid.NewGuid()
-            });
-        await context.SaveChangesAsync();
-        return caseId;
-    }
 }

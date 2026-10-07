@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
@@ -34,7 +35,9 @@ internal sealed class EfEngineerActivityQueries(
         // creation for an Inspection + Audit Case's Audit.
         var sentOperations = await context.Set<StaffMailSendOperationEntity>()
             .AsNoTracking()
+            // An engineer's sends: the Automation Actor's are no engineer's.
             .Where(item => item.Purpose == StaffMailPurpose.CaseReport
+                && item.ActorKind == ActorKind.Staff
                 && item.State == StaffMailState.Sent
                 && item.ObservedSentAtUtc >= fromUtc
                 && item.ObservedSentAtUtc < toUtc)

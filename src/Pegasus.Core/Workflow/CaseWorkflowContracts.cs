@@ -588,13 +588,6 @@ public interface IAssignCaseEngineer
     Task<CaseWorkflowRecord> ExecuteAsync(AssignCaseEngineerRequest request, CancellationToken cancellationToken);
 }
 
-public interface ISetCaseSignOffEngineer
-{
-    Task<CaseWorkflowRecord> ExecuteAsync(
-        SetCaseSignOffEngineerRequest request,
-        CancellationToken cancellationToken);
-}
-
 public interface IStartCaseWork
 {
     Task<CaseWorkflowRecord> ExecuteAsync(CaseMutationRequest request, CancellationToken cancellationToken);

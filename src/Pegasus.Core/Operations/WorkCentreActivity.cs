@@ -9,7 +9,7 @@ namespace Pegasus.Core.Operations;
 /// recorded facts; none is a workflow state.
 /// </summary>
 /// <param name="NewCasesToday">Cases created today, excluding Triage Cases, as the New cases list counts them.</param>
-/// <param name="SentToEngineerToday">First sent to Engineer events today: the once-per-Case handoff proxy (FRD-07), never a re-export.</param>
+/// <param name="SentToEngineerToday">Cases first sent to Engineer today: each Case counted once, on its first entry into With Engineer.</param>
 /// <param name="SentToEngineerThisWeek">The same events since Monday.</param>
 /// <param name="ReportsSentToday">Sent report e-mails today, as the Engineer activity report (MI-01) counts them.</param>
 /// <param name="ReportsSentThisWeek">The same since Monday.</param>

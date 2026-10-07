@@ -9,7 +9,7 @@ A permanent record of Collision Engineers work. An Instruction-initiated Case is
 _Avoid_: Job
 
 **Principal**:
-The organisation that instructs Collision Engineers and pays for the work. Its machine surface is the Principal API ([FRD-09](docs/frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary)); EVA export still names the field `Work Provider`.
+The organisation that instructs Collision Engineers and pays for the work. Its machine surface is the Principal API ([FRD-09](docs/frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary)); the Case export names the field `Work Provider`.
 _Avoid_: Client, Provider, Work Provider, sender
 
 **Case/PO**:
@@ -17,7 +17,7 @@ Collision Engineers’ immutable internal reference, allocated from the accepted
 _Avoid_: Claim number, external reference
 
 **Received date**:
-The Europe/London date a Case was received: its instruction's receipt, or its creation when staff create it directly. It is the Case's only instruction date: EVA's `Instruction Date` and the date the report says instructions were received ([FRD-23](docs/frd/frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
+The Europe/London date a Case was received: its instruction's receipt, or its creation when staff create it directly. It is the Case's only instruction date: the Case export's `Instruction Date` and the date the report says instructions were received ([FRD-23](docs/frd/frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
 _Avoid_: Instruction date (as a separate fact), processed date
 
 **Image intake**:
@@ -41,7 +41,7 @@ The actual supplier of case images, whether a Principal, Intermediary, Repairer,
 _Avoid_: Sender
 
 **Third-party vehicle evidence**:
-Source evidence of a vehicle other than the Case vehicle, identified from reliable image detail and recorded by staff as the Third party image tag. It remains retained in the Case but is excluded from Case-vehicle selection and the EVA image bundle.
+Source evidence of a vehicle other than the Case vehicle, identified from reliable image detail and recorded by staff as the Third party image tag. It remains retained in the Case but is excluded from Case-vehicle selection and the Case export's images.
 _Avoid_: Wrong image, unrelated evidence
 
 **Audit**:
@@ -116,15 +116,15 @@ A named non-human principal that performs one explicitly authorised Pegasus acti
 _Avoid_: Service account, staff impersonation, background task
 
 **Send to AI**:
-The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed writes through Core, each the Case's value shown with its AI source tag. It never records professional findings or sends outward correspondence. The AI job ledger (AiJobs, pull) is the one transport.
+The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform the attributed casework writes staff perform through Core, professional findings included, each the Case's value shown with its AI source tag. Outward correspondence and report sending are by staff or the Automation actor. The AI job ledger (AiJobs, pull) is the one transport.
 _Avoid_: Send to Claude, AI assessment, automatic report
 
 **First sent to Engineer**:
-The once-per-Case handoff proxy governed by [FRD-07](docs/frd/frd-07-eva-and-external-engineering-handoff.md). Native handoff ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)) and optional EVA are distinct routes; the proxy is not external receipt, delivery or report-sent evidence.
+The Case's first entry into With Engineer, recorded once per Case by its first `state_ReportPreparation` workflow event ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md#assign-engineer), [FRD-15](docs/frd/frd-15-work-centre-queues-and-search.md)). A Case export is not a handoff and records no such event; the event is not delivery or report-sent evidence.
 _Avoid_: Sent to Engineer (the activity count), report sent
 
 **Sent to Engineer today/week**:
-The Work Centre activity count of `First sent to Engineer` proxy events within the Europe/London day or Monday-based week. A count of events is not the once-per-Case proxy itself.
+The Work Centre activity count of Cases whose `First sent to Engineer` falls within the Europe/London day or Monday-based week. A Case that returns to With Engineer is not counted again.
 _Avoid_: First sent to Engineer (the per-Case event), reports sent
 
 **New cases today**:

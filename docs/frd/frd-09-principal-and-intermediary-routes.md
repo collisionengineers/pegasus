@@ -98,17 +98,15 @@ already holds the fields, so it states them.
   with a required `Idempotency-Key` header (at most 200 characters, unique
   per Principal). The body declares the instruction and carries any files
   inline as base64. An instruction with no files is accepted.
-- **Principal.** The credential establishes it. A `principal` in the body is
-  compared with it, and a mismatch is refused (403, recorded). The field
-  exists to catch a Principal posting to the wrong account, never to select
-  one.
+- **Principal.** The credential establishes it. Nothing in the body names
+  or selects a Principal.
 - **Case type.** One of `inspection`, `audit`, `auditreport` or `triage`,
   mapping to `Inspection`, `Audit`, `InspectionAndAudit` and `Triage`.
   `triage` opens a Triage Case with a `t.` Case/PO under the credential's
   Principal ([FRD-03](frd-03-triage.md)).
 - **Audit.** A standalone `audit` states `originalReportVerdict`
-  (`repairable` or `total-loss`). It may attach the original report, once,
-  with its role stated. The declared verdict records the assessment and
+  (`repairable` or `total-loss`). It may carry the original report as
+  `originalReport`, beside `files`. The declared verdict records the assessment and
   fills Repairable status when the Case is created, with or without the
   report. Without it, the Audit Case shows **Original report missing**
   until the report is filed; the filed report then fills its other Original
@@ -117,14 +115,13 @@ already holds the fields, so it states them.
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
   `auditreport` is Collision Engineers auditing its own report and carries
   neither.
-- **Files.** Optional: zero or more, each with a leaf `fileName`, a
-  `mediaType` the intake reader supports, and base64 `contentBase64`. An
-  optional `role` (`instruction`, `originalreport`, `image`,
-  `correspondence`, `other`) says what the file is. Without it, nothing is
-  inferred and the file is kept as an ordinary attachment. At most one file
-  is the `originalreport`. Limits: at most 20 files, each at most 10 MiB, at
-  most 30 MiB decoded in total, and at most 42 MiB of request body. A larger
-  envelope is 413.
+- **Files.** Optional: zero or more, each a leaf `fileName` and base64
+  `contentBase64`. The extension is the file type, as it is for every other
+  intake route, and must be one the intake reader opens. Nothing else is
+  declared about a file: Pegasus sorts its role as it sorts an email
+  attachment's. Limits, counting the original report: at most 20 files, each
+  at most 10 MiB, at most 30 MiB decoded in total, and at most 42 MiB of
+  request body. A larger envelope is 413.
 - **Retention.** One submission is one intake receipt. The retained source
   is the request exactly as it arrived, and the files are that receipt's
   attachments, the same shape an email instruction has. That is what lets an
@@ -132,8 +129,8 @@ already holds the fields, so it states them.
   receipt enters the same durable intake path as a staff upload, on the
   `principal_api` source channel, bound to the authenticated Principal. The
   submission is the recorded actor in permanent history. If a process crash separates the
-  accept writes, the existing reconciliation timer repairs the staged-receipt
-  link and the initial `Accepted` history row once intake retention exists.
+  accept writes, the existing reconciliation timer writes the initial
+  `Accepted` history row once intake retention exists.
   A submission is accepted once: whichever of the request and the repair
   records it first is the one row, and a repaired row states when the
   submission was received and that recovery completed it.
@@ -142,11 +139,12 @@ already holds the fields, so it states them.
   and shows as such on the Case. The Principal is recorded from the
   authenticated submission binding with Principal API provenance.
 - **Receipt.** 201 with `submissionId`, `receivedAtUtc`,
-  `principalReference`, `replayed: false` and the accepted files (ordinal,
-  file name, SHA-256, duplicate flag), the moment the submission is durably
-  received and before any processing. A replay of the same key with the
-  same body is 200 with the same receipt and `replayed: true`. The same key
-  with a different body is 409 and retains nothing new.
+  `principalReference` and `replayed: false`, the moment the submission is
+  durably received and before any processing. A replay of the same key with
+  the same body is 200 with the same receipt and `replayed: true`. The same
+  key with a different body is 409 and retains nothing new. Until a
+  submission's body is retained, a retry is compared on its declaration, so
+  one whose earlier attempt was not retained may resend its files.
 - **Validation.** A malformed or out-of-bounds field is 400, naming the
   field. Only the identity-critical fields withhold a reference: claimant
   name, claim number and vehicle registration. Ordinary detail missing from
@@ -320,8 +318,7 @@ permission to guess.
 
 ## Edge cases and fail-closed behaviour
 
-- Wrong or missing credential: 401, recorded. Body `principal` mismatch:
-  403, recorded.
+- Wrong or missing credential: 401, recorded.
 - Same idempotency key with a different body: 409, nothing retained.
 - Envelope over the limits: 413.
 - Existing-Case match, unique or ambiguous: `principal_existing_case_match`,

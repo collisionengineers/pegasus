@@ -27,8 +27,30 @@ internal static class DevelopmentOfflineInitialization
         CancellationToken cancellationToken = default)
     {
         RequireLocalOnly(services);
+        var signIn = ReadPasswordSignIn(services);
         await MigrateAsync(services, cancellationToken);
-        await EnsureIdentityAsync(services);
+        await EnsureIdentityAsync(services, signIn);
+    }
+
+    /// <summary>
+    /// Features:PasswordSignIn turns the fixture into a real sign-in surface:
+    /// the Administrator then carries the configured password instead of none,
+    /// and every Start re-asserts it. Without the flag the account stays
+    /// passwordless, which is what the automatic scheme requires. Read before
+    /// the migration so a run nobody could enter is refused before it exists.
+    /// </summary>
+    private static (bool Enabled, string? Password) ReadPasswordSignIn(IServiceProvider services)
+    {
+        var configuration = services.GetRequiredService<IConfiguration>();
+        var enabled = configuration.GetValue<bool>("Features:PasswordSignIn");
+        var password = configuration["DevelopmentOffline:AdministratorPassword"];
+        if (enabled && string.IsNullOrWhiteSpace(password))
+        {
+            throw new InvalidOperationException(
+                "DevelopmentOffline:AdministratorPassword is required when Features:PasswordSignIn is enabled.");
+        }
+
+        return (enabled, password);
     }
 
     public static async Task MigrateAsync(
@@ -41,7 +63,9 @@ internal static class DevelopmentOfflineInitialization
         await context.Database.MigrateAsync(cancellationToken);
     }
 
-    private static async Task EnsureIdentityAsync(IServiceProvider services)
+    private static async Task EnsureIdentityAsync(
+        IServiceProvider services,
+        (bool Enabled, string? Password) signIn)
     {
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         foreach (var roleName in StaffRoleNames.All)
@@ -63,6 +87,7 @@ internal static class DevelopmentOfflineInitialization
         }
 
         var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var (passwordSignIn, administratorPassword) = signIn;
         var userId = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
         var normalizedUserName = userManager.NormalizeName(DevelopmentOfflineIdentity.UserName);
         var user = await userManager.FindByIdAsync(userId);
@@ -101,7 +126,7 @@ internal static class DevelopmentOfflineInitialization
                  || !user.IsEnabled
                  || user.MustChangePassword
                  || user.LockoutEnabled
-                 || user.PasswordHash is not null
+                 || (!passwordSignIn && user.PasswordHash is not null)
                  || user.TwoFactorEnabled
                  || user.LockoutEnd is not null
                  || user.AccessFailedCount != 0)
@@ -110,12 +135,21 @@ internal static class DevelopmentOfflineInitialization
             user.IsEnabled = true;
             user.MustChangePassword = false;
             user.LockoutEnabled = false;
-            user.PasswordHash = null;
+            if (!passwordSignIn)
+            {
+                user.PasswordHash = null;
+            }
             user.TwoFactorEnabled = false;
             user.LockoutEnd = null;
             user.AccessFailedCount = 0;
             user.SecurityStamp = Guid.NewGuid().ToString("N");
             ThrowIfFailed(await userManager.UpdateAsync(user));
+        }
+
+        if (passwordSignIn)
+        {
+            var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
+            ThrowIfFailed(await userManager.ResetPasswordAsync(user, resetToken, administratorPassword!));
         }
 
         var roleNames = await userManager.GetRolesAsync(user);

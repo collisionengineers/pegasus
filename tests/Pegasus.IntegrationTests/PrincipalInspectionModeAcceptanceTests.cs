@@ -98,7 +98,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
     }
 
     [Fact]
-    public async Task StaffOverrideToPhysicalAndBackUsesReasonedSaveCase()
+    public async Task StaffOverrideToPhysicalAndBackUsesTheCaseSave()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("accept-image-based-3");
@@ -106,17 +106,19 @@ public sealed class PrincipalInspectionModeAcceptanceTests
         var projection = await harness.GetRequiredDataAsync(caseId);
 
         var lease = await harness.AcquireLeaseAsync(caseId, projection.Version, "lease-override-1");
-        var overridden = await harness.SaveCase.ExecuteAsync(
-            new SaveCaseRequest(
+        var overridden = await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
                 caseId,
                 projection.Version,
                 harness.StaffActor,
                 "override-to-physical-1",
                 "Client confirmed the vehicle is held at the repairer",
-                lease.Token,
-                new CaseEditableData(
-                    InspectionAddress: "5 Repairer Way, Leeds",
-                    InspectionMode: CaseInspectionMode.PhysicalAddress)),
+                lease.Token)
+            {
+                Inspection = Inspection(
+                    CaseReportAddressTreatment.PhysicalVehicleLocation,
+                    "5 Repairer Way, Leeds")
+            },
             CancellationToken.None);
         var afterOverride = await harness.GetRequiredDataAsync(caseId);
 
@@ -132,17 +134,19 @@ public sealed class PrincipalInspectionModeAcceptanceTests
             caseId,
             overridden.Version,
             "lease-override-2");
-        await harness.SaveCase.ExecuteAsync(
-            new SaveCaseRequest(
+        await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
                 caseId,
                 overridden.Version,
                 harness.StaffActor,
                 "override-to-image-based-1",
                 "Provider works image-based; restoring the provider default",
-                secondLease.Token,
-                new CaseEditableData(
-                    InspectionAddress: Ext18InspectionAddressPolicy.ImageBasedAssessment,
-                    InspectionMode: CaseInspectionMode.ImageBasedAssessment)),
+                secondLease.Token)
+            {
+                Inspection = Inspection(
+                    CaseReportAddressTreatment.ImageBasedAssessment,
+                    Ext18InspectionAddressPolicy.ImageBasedAssessment)
+            },
             CancellationToken.None);
         var restored = await harness.GetRequiredDataAsync(caseId);
 
@@ -199,6 +203,11 @@ public sealed class PrincipalInspectionModeAcceptanceTests
         Assert.Contains("intake or case changed", exception.Message);
     }
 
+    private static CaseWorkspaceInspection Inspection(
+        CaseReportAddressTreatment treatment,
+        string address) =>
+        new(treatment, address, null, null, null, null, FixtureInspectionDate, null, null, null, null, null, null, null, null);
+
     private sealed class Harness : IAsyncDisposable
     {
         private readonly LocalDbTestDatabase database;
@@ -214,7 +223,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
             EfCaseDataStore dataStore,
             EfCaseAcceptanceStore acceptanceStore,
             AcceptIntake acceptIntake,
-            SaveCase saveCase,
+            EfCaseWorkspaceStore workspaceStore,
             AcquireCaseEditLease acquireLease)
         {
             this.database = database;
@@ -225,7 +234,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
             DataStore = dataStore;
             AcceptanceStore = acceptanceStore;
             AcceptIntake = acceptIntake;
-            SaveCase = saveCase;
+            WorkspaceStore = workspaceStore;
             this.acquireLease = acquireLease;
         }
 
@@ -235,7 +244,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
         public EfCaseDataStore DataStore { get; }
         public EfCaseAcceptanceStore AcceptanceStore { get; }
         public AcceptIntake AcceptIntake { get; }
-        public SaveCase SaveCase { get; }
+        public EfCaseWorkspaceStore WorkspaceStore { get; }
 
         public static async Task<Harness> CreateAsync()
         {
@@ -259,7 +268,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
                     new DiscardingCommittedWorkPublisher(),
                     new TriageCasePairing(new EfTriageStore(factory,
                         [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider)));
-                var dataStore = new EfCaseDataStore(factory, timeProvider);
+                var dataStore = new EfCaseDataStore(factory);
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
                 return new(
                     database,
@@ -270,7 +279,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
                     dataStore,
                     acceptanceStore,
                     acceptIntake,
-                    new SaveCase(dataStore),
+                    new EfCaseWorkspaceStore(factory, timeProvider),
                     new AcquireCaseEditLease(workflowStore));
             }
             catch

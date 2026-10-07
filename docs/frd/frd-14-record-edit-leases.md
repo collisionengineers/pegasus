@@ -72,7 +72,10 @@ while the lease is live, so it never ends the holder's edit session. Such a
 change claims the lease for its one command and consumes it; a refused
 command frees the lease it claimed.
 Automatic processing never resumes a lease; each of its sessions claims and
-is refused while any lease is live. An Automation write presented without a
+is refused while any lease is live, unless the Automation Actor asks to take
+over a lease a staff member holds (operator, 7 October 2026). An Automation
+lease that lapsed, with nobody having claimed the Case since, carries on with
+the same token, as a staff lease does. An Automation write presented without a
 lease token claims the lease for that one command and releases it afterwards;
 the explicit Automation lease tools remain for multi-step work
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)).
@@ -98,7 +101,7 @@ edits the Audit
 **System work keeps the session.** Automatic processing that changes the
 Case (custody confirmed or failed, an original report recognised, a vehicle
 lookup filling empty fields, a mail correction or association moving the
-Case into Query, an automatic link, the automatic EVA submission) advances
+Case into Query, an automatic link) advances
 the Case version and leaves the editor's lease standing (operator, 6 October
 2026). The holder's next change, sent with the version they loaded, lands. The
 one exception is a value the system filled: the Case save sends every field
@@ -164,9 +167,14 @@ The takeover is history rather than a change to the record, so it never
 advances the record's version. The previous holder's next heartbeat or save
 is refused. The value they were typing stays on screen so they can copy it,
 and they must reload to edit again. There is no Administrator-only path; the rule
-is the same for everyone with edit rights. A lease held by automatic
-processing cannot be taken over. Take over applies to a Case and an Image
-Intake record only: a Triage Case's scope lasts one save.
+is the same for everyone with edit rights. The Automation Actor may take over
+a Case lease or Triage scope a staff member holds in the same way, and the
+takeover is recorded the same way
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases); operator,
+7 October 2026). A lease held by automatic processing, the Automation Actor's
+included, cannot be taken over; it lapses within five minutes. Take over
+applies to a Case and an Image Intake record only: a Triage Case's scope
+lasts one save.
 
 ### Refusals and recovery
 

@@ -232,8 +232,41 @@ public sealed class CloseUnidentifiedTests
         Assert.Equal(2, request.ExpectedVersion);
         Assert.True(result.Item.IsClosed);
         Assert.Equal("U7", result.Item.Reference);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => sut.ExecuteAsync(new(ItemId, 2, ActionActor.Automation("client"), "close-2", "No.", Now)));
+    }
+
+    /// <summary>
+    /// Close with reason is casework: the Automation Actor closes in its own
+    /// name as staff do (ADR-0064); a system worker or Principal cannot.
+    /// </summary>
+    [Fact]
+    public async Task TheAutomationActorClosesWithAReasonAndOtherActorsCannot()
+    {
+        var resolve = new RecordingResolve();
+        var sut = new CloseUnidentified(resolve);
+
+        var result = await sut.ExecuteAsync(new(ItemId, 2, ActionActor.Automation("client"), "mcp:close-2", "No.", Now));
+
+        Assert.True(result.Item.IsClosed);
+        Assert.Equal(ActorKind.Automation, Assert.Single(resolve.Requests).Actor.Kind);
+        await Assert.ThrowsAsync<StaffAuthorizationException>(
+            () => sut.ExecuteAsync(new(ItemId, 2, ActionActor.SystemWorker("worker"), "close-3", "No.", Now)));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(
+            () => sut.ExecuteAsync(new(ItemId, 2, ActionActor.Principal(Guid.NewGuid()), "close-4", "No.", Now)));
+        Assert.Single(resolve.Requests);
+    }
+
+    [Fact]
+    public async Task TheAutomationActorReopensWithAReasonAndOtherActorsCannot()
+    {
+        var store = new ClosingStore();
+        var sut = new ReopenUnidentified(store);
+
+        await sut.ExecuteAsync(new(ItemId, 3, ActionActor.Automation("client"), "mcp:reopen-1", "Wrong file.", Now));
+
+        Assert.Equal(ActorKind.Automation, Assert.Single(store.Reopens).Actor.Kind);
+        await Assert.ThrowsAsync<StaffAuthorizationException>(
+            () => sut.ExecuteAsync(new(ItemId, 3, ActionActor.SystemWorker("worker"), "reopen-2", "Wrong file.", Now)));
+        Assert.Single(store.Reopens);
     }
 
     [Fact]
@@ -295,5 +328,13 @@ public sealed class CloseUnidentifiedTests
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(UnidentifiedMediaKind? mediaKind, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
         public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(Guid unidentifiedItemId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public List<ReopenUnidentifiedRequest> Reopens { get; } = [];
+
+        public Task<UnidentifiedReopenResult> ReopenAsync(ReopenUnidentifiedRequest request, CancellationToken cancellationToken = default)
+        {
+            Reopens.Add(request);
+            return Task.FromResult<UnidentifiedReopenResult>(null!);
+        }
     }
 }

@@ -57,9 +57,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<CaseWorkflowEventEntity> CaseWorkflowEvents => Set<CaseWorkflowEventEntity>();
     internal DbSet<CaseEditLeaseOperationEntity> CaseEditLeaseOperations =>
         Set<CaseEditLeaseOperationEntity>();
-    internal DbSet<EvaFirstHandoffProxyEntity> EvaFirstHandoffProxies =>
-        Set<EvaFirstHandoffProxyEntity>();
-    internal DbSet<EvaSubmissionEntity> EvaSubmissions => Set<EvaSubmissionEntity>();
     internal DbSet<CaseReportApprovalEntity> CaseReportApprovals => Set<CaseReportApprovalEntity>();
     internal DbSet<CaseReportSentEvidenceEntity> CaseReportSentEvidence => Set<CaseReportSentEvidenceEntity>();
     internal DbSet<CaseDueWorkEntity> CaseDueWork => Set<CaseDueWorkEntity>();
@@ -225,9 +222,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         CaseDataModelConfiguration.Configure(builder);
         CaseMatchModelConfiguration.Configure(builder);
         VehicleModelConfiguration.Configure(builder);
-        EvaHandoffModelConfiguration.Configure(builder);
-        EvaSubmissionModelConfiguration.Configure(builder);
-        AutomaticEvaReviewSubmissionModelConfiguration.Configure(builder);
         CaseWorkModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
         PrincipalCredentialModelConfiguration.Configure(builder);
@@ -327,22 +321,22 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.ToTable("InstructionDrafts");
             entity.HasKey(item => item.IntakeReceiptId);
             entity.Property(item => item.SuggestedPrincipalCode).HasMaxLength(20);
-            entity.Property(item => item.ClaimantName).HasMaxLength(300);
-            entity.Property(item => item.ClaimNumber).HasMaxLength(100);
-            entity.Property(item => item.VehicleRegistration).HasMaxLength(20);
-            entity.Property(item => item.VehicleMake).HasMaxLength(100);
-            entity.Property(item => item.VehicleModel).HasMaxLength(100);
-            entity.Property(item => item.AccidentCircumstances).HasMaxLength(2000);
+            entity.Property(item => item.ClaimantName).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.PersonName);
+            entity.Property(item => item.ClaimNumber).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.ClaimNumber);
+            entity.Property(item => item.VehicleRegistration).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.VehicleRegistration);
+            entity.Property(item => item.VehicleMake).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.VehicleText);
+            entity.Property(item => item.VehicleModel).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.VehicleText);
+            entity.Property(item => item.AccidentCircumstances).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.AccidentCircumstances);
             entity.Property(item => item.DateOfIncident).HasColumnType("date");
-            entity.Property(item => item.InspectionAddress).HasMaxLength(1000);
-            entity.Property(item => item.VehicleMileageUnit).HasMaxLength(40);
-            entity.Property(item => item.VatStatus).HasMaxLength(100);
-            entity.Property(item => item.ClaimantAddress).HasMaxLength(1000);
-            entity.Property(item => item.ClaimantContactNumber).HasMaxLength(100);
-            entity.Property(item => item.FileHandlerName).HasMaxLength(300);
-            entity.Property(item => item.FileHandlerEmailAddress).HasMaxLength(320);
-            entity.Property(item => item.FileHandlerPhoneNumber).HasMaxLength(100);
-            entity.Property(item => item.Notes).HasMaxLength(2000);
+            entity.Property(item => item.InspectionAddress).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.Address);
+            entity.Property(item => item.VehicleMileageUnit).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.MileageUnit);
+            entity.Property(item => item.VatStatus).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.VatStatus);
+            entity.Property(item => item.ClaimantAddress).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.Address);
+            entity.Property(item => item.ClaimantContactNumber).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.Telephone);
+            entity.Property(item => item.FileHandlerName).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.PersonName);
+            entity.Property(item => item.FileHandlerEmailAddress).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.EmailAddress);
+            entity.Property(item => item.FileHandlerPhoneNumber).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.Telephone);
+            entity.Property(item => item.Notes).HasMaxLength(Pegasus.Core.Cases.AddCaseNote.MaximumLength);
             entity.HasOne(item => item.IntakeReceipt)
                 .WithOne(item => item.InstructionDraft)
                 .HasForeignKey<InstructionDraftEntity>(item => item.IntakeReceiptId)
@@ -524,8 +518,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             {
                 table.HasCheckConstraint("CK_Principals_Code", "[Code] <> ''");
                 table.HasCheckConstraint("CK_Principals_Version", "[Version] >= 0");
-                table.HasCheckConstraint("CK_Principals_ReportGenerationPolicy",
-                    "[ReportGenerationPolicy] IN ('Pegasus', 'EvaZip', 'EvaManualApi', 'EvaAutomaticApiOnReview')");
                 table.HasCheckConstraint(
                     "CK_Principals_InspectionMode",
                     "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
@@ -542,7 +534,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DefaultInspectionPostcode).HasMaxLength(20);
             entity.Property(item => item.DefaultInspectionSourceKind).HasMaxLength(40);
             entity.Property(item => item.DefaultInspectionSourceRecordId).HasMaxLength(200);
-            entity.Property(item => item.ReportGenerationPolicy).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ReportRecipientAddressesJson).IsRequired();
             entity.Property(item => item.DefaultFee)
                 .HasPrecision(18, 2)
@@ -1257,7 +1248,6 @@ internal sealed class PrincipalEntity
     public string? DefaultInspectionSourceKind { get; set; }
     public string? DefaultInspectionSourceRecordId { get; set; }
     public long? DefaultInspectionSourceVersion { get; set; }
-    public string ReportGenerationPolicy { get; set; } = "Pegasus";
     public bool IncludeOriginalInstructionSender { get; set; }
     public string ReportRecipientAddressesJson { get; set; } = "[]";
     public string? SalvageMatrixJson { get; set; }

@@ -64,7 +64,7 @@ public sealed class CaseRecordFrameV26WebTests
     /// Outside an edit session the menu offers the state's items too
     /// (operator, 29 September 2026), their dialogs posting no lease so the
     /// handler claims one for the action. A colleague's live lease offers
-    /// only Take over: nothing that needs the lease is on the menu.
+    /// Take over, and the menu keeps only Export case, which needs no lease.
     /// </summary>
     [Fact]
     public async Task OutsideAnEditSessionTheMenuOffersTheStatesItemsAndAColleaguesLeaseOffersOnlyTakeOver()
@@ -83,7 +83,9 @@ public sealed class CaseRecordFrameV26WebTests
 
         var held = new RecordingCaseDetailsStore { LeaseHolder = "colleague-staff-id" };
         var html = await ReadCaseAsync(held);
-        Assert.DoesNotContain("data-case-actions", RecordBar(html), StringComparison.Ordinal);
+        var heldBar = RecordBar(html);
+        Assert.Contains("data-case-export", heldBar, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open", heldBar, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-hold-dialog\"", html, StringComparison.Ordinal);
         Assert.Contains("data-edit-authority", html, StringComparison.Ordinal);
         Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, html, StringComparison.Ordinal);
@@ -93,9 +95,9 @@ public sealed class CaseRecordFrameV26WebTests
 
     /// <summary>
     /// A Completed or Query Case offers no Edit, but a colleague's lease on
-    /// it is still offered Take over (operator, 29 September 2026): the
-    /// Actions menu is withheld while the colleague holds the Case, so Take
-    /// over is the way in before the lease lapses.
+    /// it is still offered Take over (operator, 29 September 2026): while the
+    /// colleague holds the Case the Actions menu keeps only Export case, so
+    /// Take over is the way in before the lease lapses.
     /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.PostReportComplete)]
@@ -107,7 +109,8 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.DoesNotContain("handler=ClaimLease", reading, StringComparison.Ordinal);
 
         var held = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state, LeaseHolder = "colleague-staff-id" }));
-        Assert.DoesNotContain("data-case-actions", held, StringComparison.Ordinal);
+        Assert.Contains("data-case-export", held, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open", held, StringComparison.Ordinal);
         Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, held, StringComparison.Ordinal);
         Assert.Contains("handler=ClaimLease", held, StringComparison.Ordinal);
         Assert.Contains("name=\"takeOver\" value=\"true\"", held, StringComparison.Ordinal);

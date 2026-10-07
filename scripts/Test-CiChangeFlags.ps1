@@ -69,7 +69,7 @@ Assert-Flags -Case 'shard duration table' -ChangedPath 'scripts/test-shard-durat
 # Reference data is read by Core and integration tests; an earlier revision of
 # this file asserted the opposite, which encoded the gap as the rule.
 Assert-Flags -Case 'reference data' -ChangedPath 'reference/workproviders-and-repairers/principal-identification-corpus.v1.json' -Build $true -Infrastructure $false
-Assert-Flags -Case 'EVA bundle reference' -ChangedPath 'reference/eva_information/AX_SP58WVO.json' -Build $true -Infrastructure $false
+Assert-Flags -Case 'case export reference' -ChangedPath 'reference/case_export/AX_SP58WVO.json' -Build $true -Infrastructure $false
 Assert-Flags -Case 'embedded report logo' -ChangedPath 'docs/design/brand/logos/logo_no_margin.png' -Build $true -Infrastructure $false
 Assert-Flags -Case 'SQL read by integration tests' -ChangedPath 'scripts/Reset-TestEstate.sql' -Build $true -Infrastructure $false
 Assert-Flags -Case 'shard duration refresh script' -ChangedPath 'scripts/Update-TestShardDurations.ps1' -Build $true -Infrastructure $false

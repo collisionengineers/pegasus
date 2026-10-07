@@ -59,7 +59,6 @@ public sealed class AssessmentCopyWebTests
         Assert.Contains("id=\"section-estimate\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"section-report\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Assessment unavailable", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("A current Review-cycle EVA export is required", html, StringComparison.Ordinal);
     }
 
     /// <summary>

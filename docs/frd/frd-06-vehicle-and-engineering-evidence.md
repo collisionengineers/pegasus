@@ -63,6 +63,12 @@ read from text.
 - Where the source has no address at all, a staff member types the physical
   location at Case creation. It is kept with that person as its source. The
   ban is on Pegasus inferring an address, not on a person stating one.
+- The Automation actor settles an address as staff do: it accepts or
+  corrects the extracted suggestion, or supplies the location where there
+  is none (operator, 7 October 2026;
+  [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). The
+  settlement records its settler's actor kind and identity, so an address
+  the Actor settled reads as the Actor's, never as staff's.
 
 The Principal-domain reference package holds no address and no mode default.
 No address is ever inferred from a Principal or domain match.
@@ -102,7 +108,7 @@ keeps its dated results; no fresh evaluation is implied.
 produces a suggestion. Each result stays attached to one retained source
 image. Staff confirmation creates the provisional vehicle identity. Before
 confirmation a suggestion must not create or identify a Case, allocate a
-Case/PO, overwrite a confirmed registration, select an EVA image, satisfy a
+Case/PO, overwrite a confirmed registration, select an export image, satisfy a
 readiness gate, or change Case workflow.
 
 **Automatic registration and pairing.** A confident, unambiguous read at the
@@ -169,7 +175,7 @@ evidence. No recogniser, model or adapter acts on its own.
 
 **Every image is kept.** An automated VRM or colour result may only suggest
 that a photo shows a different vehicle. It does not exclude the photo from
-the Case-vehicle, EVA-export or report-selection pools. An authorised staff
+the Case-vehicle, Case-export or report-selection pools. An authorised staff
 member must confirm that by applying the Third party image tag
 ([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)). Until then
 the photo stays visible as unmatched-vehicle evidence. Neither outcome
@@ -293,9 +299,10 @@ sweep, which remains the recovery path if the creation-time attempt fails or
 is unavailable. The outcome shows on the Case whichever trigger produced it:
 looked up and current, or a stated failure reason, separately from whether
 any field was filled. The automatic trigger fills only an empty Make, Model,
-Year or Mileage and a Vehicle type staff have not recorded, and records the
-lookup's own facts, under the rules above. It never overwrites a value staff
-recorded.
+Year or Mileage and a Vehicle type neither staff nor the Automation Actor has
+recorded, and records the lookup's own facts, under the rules above. It never
+overwrites a value staff or the Automation Actor recorded (operator, 7
+October 2026).
 
 **A 404 is classified first.** Only a 404 whose body is that provider's own
 vehicle-not-found error counts as `NotFound`. Any other 404 (a gateway, route

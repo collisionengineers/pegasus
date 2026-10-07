@@ -10,7 +10,6 @@ $ErrorActionPreference = 'Stop'
 $nativeBundle = Get-PegasusMigrationBundle
 $expectedWorkerDisabledSettings = @(
     'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
-    'AzureWebJobs.AutomaticEvaReviewSubmissionFunction.Disabled',
     'AzureWebJobs.UnifiedWorkFunction.Disabled',
     'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
     'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
@@ -20,7 +19,7 @@ $actualWorkerDisabledSettings = @(Get-PegasusWorkerDisabledSettingNames)
 if ($actualWorkerDisabledSettings.Count -ne $expectedWorkerDisabledSettings.Count -or
     @($actualWorkerDisabledSettings | Where-Object { $_ -notin $expectedWorkerDisabledSettings }).Count -ne 0 -or
     @($actualWorkerDisabledSettings | Select-Object -Unique).Count -ne $actualWorkerDisabledSettings.Count) {
-    throw 'Worker Disabled setting producer must return the exact distinct six-name census.'
+    throw 'Worker Disabled setting producer must return the exact distinct five-name census.'
 }
 $platformResolver = ${function:Get-PegasusPlatform}
 try {
@@ -183,6 +182,101 @@ finally {
         throw 'Refusing to remove an unexpected fixture path.'
     }
     Remove-Item -LiteralPath $resolvedFixtureRoot -Recurse -Force
+}
+
+# Local live-integration settings: the parser, the host split and the flag
+# derivation, without a run, a vendor or a secret.
+$settingsRoot = Join-Path ([IO.Path]::GetTempPath()) ("pegasus-local-settings-" + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $settingsRoot | Out-Null
+try {
+    function Write-SettingsFixture {
+        param([Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][AllowEmptyString()][string[]]$Lines, [switch]$Shared)
+        $path = Join-Path $settingsRoot $Name
+        [IO.File]::WriteAllText($path, (($Lines -join "`n") + "`n"))
+        if ($IsLinux) {
+            $mode = [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite
+            if ($Shared) { $mode = $mode -bor [IO.UnixFileMode]::GroupRead }
+            [IO.File]::SetUnixFileMode($path, $mode)
+        }
+        return $path
+    }
+    function Assert-SettingsRejected {
+        param([Parameter(Mandatory)][string]$Case, [Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$ExpectedError)
+        $failure = $null
+        try { Read-PegasusLocalSettingsFile -Path $Path | Out-Null }
+        catch { $failure = $_.Exception.Message }
+        if (-not $failure -or -not $failure.Contains($ExpectedError)) {
+            throw "$Case expected rejection '$ExpectedError'; got '$failure'."
+        }
+    }
+
+    $absent = Read-PegasusLocalSettingsFile -Path (Join-Path $settingsRoot 'absent.env')
+    if ($absent.Count -ne 0) { throw 'An absent settings file must read as empty.' }
+    $emptyFlags = Get-PegasusLiveIntegrationFlags -Settings $absent
+    if ((Format-PegasusLiveIntegrationFlags -Flags $emptyFlags) -ne 'none' -or @($emptyFlags.Values | Where-Object { $_ }).Count -ne 0) {
+        throw 'No settings must derive no live integration flags.'
+    }
+
+    $good = Write-SettingsFixture -Name 'good.env' -Lines @(
+        '# comment line',
+        '',
+        'Features__LiveVehicleLookup=true',
+        'Features__LiveBoxCustody=TRUE',
+        'Features__LiveGlass=false',
+        'Box__ConfigJson={"boxAppSettings":{"clientID":"a=b"},"enterpriseID":"1"}',
+        'Box__RootFolderId=425169015650',
+        'Dvla__ApiKey=key=with=equals',
+        'Glass__RepairProfileId=4063',
+        'DevelopmentOffline__AdministratorPassword=p#ss=word',
+        'GitHub__ProblemReports__Token=')
+    $settings = Read-PegasusLocalSettingsFile -Path $good
+    if ($settings.Count -ne 9) { throw "Expected 9 parsed settings; got $($settings.Count)." }
+    if ($settings['Box__ConfigJson'] -cne '{"boxAppSettings":{"clientID":"a=b"},"enterpriseID":"1"}' -or
+        $settings['Dvla__ApiKey'] -cne 'key=with=equals') {
+        throw 'The first = must split a settings line and the rest is the verbatim value.'
+    }
+    $flags = Get-PegasusLiveIntegrationFlags -Settings $settings
+    if (-not $flags.vehicleLookup -or -not $flags.boxCustody -or $flags.glass -or $flags.passwordSignIn -or
+        $flags.automationMcp -or $flags.principalApi -or $flags.problemReports) {
+        throw 'Flag derivation does not follow the Features__ names (case-insensitive true, token presence).'
+    }
+    if ((Format-PegasusLiveIntegrationFlags -Flags $flags) -cne 'vehicleLookup,boxCustody') {
+        throw "Unexpected flag summary '$(Format-PegasusLiveIntegrationFlags -Flags $flags)'."
+    }
+    if ((Format-PegasusLiveIntegrationFlags -Flags ([pscustomobject]$flags)) -cne 'vehicleLookup,boxCustody') {
+        throw 'The flag summary must read a manifest-shaped (PSCustomObject) flag set too.'
+    }
+    $web = Split-PegasusLocalSettings -Settings $settings -HostKind Web
+    $worker = Split-PegasusLocalSettings -Settings $settings -HostKind Worker
+    if ($web.Contains('Dvla__ApiKey') -or -not $web.Contains('Glass__RepairProfileId') -or
+        -not $web.Contains('DevelopmentOffline__AdministratorPassword') -or -not $web.Contains('Box__ConfigJson')) {
+        throw 'The Web split must carry Features, Box, Glass, GitHub, DevelopmentOffline and AutomationMcp keys only.'
+    }
+    if ($worker.Contains('Glass__RepairProfileId') -or $worker.Contains('DevelopmentOffline__AdministratorPassword') -or
+        -not $worker.Contains('Dvla__ApiKey') -or -not $worker.Contains('Box__ConfigJson') -or -not $worker.Contains('Features__LiveVehicleLookup')) {
+        throw 'The Worker split must carry Features, Box, Dvla and Dvsa keys only.'
+    }
+
+    Assert-SettingsRejected -Case 'unknown prefix' -ExpectedError 'not a recognised Web or Worker setting prefix' -Path (
+        Write-SettingsFixture -Name 'unknown.env' -Lines @('Eva__ClientId=x'))
+    Assert-SettingsRejected -Case 'reserved key' -ExpectedError 'owned by the run lifecycle' -Path (
+        Write-SettingsFixture -Name 'reserved.env' -Lines @('Glass__CallbackBaseUri=https://example.test/'))
+    Assert-SettingsRejected -Case 'reserved local custody key' -ExpectedError 'owned by the run lifecycle' -Path (
+        Write-SettingsFixture -Name 'reserved2.env' -Lines @('Features__LocalDocumentCustody=true'))
+    Assert-SettingsRejected -Case 'duplicate key' -ExpectedError 'set more than once' -Path (
+        Write-SettingsFixture -Name 'dup.env' -Lines @('Features__LiveGlass=true', 'Features__LiveGlass=false'))
+    Assert-SettingsRejected -Case 'not KEY=VALUE' -ExpectedError 'is not KEY=VALUE' -Path (
+        Write-SettingsFixture -Name 'bare.env' -Lines @('Features__LiveGlass'))
+    Assert-SettingsRejected -Case 'invalid key' -ExpectedError 'has an invalid key' -Path (
+        Write-SettingsFixture -Name 'badkey.env' -Lines @('Features:LiveGlass=true'))
+    if ($IsLinux) {
+        Assert-SettingsRejected -Case 'group-readable file' -ExpectedError 'readable only by its owner' -Path (
+            Write-SettingsFixture -Name 'shared.env' -Lines @('Features__LiveGlass=true') -Shared)
+    }
+    Write-Output 'Local live-integration settings contract passed.'
+}
+finally {
+    Remove-Item -LiteralPath $settingsRoot -Recurse -Force
 }
 
 if (-not $IsWindows) {

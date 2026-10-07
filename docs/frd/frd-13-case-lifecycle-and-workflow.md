@@ -8,8 +8,8 @@
   `Query` is a return trip from Completed. `Held` is a pause.
 - Not ready becomes Review by itself when every required instruction item
   and image is present. Nobody ticks a "reviewed" box.
-- **Assign Engineer** is the only way from Review to With Engineer. Sending
-  work to EVA never moves a Case.
+- **Assign Engineer** is the only way from Review to With Engineer. The Case
+  export never moves a Case.
 - **Mark report sent** needs a real Sent email item. **Mark completed** can be
   undone. A Case is never permanently closed.
 - **Close case** records a cancellation or a rejection with a reason.
@@ -55,7 +55,9 @@ returned to work with a reason. No Case is ever shown as "Closed".
 Every state change and disposition is a Core transition. It records who did
 it, when, why, the state before and after, and any evidence, permanently.
 Screens, the Worker, APIs and MCP tools all call the same Core use cases;
-none of them has its own version of the rules.
+none of them has its own version of the rules. The Automation Actor takes the
+Case's Actions-menu lifecycle acts as staff do
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#case-lifecycle)).
 
 ### Readiness and Review
 
@@ -119,11 +121,11 @@ to its already-assigned eligible staff member; it is not a second screen step.
 Replaying the same request does not hand off twice. A request that is
 incomplete, stale or unauthorised changes nothing.
 
-This is the only route out of Review. EVA work is optional in Review or With
-Engineer and follows the Principal's report-generation policy
-([FRD-07](frd-07-eva-and-external-engineering-handoff.md)). Sending to EVA,
-by ZIP or by API, never changes the Case state and never proves that EVA
-received or assigned anything.
+This is the only route out of Review. The handoff records the Case's
+`First sent to Engineer` the first time it enters With Engineer; the Work
+Centre counts it ([FRD-15](frd-15-work-centre-queues-and-search.md)). The
+Case export ([FRD-07](frd-07-case-export.md)) is available in every state,
+never changes the Case state and records no handoff.
 
 ### Actions
 
@@ -135,9 +137,11 @@ received or assigned anything.
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
   viewed. Staff with `PerformCasework` may edit them in Not ready, Review and
   With Engineer under the normal edit authority. They are read-only in Held
-  and Completed. Only staff record the Engineer's Value.
-- **Report approval** names one immutable report file and the staff member
-  who approved it.
+  and Completed. Staff and the Automation Actor record the Engineer's Value
+  ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#assessment-writes)).
+- **Report approval** names one immutable report file and who approved it:
+  a staff member or the Automation actor
+  ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#reports)).
 - **Mark report sent** needs exact retained Sent evidence
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
   A generated file, an export, a draft, a queue result or a manual statement
@@ -280,7 +284,10 @@ date. Held keeps the remaining interval, and release to Not ready resumes it.
 Review, accepted material arriving, completion, or a cancellation or
 rejection stops the chase schedule.
 
-**Chasing is manual.** A staff member sends each chaser. Pegasus records what
+**Chasing is manual.** A staff member, or the Automation Actor through
+`pegasus_mail_send`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)), sends each
+chaser. Pegasus records what
 was attempted, by whom, through which channel, to which party and address,
 when, and with what evidence. A recorded chase is not proof that it was
 delivered. Each chaser keeps its recipient, channel, prepared draft or draft
@@ -293,8 +300,8 @@ the Case's recorded addresses, and staff send it
 ([FRD-16](frd-16-case-record-workspace.md#actions-menu)). When that send's
 exact Sent evidence is observed and the Case is Not ready with a chase
 scheduled, Pegasus records the chase itself — channel E-mail, the addresses
-sent to, outcome Sent, at the provider's sent time, by the staff member who
-sent it — and schedules the next chase at the interval; in any other state
+sent to, outcome Sent, at the provider's sent time, by the staff member or
+the Automation Actor who sent it — and schedules the next chase at the interval; in any other state
 the Sent item is correspondence evidence and no chase is recorded (operator,
 5 October 2026). Submitted is not Sent: nothing is recorded until the
 evidence exists.
@@ -323,7 +330,7 @@ historical instructions inside a message are ignored. Only an incoming
 instruction creates intake work.
 
 A cancellation that has been retained and associated with a reason may
-support a staff action on a pre-report Case: place it on Hold with the
+support a staff or Automation Actor action on a pre-report Case: place it on Hold with the
 cancellation as the reason, confirm `Principal cancelled`, or release it.
 Release needs the message recategorised, unlinked or reassociated first. Every
 original and corrected classification, with actor, time, reason and evidence,
@@ -333,7 +340,8 @@ While a linked message's current classification is a cancellation and the
 Case is open, the Case page's Next action names it, **Cancellation received**,
 with **Open message**, and the Case's Engineer is told through the bell
 ([FRD-12](frd-12-operator-experience.md#the-shell)). Correcting the message
-away clears the row. The Case's state still changes only by a staff action.
+away clears the row. The Case's state still changes only by a staff or
+Automation Actor action.
 
 ## States and transitions
 
@@ -362,7 +370,8 @@ away clears the row. The Case's state still changes only by a staff action.
 - Close case with an unknown outcome is refused.
 - A second archive on an archived Case is refused.
 - A chase already calculated keeps its date when the interval changes.
-- A cancellation message never changes state without a staff action.
+- A cancellation message never changes state without a staff or Automation
+  Actor action.
 - Create audit on a Held, closed or archived Case, without an assigned
   Engineer, or a second time, is refused; the listed item is greyed out and
   states the refusal on hover.
@@ -387,7 +396,7 @@ acceptance are separate evidence tiers
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-22](frd-22-pre-case-gates-matching-and-association.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-07](frd-07-case-export.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-16](frd-16-case-record-workspace.md),
@@ -395,5 +404,5 @@ acceptance are separate evidence tiers
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 - Technical constraints:
   [ADR-0020](../adr/0020-accepted-qdos-case-association-predicates.md),
-  [ADR-0048](../adr/0048-principal-report-generation-policies.md),
+  [ADR-0065](../adr/0065-case-export-replaces-eva-routes.md),
   [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md).

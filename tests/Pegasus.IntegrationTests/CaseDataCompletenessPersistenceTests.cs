@@ -424,139 +424,12 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.NotNull(retainedAddress);
         Assert.Equal(InspectionAddressResolutionState.Corrected, retainedAddress.State);
         Assert.Equal("2 Corrected Street, London", retainedAddress.ResolvedValue);
-        Assert.Equal(Guid.Parse(harness.StaffActor.SubjectId), retainedAddress.ResolvedByStaffId);
+        Assert.Equal(ActorKind.Staff, retainedAddress.ResolvedByKind);
+        Assert.Equal(harness.StaffActor.SubjectId, retainedAddress.ResolvedBy);
         Assert.NotNull(retainedAddress.ResolvedAtUtc);
         var extractedAddress = Assert.Single(retainedAddress.Evaluation.Suggestion!.Provenance);
         Assert.Equal("qdos_instruction", extractedAddress.PolicyKey);
         Assert.Equal(1, extractedAddress.PolicyVersion);
-    }
-
-    [Fact]
-    public async Task SaveUsesVersionLeaseReplayAndImmutableHistory()
-    {
-        await using var harness = await CaseDataHarness.CreateAsync();
-        var initial = await harness.GetRequiredDataAsync();
-        Assert.Equal(0, initial.Version);
-        Assert.Equal(41, await harness.HiddenCaseVersionAsync());
-        var saveLease = await harness.AcquireLeaseAsync(
-            initial.Version,
-            harness.StaffActor,
-            "lease-save");
-        var save = new SaveCaseRequest(
-            harness.CaseId,
-            initial.Version,
-            harness.StaffActor,
-            "save-case-1",
-            "Confirmed the reviewed case values",
-            saveLease.Token,
-            new(
-                ClaimantName: "Jane Example",
-                ClaimNumber: "QDOS-123",
-                VehicleRegistration: "AB12 CDE",
-                InspectionDeadline: new DateOnly(2031, 5, 20),
-                InspectionAddress: "1 Test Street, London",
-                InspectionMode: CaseInspectionMode.PhysicalAddress));
-
-        var saved = await harness.SaveCase.ExecuteAsync(save, CancellationToken.None);
-        var replayedSave = await harness.SaveCase.ExecuteAsync(save, CancellationToken.None);
-
-        Assert.Equal(1, saved.Version);
-        // The legacy SaveCase demotes the case as a side effect of editing any
-        // fact. The Case workspace save does not: it re-evaluates readiness
-        // from the row it just wrote
-        // (CaseWorkspacePersistenceTests.ASaveDoesNotDemoteCompletenessAsASideEffect).
-        // This assertion is retained deliberately, because SaveCase's own
-        // behaviour is unchanged by the cursor queries.
-        Assert.Equal(CaseLifecycleState.NotReady, saved.State);
-        Assert.False(saved.Completeness.Values.InstructionComplete);
-        Assert.Equal(saved, replayedSave);
-        Assert.Equal("Jane Example", saved.Claimant.Name.Fact?.Value);
-        Assert.Equal(initial.Claimant.Name.Fact, saved.Claimant.Name.Fact);
-        Assert.Null(saved.Claimant.Name.Confirmed);
-        Assert.Equal("AB12CDE", saved.Vehicle.Registration.Fact?.Value);
-        Assert.Equal(initial.Vehicle.Registration.Fact, saved.Vehicle.Registration.Fact);
-        Assert.Null(saved.Vehicle.Registration.Confirmed);
-        Assert.Equal(initial.Identity, saved.Identity);
-        Assert.Equal(initial.Origin, saved.Origin);
-        Assert.Equal(1, await harness.HistoryCountAsync());
-        Assert.Equal(41, await harness.HiddenCaseVersionAsync());
-
-        // The save ended the lease it was made under, so the page's old
-        // version comes with a token that is no longer held.
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => harness.SaveCase.ExecuteAsync(
-            save with
-            {
-                ExpectedVersion = initial.Version,
-                OperationKey = "save-stale-version",
-                Data = save.Data with { ClaimantName = "Stale overwrite" }
-            },
-            CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task MissingWrongHolderWrongTokenAndExpiredLeasesNeverOverwrite()
-    {
-        await using var harness = await CaseDataHarness.CreateAsync();
-        var initial = await harness.GetRequiredDataAsync();
-        var lease = await harness.AcquireLeaseAsync(
-            initial.Version,
-            harness.StaffActor,
-            "lease-denial-matrix");
-        var changed = new CaseEditableData(ClaimantName: "Changed claimant");
-
-        await Assert.ThrowsAsync<ArgumentException>(() => harness.SaveCase.ExecuteAsync(
-            new(
-                harness.CaseId,
-                initial.Version,
-                harness.StaffActor,
-                "save-missing-lease",
-                "Missing lease denial",
-                " ",
-                changed),
-            CancellationToken.None));
-        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => harness.SaveCase.ExecuteAsync(
-            new(
-                harness.CaseId,
-                initial.Version,
-                harness.StaffActor,
-                "save-wrong-token",
-                "Wrong token denial",
-                "not-the-issued-token",
-                changed),
-            CancellationToken.None));
-
-        var otherStaff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => harness.SaveCase.ExecuteAsync(
-            new(
-                harness.CaseId,
-                initial.Version,
-                otherStaff,
-                "save-wrong-holder",
-                "Wrong holder denial",
-                lease.Token,
-                changed),
-            CancellationToken.None));
-
-        // A lapsed lease carries on only while nobody claims the Case; once a
-        // colleague has it, the lapsed token is no authority.
-        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
-        await harness.AcquireLeaseAsync(initial.Version, otherStaff, "lease-after-lapse");
-        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => harness.SaveCase.ExecuteAsync(
-            new(
-                harness.CaseId,
-                initial.Version,
-                harness.StaffActor,
-                "save-expired-lease",
-                "Expired lease denial",
-                lease.Token,
-                changed),
-            CancellationToken.None));
-
-        var after = await harness.GetRequiredDataAsync();
-        Assert.Equal(initial.Version, after.Version);
-        Assert.Equal("Jane Example", after.Claimant.Name.Fact?.Value);
-        Assert.Null(after.Claimant.Name.Confirmed);
-        Assert.Equal(0, await harness.HistoryCountAsync());
     }
 
     /// <summary>
@@ -582,7 +455,6 @@ public sealed class CaseDataCompletenessPersistenceTests
             ActionActor staffActor,
             InspectionAddressResolutionStore addressStore,
             EfCaseDataStore dataStore,
-            SaveCase saveCase,
             AcquireCaseEditLease acquireLease,
             EfCaseWorkflowStore workflowStore,
             EfCaseWorkspaceStore workspaceStore)
@@ -599,7 +471,6 @@ public sealed class CaseDataCompletenessPersistenceTests
             StaffActor = staffActor;
             AddressStore = addressStore;
             DataStore = dataStore;
-            SaveCase = saveCase;
             this.acquireLease = acquireLease;
         }
 
@@ -613,7 +484,6 @@ public sealed class CaseDataCompletenessPersistenceTests
         public ActionActor StaffActor { get; }
         public InspectionAddressResolutionStore AddressStore { get; }
         public EfCaseDataStore DataStore { get; }
-        public SaveCase SaveCase { get; }
 
         public static async Task<CaseDataHarness> CreateAsync(
             InspectionAddressStaffDecision addressDecision =
@@ -680,7 +550,7 @@ public sealed class CaseDataCompletenessPersistenceTests
 
 
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
-                var dataStore = new EfCaseDataStore(factory, timeProvider);
+                var dataStore = new EfCaseDataStore(factory);
                 return new(
                     database,
                     factory,
@@ -691,7 +561,6 @@ public sealed class CaseDataCompletenessPersistenceTests
                     staffActor,
                     addressStore,
                     dataStore,
-                    new SaveCase(dataStore),
                     new AcquireCaseEditLease(workflowStore),
                     workflowStore,
                     new EfCaseWorkspaceStore(factory, timeProvider));

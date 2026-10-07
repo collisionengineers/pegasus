@@ -39,7 +39,7 @@ public static class CaseEditAuthority
     /// — a second tab, or a return from another case — resumes the live lease as it stands: the
     /// same token, no rotation and no takeover history. Take over is only ever a colleague's
     /// action. The Automation Actor never resumes: each of its sessions claims, and fails closed
-    /// while any lease is live.
+    /// while any lease is live unless it asks to take that lease over.
     /// </summary>
     public static bool CanResume(
         ActorKind? retainedLeaseHolderKind,
@@ -54,11 +54,16 @@ public static class CaseEditAuthority
             && IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor);
     }
 
-    /// <summary>A colleague takeover is a staff action on a staff-held lease.</summary>
+    /// <summary>
+    /// A takeover is a casework action on a staff-held lease: a colleague's, or the Automation
+    /// Actor's, which may do anything a staff member can (operator, 7 October 2026). The Automation
+    /// Actor's own lease is never taken over; it lapses within minutes.
+    /// </summary>
     public static bool CanTakeOver(ActorKind? retainedLeaseHolderKind, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        return retainedLeaseHolderKind == ActorKind.Staff && actor.Kind == ActorKind.Staff;
+        return retainedLeaseHolderKind == ActorKind.Staff
+            && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework);
     }
 
     public static void RequireVersion(Guid caseId, long caseVersion, long expectedVersion)
@@ -105,9 +110,9 @@ public static class CaseEditAuthority
     /// Refuses a mutation that does not present the lease its actor holds. The caller has
     /// already compared the presented token against the retained hash in fixed time;
     /// <paramref name="presentedTokenMatchesRetainedHash"/> is false when it does not match or when
-    /// the retained hash cannot be read, so an unprovable token fails closed. A staff holder whose
-    /// lease lapsed but whose token still matches carries on: nobody claimed the Case since, and the
-    /// caller extends the lease again. The Automation Actor's lease ends at its expiry.
+    /// the retained hash cannot be read, so an unprovable token fails closed. A holder whose lease
+    /// lapsed but whose token still matches carries on, staff or the Automation Actor alike: nobody
+    /// claimed the Case since, and the caller extends the lease again.
     /// </summary>
     public static void RequireLease(
         Guid caseId,
@@ -140,7 +145,7 @@ public static class CaseEditAuthority
             return;
         }
 
-        if (actor.Kind != ActorKind.Staff || !isHolder || !presentedTokenMatchesRetainedHash)
+        if (!isHolder || !presentedTokenMatchesRetainedHash)
         {
             throw new CaseEditLeaseExpiredException(caseId, caseVersion);
         }
@@ -148,7 +153,7 @@ public static class CaseEditAuthority
 
     /// <summary>
     /// A heartbeat answers to the same rule as a write: it extends the holder's lease, and picks
-    /// up a staff holder's lapsed lease that nobody claimed since.
+    /// up a holder's lapsed lease that nobody claimed since.
     /// </summary>
     public static void RequireHeartbeat(
         Guid caseId,

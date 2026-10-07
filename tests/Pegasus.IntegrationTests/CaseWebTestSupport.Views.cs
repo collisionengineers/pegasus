@@ -1,5 +1,6 @@
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
@@ -25,6 +26,9 @@ internal static partial class CaseWebTestSupport
         public CaseCustodyState? AuditCustodyState { get; set; }
 
         public string? AuditCustodyFolderRemoteId { get; set; }
+
+        /// <summary>The Triage Cases linked to the Case, as the page frame reports them.</summary>
+        public IReadOnlyList<CaseLinkedTriage> LinkedTriage { get; set; } = [];
 
         public List<GetCaseSectionQuery> PageFrameQueries { get; } = [];
 

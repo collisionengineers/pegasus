@@ -58,14 +58,10 @@ public static class RetainedMailDismissalPolicy
 {
     public const int MaximumOperationKeyLength = 100;
 
-    public static string RequireStaff(ActionActor actor, Guid messageId, string operationKey)
+    public static string RequireCasework(ActionActor actor, Guid messageId, string operationKey)
     {
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (actor.Kind != ActorKind.Staff)
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
-        }
 
         if (messageId == Guid.Empty)
         {
@@ -91,7 +87,7 @@ public sealed class DismissRetainedMail(IRetainedMailDismissalStore store) : IDi
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var key = RetainedMailDismissalPolicy.RequireStaff(request.Actor, request.MessageId, request.OperationKey);
+        var key = RetainedMailDismissalPolicy.RequireCasework(request.Actor, request.MessageId, request.OperationKey);
         return _store.DismissAsync(request with { OperationKey = key }, cancellationToken);
     }
 }
@@ -105,7 +101,7 @@ public sealed class RestoreRetainedMail(IRetainedMailDismissalStore store) : IRe
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var key = RetainedMailDismissalPolicy.RequireStaff(request.Actor, request.MessageId, request.OperationKey);
+        var key = RetainedMailDismissalPolicy.RequireCasework(request.Actor, request.MessageId, request.OperationKey);
         return _store.RestoreAsync(request with { OperationKey = key }, cancellationToken);
     }
 }

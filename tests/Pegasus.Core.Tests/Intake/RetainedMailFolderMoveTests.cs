@@ -56,17 +56,32 @@ public sealed class RetainedMailFolderMoveTests
         Assert.Null(store.Request);
     }
 
+    /// <summary>
+    /// A confirmed folder move is casework the Automation Actor performs as
+    /// staff do (ADR-0064); a system worker or Principal does not.
+    /// </summary>
     [Fact]
-    public async Task AutomationCannotMoveMail()
+    public async Task TheAutomationActorMovesMailAndOtherActorsCannot()
     {
         var store = new RecordingStore();
+        var useCase = new MoveRetainedMailFolder(store);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new MoveRetainedMailFolder(store).ExecuteAsync(
-                ActionActor.Automation("mail-agent"),
+            useCase.ExecuteAsync(
+                ActionActor.SystemWorker("mail-worker"),
                 new(Guid.NewGuid(), 1, "policy", 1, 1, Guid.NewGuid().ToString("D"), "reason")));
-
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            useCase.ExecuteAsync(
+                ActionActor.Principal(Guid.NewGuid()),
+                new(Guid.NewGuid(), 1, "policy", 1, 1, Guid.NewGuid().ToString("D"), "reason")));
         Assert.Null(store.Request);
+
+        var result = await useCase.ExecuteAsync(
+            ActionActor.Automation("mail-agent"),
+            new(Guid.NewGuid(), 1, "policy", 1, 1, Guid.NewGuid().ToString("D"), "reason"));
+
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, result!.Outcome);
+        Assert.NotNull(store.Request);
     }
 
     private sealed class RecordingStore : IRetainedMailFolderMoveStore

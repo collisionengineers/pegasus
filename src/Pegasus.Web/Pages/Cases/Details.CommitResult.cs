@@ -73,7 +73,7 @@ public sealed partial class DetailsModel
     /// Loads only what <c>_CaseCommitResult</c> draws: the frame, with the
     /// access answer its workflow gives, and the workspace; the lease; the
     /// viewed work's report readiness and current generation, which the aside's
-    /// Next action reads; the assigned Engineer, the EVA handoff and the lease holder,
+    /// Next action reads; the assigned Engineer, the Engineer choices and the lease holder,
     /// which the ribbon and the dialogs read; the AI drafts; the calculation
     /// the valuation calculator now opens on; and, when the commit recorded
     /// staged crops or rotations, Files.
@@ -190,7 +190,7 @@ public sealed partial class DetailsModel
             var workspaceExtras = await extras;
             EngineerDisplayName = workspaceExtras.EngineerDisplayName;
             SignOffEngineerDisplayName = workspaceExtras.SignOffEngineerDisplayName;
-            EvaHandoff = workspaceExtras.EvaHandoff;
+            AssignEngineerChoices = workspaceExtras.AssignEngineerChoices;
             AvailableClosureOutcomes = DescribeClosureOutcomes(Case.Workflow, actor);
         }
 

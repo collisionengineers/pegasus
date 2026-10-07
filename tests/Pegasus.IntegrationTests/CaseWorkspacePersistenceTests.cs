@@ -659,26 +659,21 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     [Fact]
-    public async Task DirectCaseDataSaveStalesOnlyForAPrintedFactChange()
+    public async Task ACaseFactSaveStalesOnlyForAPrintedFactChange()
     {
         await using var harness = await Harness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
         var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
-        var current = await ReadEditableCaseDataAsync(harness);
         var noteLease = await harness.AcquireLeaseAsync(
             initial.Version,
             harness.StaffActor,
             "direct-case-data-note-lease");
 
-        var noted = await harness.DataStore.SaveAsync(
-            new(
-                harness.CaseId,
-                initial.Version,
-                harness.StaffActor,
-                "direct-case-data-note-save",
-                "Recorded an unprinted client note.",
-                noteLease.Token,
-                current with { ClientNotes = "Photos will follow." }),
+        var noted = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, noteLease.Token, "direct-case-data-note-save") with
+            {
+                Overview = Overview("Jane Example") with { ClientNotes = "Photos will follow." },
+            },
             CancellationToken.None);
 
         await AssertGenerationStateAsync(
@@ -691,19 +686,11 @@ public sealed class CaseWorkspacePersistenceTests
             noted.Version,
             harness.StaffActor,
             "direct-case-data-claimant-lease");
-        await harness.DataStore.SaveAsync(
-            new(
-                harness.CaseId,
-                noted.Version,
-                harness.StaffActor,
-                "direct-case-data-claimant-save",
-                "Corrected the printed claimant name.",
-                claimantLease.Token,
-                current with
-                {
-                    ClaimantName = "Janet Example",
-                    ClientNotes = "Photos will follow.",
-                }),
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, noted.Version, claimantLease.Token, "direct-case-data-claimant-save") with
+            {
+                Overview = Overview("Janet Example") with { ClientNotes = "Photos will follow." },
+            },
             CancellationToken.None);
 
         await AssertGenerationStateAsync(
@@ -792,10 +779,9 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ASaveDoesNotDemoteCompletenessAsASideEffect()
     {
-        // The legacy SaveCase forces Instruction complete to false whenever any
-        // case fact changes. The Case workspace save evaluates readiness from
-        // the row it just wrote instead, so editing an unrelated fact cannot
-        // silently take a Review case back to Not ready.
+        // The Case save evaluates readiness from the row it just wrote, so
+        // editing an unrelated fact cannot silently take a Review case back to
+        // Not ready.
         await using var harness = await Harness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(

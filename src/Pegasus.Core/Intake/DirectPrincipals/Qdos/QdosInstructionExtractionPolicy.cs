@@ -32,7 +32,9 @@ public sealed partial class QdosInstructionExtractionPolicy
     // v11 reads no instruction date: the letter's own date row is a label
     // boundary only, because the Case's Received date is its instruction
     // date (operator, 24 September 2026).
-    public const int Version = 11;
+    // v12 reads a claimant only where the value starts as a name: prose and
+    // the synthesized address row no longer compete with it (7 October 2026).
+    public const int Version = 12;
     public const string SupportedPrincipalCode = "QDOS";
 
     public string PrincipalCode => SupportedPrincipalCode;
@@ -106,6 +108,7 @@ public sealed partial class QdosInstructionExtractionPolicy
     private static readonly InstructionFieldEngine.FieldDefinition[] BareFieldDefinitions =
     [
         new("Claimant name", ["Claimant Name", "Claimant", "Our Client", "Client Name"],
+            AcceptsValue: IsPlausibleClaimantName,
             PartyRole: ClaimantRole),
         new(
             "Claim number",
@@ -867,6 +870,16 @@ public sealed partial class QdosInstructionExtractionPolicy
 
     [GeneratedRegex(@"(?i)^\s*(?:vehicle details)\s*$", RegexOptions.CultureInvariant, 100)]
     private static partial Regex ColumnHeadingRegex();
+
+    /// <summary>
+    /// A claimant is printed as a name, so it starts with a capital letter.
+    /// The letters' prose ("Our client was stationary…") and the synthesized
+    /// "Claimant address: …" row reach the claimant labels as lower-case
+    /// continuations; read as names they tie with the real one in a single
+    /// email fragment and leave the field unresolved (t.QDOS26079).
+    /// </summary>
+    private static bool IsPlausibleClaimantName(string value) =>
+        value.Length > 0 && char.IsUpper(value[0]);
 
     private static bool IsDefinitionLabelledRow(string line) => FieldDefinitions
         .SelectMany(definition => definition.Labels)

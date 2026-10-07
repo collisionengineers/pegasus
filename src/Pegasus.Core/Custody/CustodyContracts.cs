@@ -423,10 +423,7 @@ public sealed class RetryCaseCustody(ICustodyRecoveryPersistence persistence) : 
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Actor.Kind != ActorKind.Staff)
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
-        }
+        // Staff and the Automation Actor both perform casework (ADR-0064).
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         if (request.CaseId == Guid.Empty || request.ExpectedCaseVersion < 0)
         {

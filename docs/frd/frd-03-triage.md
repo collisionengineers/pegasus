@@ -97,8 +97,9 @@ Sending a message is not required. An acknowledgement, a request for
 information, a draft, a queue action or other correspondence may be kept, but
 none of them is a finding or completion evidence.
 
-**History and notes.** `History` shows the record's events and staff notes
-in one chronological order. Notes are append-only. Each carries its author,
+**History and notes.** `History` shows the record's events and notes in one
+chronological order. Staff and the Automation Actor add notes
+(`pegasus_triage_note_add`). Notes are append-only. Each carries its author,
 time and text. A correction is a new note; notes cannot be edited or deleted
 on any screen or through any caller. A Triage Case keeps these notes; Case
 Notes do not apply to it.
@@ -160,7 +161,9 @@ finding into an instruction for a later Case.
 **Assignee.** A Triage may have an assignee. One **Assign** control
 chooses, changes or removes the assignee. It is an ordinary edit available
 to every enabled staff role, including self-assignment where the existing
-state and edit-scope rules allow it. Neither assigning nor unassigning needs
+state and edit-scope rules allow it, and to the Automation Actor
+(`pegasus_triage_assign`), which names an enabled member of staff and never
+itself. Neither assigning nor unassigning needs
 a reason; history records the assignment, actor and time. Findings,
 cancellation, reopening and Case-association decisions keep their required
 reasons.
@@ -173,7 +176,9 @@ appears in Needs attention until then
 ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Staff may
 send a **chaser** from the composer: a reply to the Triage's origin message
 from its approved mailbox, offered when the Triage came by e-mail and that
-mailbox may send.
+mailbox may send. The Automation Actor sends the chaser, and the reply with
+finding, with `pegasus_mail_send` `triage_reply`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).
 The chaser is manual, never automatic and never a completion gate. Its exact
 Sent evidence is recorded under the normal rules
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
@@ -213,6 +218,21 @@ one SystemWorker link in both Triage and Case history. It keeps the Triage
 Case/PO, findings and state, and allocates nothing. Recovery never reverses a
 deliberate staff unlink or reassignment. Manual linking keeps its staff
 authority, reason and current Case edit lease.
+
+#### Triage findings on the linked Case
+
+A Triage's finding fills the linked Case's Roadworthiness and repair outcome
+once (operator, 7 October 2026). The fill happens when a Triage is linked with
+a finding, automatically or by staff, or when a linked Triage records its first
+finding. Each value fills only a cell the Case's current work holds nothing
+in, and never one on a closed or archived Case. It reads the source tag
+`Triage`. A superseding finding, a later link and an unlink change nothing on
+the Case. The fill is system work: an editor keeps their session and a Save
+prepared before it keeps the filled values.
+
+The Case page's aside lists every linked Triage Case in a **Linked cases**
+card: its `t.` Case/PO as a link, its state and its current finding
+([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
 
 ## States and transitions
 

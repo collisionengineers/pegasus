@@ -48,6 +48,8 @@ public static class CaseWorkspaceLabels
         public const string InspectionView = "Inspection";
         public const string AuditView = "Audit";
         public const string Sent = "Sent";
+        /// <summary>The aside card listing the Triage Cases linked to this Case (operator, 7 October 2026).</summary>
+        public const string LinkedCases = "Linked cases";
         /// <summary>The Create audit dialog's facts (v29 P5).</summary>
         public const string AuditDialogCase = "Case";
         public const string AuditReference = "Audit reference";
@@ -72,6 +74,7 @@ public static class CaseWorkspaceLabels
         public const string CorrectPrincipal = "Correct principal";
         public const string CreateAudit = "Create audit";
         public const string MarkReportSent = "Mark report sent";
+        public const string ExportCase = "Export case";
         public const string MarkCompleted = "Mark completed";
         public const string ReturnToReview = "Return to Review";
         public const string ReturnToEngineer = "Return to Engineer";
@@ -1127,6 +1130,12 @@ public static class CaseWorkspaceLabels
 
         public const string ResumeRefused =
             "The Glass's session was not resumed. Retry the operation.";
+
+        /// <summary>
+        /// This Pegasus does not reach Glass's: a command that still arrives is
+        /// refused with this, and the Estimate section offers no control.
+        /// </summary>
+        public const string Unavailable = "Glass's is not available.";
 
         /// <summary>
         /// A launch or a resume found the Case changed since the page

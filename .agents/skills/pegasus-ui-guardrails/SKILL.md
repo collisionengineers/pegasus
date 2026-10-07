@@ -243,7 +243,7 @@ request that touches the area:
 - utility bar model, or bringing back a working-set strip;
 - Case ribbon, section-row or section ordering;
 - Scroll/Tabs default behaviour;
-- Views card, Figures and Next action aside model;
+- Views card, Linked cases card, Figures and Next action aside model;
 - established ownership of a fact/action between Case sections;
 - table-to-card or card-to-table presentation family;
 - action hierarchy/placement;

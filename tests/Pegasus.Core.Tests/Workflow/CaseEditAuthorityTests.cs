@@ -24,30 +24,59 @@ public sealed class CaseEditAuthorityTests
     }
 
     /// <summary>
-    /// Editing never expires while the page is open (operator, 6 October 2026): a staff holder
-    /// whose lease lapsed while nobody claimed the Case still presents the retained token, and
-    /// carries on. The Automation Actor's lease ends at its expiry, and a token that no longer
+    /// Editing never expires while the page is open (operator, 6 October 2026): a holder whose
+    /// lease lapsed while nobody claimed the Case still presents the retained token, and carries
+    /// on, staff or the Automation Actor alike (operator, 7 October 2026). A token that no longer
     /// matches (a colleague claimed the lapsed Case) has no edit authority.
     /// </summary>
     [Fact]
-    public void AStaffHoldersLapsedLeaseNobodyClaimedCarriesOn()
+    public void AHoldersLapsedLeaseNobodyClaimedCarriesOn()
     {
         Require(leaseExpiresAtUtc: Now);
         Require(leaseExpiresAtUtc: Now.AddDays(-1));
 
         var automation = ActionActor.Automation("pegasus-automation");
+        Require(
+            actor: automation,
+            retainedLeaseHolderKind: ActorKind.Automation,
+            retainedLeaseHolder: automation.SubjectId,
+            leaseExpiresAtUtc: Now);
+
         var expired = Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            Require(leaseExpiresAtUtc: Now, presentedTokenMatchesRetainedHash: false));
+        Assert.Equal(CaseId, expired.CaseId);
+        Assert.Equal(4, expired.CaseVersion);
+        Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            Require(leaseExpiresAtUtc: Now, retainedLeaseHolder: Guid.NewGuid().ToString("D")));
+        Assert.Throws<CaseEditLeaseExpiredException>(() =>
             Require(
                 actor: automation,
                 retainedLeaseHolderKind: ActorKind.Automation,
                 retainedLeaseHolder: automation.SubjectId,
-                leaseExpiresAtUtc: Now));
-        Assert.Equal(CaseId, expired.CaseId);
-        Assert.Equal(4, expired.CaseVersion);
-        Assert.Throws<CaseEditLeaseExpiredException>(() =>
-            Require(leaseExpiresAtUtc: Now, presentedTokenMatchesRetainedHash: false));
-        Assert.Throws<CaseEditLeaseExpiredException>(() =>
-            Require(leaseExpiresAtUtc: Now, retainedLeaseHolder: Guid.NewGuid().ToString("D")));
+                leaseExpiresAtUtc: Now,
+                presentedTokenMatchesRetainedHash: false));
+    }
+
+    /// <summary>
+    /// A takeover is a casework action on a staff-held lease: a colleague's, or the Automation
+    /// Actor's (operator, 7 October 2026). The Automation Actor's own lease is never taken over,
+    /// a lease retained without a kind belongs to nobody, and an actor without the casework right
+    /// takes nothing over.
+    /// </summary>
+    [Fact]
+    public void ACaseworkActorTakesOverOnlyAStaffHeldLease()
+    {
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var automation = ActionActor.Automation("pegasus-automation");
+
+        Assert.True(CaseEditAuthority.CanTakeOver(ActorKind.Staff, colleague));
+        Assert.True(CaseEditAuthority.CanTakeOver(ActorKind.Staff, automation));
+
+        Assert.False(CaseEditAuthority.CanTakeOver(ActorKind.Automation, colleague));
+        Assert.False(CaseEditAuthority.CanTakeOver(ActorKind.Automation, automation));
+        Assert.False(CaseEditAuthority.CanTakeOver(null, colleague));
+        Assert.False(CaseEditAuthority.CanTakeOver(null, automation));
+        Assert.False(CaseEditAuthority.CanTakeOver(ActorKind.Staff, ActionActor.SystemWorker("case-worker")));
     }
 
     /// <summary>

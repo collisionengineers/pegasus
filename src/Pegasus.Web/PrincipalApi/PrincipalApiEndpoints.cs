@@ -1,27 +1,17 @@
 using System.Security.Claims;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Web.PrincipalApi;
 
-internal sealed record PrincipalSubmissionFileResponse(
-    int Ordinal,
-    string FileName,
-    string Sha256,
-    bool Duplicate);
-
 internal sealed record PrincipalSubmissionReceiptResponse(
     Guid SubmissionId,
     DateTimeOffset ReceivedAtUtc,
     string? PrincipalReference,
-    bool Replayed,
-    IReadOnlyList<PrincipalSubmissionFileResponse> Files);
+    bool Replayed);
 
 internal sealed record PrincipalSubmissionResultResponse(
     Guid SubmissionId,
@@ -40,11 +30,6 @@ internal sealed record PrincipalSubmissionResultResponse(
 /// </summary>
 public static class PrincipalApiEndpoints
 {
-    private static readonly JsonSerializerOptions ResponseJson = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter() }
-    };
-
     public static IServiceCollection AddPegasusPrincipalApi(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -58,7 +43,6 @@ public static class PrincipalApiEndpoints
             {
                 policy.AddAuthenticationSchemes(PrincipalApi.AuthenticationScheme);
                 policy.RequireAuthenticatedUser();
-                policy.RequireClaim(PrincipalApi.KeyIdClaim);
             });
         return services;
     }
@@ -91,61 +75,67 @@ public static class PrincipalApiEndpoints
         CancellationToken cancellationToken)
     {
         var credential = PrincipalApiAuthenticationHandler.ReadCredential(user);
-        if (credential is null)
-        {
-            return Problem(StatusCodes.Status401Unauthorized, "The principal credential is missing or not valid.");
-        }
-
         var request = context.Request;
-        if (request.ContentLength > IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength)
-        {
-            return Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit.");
-        }
-        if (!IsJson(request.ContentType))
+        if (!request.HasJsonContentType())
         {
             return Problem(StatusCodes.Status415UnsupportedMediaType, "The submission must be application/json.");
+        }
+        if (!credential.MaySubmit)
+        {
+            await securityEvents.AppendAsync(
+                new SecurityEvent(
+                    Guid.NewGuid(),
+                    SecurityEventType.Client,
+                    SecurityEventOutcome.Denied,
+                    credential.KeyId,
+                    timeProvider.GetUtcNow(),
+                    context.TraceIdentifier,
+                    "principal_credential_paused")
+                    // The credential is authenticated here, so the acting
+                    // Principal is known even though the subject names the
+                    // key that was presented (FRD-09).
+                    .By(ActionActor.Principal(credential.PrincipalId)),
+                cancellationToken);
+            return Problem(StatusCodes.Status403Forbidden, "The principal credential is paused; submissions are refused until it is resumed.");
+        }
+
+        string idempotencyKey;
+        try
+        {
+            idempotencyKey = PrincipalSubmissionPolicy.NormalizeIdempotencyKey(
+                request.Headers[PrincipalApi.IdempotencyKeyHeader].ToString());
+        }
+        catch (ArgumentException exception)
+        {
+            return Problem(StatusCodes.Status400BadRequest, exception.Message);
+        }
+
+        // The body is retained exactly as it arrived, so the case's origin is
+        // the principal's own instruction rather than a rendering of it. It is
+        // read once, bounded, and both parsed and retained from the same bytes.
+        var body = await ReadBodyAsync(request, cancellationToken);
+        if (body is null)
+        {
+            return Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit.");
         }
 
         try
         {
-            PrincipalSubmissionPolicy.RequireMaySubmit(credential);
-
-            // The body is retained exactly as it arrived, so the case's origin is
-            // the principal's own instruction rather than a rendering of it. It is
-            // read once, bounded, and both parsed and retained from the same bytes.
-            var body = await ReadBodyAsync(request, cancellationToken);
-            if (body is null)
-            {
-                return Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit.");
-            }
-
-            var (instruction, files) = PrincipalInstructionJson.Parse(body);
             var receipt = await submit.ExecuteAsync(
-                new(
-                    credential,
-                    request.Headers[PrincipalApi.IdempotencyKeyHeader].ToString(),
-                    instruction,
-                    files,
-                    body,
-                    context.TraceIdentifier),
+                new(credential, idempotencyKey, body, context.TraceIdentifier),
                 cancellationToken);
-            var responseBody = new PrincipalSubmissionReceiptResponse(
-                receipt.SubmissionId,
-                receipt.ReceivedAtUtc,
-                receipt.PrincipalReference,
-                receipt.Replayed,
-                receipt.Files
-                    .Select(file => new PrincipalSubmissionFileResponse(
-                        file.Ordinal, file.FileName, file.Sha256, file.IsDuplicate))
-                    .ToArray());
             if (!receipt.Replayed)
             {
                 context.Response.Headers.Location = $"{PrincipalApi.SubmissionsPath}/{receipt.SubmissionId:D}";
             }
 
             return Results.Json(
-                responseBody,
-                ResponseJson,
+                new PrincipalSubmissionReceiptResponse(
+                    receipt.SubmissionId,
+                    receipt.ReceivedAtUtc,
+                    receipt.PrincipalReference,
+                    receipt.Replayed),
+                PrincipalInstructionJson.Options,
                 statusCode: receipt.Replayed ? StatusCodes.Status200OK : StatusCodes.Status201Created);
         }
         catch (PrincipalInstructionValidationException exception)
@@ -157,57 +147,18 @@ public static class PrincipalApiEndpoints
         }
         catch (PrincipalSubmissionException exception)
         {
-            if (exception.Error is PrincipalSubmissionError.CredentialPaused
-                or PrincipalSubmissionError.PrincipalMismatch)
-            {
-                await securityEvents.AppendAsync(
-                    new SecurityEvent(
-                        Guid.NewGuid(),
-                        SecurityEventType.Client,
-                        SecurityEventOutcome.Denied,
-                        credential.KeyId,
-                        timeProvider.GetUtcNow(),
-                        context.TraceIdentifier,
-                        exception.Error == PrincipalSubmissionError.CredentialPaused
-                            ? "principal_credential_paused"
-                            : "principal_mismatch")
-                        // The credential is authenticated here, so the acting
-                        // Principal is known even though the subject names the
-                        // key that was presented (FRD-09).
-                        .By(ActionActor.Principal(credential.PrincipalId)),
-                    cancellationToken);
-            }
-
             return exception.Error switch
             {
-                PrincipalSubmissionError.CredentialPaused =>
-                    Problem(StatusCodes.Status403Forbidden, "The principal credential is paused; submissions are refused until it is resumed."),
-                PrincipalSubmissionError.PrincipalMismatch =>
-                    Problem(StatusCodes.Status403Forbidden, "The submission names a principal other than the authenticated one."),
                 PrincipalSubmissionError.EnvelopeExceeded =>
                     Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit."),
-                PrincipalSubmissionError.IdempotencyKeyConflict =>
-                    Problem(StatusCodes.Status409Conflict, "The idempotency key was already used with a different submission."),
-                _ => Problem(StatusCodes.Status409Conflict, "The submission conflicted with a concurrent request; retry.")
+                _ => Problem(StatusCodes.Status409Conflict, "The idempotency key was already used with a different submission.")
             };
-        }
-        catch (Exception exception) when (exception is ArgumentException or InvalidDataException)
-        {
-            return Problem(StatusCodes.Status400BadRequest, exception.Message);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Problem(StatusCodes.Status403Forbidden, "The principal credential may not perform this operation.");
         }
         catch (IntakeArtifactRetentionException)
         {
             return Problem(StatusCodes.Status503ServiceUnavailable, "The submission could not be retained; retry with the same idempotency key.");
         }
     }
-
-    private static bool IsJson(string? contentType) =>
-        contentType is not null
-        && contentType.StartsWith(PrincipalInstructionPolicy.SourceMediaType, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The whole body, or null when it runs past the envelope bound. The bound
@@ -219,14 +170,24 @@ public static class PrincipalApiEndpoints
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
         int read;
-        while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
+        try
         {
-            if (buffer.Length + read > IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength)
+            while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
             {
-                return null;
-            }
+                if (buffer.Length + read > IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength)
+                {
+                    return null;
+                }
 
-            await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
+                await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
+            }
+        }
+        catch (BadHttpRequestException exception)
+            when (exception.StatusCode == StatusCodes.Status413PayloadTooLarge)
+        {
+            // The server's own request size limit is the same bound, and it
+            // can stop the read first.
+            return null;
         }
 
         return buffer.ToArray();
@@ -238,13 +199,10 @@ public static class PrincipalApiEndpoints
         IGetPrincipalSubmissionResult getResult,
         CancellationToken cancellationToken)
     {
-        var credential = PrincipalApiAuthenticationHandler.ReadCredential(user);
-        if (credential is null)
-        {
-            return Problem(StatusCodes.Status401Unauthorized, "The principal credential is missing or not valid.");
-        }
-
-        var result = await getResult.ExecuteAsync(credential, id, cancellationToken);
+        var result = await getResult.ExecuteAsync(
+            PrincipalApiAuthenticationHandler.ReadCredential(user),
+            id,
+            cancellationToken);
         if (result is null)
         {
             return Problem(StatusCodes.Status404NotFound, "The submission was not found.");
@@ -260,7 +218,7 @@ public static class PrincipalApiEndpoints
                 result.AllocationFailure,
                 result.FailureCode,
                 result.CaseReference),
-            ResponseJson);
+            PrincipalInstructionJson.Options);
     }
 
     private static IResult Problem(int statusCode, string title) =>

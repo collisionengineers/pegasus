@@ -116,9 +116,8 @@ The Principal section of a Contact carries:
   [FRD-09](frd-09-principal-and-intermediary-routes.md#principal-and-intermediary-routes);
 - the default inspection location, Image Based Assessment or a physical
   address, saved on the click;
-- the report-generation policy and its delivery suggestions, owned by
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes)
-  and [ADR-0048](../adr/0048-principal-report-generation-policies.md).
+- the report delivery suggestions
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)).
   Configured additional recipients and the optional original instruction
   sender are the only delivery suggestions. The Claim Source is never copied
   in by default;
@@ -306,7 +305,7 @@ acceptance are separate evidence tiers
 - Capabilities: `ACC-01`–`ACC-05`, `ACC-07`–`ACC-11`, `ACC-15`, `CASE-32` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-07](frd-07-case-export.md),
   [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),

@@ -14,7 +14,6 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Lifecycle;
@@ -90,10 +89,9 @@ public sealed partial class DetailsModel(
     IListCaseValuations listCaseValuations,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
-    IEvaSubmissionModeStore evaModeStore,
-    IEvaSubmissionQueries evaSubmissionQueries,
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
+    GlassRepairEstimateAvailability glassAvailability,
     ICreateAudit createAudit,
     IAiJobQueries aiJobs,
     ICaseWorkflowConfiguration workflowConfiguration,
@@ -105,7 +103,6 @@ public sealed partial class DetailsModel(
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
-    ISubmitCaseToEva? submitCaseToEva = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
     /// <summary>
@@ -306,7 +303,10 @@ public sealed partial class DetailsModel(
 
     public string SignOffEngineerDisplayName { get; private set; } = Labels.CaseWorkspace.Unassigned;
 
-    public EvaHandoffViewModel? EvaHandoff { get; private set; }
+    public AssignEngineerViewModel? AssignEngineerChoices { get; private set; }
+
+    /// <summary>The operation key the Actions menu's Export case posts.</summary>
+    public string ExportOperationKey { get; } = NewOperationKey();
 
     /// <summary>
     /// The requirements the current configured policy reports as unmet,
@@ -1202,6 +1202,13 @@ public sealed partial class DetailsModel(
             return new(false, null, null);
         }
 
+        // A host that does not reach Glass's offers no control at all, whatever
+        // account the staff member holds.
+        if (!glassAvailability.Enabled)
+        {
+            return new(false, null, null);
+        }
+
         if (!await externalCredentials.IsEnabledAsync(
                 actor, ExternalCredentialProvider.GlassRepairEstimate, cancellationToken))
         {
@@ -1529,8 +1536,8 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The record's remaining reads: the directory choices, the Principal's
-    /// previous addresses, the Files galleries, the frame's names and EVA
-    /// state, the lease holder, and the Case's AI jobs, read once for both
+    /// previous addresses, the Files galleries, the frame's names and Engineer
+    /// choices, the lease holder, and the Case's AI jobs, read once for both
     /// the Next action's drafts and the Valuation section's pending research.
     /// </summary>
     private async Task LoadExtrasAsync(Guid id, ActionActor actor, CancellationToken cancellationToken)
@@ -1593,7 +1600,7 @@ public sealed partial class DetailsModel(
         var workspaceExtras = await extras;
         EngineerDisplayName = workspaceExtras.EngineerDisplayName;
         SignOffEngineerDisplayName = workspaceExtras.SignOffEngineerDisplayName;
-        EvaHandoff = workspaceExtras.EvaHandoff;
+        AssignEngineerChoices = workspaceExtras.AssignEngineerChoices;
         if (activeLease is not null)
         {
             ViewerHoldsEditAuthority = viewerHoldsLease;
@@ -2152,16 +2159,8 @@ public sealed partial class DetailsModel(
     /// offers. A Case that cannot yet be projected has neither.
     /// </summary>
     private (AssessmentReportSnapshot? Snapshot, IReadOnlyList<ReportWordingBlock> Offered) WordingOf(
-        AssessmentReportProjectionInput projection)
-    {
-        var projected = AssessmentReportProjection.Project(projection with
-        {
-            ReportDate = Pegasus.Core.LondonCalendar.DateAt(clock.GetUtcNow()),
-        });
-        return projected.Snapshot is { } snapshot
-            ? (snapshot, ReportWordingComposition.Offered(snapshot, projection.Wording ?? []))
-            : (null, []);
-    }
+        AssessmentReportProjectionInput projection) =>
+        Pegasus.Web.Presentation.ReportWordingEdits.Offered(projection, clock.GetUtcNow());
 
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 
@@ -2180,15 +2179,9 @@ public sealed partial class DetailsModel(
         IReadOnlyList<ReportWordingEditForm> edits,
         CancellationToken cancellationToken)
     {
-        var inputs = await reportSnapshotSource.GetAsync(caseId, actor, work, reuse: null, cancellationToken);
-        if (inputs is null)
-        {
-            throw new InvalidOperationException("The report wording is unavailable. Refresh the Case and retry.");
-        }
-        var snapshot = WordingOf(inputs.Projection).Snapshot
-            ?? throw new InvalidOperationException("The report wording is unavailable. Refresh the Case and retry.");
-        var presentation = snapshot.Presentation();
-        return new([.. edits.Select(edit => edit.ToRecord(snapshot, presentation))]);
+        var wording = await Pegasus.Web.Presentation.ReportWordingEdits.ReadAsync(
+            reportSnapshotSource, caseId, actor, work, clock.GetUtcNow(), cancellationToken);
+        return new([.. edits.Select(edit => edit.ToRecord(wording.Snapshot, wording.Presentation))]);
     }
 
     /// <summary>
@@ -2935,34 +2928,14 @@ public sealed partial class DetailsModel(
 
         public bool Manual { get; set; }
 
+        // The browser posts a line break as two characters; the composed
+        // sentence it is compared with holds one, which the shared rule
+        // normalises.
         public CaseReportWording ToRecord(
             AssessmentReportSnapshot? snapshot,
-            AssessmentReportPresentation? presentation)
-        {
-            var title = string.IsNullOrWhiteSpace(Title) ? null : Title.Trim();
-            // The browser posts a line break as two characters; the composed
-            // sentence it is compared with holds one.
-            var text = string.IsNullOrWhiteSpace(Text)
-                ? null
-                : ReportWordingComposition.LineBreaks(Text.Trim());
-            if (!Manual && snapshot is not null && presentation is not null)
-            {
-                if (title is not null
-                    && string.Equals(title, ReportWordingComposition.StandardTitle(Key, presentation), StringComparison.Ordinal))
-                {
-                    title = null;
-                }
-                if (text is not null && string.Equals(
-                    text,
-                    ReportWordingComposition.ComposedText(Key, snapshot, presentation).Trim(),
-                    StringComparison.Ordinal))
-                {
-                    text = null;
-                }
-            }
-            var order = !Manual && Order == ReportWordingComposition.StandardIndex(Key) ? null : Order;
-            return new(Key, title, text, order, Included, Manual);
-        }
+            AssessmentReportPresentation? presentation) =>
+            Pegasus.Web.Presentation.ReportWordingEdits.ToRecord(
+                Key, Title, Text, Order, Included, Manual, snapshot, presentation);
     }
 
     public sealed class AssetPreparationEditForm
@@ -3022,10 +2995,8 @@ public sealed partial class DetailsModel(
             return NotFound();
         }
 
-        var trimmedDirection = direction?.Trim();
-        var instruction = string.IsNullOrWhiteSpace(trimmedDirection)
-            ? $"Draft an estimate for case {header.Summary.Reference}."
-            : trimmedDirection;
+        // An empty direction takes Core's default instruction for the Case.
+        var instruction = direction?.Trim() ?? string.Empty;
         try
         {
             await createAiJob.ExecuteAsync(
@@ -3557,6 +3528,10 @@ public sealed partial class DetailsModel(
         [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork,
         CancellationToken cancellationToken)
     {
+        if (!glassAvailability.Enabled)
+        {
+            return RefuseUnavailableGlass(id, "LaunchGlass");
+        }
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
@@ -3635,6 +3610,10 @@ public sealed partial class DetailsModel(
         [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork,
         CancellationToken cancellationToken)
     {
+        if (!glassAvailability.Enabled)
+        {
+            return RefuseUnavailableGlass(id, "ResumeGlass");
+        }
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
@@ -3804,6 +3783,12 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
+        if (!glassAvailability.Enabled)
+        {
+            LogGlassCommandRefused(logger, id, "CloseGlass", GlassLabels.Unavailable);
+            TempData["CaseError"] = GlassLabels.Unavailable;
+            return RedirectToEstimate(id);
+        }
         var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
         if (access?.CanOpen != true)
         {
@@ -3844,6 +3829,18 @@ public sealed partial class DetailsModel(
     /// asked. Logged once with the notice the guard set, so a report of the
     /// same screen can be told apart from a provider outcome.
     /// </summary>
+    /// <summary>
+    /// A Glass's command on a host that does not reach the provider. Refused
+    /// before the Estimate guard, so no lease is touched for a command that
+    /// could never run; answered in the Glass's window like every refusal.
+    /// </summary>
+    private PartialViewResult RefuseUnavailableGlass(Guid id, string handler)
+    {
+        LogGlassCommandRefused(logger, id, handler, GlassLabels.Unavailable);
+        TempData["CaseError"] = GlassLabels.Unavailable;
+        return GlassReturn(id);
+    }
+
     private IActionResult RefusedGlassGuard(Guid id, string handler, IActionResult guard)
     {
         if (guard is not RedirectToPageResult)
@@ -4626,13 +4623,12 @@ public sealed partial class DetailsModel(
     private sealed record WorkspaceExtras(
         string? EngineerDisplayName,
         string SignOffEngineerDisplayName,
-        EvaHandoffViewModel EvaHandoff);
+        AssignEngineerViewModel AssignEngineerChoices);
 
     /// <summary>
     /// The values the workspace frame names that the case projection does not
-    /// carry directly: the assigned and Sign-off Engineer names, the Engineer
-    /// choices available in Review, and whether API submission is a composed
-    /// route this principal allows.
+    /// carry directly: the assigned and Sign-off Engineer names, and the
+    /// Engineer choices available in Review.
     /// </summary>
     private async Task<WorkspaceExtras> ReadWorkspaceExtrasAsync(
         WorkspaceExtrasInputs inputs,
@@ -4663,46 +4659,18 @@ public sealed partial class DetailsModel(
         var signOffEngineerDisplayName = signOffEngineer?.PrintedName
             ?? Labels.CaseWorkspace.Unassigned;
 
-        IReadOnlyList<EvaHandoffEngineerOption> engineerOptions = roster
+        IReadOnlyList<EngineerOption> engineerOptions = roster
             .Where(account => account.IsEnabled)
-            .Select(account => new EvaHandoffEngineerOption(account.Id, account.UserName))
+            .Select(account => new EngineerOption(account.Id, account.UserName))
             .ToArray();
 
-        var modes = await evaModeStore.GetForPrincipalAsync(
-            workflow.Identity.PrincipalCode,
-            cancellationToken);
-        var canRetryAutomaticFailure = modes.Policy
-            == PrincipalReportGenerationPolicy.EvaAutomaticApiOnReview
-            && await evaSubmissionQueries.CanRetryAutomaticFailureAsync(
-                workflow.CaseId,
-                cancellationToken);
-        var latestEvaSubmission = await evaSubmissionQueries.GetLatestAsync(
-            workflow.CaseId,
-            cancellationToken);
         return new(
             engineerDisplayName,
             signOffEngineerDisplayName,
             new(
-                workflow.CaseId,
-                workflow.Version,
-                workflow.State,
-                inputs.LeaseToken,
-                engineerDisplayName ?? Labels.CaseWorkspace.Unassigned,
                 engineerOptions,
-                signOffEngineerDisplayName,
-                signOffEngineer?.StaffId,
-                profiles.Select(profile => new EvaHandoffEngineerOption(
-                    profile.StaffId,
-                    profile.PrintedName)).ToArray(),
                 details.Data?.Completeness.Values.InstructionComplete ?? false,
-                details.Data?.Completeness.Values.ImagesComplete ?? false,
-                modes.Policy,
-                submitCaseToEva is not null,
-                EvaSubmissionPolicy.AllowsManualSubmission(modes) || canRetryAutomaticFailure,
-                NewOperationKey(),
-                NewOperationKey(),
-                canRetryAutomaticFailure,
-                canRetryAutomaticFailure && latestEvaSubmission is not { IsDelivered: true }));
+                details.Data?.Completeness.Values.ImagesComplete ?? false));
     }
 
     /// <summary>

@@ -379,8 +379,8 @@ public sealed record RecordCaseReportArtifactOutcomeRequest(
 /// <summary>
 /// The persistence boundary for report generation. Every write is a short
 /// serializable transaction; no rendering, Box or HTTP work ever happens inside
-/// one (H7 — <c>EvaSubmissionStore</c>'s shape, not
-/// <c>EfMarketResearchAiJobCompletionStore</c>'s).
+/// one (H7 — deliberately not
+/// <c>EfMarketResearchAiJobCompletionStore</c>'s shape).
 /// </summary>
 public interface ICaseReportGenerationStore
 {
@@ -607,8 +607,7 @@ public sealed record RecordCaseReportDraftPreviewedRequest(
 
 /// <summary>
 /// The inputs post-review report readiness is decided from, all reloaded from
-/// persisted state. EVA is deliberately absent: a missing optional hand-off
-/// never blocks a complete Pegasus report (H3, plan B05).
+/// persisted state.
 /// </summary>
 public sealed record CaseReportReadinessInput(
     CaseAssessmentProjection Assessment,
@@ -632,8 +631,8 @@ public sealed record CaseReportReadinessResult(
 
 /// <summary>
 /// The one owner of "may this Case's report be generated". It reloads only
-/// persisted facts, never re-decides Review-entry lifecycle gates, and never
-/// asks about EVA. The Case facts the report prints are
+/// persisted facts and never re-decides Review-entry lifecycle gates. The
+/// Case facts the report prints are
 /// <see cref="AssessmentPolicy"/> post-review items, which this rail and
 /// <see cref="AssessmentReportProjection.Prepare"/> both compose. The retired
 /// D18 Engineer name/qualification/signature items are gone: the selected

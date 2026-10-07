@@ -290,7 +290,7 @@ public sealed class EfLinkedCaseReplacementStore(
     /// verbatim, so without this the clone's principal_code — and the
     /// CaseMatchIndex row <see cref="CaseMatchIndexProjector.Project"/> derives
     /// from it — still named the old Principal, breaking image/mail matching
-    /// and the EVA "Work Provider" export after a Wrong-Principal correction.
+    /// and the case export's "Work Provider" after a Wrong-Principal correction.
     /// Mirrors the upsert approach in
     /// <see cref="CaseDataSnapshotFactory.AddStaffAllocatedPrincipal"/>: the
     /// staff actor who requested the correction is recorded as confirming the

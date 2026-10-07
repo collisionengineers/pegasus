@@ -21,14 +21,35 @@ public sealed class RetainedMailDismissalTests
         Assert.Equal(["dismiss-1", "restore-1"], store.OperationKeys);
     }
 
+    /// <summary>
+    /// Dismiss and Restore are casework, so the Automation Actor performs them
+    /// as staff do (ADR-0064); a system worker or Principal does not.
+    /// </summary>
     [Fact]
-    public async Task OnlyStaffMayDismissAndTheEnvelopeIsChecked()
+    public async Task TheAutomationActorDismissesAndRestoresAMessage()
+    {
+        var store = new RecordingStore();
+        var automation = ActionActor.Automation("client");
+
+        var dismissed = await new DismissRetainedMail(store).ExecuteAsync(new(MessageId, automation, "mcp:dismiss-1"), default);
+        var restored = await new RestoreRetainedMail(store).ExecuteAsync(new(MessageId, automation, "mcp:restore-1"), default);
+
+        Assert.True(dismissed!.IsDismissed);
+        Assert.Equal("client", dismissed.DismissedBy);
+        Assert.False(restored!.IsDismissed);
+        Assert.Equal(["mcp:dismiss-1", "mcp:restore-1"], store.OperationKeys);
+    }
+
+    [Fact]
+    public async Task OnlyCaseworkActorsMayDismissAndTheEnvelopeIsChecked()
     {
         var store = new RecordingStore();
         var dismiss = new DismissRetainedMail(store);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(
-            () => dismiss.ExecuteAsync(new(MessageId, ActionActor.Automation("client"), "dismiss-2"), default));
+            () => dismiss.ExecuteAsync(new(MessageId, ActionActor.SystemWorker("worker"), "dismiss-2"), default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(
+            () => dismiss.ExecuteAsync(new(MessageId, ActionActor.Principal(Guid.NewGuid()), "dismiss-2"), default));
         await Assert.ThrowsAsync<ArgumentException>(
             () => dismiss.ExecuteAsync(new(Guid.Empty, Staff, "dismiss-3"), default));
         await Assert.ThrowsAsync<ArgumentException>(

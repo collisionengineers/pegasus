@@ -9,7 +9,12 @@ param(
     [ValidateRange(1, 1024)]
     [int]$StoragePressureMegabytes = 32,
     [ValidateRange(15, 600)]
-    [int]$StartupTimeoutSeconds = 120
+    [int]$StartupTimeoutSeconds = 120,
+    # A fixed Web HTTPS port for a run whose origin must stay stable across
+    # restarts (the Glass's callback origin, bookmarks). Valid only with Start
+    # and only when the run is created; the other ports stay dynamic.
+    [ValidateRange(1024, 65535)]
+    [int]$WebPort
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +24,9 @@ $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 . (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
 $localDevelopmentRoot = Join-Path $repositoryRoot 'artifacts/local-development'
 $initializationPath = Join-Path $localDevelopmentRoot '.initialized.json'
+# Operator-supplied live-integration settings. Read on every Start; the file
+# is optional and its values reach only the started process environments.
+$localSettingsPath = Get-PegasusLocalSettingsPath -LocalDevelopmentRoot $localDevelopmentRoot
 $webDirectory = Join-Path $repositoryRoot 'src/Pegasus.Web'
 $webAssembly = Join-Path $webDirectory 'bin/Debug/net10.0/Pegasus.Web.dll'
 $workerDirectory = Join-Path $repositoryRoot 'src/Pegasus.Worker'
@@ -279,7 +287,10 @@ function New-RunManifest {
         [Parameter(Mandatory)]
         [string]$Id,
         [Parameter(Mandatory)]
-        [object]$Initialization
+        [object]$Initialization,
+        [int]$FixedWebPort = 0,
+        [System.Collections.IDictionary]$LiveIntegrations = [ordered]@{},
+        [bool]$LocalSettingsApplied = $false
     )
 
     $paths = Get-RunPaths -Id $Id
@@ -299,7 +310,16 @@ function New-RunManifest {
     }
 
     $reservedPorts = [System.Collections.Generic.HashSet[int]]::new()
-    $webPort = Get-FreeTcpPort -Reserved $reservedPorts
+    $webPort = if ($FixedWebPort -gt 0) {
+        if (-not (Test-TcpPortAvailable -Port $FixedWebPort)) {
+            throw "The requested Web port $FixedWebPort is not free on loopback."
+        }
+        $reservedPorts.Add($FixedWebPort) | Out-Null
+        $FixedWebPort
+    }
+    else {
+        Get-FreeTcpPort -Reserved $reservedPorts
+    }
     $functionsPort = Get-FreeTcpPort -Reserved $reservedPorts
     $blobPort = Get-FreeTcpPort -Reserved $reservedPorts
     $queuePort = Get-FreeTcpPort -Reserved $reservedPorts
@@ -328,6 +348,11 @@ function New-RunManifest {
             profile = 'DevelopmentOffline'
             environment = 'Development'
             artifacts = $Initialization.runtimeArtifacts
+            # Which real integrations this run opted into, as booleans only.
+            # The settings themselves never enter the manifest.
+            liveIntegrations = $LiveIntegrations
+            localSettingsApplied = $LocalSettingsApplied
+            webPortFixed = ($FixedWebPort -gt 0)
         }
         identity = [ordered]@{
             initializationCompleted = $false
@@ -411,8 +436,16 @@ function Assert-OwnedManifest {
         $Manifest.runtime.profile -ne 'DevelopmentOffline' -or
         $Manifest.runtime.environment -ne 'Development' -or
         $Manifest.ownership.cloudOperations -ne 'disabled' -or
-        $Manifest.identity.initializationCompleted -isnot [bool]) {
+        $Manifest.identity.initializationCompleted -isnot [bool] -or
+        $Manifest.runtime.localSettingsApplied -isnot [bool] -or
+        $Manifest.runtime.webPortFixed -isnot [bool] -or
+        $null -eq $Manifest.runtime.liveIntegrations) {
         throw "The local development manifest has an invalid ownership contract: $ManifestPath"
+    }
+    foreach ($flag in (ConvertTo-FlagTable -Flags $Manifest.runtime.liveIntegrations).GetEnumerator()) {
+        if ($flag.Value -isnot [bool]) {
+            throw "The local development manifest records a non-boolean live integration '$($flag.Key)': $ManifestPath"
+        }
     }
 
     $paths = Get-RunPaths -Id $id
@@ -499,6 +532,36 @@ function Assert-OwnedManifest {
             -Actual ([string]$record.commandMarker) `
             -Expected $expectedMarker `
             -Label "Process marker '$role'"
+    }
+}
+
+function ConvertTo-FlagTable {
+    # The flags are an ordered hashtable when the manifest is being created and
+    # a PSCustomObject once it has been read back; callers want one shape.
+    param([Parameter(Mandatory)][object]$Flags)
+
+    $table = [ordered]@{}
+    if ($Flags -is [System.Collections.IDictionary]) {
+        foreach ($key in $Flags.Keys) { $table[[string]$key] = $Flags[$key] }
+    }
+    else {
+        foreach ($property in $Flags.PSObject.Properties) { $table[$property.Name] = $property.Value }
+    }
+    return $table
+}
+
+function Set-ManifestRuntimeValue {
+    param(
+        [Parameter(Mandatory)][object]$Manifest,
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][AllowNull()][object]$Value
+    )
+
+    if ($Manifest.runtime -is [System.Collections.IDictionary]) {
+        $Manifest.runtime[$Name] = $Value
+    }
+    else {
+        $Manifest.runtime | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
     }
 }
 
@@ -610,10 +673,13 @@ function Get-AzuriteConnectionString {
 }
 
 function Get-WebEnvironment {
-    param([Parameter(Mandatory)][object]$Manifest)
+    param(
+        [Parameter(Mandatory)][object]$Manifest,
+        [System.Collections.IDictionary]$Settings = [ordered]@{}
+    )
 
     $webBase = [string]$Manifest.endpoints.webBase
-    return @{
+    $environment = @{
         ASPNETCORE_ENVIRONMENT = 'Development'
         DOTNET_ENVIRONMENT = 'Development'
         ASPNETCORE_URLS = $webBase
@@ -627,15 +693,35 @@ function Get-WebEnvironment {
         Features__LocalIntake = 'true'
         Features__LocalDocumentCustody = 'true'
     }
+    $flags = Get-PegasusLiveIntegrationFlags -Settings $Settings
+    if ($flags.boxCustody) {
+        # Box custody and the local folder custody are alternatives; the host
+        # refuses both, so the lifecycle hands over exactly one. An explicit
+        # false is needed: the tracked appsettings.Development.json turns the
+        # local store on, and an absent variable would not override it.
+        $environment['Features__LocalDocumentCustody'] = 'false'
+    }
+    if ($flags.glass) {
+        # The provider returns the staff browser to this run's own origin; the
+        # manifest owns that origin, not the settings file.
+        $environment['Glass__CallbackBaseUri'] = $webBase.TrimEnd('/') + '/'
+    }
+    foreach ($entry in (Split-PegasusLocalSettings -Settings $Settings -HostKind Web).GetEnumerator()) {
+        $environment[$entry.Key] = $entry.Value
+    }
+    return $environment
 }
 
 function Get-WorkerEnvironment {
-    param([Parameter(Mandatory)][object]$Manifest)
+    param(
+        [Parameter(Mandatory)][object]$Manifest,
+        [System.Collections.IDictionary]$Settings = [ordered]@{}
+    )
 
     $storageConnection = Get-AzuriteConnectionString -Manifest $Manifest
     # The schedules and mailbox identities are the values in
     # src/Pegasus.Worker/local.settings.example.json; the paths are this run's.
-    return @{
+    $environment = @{
         AZURE_FUNCTIONS_ENVIRONMENT = 'Development'
         FUNCTIONS_WORKER_RUNTIME = 'dotnet-isolated'
         FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT = '1'
@@ -646,7 +732,6 @@ function Get-WorkerEnvironment {
         IntakeStorage__ConnectionString = $storageConnection
         Intake__LocalArtifactPath = [string]$Manifest.resources.paths.intake
         PendingWorkRecoverySchedule = '0 * * * * *'
-        AutomaticEvaReviewSubmissionSchedule = '0 * * * * *'
         IntakeStagedArtifactReconciliationSchedule = '*/10 * * * * *'
         SentEvidencePollSchedule = '0 * * * * *'
         ApprovedInbox__MailboxId = 'instructions'
@@ -657,6 +742,10 @@ function Get-WorkerEnvironment {
         ApprovedSent__SentFolderIdentity = 'sent-items'
         ApprovedSent__LocalRootPath = [string]$Manifest.resources.paths.mailboxSent
     }
+    foreach ($entry in (Split-PegasusLocalSettings -Settings $Settings -HostKind Worker).GetEnumerator()) {
+        $environment[$entry.Key] = $entry.Value
+    }
+    return $environment
 }
 
 function ConvertTo-SingleQuotedLiteral {
@@ -712,6 +801,27 @@ function Write-Launcher {
         [System.Text.UTF8Encoding]::new($false))
 }
 
+function ConvertTo-ShellSingleQuoted {
+    param([Parameter(Mandatory)][string]$Value)
+    return "'" + $Value.Replace("'", "'\\''") + "'"
+}
+
+function Write-LauncherShellWrapper {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$PowerShell,
+        [Parameter(Mandatory)][string]$Launcher,
+        [Parameter(Mandatory)][string]$StandardOutput,
+        [Parameter(Mandatory)][string]$StandardError
+    )
+
+    $script = "exec $(ConvertTo-ShellSingleQuoted -Value $PowerShell) -NoLogo -NoProfile -NonInteractive -File " +
+        "$(ConvertTo-ShellSingleQuoted -Value $Launcher) </dev/null " +
+        ">>$(ConvertTo-ShellSingleQuoted -Value $StandardOutput) " +
+        "2>>$(ConvertTo-ShellSingleQuoted -Value $StandardError)`n"
+    [System.IO.File]::WriteAllText($Path, $script, [System.Text.UTF8Encoding]::new($false))
+}
+
 function Start-OwnedLauncher {
     param(
         [Parameter(Mandatory)]
@@ -735,21 +845,46 @@ function Start-OwnedLauncher {
     Write-Launcher -Path $launcher -Command $Command -Arguments $Arguments
     $stdout = Join-Path $Manifest.resources.paths.logs "$Role-$attempt.stdout.log"
     $stderr = Join-Path $Manifest.resources.paths.logs "$Role-$attempt.stderr.log"
-    $process = Start-Process `
-        -FilePath $Tools.PowerShell `
-        -ArgumentList @(
-            '-NoLogo',
-            '-NoProfile',
-            '-NonInteractive',
-            '-File',
-            "`"$launcher`""
-        ) `
-        -WorkingDirectory $WorkingDirectory `
-        -Environment $Environment `
-        -RedirectStandardOutput $stdout `
-        -RedirectStandardError $stderr `
-        @hiddenWindowParameter `
-        -PassThru
+    if ((Get-PegasusPlatform).IsWindows) {
+        $process = Start-Process `
+            -FilePath $Tools.PowerShell `
+            -ArgumentList @(
+                '-NoLogo',
+                '-NoProfile',
+                '-NonInteractive',
+                '-File',
+                "`"$launcher`""
+            ) `
+            -WorkingDirectory $WorkingDirectory `
+            -Environment $Environment `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            @hiddenWindowParameter `
+            -PassThru
+    }
+    else {
+        # On Linux, Start-Process redirection is pumped through this process:
+        # the child writes to pipes this command reads and copies to the files.
+        # When this command exits those pipes close, every later line of output
+        # is lost, and a node process (Azurite) exits on the broken pipe. Let
+        # the shell open the log files itself and exec the launcher over them,
+        # so the owned process writes straight to disk for as long as it lives.
+        # exec keeps the process identifier and start time, so the ownership
+        # record below describes the launcher, not a shell in front of it.
+        $wrapper = Join-Path $Manifest.resources.paths.state "start-$Role-$attempt.sh"
+        Write-LauncherShellWrapper `
+            -Path $wrapper `
+            -PowerShell $Tools.PowerShell `
+            -Launcher $launcher `
+            -StandardOutput $stdout `
+            -StandardError $stderr
+        $process = Start-Process `
+            -FilePath '/bin/sh' `
+            -ArgumentList @("`"$wrapper`"") `
+            -WorkingDirectory $WorkingDirectory `
+            -Environment $Environment `
+            -PassThru
+    }
     try {
         $process.Refresh()
         return [pscustomobject][ordered]@{
@@ -1056,7 +1191,8 @@ function Wait-RunDatabaseReady {
         if (Test-PegasusDatabaseReady `
                 -Command $Tools.Database `
                 -ContainerName $context.ContainerName `
-                -Port $context.Port) {
+                -Port $context.Port `
+                -Database $(if ($Manifest.resources.database.created) { $context.DatabaseName } else { '' })) {
             return
         }
         Start-Sleep -Milliseconds 500
@@ -1168,7 +1304,18 @@ function Test-FunctionsRunning {
             return $false
         }
         $status = $response.Content | ConvertFrom-Json
-        return [string]$status.state -eq 'Running'
+        if ([string]$status.state -ne 'Running') {
+            return $false
+        }
+        # A host answers Running with no functions at all when it was started
+        # outside the built output, so readiness also requires that it found
+        # the Worker's functions: the queue trigger and the timers are the run.
+        $functionsResponse = Invoke-LoopbackRequest -Uri (
+            ([string]$Manifest.endpoints.functionsStatus) -replace '/admin/host/status$', '/admin/functions')
+        if ($functionsResponse.StatusCode -ne 200) {
+            return $false
+        }
+        return @($functionsResponse.Content | ConvertFrom-Json).Count -gt 0
     }
     catch {
         return $false
@@ -1227,6 +1374,7 @@ function Test-RunStatus {
         FunctionsRunning = $functionsRunning
         WebUrl = [string]$Manifest.endpoints.webBase
         FunctionsStatusUrl = [string]$Manifest.endpoints.functionsStatus
+        LiveIntegrations = Format-PegasusLiveIntegrationFlags -Flags $Manifest.runtime.liveIntegrations
     }
 }
 
@@ -1275,6 +1423,8 @@ function Invoke-RunSmoke {
         AdministratorRouteValidated = $true
         SubjectId = [string]$Manifest.identity.subjectId
         UserName = [string]$Manifest.identity.userName
+        # Flags only. Smoke still probes no vendor; the verification walk does.
+        LiveIntegrations = [pscustomobject](ConvertTo-FlagTable -Flags $Manifest.runtime.liveIntegrations)
     }
     $Manifest.verification.smoke = $smokeEvidence
     Write-OwnedManifest -Manifest $Manifest
@@ -1320,13 +1470,23 @@ function Enter-LifecycleMutex {
 function Start-LocalRun {
     $initialization = Get-Initialization
     $tools = Get-ToolPaths
+    # Parsed before anything is created: a malformed settings file refuses the
+    # Start rather than failing a half-started run.
+    $localSettings = Read-PegasusLocalSettingsFile -Path $localSettingsPath
+    $liveIntegrations = Get-PegasusLiveIntegrationFlags -Settings $localSettings
+    $localSettingsApplied = $localSettings.Count -gt 0
 
     if ([string]::IsNullOrWhiteSpace($RunId)) {
         do {
             $id = [Guid]::NewGuid().ToString('N')
             $paths = Get-RunPaths -Id $id
         } while ([System.IO.Directory]::Exists($paths.RunRoot))
-        $manifest = New-RunManifest -Id $id -Initialization $initialization
+        $manifest = New-RunManifest `
+            -Id $id `
+            -Initialization $initialization `
+            -FixedWebPort $WebPort `
+            -LiveIntegrations $liveIntegrations `
+            -LocalSettingsApplied $localSettingsApplied
     }
     else {
         $paths = Get-RunPaths -Id $RunId
@@ -1335,6 +1495,13 @@ function Start-LocalRun {
             if ($manifest.state -notin @('Stopped', 'Failed')) {
                 throw "Run '$RunId' is in state '$($manifest.state)' and cannot be started."
             }
+            if ($WebPort -gt 0 -and [int]$manifest.resources.ports.webHttps -ne $WebPort) {
+                throw "Run '$RunId' owns Web port $($manifest.resources.ports.webHttps); ports belong to the manifest and cannot change on restart."
+            }
+            # The flags follow the settings file as it is now, so a restart
+            # after editing the file records what this attempt actually runs.
+            Set-ManifestRuntimeValue -Manifest $manifest -Name 'liveIntegrations' -Value ([pscustomobject]$liveIntegrations)
+            Set-ManifestRuntimeValue -Manifest $manifest -Name 'localSettingsApplied' -Value $localSettingsApplied
             foreach ($role in @('azurite', 'web', 'worker')) {
                 $record = $manifest.processes.PSObject.Properties[$role].Value
                 $identity = Test-OwnedProcessIdentity -Record $record
@@ -1349,7 +1516,12 @@ function Start-LocalRun {
             Write-OwnedManifest -Manifest $manifest
         }
         else {
-            $manifest = New-RunManifest -Id $RunId -Initialization $initialization
+            $manifest = New-RunManifest `
+                -Id $RunId `
+                -Initialization $initialization `
+                -FixedWebPort $WebPort `
+                -LiveIntegrations $liveIntegrations `
+                -LocalSettingsApplied $localSettingsApplied
         }
     }
 
@@ -1446,7 +1618,7 @@ function Start-LocalRun {
         # LocalDB start is synchronous; a container start is not.
         Wait-RunDatabaseReady -Manifest $manifest -Tools $tools -TimeoutSeconds $StartupTimeoutSeconds
 
-        $webEnvironment = Get-WebEnvironment -Manifest $manifest
+        $webEnvironment = Get-WebEnvironment -Manifest $manifest -Settings $localSettings
         Invoke-OwnedOneShot `
             -Manifest $manifest `
             -Name 'initialize-web' `
@@ -1498,7 +1670,21 @@ function Start-LocalRun {
             throw "Injected run-scoped bounded storage pressure ($StoragePressureMegabytes MiB)."
         }
 
-        $workerEnvironment = Get-WorkerEnvironment -Manifest $manifest
+        # The Functions host runs from the Worker's built output and reads
+        # host.json there. The SDK copies the project's file with
+        # PreserveNewest, and Core Tools writes a default (base64 queue
+        # encoding, no Pegasus settings) when it finds none; once that newer
+        # default exists no rebuild replaces it, and every queue message the
+        # Web sends is poisoned. The run's input is the project's host.json.
+        $workerOutputDirectory = [System.IO.Path]::GetDirectoryName($workerAssembly)
+        $projectHostJson = Join-Path $workerDirectory 'host.json'
+        $outputHostJson = Join-Path $workerOutputDirectory 'host.json'
+        if (-not [System.IO.File]::Exists($outputHostJson) -or
+            (Get-Sha256 -Path $outputHostJson) -ne (Get-Sha256 -Path $projectHostJson)) {
+            [System.IO.File]::Copy($projectHostJson, $outputHostJson, $true)
+            Write-Host "Restored the Worker's host.json in its build output from $projectHostJson."
+        }
+        $workerEnvironment = Get-WorkerEnvironment -Manifest $manifest -Settings $localSettings
         $manifest.processes.worker = Start-OwnedLauncher `
             -Manifest $manifest `
             -Role 'worker' `
@@ -1509,7 +1695,7 @@ function Start-LocalRun {
                 [string]$manifest.resources.ports.functions,
                 '--no-build'
             ) `
-            -WorkingDirectory $workerDirectory `
+            -WorkingDirectory ([System.IO.Path]::GetDirectoryName($workerAssembly)) `
             -Environment $workerEnvironment `
             -Tools $tools
         Write-OwnedManifest -Manifest $manifest
@@ -1532,8 +1718,10 @@ function Start-LocalRun {
         return [pscustomobject][ordered]@{
             RunId = [string]$manifest.runId
             State = 'Running'
+            WebUrl = [string]$manifest.endpoints.webBase
             WebReadyUrl = [string]$manifest.endpoints.webReady
             FunctionsStatusUrl = [string]$manifest.endpoints.functionsStatus
+            LiveIntegrations = Format-PegasusLiveIntegrationFlags -Flags $manifest.runtime.liveIntegrations
             ManifestPath = $paths.Manifest
         }
     }
@@ -1590,6 +1778,9 @@ if ($Action -ne 'Start' -and $FailureMode -ne 'None') {
 }
 if ($Action -eq 'Status' -and -not [string]::IsNullOrWhiteSpace($RunId)) {
     throw 'Status enumerates all owned runs and does not accept -RunId.'
+}
+if ($Action -ne 'Start' -and $PSBoundParameters.ContainsKey('WebPort')) {
+    throw '-WebPort is valid only with -Action Start.'
 }
 
 $mutex = $null

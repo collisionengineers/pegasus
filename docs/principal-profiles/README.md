@@ -59,6 +59,5 @@ owners; the owning FRD, ADR, or Core policy still wins on any disagreement.
 | PCH SOP | `sop-guides/pch_sop_guide.docx` |
 | SBL SOP | `sop-guides/sbl_sop_guide.docx` |
 | Report sending SOP | `sop-guides/report_sending_sop_guide.docx` |
-| EVA setup guide | `sop-guides/eva_setup_guide.docx` |
 | AX salvage and salvage matrix | `sop-guides/ax_salvage.xlsx`, `sop-guides/ax_salvage_matrix.xlsx` |
 | Unidentified and re-work reasons | `sop-guides/un_rw_reasons_sop.xlsx` |

@@ -262,6 +262,22 @@ public interface IGlassRepairEstimateGateway
     Task<Uri?> GetEstimatorUrlAsync(
         ActionActor actor, Guid sessionId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Whether this host composes Glass's at all. A host without the provider's
+/// configuration composes no gateway and says so here, so the Case record
+/// offers no Glass's control and a command that reaches it is refused rather
+/// than failing on a missing setting. Shaped like
+/// <see cref="Vehicle.VehicleLookupAvailability"/>.
+/// </summary>
+public sealed record GlassRepairEstimateAvailability(bool Enabled, string Mode)
+{
+    public static GlassRepairEstimateAvailability Unavailable { get; } =
+        new(false, "unavailable");
+
+    public static GlassRepairEstimateAvailability Configured { get; } =
+        new(true, "configured");
+}
 /// <summary>Durable provider session material stays server-side and protected at rest.</summary>
 public sealed class GlassRepairEstimateSessionMaterial(
     GlassRepairEstimateSession session, string protectedProviderState, string callbackDigest,

@@ -9,7 +9,6 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
-using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
@@ -43,6 +42,12 @@ public static class WorkerDependencyInjection
         ProductionExternalOptions? productionOptions = developmentOffline
             ? null
             : GetProductionExternalOptions(configuration);
+        // The local live-integration opt-ins. Each is a DevelopmentOffline
+        // feature in the same sense as Features:LocalIntake: Production never
+        // reads them, and a Production host that carries one fails at start
+        // naming the key rather than composing a second storage or vendor truth.
+        var liveVehicleLookup = RequireOfflineFeature(configuration, developmentOffline, "Features:LiveVehicleLookup");
+        var liveBoxCustody = RequireOfflineFeature(configuration, developmentOffline, "Features:LiveBoxCustody");
         AzureDocumentIntelligenceOptions? ocrOptions = null;
         var ocrEndpointValue = configuration[WorkerAzureClientFactory.DocumentIntelligenceEndpointKey];
         if (!developmentOffline && !string.IsNullOrEmpty(ocrEndpointValue))
@@ -61,13 +66,36 @@ public static class WorkerDependencyInjection
             ? WorkerAzureClientFactory.CreateDevelopmentOffline(configuration)
             : WorkerAzureClientFactory.CreateProduction(configuration);
 
-        Func<IServiceProvider, string>? localArtifactRootFactory = developmentOffline
+        // Live Box custody offline keeps the production storage shape (blob-backed
+        // intake artifacts, cached document reads, Box case custody) over the run's
+        // Azurite container, so Web and Worker still share one storage truth. The
+        // Azurite connection string was validated by CreateDevelopmentOffline above.
+        if (liveBoxCustody)
+        {
+            var intakeConnectionString = configuration["IntakeStorage:ConnectionString"]
+                ?? configuration["AzureWebJobsStorage"]
+                ?? throw new InvalidOperationException(
+                    "AzureWebJobsStorage is required for Features:LiveBoxCustody.");
+            // Pinned to the newest service version the repository's Azurite pin
+            // (3.36.0) speaks; the SDK's default is ahead of it, and Azurite
+            // refuses the request rather than downgrading.
+            services.AddSingleton(new Azure.Storage.Blobs.BlobContainerClient(
+                intakeConnectionString,
+                WorkerAzureClientFactory.IntakeArtifactContainerName,
+                new Azure.Storage.Blobs.BlobClientOptions(
+                    Azure.Storage.Blobs.BlobClientOptions.ServiceVersion.V2025_11_05)));
+        }
+        var composesLocalArtifactRoot = developmentOffline && !liveBoxCustody;
+        Func<IServiceProvider, string>? localArtifactRootFactory = composesLocalArtifactRoot
             ? _ => GetOfflineArtifactRoot(configuration, environment)
             : null;
+        var approvedBoxRoot = developmentOffline
+            ? BoxCustodyOptions.DevelopmentRootFolderId
+            : BoxCustodyOptions.ProductionRootFolderId;
         services.AddPegasusInfrastructure(
             (_, options) => ConfigureDatabase(configuration, options),
             localArtifactRootFactory,
-            documentStorage: developmentOffline
+            documentStorage: composesLocalArtifactRoot
                 ? null
                 : registrations => registrations.AddProductionDocumentStorage(
                     provider => provider.GetRequiredService<Azure.Storage.Blobs.BlobContainerClient>(),
@@ -76,15 +104,13 @@ public static class WorkerDependencyInjection
                     // Deferred to first Box use: parsing this at host build aborted
                     // the whole worker process whenever the platform handed over an
                     // unresolved Key Vault reference.
-                    _ => CreateBoxCustodyOptions(configuration)));
-        // Automatic Review intents use the same validated EVA API owner as
-        // the manual case action. The options are still parsed on first use,
-        // so an inactive automatic policy cannot make the Worker host fail.
-        services.AddEvaApiSubmission(
-            _ => EvaApiOptions.Create(key => configuration[key]));
+                    _ => CreateBoxCustodyOptions(configuration, approvedBoxRoot)));
         services.AddScoped<EfIdentityAuditStore>();
         services.AddScoped<IActionHistoryWriter>(serviceProvider =>
             serviceProvider.GetRequiredService<EfIdentityAuditStore>());
+        // The shared use cases include the paged queries the Web serves; this
+        // host serves none, and says so if one is ever asked for.
+        services.AddSingleton<Pegasus.Core.ICursorProtector, Pegasus.Infrastructure.Support.UnavailableCursorProtector>();
         azureClientRegistration.AddTo(services);
 
         if (developmentOffline)
@@ -93,11 +119,21 @@ public static class WorkerDependencyInjection
                 _ => GetLocalApprovedInboxOptions(configuration, environment));
             services.AddLocalApprovedSent(
                 _ => GetLocalApprovedSentOptions(configuration, environment));
-            services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
-            services.AddSingleton<IVehicleLookupAdapter>(provider =>
-                new DvlaDvsaReplayAdapter(
-                    Path.Combine(GetOfflineArtifactRoot(configuration, environment), "vehicle-replay"),
-                    provider.GetRequiredService<TimeProvider>()));
+            if (liveVehicleLookup)
+            {
+                // Parsed eagerly, as Production does: a missing DVLA/DVSA key
+                // fails the Worker at start naming the key, not the first lookup.
+                services.AddLiveVehicleLookup(
+                    DvlaDvsaProductionOptions.Create(ReadVehicleValues(configuration)));
+            }
+            else
+            {
+                services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
+                services.AddSingleton<IVehicleLookupAdapter>(provider =>
+                    new DvlaDvsaReplayAdapter(
+                        Path.Combine(GetOfflineArtifactRoot(configuration, environment), "vehicle-replay"),
+                        provider.GetRequiredService<TimeProvider>()));
+            }
             services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
             services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
@@ -166,15 +202,33 @@ public static class WorkerDependencyInjection
         services.AddScoped<DispatchPendingWork>();
         // Composed in both profiles: it does nothing when no Graph adapter is present.
         services.AddScoped<MaintainMailboxChangeSubscriptions>();
-        services.AddScoped<ProcessAutomaticEvaReviewSubmissions>();
         return services;
+    }
+
+    private static bool RequireOfflineFeature(
+        IConfiguration configuration,
+        bool developmentOffline,
+        string key)
+    {
+        var enabled = configuration.GetValue<bool>(key);
+        if (enabled && !developmentOffline)
+        {
+            throw new InvalidOperationException(
+                $"{key} requires the DevelopmentOffline runtime profile.");
+        }
+
+        return enabled;
     }
 
     private static ProductionExternalOptions GetProductionExternalOptions(
         IConfiguration configuration)
     {
         var graph = GraphApprovedMailboxOptions.Create(configuration["Graph:BaseUri"]);
-        var vehicleValues = new Dictionary<string, string?>(StringComparer.Ordinal)
+        return new(graph, DvlaDvsaProductionOptions.Create(ReadVehicleValues(configuration)));
+    }
+
+    private static Dictionary<string, string?> ReadVehicleValues(IConfiguration configuration) =>
+        new(StringComparer.Ordinal)
         {
             ["Dvla:BaseUri"] = configuration["Dvla:BaseUri"],
             ["Dvla:ApiKey"] = configuration["Dvla:ApiKey"],
@@ -185,17 +239,18 @@ public static class WorkerDependencyInjection
             ["Dvsa:ApiKey"] = configuration["Dvsa:ApiKey"],
             ["Dvsa:Scope"] = configuration["Dvsa:Scope"]
         };
-        return new(graph, DvlaDvsaProductionOptions.Create(vehicleValues));
-    }
 
-    private static BoxCustodyOptions CreateBoxCustodyOptions(IConfiguration configuration) =>
+    private static BoxCustodyOptions CreateBoxCustodyOptions(
+        IConfiguration configuration,
+        string approvedRootFolderId) =>
         BoxCustodyOptions.Create(
             configuration["Box:BaseUri"],
             configuration["Box:UploadUri"],
             configuration["Box:RootFolderId"],
             configuration["Box:ConfigJson"],
             configuration["Box:ClientSecret"],
-            configuration["Box:HoldingFolderId"]);
+            configuration["Box:HoldingFolderId"],
+            approvedRootFolderId);
 
     private static void ConfigureDatabase(
         IConfiguration configuration,

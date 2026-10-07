@@ -56,7 +56,7 @@ when that tab is shown. The definitions:
 | Figure | Counts |
 | --- | --- |
 | New cases | Cases created in the window, excluding Triage Cases, as the New cases list counts them |
-| Sent to Engineer | `First sent to Engineer` events (the once-per-Case handoff proxy, [FRD-07](frd-07-eva-and-external-engineering-handoff.md)); a re-export is not counted |
+| Sent to Engineer | Cases whose first entry into With Engineer (`First sent to Engineer`, [FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)) falls in the window; a later return to With Engineer is not counted |
 | Reports sent | Sent report e-mails, as the Engineer activity report MI-01 counts them ([FRD-17](frd-17-administration-workspace.md#reports)), so the two agree for the same week |
 | Completed | Cases that entered Complete in the window, including one reopened since |
 | E-mails received | Mailbox receipts; an upload is also a receipt and is not counted |
@@ -195,7 +195,9 @@ the five metrics and the Activity figures count records and do not change.
 There is no undo and no list of dismissed rows, and no notice: the row's
 leaving is the answer. Every row of every section ends in the same
 icon-only Dismiss (v32 item B); after a dismissal the page returns to the next
-row of that list, or to the list's heading when none is left.
+row of that list, or to the list's heading when none is left. The Automation
+Actor dismisses a record the same way with `pegasus_work_centre_dismiss`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
 
 ### Cases: queues and filters
 
@@ -308,7 +310,8 @@ each action posts once and holds the record for its one save
 ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). It shows none
 of the Case record's sections, and has no Set principal.
 
-**Ribbon.** The `t.` Case/PO, registration, Principal, source, opened date
+**Ribbon.** The `t.` Case/PO, registration, the claimant read from the
+request (or Not recorded; operator, 7 October 2026), Principal, source, opened date
 and time, the assignee, the linked Case (its Case/PO as a link, or None) and
 the state chip. Then the state's next step as the one primary button, and one
 **Actions** menu holding every other action the state permits, Cancel Triage

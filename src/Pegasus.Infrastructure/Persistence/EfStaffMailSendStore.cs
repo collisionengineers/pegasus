@@ -101,6 +101,7 @@ internal sealed class EfStaffMailSendStore(
         var entity = new StaffMailSendOperationEntity
         {
             Id = Guid.NewGuid(),
+            ActorKind = command.Actor.Kind,
             ActorSubjectId = command.Actor.SubjectId,
             MailboxId = command.ApprovedMailboxId,
             MailboxGeneration = command.ExpectedMailboxGeneration,
@@ -302,8 +303,12 @@ internal sealed class EfStaffMailSendStore(
         entity.LastError = failureCode;
         entity.Version = checked(entity.Version + 1);
         entity.ConcurrencyToken = Guid.NewGuid();
-        var currentRoles = await CurrentRoleNamesAsync(db, actorSubjectId, cancellationToken);
-        db.ActionHistory.Add(History(entity, ActorKind.Staff, actorSubjectId, currentRoles,
+        // The sender recorded at preparation: a member of staff, whose current
+        // roles are read, or the Automation Actor, which holds none.
+        var currentRoles = entity.ActorKind == ActorKind.Staff
+            ? await CurrentRoleNamesAsync(db, actorSubjectId, cancellationToken)
+            : Array.Empty<string>();
+        db.ActionHistory.Add(History(entity, entity.ActorKind, actorSubjectId, currentRoles,
             $"staff-mail-{state.ToString().ToLowerInvariant()}", occurredAtUtc,
             entity.OperationKey, failureCode, before, Map(entity)));
         try
@@ -394,7 +399,8 @@ internal sealed class EfStaffMailSendStore(
 
     /// <summary>
     /// The Case's Notes line for a general correspondence send, written once
-    /// the Sent item is observed (FRD-16 Notes, FRD-21): the staff sender, the
+    /// the Sent item is observed (FRD-16 Notes, FRD-21): the sender (a member
+    /// of staff or the Automation Actor, as the send recorded it), the
     /// provider's sent time and the subject. The body is never history. A
     /// report send already records its evidence link; a Triage send keeps
     /// Triage history. The event carries the Case's current version without
@@ -437,7 +443,7 @@ internal sealed class EfStaffMailSendStore(
             EventType = CorrespondenceSentEventType,
             OperationKey = operationKey,
             RequestHash = mail.PayloadHash,
-            ActorKind = ActorKind.Staff.ToString(),
+            ActorKind = mail.ActorKind.ToString(),
             ActorSubjectId = mail.ActorSubjectId,
             ActorRolesJson = roles ?? "[]",
             Reason = mail.Subject,
@@ -622,7 +628,8 @@ internal sealed class EfStaffMailSendStore(
     /// <summary>
     /// Records a Case chaser that reached Sent as the Case's chase: the due
     /// work's most recent attempt and next chase move exactly as a recorded
-    /// manual chase would, attributed to the staff member who sent it. Runs
+    /// manual chase would, attributed to whoever sent it: the member of staff or
+    /// the Automation Actor. Runs
     /// inside the Sent observation, so every case it does not apply to returns
     /// rather than throws; a throw here would stall the mailbox's Sent poll.
     /// </summary>
@@ -690,7 +697,7 @@ internal sealed class EfStaffMailSendStore(
             note: null,
             operationKey,
             requestHash: mail.PayloadHash,
-            ActorKind.Staff,
+            mail.ActorKind,
             mail.ActorSubjectId,
             roles,
             eventType: "chaser_sent",
