@@ -58,7 +58,7 @@ returned as a routed workspace and was retired on 2026-09-28 (#865): its AI
 jobs live in the Work Centre and on Administration AI jobs, and Send
 Unidentified to AI is on the Unidentified record. `Triage`, `Unidentified`, `Audit`,
 `Not ready`, `Review` and `Held` keep their settled meanings. Triage is a Case
-type with its own states, reached through the Cases rail's Workflow group;
+type with its own states, reached through the Cases rail;
 Unidentified is a pre-Case record reached through the Cases rail. Neither is
 a Case state.
 
@@ -164,24 +164,35 @@ panel.
 
 Once an Inspection + Audit Case has its Audit, a **Views** card heads the
 aside, above Figures, in the context-card pattern: two rows, "Inspection ·
-{Case/PO}" with a plain green "Sent" chip and "Audit · a.{Case/PO}" with the
-Case's state chip as the ribbon draws it. The current view reads plain
+{Case/PO}" with a plain green "Sent" chip when the Inspection report was
+sent (no chip when the Audit was created first) and "Audit · a.{Case/PO}"
+with the Case's state chip as the ribbon draws it. The current view reads plain
 (`aria-current="page"`) and the other is a link; the Audit view is the
 default. Before the Audit exists, and on a standalone Audit or a Triage Case,
 there is no card. The ribbon keeps the Case/PO and gains no Audit reference.
-In the Inspection view no section head offers Edit; each editable head shows
-the one availability label **Read-only · Audit created** instead. In Files,
+The Inspection view edits as the Audit view does, writing the Inspection's
+own values (operator, 2 October 2026). In Files,
 an Audit folder chip follows the Case folder chip in the same tones: **Box
 audit · confirmed**, **Box audit folder: preparing** or **Box audit folder:
-unavailable**. Report shows the Inspection's sent report as one `.pv` line
-above the Audit report card, with an **Inspection view** link. A Triage Case
-at `/Cases/{id}` keeps the Triage page's own layout, with the Case's Files
-panel before Notes.
+unavailable**. Report in the Audit view shows the Audit report alone
+(operator, 2 October 2026). While the Inspection report is still to be
+sent, the Inspection view's Report keeps the generation and delivery
+controls for that report alone (operator, 1 October 2026), and Next action
+there states that report's own step and blockers, with links that stay in
+the view; once it is sent, Next action states nothing (operator, 2 October
+2026). A Triage Case
+at `/Cases/{id}` keeps the Triage page's own layout (v31 C, operator,
+5 October 2026): the ribbon's next step and one Actions menu, then sticky
+Images, Files (Documents and Correspondence) and Notes tabs with the finding
+read-only, Record finding in a dialog and the composer for replies.
 
-The **Actions** menu holds exactly the progressions the state permits — Hand
-to Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
-or Engineer, Archive, Place on Hold or Release Hold, Correct principal, Create
-audit — then, after a separator and in red, Close case. Outside an edit
+The **Actions** menu holds exactly the progressions the state permits — Assign
+Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
+or Engineer, Archive, Place on Hold or Release Hold, Correct principal — and,
+on an Inspection + Audit Case, Create audit in every state: a disabled
+`.btn` inside a `.menu-gated` span whose `title` states Core's refusal on
+hover when it is not permitted (operator, 1 October 2026) — then, after a
+separator and in red, Close case. Outside an edit
 session the menu appears only when Send to EVA is available. Damage uses the
 **plan** only: a top-down drawing of the recorded vehicle (car, van or
 motorbike), one yellow comic burst per recorded damage sized and placed by
@@ -193,9 +204,10 @@ report while editing, and a filmstrip with excluded images greyed); crop
 happens on the viewer stage itself (drag, handles, move, Aspect, Rotate left
 and right, Full frame, Reset, Save crop). A crop is a stored rectangle: tiles
 and the report show the cropped region and Download returns the original.
-Pre-Case records and the Triage Case page keep the simpler viewer with Crop
-(Apply, Clear, Cancel) and the Tag select, and their tiles show the cropped
-region the same way.
+Pre-Case records keep the simpler viewer with Crop (Apply, Clear, Cancel)
+and the Tag select, and their tiles show the cropped region the same way.
+The Triage Case page's viewer has neither: a Triage takes no crop and no tag
+(operator, 5 October 2026).
 
 `main.app-main` holds `.content`, capped at 1580px and centred with the 18px
 page padding, so a wide monitor shows equal margins either side rather than
@@ -248,8 +260,8 @@ shared `.dismiss` × so it can be put away before it expires.
   near-black text.
 - Collision red is sparse: primary actions, the current route, visible focus
   and urgent emphasis.
-- Product states are distinct: amber for incomplete/pending and the
-  exceptions group, restrained navy for **Review**, blue for informational
+- Product states are distinct: amber for incomplete/pending,
+  restrained navy for **Review**, blue for informational
   and in-progress external work, green for an operation or outcome that
   succeeded (Case created, Linked, Sent, Saved, Approved, Roadworthy), red for one that did not (Failed, Could not be read, Unavailable, Rejected, Unroadworthy), and red for
   danger and blocked, neutral for everything else.
@@ -438,7 +450,7 @@ prototype's effective media queries:
 
 | Max width | Reflow |
 | --- | --- |
-| 1360px | `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns. The Work Centre ledger keeps its five columns to 600px, tightening its padding below 980px |
+| 1360px | `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns. The Work Centre ledgers keep their columns to 600px, tightening their padding and folding Owner and Received into the task cell below 980px |
 | 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
 | 980px | The rail lies down into a horizontal bar; `admin-nav` becomes a horizontal scroller; `--content-max` is released |
@@ -456,7 +468,10 @@ There is no product-wide motion system and no approved duration or easing
 tokens. Hover and focus state transitions are 140ms (the prototype's
 `.13–.14s ease`); dialog and toast
 entrance is a single opacity/translate step; both are removed under reduced
-motion. Marketing scroll reveals, staggered entrances, hover scaling and CTA
+motion. The one spin (`pegasus-spin`, 1s linear) turns the Refresh icon, the
+loader glyph on a busy action button and a loading viewer. It decorates words
+that already say what is happening, so reduced motion stops it and loses
+nothing. The tick a finished action holds for a moment does not move. Marketing scroll reveals, staggered entrances, hover scaling and CTA
 lift are excluded. Do not invent duration or easing tokens during
 implementation.
 
@@ -551,7 +566,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `dashboard` | `layout-dashboard` | `F8A9AFA8D2245E34D3DAEB88C9FF80A2AA546D1F8671212896E743E596F3752B` | Rail: Work Centre |
 | `inbox` | `inbox` | `0817485BFAE1A740458AA3FC1E6E4542047FA890C547D35B17C771E6D352E901` | Rail: Inbox; Inbox scopes |
 | `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; the picker's drop target |
-| `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it); Cases rail groups |
+| `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it) |
 | `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
 | `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
 | `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Running jobs |
@@ -563,11 +578,11 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `chevron-left` | `chevron-left` | `1E4CC2B6933AEDC73D77B080ABC988D9A4ED319191AC4AB2F0BD417C8E91BCE1` | Back, pagination |
 | `chevron-down` | `chevron-down` | `07FA08D36ABFC560E7901833347764591406C71C2E8974BAF3EE518866D549C3` | Disclosure, select |
 | `arrow` | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Open full record, transitions |
-| `user` | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Rail user, account dialog |
+| `user` | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Rail user, account dialog; Triage Assign |
 | `more` | `more-horizontal` | `2124DA66776313BB29ED93D2CC06BBF1307EF8C8DBE672B3EE3AF4975F5E56D1` | Overflow menus |
-| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due; Renew editing |
+| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due |
 | `alert` | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary, blocked |
-| `warning` | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Warning notice, exceptions group |
+| `warning` | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Warning notice, Unidentified queue |
 | `check` | `check` | `DE2A367F6B80B94E85E56CF01EFB198FB835039FEC3C0B4E643EAE54E9C857C6` | Save, confirm, checks |
 | `check-circle` | `check-circle` | `CB9B89AA467B527393B51229F14E0314DB15D75792D2071C5FE599AB595C7678` | Confirmed completion |
 | `file` | `file` | `1A3C36C8758354AA3FBE172B2F9AA864C898B425AEF310970A2A30C706899C4A` | Document rows |
@@ -587,7 +602,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `bell` | `bell` | `5B315496E663ECA0E7465EDAD43FCD54BF00577C1737A5E8F9CC5352D185E79F` | Utility bar notifications |
 | `signout` | `log-out` | `20B23EB0AF17FE443827B2E64EC23057092180CDE64B3FAC5F2A9DC210A70880` | Sign out |
 | `calendar` | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date filters, due |
-| `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel; Reconcile provider outcome |
+| `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel |
 | `copy` | `copy` | `10CBC775CD0ACEBBB15F863348821192DBD4A2858380CC295BEB020AB4144DCB` | Copy reference |
 | `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download ZIP in the Send to EVA dialog |
 | `folder` | `folder` | `6E9E30D6DB22DC0118AC8C8466659342AFAE90784EFD65B5E2929BE1BA7B0C16` | Folder scopes, Case Files |
@@ -606,13 +621,13 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | — | `rotate-cw` | `5DE57E248094872B06E8408E710E05E1D89BDEB2243DDF780254C8632FC6DDFB` | Rotate view right (paired with `rotate-ccw`) |
 | `activity` (undefined in the prototype) | `activity` | `8E33259DA8A236EBC5D6C96F27DFAB90CE1F69D78F9D935FA28A143443F2380B` | Service health, presence |
 | `spark` (undefined) | `sparkles` | `D412CDDF7D44B1EED79ACB99F7D64A85E99BB77E9780FE49770883301EE63652` | Automation & AI nav entry, AI job rows |
-| `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply; Triage Reply with outcome |
+| `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `A55F63EE07DFA4078A73AC54401544201065765B3DDB64C23B39CAC355A8AAE9` | Flag message |
 | `sort` (undefined) | `arrow-up-down` | `9F9C9571C4A30B5642E7D6BBA19E58C836CC57F8ECDC5D044EB0819065C534BC` | Sort toggle |
 
 The v26 shell and Case record glyphs below are inlined only by
-`_LucideSprite.cshtml`, which now carries ninety-seven symbols: the sixty above
-plus these thirty-seven. Each checksum is the SHA-256 of the glyph's UTF-8
+`_LucideSprite.cshtml`, which now carries ninety-nine symbols: the sixty above
+plus these thirty-nine. Each checksum is the SHA-256 of the glyph's UTF-8
 `<symbol id="icon-…">…</symbol>` element in that partial. "No caller" marks a
 glyph the v26 mockups reference that no current page draws.
 
@@ -631,13 +646,13 @@ glyph the v26 mockups reference that no current page draws.
 | — | `eye-off` | `56982F58FC81CBE4EB066E455259234DE2F2FE4B120631693BA0FA5544EB516F` | No caller |
 | — | `key-round` | `5E7E3CD234E740B048195FBEF0B1C66E7CA85500AE1C7ACA7F35117496576E83` | No caller |
 | — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | Rotate view left (paired with `rotate-cw`) |
-| — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records) |
+| — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records); image tile Crop |
 | — | `zap` | `998D4DC807CBE0CE4AF837D6282BCB925F8B169A1CE6DF4B1A2B06D6210474A0` | No caller |
-| — | `grip-vertical` | `93D0BBD15AB6203E42D45A911F90B3BAB3D287E56AD4140804311B15FA062074` | No caller |
+| — | `grip-vertical` | `93D0BBD15AB6203E42D45A911F90B3BAB3D287E56AD4140804311B15FA062074` | Image tile: drag to reorder |
 | — | `shield-check` | `1A0678C6E00913D6FFAB22299D518EC906BA4FB8AE3F17E8C5801C212FE21DBA` | No caller |
 | — | `building` | `F8C777CE38931ABE01FAE9E46B1DC5527989F3152D9730EA941C7DA9D4DC9EFE` | No caller |
 | — | `sliders` | `BC19EF5E6751EAE7634C7CA956BB16A0C0A6AB9ECCB8935811B63849FF7D9BFF` | No caller |
-| — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Open the Triage |
+| — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Open the Triage; Triage Record finding |
 | — | `zoom-in` | `F32744E452483FCC60A24618A5C05630138A6C07806F647D510CE82726F0E8B2` | Case viewer Zoom |
 | — | `corner-up-left` | `B7FDDB91FDBC7FDF2A1BFB36864024219751277B9C9AD0F4630306925778E08F` | No caller |
 | — | `bar-chart` | `DB920FF9B7CE38B0D2703AE4B696B0682A3DCFE46B9BADE4260DFCF685BABB42` | Administration nav: Reports |
@@ -651,9 +666,11 @@ glyph the v26 mockups reference that no current page draws.
 | — | `phone` | `D3B43D179F6118EDF825342F9ED68F0AAF9840EA2DC63A13E72BE1B12567909F` | No caller |
 | — | `pound-sterling` | `72454D0BBC72046B76787C89101DC263E6060D4F4AF8B2DDD47EF2BB9976171A` | Administration nav: Valuation presets |
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
-| — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item |
-| — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | No caller |
+| — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item; image tile: In report, off |
+| — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | Image tile: In report, on |
 | — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
+| — | `tag` | `DD7CD667273A81E81C0901A77A43153FC8A1C8FC51FDFB98F5CFDF2AB7AC4596` | Image tile: Tag |
+| — | `file-image` | `DAE10E1CDF7EE095323DC27D60CF5A113ADB9830B2A02A2A90BF11FAEEED3808` | Image tile: Print on its own page (Full page) |
 | — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
 
 The v26 rail no longer draws the prototype's rail glyphs for two routes:
@@ -710,8 +727,15 @@ on a source with no working provider, shown in that source's card from the
 start (28 September 2026), with no Get valuation button; "report a
 problem" opens the Report a problem dialog. It replaces the 18 September
 "Error. Contact an administrator." Received-mail chasing categories read
-"Update Request", also the operator's wording; "provider" never appears in
+"Update request", also the operator's wording; "provider" never appears in
 operator copy (Principal is the word).
+
+> Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.
+
+The operator's wording (2 October 2026) for Get valuation when Glass's
+answers that it does not value a vehicle of that age. It shows in the
+Glass's card as an info notice, with no Report a problem, because nothing is
+broken; every other failure keeps the unavailable sentence.
 
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
 
@@ -771,11 +795,12 @@ approved design:
 a disabled control. The direct Audatex service-launch control is removed on
 that rule. By the operator's 15 September 2026 instruction the
 Valuation section has one route to a guide card: Glass's, Brego, Super CAP,
-CAP and Cazana are each one card with month, retail and trade boxes (the
-Case's own mileage is used; a card has none, 24 September 2026)
+CAP and Cazana are each one row with retail, trade and month boxes under
+shared column heads (rows since 6 October 2026; the
+Case's own mileage is used; a row has none, 24 September 2026)
 — greyed while reading, editable while editing — and, while editing, a Get
 valuation button that looks the figures up and fills the boxes in place
-(a source with no working provider shows the card's notice from the start and
+(a source with no working provider shows the row's notice from the start and
 has no button) and a Use this value button that chooses the card and records
 the decision on the next save (28 September 2026); the boxes are typed by hand
 just as well. The card has no Save of
@@ -783,11 +808,18 @@ its own (23 September 2026): its boxes belong to the Case form and each save
 records a changed card with whatever was entered; any box may be left blank.
 Every change to the Case saves as it is made (29 September 2026): the
 Repair Spec and the valuation calculator carry no Save or Apply of their own.
+The chosen source opens (operator, 6 October 2026): the calculation and the
+Retail, Trade and Engineer's Value boxes stand under its row, or close the
+list when no source is chosen; the Engineer's Value box is the one place the
+figure stands, each adjustment's amount shows in its own cell's label line,
+and the box's label carries a recorded calculation's source as one `src-tag`
+word. AI market research has its own standing row with its Valuation month
+and Get valuation, and On the report closes the section.
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
-repair-estimate launch. A Glass's valuation is a card the Engineer fills in;
-no guide provider is connected
+repair-estimate launch. Glass's is the one connected guide source, so only its
+row offers Get valuation; the other guide rows are filled in by hand
 ([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
 temporary section-scoped drop overlay; Cazana remains the disabled seam.
@@ -828,7 +860,8 @@ deleted in wave 5.
 | `page-header`, `page-title`, `eyebrow`, `page-actions` | Header row |
 | `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (dismiss, section fold) |
 | `freshness`, `freshness-status`, `health-dot`, `refresh-button` (`Shared/_RefreshButton`) | Page freshness line and the one Refresh control every surface composes; the label becomes "Refreshing" and the icon spins while a refresh runs (`prefers-reduced-motion` keeps the label and disabled state) |
-| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line |
+| `busy-spin`, `busy-done`, `[data-busy]`, `[data-busy-aside]`, `[data-busy-complete]`, `data-busy-label`, `data-busy-still`, `data-busy-done`, `data-busy-download` | Action feedback (site.js `pegasusBusy`): from the press until the result arrives the pressed button or link shows the turning `icon-loader` glyph and its busy words (`OperatorLabels.Busy`), keeping its colours; after five seconds the words say "Still …" (the layout's `data-busy-still` word); the form's other submit buttons stand aside. An action answered in place that succeeds holds the `icon-check` glyph and its `data-busy-done` word (`OperatorLabels.Busy.Done`, or its own label) in the confirmed green for 1.4 s; a page that reloads shows its notice instead. A download link or form fetches its file and stays busy until it arrives |
+| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line; under it the `wc-activity` panel holds the day and week figures as a table, the figures across and Today / This week down |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |
@@ -856,14 +889,14 @@ deleted in wave 5.
 | `fg`, `fc`, `fv`, `fi`, `ro` | One-look cells: the same cells in both modes; the value (`fv`) is a greyed box that becomes its white control (`fi`) while editing; `ro` marks a cell rendered without a control, whose greyed value stays while the rest edits; no padlock |
 | `src-tag` and its `--lookup`, `--ai`, `--warn` tones | The source tag: one word in the cell's label line saying where a value came from ([source tags](README.md#source-tags)); the same pill names other short origins (AI, Manual, Amended) |
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
-| `gated`, `avail` | The dashed availability label, stated once per section head; in the Inspection view it reads "Read-only · Audit created" |
+| `gated`, `avail` | The dashed availability label, stated once per section head |
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures |
 | `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
 | `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
-| `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Close-up and Overview their tags decide, the report order, non-destructive crop |
+| `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Overview and Close-up their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker`, `blocker-actions` | Outstanding requirements, and the report blockers in the aside's Next action; `blocker-actions` holds a blocker's link to the section that clears it |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
@@ -1095,6 +1128,7 @@ Use guidance only where the operator must understand a consequence:
 - "Created in error cannot be reopened. Create and link the replacement case."
 - "Unlinking this email cancels case <reference>."
 - "{Source} valuation is unavailable. Contact an administrator or report a problem."
+- "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15."
 
 Illustrative text must not fabricate operational input. Loading, empty,
 stale/partial, retryable error, denied/unauthenticated, validation, conflict,

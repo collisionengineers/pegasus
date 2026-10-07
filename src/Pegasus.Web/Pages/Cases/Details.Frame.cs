@@ -4,6 +4,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
@@ -21,9 +22,6 @@ public sealed partial class DetailsModel
     /// <summary>The Case's Draft ready AI jobs, oldest first, for the Next action panel.</summary>
     public IReadOnlyList<AiDraft> AiDrafts { get; private set; } = [];
 
-    /// <summary>Whether this staff member may take the unassigned Case for themself (P8).</summary>
-    public bool CanAssignToMe { get; private set; }
-
     /// <summary>
     /// The lease is this browser's and the Case is not archived: the page-wide
     /// edit session is open. A Completed or Query Case offers no session of
@@ -36,17 +34,52 @@ public sealed partial class DetailsModel
         !ViewerHoldsEditAuthority && CurrentEditLease is not null && EditAuthorityHolder is not null;
 
     /// <summary>
-    /// Create audit (v29 P5): offered where Core's shared Audit policy finds
-    /// no refusal (an Inspection + Audit Case whose report is sent, with no
-    /// Audit yet and an assigned Engineer). The command runs under the
-    /// session's lease or one claimed for it (operator, 29 September 2026),
-    /// so it is offered in and out of an edit session, but not while a
-    /// colleague holds the lease.
+    /// Create audit is listed in the Actions menu of every Inspection + Audit
+    /// Case, in every state (operator, 1 October 2026); the type is fixed
+    /// identity, so no other Case lists it.
     /// </summary>
-    public bool CanCreateAudit =>
-        Case is { } details
-        && AuditPolicy.Refusal(details.Summary.CaseType, details.Workflow, Works) is null
-        && !ColleagueIsEditing;
+    public bool OffersCreateAudit =>
+        Case is { } details && details.Summary.CaseType == CaseType.InspectionAndAudit;
+
+    /// <summary>
+    /// Why the listed Create audit is greyed out, stated on hover, or null
+    /// when it is live: a colleague holds the lease, or Core's shared Audit
+    /// policy refuses it (Held, closed, archived, an Audit already, no
+    /// Engineer). The command runs under the session's lease or one claimed
+    /// for it (operator, 29 September 2026), so it is live in and out of an
+    /// edit session.
+    /// </summary>
+    public string? CreateAuditCondition
+    {
+        get
+        {
+            if (Case is not { } details)
+            {
+                return null;
+            }
+            if (ColleagueIsEditing && EditAuthorityHolder is { } holder)
+            {
+                return $"{EditModeDisplay.HolderName(holder)} is editing";
+            }
+            return AuditPolicy.Refusal(details.Summary.CaseType, details.Workflow, Works) is { } refusal
+                ? AuditPolicy.Message(refusal)
+                : null;
+        }
+    }
+
+    /// <summary>The listed Create audit is live: its dialog renders and its button opens it.</summary>
+    public bool CanCreateAudit => OffersCreateAudit && CreateAuditCondition is null;
+
+    /// <summary>
+    /// Assign Engineer is live: a Review Case whose data the viewer may act on,
+    /// with an eligible Engineer to choose. Its dialog renders, and the Actions
+    /// menu and the Next action both open it (issue 1025).
+    /// </summary>
+    public bool CanAssignEngineer =>
+        Case is { Workflow.State: CaseLifecycleState.Review }
+        && !ColleagueIsEditing
+        && !IsPostReportReadOnly
+        && EvaHandoff is { EngineerOptions.Count: > 0 };
 
     /// <summary>The Audit reference the dialog announces: <c>a.{Case/PO}</c>.</summary>
     public string? ProposedAuditReference =>
@@ -64,20 +97,14 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The one availability sentence a section states in its head while an
-    /// edit session (this viewer's or a colleague's) keeps it reading, or
-    /// while the Inspection view reads (v29 P3: every section but Files and
-    /// Notes, which are the Case's own); null when the section edits, or when
-    /// nothing is being edited at all.
+    /// edit session (this viewer's or a colleague's) keeps it reading; null
+    /// when the section edits, or when nothing is being edited at all.
     /// </summary>
     public string? SectionAvailability(string key)
     {
         if (CurrentWorkflow is null)
         {
             return null;
-        }
-        if (IsInspectionView && key is not ("files" or "notes"))
-        {
-            return CaseWorkspaceLabels.Frame.ReadOnlyAuditCreated;
         }
         if (ColleagueIsEditing && EditAuthorityHolder is { } holder)
         {
@@ -100,15 +127,14 @@ public sealed partial class DetailsModel
     /// section that has controls at all. A held lease is taken over from the
     /// ribbon only; a lazily loaded section does not resolve the holder, so it
     /// asks whether any lease is live rather than whose it is. The Files and
-    /// Notes sections act through their own immediate posts. The Inspection
-    /// view offers no Edit anywhere (v29 P3).
+    /// Notes sections act through their own immediate posts. Both views offer
+    /// it (operator, 2 October 2026).
     /// </summary>
     public bool SectionOffersEdit(string key) =>
         !IsEditing
         && CurrentEditLease is null
         && !IsPostReportReadOnly
         && CurrentWorkflow?.Archive is null
-        && !IsInspectionView
         && key is not ("files" or "notes");
 
     /// <summary>The state chip's text, with the hold's review date when one is set.</summary>
@@ -145,39 +171,53 @@ public sealed partial class DetailsModel
     };
 
     /// <summary>
-    /// The report blockers the Next action lists (issue 899): while the
-    /// report is not ready and this view's assessment is writable, every
-    /// blocker, each linking to the section that clears it (FRD-13). Empty
-    /// otherwise, and always in the read-only Inspection view.
+    /// The report blockers the Next action lists (issue 899): while the viewed
+    /// work's report is not ready, every blocker, each linking to the section
+    /// that clears it (FRD-13). The Inspection view lists the Inspection
+    /// report's own blockers whatever the Case's state (operator, 2 October
+    /// 2026); the Audit view lists the Audit's while its assessment is
+    /// writable. Empty otherwise.
     /// </summary>
     public IReadOnlyList<AssessmentReadinessItem> NextActionBlockers =>
-        !AssessmentIsReadOnly && ReportDraftNotReady ? ReportDraftReasons : [];
+        (IsInspectionView || !AssessmentIsReadOnly) && ReportDraftNotReady ? ReportDraftReasons : [];
 
     /// <summary>
     /// The one-line Next action the aside states: the AI draft rows come first
-    /// (rendered by the view), then the Case's next permitted lifecycle action
-    /// (<see cref="CaseNextAction"/>). With Engineer, while the report is not
-    /// ready, there is no line: the <see cref="NextActionBlockers"/> list is the
-    /// next action (in the Inspection view, which lists none, the line names
-    /// Report not ready).
+    /// (rendered by the view), then the viewed work's next step
+    /// (<see cref="CaseNextAction"/>). While the report is not ready there is
+    /// no line: the <see cref="NextActionBlockers"/> list is the next action,
+    /// except in a read-only Audit view, where the line names Report not
+    /// ready. The Inspection view states the Inspection report's own step and
+    /// nothing once that report is sent (operator, 2 October 2026).
     /// </summary>
-    public (string Label, string SectionKey)? NextAction
+    public CaseNextActionStep? NextAction
     {
         get
         {
+            if (IsInspectionView)
+            {
+                var inspection = CaseNextAction.OfPastWork(
+                    NextActionBlockers,
+                    BlockerSectionKey,
+                    CurrentReportGeneration,
+                    Works?.Primary.ReportSentEvidence);
+                return inspection is { Blocker: not null } ? null : inspection;
+            }
+            var details = Case!;
             var next = CaseNextAction.Of(
-                Case!.Workflow,
+                details.Workflow,
+                details.Summary.CaseType,
+                Works,
                 OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
                 ReportDraftNotReady ? ReportDraftReasons : [],
                 BlockerSectionKey,
-                CurrentReportGeneration,
-                CurrentDeliveryPreparation);
+                CurrentReportGeneration);
             if (next.Blocker is null)
             {
-                return (next.Label, next.SectionKey);
+                return next;
             }
             // A writable view lists the blockers in place of this line.
-            return AssessmentIsReadOnly ? (CaseWorkspaceLabels.Report.NotReady, "report") : null;
+            return AssessmentIsReadOnly ? new(CaseWorkspaceLabels.Report.NotReady, "report") : null;
         }
     }
 

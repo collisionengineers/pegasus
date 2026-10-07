@@ -341,8 +341,12 @@ public sealed class AnalyzeRetainedInstructionTests
     public async Task CompletedOcrIsHashBoundLocatedAndAlwaysReviewOnly()
     {
         var evidence = OcrEvidence(SourceHash);
-        var ocrRead = AnalyzeRetainedInstruction.CreateOcrReadResult(evidence);
+        var ocrRead = IntakeOcrText.ReadResult("uploaded instruction.pdf", evidence.SourceSha256, evidence.Result);
         var fragment = Assert.Single(ocrRead.Content);
+        // The reader's own label shape, so a page number is a page number
+        // whoever read the page; the OCR provenance rides in the locator.
+        Assert.Equal("uploaded instruction.pdf, page 2", fragment.SourceLabel);
+        Assert.Equal(IntakeOcrText.DocumentRole, fragment.Locator!.DocumentRole);
         Assert.Equal(2, fragment.Locator!.Page);
         Assert.Equal(SourceHash, fragment.Locator.Sha256);
         Assert.Contains(ResponseHash, fragment.Locator.Region, StringComparison.Ordinal);
@@ -450,7 +454,7 @@ public sealed class AnalyzeRetainedInstructionTests
         var result = await harness.ExecuteAsync(operationKey: "automation-ocr");
 
         Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
-        Assert.Equal("OCR is available only for incoming mailbox or manual-upload instructions.", result.Reason);
+        Assert.Equal("OCR is not run for automation sources.", result.Reason);
         Assert.Empty(harness.OcrOperations.Begins);
     }
 
@@ -472,7 +476,7 @@ public sealed class AnalyzeRetainedInstructionTests
             OcrEvidence(SourceHash)));
 
         Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
-        Assert.Equal("OCR is available only for incoming mailbox or manual-upload instructions.", result.Reason);
+        Assert.Equal("OCR is not run for automation sources.", result.Reason);
         Assert.Empty(harness.Store.Records);
         Assert.Equal(0, harness.Documents.Opens);
     }
@@ -561,10 +565,12 @@ public sealed class AnalyzeRetainedInstructionTests
             ReaderKey: "mimekit/pdfpig",
             ReaderVersion: "1");
 
-        var merged = AnalyzeRetainedInstruction.MergeOcrReadResult(
+        var merged = IntakeOcrText.Merge(
             ordinary,
-            evidence,
-            new HashSet<string>(StringComparer.Ordinal) { "mail attachment.pdf" });
+            "mail attachment.pdf",
+            evidence.SourceSha256,
+            evidence.QualifiedPages,
+            evidence.Result);
 
         Assert.Contains(merged.Content, fragment => fragment.Text == "Please see the instruction.");
         Assert.Contains(merged.Content, fragment => fragment.Text == "Readable page");
@@ -578,7 +584,8 @@ public sealed class AnalyzeRetainedInstructionTests
     public async Task MixedOcrEvidenceKeepsOrdinaryReaderProvenanceAndDoesNotLookupItsRegistration()
     {
         var evidence = OcrEvidence(SourceHash);
-        var ocrFragment = Assert.Single(AnalyzeRetainedInstruction.CreateOcrReadResult(evidence).Content);
+        var ocrFragment = Assert.Single(
+            IntakeOcrText.ReadResult("uploaded instruction.pdf", evidence.SourceSha256, evidence.Result).Content);
         var ordinaryLocator = IntakeSourceLocator.ForPage(1);
         var harness = new Harness(
             InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]) with
@@ -1050,6 +1057,15 @@ public sealed class AnalyzeRetainedInstructionTests
             Guid operationId,
             CancellationToken cancellationToken) =>
             Task.FromResult<IntakeOcrOperation?>(Operations.Values.SingleOrDefault(item => item.Id == operationId));
+
+        public Task<IntakeOcrOperation?> FindCompletedBySourceAsync(
+            string sourceSha256,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Operations.Values
+                .Where(item => item.State == IntakeOcrState.Completed && item.Result is not null
+                    && string.Equals(item.SourceSha256, sourceSha256, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(item => item.Id)
+                .FirstOrDefault());
 
         public Task<IntakeOcrOperation?> ResumeRequestedRetryAsync(
             Guid operationId,

@@ -96,6 +96,108 @@ public sealed class ImageIntakeWebTests
     }
 
     /// <summary>
+    /// A multi-file upload no registration was read from is one Unidentified
+    /// item for the whole group. Register images on that item takes the
+    /// registration and registers the group as one vehicle-images record,
+    /// moving every member and resolving the item; a replayed post adds nothing.
+    /// </summary>
+    [Fact]
+    public async Task StaffRegistersAnUnreadUploadGroupFromItsUnidentifiedItem()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
+                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
+            ]);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+
+        Guid unidentifiedId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+            var item = await scope.ServiceProvider
+                .GetRequiredService<Pegasus.Core.Intake.Unidentified.IUnidentifiedStore>()
+                .GetByOriginAsync(
+                    Pegasus.Core.Intake.Unidentified.UnidentifiedOrigin.SubmissionGroup(groupId),
+                    CancellationToken.None);
+            var open = Assert.IsType<Pegasus.Core.Intake.Unidentified.UnidentifiedItem>(item);
+            Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedState.Open, open.State);
+            unidentifiedId = open.Id;
+        }
+
+        var detailsBefore = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
+        Assert.Contains("handler=RegisterImages", detailsBefore, StringComparison.Ordinal);
+        Assert.Contains(
+            "data-dialog-open=\"unidentified-register-dialog\" data-unidentified-action=\"register\"",
+            detailsBefore,
+            StringComparison.Ordinal);
+
+        var fields = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
+            ["operationKey"] = Guid.NewGuid().ToString("N"),
+            ["vehicleRegistration"] = "ab12 cde",
+            ["reason"] = "Staff read the registration from the uploaded images."
+        };
+        using (var registerResponse = await client.PostAsync(
+                   $"/Unidentified/{unidentifiedId:D}?handler=RegisterImages",
+                   new FormUrlEncodedContent(fields)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, registerResponse.StatusCode);
+        }
+
+        using (var replayResponse = await client.PostAsync(
+                   $"/Unidentified/{unidentifiedId:D}?handler=RegisterImages",
+                   new FormUrlEncodedContent(fields)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, replayResponse.StatusCode);
+        }
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var group = await scope.ServiceProvider
+                .GetRequiredService<IIntakeSubmissionGroupStore>()
+                .GetAsync(groupId, CancellationToken.None);
+            var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+            var imageIntakes = scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
+            var recordIds = new HashSet<Guid>();
+            foreach (var member in group!.Members)
+            {
+                var receipt = await receipts.GetAsync(member.ProcessedReceiptId!.Value, CancellationToken.None);
+                Assert.Equal(IntakeDecision.ImageIntakeRegistered, receipt!.Decision);
+                var detail = await imageIntakes.GetByOriginReceiptAsync(receipt.Id, CancellationToken.None);
+                Assert.Equal("AB12CDE-01", detail!.Record.ImageIntakeReference);
+                Assert.Equal(groupId, detail.Record.SubmissionGroupId);
+                recordIds.Add(detail.Record.Id);
+            }
+
+            var recordId = Assert.Single(recordIds);
+            var item = await scope.ServiceProvider
+                .GetRequiredService<Pegasus.Core.Intake.Unidentified.IUnidentifiedStore>()
+                .GetAsync(unidentifiedId, CancellationToken.None);
+            Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedState.Resolved, item!.State);
+            Assert.Equal(
+                Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ImageIntake,
+                item.ResolutionTargetKind);
+            Assert.Equal(recordId.ToString("N"), item.ResolutionTargetId);
+        }
+
+        var search = await IntakeWebDriver.GetHtmlAsync(client, "/Search?registration=AB12CDE&kind=images");
+        Assert.Single(Regex.Matches(search, "AB12CDE-0\\d").Select(match => match.Value).Distinct());
+    }
+
+    /// <summary>
     /// A browser keeps an intake image for a week only when the address names
     /// the content it is answered with. An address without the hash, or with
     /// an old one, is never kept, so a changed image is never shown stale.

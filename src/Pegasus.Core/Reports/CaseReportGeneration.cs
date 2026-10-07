@@ -9,11 +9,17 @@ using Pegasus.Core.Lifecycle;
 
 namespace Pegasus.Core.Reports;
 
+/// <summary>
+/// One generation request. <paramref name="Work"/> names the work whose
+/// report is made: the current work by default, or the Inspection (primary)
+/// work of a Case that already has its Audit, whose report is still prepared
+/// and sent on its own (operator, 1 October 2026).
+/// </summary>
 public sealed record GenerateCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     string OperationKey, CaseReportArtifactKind Kind, string Reason,
-    bool IncludeFeeNote = false,
-    Guid? TargetGenerationId = null);
+    Guid? TargetGenerationId = null,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 public interface IGenerateCaseReport
 {
     Task<CaseReportGenerationResult> ExecuteAsync(
@@ -22,10 +28,10 @@ public interface IGenerateCaseReport
 
 /// <summary>
 /// The separately addressable artifacts one accepted snapshot produces. Each
-/// is generated on its own request; none is rendered speculatively. A report
-/// frozen with <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> carries
-/// the fee note inside <see cref="AssessmentReport"/> itself, so the separate
-/// <see cref="FeeNote"/> document is not asked for as well.
+/// is generated on its own request; none is rendered speculatively. Every
+/// <see cref="AssessmentReport"/> ends with its fee note. A Principal that
+/// wants the fee note on its own as well is sent the separate
+/// <see cref="FeeNote"/> document beside the report.
 ///
 /// <see cref="RepairSpecification"/> and <see cref="ImagePack"/> are the two
 /// companion documents a delivery may attach (v28 P22). The specification is
@@ -192,7 +198,6 @@ public sealed record CaseReportGenerationSnapshot(
     CaseReportContentSwitches Content,
     ReportGuideSources Guides,
     DateOnly ReportDate,
-    bool ReportDateOverridden,
     decimal AgreedFee,
     IReadOnlyList<string> FeeDescriptionLines,
     IReadOnlyList<CaseReportSnapshotSource> Sources,
@@ -325,11 +330,9 @@ public sealed record CaseReportFreezeResult(
     IReadOnlyList<AssessmentReadinessItem> Reasons);
 
 /// <summary>
-/// One freeze. <see cref="IncludeFeeNote"/> is the operator's packaging
-/// choice for an <see cref="CaseReportArtifactKind.AssessmentReport"/>
-/// request: it is frozen into the snapshot, so it is part of the material
-/// facts the snapshot hash covers and an issued report renders the same way
-/// again. It has no meaning for a separate fee-note document.
+/// One freeze. An <see cref="CaseReportArtifactKind.AssessmentReport"/>
+/// request freezes a fresh snapshot; any other kind names the confirmed
+/// generation it extends in <see cref="TargetGenerationId"/>.
 /// </summary>
 public sealed record FreezeCaseReportGenerationRequest(
     ActionActor Actor,
@@ -341,8 +344,8 @@ public sealed record FreezeCaseReportGenerationRequest(
     string Reason,
     string TemplateVersion,
     string RendererVersion,
-    bool IncludeFeeNote = false,
-    Guid? TargetGenerationId = null);
+    Guid? TargetGenerationId = null,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 
 public sealed record ConfirmCaseReportArtifactRequest(
     ActionActor Actor,
@@ -400,6 +403,15 @@ public interface ICaseReportGenerationStore
 
     Task<CaseReportGenerationRecord?> GetAsync(
         ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The generation one delivery names, read under the Case's edit lease:
+    /// reloads permission, the held lease and the expected Case version, and
+    /// requires the generation to be of the work the request names, that
+    /// work's current one, confirmed, and at the expected version.
+    /// </summary>
+    Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+        SendCaseReportRequest request, CancellationToken cancellationToken);
 
     /// <summary>The selected work's current generation.</summary>
     Task<CaseReportGenerationRecord?> GetCurrentAsync(
@@ -613,8 +625,7 @@ public sealed record CaseReportReadinessResult(
     SignOffEngineerProfile? Signatory,
     IReadOnlyList<PreparedReportImage> Images,
     CaseReportContentSwitches Content,
-    DateOnly? RecordedReportDate,
-    bool ReportDateOverridden)
+    DateOnly? RecordedReportDate)
 {
     public bool IsReady => Reasons.Count == 0;
 }
@@ -634,7 +645,6 @@ public static class CaseReportReadiness
     public const string CurrentEstimateRequirement = "Current repair spec";
     public const string LabourRateRequirement = "Repair spec labour rate";
     public const string RepairerVatRequirement = "Repairer VAT status";
-    public const string CloseUpImageRequirement = "Close-up image";
     public const string OverviewImageRequirement = "Overview image";
     public const string ImageSourceRequirement = "Report image sources";
     public const string ValuationCommentaryRequirement = "Valuation commentary";
@@ -748,14 +758,9 @@ public static class CaseReportReadiness
         }
 
         // The image tag decides how an image in the report prints (operator,
-        // 26 September 2026), so each blocker asks for a tag.
+        // 26 September 2026). The one image a report needs is its Overview;
+        // the Close-up is optional (operator, 7 October 2026).
         var images = CaseAssetPreparationPolicy.ForReport(input.Preparations);
-        Require(
-            images.Any(image => image.Role == CaseAssetReportRole.CloseUp),
-            new(
-                CloseUpImageRequirement, "Case files",
-                "The report prints one Close-up image and no image in the report is tagged Close-up.",
-                "Tag one Case image Close-up on the Files section."));
         Require(
             images.Any(image => image.Role == CaseAssetReportRole.Overview),
             new(
@@ -777,7 +782,6 @@ public static class CaseReportReadiness
                 "Open the Files section to see the image as it is stored now."));
 
         var content = ContentOf(assessment);
-        var overridden = Flag(assessment, AssessmentVocabulary.ReportDateOverride);
         var recordedDate = Date(assessment, AssessmentVocabulary.ReportDate);
         Require(
             !content.IncludeValuationCommentary
@@ -796,7 +800,7 @@ public static class CaseReportReadiness
                 "Record the unrelated damage on the Damage section, or turn off Unrelated damage under On the report on the Valuation section.",
                 Field: AssessmentVocabulary.DamageUnrelated));
 
-        return new(reasons, signatory, images, content, recordedDate, overridden);
+        return new(reasons, signatory, images, content, recordedDate);
     }
 
     /// <summary>
@@ -825,15 +829,13 @@ public static class CaseReportReadiness
     }
 
     /// <summary>
-    /// The report date a generation freezes: the recorded override when the
-    /// operator set one, otherwise the date generation itself is happening on.
-    /// A report date is never defaulted before generation.
+    /// The report date a generation freezes: the Report date recorded on the
+    /// Case when there is one, otherwise the date generation itself is
+    /// happening on (operator, 7 October 2026). Generation never writes its
+    /// date back into the Case.
     /// </summary>
-    public static (DateOnly Date, bool Overridden) ResolveReportDate(
-        DateOnly? recorded, bool overridden, DateOnly generatedOn) => overridden
-            ? (recorded ?? throw new InvalidDataException(
-                "The report date is overridden but no date is recorded."), true)
-            : (generatedOn, false);
+    public static DateOnly ResolveReportDate(DateOnly? recorded, DateOnly generatedOn) =>
+        recorded ?? generatedOn;
 
     private static bool IsComplete(SignOffEngineerProfile profile) =>
         !string.IsNullOrWhiteSpace(profile.PrintedName)
@@ -899,8 +901,8 @@ public sealed class GenerateCaseReport(
                 request.Reason,
                 AssessmentReportContract.TemplateVersion,
                 renderer.EngineVersion,
-                request.IncludeFeeNote,
-                request.TargetGenerationId),
+                request.TargetGenerationId,
+                request.Work),
             cancellationToken).ConfigureAwait(false);
 
         switch (frozen.Outcome)

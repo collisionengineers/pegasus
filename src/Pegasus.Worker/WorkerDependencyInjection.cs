@@ -77,9 +77,14 @@ public static class WorkerDependencyInjection
                 ?? configuration["AzureWebJobsStorage"]
                 ?? throw new InvalidOperationException(
                     "AzureWebJobsStorage is required for Features:LiveBoxCustody.");
+            // Pinned to the newest service version the repository's Azurite pin
+            // (3.36.0) speaks; the SDK's default is ahead of it, and Azurite
+            // refuses the request rather than downgrading.
             services.AddSingleton(new Azure.Storage.Blobs.BlobContainerClient(
                 intakeConnectionString,
-                WorkerAzureClientFactory.IntakeArtifactContainerName));
+                WorkerAzureClientFactory.IntakeArtifactContainerName,
+                new Azure.Storage.Blobs.BlobClientOptions(
+                    Azure.Storage.Blobs.BlobClientOptions.ServiceVersion.V2025_11_05)));
         }
         var composesLocalArtifactRoot = developmentOffline && !liveBoxCustody;
         Func<IServiceProvider, string>? localArtifactRootFactory = composesLocalArtifactRoot

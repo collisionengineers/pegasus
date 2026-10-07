@@ -491,6 +491,46 @@ public static class TriageLifecycleRules
         _ => StaffMailPurpose.TriageChaser
     };
 
+    /// <summary>
+    /// The states a Triage is still being worked in: the Triage queue, the shell
+    /// count and the Triages metric read these. Completed and Cancelled Triages
+    /// are found through Search (FRD-15).
+    /// </summary>
+    public static IReadOnlyCollection<TriageState> ActiveStates { get; } =
+        [TriageState.Open, TriageState.AwaitingInformation, TriageState.FindingRecorded];
+
+    /// <summary>
+    /// The outcome reply for the Triage's current completion has been sent, so
+    /// Reply with finding is no longer offered; only Reopen and a fresh
+    /// completion offer it again (FRD-03). A failed or cancelled send leaves it
+    /// offered.
+    /// </summary>
+    public static bool OutcomeReplySent(TriageDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        if (detail.Record.State != TriageState.Completed
+            || detail.SentOutcomeReplyVersion is not { } sentAgainst)
+        {
+            return false;
+        }
+
+        // The version the Triage entered Completed at. Later entries that leave
+        // it Completed (a linked Sent item) do not start a new completion.
+        long? completedAtVersion = null;
+        TriageState? previous = null;
+        foreach (var entry in detail.History.OrderBy(item => item.AfterVersion))
+        {
+            if (entry.AfterState == TriageState.Completed && previous != TriageState.Completed)
+            {
+                completedAtVersion = entry.AfterVersion;
+            }
+
+            previous = entry.AfterState;
+        }
+
+        return completedAtVersion is { } version && sentAgainst >= version;
+    }
+
     public static void ValidateNote(AddTriageNoteRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -615,21 +655,6 @@ public static class TriageLifecycleRules
         {
             throw new InvalidOperationException($"Completed or cancelled triage cannot {action}.");
         }
-    }
-
-    /// <summary>"Assign to me" is offered on an open Triage that nobody holds yet.</summary>
-    public static bool CanAssignToSelf(TriageRecord triage) =>
-        triage.AssigneeId is null && triage.State is not (TriageState.Completed or TriageState.Cancelled);
-
-    public static void RequireCanAssignToSelf(TriageRecord triage)
-    {
-        ArgumentNullException.ThrowIfNull(triage);
-        if (triage.AssigneeId is not null)
-        {
-            throw new InvalidOperationException("The triage already has an assignee.");
-        }
-
-        RequireMutable(triage, "assign");
     }
 
     internal static bool HasActiveFinding(TriageDetail triage) =>
@@ -787,37 +812,5 @@ public static class TriageLifecycleRules
         {
             throw new ArgumentOutOfRangeException(parameterName, $"The value cannot exceed {maximumLength} characters.");
         }
-    }
-}
-
-public sealed class AssignTriageToMe(
-    ITriageQueries queries,
-    IAssignTriage assign) : IAssignTriageToMe
-{
-    public const string Reason = "Assigned to me.";
-
-    private readonly ITriageQueries _queries = queries ?? throw new ArgumentNullException(nameof(queries));
-    private readonly IAssignTriage _assign = assign ?? throw new ArgumentNullException(nameof(assign));
-
-    public async Task<TriageRecord> ExecuteAsync(
-        AssignTriageToMeRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        var engineerId = Lifecycle.CaseLifecycleRules.RequireSelfAssigningStaff(request.Actor);
-        var current = await TriageLifecycleRules.GetRequiredAsync(_queries, request.CaseId, cancellationToken);
-        TriageLifecycleRules.RequireCanAssignToSelf(current.Record);
-        return await _assign.ExecuteAsync(
-            new AssignTriageRequest(
-                request.CaseId,
-                request.ExpectedVersion,
-                engineerId,
-                request.Actor,
-                request.OperationKey,
-                Reason)
-            {
-                EditLeaseToken = request.EditLeaseToken
-            },
-            cancellationToken);
     }
 }

@@ -122,7 +122,10 @@ section), `Open query` (opens the message it answers, or the Case when the
 job names none) or `Review` (opens the Unidentified item) for a `Draft
 ready` job, the same place the Case's Next action opens; `Complete job` for
 a `Draft ready` Query response or Unidentified-queue pass; otherwise
-nothing. A job that names no record page has no open action.
+nothing. A job that names no record page has no open action. Every row also
+ends with `Dismiss`, which takes the job off the Work Centre until it next
+changes state and leaves the job itself as it was
+([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)).
 
 **Send Unidentified to AI.** The Unidentified record offers this action while
 the item is open. It creates one Unidentified-resolution job for that item.

@@ -64,9 +64,10 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
 
     /// <summary>
     /// The images one artifact prints. The report leads page 1 with the
-    /// Close-up and prints it nowhere else; the image pack prints every
-    /// image in the grid. Full page has no effect on the Close-up. Each
-    /// image is opened, prepared and let go of before the next is opened.
+    /// Overview and prints it nowhere else (operator, 7 October 2026); the
+    /// image pack prints every image in the grid. Full page has no effect on
+    /// the Overview. Each image is opened, prepared and let go of before the
+    /// next is opened.
     /// </summary>
     private static async Task<PreparedReportImages> PrepareAsync(
         AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
@@ -76,8 +77,8 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             return new(null, [], [], ReportResources.Logo());
         }
         var ordered = snapshot.OrderedPhotos;
-        var closeUp = ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.CloseUp);
-        var lead = kind == CaseReportArtifactKind.AssessmentReport ? closeUp : null;
+        var overview = ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.Overview);
+        var lead = kind == CaseReportArtifactKind.AssessmentReport ? overview : null;
         var leadImage = lead is null
             ? null
             : await PreparePhotoAsync(lead, ReportChrome.LeadSlotHeight, cancellationToken).ConfigureAwait(false);
@@ -88,7 +89,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             {
                 continue;
             }
-            var fullPage = photo.FullPage && !ReferenceEquals(photo, closeUp);
+            var fullPage = photo.FullPage && !ReferenceEquals(photo, overview);
             photos.Add(new PreparedReportPhoto(
                 await PreparePhotoAsync(photo, fullPage ? null : ReportChrome.GridSlotHeight, cancellationToken)
                     .ConfigureAwait(false),

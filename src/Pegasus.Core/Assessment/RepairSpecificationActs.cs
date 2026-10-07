@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
@@ -224,7 +225,11 @@ public sealed record ScaleRepairSpecificationRequest(
     Guid SpecificationId,
     decimal TargetPercentOfValue,
     ScalingFloors Floors,
-    decimal? EngineerValue = null);
+    decimal? EngineerValue = null)
+{
+    /// <summary>The work whose specification is scaled, and whose Engineer's Value it is scaled to.</summary>
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 public sealed record RemoveRepairSpecificationScalingRequest(
     Guid CaseId,
@@ -232,7 +237,10 @@ public sealed record RemoveRepairSpecificationScalingRequest(
     ActionActor Actor,
     string OperationKey,
     string EditLeaseToken,
-    Guid SpecificationId);
+    Guid SpecificationId)
+{
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 public sealed record RestoreRepairSpecificationSnapshotRequest(
     Guid CaseId,
@@ -241,7 +249,10 @@ public sealed record RestoreRepairSpecificationSnapshotRequest(
     string OperationKey,
     string EditLeaseToken,
     Guid SpecificationId,
-    Guid SnapshotId);
+    Guid SnapshotId)
+{
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 public interface IScaleRepairSpecification
 {
@@ -274,7 +285,7 @@ public sealed class ScaleRepairSpecification(
     {
         ArgumentNullException.ThrowIfNull(request);
         RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
-        var projection = await assessment.GetAsync(request.CaseId, cancellationToken);
+        var projection = await assessment.GetAsync(request.CaseId, request.Work, cancellationToken);
         var field = projection?.Field(AssessmentVocabulary.ValueEngineer);
         decimal? engineerValue = field is not null
             && decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var recorded)

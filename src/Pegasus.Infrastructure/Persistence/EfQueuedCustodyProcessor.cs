@@ -214,7 +214,7 @@ internal sealed class EfQueuedCustodyProcessor(
                         casePayload.MediaType!,
                         casePayload.SourceLength!.Value,
                         casePayload.SourceHash!,
-                        DocumentSemanticRole.OriginalSource,
+                        IntakeCaseEvidenceRoles.For(IntakeAssetKind.Source, casePayload.MediaType!),
                         $"{casePayload.OperationKey}:source",
                         version.RemoteId,
                         version.BoxVersionId,
@@ -290,6 +290,12 @@ internal sealed class EfQueuedCustodyProcessor(
     /// attachments go up to three at a time, then the photographs do, and the
     /// list this returns keeps the ordinal order whichever upload finishes
     /// first. The lease is checked after each batch.
+    ///
+    /// A standalone Audit's original report was identified at intake, and the
+    /// Case was created knowing it (its Original report cells filled at
+    /// acceptance). That file is filed as the Audit report: nothing later
+    /// recognises it, because a Case that already holds its report does not
+    /// await one, so its role is given here with every other attachment's.
     /// </summary>
     private async Task<IReadOnlyList<RetainedCaseFile>> RetainInstructionAttachmentsAsync(
         CaseCustodyRoot root,
@@ -311,6 +317,15 @@ internal sealed class EfQueuedCustodyProcessor(
             .OrderBy(asset => asset.FileName)
             .ThenBy(asset => asset.Id)
             .ToList();
+        var originalReportAssetId = await context.Cases
+            .AsNoTracking()
+            .Where(item => item.Id == casePayload.CaseId && item.StandaloneAuditEvidenceId != null)
+            .Join(
+                context.Set<StandaloneAuditEvidenceEntity>().AsNoTracking(),
+                item => item.StandaloneAuditEvidenceId,
+                evidence => evidence.Id,
+                (item, evidence) => (Guid?)evidence.OriginalReportAssetId)
+            .SingleOrDefaultAsync(cancellationToken);
         retained.AddRange(await RetainTogetherAsync(
             attachments,
             leaseGuard,
@@ -339,10 +354,13 @@ internal sealed class EfQueuedCustodyProcessor(
                     // photograph. Filing every attachment as Instruction hid the
                     // case's own damage images from the evidence gallery's image
                     // test and from EVA image selection, which both ask this
-                    // question by semantic role.
-                    InstructionEvidenceImages.IsImage(attachment.MediaType)
-                        ? DocumentSemanticRole.Image
-                        : DocumentSemanticRole.Instruction,
+                    // question by semantic role. The standalone Audit's
+                    // original report is the Audit report.
+                    attachment.Id == originalReportAssetId
+                        ? DocumentSemanticRole.AuditReport
+                        : InstructionEvidenceImages.IsImage(attachment.MediaType)
+                            ? DocumentSemanticRole.Image
+                            : DocumentSemanticRole.Instruction,
                     $"{casePayload.OperationKey}:attachment:{attachment.Id:N}",
                     version.RemoteId,
                     version.BoxVersionId,

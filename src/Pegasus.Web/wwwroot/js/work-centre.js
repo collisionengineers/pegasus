@@ -7,7 +7,7 @@
     var SCOPE_KEY = 'pegasus.workCentre.scope';
     var FIVE_MINUTES = 5 * 60 * 1000;
     var FOCUS_GAP = 30 * 1000;
-    var SECTION_NAMES = ['metrics', 'attention', 'new-cases', 'ai-jobs'];
+    var SECTION_NAMES = ['metrics', 'activity', 'attention', 'new-cases', 'ai-jobs'];
 
     function root() {
         return document.querySelector('[data-work-centre]');
@@ -83,6 +83,13 @@
 
         var tab = event.target.closest('[data-wc-tab-link]');
         if (tab && activateTab(tab.getAttribute('data-wc-tab-link'), false)) {
+            event.preventDefault();
+            return;
+        }
+
+        // The Activity panel's New cases figure opens that tab in place (v32 item I).
+        var goto = event.target.closest('[data-wc-goto-tab]');
+        if (goto && activateTab(goto.getAttribute('data-wc-goto-tab'), true)) {
             event.preventDefault();
             return;
         }
@@ -307,6 +314,31 @@
                 : (index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
         activateTab(tabs[next], true);
     });
+
+    // A Dismiss returns to the next row of its list, or the list's heading
+    // (v32 item B): the address names it, and focus follows the address.
+    function focusNamedRow() {
+        var hash = window.location.hash;
+        if (!hash || hash.indexOf('#wc-') !== 0) {
+            return;
+        }
+        var target = document.getElementById(hash.slice(1));
+        if (!target) {
+            return;
+        }
+        var tab = target.closest('[role="tabpanel"][data-wc-refresh-section]');
+        if (tab && tab.hidden) {
+            activateTab(tab.getAttribute('data-wc-refresh-section'), false);
+        }
+        var focusable = target.matches('a, button') ? target : target.querySelector('.wc-task-link, a, button');
+        if (!focusable) {
+            target.setAttribute('tabindex', '-1');
+            focusable = target;
+        }
+        focusable.focus({ preventScroll: false });
+    }
+
+    focusNamedRow();
 
     window.setInterval(function () {
         if (document.hidden) { return; }

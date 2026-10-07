@@ -91,6 +91,12 @@ public enum DocumentSemanticRole
     Correspondence,
     EngineerReport,
     AuditReport,
+
+    /// <summary>
+    /// Market research findings produced outside Pegasus and filed against the
+    /// Case: evidence beside the valuation, never read as a value.
+    /// </summary>
+    MarketResearch,
     Other
 }
 
@@ -110,6 +116,11 @@ public enum DocumentCustodyStatus
     Failed
 }
 
+/// <param name="IsRecognisedEstimate">
+/// Whether the Worker, reading this version once after it was filed, found it
+/// to be an estimate (<see cref="Pegasus.Core.Assessment.EstimateFormats"/>);
+/// null until it has been read.
+/// </param>
 public sealed record DocumentVersion(
     Guid Id,
     Guid DocumentId,
@@ -123,7 +134,8 @@ public sealed record DocumentVersion(
     string CreatedBy,
     bool IsCurrent,
     bool IsLogicallyRemoved,
-    string? RemovalReason);
+    string? RemovalReason,
+    bool? IsRecognisedEstimate = null);
 
 public sealed record DocumentOccurrence(
     Guid Id,
@@ -269,39 +281,6 @@ public sealed class DocumentDownload(
     public ValueTask DisposeAsync() => Content.DisposeAsync();
 }
 
-public sealed record ExportCaseDocumentsCommand(
-    Guid CaseId,
-    IReadOnlyList<DocumentExportSelection> Selections,
-    ActionActor Actor,
-    string OperationKey,
-    long MaximumArchiveBytes,
-    long ExpectedCaseVersion,
-    string EditLeaseToken);
-
-public sealed record DocumentExportSelection(Guid OccurrenceId, Guid VersionId);
-
-public sealed record DocumentExportManifestEntry(
-    string FileName,
-    Guid OccurrenceId,
-    Guid VersionId,
-    DocumentSemanticRole SemanticRole,
-    long ContentLength,
-    string Sha256);
-
-public sealed class DocumentExport(
-    Stream content,
-    string fileName,
-    IReadOnlyList<DocumentExportManifestEntry> manifest) : IAsyncDisposable
-{
-    public Stream Content { get; } = content ?? throw new ArgumentNullException(nameof(content));
-
-    public string FileName { get; } = fileName;
-
-    public IReadOnlyList<DocumentExportManifestEntry> Manifest { get; } = manifest;
-
-    public ValueTask DisposeAsync() => Content.DisposeAsync();
-}
-
 public sealed record LogicallyRemoveDocumentCommand(
     Guid CaseId,
     Guid OccurrenceId,
@@ -347,27 +326,6 @@ public interface IGetCaseDocumentMetadata
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// Export was attempted on a case that is not in <c>Review</c>.
-/// </summary>
-/// <remarks>
-/// The operator's rule (2026-08-04) is that a case exports only in Review. A
-/// disabled button is presentation; this is the condition itself, so it holds
-/// for every caller rather than only for the one that renders the button.
-/// </remarks>
-public sealed class CaseNotInReviewException(Guid caseId)
-    : InvalidOperationException("A case can only be exported while it is in Review.")
-{
-    public Guid CaseId { get; } = caseId;
-}
-
-public interface IExportCaseDocuments
-{
-    Task<DocumentExport> ExecuteAsync(
-        ExportCaseDocumentsCommand command,
-        CancellationToken cancellationToken = default);
-}
-
 public interface ILogicallyRemoveDocument
 {
     Task ExecuteAsync(
@@ -394,6 +352,18 @@ public sealed record FiledOriginalReportCandidate(
     Guid DocumentOccurrenceId,
     Guid DocumentVersionId);
 
+/// <summary>A receipt's file to look for on the Case: its asset and the hash of its bytes.</summary>
+public sealed record FiledOriginalReportLookup(Guid IntakeAssetId, string Sha256);
+
+/// <summary>
+/// Whether the Case is an open Audit awaiting its report, and which of the
+/// asked-for files are filed on it. The two are told apart so a caller can
+/// wait for a filing that has not happened yet rather than give up.
+/// </summary>
+public sealed record FiledOriginalReportCandidates(
+    bool CaseAwaitsReport,
+    IReadOnlyList<FiledOriginalReportCandidate> Filed);
+
 public sealed record RecordRecognisedOriginalReport(
     Guid CaseId,
     Guid IntakeReceiptId,
@@ -410,14 +380,15 @@ public sealed record RecordRecognisedOriginalReport(
 public interface IRecogniseOriginalReportStore
 {
     /// <summary>
-    /// The receipt's filed documents among <paramref name="intakeAssetIds"/>,
-    /// current and not images; empty unless the Case is an open Audit whose
-    /// original report is missing.
+    /// Which of <paramref name="assets"/> are filed on the Case as current,
+    /// non-image documents, found by the hash of their bytes whichever route
+    /// filed them, and whether the Case is an open Audit whose original report
+    /// is missing at all.
     /// </summary>
-    Task<IReadOnlyList<FiledOriginalReportCandidate>> FindAwaitingCandidatesAsync(
+    Task<FiledOriginalReportCandidates> FindAwaitingCandidatesAsync(
         Guid caseId,
         Guid receiptId,
-        IReadOnlyCollection<Guid> intakeAssetIds,
+        IReadOnlyCollection<FiledOriginalReportLookup> assets,
         CancellationToken cancellationToken = default);
 
     /// <summary>

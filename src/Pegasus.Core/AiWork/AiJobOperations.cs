@@ -306,7 +306,7 @@ public sealed class CreateAiJob(
                 "An estimate job needs a case that is With Engineer.");
         }
 
-        var projection = await assessment.GetAsync(record.CaseId, cancellationToken);
+        var projection = await assessment.GetAsync(record.CaseId, Cases.CaseWorkSelector.Current, cancellationToken);
         var engineerValue = projection?.Field(AssessmentVocabulary.ValueEngineer);
         decimal? valueAtSend = engineerValue is not null
             && decimal.TryParse(

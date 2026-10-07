@@ -184,7 +184,12 @@ public sealed class EfCaseWorkflowStore(
         }
 
         ArchivedCaseGuard.RequireNotArchived(workflow);
-        RequireVersion(workflow, request.ExpectedVersion);
+        // A page rendered before the Case moved on still enters edit mode: the claim writes no
+        // Case data, the lease is issued at the Case's current version, and the page is drawn
+        // again at that version before the first edit. A system write never stops a member of
+        // staff's edit session from starting (operator, 6 October 2026); only a version from the
+        // future is refused, as it is for every write under the lease.
+        RequireVersionUnderLease(workflow, request.ExpectedVersion);
         ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(workflow.EditLeaseHolderKind, out var parsedKind)
             ? parsedKind
             : null;
@@ -303,8 +308,8 @@ public sealed class EfCaseWorkflowStore(
         }
 
         ArchivedCaseGuard.RequireNotArchived(workflow);
-        RequireVersion(workflow, request.ExpectedVersion);
         RequireLease(workflow, request.Actor, request.LeaseToken, now);
+        RequireVersionUnderLease(workflow, request.ExpectedVersion);
         var tokenHash = Hash(request.LeaseToken);
         var expiresAtUtc = now + EditLeaseDuration;
         workflow.EditLeaseToken = request.LeaseToken;
@@ -337,14 +342,15 @@ public sealed class EfCaseWorkflowStore(
     }
 
     /// <summary>
-    /// Keeps the holder's own live lease from lapsing while their editor stays open. It is
-    /// deliberately not <see cref="RenewAsync"/>: an open page beats every minute for as long as
-    /// it is open, and renewal records one <c>CaseEditLeaseOperations</c> row per call in a table
-    /// nothing prunes. FRD-01 counts a heartbeat as telemetry, so this writes no operation row, no
-    /// operation key, and no request hash, so <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/>
-    /// keeps the claim key that replays the lease. It also asks for no expected version: a
-    /// version cannot move under a live lease, because every mutation clears the lease as it
-    /// commits.
+    /// Keeps the holder's own lease from lapsing while their editor stays open, and picks up a
+    /// staff holder's lapsed lease nobody claimed since. It is deliberately not
+    /// <see cref="RenewAsync"/>: an open page beats every minute for as long as it is open, and
+    /// renewal records one <c>CaseEditLeaseOperations</c> row per call in a table nothing prunes.
+    /// FRD-01 counts a heartbeat as telemetry, so this writes no operation row, no operation key,
+    /// and no request hash, so <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/> keeps the
+    /// claim key that replays the lease. It asks for no expected version and answers the current
+    /// one: system work moves the version under a lease without ending it, and the page catches
+    /// up from that answer.
     /// </summary>
     public async Task<CaseEditLease> HeartbeatAsync(
         HeartbeatCaseEditLeaseRequest request,
@@ -691,24 +697,28 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(request, "case_report_approved", async (context, workflow, now) =>
         {
-            if (workflow.State != nameof(CaseLifecycleState.ReportPreparation))
+            // The current work's report is approved from Report preparation.
+            // The Inspection report of a Case that has its Audit is approved on
+            // its own work, whatever the Case's state (operator, 1 October 2026).
+            var pastWork = await PastWorkAsync(context, workflow.CaseId, request.Work, cancellationToken);
+            if (pastWork is null && workflow.State != nameof(CaseLifecycleState.ReportPreparation))
             {
                 throw new InvalidOperationException(
                     "A report can be approved only while Report preparation is active.");
             }
 
             var approval = request.Approval;
-            // A generated report of a work that is no longer current (the
-            // Inspection once the Audit exists) is never approved again.
+            // A generated report is approved on the work it was made for.
             var approvedSha256 = approval.ArtifactSha256.ToLowerInvariant();
-            var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
+            var workId = pastWork?.Id
+                ?? await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
             if (await (
                     from artifact in context.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
                     join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
                         on artifact.GenerationId equals generation.Id
                     where generation.CaseId == workflow.CaseId
                         && artifact.Sha256 == approvedSha256
-                        && generation.WorkId != currentWorkId
+                        && generation.WorkId != workId
                     select artifact.Id)
                 .AnyAsync(cancellationToken))
             {
@@ -727,8 +737,16 @@ public sealed class EfCaseWorkflowStore(
                 ApprovedAtUtc = now
             };
             context.CaseReportApprovals.Add(entity);
-            workflow.ReportApprovalId = approval.ApprovalId;
-            workflow.ReportApproval = entity;
+            if (pastWork is null)
+            {
+                workflow.ReportApprovalId = approval.ApprovalId;
+                workflow.ReportApproval = entity;
+            }
+            else
+            {
+                pastWork.ReportApprovalId = approval.ApprovalId;
+                pastWork.ReportApproval = entity;
+            }
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
@@ -736,9 +754,11 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(request, "report_evidence_linked", async (context, workflow, now) =>
         {
+            var pastWork = await PastWorkAsync(context, workflow.CaseId, request.Work, cancellationToken);
             var evaluation = await EvaluateReportEvidenceLinkAsync(
                 context,
                 workflow,
+                pastWork,
                 request.EvidenceId,
                 now,
                 cancellationToken);
@@ -747,8 +767,71 @@ public sealed class EfCaseWorkflowStore(
                 throw new InvalidOperationException(evaluation.Message);
             }
 
-            ApplyReportEvidenceLink(workflow, evaluation.Evidence, request.Actor, now);
+            ApplyReportEvidenceLink(workflow, pastWork, evaluation.Evidence, request.Actor, now);
         }, cancellationToken);
+
+    /// <summary>
+    /// The work a report action addresses when it is not the Case's current
+    /// one: the Inspection (primary) work once the Audit exists, whose report
+    /// is approved and sent on its own without touching the Case's state
+    /// (operator, 1 October 2026). Null when the action addresses the current
+    /// work, whose report facts the workflow itself carries.
+    /// </summary>
+    private static async Task<CaseWorkEntity?> PastWorkAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseWorkSelector selector,
+        CancellationToken cancellationToken)
+    {
+        if (selector != CaseWorkSelector.Primary)
+        {
+            return null;
+        }
+
+        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        return currentWorkId == caseId ? null : await TrackedWorkAsync(context, caseId, cancellationToken);
+    }
+
+    /// <summary>
+    /// The past work a Pegasus report send proves, from the generation the
+    /// send carried: null when the send was not Pegasus's own, names no
+    /// generation of this Case, or is of the current work.
+    /// </summary>
+    private static async Task<CaseWorkEntity?> PastWorkOfGenerationAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid? generationId,
+        CancellationToken cancellationToken)
+    {
+        if (generationId is null)
+        {
+            return null;
+        }
+
+        var workId = await context.Set<CaseReportGenerationEntity>()
+            .AsNoTracking()
+            .Where(item => item.Id == generationId && item.CaseId == caseId)
+            .Select(item => (Guid?)item.WorkId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (workId is not { } generationWorkId)
+        {
+            return null;
+        }
+
+        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        return generationWorkId == currentWorkId
+            ? null
+            : await TrackedWorkAsync(context, generationWorkId, cancellationToken);
+    }
+
+    private static Task<CaseWorkEntity> TrackedWorkAsync(
+        PegasusDbContext context,
+        Guid workId,
+        CancellationToken cancellationToken) =>
+        context.CaseWorks
+            .Include(work => work.ReportApproval)
+            .Include(work => work.ReportSentEvidence)
+            .SingleAsync(work => work.Id == workId, cancellationToken);
 
     public async Task<AutoLinkReportEvidenceResult> TryAutoLinkAsync(
         AutoLinkReportEvidenceRequest request,
@@ -979,8 +1062,8 @@ public sealed class EfCaseWorkflowStore(
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         ArchivedCaseGuard.RequireMutable(workflow);
-        RequireVersion(workflow, request.ExpectedCaseVersion);
         RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
+        RequireVersionUnderLease(workflow, request.ExpectedCaseVersion);
         var due = await context.CaseDueWork
                 .Include(item => item.Workflow)
                 .ThenInclude(workflow => workflow.Case)
@@ -990,52 +1073,98 @@ public sealed class EfCaseWorkflowStore(
         {
             throw new InvalidOperationException("Only scheduled due work can be chased.");
         }
-        due.MostRecentChannel = request.Channel;
-        due.MostRecentOutcome = request.Outcome;
-        due.MostRecentNote = request.Note;
-        due.NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(request.AttemptedAtUtc, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
+        ApplyChase(
+            context,
+            workflow,
+            due,
+            request.Channel,
+            request.TargetPartyOrAddress,
+            request.AttemptedAtUtc,
+            request.Outcome,
+            request.Note,
+            request.OperationKey,
+            hash,
+            request.Actor.Kind,
+            request.Actor.SubjectId,
+            request.Actor.Roles,
+            "manual_chase_recorded",
+            timeProvider.GetUtcNow(),
+            (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
+        ClearLease(workflow);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(due);
+    }
+
+    /// <summary>
+    /// Records one chase of scheduled due work: the chase row, the due work's
+    /// most recent attempt and next chase, and the Case event, each version
+    /// advanced once. The caller holds the workflow lock and has made its own
+    /// checks; the actor is passed as stored, so a send observed by the
+    /// Worker records the staff member who sent it without rebuilding them.
+    /// </summary>
+    internal static void ApplyChase(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        CaseDueWorkEntity due,
+        string channel,
+        string targetPartyOrAddress,
+        DateTimeOffset attemptedAtUtc,
+        string outcome,
+        string? note,
+        string operationKey,
+        string requestHash,
+        ActorKind actorKind,
+        string actorSubjectId,
+        IReadOnlyCollection<StaffRole> actorRoles,
+        string eventType,
+        DateTimeOffset occurredAtUtc,
+        int chaseIntervalDays)
+    {
+        due.MostRecentChannel = channel;
+        due.MostRecentOutcome = outcome;
+        due.MostRecentNote = note;
+        due.NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(attemptedAtUtc, chaseIntervalDays);
         due.Version++;
         workflow.Version++;
-        ClearLease(workflow);
         context.CaseManualChases.Add(new()
         {
             Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
-            OperationKey = request.OperationKey,
-            RequestHash = hash,
-            ActorKind = request.Actor.Kind.ToString(),
-            ActorSubjectId = request.Actor.SubjectId,
-            ActorRolesJson = RolesJson(request.Actor),
-            Channel = request.Channel,
-            TargetPartyOrAddress = request.TargetPartyOrAddress,
-            AttemptedAtUtc = request.AttemptedAtUtc,
-            Outcome = request.Outcome,
-            Note = request.Note,
+            CaseId = workflow.CaseId,
+            OperationKey = operationKey,
+            RequestHash = requestHash,
+            ActorKind = actorKind.ToString(),
+            ActorSubjectId = actorSubjectId,
+            ActorRolesJson = RolesJson(actorRoles),
+            Channel = channel,
+            TargetPartyOrAddress = targetPartyOrAddress,
+            AttemptedAtUtc = attemptedAtUtc,
+            Outcome = outcome,
+            Note = note,
             ResultingVersion = workflow.Version
         });
         AddEvent(
             context,
             workflow,
-            request.Actor,
-            request.OperationKey.Trim(),
-            ManualChaseHistoryDetail(request),
-            hash,
-            "manual_chase_recorded",
+            actorKind,
+            actorSubjectId,
+            actorRoles,
+            operationKey.Trim(),
+            ManualChaseHistoryDetail(channel, targetPartyOrAddress, outcome, note),
+            requestHash,
+            eventType,
             workflow.Version - 1,
             workflow.Version,
-            timeProvider.GetUtcNow(),
+            occurredAtUtc,
             beforeJson: null,
             afterJson: JsonSerializer.Serialize(new
             {
-                Channel = request.Channel.Trim(),
-                Recipient = request.TargetPartyOrAddress.Trim(),
-                Content = request.Note?.Trim(),
-                Outcome = request.Outcome.Trim(),
+                Channel = channel.Trim(),
+                Recipient = targetPartyOrAddress.Trim(),
+                Content = note?.Trim(),
+                Outcome = outcome.Trim(),
                 DueWork = Map(due)
             }));
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return Map(due);
     }
 
     private async Task<CaseWorkflowRecord> MutateAsync(
@@ -1088,9 +1217,9 @@ public sealed class EfCaseWorkflowStore(
         {
             ArchivedCaseGuard.RequireMutable(workflow);
         }
-        RequireVersion(workflow, request.ExpectedVersion);
         var now = timeProvider.GetUtcNow();
         RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
+        RequireVersionUnderLease(workflow, request.ExpectedVersion);
         var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
         var beforeVersion = workflow.Version;
         var beforeState = workflow.State;
@@ -1161,13 +1290,26 @@ public sealed class EfCaseWorkflowStore(
 
             var replayWorkflow = await AutoLinkWorkflowQuery(context, tracking: false)
                 .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
-            if (replay.EventType == "report_evidence_auto_linked"
-                && replayWorkflow is not null
-                && replayWorkflow.State == nameof(CaseLifecycleState.PostReport)
-                && replayWorkflow.ReportSentEvidenceId == request.EvidenceId
-                && replayWorkflow.ReportSentEvidence?.CaseId == request.CaseId)
+            if (replay.EventType == "report_evidence_auto_linked" && replayWorkflow is not null)
             {
-                return AutoLinkLinked(replayWorkflow);
+                if (replayWorkflow.State == nameof(CaseLifecycleState.PostReport)
+                    && replayWorkflow.ReportSentEvidenceId == request.EvidenceId
+                    && replayWorkflow.ReportSentEvidence?.CaseId == request.CaseId)
+                {
+                    return AutoLinkLinked(replayWorkflow);
+                }
+
+                // The Inspection report's evidence, linked on its own work
+                // once the Audit drives the Case.
+                if (await context.CaseWorks
+                        .AsNoTracking()
+                        .AnyAsync(
+                            work => work.CaseId == request.CaseId
+                                && work.ReportSentEvidenceId == request.EvidenceId,
+                            cancellationToken))
+                {
+                    return AutoLinkLinkedOnPastWork(replayWorkflow, request.EvidenceId);
+                }
             }
 
             return AutoLinkNotLinked("concurrency_conflict");
@@ -1190,9 +1332,11 @@ public sealed class EfCaseWorkflowStore(
         }
 
         var now = timeProvider.GetUtcNow();
+        var pastWork = await PastWorkOfGenerationAsync(context, workflow.CaseId, request.GenerationId, cancellationToken);
         var evaluation = await EvaluateReportEvidenceLinkAsync(
             context,
             workflow,
+            pastWork,
             request.EvidenceId,
             now,
             cancellationToken);
@@ -1203,9 +1347,8 @@ public sealed class EfCaseWorkflowStore(
 
         var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
         var beforeVersion = workflow.Version;
-        ApplyReportEvidenceLink(workflow, evaluation.Evidence, request.Actor, now);
-        workflow.Version = checked(workflow.Version + 1);
-        ClearLease(workflow);
+        ApplyReportEvidenceLink(workflow, pastWork, evaluation.Evidence, request.Actor, now);
+        CaseMutationGuard.Advance(workflow);
         var afterJson = JsonSerializer.Serialize(HistoryValue(workflow));
         AddEvent(
             context,
@@ -1222,17 +1365,26 @@ public sealed class EfCaseWorkflowStore(
             afterJson);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return AutoLinkLinked(workflow);
+        return pastWork is null
+            ? AutoLinkLinked(workflow)
+            : AutoLinkLinkedOnPastWork(workflow, request.EvidenceId);
     }
 
+    /// <summary>
+    /// Whether <paramref name="evidenceId"/> may be linked as the report-Sent
+    /// evidence of the current work (<paramref name="pastWork"/> null: the
+    /// workflow's own, from Report preparation) or of a past work (the
+    /// Inspection once the Audit exists: its own row, in any Case state).
+    /// </summary>
     private static async Task<ReportEvidenceLinkEvaluation> EvaluateReportEvidenceLinkAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
+        CaseWorkEntity? pastWork,
         Guid evidenceId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        if (workflow.State != nameof(CaseLifecycleState.ReportPreparation))
+        if (pastWork is null && workflow.State != nameof(CaseLifecycleState.ReportPreparation))
         {
             return new(
                 null,
@@ -1272,7 +1424,7 @@ public sealed class EfCaseWorkflowStore(
                 "The report-Sent evidence has no authoritative approved-mailbox retention record.");
         }
 
-        if (workflow.ReportSentEvidenceId is not null)
+        if ((pastWork is null ? workflow.ReportSentEvidenceId : pastWork.ReportSentEvidenceId) is not null)
         {
             return new(
                 null,
@@ -1293,13 +1445,22 @@ public sealed class EfCaseWorkflowStore(
                 "evidence_future_dated",
                 "Future-dated retained Sent evidence cannot enter post-report work.");
         }
-        if (workflow.ReportApproval is { } approval
+        var reportApproval = pastWork is null ? workflow.ReportApproval : pastWork.ReportApproval;
+        if (reportApproval is { } approval
             && evidence.SentAtUtc < approval.ApprovedAtUtc)
         {
             return new(
                 null,
                 "evidence_predates_report_approval",
                 "Retained Sent evidence cannot predate the current report approval.");
+        }
+
+        if (pastWork is not null)
+        {
+            // The Inspection report's evidence, once the Audit exists, is
+            // anchored to nothing but its own approval: it may have been sent
+            // before or after Create audit (operator, 1 October 2026).
+            return new(evidence, null, null);
         }
 
         // Create audit is itself a transition into Report preparation, and the
@@ -1340,6 +1501,7 @@ public sealed class EfCaseWorkflowStore(
 
     private static void ApplyReportEvidenceLink(
         CaseWorkflowEntity workflow,
+        CaseWorkEntity? pastWork,
         CaseReportSentEvidenceEntity evidence,
         ActionActor actor,
         DateTimeOffset linkedAtUtc)
@@ -1349,11 +1511,32 @@ public sealed class EfCaseWorkflowStore(
         evidence.LinkedByKind = actor.Kind.ToString();
         evidence.LinkedBySubjectId = actor.SubjectId;
         evidence.LinkedByRolesJson = RolesJson(actor);
+        if (pastWork is not null)
+        {
+            // The Inspection report's evidence, once the Audit drives the
+            // Case: on its own work, and the Case's state stays the Audit's.
+            pastWork.ReportSentEvidenceId = evidence.Id;
+            pastWork.ReportSentEvidence = evidence;
+            return;
+        }
+
         workflow.ReportSentEvidenceId = evidence.Id;
         workflow.ReportSentEvidence = evidence;
         workflow.State = nameof(CaseLifecycleState.PostReport);
         workflow.StateEnteredAtUtc = linkedAtUtc;
     }
+
+    /// <summary>The committed link of a past work's evidence: the Case's state as it stands, unchanged.</summary>
+    private static AutoLinkReportEvidenceResult AutoLinkLinkedOnPastWork(CaseWorkflowEntity workflow, Guid evidenceId) =>
+        new(
+            AutoLinkReportEvidenceDisposition.Linked,
+            new AutoLinkedReportEvidence(
+                workflow.CaseId,
+                evidenceId,
+                Enum.Parse<CaseLifecycleState>(workflow.State),
+                workflow.Version,
+                OfCurrentWork: false),
+            null);
 
     private static AutoLinkReportEvidenceResult AutoLinkLinked(CaseWorkflowEntity workflow)
     {
@@ -1648,8 +1831,8 @@ public sealed class EfCaseWorkflowStore(
         }
     }
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
+    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
 
     private static void RequireLease(CaseWorkflowEntity workflow, ActionActor actor, string token, DateTimeOffset now) =>
         CaseMutationGuard.RequireLease(workflow, actor, token, now);
@@ -1669,6 +1852,37 @@ public sealed class EfCaseWorkflowStore(
         long afterVersion,
         DateTimeOffset occurredAtUtc,
         string? beforeJson,
+        string? afterJson) =>
+        AddEvent(
+            context,
+            workflow,
+            actor.Kind,
+            actor.SubjectId,
+            actor.Roles,
+            operationKey,
+            reason,
+            requestHash,
+            eventType,
+            beforeVersion,
+            afterVersion,
+            occurredAtUtc,
+            beforeJson,
+            afterJson);
+
+    private static void AddEvent(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActorKind actorKind,
+        string actorSubjectId,
+        IReadOnlyCollection<StaffRole> actorRoles,
+        string operationKey,
+        string reason,
+        string requestHash,
+        string eventType,
+        long beforeVersion,
+        long afterVersion,
+        DateTimeOffset occurredAtUtc,
+        string? beforeJson,
         string? afterJson)
     {
         context.CaseWorkflowEvents.Add(new()
@@ -1679,9 +1893,9 @@ public sealed class EfCaseWorkflowStore(
             EventType = eventType,
             OperationKey = operationKey,
             RequestHash = requestHash,
-            ActorKind = actor.Kind.ToString(),
-            ActorSubjectId = actor.SubjectId,
-            ActorRolesJson = RolesJson(actor),
+            ActorKind = actorKind.ToString(),
+            ActorSubjectId = actorSubjectId,
+            ActorRolesJson = RolesJson(actorRoles),
             Reason = reason,
             OccurredAtUtc = occurredAtUtc,
             BeforeVersion = beforeVersion,
@@ -1694,10 +1908,10 @@ public sealed class EfCaseWorkflowStore(
             AggregateType = "case",
             AggregateId = workflow.CaseId.ToString("D"),
             EventKind = eventType,
-            ActorKind = actor.Kind.ToString(),
-            ActorSubjectId = actor.SubjectId,
+            ActorKind = actorKind.ToString(),
+            ActorSubjectId = actorSubjectId,
             ActorRolesJson = JsonSerializer.Serialize(
-                actor.Roles.OrderBy(role => role).Select(role => role.ToString())),
+                actorRoles.OrderBy(role => role).Select(role => role.ToString())),
             OccurredAtUtc = occurredAtUtc,
             Outcome = "Succeeded",
             CorrelationId = operationKey,
@@ -1889,14 +2103,20 @@ public sealed class EfCaseWorkflowStore(
         string? ArchiveReason,
         long Version);
 
-    private static string RolesJson(ActionActor actor) => JsonSerializer.Serialize(actor.Roles.OrderBy(role => role));
+    private static string RolesJson(ActionActor actor) => RolesJson(actor.Roles);
 
-    private static string ManualChaseHistoryDetail(ManualChaseRecord request)
+    private static string RolesJson(IEnumerable<StaffRole> roles) => JsonSerializer.Serialize(roles.OrderBy(role => role));
+
+    private static string ManualChaseHistoryDetail(
+        string channel,
+        string targetPartyOrAddress,
+        string outcome,
+        string? note)
     {
-        var detail = $"{request.Channel.Trim()} to {request.TargetPartyOrAddress.Trim()}: {request.Outcome.Trim()}";
-        return string.IsNullOrWhiteSpace(request.Note)
+        var detail = $"{channel.Trim()} to {targetPartyOrAddress.Trim()}: {outcome.Trim()}";
+        return string.IsNullOrWhiteSpace(note)
             ? detail
-            : $"{detail} — {request.Note.Trim()}";
+            : $"{detail} — {note.Trim()}";
     }
 
     private static string RequestHash<T>(T request) => Hash(JsonSerializer.Serialize(request));

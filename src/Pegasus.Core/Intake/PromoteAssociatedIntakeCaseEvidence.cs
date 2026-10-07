@@ -209,13 +209,15 @@ public static class AutomaticCaseEvidencePromotionOperationKey
 
 /// <summary>
 /// The role a retained intake file takes when it is filed on a Case, by this
-/// filer or by the image fold: the received file itself is the original
-/// source, a photograph is an image, anything else is correspondence.
+/// filer, by the image fold or by Case creation: a photograph is an image,
+/// even when it is the received file itself (a photograph uploaded to a
+/// Case); any other received file is the original source, and anything else
+/// is correspondence.
 /// </summary>
 public static class IntakeCaseEvidenceRoles
 {
     public static DocumentSemanticRole For(IntakeAssetKind kind, string mediaType) =>
-        kind == IntakeAssetKind.Source ? DocumentSemanticRole.OriginalSource
-        : InstructionEvidenceImages.IsImage(mediaType) ? DocumentSemanticRole.Image
+        InstructionEvidenceImages.IsImage(mediaType) ? DocumentSemanticRole.Image
+        : kind == IntakeAssetKind.Source ? DocumentSemanticRole.OriginalSource
         : DocumentSemanticRole.Correspondence;
 }

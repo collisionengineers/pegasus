@@ -401,7 +401,11 @@ public sealed record TriageSummary(
     string Reference,
     string? PrincipalCode,
     string? ClaimNumber = null,
-    Guid? PrincipalId = null);
+    Guid? PrincipalId = null)
+{
+    /// <summary>When the record last changed state; null when it has stayed in the state it was opened in.</summary>
+    public DateTimeOffset? StateEnteredAtUtc { get; init; }
+}
 
 public sealed record TriageDetail(
     TriageRecord Record,
@@ -424,6 +428,19 @@ public sealed record TriageDetail(
 
     /// <summary>The Box folder of the Triage Case once custody confirmed it.</summary>
     public string? CustodyFolderRemoteId { get; init; }
+
+    /// <summary>
+    /// The Triage Case's Correspondence tab: the request e-mail it was opened
+    /// from and every retained e-mail associated with it, newest first, as the
+    /// Case record's Files section lists them.
+    /// </summary>
+    public IReadOnlyList<CaseCorrespondenceEmail> Correspondence { get; init; } = [];
+
+    /// <summary>
+    /// The Triage version the latest sent Reply with finding was composed
+    /// against, by any member of staff; null when none has been sent.
+    /// </summary>
+    public long? SentOutcomeReplyVersion { get; init; }
 }
 
 /// <summary>
@@ -445,11 +462,15 @@ public sealed record TriageListSlice(
 
 public interface ITriageQueries
 {
+    /// <summary>
+    /// The Triages in any of <paramref name="states"/>; every state when
+    /// <see langword="null"/>.
+    /// </summary>
     Task<IReadOnlyList<TriageSummary>> ListAsync(
-        TriageState? state,
+        IReadOnlyCollection<TriageState>? states,
         CancellationToken cancellationToken);
 
-    Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken);
+    Task<int> CountAsync(IReadOnlyCollection<TriageState>? states, CancellationToken cancellationToken);
 
     /// <summary>
     /// The keyset continuation behind the Triage list: at most
@@ -602,23 +623,4 @@ public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidate
     Task LinkCaseAsync(TriageCaseLinkRequest request, CancellationToken cancellationToken);
 
     Task UnlinkCaseAsync(TriageCaseLinkRequest request, CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// "Assign to me" (Work Centre P8) on an unassigned Triage: the ordinary assignment
-/// with the actor as the assignee, carrying the same version, lease and operation
-/// key; the reason is fixed because the action is its own record.
-/// </summary>
-public sealed record AssignTriageToMeRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey)
-{
-    public string EditLeaseToken { get; init; } = string.Empty;
-}
-
-public interface IAssignTriageToMe
-{
-    Task<TriageRecord> ExecuteAsync(AssignTriageToMeRequest request, CancellationToken cancellationToken);
 }

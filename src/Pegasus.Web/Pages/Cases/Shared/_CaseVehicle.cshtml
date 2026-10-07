@@ -64,7 +64,9 @@
     // read as one that never ran (WP8).
     var observation = section?.LatestVehicleObservation;
     var lookupLine = VehicleLabels.LookupLine(observation);
-    var offersLookup = mayEdit && !string.IsNullOrWhiteSpace(registration);
+    // The lookup fills the current work: the Inspection view offers it once
+    // the lookup names the work it was asked from.
+    var offersLookup = mayEdit && !string.IsNullOrWhiteSpace(registration) && !Model.IsInspectionView;
 
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
@@ -106,7 +108,8 @@
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                     <input type="hidden" name="editLeaseToken" value="@leaseToken" />
                     <input type="hidden" name="registration" value="@registration" />
-                    <button type="submit" class="btn btn--small">
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.LookingUp" class="btn btn--small">
                         <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
                         <span>@VehicleLabels.LookupDvlaMot</span>
                     </button>

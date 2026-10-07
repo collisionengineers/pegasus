@@ -229,14 +229,15 @@ public sealed partial class AssessmentReportDraftWebTests
         var full = FullAssessmentProjection(caseId);
         source.Readiness = source.Readiness with
         {
-            // A missing Vehicle finding, retail value and outcome, and no
-            // sign-off, repair spec, applied valuation or images.
+            // A missing Vehicle finding, retail value, outcome and agreed fee,
+            // and no sign-off, repair spec, applied valuation or images.
             Assessment = full with
             {
                 Fields =
                 [
                     .. full.Fields.Where(field => field.Path is not (AssessmentVocabulary.VehicleCondition
-                        or AssessmentVocabulary.ValueRetail or AssessmentVocabulary.Outcome)),
+                        or AssessmentVocabulary.ValueRetail or AssessmentVocabulary.Outcome
+                        or AssessmentVocabulary.AgreedFee)),
                 ],
             },
             EligibleSignOffEngineers = [],
@@ -250,14 +251,22 @@ public sealed partial class AssessmentReportDraftWebTests
             ["Pre-incident condition"] = "vehicle",
             ["Retail value"] = "valuation",
             ["Assessment outcome"] = "settlement",
+            ["Agreed fee"] = "report",
             // No Case section clears the Sign-off Engineer: an Administrator
             // sets the name and signature in Accounts (operator, 26 September
             // 2026), so the row sends an Administrator there and nobody else
             // anywhere.
             [CaseReportReadiness.SignatoryRequirement] = null,
             [CaseReportReadiness.CurrentEstimateRequirement] = "estimate",
-            [CaseReportReadiness.CloseUpImageRequirement] = "files",
             [CaseReportReadiness.OverviewImageRequirement] = "files",
+        };
+        // The jump opens the tab inside the section that clears the blocker
+        // (operator, 1 October 2026): Fee for the agreed fee, Images for an
+        // image the report needs; every other section opens as it is.
+        var expectedTabs = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Agreed fee"] = "fee",
+            [CaseReportReadiness.OverviewImageRequirement] = "images",
         };
         Assert.Equal(
             expected.Keys.Order(StringComparer.Ordinal),
@@ -294,6 +303,16 @@ public sealed partial class AssessmentReportDraftWebTests
             else
             {
                 AssertBlockerLinks(row, caseId, key);
+                Assert.Equal(expectedTabs.GetValueOrDefault(reason.Requirement), CaseWorkspaceLabels.Report.BlockerTab(reason));
+                if (expectedTabs.TryGetValue(reason.Requirement, out var tab))
+                {
+                    Assert.Contains($"data-section-tab=\"{tab}\"", row, StringComparison.Ordinal);
+                }
+                else
+                {
+                    // The anchor tag helper writes a null tab as an empty one.
+                    Assert.DoesNotMatch("data-section-tab=\"[^\"]", row);
+                }
             }
         }
 
@@ -462,7 +481,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task WorkspaceSavedReportAndSettlementFieldsReachTheActualPreview(bool overrideDate)
+    public async Task WorkspaceSavedReportAndSettlementFieldsReachTheActualPreview(bool recordDate)
     {
         await using var harness = await CaseDataCompletenessPersistenceTests.CaseDataHarness.CreateAsync();
         var engineer = ActionActor.Staff(Guid.Parse(harness.StaffActor.SubjectId), [StaffRole.Engineer]);
@@ -473,6 +492,10 @@ public sealed partial class AssessmentReportDraftWebTests
                 $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportPreparation)} WHERE CaseId = {harness.CaseId}");
             // Arrange already accepted assessment inputs; this field-edit test must
             // not pretend that a workspace save can adopt an Engineer's Value.
+            // The accepted Case already holds its Principal's default fee.
+            context.CaseAssessmentFields.RemoveRange(await context.CaseAssessmentFields
+                .Where(field => field.WorkId == harness.CaseId)
+                .ToArrayAsync());
             context.CaseAssessmentFields.AddRange(existing.Assessment.Fields.Select(field => new CaseAssessmentFieldEntity
             {
                 WorkId = harness.CaseId,
@@ -541,13 +564,12 @@ public sealed partial class AssessmentReportDraftWebTests
                 [AssessmentVocabulary.FeeDescriptionLines] = "Assessment report",
                 [AssessmentVocabulary.ReportDiscloseGuideSource] = "true",
                 [AssessmentVocabulary.ReportValuationCommentary] = "false",
-                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false",
-                [AssessmentVocabulary.ReportDateOverride] = overrideDate ? "true" : "false"
-            }, Guid.Parse(engineer.SubjectId), new DateOnly(2026, 8, 19))
+                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false"
+            }, Guid.Parse(engineer.SubjectId), recordDate ? new DateOnly(2026, 8, 19) : (DateOnly?)null)
         }, CancellationToken.None);
         var assessmentStore = new EfCaseAssessmentStore(harness.Factory, harness.TimeProvider,
             new EfRepairSpecificationStore(harness.Factory, harness.TimeProvider));
-        var persisted = await assessmentStore.GetAsync(harness.CaseId, CancellationToken.None);
+        var persisted = await assessmentStore.GetAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(persisted);
         Assert.Equal(saved.Version, persisted.CaseVersion);
         var input = existing with
@@ -587,9 +609,8 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(["Assessment report"], snapshot.FeeDescriptionLines);
         Assert.Equal(new CaseReportContentSwitches(true, false, false), snapshot.Content);
         Assert.Equal("Ed Mawdsley", snapshot.Signatory.PrintedName);
-        Assert.Equal(overrideDate ? new DateOnly(2026, 8, 19) : new DateOnly(2026, 9, 7), snapshot.ReportDate);
-        Assert.Equal(overrideDate, snapshot.ReportDateOverridden);
-        Assert.Equal("2026-08-19", persisted.Field(AssessmentVocabulary.ReportDate)?.Value);
+        Assert.Equal(recordDate ? new DateOnly(2026, 8, 19) : new DateOnly(2026, 9, 7), snapshot.ReportDate);
+        Assert.Equal(recordDate ? "2026-08-19" : null, persisted.Field(AssessmentVocabulary.ReportDate)?.Value);
         Assert.Equal(new DateOnly(2026, 8, 3), snapshot.Assessed);
         // The claimant and Your Ref are the Case's own facts, read with the assessment.
         Assert.Equal(saved.Data.Claimant.Name.Current?.Value, snapshot.ClaimantName);
@@ -604,8 +625,7 @@ public sealed partial class AssessmentReportDraftWebTests
         IAssessmentReportRenderer renderer,
         bool canOpen = true,
         IGenerateCaseReport? generateReport = null,
-        IPrepareCaseReportDelivery? prepareDelivery = null,
-        ISendPreparedCaseReport? sendPreparedReport = null,
+        ISendCaseReport? sendReport = null,
         bool failIfReportServicesResolved = false,
         RepairSpecificationVersion? currentSpecification = null) =>
         baseFactory.WithWebHostBuilder(builder =>
@@ -641,15 +661,10 @@ public sealed partial class AssessmentReportDraftWebTests
                     services.RemoveAll<IGenerateCaseReport>();
                     services.AddSingleton(generateReport);
                 }
-                if (prepareDelivery is not null)
+                if (sendReport is not null)
                 {
-                    services.RemoveAll<IPrepareCaseReportDelivery>();
-                    services.AddSingleton(prepareDelivery);
-                }
-                if (sendPreparedReport is not null)
-                {
-                    services.RemoveAll<ISendPreparedCaseReport>();
-                    services.AddSingleton(sendPreparedReport);
+                    services.RemoveAll<ISendCaseReport>();
+                    services.AddSingleton(sendReport);
                 }
                 services.AddSingleton<IGetCasePageFrame>(caseReads);
                 services.AddSingleton<IGetCaseVehicleSection>(caseReads);

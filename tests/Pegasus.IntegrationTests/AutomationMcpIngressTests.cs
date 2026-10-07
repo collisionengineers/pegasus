@@ -20,15 +20,14 @@ public sealed class AutomationMcpIngressTests
     [
         "pegasus_case_search",
         "pegasus_case_get",
-        "pegasus_case_edit_begin",
-        "pegasus_case_edit_renew",
-        "pegasus_case_edit_end",
+        "pegasus_edit_begin",
+        "pegasus_edit_renew",
+        "pegasus_edit_end",
         "pegasus_case_update_details",
         "pegasus_intake_queue_list",
         "pegasus_intake_submit",
         "pegasus_document_add",
         "pegasus_document_download",
-        "pegasus_document_export",
         "pegasus_estimate_list",
         "pegasus_estimate_save",
         "pegasus_estimate_import",
@@ -44,27 +43,17 @@ public sealed class AutomationMcpIngressTests
         "pegasus_triage_list",
         "pegasus_triage_get",
         "pegasus_triage_source_download",
-        "pegasus_triage_edit_begin",
-        "pegasus_triage_edit_renew",
-        "pegasus_triage_edit_end",
         "pegasus_triage_await_information",
         "pegasus_triage_record_finding",
-        "pegasus_triage_supersede_finding",
-        "pegasus_triage_response_link",
-        "pegasus_triage_response_unlink",
+        "pegasus_triage_response_evidence",
         "pegasus_triage_complete",
         "pegasus_triage_cancel",
         "pegasus_triage_reopen",
         "pegasus_triage_case_link",
-        "pegasus_triage_case_unlink",
         "pegasus_ai_job_list",
         "pegasus_ai_job_create",
-        "pegasus_ai_job_take",
-        "pegasus_ai_job_progress",
-        "pegasus_ai_job_complete",
-        "pegasus_ai_job_complete_market_research",
-        "pegasus_ai_job_fail",
-        "pegasus_ai_job_release"
+        "pegasus_ai_job_transition",
+        "pegasus_ai_job_complete_market_research"
     ];
 
     [Fact]
@@ -411,12 +400,13 @@ public sealed class AutomationMcpIngressTests
             accessToken,
             ToolCallPayload(
                 20,
-                "pegasus_case_edit_renew",
+                "pegasus_edit_renew",
                 new
                 {
-                    caseId,
+                    recordKind = "Case",
+                    recordId = caseId,
                     expectedVersion = 3,
-                    leaseToken = RecordingAutomationLeases.HeldToken,
+                    editLeaseToken = RecordingAutomationLeases.HeldToken,
                     operationKey = "mcp:renew-held"
                 })))
         {
@@ -425,8 +415,9 @@ public sealed class AutomationMcpIngressTests
             var result = document.RootElement.GetProperty("result");
             Assert.False(result.TryGetProperty("isError", out var isError) && isError.GetBoolean());
             var structured = result.GetProperty("structuredContent");
-            Assert.Equal(caseId, structured.GetProperty("caseId").GetGuid());
-            Assert.Equal(3, structured.GetProperty("caseVersion").GetInt64());
+            Assert.Equal("Case", structured.GetProperty("recordKind").GetString());
+            Assert.Equal(caseId, structured.GetProperty("recordId").GetGuid());
+            Assert.Equal(3, structured.GetProperty("version").GetInt64());
             Assert.Equal("mcp:renew-held", structured.GetProperty("operationKey").GetString());
         }
 
@@ -443,12 +434,13 @@ public sealed class AutomationMcpIngressTests
             accessToken,
             ToolCallPayload(
                 21,
-                "pegasus_case_edit_renew",
+                "pegasus_edit_renew",
                 new
                 {
-                    caseId,
+                    recordKind = "Case",
+                    recordId = caseId,
                     expectedVersion = 3,
-                    leaseToken = new string('b', 64),
+                    editLeaseToken = new string('b', 64),
                     operationKey = "mcp:renew-non-holder"
                 })))
         {
@@ -464,7 +456,7 @@ public sealed class AutomationMcpIngressTests
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
-              AND EventKind = N'pegasus_case_edit_renew'
+              AND EventKind = N'pegasus_edit_renew'
               AND Outcome = N'Failed'
             """));
 
@@ -476,7 +468,7 @@ public sealed class AutomationMcpIngressTests
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
-              AND EventKind = N'pegasus_case_edit_renew'
+              AND EventKind = N'pegasus_edit_renew'
               AND Outcome = N'Succeeded'
             """));
     }

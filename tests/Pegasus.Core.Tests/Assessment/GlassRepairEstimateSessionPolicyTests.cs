@@ -98,12 +98,18 @@ public sealed class GlassRepairEstimateSessionPolicyTests
 
     [Theory]
     [InlineData(GlassRepairEstimateSessionState.Failed, "glass.export.unreadable", true)]
+    [InlineData(GlassRepairEstimateSessionState.Failed, "glass.export.request", true)]
+    [InlineData(GlassRepairEstimateSessionState.Failed, "glass.export.ambiguous", true)]
+    [InlineData(GlassRepairEstimateSessionState.Failed, "glass.export.off_origin", true)]
+    [InlineData(GlassRepairEstimateSessionState.Failed, "glass.download.request", true)]
+    [InlineData(GlassRepairEstimateSessionState.Failed, "glass.download.oversize", true)]
+    [InlineData(GlassRepairEstimateSessionState.Unknown, "glass.export.request", false)]
     [InlineData(GlassRepairEstimateSessionState.Failed, "glass.export.empty", false)]
     [InlineData(GlassRepairEstimateSessionState.Failed, "glass.identity.registration", false)]
     [InlineData(GlassRepairEstimateSessionState.Failed, null, false)]
     [InlineData(GlassRepairEstimateSessionState.Unknown, "glass.export.unreadable", false)]
     [InlineData(GlassRepairEstimateSessionState.Completed, "glass.export.unreadable", false)]
-    public void OnlyAFailedSessionWhoseExportWasUnreadableFetchesItAgain(
+    public void OnlyAFailedSessionWhoseExportCouldNotBeReadOrFetchedFetchesItAgain(
         GlassRepairEstimateSessionState state, string? failureCode, bool expected) =>
         Assert.Equal(expected, GlassRepairEstimateSessionPolicy.CanRefetchExport(state, failureCode));
 

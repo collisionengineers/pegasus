@@ -32,18 +32,17 @@
             <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
                 <h2 id="mail-compose-status-title">Send status</h2>
                 <p>@OperatorLabels.StaffMail.State(operation.State)</p>
+                @if (operation.State == Pegasus.Core.Operations.StaffMailState.Failed
+                    && operation.FailureCode is { Length: > 0 } failureCode)
+                {
+                    <p class="field-hint">@OperatorLabels.StaffMail.Failure(failureCode)</p>
+                }
                 @if (unresolvedOperation)
                 {
+                    @* The Worker's Sent-evidence poll settles Submitted into
+                       Sent within its next tick; the state is read again on
+                       reload. Nothing here re-sends. *@
                     <p class="field-hint">Confirm the provider outcome before starting another message.</p>
-                    <form method="post" asp-page="/Mail/Compose" asp-page-handler="Reconcile"
-                          data-mail-compose-form>
-                        <input type="hidden" name="operationId" value="@operation.Id" />
-                        <input type="hidden" name="expectedOperationVersion" value="@operation.Version" />
-                        <button type="submit" class="btn">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
-                            <span>@OperatorLabels.StaffMail.Reconcile</span>
-                        </button>
-                    </form>
                 }
             </section>
         }
@@ -57,37 +56,25 @@
             else
             {
                 <form method="post" asp-page="/Mail/Compose" asp-page-handler="Send"
-                      class="mail-compose-form" data-mail-compose-form>
+                      class="mail-compose-form" data-mail-compose-form data-mail-compose-recovering="@OperatorLabels.Busy.Recovering">
                     <input type="hidden" asp-for="OperationKey" />
                     <input type="hidden" asp-for="OperationId" />
                     <input type="hidden" asp-for="ExpectedContextVersion" />
+                    <input type="hidden" asp-for="FixedCaseReference" />
+                    <input type="hidden" asp-for="Purpose" />
                     <div class="mail-compose-form-fields">
-                        <div class="mail-compose-case-search">
-                            <div class="field">
-                                <label asp-for="CaseQuery">Find a Case</label>
-                                <input asp-for="CaseQuery" type="search" maxlength="300" data-dialog-initial-focus />
-                                <span asp-validation-for="CaseQuery"></span>
-                            </div>
-                            <button type="submit" asp-page="/Mail/Compose" asp-page-handler="SearchCase" class="btn">Search</button>
-                        </div>
-                        @if (Model.CaseResults.Count > 0)
-                        {
-                            <ul class="search-results" data-mail-compose-results>
-                                @foreach (var candidate in Model.CaseResults)
-                                {
-                                    <li>
-                                        <button type="submit" asp-page="/Mail/Compose" asp-page-handler="SelectCase"
-                                                name="SelectedCaseReference" value="@candidate.Reference" class="btn">
-                                            @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")
-                                        </button>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                        <div class="field mail-compose-case-reference">
+                        @* Case / PO searches as staff type: the option list
+                           comes from CaseOptions and choosing an option posts
+                           SelectCase, which fixes the Case and its version. A
+                           reference typed in full is sent as it is. *@
+                        <div class="field case-picker mail-compose-case-reference" data-case-picker
+                             data-case-picker-url="@Url.Page("/Mail/Compose", "CaseOptions")">
                             <label asp-for="CaseReference">Case / PO</label>
-                            <input asp-for="CaseReference" type="text" maxlength="100" />
+                            <input asp-for="CaseReference" type="text" maxlength="100" autocomplete="off"
+                                   role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                   aria-controls="mail-compose-case-options" data-dialog-initial-focus />
                             <span asp-validation-for="CaseReference"></span>
+                            <div id="mail-compose-case-options" class="case-picker-options" data-case-picker-options hidden></div>
                         </div>
                         <div class="mail-compose-addresses">
                             <div class="field mail-compose-from">
@@ -133,7 +120,7 @@
                     @if (!unresolvedOperation)
                     {
                         <footer class="mail-compose-footer">
-                            <button type="submit" class="btn btn--primary">
+                            <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                                 <span>Send</span>
                             </button>

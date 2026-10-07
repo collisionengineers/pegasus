@@ -23,7 +23,8 @@
         <input type="hidden" name="expectedVersion" value="@owner.CurrentWorkflow!.Version" />
         <input type="hidden" name="operationKey" value="@owner.ClaimLeaseOperationKey" />
         <input type="hidden" name="section" value="@key" />
-        <button type="submit" class="btn btn--small" data-section-edit="@key">
+        <input type="hidden" name="view" value="@owner.ViewRoute" />
+        <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--small" data-section-edit="@key">
             <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
             <span>@CaseWorkspaceLabels.Frame.Edit</span>
         </button>

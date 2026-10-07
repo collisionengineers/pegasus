@@ -338,22 +338,30 @@ public sealed class CustodyOutboxIntegrationTests
             await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
                 .GetAsync(accepted.CaseId, CancellationToken.None));
         Assert.Equal(checked(workflowBeforeCustody.Version + 1), workflowAfterCustody.Version);
-        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
-            scope.ServiceProvider.GetRequiredService<IAddCaseDocument>()
-                .ExecuteAsync(
-                    new(
-                        accepted.CaseId,
-                        "stale-editor.txt",
-                        "text/plain",
-                        "stale editor content"u8.ToArray(),
-                        DocumentSemanticRole.Other,
-                        DocumentSource.StaffUpload,
-                        $"stale-editor:{Guid.NewGuid():N}",
-                        editor,
-                        $"stale-editor-add:{Guid.NewGuid():N}",
-                        editorLease.Version,
-                        editorLease.Token),
-                    CancellationToken.None));
+        // Custody is system work: it moved the version under the editor's
+        // lease without ending it, so the editor's next action at the version
+        // their page read still lands (operator, 6 October 2026).
+        var editorAdded = await scope.ServiceProvider.GetRequiredService<IAddCaseDocument>()
+            .ExecuteAsync(
+                new(
+                    accepted.CaseId,
+                    "editor.txt",
+                    "text/plain",
+                    "editor content"u8.ToArray(),
+                    DocumentSemanticRole.Other,
+                    DocumentSource.StaffUpload,
+                    $"editor:{Guid.NewGuid():N}",
+                    editor,
+                    $"editor-add:{Guid.NewGuid():N}",
+                    editorLease.Version,
+                    editorLease.Token),
+                CancellationToken.None);
+        Assert.False(editorAdded.IsReplay);
+        Assert.Equal(
+            checked(workflowAfterCustody.Version + 1),
+            Assert.IsType<CaseWorkflowRecord>(
+                await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
+                    .GetAsync(accepted.CaseId, CancellationToken.None)).Version);
 
         Assert.Equal(
             "completed",
@@ -385,6 +393,67 @@ public sealed class CustodyOutboxIntegrationTests
             expectedHash,
             "content");
         Assert.Equal(accepted.Content, await File.ReadAllBytesAsync(retainedPath));
+    }
+
+    /// <summary>
+    /// Custody confirming under a member of staff's edit lease never ends their session
+    /// (operator, 6 October 2026): the lease survives, the editor's heartbeat answers the
+    /// version custody moved the Case to, and their Save at the version the page read lands.
+    /// </summary>
+    [Fact]
+    public async Task CustodyUnderAHeldLeaseKeepsItAndTheEditorsSaveAtTheReadVersionLands()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var accepted = await AcceptDirectSourceAsync(services);
+        var queries = services.GetRequiredService<ICaseWorkflowQueries>();
+        var editor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var read = Assert.IsType<CaseWorkflowRecord>(
+            await queries.GetAsync(accepted.CaseId, CancellationToken.None));
+        var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(accepted.CaseId, read.Version, editor, $"custody-held-lease:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal(
+            "confirmed",
+            await ReadCaseCustodyStateAsync(services, accepted.CaseId));
+        var afterCustody = Assert.IsType<CaseWorkflowRecord>(
+            await queries.GetAsync(accepted.CaseId, CancellationToken.None));
+        Assert.Equal(checked(read.Version + 1), afterCustody.Version);
+        await using (var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.AsNoTracking()
+                .SingleAsync(item => item.CaseId == accepted.CaseId);
+            Assert.Equal(editor.SubjectId, workflow.EditLeaseHolder);
+            Assert.False(string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash));
+        }
+
+        var beat = await services.GetRequiredService<IHeartbeatCaseEditLease>().ExecuteAsync(
+            new(accepted.CaseId, editor, lease.Token),
+            CancellationToken.None);
+        Assert.Equal(lease.Token, beat.Token);
+        Assert.Equal(afterCustody.Version, beat.Version);
+
+        var saved = await services.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                accepted.CaseId,
+                read.Version,
+                editor,
+                $"custody-held-save:{Guid.NewGuid():N}",
+                "Recorded the damage",
+                lease.Token)
+            {
+                Damage = new([new(["front"], "light", "Scuffed")], null)
+            },
+            CancellationToken.None);
+        Assert.False(saved.WasReplay);
+        Assert.Equal(checked(afterCustody.Version + 1), saved.Version);
     }
 
     [Fact]
@@ -432,7 +501,6 @@ public sealed class CustodyOutboxIntegrationTests
                     new MutableTimeProvider(FixedUtcNow))
                 .ExecuteAsync(10, CancellationToken.None));
         Assert.Equal([accepted.CustodyWorkId], initialQueue.WorkItemIds);
-
 
         await reconciliation.ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
         await reconciliation.ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
@@ -594,7 +662,7 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     [Fact]
-    public async Task LogicallyRemovedVersionCannotBeDownloadedOrExported()
+    public async Task LogicallyRemovedVersionCannotBeDownloaded()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -632,7 +700,8 @@ public sealed class CustodyOutboxIntegrationTests
                     addLease.Version,
                     addLease.Token),
                 CancellationToken.None);
-        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+        // The add ended the lease it was made under.
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
             scope.ServiceProvider.GetRequiredService<IAddCaseDocument>()
                 .ExecuteAsync(
                     new(
@@ -650,7 +719,6 @@ public sealed class CustodyOutboxIntegrationTests
                     CancellationToken.None));
 
         var downloadOperationKey = $"document-download:{Guid.NewGuid():N}";
-        var exportOperationKey = $"document-export:{Guid.NewGuid():N}";
 
         await using (var download = Assert.IsType<DocumentDownload>(
                          await scope.ServiceProvider.GetRequiredService<IDownloadCaseDocument>()
@@ -681,47 +749,10 @@ public sealed class CustodyOutboxIntegrationTests
             Assert.Equal(added.Version.Sha256, replay.Sha256);
         }
 
-
-        var exportLease = await leases.ClaimAsync(
-            new(
-                accepted.CaseId,
-                checked(addLease.Version + 1),
-                actor,
-                $"document-export-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        await using (var export = await scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                         .ExecuteAsync(
-                             new(
-                                 accepted.CaseId,
-                                 [new(added.Occurrence.Id, added.Version.Id)],
-                                actor,
-                                 exportOperationKey,
-                                 1024 * 1024,
-                                 exportLease.Version,
-                                 exportLease.Token),
-                             CancellationToken.None))
-        {
-            Assert.Equal(added.Version.Id, Assert.Single(export.Manifest).VersionId);
-        }
-        await using (var replay = await scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                         .ExecuteAsync(
-                             new(
-                                 accepted.CaseId,
-                                 [new(added.Occurrence.Id, added.Version.Id)],
-                                 actor,
-                                 exportOperationKey,
-                                 1024 * 1024,
-                                 exportLease.Version,
-                                 exportLease.Token),
-                             CancellationToken.None))
-        {
-            Assert.Equal(added.Version.Id, Assert.Single(replay.Manifest).VersionId);
-        }
-
         var removeLease = await leases.ClaimAsync(
             new(
                 accepted.CaseId,
-                checked(exportLease.Version + 1),
+                checked(addLease.Version + 1),
                 actor,
                 $"document-remove-lease:{Guid.NewGuid():N}"),
             CancellationToken.None);
@@ -731,30 +762,12 @@ public sealed class CustodyOutboxIntegrationTests
         {
             var auditEntries = await auditContext.ActionHistory
                 .Where(value => value.AggregateType == "case_document"
-                    && (value.CorrelationId == downloadOperationKey
-                        || value.CorrelationId == exportOperationKey))
+                    && value.CorrelationId == downloadOperationKey)
                 .ToArrayAsync();
-            Assert.Equal(2, auditEntries.Length);
-            Assert.All(auditEntries, entry =>
-            {
-                Assert.Equal(actor.SubjectId, entry.ActorSubjectId);
-                Assert.False(string.IsNullOrWhiteSpace(entry.AfterJson));
-            });
+            var entry = Assert.Single(auditEntries);
+            Assert.Equal(actor.SubjectId, entry.ActorSubjectId);
+            Assert.False(string.IsNullOrWhiteSpace(entry.AfterJson));
         }
-
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                .ExecuteAsync(
-                    new(
-                        accepted.CaseId,
-                        [new(added.Occurrence.Id, added.Version.Id)],
-                        actor,
-                        $"document-export-over-limit:{Guid.NewGuid():N}",
-                        content.LongLength,
-                        removeLease.Version,
-                        removeLease.Token),
-                    CancellationToken.None));
 
         await scope.ServiceProvider.GetRequiredService<ILogicallyRemoveDocument>()
             .ExecuteAsync(
@@ -777,18 +790,6 @@ public sealed class CustodyOutboxIntegrationTests
                     actor,
                     $"document-download-removed:{Guid.NewGuid():N}"),
                 CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                .ExecuteAsync(
-                    new(
-                        accepted.CaseId,
-                        [new(added.Occurrence.Id, added.Version.Id)],
-                        actor,
-                        $"document-export-removed:{Guid.NewGuid():N}",
-                        1024 * 1024,
-                        checked(removeLease.Version + 1),
-                        removeLease.Token),
-                    CancellationToken.None));
     }
 
     [Fact]
@@ -835,9 +836,19 @@ public sealed class CustodyOutboxIntegrationTests
                     lease.Token),
                 CancellationToken.None));
 
+        // A lapsed lease carries on only while nobody claims the Case; once a
+        // colleague has it, the lapsed token is no authority.
         timeProvider.Advance(TimeSpan.FromMinutes(6));
+        await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+            .ClaimAsync(
+                new(
+                    accepted.CaseId,
+                    workflow.Version,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                    $"document-guard-colleague-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
 
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             add.ExecuteAsync(Command(actor, lease.Token), CancellationToken.None));
         var unchanged = Assert.IsType<CaseWorkflowRecord>(
             await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
@@ -931,38 +942,6 @@ public sealed class CustodyOutboxIntegrationTests
                         $"terminal-document-remove:{Guid.NewGuid():N}",
                         terminalLease.Version,
                         terminalLease.Token),
-                    CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task ExportIsRefusedForACaseThatIsNotInReview()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        await using var scope = factory.Services.CreateAsyncScope();
-
-        // The queued path allocates the case with nothing confirmed, so it
-        // enters Not ready — which is exactly the stage the rule excludes.
-        var accepted = await AcceptQueuedSourceAsync(scope.ServiceProvider);
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        var lease = await scope.ServiceProvider
-            .GetRequiredService<IAcquireCaseEditLease>()
-            .ExecuteAsync(
-                new(accepted.CaseId, 0, actor, $"export-gate-lease:{Guid.NewGuid():N}"),
-                CancellationToken.None);
-
-        // A greyed button is presentation. The rule is a precondition, so it
-        // holds for every caller and not just the one that renders the button.
-        await Assert.ThrowsAsync<CaseNotInReviewException>(() =>
-            scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
-                .ExecuteAsync(
-                    new(
-                        accepted.CaseId,
-                        [new(Guid.NewGuid(), Guid.NewGuid())],
-                        actor,
-                        $"export-gate:{Guid.NewGuid():N}",
-                        1024 * 1024,
-                        lease.Version,
-                        lease.Token),
                     CancellationToken.None));
     }
 
@@ -2761,6 +2740,20 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.True(
             documents > 0,
             $"Custody completed but registered {documents} case documents.");
+
+        // The report the intake identified is filed as the Audit report, not
+        // as a second instruction document: nothing recognises it later,
+        // because a Case that holds its report does not await one.
+        var filed = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == outcome.Identity.CaseId
+                select new { version.FileName, occurrence.SemanticRole })
+            .ToDictionaryAsync(item => item.FileName, item => item.SemanticRole);
+        Assert.Equal(DocumentSemanticRole.AuditReport, filed["Bodyshopreport236503-V1.pdf"]);
+        Assert.Equal(DocumentSemanticRole.Instruction, filed["AuditReportNotification236503-V1.pdf"]);
+        Assert.Equal(DocumentSemanticRole.OriginalSource, filed[$"e2e-audit-{fixtureId}.eml"]);
     }
 
     /// <summary>
@@ -3052,7 +3045,6 @@ public sealed class CustodyOutboxIntegrationTests
                 identity),
             email.Content);
     }
-
 
     private static async Task SeedPrincipalAsync(
         IServiceProvider services,

@@ -289,6 +289,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             [AssessmentVocabulary.EngineerSignature] = "a_engineer",
             [AssessmentVocabulary.AgreedFee] = "120.00"
         };
+        // The accepted Case already holds its Principal's default fee.
+        var paths = values.Keys.ToArray();
+        context.CaseAssessmentFields.RemoveRange(await context.CaseAssessmentFields
+            .Where(field => field.WorkId == caseId && paths.Contains(field.FieldPath))
+            .ToArrayAsync());
         context.CaseAssessmentFields.AddRange(values.Select(value =>
             new CaseAssessmentFieldEntity
             {
@@ -451,7 +456,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
 
         Assert.Equal(1, saved.CaseVersion);
-        Assert.Equal(3, saved.Fields.Count);
+        // The three this save wrote, beside the agreed fee the Case took from
+        // its Principal at creation.
+        Assert.Equal(3, saved.Fields.Count(field => field.Path != AssessmentVocabulary.AgreedFee));
         Assert.All(saved.Fields, field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
         // An assessment save writes fields only; the lines are the Current
         // repair spec's, and none is in use yet.
@@ -659,7 +666,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             Assert.Equal(third.Lines[0].AmendedAtUtc, replay.Lines[0].AmendedAtUtc);
             await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
                 resumed.ExecuteAsync(update with { Details = update.Details with { Name = "Changed intent" } }, default));
-            await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+            // Each save ended the lease it was made under, so a new operation
+            // on the old page is refused for its lease before its version.
+            await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
                 resumed.ExecuteAsync(update with { OperationKey = "new-stale-operation" }, default));
         }
         finally
@@ -669,6 +678,57 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(3, await context.CaseWorkflowEvents.CountAsync(item => item.CaseId == caseId && item.EventType.StartsWith("estimate_")));
         Assert.Equal(3, await context.ActionHistory.CountAsync(item => item.AggregateId == caseId.ToString("D") && item.EventKind.StartsWith("estimate_")));
         Assert.Equal(3, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+    }
+
+    /// <summary>
+    /// An estimate act from the Inspection view once the Audit exists writes
+    /// the Inspection's own specification (operator, 2 October 2026); the
+    /// Audit's is left exactly as it was.
+    /// </summary>
+    [Fact]
+    public async Task APrimaryEstimateActOnAnAuditedCaseChangesTheInspectionSpecificationOnly()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("primary-estimate-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var save = new SaveEstimate(
+            harness.RepairSpecifications, new EfAiJobStore(harness.Factory, harness.Clock), harness.Clock);
+        EstimateLineInput[] lines = [new("repair", null, "Repair door", 4m, null, false, null, null, "judgement", null)];
+        SaveEstimateRequest Created(CaseEditLease lease, string operationKey) => new(
+            caseId, lease.Version, engineer, operationKey, "Recorded the repairer's estimate.", lease.Token, null,
+            new("Repairer", 80m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            lines, new(RepairSpecificationSourceRoute.Manual, null, null, null));
+
+        var inspectionLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "primary-estimate-lease-1");
+        var inspection = await save.ExecuteAsync(
+            Created(inspectionLease, "primary-estimate-inspection"), CancellationToken.None);
+        var auditWorkId = await Reports.CaseReportGenerationPersistenceTests.GiveAuditAsync(
+            harness.Factory, caseId, harness.Clock.GetUtcNow());
+        var auditLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "primary-estimate-lease-2");
+        var audit = await save.ExecuteAsync(Created(auditLease, "primary-estimate-audit"), CancellationToken.None);
+
+        var editLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "primary-estimate-lease-3");
+        await save.ExecuteAsync(
+            new SaveEstimateRequest(
+                caseId, editLease.Version, engineer, "primary-estimate-edit", "Repriced at the agreed rate.",
+                editLease.Token, inspection.SpecificationId, inspection.Details with { LabourRate = 55m },
+                lines, inspection.Source)
+            {
+                Work = CaseWorkSelector.Primary,
+            },
+            CancellationToken.None);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var rows = await context.CaseRepairSpecifications.AsNoTracking()
+            .Where(item => item.Work.CaseId == caseId)
+            .ToDictionaryAsync(item => item.Id);
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(caseId, rows[inspection.SpecificationId].WorkId);
+        Assert.Equal(55m, rows[inspection.SpecificationId].LabourRate);
+        Assert.True(rows[inspection.SpecificationId].IsCurrent);
+        Assert.Equal(auditWorkId, rows[audit.SpecificationId].WorkId);
+        Assert.Equal(80m, rows[audit.SpecificationId].LabourRate);
+        Assert.True(rows[audit.SpecificationId].IsCurrent);
     }
 
     [Fact]
@@ -987,8 +1047,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             Assert.Equal(RepairSpecificationState.Draft, imported.State);
             Assert.True(imported.IsCurrent);
             Assert.Equal(imported.SpecificationId, (await store.GetCurrentAsync(caseId, default))!.SpecificationId);
-            await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.RequireImportAuthorityAsync(authority, default));
-            await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.SaveImportedEstimateAsync(request, default));
+            // The import ended the lease it was made under.
+            await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => store.RequireImportAuthorityAsync(authority, default));
+            await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => store.SaveImportedEstimateAsync(request, default));
         }
         finally
         {
@@ -1281,6 +1342,42 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
+    /// An imported Glass's document's VIN fills the work's empty VIN as system
+    /// work after the import, recorded as Glass's (operator, 7 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AnImportFillsTheWorksEmptyVinAfterTheImport()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("import-vin-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var xml = System.Text.Encoding.UTF8.GetBytes(
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(vin: "TESTVEH0A1B2C3D45"));
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "import-vin-lease");
+
+        await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            new(caseId, 0, engineer, "import-vin-save", ImportRawEstimate.ImportReason,
+                lease.Token, null, new("Glass's 1", null, null, 20m), parsed.Lines,
+                new(RepairSpecificationSourceRoute.Glasses, "estimate-import:vin", parsed.SourceVersion, hash))
+            {
+                Vin = parsed.Vin,
+            },
+            CancellationToken.None);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var vin = await context.CaseAssessmentFields.AsNoTracking()
+            .SingleAsync(row => row.WorkId == caseId && row.FieldPath == AssessmentVocabulary.VehicleVin);
+        Assert.Equal("TESTVEH0A1B2C3D45", vin.Value);
+        Assert.Equal(ActorKind.Automation.ToString(), vin.RecordedByKind);
+        Assert.Equal(GlassVinFillPolicy.RecorderId, vin.RecordedBy);
+        Assert.Equal(2, (await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
+        Assert.Equal(GlassVinFillWriter.EventType, (await context.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(row => row.CaseId == caseId && row.AfterVersion == 2)).EventType);
+    }
+
+    /// <summary>
     /// The Case Save of a new typed spec replaces the Current one in the same
     /// transaction. The filtered unique index allows one Current row per work,
     /// so the previous Current is cleared before the new row lands.
@@ -1440,6 +1537,75 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(RepairSpecificationState.Discarded,
             listed.Single(item => item.SpecificationId == first.SpecificationId).State);
         Assert.Equal(again.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
+    }
+
+    /// <summary>
+    /// A Glass's estimate belongs to its repair spec (operator, 6 October
+    /// 2026). The return that makes the spec records the stock vehicle on it;
+    /// a later return for that vehicle replaces the same spec's lines and
+    /// source, keeps its name, and puts it back in use.
+    /// </summary>
+    [Fact]
+    public async Task AGlassReturnForItsSpecUpdatesItInPlaceAndPutsItBackInUse()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("glass-update-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
+        var link = new GlassEstimateLink("33584499", "1954488", "10203040", Placeholder: false, "AB12CDE", 33000);
+        var authority = new Pegasus.Infrastructure.Glass.EfGlassRepairEstimateCaseAuthority(harness.Factory, harness.Clock);
+
+        var firstLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "glass-update-lease-1");
+        var first = await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            new(caseId, 0, engineer, "glass-update-first", ImportRawEstimate.ImportReason, firstLease.Token, null,
+                new("Glass's 1", 40m, null, 20m), parsed.Lines,
+                new(RepairSpecificationSourceRoute.Glasses, "estimate-import:glass-first", parsed.SourceVersion, hash))
+            {
+                GlassEstimate = link,
+            },
+            CancellationToken.None);
+        Assert.Equal(link, await authority.FindEstimateAsync(caseId, first.SpecificationId, CancellationToken.None));
+        Assert.Equal(
+            first.SpecificationId,
+            await authority.FindSpecificationAsync(caseId, link.VehicleId, CancellationToken.None));
+
+        // A typed spec takes its place in use, and belongs to no estimate.
+        var typedLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "glass-update-lease-typed");
+        var typed = await new SaveEstimate(harness.RepairSpecifications,
+            new EfAiJobStore(harness.Factory, harness.Clock), harness.Clock).ExecuteAsync(
+            new(caseId, typedLease.Version, engineer, "glass-update-typed", "Recorded a typed spec.",
+                typedLease.Token, null, new("Typed", 40m, 0m, 20m),
+                [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+        Assert.True(typed.IsCurrent);
+        Assert.Null(await authority.FindEstimateAsync(caseId, typed.SpecificationId, CancellationToken.None));
+
+        var secondHash = new string('c', 64);
+        var updateLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "glass-update-lease-2");
+        var updated = await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            new(caseId, updateLease.Version, engineer, "glass-update-second", ImportRawEstimate.ImportReason,
+                updateLease.Token, first.SpecificationId, first.Details, [parsed.Lines[0]],
+                new(RepairSpecificationSourceRoute.Glasses, "estimate-import:glass-second", parsed.SourceVersion, secondHash))
+            {
+                GlassEstimate = link with { EstimateId = "1954489" },
+            },
+            CancellationToken.None);
+
+        Assert.Equal(first.SpecificationId, updated.SpecificationId);
+        Assert.Equal("Glass's 1", updated.Details.Name);
+        Assert.True(updated.IsCurrent);
+        Assert.Single(updated.Lines);
+        Assert.Equal(secondHash, updated.Source.Sha256);
+        var listed = await harness.RepairSpecifications.ListEstimatesAsync(
+            caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(2, listed.Count);
+        Assert.Equal(first.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
+        Assert.Equal(
+            "1954489",
+            (await authority.FindEstimateAsync(caseId, first.SpecificationId, CancellationToken.None))!.EstimateId);
     }
 
     /// <summary>
@@ -1806,7 +1972,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
-        Assert.Equal(1, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
+        var findings = await context.Set<DocumentOccurrenceEntity>().AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+        // Market research is a document type, not an image tag.
+        Assert.Equal(DocumentSemanticRole.MarketResearch, findings.SemanticRole);
+        Assert.False(await context.Set<DocumentOccurrenceTagEntity>().AnyAsync(item => item.OccurrenceId == findings.Id));
         var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
         Assert.Equal(engineerLease.Version, workflow.Version);
         Assert.Equal(harness.EngineerActor.SubjectId, workflow.EditLeaseHolder);

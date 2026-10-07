@@ -365,7 +365,8 @@ public sealed class DocumentCustodyDurabilityTests
                 AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId),
                 DocumentSemanticRole.Correspondence);
             await SeedCurrentDocumentAsync(
-                database, caseId, 1, "other-case-file.pdf", role: DocumentSemanticRole.Correspondence);
+                database, caseId, 1, "other-case-file.pdf", role: DocumentSemanticRole.Correspondence,
+                sha256: new string('b', 64));
             await using (var context = await database.CreateContextAsync())
             {
                 context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
@@ -385,8 +386,15 @@ public sealed class DocumentCustodyDurabilityTests
             await using (var scope = database.CreateAsyncScope())
             {
                 var store = scope.ServiceProvider.GetRequiredService<IRecogniseOriginalReportStore>();
-                var candidate = Assert.Single(await store.FindAwaitingCandidatesAsync(
-                    caseId, receiptId, [assetId, Guid.NewGuid()], CancellationToken.None));
+                // Found by the bytes' hash, however the file was filed, and whatever
+                // case the hash was recorded in: mail intake writes capitals.
+                var found = await store.FindAwaitingCandidatesAsync(
+                    caseId,
+                    receiptId,
+                    [new(assetId, new string('A', 64)), new(Guid.NewGuid(), new string('c', 64))],
+                    CancellationToken.None);
+                Assert.True(found.CaseAwaitsReport);
+                var candidate = Assert.Single(found.Filed);
                 Assert.Equal(new(assetId, occurrenceId, await VersionIdAsync(database, occurrenceId)), candidate);
                 var command = new RecordRecognisedOriginalReport(
                     caseId,
@@ -402,8 +410,10 @@ public sealed class DocumentCustodyDurabilityTests
                 Assert.NotNull(recorded);
                 Assert.Equal(recorded, replay);
                 Assert.Equal(1, recorded.CaseVersion);
-                Assert.Empty(await store.FindAwaitingCandidatesAsync(
-                    caseId, receiptId, [assetId], CancellationToken.None));
+                var afterwards = await store.FindAwaitingCandidatesAsync(
+                    caseId, receiptId, [new(assetId, new string('a', 64))], CancellationToken.None);
+                Assert.False(afterwards.CaseAwaitsReport);
+                Assert.Empty(afterwards.Filed);
             }
 
             await using var verification = await database.CreateContextAsync();
@@ -476,8 +486,10 @@ public sealed class DocumentCustodyDurabilityTests
                 await context.SaveChangesAsync();
             }
 
-            Assert.Empty(await store.FindAwaitingCandidatesAsync(
-                caseId, receiptId, [assetId], CancellationToken.None));
+            var completed = await store.FindAwaitingCandidatesAsync(
+                caseId, receiptId, [new(assetId, new string('a', 64))], CancellationToken.None);
+            Assert.False(completed.CaseAwaitsReport);
+            Assert.Empty(completed.Filed);
             Assert.Null(await store.RecordRecognisedAsync(command, reading, CancellationToken.None));
 
             await using var verification = await database.CreateContextAsync();
@@ -853,11 +865,12 @@ public sealed class DocumentCustodyDurabilityTests
 
     /// <summary>
     /// The tag decides how an image in the report prints (operator, 26
-    /// September 2026): tagging one image Overview and one Close-up clears
-    /// both image blockers with no Case save, and stales the current report.
+    /// September 2026): tagging one image Overview clears the image blocker
+    /// with no Case save, the Close-up being optional (operator, 7 October
+    /// 2026), and tagging stales the current report.
     /// </summary>
     [Fact]
-    public async Task TaggingOneOverviewAndOneCloseUpClearsBothImageBlockersWithoutACaseSave()
+    public async Task TaggingOneOverviewAndOneCloseUpClearsTheImageBlockerWithoutACaseSave()
     {
         var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
         try
@@ -873,7 +886,9 @@ public sealed class DocumentCustodyDurabilityTests
             var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
             var queries = scope.ServiceProvider.GetRequiredService<ICaseAssetPreparationQueries>();
             var tagger = scope.ServiceProvider.GetRequiredService<ITagCaseImage>();
-            Assert.Equal(2, ImageBlockers(await queries.ListForCaseAsync(caseId, CancellationToken.None)).Count);
+            Assert.Equal(
+                [CaseReportReadiness.OverviewImageRequirement],
+                ImageBlockers(await queries.ListForCaseAsync(caseId, CancellationToken.None)));
 
             var version = 0L;
             foreach (var (occurrenceId, tagId) in new[]
@@ -1072,7 +1087,7 @@ public sealed class DocumentCustodyDurabilityTests
         }
     }
 
-    /// <summary>The Close-up and Overview blockers report readiness names over these preparations.</summary>
+    /// <summary>The Overview blocker report readiness names over these preparations.</summary>
     internal static IReadOnlyList<string> ImageBlockers(IReadOnlyList<CaseAssetPreparation> preparations) =>
     [
         .. CaseReportReadiness.Evaluate(new CaseReportReadinessInput(
@@ -1090,8 +1105,7 @@ public sealed class DocumentCustodyDurabilityTests
                 new Dictionary<Guid, DocumentVersion>()))
             .Reasons
             .Select(reason => reason.Requirement)
-            .Where(requirement => requirement is CaseReportReadiness.CloseUpImageRequirement
-                or CaseReportReadiness.OverviewImageRequirement)
+            .Where(requirement => requirement is CaseReportReadiness.OverviewImageRequirement)
     ];
 
     private static async Task<DocumentOccurrenceEntity> OccurrenceAsync(LocalDbTestDatabase database, Guid occurrenceId)
@@ -1276,7 +1290,7 @@ public sealed class DocumentCustodyDurabilityTests
                 .GetRequiredService<IReadImageTagVocabulary>()
                 .ListAsync(CancellationToken.None);
             Assert.Equal(
-                [.. new[] { ImageTagVocabulary.OverviewName, ImageTagVocabulary.CloseUpName, ImageTagVocabulary.ThirdPartyName, ImageTagVocabulary.ReflectionName, ImageTagVocabulary.MarketResearchName }.OrderBy(name => name, StringComparer.Ordinal)],
+                [.. new[] { ImageTagVocabulary.OverviewName, ImageTagVocabulary.CloseUpName, ImageTagVocabulary.ThirdPartyName, ImageTagVocabulary.ReflectionName }.OrderBy(name => name, StringComparer.Ordinal)],
                 vocabulary.Where(tag => tag.IsBuiltIn).Select(tag => tag.Name).OrderBy(name => name, StringComparer.Ordinal));
             Assert.Contains(vocabulary, tag => tag.Id == created.Tag.Id);
         }
@@ -1515,7 +1529,8 @@ public sealed class DocumentCustodyDurabilityTests
         int ordinal,
         string fileName,
         string? operationKey = null,
-        DocumentSemanticRole role = DocumentSemanticRole.Instruction)
+        DocumentSemanticRole role = DocumentSemanticRole.Instruction,
+        string? sha256 = null)
     {
         await using var context = await database.CreateContextAsync();
         var documentId = Guid.NewGuid();
@@ -1537,7 +1552,7 @@ public sealed class DocumentCustodyDurabilityTests
                 FileName = fileName,
                 MediaType = "application/pdf",
                 ContentLength = 1,
-                Sha256 = new string('a', 64),
+                Sha256 = sha256 ?? new string('a', 64),
                 CustodyStatus = DocumentCustodyStatus.Confirmed,
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 CreatedBy = "Staff:test",

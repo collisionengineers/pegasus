@@ -56,24 +56,37 @@ they ship as one rework with one destructive migration.
    Id must equal its Case Id, a Case has at most one work of each kind, and
    every per-work table has a foreign key to its work.
 3. **The current work.** The current work is the Audit work when one exists,
-   otherwise the primary work. Every write targets the current work,
-   resolved inside the writer's transaction after its version, lease and
-   archive guards. Create audit takes the same workflow lock and advances the
-   Case version, so a write prepared before it is refused. Reads name the
-   current or the primary work; only the Inspection view reads the primary
-   work once an Audit exists. The Case-level mirrors (the accepted inspection
+   otherwise the primary work. Every write names the work it targets, the
+   current work unless the request says otherwise, resolved inside the
+   writer's transaction after its version, lease and archive guards. Create
+   audit takes the same workflow lock and advances the Case version, so a
+   write prepared before it is refused. Reads name the current or the primary
+   work; the Inspection view reads and writes the primary work once an Audit
+   exists (*amended 2 October 2026*: it was read-only), and a write to the
+   primary work while an Audit exists changes none of the Case-level mirrors
+   below, which stay the Audit's. The Case-level mirrors (the accepted inspection
    deadline, Due by, the completeness gate and the match index) follow the
    primary work only. Lists, queues, Search rows and intake matching read the
    primary work.
 4. **A report per work.** Each report generation belongs to one work, and
    current, superseded and stale are decided per work. A generation of a work
-   that is no longer current can be opened and downloaded, never generated
-   again, approved or sent. The Audit report's reference is `a.{Case/PO}`,
+   that is no longer current can be opened and downloaded, and that work's
+   report may be generated, approved and sent again from the Inspection
+   view (*amended 2 October 2026*: it was never generated again once sent).
+   The Audit report's reference is `a.{Case/PO}`,
    held once on the Case; it is the Audit report's Our Ref, file name and
    email subject. The re-send suffix counts sends of the same work. At Create
    audit the report approval and Sent evidence move from the Case workflow to
    the primary work, and the Audit's Sent evidence must follow the Audit's
    creation. Fees and MI count the first confirmed report of each work.
+   *Amended 1 October 2026:* only a work's own superseded generations are
+   closed. The primary work's report, when not yet sent at Create audit, is
+   still generated, approved, sent and marked sent on that work, from the
+   Inspection view, and never changes the Case's state; every report action
+   names the work it addresses. *Amended 2 October 2026:* the Case page's
+   Next action states the viewed work's step, the Inspection report's in the
+   Inspection view, and the Audit view's Report section shows the Audit
+   report alone.
 5. **The `a.` folder.** Each Case document records its custody folder: the
    Case folder or its audit folder. An Audit-work report is filed in the
    `a.{Case/PO}` Box subfolder under the Case folder, which Pegasus creates
@@ -135,8 +148,8 @@ they ship as one rework with one destructive migration.
 - ADR-0051's linked Audit Case, its nested custody root operation and the
   ribbon links between an Audit Case and its original are removed. Standalone
   Audit Cases are unchanged.
-- The Case page shows a Views card once an Audit exists, and a read-only
-  Inspection view (FRD-16). Search lists an Inspection + Audit Case with an
+- The Case page shows a Views card once an Audit exists, and an Inspection
+  view that edits the primary work (FRD-16). Search lists an Inspection + Audit Case with an
   Audit twice; queues list it once with its Inspection values (FRD-15).
 - A Triage Case gains Case custody, Files and upload, appears in Search and
   the Workflow queues, and is counted by the Triages metric. MCP Triage tools

@@ -101,8 +101,8 @@ internal sealed class CaseMutationAuthority
 
     /// <summary>
     /// Whether system work (an image merge, an automatic link) yields to a
-    /// member of staff editing the Case: a held workflow edit lease, whose
-    /// version a system completion advances. A system completion leaves a
+    /// member of staff editing the Case: a held workflow edit lease. A system
+    /// completion advances the version under that lease without ending it. A system completion leaves a
     /// Triage Case's version alone, so it never disturbs a Triage edit scope
     /// and nothing yields to one.
     /// </summary>
@@ -110,15 +110,16 @@ internal sealed class CaseMutationAuthority
         Workflow is not null && CaseEditAuthority.IsHeld(Workflow.EditLeaseExpiresAtUtc, nowUtc);
 
     /// <summary>
-    /// A system completion (custody) advances the workflow version. It leaves a
-    /// Triage Case's version alone, so custody completing never invalidates a
-    /// member of staff's Triage edit scope.
+    /// A system completion (custody) advances the workflow version and leaves
+    /// the editor's lease standing, so it never ends a member of staff's edit
+    /// session. It leaves a Triage Case's version alone, so custody completing
+    /// never invalidates a member of staff's Triage edit scope.
     /// </summary>
     public void CompleteSystemMutation()
     {
         if (Workflow is not null)
         {
-            CaseMutationGuard.Complete(Workflow);
+            CaseMutationGuard.Advance(Workflow);
         }
     }
 
@@ -146,8 +147,8 @@ internal sealed class CaseMutationAuthority
             if (anyLifecycleState)
             {
                 ArchivedCaseGuard.RequireNotArchived(Workflow);
-                CaseMutationGuard.RequireVersion(Workflow, expectedVersion);
                 CaseMutationGuard.RequireLease(Workflow, actor, leaseToken ?? string.Empty, nowUtc);
+                CaseMutationGuard.RequireVersionUnderLease(Workflow, expectedVersion);
             }
             else
             {

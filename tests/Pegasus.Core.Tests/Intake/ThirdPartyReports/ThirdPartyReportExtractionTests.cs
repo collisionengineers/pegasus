@@ -728,6 +728,7 @@ public sealed partial class ThirdPartyReportExtractionTests
     [InlineData(nameof(ConnexusCosts))]
     [InlineData(nameof(MontgomeryCosts))]
     [InlineData(nameof(LairdSupplement))]
+    [InlineData(nameof(LairdTotalLoss))]
     [InlineData(nameof(SPrintTotals))]
     public void TheSameValuesAreReadWhetherOrNotTheTextEngineKeepsTheColumnPadding(string excerpt)
     {
@@ -945,6 +946,7 @@ public sealed partial class ThirdPartyReportExtractionTests
         nameof(ConnexusCosts) => ConnexusHeader + "\n" + ConnexusCosts,
         nameof(MontgomeryCosts) => MontgomeryCosts,
         nameof(LairdSupplement) => LairdSupplement,
+        nameof(LairdTotalLoss) => LairdTotalLoss,
         nameof(SPrintTotals) => SPrintTotals,
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, "Unknown excerpt.")
     };

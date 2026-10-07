@@ -299,6 +299,114 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
+    /// a.QDOS26070 (6 October 2026): every save writes the spec's lines afresh,
+    /// so the second commit of one page named lines the first had replaced and
+    /// was refused ("An estimate line changed before this edit was saved"). The
+    /// page and a commit answered in place carry each line's identity by the
+    /// row it posts from, and a commit that posts the carried ids saves.
+    /// </summary>
+    [Fact]
+    public async Task ACommitAnsweredInPlaceCarriesTheLinesNewIdentitiesSoTheNextCommitSaves()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var importHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        using var importResponse = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(importHtml), caseId, NewOperationKey(), AudatexEstimateFixture.Build()));
+        Assert.Equal(HttpStatusCode.Redirect, importResponse.StatusCode);
+        var draft = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
+        var editorHtml = await EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
+
+        // The page carries the shown lines' identities by the row each posts from.
+        Assert.Equal(LineIdentities(draft), InputValue(editorHtml, "estimateLineIds"));
+
+        using var first = await PostEstimateCommitAsync(client, caseId, editorHtml, draft, draft.Lines, store.WorkflowVersion);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var answer = await first.Content.ReadAsStringAsync();
+        var written = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
+        Assert.Equal(2, store.SavedEstimates.Count);
+        Assert.NotEqual(draft.Lines[0].Id, written.Lines[0].Id);
+        // The answer carries the ids the save gave the lines, and no section.
+        Assert.Contains("data-estimate-line-ids", answer, StringComparison.Ordinal);
+        Assert.Equal(LineIdentities(written), InputValue(answer, "estimateLineIds"));
+        Assert.DoesNotContain("id=\"section-estimate\"", answer, StringComparison.Ordinal);
+
+        // A commit still naming the replaced lines is refused, as before.
+        using var stale = await PostEstimateCommitAsync(client, caseId, editorHtml, draft, draft.Lines, store.WorkflowVersion);
+        Assert.Equal(HttpStatusCode.OK, stale.StatusCode);
+        Assert.Contains("An estimate line changed before this edit was saved.", await stale.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(2, store.SavedEstimates.Count);
+
+        // The commit the script sends next posts the carried ids, and saves.
+        using var second = await PostEstimateCommitAsync(client, caseId, editorHtml, draft, written.Lines, store.WorkflowVersion);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        var secondAnswer = await second.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("changed before this edit was saved", secondAnswer, StringComparison.Ordinal);
+        Assert.Equal(3, store.SavedEstimates.Count);
+        var rewritten = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
+        Assert.Equal(LineIdentities(rewritten), InputValue(secondAnswer, "estimateLineIds"));
+    }
+
+    /// <summary>"row:id" per line, in position order, as the page and the commit answer carry them.</summary>
+    private static string LineIdentities(RepairSpecificationVersion estimate) =>
+        string.Join(
+            ' ',
+            estimate.Lines.OrderBy(line => line.Position).Select((line, index) => $"{index}:{line.Id:D}"));
+
+    /// <summary>
+    /// The estimate editor committed as the page script commits it: the shown
+    /// spec's rows, each naming the line it stands for, with the script's header
+    /// so the commit is answered in place.
+    /// </summary>
+    private static async Task<HttpResponseMessage> PostEstimateCommitAsync(
+        HttpClient client,
+        Guid caseId,
+        string editorHtml,
+        RepairSpecificationVersion estimate,
+        IReadOnlyList<CaseEstimateLineRecord> lines,
+        long expectedVersion)
+    {
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(editorHtml)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("estimateId", estimate.SpecificationId.ToString("D")),
+            new("expectedVersion", expectedVersion.ToString(CultureInfo.InvariantCulture)),
+            new("estimateName", estimate.Details.Name),
+            new("estimateVatPercent", estimate.Details.VatPercent.ToString(CultureInfo.InvariantCulture)),
+        };
+        foreach (var line in lines.OrderBy(line => line.Position))
+        {
+            fields.Add(new("lineId", line.Id.ToString("D")));
+            fields.Add(new("lineOperation", EstimateOperations.FromLineType(line.Type).ToString()));
+            fields.Add(new("lineDescription", line.Description ?? string.Empty));
+            fields.Add(new("linePartNumber", line.PartNumber ?? string.Empty));
+            fields.Add(new("lineQuantity", line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("lineLabourHours", line.WorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePaintHours", line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePartPounds", line.Price?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+        }
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/Cases/{caseId:D}?handler=Save&section=estimate")
+        {
+            Content = new FormUrlEncodedContent(fields)
+        };
+        request.Headers.Add("X-Requested-With", "fetch");
+        request.Headers.Accept.ParseAdd("text/html");
+        return await client.SendAsync(request);
+    }
+
+    /// <summary>
     /// An imported line with no value arrives <c>Unpriced</c> — "To be
     /// confirmed". Pricing it is the point of the editor, and
     /// <c>AssessmentPolicy</c> refuses a line that is both marked To be
@@ -900,7 +1008,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         var store = new RecordingStores(caseId);
         var card = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 3);
         store.RateCards.Add(card);
-        var emailed = store.SeedCaseFile("Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build());
+        var emailed = store.SeedCaseFile(
+            "Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build(), recognisedEstimate: true);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory, StaffRole.User);
@@ -942,10 +1051,11 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// Only a confirmed file Pegasus did not generate, that one estimate
-    /// format recognises, imports from Case Files. A generated report, an
-    /// unrecognised file and an occurrence the Case does not hold are each
-    /// refused before any authority is taken or anything is stored.
+    /// Only a confirmed file Pegasus did not generate, that the Worker read
+    /// as an estimate, imports from Case Files. A generated report, an
+    /// unrecognised file, a PDF read as no estimate — an instruction letter —
+    /// and an occurrence the Case does not hold are each refused before any
+    /// authority is taken or anything is stored.
     /// </summary>
     [Fact]
     public async Task AFileThatIsNotAnImportableEstimateIsRefusedAndStoresNothing()
@@ -958,6 +1068,9 @@ public sealed partial class AssessmentEstimateImportWebTests
             DocumentSource.Generated, DocumentSemanticRole.EngineerReport);
         var text = store.SeedCaseFile(
             "repair notes.txt", "text/plain", "Front bumper and wing."u8.ToArray(), DocumentSource.StaffUpload);
+        var letter = store.SeedCaseFile(
+            "37765_1_LtrtoEngineerIn.pdf", "application/pdf", "%PDF-1.4 instruction letter"u8.ToArray(),
+            role: DocumentSemanticRole.Instruction, recognisedEstimate: false);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
@@ -965,11 +1078,13 @@ public sealed partial class AssessmentEstimateImportWebTests
         var html = await EnterEditModeAsync(client, caseId, "?section=files");
         Assert.Null(CaseFileImportForm(html, generated.Occurrence.Id));
         Assert.Null(CaseFileImportForm(html, text.Occurrence.Id));
+        Assert.Null(CaseFileImportForm(html, letter.Occurrence.Id));
 
         foreach (var (occurrenceId, versionId) in new[]
         {
             (generated.Occurrence.Id, generated.Version.Id),
             (text.Occurrence.Id, text.Version.Id),
+            (letter.Occurrence.Id, letter.Version.Id),
             (Guid.NewGuid(), Guid.NewGuid()),
         })
         {
@@ -1003,16 +1118,24 @@ public sealed partial class AssessmentEstimateImportWebTests
 
     /// <summary>
     /// The Files Documents row offers Import as repair spec only for a
-    /// confirmed file one estimate format recognises, and only while the
-    /// staff member is editing: never for a generated report, an unrecognised
-    /// file, a file still being stored or an image, and never in read mode.
+    /// confirmed file the Worker read as an estimate, and only while the
+    /// staff member is editing: never for a PDF read as no estimate (an
+    /// instruction letter), a PDF not yet read, a generated report, an
+    /// unrecognised file, a file still being stored or an image, and never in
+    /// read mode. A PDF's name says nothing about whether it is an estimate.
     /// </summary>
     [Fact]
     public async Task OnlyARecognisedConfirmedFileOffersImportAndOnlyWhileEditing()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        var importable = store.SeedCaseFile("Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build());
+        var importable = store.SeedCaseFile(
+            "Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build(), recognisedEstimate: true);
+        var letter = store.SeedCaseFile(
+            "37765_1_LtrtoEngineerIn.pdf", "application/pdf", "%PDF-1.4 instruction letter"u8.ToArray(),
+            role: DocumentSemanticRole.Instruction, recognisedEstimate: false);
+        var unread = store.SeedCaseFile(
+            "Second Audatex report.pdf", "application/pdf", "%PDF-1.4 not yet read"u8.ToArray());
         var generated = store.SeedCaseFile(
             "QDOS-2026-00042 report.pdf", "application/pdf", "%PDF-1.4 generated report"u8.ToArray(),
             DocumentSource.Generated, DocumentSemanticRole.EngineerReport);
@@ -1033,7 +1156,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.DoesNotContain(CaseWorkspaceLabels.Files.ImportEstimate, readHtml, StringComparison.Ordinal);
 
         var html = await EnterEditModeAsync(client, caseId, "?section=files");
-        foreach (var listed in new[] { importable, generated, text, storing })
+        foreach (var listed in new[] { importable, letter, unread, generated, text, storing })
         {
             Assert.Contains($"data-document-row=\"{listed.Occurrence.Id:D}\"", html, StringComparison.Ordinal);
         }
@@ -1041,7 +1164,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Contains($"value=\"{importable.Occurrence.Id:D}\"", form, StringComparison.Ordinal);
         Assert.Contains($"value=\"{importable.Version.Id:D}\"", form, StringComparison.Ordinal);
         Assert.Contains($"value=\"{RecordingStores.HeldLeaseToken}\"", form, StringComparison.Ordinal);
-        foreach (var refused in new[] { generated, text, storing, image })
+        foreach (var refused in new[] { letter, unread, generated, text, storing, image })
         {
             Assert.Null(CaseFileImportForm(html, refused.Occurrence.Id));
         }
@@ -1058,7 +1181,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var fixture = AudatexEstimateFixture.Build();
         var store = new RecordingStores(caseId);
-        var emailed = store.SeedCaseFile("Audatex report.pdf", "application/pdf", fixture);
+        var emailed = store.SeedCaseFile("Audatex report.pdf", "application/pdf", fixture, recognisedEstimate: true);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
@@ -2218,6 +2341,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         /// A file the Case already held before the test began — an email
         /// attachment, a generated report — as the Case read returns it, with
         /// its bytes readable through the import. It moves no Case version.
+        /// <paramref name="recognisedEstimate"/> is the Worker's recorded
+        /// answer for it, null while the Worker has not read it.
         /// </summary>
         public CaseFile SeedCaseFile(
             string fileName,
@@ -2225,12 +2350,13 @@ public sealed partial class AssessmentEstimateImportWebTests
             byte[] content,
             DocumentSource source = DocumentSource.Intake,
             DocumentSemanticRole role = DocumentSemanticRole.Other,
-            DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed)
+            DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed,
+            bool? recognisedEstimate = null)
         {
             var version = new DocumentVersion(
                 Guid.NewGuid(), Guid.NewGuid(), 1, fileName, mediaType, content.Length,
                 Convert.ToHexStringLower(SHA256.HashData(content)), custody,
-                DateTimeOffset.UtcNow, "seeded", true, false, null);
+                DateTimeOffset.UtcNow, "seeded", true, false, null, recognisedEstimate);
             var occurrence = new DocumentOccurrence(
                 Guid.NewGuid(), caseId, version.DocumentId, version.Id, role, source,
                 $"seeded:{version.Id:N}", DateTimeOffset.UtcNow, [], RetainedDocuments.Count + 1);

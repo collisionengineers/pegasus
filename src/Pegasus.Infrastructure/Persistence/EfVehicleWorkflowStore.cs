@@ -92,7 +92,7 @@ internal sealed class EfVehicleWorkflowStore(
         await ArchivedCaseGuard.RequireMutableAsync(context, command.CaseId, cancellationToken);
         var workflow = await context.CaseWorkflows
             .SingleAsync(item => item.CaseId == command.CaseId, cancellationToken);
-        RequireVersion(workflow, command.ExpectedCaseVersion);
+        RequireVersionUnderLease(workflow, command.ExpectedCaseVersion);
         RequireVehicleDataWritable(workflow);
         RequireLease(workflow, command.Actor, command.EditLeaseToken, UtcNow());
 
@@ -665,8 +665,8 @@ internal sealed class EfVehicleWorkflowStore(
         }
     }
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
+    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
 
     private static void RequireLease(
         CaseWorkflowEntity workflow,

@@ -21,10 +21,6 @@ namespace Pegasus.Core.Operations;
 /// <param name="AwaitingInstruction">
 /// Unassociated image-initiated records still awaiting instruction.
 /// </param>
-/// <param name="Complete">
-/// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReportComplete"/>,
-/// the completed workflow queue.
-/// </param>
 /// <param name="Query">
 /// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.Query"/>,
 /// a separate reversible workflow queue.
@@ -35,7 +31,6 @@ public sealed record CaseStageCounts(
     int Held,
     int WithEngineer,
     int AwaitingInstruction = 0,
-    int Complete = 0,
     int Query = 0);
 
 /// <summary>
@@ -136,7 +131,7 @@ public sealed record NeedsAttentionItem(
     string? Detail,
     string Reason,
     NeedsAttentionPriority Priority,
-    string? Owner,
+    string Owner,
     DateTimeOffset? Due,
     string? LastOutcome,
     string? Source,
@@ -153,4 +148,7 @@ public sealed record NeedsAttentionItem(
 
     /// <summary>The relative application path the row's action opens (Work Centre P4).</summary>
     public string Route { get; init; } = string.Empty;
+
+    /// <summary>When the row's current occurrence began; a dismissal of <see cref="Id"/> at or after it hides the row.</summary>
+    public DateTimeOffset QualifiedAtUtc { get; init; }
 }

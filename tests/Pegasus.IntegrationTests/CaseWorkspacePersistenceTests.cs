@@ -165,8 +165,17 @@ public sealed class CaseWorkspacePersistenceTests
             new(harness.CaseId, harness.StaffActor, new string('b', CaseEditAuthority.LeaseTokenLength)),
             CancellationToken.None));
 
+        // A lapsed staff lease nobody claimed still renders as held; once a
+        // colleague claims the Case the lapsed token is stale.
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(6));
+        Assert.True(await validator.ExecuteAsync(
+            new(harness.CaseId, harness.StaffActor, lease.Token),
+            CancellationToken.None));
 
+        await harness.AcquireLeaseAsync(
+            initial.Version,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            "focused-render-colleague-lease");
         Assert.False(await validator.ExecuteAsync(
             new(harness.CaseId, harness.StaffActor, lease.Token),
             CancellationToken.None));
@@ -906,8 +915,7 @@ public sealed class CaseWorkspacePersistenceTests
                 [AssessmentVocabulary.FeeDescriptionLines] = "Assessment report",
                 [AssessmentVocabulary.ReportDiscloseGuideSource] = "true",
                 [AssessmentVocabulary.ReportValuationCommentary] = "false",
-                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false",
-                [AssessmentVocabulary.ReportDateOverride] = "false"
+                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false"
             }, signOffEngineerId, new DateOnly(2031, 5, 20))
         };
 
@@ -931,7 +939,6 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal("Scuffed", saved.Assessment.Field(AssessmentVocabulary.EngineersComments)?.Value);
         Assert.Equal("120.00", saved.Assessment.Field(AssessmentVocabulary.AgreedFee)?.Value);
         Assert.Equal("2031-05-20", saved.Assessment.Field(AssessmentVocabulary.ReportDate)?.Value);
-        Assert.Equal("false", saved.Assessment.Field(AssessmentVocabulary.ReportDateOverride)?.Value);
         Assert.All(saved.Assessment.Fields, field => Assert.Equal(ActorKind.Staff, field.RecordedByKind));
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
@@ -1130,8 +1137,11 @@ public sealed class CaseWorkspacePersistenceTests
                 },
                 CancellationToken.None));
 
+        // A lapsed lease carries on only while nobody claims the Case; once a
+        // colleague has it, the lapsed token is no authority.
         harness.TimeProvider.Advance(TimeSpan.FromHours(4));
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+        await harness.AcquireLeaseAsync(initial.Version, other, "lease-denials-colleague");
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.WorkspaceStore.SaveAsync(
                 Request(harness, initial.Version, lease.Token, "workspace-expired") with
                 {
@@ -1143,6 +1153,77 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(initial.Version, after.Version);
         Assert.Equal("Jane Example", after.Claimant.Name.Current?.Value);
         Assert.Equal(historyBefore, await harness.HistoryCountAsync());
+    }
+
+    /// <summary>
+    /// A staff holder's lease that lapsed while nobody claimed the Case carries on (operator,
+    /// 6 October 2026): the holder's next save lands without a new claim. Once a colleague has
+    /// claimed the Case, the lapsed token is refused and writes nothing.
+    /// </summary>
+    [Fact]
+    public async Task ALapsedLeaseNobodyClaimedStillSavesUntilAColleagueClaimsTheCase()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-lapsed-holder");
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(6));
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-lapsed-holder") with
+            {
+                Damage = new([new(["left_front"], "light", "Scuffed")], null)
+            },
+            CancellationToken.None);
+        Assert.Equal(initial.Version + 1, saved.Version);
+        Assert.Equal("left_front", saved.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value);
+
+        var again = await harness.AcquireLeaseAsync(saved.Version, harness.StaffActor, "lease-lapsed-holder-again");
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(6));
+        await harness.AcquireLeaseAsync(
+            saved.Version,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            "lease-lapsed-colleague");
+        var historyBefore = await harness.HistoryCountAsync();
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.WorkspaceStore.SaveAsync(
+                Request(harness, saved.Version, again.Token, "workspace-lapsed-after-colleague") with
+                {
+                    Damage = new([new(["front"], "heavy", "Never written")], null)
+                },
+                CancellationToken.None));
+
+        var after = await harness.GetRequiredDataAsync();
+        Assert.Equal(saved.Version, after.Version);
+        Assert.Equal(historyBefore, await harness.HistoryCountAsync());
+        Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+    }
+
+    /// <summary>
+    /// Save-time cross-field pairings are gone (operator, 6 October 2026): a total loss with no
+    /// salvage category or value saves, and readiness is what names the gap.
+    /// </summary>
+    [Fact]
+    public async Task ATotalLossSavesWithoutItsSalvageCategoryOrValue()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-total-loss");
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-total-loss", engineer) with
+            {
+                Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.Outcome] = "total_loss"
+                })
+            },
+            CancellationToken.None);
+
+        Assert.Equal(initial.Version + 1, saved.Version);
+        Assert.Equal("total_loss", saved.Assessment.Field(AssessmentVocabulary.Outcome)?.Value);
+        Assert.Null(saved.Assessment.Field(AssessmentVocabulary.SalvageCategory)?.Value);
+        Assert.Null(saved.Assessment.Field(AssessmentVocabulary.SalvageValue)?.Value);
     }
 
     [Fact]
@@ -1538,6 +1619,64 @@ public sealed class CaseWorkspacePersistenceTests
             CaseReportGenerationState.Stale,
             expectedStaleEvents: 1,
             expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
+    }
+
+    /// <summary>
+    /// An edit from the Inspection view once the Audit exists writes the
+    /// primary work only and moves nothing that is the Case's: its state, due
+    /// work, completeness and accepted deadline stay as the Audit has them
+    /// (operator, 2 October 2026). It stales the Inspection's report, never
+    /// the Audit's.
+    /// </summary>
+    [Fact]
+    public async Task APrimarySaveOnAnAuditedCaseWritesThePrimaryWorkOnly()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var auditWorkId = await Reports.CaseReportGenerationPersistenceTests.GiveAuditAsync(
+            harness.Factory, harness.CaseId, harness.TimeProvider.GetUtcNow());
+        var inspectionGenerationId = await SeedCurrentGenerationAsync(harness, initial.Version);
+        var auditGenerationId = await SeedCurrentGenerationAsync(harness, initial.Version, auditWorkId);
+        DateOnly? acceptedDeadline;
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            acceptedDeadline = (await context.Cases.SingleAsync(item => item.Id == harness.CaseId))
+                .AcceptedInspectionDeadline;
+        }
+
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "primary-save-lease");
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "primary-save") with
+            {
+                Work = CaseWorkSelector.Primary,
+                Overview = Overview("Jane Example") with { DueBy = new DateOnly(2031, 5, 18) },
+                Inspection = Inspection(CaseReportAddressTreatment.PhysicalVehicleLocation, "1 Depot Road") with
+                {
+                    InspectionDate = new DateOnly(2031, 5, 21),
+                    InspectionDeadline = new DateOnly(2031, 5, 25),
+                },
+                Completeness = new(false, false),
+            },
+            CancellationToken.None);
+
+        Assert.Equal(CaseLifecycleState.Review, saved.Data.State);
+        Assert.Equal(new DateOnly(2031, 5, 21), (await ReadEditableCaseDataAsync(harness)).InspectionDate);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.False(await context.CaseDataFields.AnyAsync(item => item.WorkId == auditWorkId));
+            Assert.False(await context.CaseAssessmentFields.AnyAsync(item => item.WorkId == auditWorkId));
+            Assert.False(await context.CaseDueWork.AnyAsync(item => item.CaseId == harness.CaseId));
+            var caseRow = await context.Cases.SingleAsync(item => item.Id == harness.CaseId);
+            Assert.True(caseRow.InstructionComplete);
+            Assert.True(caseRow.ImagesComplete);
+            Assert.Equal(acceptedDeadline, caseRow.AcceptedInspectionDeadline);
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId);
+            Assert.Equal(nameof(CaseLifecycleState.Review), workflow.State);
+            var generations = await context.Set<CaseReportGenerationEntity>()
+                .ToDictionaryAsync(item => item.Id, item => item.State);
+            Assert.Equal(nameof(CaseReportGenerationState.Stale), generations[inspectionGenerationId]);
+            Assert.Equal(nameof(CaseReportGenerationState.Confirmed), generations[auditGenerationId]);
+        }
     }
 
     /// <summary>
@@ -2101,7 +2240,7 @@ public sealed class CaseWorkspacePersistenceTests
         return id;
     }
 
-    private static async Task<Guid> SeedCurrentGenerationAsync(Harness harness, long caseVersion)
+    private static async Task<Guid> SeedCurrentGenerationAsync(Harness harness, long caseVersion, Guid? workId = null)
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
         var generationId = Guid.NewGuid();
@@ -2109,7 +2248,7 @@ public sealed class CaseWorkspacePersistenceTests
         {
             Id = generationId,
             CaseId = harness.CaseId,
-            WorkId = harness.CaseId,
+            WorkId = workId ?? harness.CaseId,
             CaseVersion = caseVersion,
             SnapshotHash = new string('6', 64),
             SnapshotJson = ReportGenerationSnapshotFixture.Json(harness.CaseId, "workspace-mileage-source-generation"),
@@ -2199,11 +2338,14 @@ public sealed class CaseWorkspacePersistenceTests
             .LongCountAsync(item => item.CaseId == harness.CaseId && item.EventType == eventType);
     }
 
+    // The rows a save wrote: the agreed fee the Case took from its Principal
+    // at creation is not one.
     private static async Task<long> AssessmentFieldCountAsync(Harness harness)
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
         return await context.CaseAssessmentFields.AsNoTracking()
-            .LongCountAsync(item => item.WorkId == harness.CaseId);
+            .LongCountAsync(item => item.WorkId == harness.CaseId
+                && item.RecordedBy != PrincipalDefaultFeePolicy.RecorderId);
     }
 
     private static async Task<Dictionary<string, CaseAssessmentFieldEntity>> AssessmentFieldsAsync(Harness harness)

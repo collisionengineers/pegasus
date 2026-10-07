@@ -260,7 +260,6 @@ internal static partial class CaseWebTestSupport
     }
 
     internal sealed partial class RecordingCaseDetailsStore :
-        IRenewCaseEditLease,
         IHeartbeatCaseEditLease,
         IReleaseCaseEditLease,
         IGetAssessmentAccess,
@@ -274,10 +273,17 @@ internal static partial class CaseWebTestSupport
             SaveCaseWorkspaceRequest request, CancellationToken cancellationToken) =>
             ((ISaveCaseWorkspace)this).ExecuteAsync(request, cancellationToken);
 
+        /// <summary>The Engineer's Value the Case holds, for a test that needs one saved.</summary>
+        public string? EngineerValue { get; set; }
+
         private CaseAssessmentProjection EngineeringAssessment() => new(
             CaseId, "QDOS3100042", CaseVersion, State, null,
             [new(AssessmentVocabulary.ReportDate, "2031-05-06", ActorKind.Staff,
-                "recorded-engineer", _now)],
+                "recorded-engineer", _now),
+             .. EngineerValue is null
+                ? Array.Empty<AssessmentFieldValue>()
+                : [new AssessmentFieldValue(AssessmentVocabulary.ValueEngineer, EngineerValue, ActorKind.Staff,
+                    "recorded-engineer", _now)]],
             [], new("AB12CDE", null, null, null, null, null, "tbc", null, DateOnly.FromDateTime(_now.UtcDateTime), null, null,
                 null, "Case claimant", "CLM-42"));
 
@@ -304,8 +310,6 @@ internal static partial class CaseWebTestSupport
                 assessment.Reference, CaseVersion));
         }
 
-        public string RenewedLeaseToken { get; } = "opaque-renewed-case-lease";
-        public List<RenewCaseEditLeaseRequest> LeaseRenewals { get; } = [];
         public List<HeartbeatCaseEditLeaseRequest> LeaseHeartbeats { get; } = [];
         public List<ReleaseCaseEditLeaseRequest> LeaseReleases { get; } = [];
 
@@ -321,20 +325,6 @@ internal static partial class CaseWebTestSupport
                 request.Actor.SubjectId,
                 CaseVersion,
                 _now.AddMinutes(5)));
-        }
-
-        Task<CaseEditLease> IRenewCaseEditLease.ExecuteAsync(
-            RenewCaseEditLeaseRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            LeaseRenewals.Add(request);
-            return Task.FromResult(new CaseEditLease(
-                request.CaseId,
-                RenewedLeaseToken,
-                request.Actor.SubjectId,
-                request.ExpectedVersion,
-                _now.AddMinutes(10)));
         }
 
         Task IReleaseCaseEditLease.ExecuteAsync(
@@ -428,7 +418,7 @@ internal static partial class CaseWebTestSupport
             new(taskId, CaseId, description, assigneeId, state, version, CaseVersion + 1);
     }
 
-    internal sealed partial class RecordingCaseDetailsStore : IAssignCaseToMe
+    internal sealed partial class RecordingCaseDetailsStore
     {
         /// <summary>The Case type the summary reports; a plain Inspection unless a test says otherwise.</summary>
         public CaseType SummaryCaseType { get; init; } = CaseType.Inspection;
@@ -441,18 +431,6 @@ internal static partial class CaseWebTestSupport
 
         /// <summary>The hold's review date the workflow reports.</summary>
         public DateOnly? HoldReviewOn { get; set; }
-
-        public List<AssignCaseToMeRequest> SelfAssignments { get; } = [];
-
-        Task<CaseWorkflowRecord> IAssignCaseToMe.ExecuteAsync(
-            AssignCaseToMeRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            SelfAssignments.Add(request);
-            ConsumeLease();
-            return Task.FromResult(CreateWorkflow() with { AssignedEngineerId = Guid.NewGuid() });
-        }
     }
 
     internal sealed partial class RecordingCaseDetailsStore : IRequestVehicleLookup
@@ -542,7 +520,8 @@ internal static partial class CaseWebTestSupport
     /// Generate report as the page calls it: each request is recorded, and
     /// <see cref="During"/> lets a test observe the Case while the generation
     /// runs. By default the artifact is left Pending, so nothing is
-    /// confirmed; <see cref="Outcome"/> answers otherwise and
+    /// confirmed; <see cref="Outcome"/> answers otherwise,
+    /// <see cref="Generation"/> is the generation it answers with, and
     /// <see cref="Failure"/> throws instead of answering.
     /// </summary>
     internal sealed class RecordingGenerateReport : IGenerateCaseReport
@@ -552,6 +531,8 @@ internal static partial class CaseWebTestSupport
         public Action? During { get; init; }
 
         public CaseReportGenerationOutcome Outcome { get; init; } = CaseReportGenerationOutcome.Pending;
+
+        public CaseReportGenerationRecord? Generation { get; init; }
 
         public Exception? Failure { get; init; }
 
@@ -565,7 +546,7 @@ internal static partial class CaseWebTestSupport
             {
                 throw Failure;
             }
-            return Task.FromResult(new CaseReportGenerationResult(Outcome, null, []));
+            return Task.FromResult(new CaseReportGenerationResult(Outcome, Generation, []));
         }
     }
 }

@@ -73,7 +73,6 @@ public static class CaseReportFreshness
         AssessmentVocabulary.ReportDiscloseGuideSource,
         AssessmentVocabulary.ReportValuationCommentary,
         AssessmentVocabulary.ReportIncludeUnrelatedDamage,
-        AssessmentVocabulary.ReportDateOverride,
     };
 
     // The assessment facts the report prints: the ones its snapshot carries

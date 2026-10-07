@@ -2,6 +2,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
@@ -11,6 +12,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Web.Authentication;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -218,7 +220,7 @@ public sealed class CasesIndexWebTests
         Assert.Equal("Claimant", query.Filters.Claimant);
         Assert.Equal("CLM42", query.Filters.ClaimNumber);
         Assert.Equal("QDOS", query.Filters.Principal);
-        Assert.Equal(CaseLifecycleState.Review, query.Filters.State);
+        Assert.Equal(new[] { CaseLifecycleState.Review }, query.Filters.States);
         Assert.Equal(engineerId, query.Filters.EngineerId);
         Assert.Equal(new DateOnly(2031, 5, 1), query.Filters.ReceivedDate);
         Assert.Equal(new DateOnly(2031, 4, 1), query.Filters.FromDate);
@@ -257,6 +259,35 @@ public sealed class CasesIndexWebTests
             Assert.Contains(expected, href, StringComparison.OrdinalIgnoreCase);
         }
         Assert.DoesNotContain("total", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// With Engineer is one stage over two Core states (D3): the State filter
+    /// lists it once and finds Cases in either state, whichever of the two a
+    /// link carries.
+    /// </summary>
+    [Fact]
+    public async Task SearchStateFilterListsWithEngineerOnceAndFindsBothStates()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases();
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync("/Search?state=PostReport&query=needle");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var query = Assert.Single(search.Queries, candidate => candidate.Filters.Query == "needle");
+        Assert.Equal(
+            new[] { CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport },
+            query.Filters.States);
+        var option = Assert.Single(Regex.Matches(
+            html,
+            "<option[^>]*>With Engineer</option>",
+            RegexOptions.CultureInvariant));
+        Assert.Contains("value=\"ReportPreparation\"", option.Value, StringComparison.Ordinal);
+        Assert.Contains("selected", option.Value, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -359,6 +390,40 @@ public sealed class CasesIndexWebTests
         Assert.DoesNotMatch($"<tr[^>]*data-select-id=\"{search.TriageCaseId:D}\"[^>]*data-select-view=\"[^\"]", html);
         // A Triage Case has no Case completeness requirements.
         Assert.DoesNotContain("Outstanding (", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A standalone Audit Case lists by its <c>a.</c> reference alone: no
+    /// Audit pill beside it, as no Inspection or Triage row carries one
+    /// (operator, 5 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AStandaloneAuditCaseListsByItsReferenceWithNoTypePill()
+    {
+        // The list's quick detail reads the selected Case, so the row is a
+        // real Case: an instruction Case recorded as a standalone Audit.
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AU46 DIT", "STANDALONE-AUDIT-46");
+        string reference;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            var created = await context.Cases.SingleAsync(item => item.Id == caseId);
+            created.Type = CaseTypeCodes.Audit;
+            created.Reference = $"a.{created.Reference}";
+            reference = created.Reference;
+            await context.SaveChangesAsync();
+        }
+
+        using var response = await client.GetAsync($"/Cases?tab=review&selected={caseId:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"href=\"/Cases/{caseId:D}\">{reference}</a>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-cases-type", html, StringComparison.Ordinal);
     }
 
     [Fact]

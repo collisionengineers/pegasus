@@ -1,0 +1,367 @@
+<section class="record-section record-section--nested panel" id="section-valuation" data-section="valuation" data-section-parent="vehicle" data-collapse="case.valuation" aria-labelledby="section-valuation-title">
+    <div class="panel-head">
+        <h2 id="section-valuation-title">Valuation</h2>
+        <span class="meta" data-valuation-head>Engineer&#x27;s Value &#x2014;</span>
+        <div class="panel-actions">
+            <button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="true"
+        aria-label="Collapse section"
+        data-label-collapse="Collapse section"
+        data-label-expand="Expand section"
+        title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="fg g3" data-valuation-values>
+        <div class="fc" data-field="assessment.values.retail">
+                <label for="f-valuation-value-retail">Retail value</label>
+            <div class="fv mono empty">Not recorded</div>
+                <input id="f-valuation-value-retail" class="fi mono" type="number" min="0" step="0.01" name="assessmentFields[assessment.values.retail]"
+                       form="case-edit-form" data-valuation-value="retail" />
+        </div>
+        <div class="fc" data-field="assessment.values.trade">
+                <label for="f-valuation-value-trade">Trade value</label>
+            <div class="fv mono empty">Not recorded</div>
+                <input id="f-valuation-value-trade" class="fi mono" type="number" min="0" step="0.01" name="assessmentFields[assessment.values.trade]"
+                       form="case-edit-form" data-valuation-value="trade" />
+        </div>
+        <div class="fc" data-field="assessment.values.engineer">
+                <label for="f-valuation-value-engineer">Engineer&#x27;s Value</label>
+            <div class="fv mono empty">Not recorded</div>
+                <input id="f-valuation-value-engineer" class="fi mono" type="number" min="0" step="0.01" name="assessmentFields[assessment.values.engineer]"
+                       form="case-edit-form" data-valuation-value="engineer" />
+        </div>
+        </div>
+            <div class="val-tools" data-valuation-tools>
+                <form method="post" id="case-market-research-form" data-valuation-research-form action="/Cases/c1acfb49-4ef7-4903-b03f-4440680533af?handler=StartMarketResearch">
+                    <input type="hidden" name="operationKey" value="c50c7ba9140c4cc8a19f0613b44d7d0c" />
+                    <input type="hidden" name="editLeaseToken" value="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" />
+                    <input type="hidden" name="expectedVersion" value="7" />
+                    <input type="hidden" name="view" />
+                <input name="__RequestVerificationToken" type="hidden" value="" /></form>
+                <div class="fc val-month">
+                    <label for="f-valuation-month">Valuation month</label>
+                    <input id="f-valuation-month" class="fi" type="month" name="guideMonth" form="case-market-research-form" value="2031-05" data-valuation-month />
+                </div>
+                <span class="val-get">
+                    <span class="lbl">Get valuation</span>
+                    <button type="submit" data-busy-label="Starting&#x2026;" form="case-market-research-form" class="btn btn--small" data-valuation-source="ai-market-research">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                        <span>AI market research</span>
+                    </button>
+                </span>
+            </div>
+
+        <div class="guides" data-valuation-cards>
+                <div class="valuation-card entry sel"
+                     tabindex="0"
+                     data-valuation-entry="glasses"
+                     data-valuation-source-card="Glasses"
+                     data-valuation-card="3605e2b2-8dd4-434f-8036-a43b55c91be1"
+                     data-retail="9064.00"
+                     data-trade="7347.00">
+                        <input type="hidden" name="guideEntries[0].Source" value="Glasses" form="case-edit-form" />
+                    <h3>
+                        <span>Glass&#x27;s</span>
+                            <label class="pick sr-only">
+                                <input type="radio" name="selection.GuideValuationId" value="3605e2b2-8dd4-434f-8036-a43b55c91be1"
+                                       form="case-edit-form" checked="checked"
+                                       data-valuation-basis
+                                       data-source-name="Glass&#x27;s" />
+                                Basis
+                            </label>
+                    </h3>
+                    <div class="figs fg g2">
+                        <div class="fc">
+            <label for="f-valuation-glasses-retail">Retail</label>
+                            <div class="fv mono">&#xA3;9,064.00</div>
+                                <input id="f-valuation-glasses-retail" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[0].RetailValue" form="case-edit-form" value="9064.00" data-valuation-retail />
+                        </div>
+                        <div class="fc">
+            <label for="f-valuation-glasses-trade">Trade</label>
+                            <div class="fv mono">&#xA3;7,347.00</div>
+                                <input id="f-valuation-glasses-trade" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[0].TradeValue" form="case-edit-form" value="7347.00" data-valuation-trade />
+                        </div>
+                    </div>
+                    <div class="meta fg g2">
+                        <div class="fc">
+            <label for="f-valuation-glasses-month">Guide month</label>
+                            <div class="fv">May 2031</div>
+                                <input id="f-valuation-glasses-month" class="fi" type="month" name="guideEntries[0].GuideMonth" form="case-edit-form" value="2031-05" data-valuation-entry-month />
+                        </div>
+                    </div>
+                            <div class="notice notice--info" data-valuation-notice data-valuation-not-connected>
+                                <span data-valuation-unavailable>Glass&#x27;s valuation is unavailable. Contact an administrator or <button type="button" class="link-button" data-dialog-open="problem-dialog">report a problem</button>.</span>
+                                <span data-valuation-refused hidden></span>
+                            </div>
+                        <div class="entry-actions">
+                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>Use this value</span></button>
+                        </div>
+                </div>
+                <div class="valuation-card entry"
+                     data-valuation-entry="brego"
+                     data-valuation-source-card="Brego"
+                     data-valuation-card="brego"
+                     data-retail=""
+                     data-trade="">
+                        <input type="hidden" name="guideEntries[1].Source" value="Brego" form="case-edit-form" />
+                    <h3>
+                        <span>Brego</span>
+                    </h3>
+                    <div class="figs fg g2">
+                        <div class="fc">
+            <label for="f-valuation-brego-retail">Retail</label>
+                            <div class="fv mono empty">Not recorded</div>
+                                <input id="f-valuation-brego-retail" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[1].RetailValue" form="case-edit-form" data-valuation-retail />
+                        </div>
+                        <div class="fc">
+            <label for="f-valuation-brego-trade">Trade</label>
+                            <div class="fv mono empty">Not recorded</div>
+                                <input id="f-valuation-brego-trade" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[1].TradeValue" form="case-edit-form" data-valuation-trade />
+                        </div>
+                    </div>
+                    <div class="meta fg g2">
+                        <div class="fc">
+            <label for="f-valuation-brego-month">Guide month</label>
+                            <div class="fv empty">Not recorded</div>
+                                <input id="f-valuation-brego-month" class="fi" type="month" name="guideEntries[1].GuideMonth" form="case-edit-form" data-valuation-entry-month />
+                        </div>
+                    </div>
+                            <div class="notice notice--info" data-valuation-notice data-valuation-not-connected>
+                                <span data-valuation-unavailable>Brego valuation is unavailable. Contact an administrator or <button type="button" class="link-button" data-dialog-open="problem-dialog">report a problem</button>.</span>
+                                <span data-valuation-refused hidden></span>
+                            </div>
+                        <div class="entry-actions">
+                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>Use this value</span></button>
+                        </div>
+                </div>
+                <div class="valuation-card entry"
+                     data-valuation-entry="super-cap"
+                     data-valuation-source-card="SuperCap"
+                     data-valuation-card="super-cap"
+                     data-retail=""
+                     data-trade="">
+                        <input type="hidden" name="guideEntries[2].Source" value="SuperCap" form="case-edit-form" />
+                    <h3>
+                        <span>Super CAP</span>
+                    </h3>
+                    <div class="figs fg g2">
+                        <div class="fc">
+            <label for="f-valuation-super-cap-retail">Retail</label>
+                            <div class="fv mono empty">Not recorded</div>
+                                <input id="f-valuation-super-cap-retail" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[2].RetailValue" form="case-edit-form" data-valuation-retail />
+                        </div>
+                        <div class="fc">
+            <label for="f-valuation-super-cap-trade">Trade</label>
+                            <div class="fv mono empty">Not recorded</div>
+                                <input id="f-valuation-super-cap-trade" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[2].TradeValue" form="case-edit-form" data-valuation-trade />
+                        </div>
+                    </div>
+                    <div class="meta fg g2">
+                        <div class="fc">
+            <label for="f-valuation-super-cap-month">Guide month</label>
+                            <div class="fv empty">Not recorded</div>
+                                <input id="f-valuation-super-cap-month" class="fi" type="month" name="guideEntries[2].GuideMonth" form="case-edit-form" data-valuation-entry-month />
+                        </div>
+                    </div>
+                            <div class="notice notice--info" data-valuation-notice data-valuation-not-connected>
+                                <span data-valuation-unavailable>Super CAP valuation is unavailable. Contact an administrator or <button type="button" class="link-button" data-dialog-open="problem-dialog">report a problem</button>.</span>
+                                <span data-valuation-refused hidden></span>
+                            </div>
+                        <div class="entry-actions">
+                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>Use this value</span></button>
+                        </div>
+                </div>
+                <div class="valuation-card entry"
+                     data-valuation-entry="cap"
+                     data-valuation-source-card="Cap"
+                     data-valuation-card="cap"
+                     data-retail=""
+                     data-trade="">
+                        <input type="hidden" name="guideEntries[3].Source" value="Cap" form="case-edit-form" />
+                    <h3>
+                        <span>CAP</span>
+                    </h3>
+                    <div class="figs fg g2">
+                        <div class="fc">
+            <label for="f-valuation-cap-retail">Retail</label>
+                            <div class="fv mono empty">Not recorded</div>
+                                <input id="f-valuation-cap-retail" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[3].RetailValue" form="case-edit-form" data-valuation-retail />
+                        </div>
+                        <div class="fc">
+            <label for="f-valuation-cap-trade">Trade</label>
+                            <div class="fv mono empty">Not recorded</div>
+                                <input id="f-valuation-cap-trade" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[3].TradeValue" form="case-edit-form" data-valuation-trade />
+                        </div>
+                    </div>
+                    <div class="meta fg g2">
+                        <div class="fc">
+            <label for="f-valuation-cap-month">Guide month</label>
+                            <div class="fv empty">Not recorded</div>
+                                <input id="f-valuation-cap-month" class="fi" type="month" name="guideEntries[3].GuideMonth" form="case-edit-form" data-valuation-entry-month />
+                        </div>
+                    </div>
+                            <div class="notice notice--info" data-valuation-notice data-valuation-not-connected>
+                                <span data-valuation-unavailable>CAP valuation is unavailable. Contact an administrator or <button type="button" class="link-button" data-dialog-open="problem-dialog">report a problem</button>.</span>
+                                <span data-valuation-refused hidden></span>
+                            </div>
+                        <div class="entry-actions">
+                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>Use this value</span></button>
+                        </div>
+                </div>
+                <div class="valuation-card entry"
+                     data-valuation-entry="cazana"
+                     data-valuation-source-card="Cazana"
+                     data-valuation-card="cazana"
+                     data-retail=""
+                     data-trade="">
+                        <input type="hidden" name="guideEntries[4].Source" value="Cazana" form="case-edit-form" />
+                    <h3>
+                        <span>Cazana</span>
+                    </h3>
+                    <div class="figs fg g2">
+                        <div class="fc">
+            <label for="f-valuation-cazana-retail">Retail</label>
+                            <div class="fv mono empty">Not recorded</div>
+                                <input id="f-valuation-cazana-retail" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[4].RetailValue" form="case-edit-form" data-valuation-retail />
+                        </div>
+                        <div class="fc">
+            <label for="f-valuation-cazana-trade">Trade</label>
+                            <div class="fv mono empty">Not recorded</div>
+                                <input id="f-valuation-cazana-trade" class="fi mono" type="number" min="0" step="0.01" name="guideEntries[4].TradeValue" form="case-edit-form" data-valuation-trade />
+                        </div>
+                    </div>
+                    <div class="meta fg g2">
+                        <div class="fc">
+            <label for="f-valuation-cazana-month">Guide month</label>
+                            <div class="fv empty">Not recorded</div>
+                                <input id="f-valuation-cazana-month" class="fi" type="month" name="guideEntries[4].GuideMonth" form="case-edit-form" data-valuation-entry-month />
+                        </div>
+                    </div>
+                            <div class="notice notice--info" data-valuation-notice data-valuation-not-connected>
+                                <span data-valuation-unavailable>Cazana valuation is unavailable. Contact an administrator or <button type="button" class="link-button" data-dialog-open="problem-dialog">report a problem</button>.</span>
+                                <span data-valuation-refused hidden></span>
+                            </div>
+                        <div class="entry-actions">
+                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>Use this value</span></button>
+                        </div>
+                </div>
+                <div class="valuation-card is-pending" data-valuation-pending="1e30f9a7-2232-499d-b6b9-58f38f7d9bc2">
+                    <h3><span>AI market research</span> <span class="src-tag src-tag--ai">AI</span></h3>
+                    <div class="figs fg g2">
+                        <div class="fc ro"><span class="lbl">Retail</span><div class="fv mono derived">—</div></div>
+                        <div class="fc ro"><span class="lbl">Trade</span><div class="fv mono derived">—</div></div>
+                    </div>
+                    <div class="meta">Researching · May 2031</div>
+                        <div class="muted" data-valuation-pending-note>The result is filed here without ending your edit. Save or refresh to see it.</div>
+                </div>
+        </div>
+
+        <div class="calc" data-valuation-calc
+             data-valuation-form="true"
+             data-preview-url="/Cases/c1acfb49-4ef7-4903-b03f-4440680533af?handler=PreviewValuation"
+             data-text-use="Use this value"
+             data-text-using="Using this value"
+             data-text-use-needs-retail="Enter the retail value on this card to use it."
+             data-text-preview-failed="The calculation could not be updated. Change a figure to try again.">
+                <input type="hidden" name="selection.Opening" value="{&quot;basis&quot;:&quot;3605e2b2-8dd4-434f-8036-a43b55c91be1&quot;,&quot;source&quot;:null,&quot;retail&quot;:&quot;9064.00&quot;,&quot;trade&quot;:&quot;7347.00&quot;,&quot;vat&quot;:false,&quot;ptl&quot;:null,&quot;deduction&quot;:&quot;0.00&quot;,&quot;increases&quot;:[]}" form="case-edit-form" data-carry-forward />
+
+                <input type="hidden" name="selection.GuideSource" value="" form="case-edit-form" disabled data-valuation-source-input />
+                <input type="hidden" name="selection.Use" value="true" form="case-edit-form" disabled data-valuation-use-input />
+            <div class="sub-panel" data-collapse="case.valuation.report" data-field="report-content">
+                <h3>On the report <button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="true"
+        aria-label="Collapse section"
+        data-label-collapse="Collapse section"
+        data-label-expand="Expand section"
+        title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>
+</h3>
+                <div class="fc">
+                    <div class="fv" data-report-content>Guide source not disclosed</div>
+                        <div class="fi chk switches" data-report-switches>
+                                <label class="choice">
+                                    <input type="checkbox" name="assessmentFields[report.disclose_guide_source]" value="true" form="case-edit-form" data-report-switch="report.disclose_guide_source" />
+                                    <input type="hidden" name="assessmentFields[report.disclose_guide_source]" value="false" form="case-edit-form" />
+                                    <span>Disclose guide source</span>
+                                </label>
+                                <label class="choice">
+                                    <input type="checkbox" name="assessmentFields[report.valuation_commentary]" value="true" form="case-edit-form" data-report-switch="report.valuation_commentary" />
+                                    <input type="hidden" name="assessmentFields[report.valuation_commentary]" value="false" form="case-edit-form" />
+                                    <span>Valuation commentary</span>
+                                </label>
+                                <label class="choice">
+                                    <input type="checkbox" name="assessmentFields[report.include_unrelated_damage]" value="true" form="case-edit-form" data-report-switch="report.include_unrelated_damage" />
+                                    <input type="hidden" name="assessmentFields[report.include_unrelated_damage]" value="false" form="case-edit-form" />
+                                    <span>Unrelated damage</span>
+                                </label>
+                        </div>
+                </div>
+            </div>
+            <div class="sub-panel calc-inputs">
+                <h3>Calculation <span class="rt" data-valuation-basis-name>from Glass&#x27;s retail</span></h3>
+                <div class="fg g3">
+                    <div class="fc">
+            <label for="f-valuation-ptl">Previous total loss</label>
+                        <div class="fv" data-valuation-ptl-read>None</div>
+                            <select id="f-valuation-ptl" class="fi" name="selection.PriorTotalLossPercentage" form="case-edit-form" data-valuation-input>
+                                <option value="" selected="selected">None</option>
+                                <option value="10">−10 %</option>
+                                <option value="20">−20 %</option>
+                            </select>
+                    </div>
+                    <div class="fc">
+            <label for="f-valuation-deduction">Condition deduction</label>
+                        <div class="fv mono empty" data-valuation-deduction-read>&#x2014;</div>
+                            <input id="f-valuation-deduction" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="selection.ConditionDeduction" form="case-edit-form" data-valuation-input />
+                    </div>
+                    <div class="fc">
+                        <span class="lbl">Commercial VAT</span>
+                        <div class="fv" data-valuation-vat-read>Not applied</div>
+                            <label class="fi chk choice" data-valuation-vat-wrap>
+                                <input type="checkbox" name="selection.CommercialVat" value="true" form="case-edit-form" data-valuation-input />
+                                <span>Add 20 % VAT</span>
+                            </label>
+                    </div>
+                </div>
+                <h3 class="adds-head" data-valuation-adds-head>Value increases</h3>
+                <div class="adds" data-valuation-adds>
+                                <div class="add add--custom" data-valuation-add="0">
+                                    <input type="checkbox" name="selection.AdditionSelected" value="0" form="case-edit-form" id="f-valuation-add-0" data-preset-toggle data-valuation-input aria-label="Other&#x2026;" />
+                                    <input type="hidden" name="selection.AdditionPresetId" value="00000000-0000-0000-0000-000000000000" form="case-edit-form" />
+                                    <input type="hidden" name="selection.AdditionPresetVersion" value="0" form="case-edit-form" />
+                                    <input type="text" name="selection.AdditionLabel" form="case-edit-form" maxlength="200" placeholder="Other&#x2026;" aria-label="Other&#x2026;" data-valuation-input />
+                                    <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="case-edit-form" placeholder="£"
+                                           aria-label="Other&#x2026; amount" data-valuation-input />
+                                </div>
+                                <div class="add add--custom" data-valuation-add="1">
+                                    <input type="checkbox" name="selection.AdditionSelected" value="1" form="case-edit-form" id="f-valuation-add-1" data-preset-toggle data-valuation-input aria-label="Other&#x2026;" />
+                                    <input type="hidden" name="selection.AdditionPresetId" value="00000000-0000-0000-0000-000000000000" form="case-edit-form" />
+                                    <input type="hidden" name="selection.AdditionPresetVersion" value="0" form="case-edit-form" />
+                                    <input type="text" name="selection.AdditionLabel" form="case-edit-form" maxlength="200" placeholder="Other&#x2026;" aria-label="Other&#x2026;" data-valuation-input />
+                                    <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="case-edit-form" placeholder="£"
+                                           aria-label="Other&#x2026; amount" data-valuation-input />
+                                </div>
+                </div>
+            </div>
+            <div>
+                <div data-valuation-lines-host>
+                        <div class="lines" data-valuation-lines>
+        <div class="ln"><span>Guide retail</span><b>&#xA3;9,064.00</b></div>
+        <div class="ln tot"><span>Proposed Engineer&#x27;s Value</span><b data-valuation-proposal="9064.00">&#xA3;9,064.00</b></div>
+</div>
+
+                </div>
+                <div class="hist" data-valuation-history>
+                    <dl class="definition-list">
+                            <div class="definition definition--wide"><dt>Applied Engineer&#x27;s Value</dt><dd class="derived">None yet</dd></div>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

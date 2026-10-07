@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
@@ -106,7 +107,7 @@ public sealed class EfTriageStore(
         var reason = $"Automatically linked by accepted principal and current typed Case identity ({current.MatchPolicyKey} v{current.MatchPolicyVersion}).";
         var beforeCaseVersion = workflow.Version;
         triage.LinkedInstructionCaseId = candidate.InstructionCaseId;
-        CaseMutationGuard.Complete(workflow);
+        CaseMutationGuard.Advance(workflow);
         context.CaseWorkflowEvents.Add(new()
         {
             Id = Guid.NewGuid(), CaseId = workflow.CaseId, Workflow = workflow,
@@ -798,18 +799,15 @@ public sealed class EfTriageStore(
         return row is null ? null : ToSummary(row);
     }
 
-    public async Task<IReadOnlyList<TriageSummary>> ListAsync(TriageState? state, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<TriageSummary>> ListAsync(
+        IReadOnlyCollection<TriageState>? states,
+        CancellationToken cancellationToken)
     {
-        if (state is not null && !Enum.IsDefined(state.Value))
-        {
-            throw new ArgumentOutOfRangeException(nameof(state));
-        }
-
+        var stateCodes = ToCodes(states);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var stateCode = state is null ? null : ToCode(state.Value);
         var rows = await TriageWithDraftQuery(
             context,
-            stateCode is null ? null : item => item.State == stateCode).ToListAsync(cancellationToken);
+            stateCodes is null ? null : item => stateCodes.Contains(item.State)).ToListAsync(cancellationToken);
         // The same newest-first order the keyset page uses, so the two read
         // paths cannot disagree about what "the next row" is.
         return rows.OrderByDescending(row => row.Item.CreatedAtUtc)
@@ -818,18 +816,31 @@ public sealed class EfTriageStore(
             .ToArray();
     }
 
-    public async Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken)
+    public async Task<int> CountAsync(
+        IReadOnlyCollection<TriageState>? states,
+        CancellationToken cancellationToken)
     {
-        if (state is not null && !Enum.IsDefined(state.Value))
+        var stateCodes = ToCodes(states);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var triage = context.Triage.AsNoTracking();
+        return await (stateCodes is null ? triage : triage.Where(item => stateCodes.Contains(item.State)))
+            .CountAsync(cancellationToken);
+    }
+
+    /// <summary>The persisted codes of <paramref name="states"/>, or null for every state.</summary>
+    private static string[]? ToCodes(IReadOnlyCollection<TriageState>? states)
+    {
+        if (states is null)
         {
-            throw new ArgumentOutOfRangeException(nameof(state));
+            return null;
         }
 
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var stateCode = state is null ? null : ToCode(state.Value);
-        return await context.Triage
-            .AsNoTracking()
-            .CountAsync(item => stateCode == null || item.State == stateCode, cancellationToken);
+        if (states.Any(state => !Enum.IsDefined(state)))
+        {
+            throw new ArgumentOutOfRangeException(nameof(states));
+        }
+
+        return states.Distinct().Select(ToCode).ToArray();
     }
 
     /// <summary>
@@ -960,7 +971,11 @@ public sealed class EfTriageStore(
             caseRow.Reference,
             caseRow.PrincipalId,
             principal.Code,
-            draft == null ? null : draft.ClaimNumber);
+            draft == null ? null : draft.ClaimNumber,
+            context.TriageHistory
+                .Where(history => history.TriageCaseId == item.CaseId
+                    && history.EventType.StartsWith(StateEventPrefix))
+                .Max(history => (DateTimeOffset?)history.OccurredAtUtc));
 
     private static TriageSummary ToSummary(TriageWithDraftRow row) => new(
         row.Item.CaseId,
@@ -973,14 +988,18 @@ public sealed class EfTriageStore(
         row.Reference,
         row.PrincipalCode,
         row.ClaimNumber,
-        row.PrincipalId);
+        row.PrincipalId)
+    {
+        StateEnteredAtUtc = row.StateEnteredAtUtc
+    };
 
     private sealed record TriageWithDraftRow(
         TriageEntity Item,
         string Reference,
         Guid PrincipalId,
         string PrincipalCode,
-        string? ClaimNumber);
+        string? ClaimNumber,
+        DateTimeOffset? StateEnteredAtUtc);
 
     public async Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -1007,6 +1026,13 @@ public sealed class EfTriageStore(
         // The Triage Case's files are its standard Case documents, read by the
         // same projection the Case record's Files section uses.
         var documents = await EfCaseQueryStore.ReadDocumentsAsync(context, caseId, cancellationToken);
+        var correspondence = await EfCaseQueryStore.ReadCorrespondenceEmailsAsync(
+            context, caseId, cancellationToken, entity.OriginReceiptId);
+        var sentOutcomeReplyVersion = await context.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            .Where(item => item.ContextId == caseId
+                && item.Purpose == StaffMailPurpose.TriageOutcomeReply
+                && item.State == StaffMailState.Sent)
+            .MaxAsync(item => (long?)item.ContextVersion, cancellationToken);
         return new TriageDetail(
             Map(entity),
             entity.CreatedAtUtc,
@@ -1017,6 +1043,8 @@ public sealed class EfTriageStore(
             entity.Case.Principal.Code)
         {
             Documents = documents,
+            Correspondence = correspondence,
+            SentOutcomeReplyVersion = sentOutcomeReplyVersion,
             CustodyState = EfCaseQueryStore.ParseCustodyState(entity.Case.CustodyState),
             CustodyFolderRemoteId = entity.Case.CustodyRootRemoteId
         };
@@ -1366,8 +1394,10 @@ public sealed class EfTriageStore(
         string eventType) =>
         Hash($"{eventType}|{request.CaseId:N}|{request.ExpectedVersion}|{request.Roadworthiness}|{request.Assessment}|{request.SupersedesFindingId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
+    private const string StateEventPrefix = "triage_state_";
+
     private static string StateEventType(TriageState targetState) =>
-        $"triage_state_{ToCode(targetState)}";
+        StateEventPrefix + ToCode(targetState);
 
     private static string StateRequestHash(
         TriageMutationRequest request,

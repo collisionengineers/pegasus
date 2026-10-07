@@ -9,6 +9,8 @@
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
+  Glass's is connected: Get valuation fetches its figures and files its PDF
+  report on the Case.
   Retail value, Trade value and Engineer's Value are boxes on Valuation.
   Staff type them or fill them from a guide card, and the Save records them.
   **Use this value** on a card is the Engineer's decision to use that figure.
@@ -133,6 +135,10 @@ that source's connected provider for the month and fills the card's boxes.
 A source with no connected provider says so on its card before anything is
 pressed, `{Source} valuation is unavailable. Contact an administrator or
 report a problem.`, and offers no Get valuation (23 and 28 September 2026).
+When Glass's answers that it does not value a vehicle of that age, its card
+shows an info notice instead, `Glass's cannot value this vehicle because of
+its age: Glass's values cars and motorcycles up to 20 years old and light
+commercial vehicles up to 15.` (operator, 2 October 2026).
 The card has no Save of its own: the Case's single
 workspace Save records every changed card with whatever was entered, and any
 of its month, retail and trade may be left blank (operator, 23 September
@@ -144,10 +150,21 @@ The basis is chosen by clicking a card (or Enter or Space on it) or by
 **Use this value**, and only a card with a retail value can be the basis,
 since the calculation starts from retail; there is no Basis control beside
 the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
-market research is automation-only. No guide provider is
-connected today, so every card says so; connecting one needs its own accepted
-decision
-([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
+market research is automation-only.
+
+Glass's is the one connected guide source
+([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md)).
+Its Get valuation signs in with the Glass's valuation account, values the
+Case's accepted registration and mileage for the card's month, and fills the
+card with Retail Transacted as its retail and Glass's Trade as its trade.
+Each valuation also saves the vehicle to the account's Glass's stock list, as
+the portal does, and once the figures have answered, files that stocked
+vehicle's "Vehicle Valuation Report – Glass's Values Only" PDF on the Case's
+Documents as `Glass's valuation {registration} {yyyy-MM}.pdf` (operator, 1
+October 2026), only when the report's own text names the Case registration
+(operator, 5 October 2026). Whatever stops a Glass's valuation, the card shows its notice.
+Brego, Super CAP, CAP and Cazana have no connected provider; connecting one
+needs its own accepted decision.
 
 Every entry keeps its date and time, and the retail and trade values and
 guide month it was given; a guide card may hold any of them blank. An
@@ -161,8 +178,9 @@ the proposal recorded by the `MarketResearch` job
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
 it never becomes the Engineer's Value by itself.
 
-**Retail value, Trade value and Engineer's Value** are three boxes at the
-top of Valuation (operator, 26 September 2026). The report prints them in its
+**Retail value, Trade value and Engineer's Value** are three boxes in
+Valuation, under the chosen source's row with the calculation above them
+(operator, 26 September and 6 October 2026). The report prints them in its
 Vehicle Data table. Staff type them, or choose a guide card as the basis: the
 card's retail and trade fill the first two boxes in place, and the
 calculation fills the Engineer's Value. Any box can be overtyped. The Case's
@@ -197,14 +215,28 @@ withdraws the decision; typing in the box withdraws it too. A card with no
 retail offers no Use this value, and a cleared retail box is "no retail", not
 the recorded card's figure.
 
-**The preview shows what the Save will use.** The lines and the figure that
-fills the Engineer's Value box come from the retail on the chosen card as
+**The preview shows what the Save will use.** The figure that fills the
+Engineer's Value box, and the commercial VAT and previous total loss amounts
+shown beside their controls, come from the retail on the chosen card as
 typed, even unsaved, and the claimant's VAT position as the form holds it,
-through the same Core calculation the Save runs. While a preview is pending
-the lines are dimmed, a preview that fails says so, and a calculation that
-cannot be worked out shows its own reason (deductions beyond the value, no
-retail to start from), never "None yet". "None yet" means only that no card
-is chosen.
+through the same Core calculation the Save runs. The Engineer's Value box is
+the one place the result stands: there is no separate proposed total
+(operator, 6 October 2026). While a preview is pending the amounts are
+dimmed, a preview that fails says so, and a calculation that cannot be worked
+out shows its own reason (deductions beyond the value, no retail to start
+from), never "None yet". "None yet" means only that no card is chosen, and is
+shown only while editing.
+
+**What the page shows of a recorded calculation** (operator, 6 October
+2026). While the Engineer's Value holds a recorded calculation's figure, its
+label carries that calculation's source as one word, the calculator opens on
+that calculation, and that source's row is the one that opens while reading.
+Once a different figure is saved in the box, none of that is shown: the
+figure is the Engineer's own, and the earlier calculation stays in the Case's
+history. The section head's figure and the source word follow each save
+without a reload. There is no applied block and the page never reads "None
+yet" beside a figure. Without script the three boxes are typed and a recorded
+calculation's result is not displayed.
 
 **The Engineer's own value.** The Engineer's Value box takes a figure the
 Engineer types with no card and no calculation. It is recorded as the staff
@@ -285,7 +317,9 @@ when those inputs are incomplete, never a made-up zero.
 Choosing **Market Research** on the Valuation screen creates a ledger job.
 External Claude Cowork, using the Pegasus connector and its own research
 tools, does the research and produces files. The connector files the findings
-document and the AI market research card, and the job becomes Draft ready.
+document, with the Market research document type, and the AI market research
+card, and the job becomes Draft ready. Market research is a document type, not
+an image tag (operator, 7 October 2026).
 The tools and the research run outside this repository. Research evidence and
 any source-labelled valuation proposal never become the Engineer's Value on
 their own.
@@ -304,7 +338,7 @@ Job states and attribution are owned by
 
 ### Valuation readiness
 
-Any valuation check required before Review or Hand to Engineer must be
+Any valuation check required before Review or Assign Engineer must be
 resolvable at that stage by an authorised human staff member. The Engineer sections are
 editable before handoff in Not ready and Review, so availability is not a
 reason to defer such a check. Engineer's Value, settlement and report
@@ -327,7 +361,10 @@ circular readiness gate is acceptable.
   findings: only staff record them, never automation.
 - A valuation source with no connected provider shows the card's notice from
   the start, offers no Get valuation, and still lets the figures be typed by
-  hand; the Case Save records them.
+  hand; the Case Save records them. A connected source that cannot answer
+  shows the same notice and fills nothing.
+- A Glass's valuation whose report cannot be fetched or filed keeps the
+  figures it answered; the Case simply has no report for it.
 - A calculation that cannot be worked out never shows as an empty state: it
   shows why, and the Engineer's draft is kept.
 - Research evidence and an AI valuation proposal never become the Engineer's
@@ -346,7 +383,11 @@ filed while a staff member holds the edit lease. Core tests cover the
 salvage matrix's rules, band lookup, rounding and when a value follows the
 matrix. Web tests cover Airbags deployed and
 the temporary repair rows in read and edit and through the Case Save, and
-the salvage matrix handed to the Case only while it edits. Live
+the salvage matrix handed to the Case only while it edits. Integration tests
+cover Glass's Get valuation against the scripted provider — its figures, month,
+mileage and stock save, every failure answering the notice and a vehicle
+too old to value answering its own sentence — and its report
+filed on the Case without touching the open edit session. Live
 Glass's evidence is a separate tier
 ([engineering](../engineering.md#required-evidence-tiers)).
 

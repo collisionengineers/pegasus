@@ -62,7 +62,6 @@ public sealed class WebCompositionTests
             services.GetRequiredService<IDocumentContentStore>());
         Assert.NotNull(services.GetRequiredService<IAddCaseDocument>());
         Assert.NotNull(services.GetRequiredService<IDownloadCaseDocument>());
-        Assert.NotNull(services.GetRequiredService<IExportCaseDocuments>());
         Assert.NotNull(services.GetRequiredService<IExportCaseBundle>());
     }
 }
@@ -436,6 +435,8 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Glass:EstimatorBaseUri"] = "https://ere.test/",
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
             ["Glass:RepairProfileId"] = "4063",
+            ["Glass:ValuationAccount:Username"] = "valuation-test",
+            ["Glass:ValuationAccount:Password"] = "synthetic-password",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports",
             // The startup warm-up reads in the background; a test host skips

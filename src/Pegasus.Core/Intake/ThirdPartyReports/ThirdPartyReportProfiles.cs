@@ -185,7 +185,7 @@ internal sealed record ThirdPartySourcePage(
 public static class ThirdPartyReportProfiles
 {
     /// <summary>Versioned with the signature table; recorded on every candidate.</summary>
-    public const string ProfileVersion = "third-party-report-profiles/1";
+    public const string ProfileVersion = "third-party-report-profiles/3";
 
     /// <summary>The document role recorded on a selected report's candidates.</summary>
     public const string ReportDocumentRole = "third-party-engineer-report";
@@ -238,9 +238,10 @@ public static class ThirdPartyReportProfiles
 
         // Laird's footer domain is its issuer evidence: the vehicle-history PDF
         // names "Laird Assessors" as a dealer without being a Laird report.
-        new("laird/1", "1", "Laird Assessors", ThirdPartyReportFamily.Laird,
+        // The full report's title names its outcome, repairable or total loss.
+        new("laird/2", "2", "Laird Assessors", ThirdPartyReportFamily.Laird,
             ThirdPartyDocumentRole.EngineerReport, @"laird-assessors\.com",
-            [@"(?:Repairable\s+Damage\s+Assessment\s+Report|" + SupplementaryReportTitle + ")"], []),
+            [@"(?:(?:Repairable|Total\s+Loss)\s+Damage\s+Assessment\s+Report|" + SupplementaryReportTitle + ")"], []),
 
         new("montgomery/1", "1", "Montgomery Assessors", ThirdPartyReportFamily.Montgomery,
             ThirdPartyDocumentRole.EngineerReport, @"Montgomery\s*Assessors",
@@ -250,12 +251,12 @@ public static class ThirdPartyReportProfiles
             ThirdPartyDocumentRole.EngineerReport, @"sprintassessors@btinternet\.com",
             [@"Automotive\s+Claims\s+Assessors"], []),
 
-        // The one John R Bell original in the corpus is scan-only, so this
-        // signature is proved by structural tests alone until OCR text reaches
-        // the selector; it is never satisfied by a file name.
-        new("john-r-bell/1", "1", "John R Bell", ThirdPartyReportFamily.JohnRBell,
+        // John R Bell's reports are scans, so this text is OCR output. The form
+        // prints its own reference labels, which an instruction letter that
+        // merely names the firm and mentions an engineer's report does not.
+        new("john-r-bell/2", "2", "John R Bell", ThirdPartyReportFamily.JohnRBell,
             ThirdPartyDocumentRole.EngineerReport, @"John\s*R\.?\s*Bell",
-            [@"(?:Engineer'?s?\s+Report|Repairable\s+Report|Assessment\s+Report)"], []),
+            [@"(?:Engineer'?s?\s+Report|Repairable\s+Report|Assessment\s+Report)", @"(?:MY\s+REF|CLAIM\s+NO)"], []),
 
         // Negative roles. Each is routed to its own existing owner and emits no
         // report verdict. The negatives are the overlaps the corpus proves:

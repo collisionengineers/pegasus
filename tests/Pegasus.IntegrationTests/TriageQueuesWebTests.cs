@@ -126,15 +126,14 @@ public sealed class TriageQueuesWebTests
             .GetCaseStageCountsAsync(CancellationToken.None);
         Assert.Equal(1, stages.NotReady);
         Assert.Equal(1, stages.AwaitingInstruction);
-        Assert.Equal(0, stages.Complete);
         Assert.Equal(0, stages.Query);
         Assert.Equal(0, stages.Review);
         Assert.Equal(0, stages.Held);
         Assert.Equal(0, stages.WithEngineer);
         var triageCount = await services.GetRequiredService<IListTriage>().CountAsync(
             StaffActor(),
-            state: null,
-            cancellationToken: CancellationToken.None);
+            TriageLifecycleRules.ActiveStates,
+            CancellationToken.None);
         var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
             .CountOpenAsync(CancellationToken.None);
         Assert.Equal(0, triageCount);
@@ -149,7 +148,7 @@ public sealed class TriageQueuesWebTests
             + stages.Held
             + triageCount
             + openUnidentifiedCount;
-        // Completed and Awaiting instruction intentionally are not shell work.
+        // Awaiting instruction intentionally is not shell work.
         Assert.Equal(2, expectedShellCount);
 
         using var notReady = await client.GetAsync("/Cases?tab=not_ready");
@@ -203,7 +202,7 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
-    public async Task WorkflowQueuesKeepCompletedAndQuerySeparateAndTheShellCountsQueryOnly()
+    public async Task CompletedCasesHaveNoQueueAndAreFoundThroughSearchWhileQueryKeepsItsQueue()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
@@ -234,7 +233,6 @@ public sealed class TriageQueuesWebTests
         var stages = await services.GetRequiredService<IDashboardQueries>()
             .GetCaseStageCountsAsync(CancellationToken.None);
         Assert.Equal(1, stages.NotReady);
-        Assert.Equal(1, stages.Complete);
         Assert.Equal(1, stages.Query);
         Assert.Equal(1, stages.AwaitingInstruction);
         Assert.Equal(0, stages.Review);
@@ -242,8 +240,8 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(0, stages.WithEngineer);
         var triageCount = await services.GetRequiredService<IListTriage>().CountAsync(
             StaffActor(),
-            state: null,
-            cancellationToken: CancellationToken.None);
+            TriageLifecycleRules.ActiveStates,
+            CancellationToken.None);
         var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
             .CountOpenAsync(CancellationToken.None);
         Assert.Equal(0, triageCount);
@@ -269,13 +267,79 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(1, QueueCount(queryHtml, "Query"));
         Assert.Equal(expectedShellCount, ShellCasesCount(queryHtml));
 
+        // Issue 1046: Completed has no queue. The rail offers none, the old
+        // route is not found and no Case queue lists the Completed Case.
+        Assert.DoesNotContain("<span>Completed</span>", queryHtml, StringComparison.Ordinal);
         using var completeResponse = await client.GetAsync("/Cases?tab=complete");
-        var completeHtml = await completeResponse.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, completeResponse.StatusCode);
-        Assert.Contains(completeReference, completeHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(queryReference, completeHtml, StringComparison.Ordinal);
-        Assert.Equal(1, QueueCount(completeHtml, "Completed"));
-        Assert.Equal(expectedShellCount, ShellCasesCount(completeHtml));
+        Assert.Equal(HttpStatusCode.NotFound, completeResponse.StatusCode);
+        foreach (var queue in new[] { "not_ready", "review", "with_engineer", "held" })
+        {
+            using var queueResponse = await client.GetAsync($"/Cases?tab={queue}");
+            Assert.Equal(HttpStatusCode.OK, queueResponse.StatusCode);
+            Assert.DoesNotContain(
+                completeReference,
+                await queueResponse.Content.ReadAsStringAsync(),
+                StringComparison.Ordinal);
+        }
+
+        // Search's State filter still finds it.
+        using var searchResponse = await client.GetAsync(
+            $"/Search?state={CaseLifecycleState.PostReportComplete}");
+        var searchHtml = await searchResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
+        Assert.Contains(completeReference, searchHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(queryReference, searchHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Issue 1044: the Triage queue and the shell count hold the active Triage
+    /// states only. A Completed or Cancelled Triage leaves both and is found
+    /// through Search, which shows its Triage state.
+    /// </summary>
+    [Fact]
+    public async Task TheTriageQueueListsActiveTriageOnlyAndSearchFindsTheCompletedAndCancelled()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var open = await OpenTriageForPagingAsync(services, 1);
+        var completed = await OpenTriageForPagingAsync(services, 2);
+        var cancelled = await OpenTriageForPagingAsync(services, 3);
+        await using (var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            await context.Triage.Where(item => item.CaseId == completed.CaseId)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.State, "completed"));
+            await context.Triage.Where(item => item.CaseId == cancelled.CaseId)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.State, "cancelled"));
+        }
+
+        Assert.Equal(1, await services.GetRequiredService<IListTriage>().CountAsync(
+            StaffActor(),
+            TriageLifecycleRules.ActiveStates,
+            CancellationToken.None));
+
+        using var queueResponse = await client.GetAsync("/Cases?tab=triage");
+        var queueHtml = await queueResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, queueResponse.StatusCode);
+        Assert.Contains(open.Reference, queueHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(completed.Reference, queueHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(cancelled.Reference, queueHtml, StringComparison.Ordinal);
+        Assert.Equal(1, QueueCount(queueHtml, "Triage"));
+        Assert.Equal(1, ShellCasesCount(queueHtml));
+
+        foreach (var (record, label) in new[] { (completed, "Completed"), (cancelled, "Cancelled") })
+        {
+            using var searchResponse = await client.GetAsync(
+                $"/Search?registration={record.NormalizedVehicleRegistration}");
+            var searchHtml = await searchResponse.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
+            Assert.Contains(record.Reference, searchHtml, StringComparison.Ordinal);
+            Assert.Contains(label, searchHtml, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -320,8 +384,8 @@ public sealed class TriageQueuesWebTests
         var unidentified = services.GetRequiredService<IUnidentifiedStore>();
         Assert.Equal(1, await services.GetRequiredService<IListTriage>().CountAsync(
             StaffActor(),
-            state: null,
-            cancellationToken: CancellationToken.None));
+            TriageLifecycleRules.ActiveStates,
+            CancellationToken.None));
         Assert.Equal(1, await unidentified.CountOpenAsync(CancellationToken.None));
         Assert.Equal(
             "No further action is required.",
@@ -627,6 +691,10 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(0, int.Parse(countMatch.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
+    /// <summary>The Cases rail, top to bottom, as one continuous list (issue 1046).</summary>
+    private static readonly string[] RailOrder =
+        ["Not ready", "Review", "With Engineer", "Query", "Triage", "Awaiting instruction", "Held", "Unidentified"];
+
     /// <summary>
     /// Not ready is one row list across both case origins, with
     /// dropdown filters rather than pills, and the rail replaces the old tab
@@ -659,10 +727,17 @@ public sealed class TriageQueuesWebTests
         // v26 decision L: the scope lists its rows as a table.
         Assert.Contains("<table", html, StringComparison.Ordinal);
         Assert.DoesNotContain("subtabs", html, StringComparison.Ordinal);
-        // The rail groups the workflow; the filters are selects.
-        Assert.DoesNotContain(">Case workflow<", html, StringComparison.Ordinal);
-        Assert.Contains("Workflow", html, StringComparison.Ordinal);
-        Assert.Contains("Exceptions", html, StringComparison.Ordinal);
+        // Issue 1046: the rail is one continuous list in this order, with no
+        // heading, group label, divider or exception tint; the filters are selects.
+        Assert.Equal(
+            RailOrder,
+            Regex.Matches(html, "class=\"scope-button\"[\\s\\S]*?</span>\\s*<span>([^<]+)</span>\\s*<span>\\d+</span>")
+                .Select(match => match.Groups[1].Value)
+                .ToArray());
+        Assert.DoesNotContain("<h2>Workflow</h2>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("queue-group-label", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("queue-group-divider", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("queue-exception", html, StringComparison.Ordinal);
         Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"missing\"", html, StringComparison.Ordinal);
         using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
@@ -1147,7 +1222,7 @@ public sealed class TriageQueuesWebTests
                 CancellationToken.None));
     }
 
-    private static async Task OpenTriageForPagingAsync(IServiceProvider services, int index)
+    private static async Task<TriageRecord> OpenTriageForPagingAsync(IServiceProvider services, int index)
     {
         var registration = $"PG{index:00}AGE";
         var sourceIdentity = new IntakeSourceIdentity(
@@ -1180,7 +1255,7 @@ public sealed class TriageQueuesWebTests
             sourceIdentity,
             sourceHash);
         var evaluationRevisionId = await StageAndCompleteEvaluationAsync(services, receiptId);
-        await services.GetRequiredService<ICreateTriageFromIntake>().ExecuteAsync(
+        return await services.GetRequiredService<ICreateTriageFromIntake>().ExecuteAsync(
             new(
                 new TriageOrigin(receiptId, sourceIdentity, sourceHash, evaluationRevisionId),
                 registration,

@@ -8,18 +8,22 @@
   lease. Everyone else sees who is editing and can only read.
 - A Triage Case has no Edit. Each change holds the record for its one save.
 - A lease lasts five minutes. The browser renews it every minute while the
-  editing screen is open, so editing lasts as long as the session. Leaving a
-  Case by a link ends edit mode; any other exit lets the lease expire by
-  server time.
+  editing screen is open, so editing lasts as long as the session. A lease
+  that lapsed while nobody claimed it (a laptop asleep) is picked up again by
+  the next heartbeat or save; there is no Renew. Leaving a Case by a link
+  ends edit mode; any other exit lets the lease expire by server time.
 - The lease belongs to the staff member, not the window. Coming back to a
   record you are still editing puts you straight back in; you never take over
   your own lease.
 - Any staff member with edit rights can **Take over** a colleague's lease.
   No reason is needed. The takeover goes into history, and the previous
   editor's next save is refused.
-- Every save sends the lease token and the version that was loaded. Wrong
-  holder, expired lease or stale version: the save is refused and nothing is
-  overwritten.
+- Every save sends the lease token and the version that was loaded. A
+  wrong or superseded lease, or a save that would overwrite a value the system
+  wrote since the page loaded it, is refused and nothing is overwritten.
+- System work (custody, filing, a vehicle lookup) never ends an edit session:
+  it moves the Case version under the lease, the holder's next save lands, and
+  the page catches up with what changed.
 - Automatic processing never pretends to hold a staff lease.
 
 ## Purpose
@@ -39,13 +43,20 @@ needs the role allowed by the
 [staff role access matrix](frd-04-parties-accounts-and-access.md#staff-role-access-matrix).
 
 **Entering edit.** Pressing Edit claims the Case's one server-owned lease.
-Other authorised staff stay read-only and can see who holds it. The Case
+The claim is made at the Case's current version: a page drawn before system
+work or a colleague's save moved the Case still enters edit mode and is drawn
+again as the Case now stands, and only a page from the future is refused
+(operator, 6 October 2026). Other authorised staff stay read-only and can see
+who holds it. The Case
 workspace and the assessment screen share one edit mode over one lease.
 
 **How long it lasts.** The lease is five minutes long. While the editing
 screen is open the browser sends a heartbeat every minute, which renews it.
-Editing therefore lasts as long as the holder keeps the screen open. If the
-holder leaves, the lease expires by server time and can then be claimed by
+Editing therefore lasts as long as the holder keeps the screen open. A
+heartbeat or save that finds the holder's lease lapsed, with nobody having
+claimed it since, carries on with the same token, so a machine that slept
+keeps editing when it wakes; there is no Renew (operator, 6 October 2026). If
+the holder leaves, the lease expires by server time and can then be claimed by
 someone else. Because nobody can know when a present holder will leave, a
 non-holder is told who is editing and is never given a time.
 
@@ -61,7 +72,10 @@ while the lease is live, so it never ends the holder's edit session. Such a
 change claims the lease for its one command and consumes it; a refused
 command frees the lease it claimed.
 Automatic processing never resumes a lease; each of its sessions claims and
-is refused while any lease is live.
+is refused while any lease is live. An Automation write presented without a
+lease token claims the lease for that one command and releases it afterwards;
+the explicit Automation lease tools remain for multi-step work
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)).
 
 **Leaving.** Leaving the Case by a link in Pegasus ends edit mode. A change
 not yet sent lands first ([FRD-16](frd-16-case-record-workspace.md#case-workspace)),
@@ -74,9 +88,25 @@ expires by server time, and coming back before then resumes it.
 **Every save carries proof.** Each save, transition, assignment,
 association, evidence change or other staff change sends both the lease token
 and the Case version the editor loaded. Core checks both inside the
-transaction. Create audit advances the Case version, so a change prepared
-before it is refused as stale; every change after it edits the Audit
+transaction. Every staff change ends the lease it was made under and the
+holder's page receives the next one, so a token that still matches proves no
+staff change has landed since the page loaded its version. Create audit is a
+staff change, so a change prepared before it is refused; every change after it
+edits the Audit
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)).
+
+**System work keeps the session.** Automatic processing that changes the
+Case (custody confirmed or failed, an original report recognised, a vehicle
+lookup filling empty fields, a mail correction or association moving the
+Case into Query, an automatic link, the automatic EVA submission) advances
+the Case version and leaves the editor's lease standing (operator, 6 October
+2026). The holder's next change, sent with the version they loaded, lands. The
+one exception is a value the system filled: the Case save sends every field
+the page shows, so a field still showing what it held before a lookup filled
+it keeps the lookup's value, and a different value typed over it is refused
+until the page has caught up. The heartbeat answers the Case's version, and
+the page redraws each section that holds nothing unsent as the Case now
+stands ([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
 
 **Same guard everywhere.** Web pages and MCP Automation Actor calls use the
 same check. Background records that only append, such as receipts, dispatch
@@ -140,12 +170,13 @@ Intake record only: a Triage Case's scope lasts one save.
 
 ### Refusals and recovery
 
-Core refuses a change whose lease is missing, expired, held by someone else,
-or whose version is stale. It never overwrites newer work. The refused editor
+Core refuses a change whose lease is missing, released, held by someone
+else, or superseded by a later staff change, or which would overwrite a value
+the system filled since the page loaded it. It never overwrites newer work. The refused editor
 keeps the proposed values on screen for comparison. The reloaded page shows
 the record as it now stands; if they still hold the lease they carry on
 editing from it, and otherwise they claim a lease again. There is no merge
-and no forced save.
+and no forced save beyond keeping the values the system filled.
 
 The following do not exist: an Administrator bypass, collaborative merge,
 bulk Case edits, editing lifecycle from a queue row, a Principal Case-edit
@@ -164,19 +195,20 @@ heartbeating, though its timers are throttled.
 | --- | --- | --- |
 | Free | No lease, or the last one expired or was released | Edit is offered |
 | Held | Edit claimed it and heartbeats keep renewing it | Holder's name, read-only, Take over; the holder resumes it |
-| Expired | Five minutes without a heartbeat | Edit is offered |
+| Expired | Five minutes without a heartbeat | Edit is offered; until someone claims it, the holder's own heartbeat or save picks it up again |
 | Taken over | A colleague took it over, or the holder claimed a record scope back in another window | Previous holder's saves are refused |
 
 ## Edge cases and fail-closed behaviour
 
-- A save with the wrong token or a stale version is refused; nothing is
-  overwritten and the editor keeps their values.
+- A save with the wrong token, or one over a value the system filled since
+  the page loaded it, is refused; nothing is overwritten and the editor keeps
+  their values.
 - A non-holder is never shown a countdown or an expiry time.
 - A second window of the same holder shares the Case lease; its saves are
   still checked against the version it loaded. Leaving by a link from either
-  window, or a save in either, ends edit mode in the other: its next
-  heartbeat shows editing has expired, the value it was typing stays on
-  screen, and Edit Case gets back in.
+  window ends edit mode in the other. A save in either moves the lease on:
+  the other window's next heartbeat is refused, it catches up with the Case
+  as it stands, and the value it was typing stays on screen.
 - A record-scope window of the same holder is refused after that holder
   claims the scope back in another window.
 - A revoked session's token cannot save an existing record.
@@ -184,8 +216,9 @@ heartbeating, though its timers are throttled.
 
 ## Acceptance evidence
 
-Core tests cover claim, resume, heartbeat, expiry, wrong-holder and
-stale-version refusal for Cases and for record scopes. Integration tests
+Core tests cover claim, resume, heartbeat, a lapsed lease picked up again,
+wrong-holder and stale-version refusal for Cases and for record scopes, and a
+version moved only by system work. Integration tests
 cover a colleague takeover on a Case whose current version already has its
 own history, the holder's own claim and resume, the Case ribbon, the leaving
 beacon and the record pages over real HTTP. Deployment and live acceptance

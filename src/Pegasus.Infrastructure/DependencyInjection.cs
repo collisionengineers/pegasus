@@ -11,6 +11,7 @@ using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Core.Reports;
@@ -163,8 +164,14 @@ public static class DependencyInjection
         // The prepared tile of a pre-Case image: the Case gallery's rendering over
         // the authorised intake read (Download and Open file keep the original).
         services.AddSingleton<IRenderImageThumbnail, ImageThumbnailRenderer>();
+        // What the Automation MCP download tools hand a client: a photograph
+        // re-encoded to its byte budget, and a PDF's page text. The originals
+        // stay in custody behind the authenticated content URL.
+        services.AddSingleton<IRenderImageForDelivery, ImageDeliveryRenderer>();
+        services.AddSingleton<IExtractPdfPageText, PdfPigPageTextExtractor>();
         services.AddScoped<IReadPreCaseImageThumbnail, ReadPreCaseImageThumbnail>();
         services.AddScoped<IGetUnidentifiedItemContext, GetUnidentifiedItemContext>();
+        services.AddScoped<IGetIntakeOfferedActions, GetIntakeOfferedActions>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
@@ -178,7 +185,6 @@ public static class DependencyInjection
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
         services.AddScoped<ITriageCasePairing, TriageCasePairing>();
         services.AddScoped<IAssignTriage, AssignTriage>();
-        services.AddScoped<IAssignTriageToMe, AssignTriageToMe>();
         services.AddScoped<IAddTriageNote, AddTriageNote>();
         services.AddScoped<IUnassignTriage, UnassignTriage>();
         services.AddScoped<IAwaitTriageInformation, AwaitTriageInformation>();
@@ -232,6 +238,7 @@ public static class DependencyInjection
         services.AddScoped<EfRetainedInstructionAnalysisStore>();
         services.AddScoped<IRetainedInstructionAnalysisStore>(provider =>
             provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<RecordThirdPartyReportReading>();
         services.AddScoped<AnalyzeRetainedInstruction>();
         services.AddScoped<IAnalyzeRetainedInstruction>(provider =>
             provider.GetRequiredService<AnalyzeRetainedInstruction>());
@@ -252,6 +259,7 @@ public static class DependencyInjection
         services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
         services.AddScoped<IAutomaticEvaReviewSubmissionStore, EfAutomaticEvaReviewSubmissionStore>();
         services.AddScoped<IReportRecipientSuggestionQueries, EfReportRecipientSuggestionQueries>();
+        services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
         services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
@@ -336,6 +344,11 @@ public static class DependencyInjection
         services.AddScoped<IRecentCaseQueries, EfRecentCaseQueries>();
         services.AddScoped<IWorkCentreVisitStore, EfWorkCentreVisitStore>();
         services.AddScoped<IListRecentCases, ListRecentCases>();
+        services.AddScoped<IWorkCentreDismissalStore, EfWorkCentreDismissalStore>();
+        services.AddScoped<IDismissWorkCentreItem, DismissWorkCentreItem>();
+        services.AddScoped<IListWorkCentreAiJobs, ListWorkCentreAiJobs>();
+        services.AddScoped<IWorkCentreActivityQueries, EfWorkCentreActivityQueries>();
+        services.AddScoped<IGetWorkCentreActivity, GetWorkCentreActivity>();
         services.AddScoped<IIntakeLogQueries, EfIntakeLogQueries>();
         services.AddScoped<IListIntakeLog, ListIntakeLog>();
         services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
@@ -506,9 +519,13 @@ public static class DependencyInjection
         services.AddScoped<ICreateAiJob, CreateAiJob>();
         services.AddScoped<IMarketResearchQueries, MarketResearchQueries>();
         services.AddScoped<IStartMarketResearch, StartMarketResearch>();
-        // Guide providers register beside their adapter; none is connected yet,
-        // so the set is empty and Get valuation answers with a notice.
+        // Guide providers register beside their adapter (Glass's through
+        // AddGlassGuideValuation); a host that composes none answers Get
+        // valuation with the card's notice. A fetched valuation's report is
+        // filed by the host's own scheduler.
         services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
+        services.AddScoped<IFillGlassVin, EfGlassVinFill>();
+        services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();
         services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
@@ -544,7 +561,6 @@ public static class DependencyInjection
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
         services.AddScoped<ICaseEngineerEligibility, EfCaseEngineerEligibility>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
-        services.AddScoped<IAssignCaseToMe, AssignCaseToMe>();
         services.AddScoped<ISetCaseSignOffEngineer, SetCaseSignOffEngineer>();
         services.AddScoped<IStartCaseWork, StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();
@@ -645,8 +661,14 @@ public static class DependencyInjection
             // The Worker's sweep makes plain thumbnails through that same
             // reader before the first view.
             services.AddScoped<PrepareDocumentThumbnails>();
-            services.AddScoped<IExportCaseDocuments>(provider =>
-                provider.GetRequiredService<EfDocumentCustodyStore>());
+            // The Worker reads each filed version once for whether it is an
+            // estimate; the Files row offers the import only where it is.
+            // One candidate list per process, because it remembers deferrals.
+            services.AddSingleton<IEstimateRecognitionCandidates>(provider =>
+                new EfEstimateRecognitionCandidates(
+                    provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                    provider.GetRequiredService<TimeProvider>()));
+            services.AddScoped<RecogniseFiledEstimates>();
             services.AddScoped<ILogicallyRemoveDocument>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IMarkAsOriginalReportStore>(provider =>
@@ -746,10 +768,8 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
         services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
-        services.AddScoped<ICaseReportDeliveryPreparationStore, EfCaseReportDeliveryPreparationStore>();
-        services.AddScoped<IPrepareCaseReportDelivery, PrepareCaseReportDelivery>();
         services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
-        services.AddScoped<ISendPreparedCaseReport, SendPreparedCaseReport>();
+        services.AddScoped<ISendCaseReport, SendCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();
         services.AddScoped<IRenderCaseEstimateDocument, RenderCaseEstimateDocument>();
         return services;
@@ -775,8 +795,6 @@ public static class DependencyInjection
         services.AddSingleton<IApprovedSentSource, LocalDurableApprovedSentSource>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollSentEvidence>();
-        services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
-            provider.GetRequiredService<PollSentEvidence>());
         return services;
     }
 
@@ -933,6 +951,30 @@ public static class DependencyInjection
     }
 
     /// <summary>
+    /// Connects Glass's as a guide valuation source (ADR-0060). A host that
+    /// does not call this has no Glass's provider, so the Case's Glass's card
+    /// says it is unavailable and offers no Get valuation. The account comes
+    /// through a factory and is read on each valuation, for the same
+    /// unresolved-Key-Vault-reference reason as EVA's options; the Glass's
+    /// origin and request timeout are the estimate adapter's own.
+    /// </summary>
+    public static IServiceCollection AddGlassGuideValuation(
+        this IServiceCollection services,
+        Func<IServiceProvider, GlassValuationAccount> accountFactory)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(accountFactory);
+
+        services.AddSingleton<IGuideValuationProvider>(provider => new GlassGuideValuationProvider(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            () => provider.GetRequiredService<GlassRepairEstimateOptions>(),
+            () => accountFactory(provider),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<GlassGuideValuationProvider>>()));
+        return services;
+    }
+
+    /// <summary>
     /// The mailbox and vehicle-lookup adapters. Box custody is not registered here —
     /// it belongs to the storage profile (<see cref="AddProductionBoxCustody"/>) so a
     /// host can compose custody without also composing mailbox polling.
@@ -962,8 +1004,6 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
-        services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
-            provider.GetRequiredService<PollSentEvidence>());
         return services.AddLiveVehicleLookup(vehicleOptions);
     }
 
@@ -1019,11 +1059,8 @@ public static class DependencyInjection
             provider.GetRequiredService<TokenCredential>(),
             baseUri,
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
-        services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
-        services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
-        services.AddScoped<PollSentEvidence>();
-        services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
-            provider.GetRequiredService<PollSentEvidence>());
+        // Web sends and reads; the Sent-evidence poll that settles Submitted
+        // into Sent is the Worker's alone (AddProductionExternalAdapters).
         AddStaffMailSending(services);
         services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;

@@ -135,9 +135,11 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(1, handedOff.Version);
         }
         lease = await BeginEditAsync(client, token, caseId, 1, rpcId: 87);
+        // Under a proven lease only a version the Case has not reached is
+        // refused; an older one is system work having moved the Case.
         foreach (var arguments in new[]
         {
-            Arguments(0, lease.LeaseToken, occurrenceId, hash, "mcp:stale-import"),
+            Arguments(2, lease.LeaseToken, occurrenceId, hash, "mcp:future-version-import"),
             Arguments(1, "wrong-lease", occurrenceId, hash, "mcp:wrong-lease"),
             Arguments(1, lease.LeaseToken, Guid.NewGuid(), hash, "mcp:foreign-source"),
             Arguments(1, lease.LeaseToken, currentOccurrenceId, hash, "mcp:mismatched-version"),
@@ -264,7 +266,7 @@ public sealed class AutomationAssessmentIngressTests
         using var document = await ReadJsonRpcAsync(response);
         Assert.Contains("derived from damage.impacts", document.RootElement.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
 
         using var estimateResponse = await PostMcpAsync(client, token, ToolCallPayload(42,
             "pegasus_assessment_update", new
@@ -366,7 +368,7 @@ public sealed class AutomationAssessmentIngressTests
             using var document = await ReadJsonRpcAsync(response);
             Assert.Contains(refusal, document.RootElement.ToString(), StringComparison.Ordinal);
             Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
+                $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
         }
 
         // The Inspection section records the recovery charge, so automation
@@ -386,7 +388,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(lease.CaseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
         }
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseAssessmentFields
@@ -445,10 +447,11 @@ public sealed class AutomationAssessmentIngressTests
             token,
             ToolCallPayload(
                 2,
-                "pegasus_case_edit_begin",
+                "pegasus_edit_begin",
                 new
                 {
-                    caseId,
+                    recordKind = "Case",
+                    recordId = caseId,
                     expectedVersion = 0,
                     operationKey = "mcp:ingress-lease-1"
                 })))
@@ -458,8 +461,8 @@ public sealed class AutomationAssessmentIngressTests
             var lease = leaseDocument.RootElement
                 .GetProperty("result")
                 .GetProperty("structuredContent");
-            caseVersion = lease.GetProperty("caseVersion").GetInt64();
-            leaseToken = lease.GetProperty("leaseToken").GetString()!;
+            caseVersion = lease.GetProperty("version").GetInt64();
+            leaseToken = lease.GetProperty("editLeaseToken").GetString()!;
         }
 
         using (var updateResponse = await PostMcpAsync(
@@ -494,11 +497,13 @@ public sealed class AutomationAssessmentIngressTests
             var fields = structured.GetProperty("fields").EnumerateArray().ToArray();
         }
 
-        // Stored values carry the automation provenance.
+        // Stored values carry the automation provenance. The agreed fee the
+        // Case took from its Principal at creation is not this save's.
         Assert.Equal(2, await factory.Database.ScalarAsync<int>(
-            """
+            $"""
             SELECT COUNT(*) FROM CaseAssessmentFields
             WHERE RecordedByKind = N'Automation'
+              AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'
             """));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM CaseEstimateLines WHERE RecordedByKind = N'Automation'"));
@@ -662,10 +667,11 @@ public sealed class AutomationAssessmentIngressTests
             token,
             ToolCallPayload(
                 10,
-                "pegasus_case_edit_begin",
+                "pegasus_edit_begin",
                 new
                 {
-                    caseId,
+                    recordKind = "Case",
+                    recordId = caseId,
                     expectedVersion = 0,
                     operationKey = "mcp:ingress-details-lease-1"
                 })))
@@ -675,8 +681,8 @@ public sealed class AutomationAssessmentIngressTests
             var lease = leaseDocument.RootElement
                 .GetProperty("result")
                 .GetProperty("structuredContent");
-            caseVersion = lease.GetProperty("caseVersion").GetInt64();
-            leaseToken = lease.GetProperty("leaseToken").GetString()!;
+            caseVersion = lease.GetProperty("version").GetInt64();
+            leaseToken = lease.GetProperty("editLeaseToken").GetString()!;
         }
 
         using (var updateResponse = await PostMcpAsync(
@@ -802,8 +808,8 @@ public sealed class AutomationAssessmentIngressTests
             token,
             ToolCallPayload(
                 31,
-                "pegasus_case_edit_begin",
-                new { caseId, expectedVersion = 0, operationKey = "mcp:staff-holds-begin" }));
+                "pegasus_edit_begin",
+                new { recordKind = "Case", recordId = caseId, expectedVersion = 0, operationKey = "mcp:staff-holds-begin" }));
         await AssertRefusedByAnotherHolderAsync(
             client,
             token,
@@ -824,8 +830,8 @@ public sealed class AutomationAssessmentIngressTests
             token,
             ToolCallPayload(
                 33,
-                "pegasus_case_edit_end",
-                new { caseId, operationKey = "mcp:staff-holds-end", leaseToken = staffLease.Token }));
+                "pegasus_edit_end",
+                new { recordKind = "Case", recordId = caseId, operationKey = "mcp:staff-holds-end", editLeaseToken = staffLease.Token }));
 
         Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
         Assert.Equal(
@@ -901,8 +907,8 @@ public sealed class AutomationAssessmentIngressTests
             token,
             ToolCallPayload(
                 42,
-                "pegasus_case_edit_end",
-                new { caseId, operationKey = "mcp:automation-holder-ends", leaseToken = automationLease.LeaseToken })))
+                "pegasus_edit_end",
+                new { recordKind = "Case", recordId = caseId, operationKey = "mcp:automation-holder-ends", editLeaseToken = automationLease.LeaseToken })))
         {
             Assert.Equal(HttpStatusCode.OK, endResponse.StatusCode);
             _ = await ReadStructuredContentAsync(endResponse);
@@ -925,11 +931,12 @@ public sealed class AutomationAssessmentIngressTests
     private static async Task<CaseEditLease> ClaimAsStaffAsync(
         WebApplicationFactory<Program> factory,
         Guid caseId,
-        ActionActor staff)
+        ActionActor staff,
+        long expectedVersion = 0)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
-            new(caseId, 0, staff, Guid.NewGuid().ToString("N")),
+            new(caseId, expectedVersion, staff, Guid.NewGuid().ToString("N")),
             CancellationToken.None);
     }
 
@@ -947,8 +954,15 @@ public sealed class AutomationAssessmentIngressTests
             StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// A write with no lease token holds the lease for its one command
+    /// (operator, 1 October 2026): the same Core claim staff make, the save,
+    /// and nothing left on the Case afterwards. While staff hold the lease the
+    /// same call is refused with the held-by-another-actor mapping and writes
+    /// nothing.
+    /// </summary>
     [Fact]
-    public async Task CaseUpdateDetailsRefusesAMissingEditLeaseWithFailedHistoryAndNoTokenDisclosed()
+    public async Task CaseUpdateDetailsWithoutALeaseTokenHoldsTheLeaseForOneCommand()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -956,8 +970,6 @@ public sealed class AutomationAssessmentIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        // Same validation guard the assessment-update tool uses: an absent edit
-        // lease token fails closed before any Core save is attempted.
         using (var response = await PostMcpAsync(
             client,
             token,
@@ -968,16 +980,14 @@ public sealed class AutomationAssessmentIngressTests
                 {
                     caseId,
                     expectedVersion = 0,
-                    editLeaseToken = string.Empty,
-                    operationKey = "mcp:ingress-details-missing-lease",
-                    reason = "Automation attempted an unleased save.",
-                    contactName = "Should not be recorded"
+                    operationKey = "mcp:ingress-details-implicit-lease",
+                    reason = "Automation corrected the contact.",
+                    contactName = "Recorded under a one-command lease"
                 })))
         {
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            using var document = await ReadJsonRpcAsync(response);
-            var body = document.RootElement.ToString();
-            Assert.Contains("edit lease token is required", body, StringComparison.OrdinalIgnoreCase);
+            var saved = await ReadStructuredContentAsync(response);
+            Assert.Equal(caseId, saved.GetProperty("caseId").GetGuid());
+            Assert.True(saved.GetProperty("caseVersion").GetInt64() > 0);
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -985,16 +995,39 @@ public sealed class AutomationAssessmentIngressTests
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
               AND EventKind = N'pegasus_case_update_details'
-              AND Outcome = N'Failed'
+              AND Outcome = N'Succeeded'
             """));
-
-        // Nothing was written to the confirmed case data, and the refusal never
-        // had a token to disclose in the first place.
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
             WHERE WorkId = '{caseId:D}' AND FieldName = N'contact_name' AND ValueKind = N'confirmed'
             """));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
+
+        // Staff now hold the lease: the one-command claim is refused like any other claim.
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var currentVersion = await GetWorkflowVersionAsync(mcpFactory, caseId);
+        _ = await ClaimAsStaffAsync(mcpFactory, caseId, staff, currentVersion);
+        await AssertRefusedByAnotherHolderAsync(
+            client,
+            token,
+            ToolCallPayload(
+                14,
+                "pegasus_case_update_details",
+                new
+                {
+                    caseId,
+                    expectedVersion = currentVersion,
+                    operationKey = "mcp:ingress-details-implicit-lease-held",
+                    reason = "Automation attempted a save while staff edit.",
+                    contactName = "Should not be recorded"
+                }));
+        Assert.Equal(currentVersion, await GetWorkflowVersionAsync(mcpFactory, caseId));
+        Assert.Equal(
+            "Staff",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
     }
 
     private sealed class CapturingEstimateImporter : IImportRawEstimate

@@ -52,10 +52,10 @@
                     </div>
                     <div class="button-row">
                         <a class="btn" asp-page="/Administration/ReleaseNotes/Index">Cancel</a>
-                        <button type="submit" class="btn" asp-page-handler="Save">@OperatorLabels.ReleaseNotes.SaveDraft</button>
+                        <button type="submit" class="btn" asp-page-handler="Save" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.ReleaseNotes.SaveDraft</button>
                         @if (Model.Note is not null)
                         {
-                            <button type="submit" class="btn btn--primary" asp-page-handler="Publish">@OperatorLabels.ReleaseNotes.Publish</button>
+                            <button type="submit" class="btn btn--primary" asp-page-handler="Publish" data-busy-label="@OperatorLabels.Busy.Publishing">@OperatorLabels.ReleaseNotes.Publish</button>
                         }
                     </div>
                 </form>

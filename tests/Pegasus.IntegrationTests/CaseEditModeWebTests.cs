@@ -17,8 +17,8 @@ using static Pegasus.IntegrationTests.CaseWebTestSupport;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The workspace's own edit-mode actions that stay on <c>DetailsModel</c>: renewing the lease
-/// and leaving it. Claiming and recovery are covered by the workspace tests.
+/// The workspace's own edit-mode actions that stay on <c>DetailsModel</c>: keeping the lease
+/// alive and leaving it. Claiming and recovery are covered by the workspace tests.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseEditModeWebTests
@@ -397,7 +397,6 @@ public sealed class CaseEditModeWebTests
             // The Vehicle section renders this select in every engineering edit form.
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleCondition), "good"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.EngineersComments), "Engineer comments recorded"),
-            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportDateOverride), "false"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportIncludeUnrelatedDamage), "false"),
             ("storagePerDay", "14.50"), ("recoveryCharge", "0")
         };
@@ -412,7 +411,6 @@ public sealed class CaseEditModeWebTests
         Assert.Null(saved.Vehicle!.AssessmentFields![AssessmentVocabulary.HistoryCheck]);
         Assert.Equal("good", saved.Vehicle.AssessmentFields[AssessmentVocabulary.VehicleCondition]);
         Assert.Equal("Engineer comments recorded", saved.Report!.AssessmentFields![AssessmentVocabulary.EngineersComments]);
-        Assert.Equal("false", saved.Report.AssessmentFields[AssessmentVocabulary.ReportDateOverride]);
         Assert.Equal(new DateOnly(2031, 5, 6), saved.Report.ReportDate);
         Assert.Equal(14.50m, saved.Inspection!.StoragePerDay);
         Assert.Equal(0m, saved.Inspection.RecoveryCharge);
@@ -538,55 +536,24 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("name=\"editLeaseToken\"", refused, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Editing never expires while the page is open (operator, 6 October 2026), so the workspace
+    /// renders no Renew editing control; Done leaves edit mode with the key it rendered.
+    /// </summary>
     [Fact]
-    public async Task WorkspaceRenewsAndLeavesEditModeWithTheOperationKeysItRendered()
+    public async Task WorkspaceLeavesEditModeWithTheOperationKeyItRenderedAndOffersNoRenew()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
-            Substitute<IRenewCaseEditLease>(services, store);
             Substitute<IReleaseCaseEditLease>(services, store);
         });
         var leased = await workspace.GetWorkspaceAsync();
-        var renewKey = HandlerFormInputValue(leased, "RenewLease", "operationKey");
+        Assert.DoesNotContain("handler=RenewLease", leased, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-renew", leased, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-lease-expired-text", leased, StringComparison.Ordinal);
+        Assert.DoesNotContain("Renew editing", leased, StringComparison.Ordinal);
         var releaseKey = HandlerFormInputValue(leased, "ReleaseLease", "operationKey");
-
-        using var renewed = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=RenewLease",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", renewKey),
-                ("editLeaseToken", store.LeaseToken)));
-        AssertPrg(renewed, store.CaseId);
-        var renewal = Assert.Single(store.LeaseRenewals);
-        AssertClaimant(workspace, renewal.Actor);
-        Assert.Equal(store.CaseId, renewal.CaseId);
-        Assert.Equal(store.CaseVersion, renewal.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, renewal.LeaseToken);
-        Assert.Equal(renewKey, renewal.OperationKey);
-        var afterRenewal = await workspace.GetWorkspaceAsync();
-        Assert.Contains("Edit mode was renewed.", afterRenewal, StringComparison.Ordinal);
-        Assert.Equal(store.RenewedLeaseToken, InputValue(afterRenewal, "editLeaseToken"));
-        Assert.NotEqual(renewKey, HandlerFormInputValue(afterRenewal, "RenewLease", "operationKey"));
-
-        // A refusal that is not a lost lease keeps edit mode and the same renew key for the retry.
-        store.NextFailure = new InvalidOperationException("The lease store is unavailable.");
-        var retryKey = HandlerFormInputValue(afterRenewal, "RenewLease", "operationKey");
-        using var refused = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=RenewLease",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", retryKey),
-                ("editLeaseToken", store.RenewedLeaseToken)));
-        AssertPrg(refused, store.CaseId);
-        var afterRefusal = await workspace.GetWorkspaceAsync();
-        Assert.Contains("Edit mode could not be renewed", afterRefusal, StringComparison.Ordinal);
-        Assert.Equal(store.RenewedLeaseToken, InputValue(afterRefusal, "editLeaseToken"));
-        Assert.Equal(retryKey, HandlerFormInputValue(afterRefusal, "RenewLease", "operationKey"));
 
         using var left = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=ReleaseLease",
@@ -594,12 +561,12 @@ public sealed class CaseEditModeWebTests
                 workspace.AntiforgeryToken,
                 ("id", store.CaseId.ToString("D")),
                 ("operationKey", releaseKey),
-                ("editLeaseToken", store.RenewedLeaseToken)));
+                ("editLeaseToken", store.LeaseToken)));
         AssertPrg(left, store.CaseId);
         var release = Assert.Single(store.LeaseReleases);
         AssertClaimant(workspace, release.Actor);
         Assert.Equal(store.CaseId, release.CaseId);
-        Assert.Equal(store.RenewedLeaseToken, release.LeaseToken);
+        Assert.Equal(store.LeaseToken, release.LeaseToken);
         Assert.Equal(releaseKey, release.OperationKey);
         var afterRelease = await workspace.GetWorkspaceAsync();
         Assert.Contains("Edit mode was left safely.", afterRelease, StringComparison.Ordinal);
@@ -612,6 +579,8 @@ public sealed class CaseEditModeWebTests
     /// mid-edit, and answers it without a redirect, a status message, or - crucially - any
     /// TempData write. TempData here is cookie-backed, so a beat that re-issued that cookie could
     /// race a form post the operator did make and lose them the token they are editing under.
+    /// The answer carries the Case version, which system work moves under the lease, so the page
+    /// can catch up with it (operator, 6 October 2026).
     /// </summary>
     [Fact]
     public async Task WorkspaceHeartbeatKeepsEditingAliveWithoutDisturbingTheOperatorsLeaseState()
@@ -622,9 +591,9 @@ public sealed class CaseEditModeWebTests
             Substitute<IHeartbeatCaseEditLease>(services, store);
         });
         var leased = await workspace.GetWorkspaceAsync();
-        var renewKey = HandlerFormInputValue(leased, "RenewLease", "operationKey");
+        var releaseKey = HandlerFormInputValue(leased, "ReleaseLease", "operationKey");
         // v26: the record's own heartbeat form (`data-case-heartbeat`), beaten
-        // by case-workspace.js; the Renew editing form stays as the no-script path.
+        // by case-workspace.js.
         Assert.Contains("data-case-heartbeat", leased, StringComparison.Ordinal);
         Assert.Contains(
             $"data-heartbeat-seconds=\"{(int)CaseEditAuthority.HeartbeatInterval.TotalSeconds}\"",
@@ -638,17 +607,35 @@ public sealed class CaseEditModeWebTests
                 ("id", store.CaseId.ToString("D")),
                 ("editLeaseToken", store.LeaseToken)));
 
-        Assert.Equal(HttpStatusCode.NoContent, beat.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, beat.StatusCode);
+        Assert.Equal(store.CaseVersion, await HeartbeatVersionAsync(beat));
         var heartbeat = Assert.Single(store.LeaseHeartbeats);
         AssertClaimant(workspace, heartbeat.Actor);
         Assert.Equal(store.CaseId, heartbeat.CaseId);
         Assert.Equal(store.LeaseToken, heartbeat.LeaseToken);
 
-        // The operator is exactly where they were: same token, same keys, no message.
+        // System work moved the Case under the lease: the next beat answers the new version.
+        store.AdvanceBySystemWork();
+        using var caughtUp = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=HeartbeatLease",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("editLeaseToken", store.LeaseToken)));
+        Assert.Equal(HttpStatusCode.OK, caughtUp.StatusCode);
+        Assert.Equal(store.CaseVersion, await HeartbeatVersionAsync(caughtUp));
+
+        // The operator is exactly where they were: same token, same keys.
         var afterBeat = await workspace.GetWorkspaceAsync();
         Assert.Equal(store.LeaseToken, InputValue(afterBeat, "editLeaseToken"));
-        Assert.Equal(renewKey, HandlerFormInputValue(afterBeat, "RenewLease", "operationKey"));
-        Assert.DoesNotContain("Edit mode was renewed", afterBeat, StringComparison.Ordinal);
+        Assert.Equal(releaseKey, HandlerFormInputValue(afterBeat, "ReleaseLease", "operationKey"));
+    }
+
+    private static async Task<long> HeartbeatVersionAsync(HttpResponseMessage beat)
+    {
+        Assert.Equal("application/json", beat.Content.Headers.ContentType?.MediaType);
+        using var answer = System.Text.Json.JsonDocument.Parse(await beat.Content.ReadAsStringAsync());
+        return answer.RootElement.GetProperty("version").GetInt64();
     }
 
     [Fact]
@@ -1275,6 +1262,58 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
+    /// Generate report makes the separate fee note too (operator, 7 October
+    /// 2026): once the report is confirmed the handler generates the fee note
+    /// from the generation the report confirmed, under the one lease it
+    /// claimed, and releases that lease once after both.
+    /// </summary>
+    [Fact]
+    public async Task GenerateReportOutsideEditModeMakesTheFeeNoteUnderTheSameLease()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var generation = new AssessmentReportDraftWebTests.FakeCurrentGeneration(store.CaseId).Record;
+        var generator = new RecordingGenerateReport
+        {
+            Outcome = CaseReportGenerationOutcome.Generated,
+            Generation = generation,
+        };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+            ReadyReportPorts(services, store, generator));
+        var form = GenerateReportForm(await ReportSectionAsync(workspace));
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=GenerateReport&section=report",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("feeNoteOperationKey", InputValue(form, "feeNoteOperationKey")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+
+        AssertPrg(response, store.CaseId, "section=report");
+        Assert.Single(store.Claims);
+        Assert.Collection(
+            generator.Requests,
+            report =>
+            {
+                Assert.Equal(CaseReportArtifactKind.AssessmentReport, report.Kind);
+                Assert.Equal(InputValue(form, "operationKey"), report.OperationKey);
+                Assert.Equal(store.LeaseToken, report.LeaseToken);
+            },
+            feeNote =>
+            {
+                Assert.Equal(CaseReportArtifactKind.FeeNote, feeNote.Kind);
+                Assert.Equal(InputValue(form, "feeNoteOperationKey"), feeNote.OperationKey);
+                Assert.Equal(generation.Id, feeNote.TargetGenerationId);
+                Assert.Equal(store.LeaseToken, feeNote.LeaseToken);
+                Assert.Equal(store.CaseVersion, feeNote.ExpectedCaseVersion);
+            });
+        var release = Assert.Single(store.LeaseReleases);
+        Assert.Equal(store.LeaseToken, release.LeaseToken);
+        Assert.Null(store.LeaseHolder);
+    }
+
+    /// <summary>
     /// The one-off lease is released whatever the generation answers: a
     /// NotReady answer, or a refusal thrown by the generation, releases it
     /// exactly as a Pending answer does, so nothing is left holding the Case.
@@ -1573,7 +1612,6 @@ public sealed class CaseEditModeWebTests
     /// and releases the lease after.
     /// </summary>
     [Theory]
-    [InlineData("GenerateFeeNote", CaseReportArtifactKind.FeeNote)]
     [InlineData("GenerateRepairSpec", CaseReportArtifactKind.RepairSpecification)]
     [InlineData("GenerateImagePack", CaseReportArtifactKind.ImagePack)]
     public async Task CompanionGenerateOutsideEditModeClaimsTheLeaseForTheGenerationAndReleasesIt(
@@ -1606,7 +1644,6 @@ public sealed class CaseEditModeWebTests
         var request = Assert.Single(generator.Requests);
         Assert.Equal(kind, request.Kind);
         Assert.Equal(generation.Record.Id, request.TargetGenerationId);
-        Assert.False(request.IncludeFeeNote);
         Assert.Equal(store.LeaseToken, request.LeaseToken);
         var release = Assert.Single(store.LeaseReleases);
         Assert.Equal(store.LeaseToken, release.LeaseToken);
@@ -1635,7 +1672,6 @@ public sealed class CaseEditModeWebTests
 
         var html = await ReportSectionAsync(workspace);
 
-        Assert.DoesNotContain("handler=GenerateFeeNote", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=GenerateRepairSpec", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=GenerateImagePack", html, StringComparison.Ordinal);
     }
@@ -1690,14 +1726,13 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
-    /// A confirmed generation whose fee note is a separate document not yet
-    /// made; its images are retried, so all three companion Generates stand.
+    /// A confirmed generation whose separate fee note is not yet made; its
+    /// images are retried, so all three companion Generates stand.
     /// </summary>
     private static AssessmentReportDraftWebTests.FakeCurrentGeneration ConfirmedSeparateGeneration(
         RecordingCaseDetailsStore store) =>
         new(
             store.CaseId,
-            includeFeeNote: false,
             imagePackStatus: CaseReportArtifactStatus.Pending,
             imagePackOperationKey: Guid.NewGuid().ToString("N"));
 

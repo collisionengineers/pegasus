@@ -1,6 +1,7 @@
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Cases;
 
@@ -49,6 +50,40 @@ public sealed class CaseSearchTests
             new(
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
                 new CaseSearchFilters(Query: new string('q', 301))),
+            default));
+
+        Assert.Null(store.Query);
+    }
+
+    [Fact]
+    public async Task StateFilterIsDistinctOrderedAndEmptyMeansEveryState()
+    {
+        var store = new RecordingStore();
+        var search = new SearchCases(store);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        await search.ExecuteAsync(
+            new(actor, new CaseSearchFilters(States:
+                [CaseLifecycleState.PostReport, CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport])),
+            default);
+        Assert.Equal(
+            new[] { CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport },
+            store.Query!.Filters.States);
+
+        await search.ExecuteAsync(new(actor, new CaseSearchFilters(States: [])), default);
+        Assert.Null(store.Query!.Filters.States);
+    }
+
+    [Fact]
+    public async Task UndefinedStateInTheFilterNeverCallsStore()
+    {
+        var store = new RecordingStore();
+        var search = new SearchCases(store);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => search.ExecuteAsync(
+            new(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                new CaseSearchFilters(States: [CaseLifecycleState.Review, (CaseLifecycleState)999])),
             default));
 
         Assert.Null(store.Query);

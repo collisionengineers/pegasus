@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -21,22 +22,12 @@ public sealed class ProcessIntake(
     IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
     IRegisterUnidentified? registerUnidentified = null,
     IPrincipalSubmissionBindings? principalSubmissionBindings = null,
-    IRetainedInstructionAnalysisStore? retainedInstructionAnalysisStore = null,
+    RecordThirdPartyReportReading? recordThirdPartyReportReading = null,
     RetainIncomingArtifact? retainIncomingArtifact = null,
     IRetainedMailboxMessageStore? retainedMessages = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
-    /// <summary>
-    /// What became of the third-party report reading on this intake. Recorded
-    /// on every path, including the ones that record nothing: without it an
-    /// environment where every reading fails looks exactly like one that
-    /// receives no third-party reports at all.
-    /// </summary>
-    private const string ReportOutcomeTag = "intake.third_party_report.outcome";
-
-    /// <summary>The exception type behind a reading that was not recorded.</summary>
-    private const string ReportFailureTag = "intake.third_party_report.failure_type";
     public async Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
         CancellationToken cancellationToken = default)
@@ -126,6 +117,13 @@ public sealed class ProcessIntake(
                 return existing with { IsDuplicate = true };
             }
         }
+
+        // A corrected classification is the accepted one: a re-evaluation reads
+        // it in place of the classifier, so the receipt's decision, evidence and
+        // audit evidence all follow the correction.
+        var retainedClassification = replaceExisting && existing is { IsMailClassificationCorrected: true }
+            ? existing.MailClassificationDecision
+            : null;
 
         IntakeAssetRecord sourceAsset;
         if (retainedSourceStorageKey is null)
@@ -221,6 +219,7 @@ public sealed class ProcessIntake(
                 readResult,
                 safeSource.SourceIdentity,
                 safeSource.ReceivedAtUtc,
+                retainedClassification,
                 cancellationToken)
             : DeclaredDestinationAssessment(readResult);
         activity?.SetTag("intake.declared_destination", safeSource.DeclaredCaseId is not null);
@@ -275,9 +274,10 @@ public sealed class ProcessIntake(
             assessment.ExtractionPolicyKey,
             assessment.ExtractionPolicyVersion,
             assets,
-            // A declared destination needs no OCR: scanned pages are for
-            // identification, which does not run for it.
-            safeSource.DeclaredCaseId is null ? readResult.ScannedPdfPages : [],
+            // Every scanned document page is OCR'd, declared destination or
+            // not: the text is for the report reader as much as for
+            // identification, and a report added to a Case is still a report.
+            readResult.ScannedPdfPages,
             assessment.MailRouteDecision,
             assessment.MailClassificationDecision,
             assessment.CaseMatchDecision,
@@ -444,20 +444,22 @@ public sealed class ProcessIntake(
     }
 
     /// <summary>
-    /// Identifies the retained source's document role from the document itself
-    /// and, when it carries a third-party report signature, records what the
-    /// report says as ordinary source candidates.
+    /// Reads each retained document that may be a third-party engineer report
+    /// and records what it says as ordinary source candidates: one reading per
+    /// document, never the whole e-mail flattened into one. The e-mail body is
+    /// not a report and is never read as one; nor is an image.
     ///
     /// Retention is the right place for it: the role is a property of the bytes
     /// that were just retained, not of anything a member of staff does later,
-    /// and recording it here keeps the candidates beside the retained source
+    /// and recording it here keeps the candidates beside the retained document
     /// from the start. It changes no receipt decision, allocates nothing and
-    /// writes no Engineer value — a report remains third-party evidence until
-    /// Stream B's own command accepts a figure from it.
+    /// writes no Engineer value. The recorder is optional for the same reason
+    /// the other analysis composition is: until it is registered, intake
+    /// behaves exactly as before.
     ///
-    /// A source with no signature is left alone entirely. The store is optional
-    /// for the same reason C01's other analysis composition is: until it is
-    /// registered, intake behaves exactly as before.
+    /// What became of the reading is tagged on every path, including the ones
+    /// that record nothing: without that, an environment where every reading
+    /// fails looks exactly like one that receives no third-party reports.
     /// </summary>
     private async Task RecordThirdPartyReportSourceAsync(
         IntakeReceipt receipt,
@@ -465,13 +467,9 @@ public sealed class ProcessIntake(
         Activity? activity,
         CancellationToken cancellationToken)
     {
-        if (retainedInstructionAnalysisStore is null)
+        if (recordThirdPartyReportReading is null)
         {
-            // The feature is not composed here, so nothing was attempted and
-            // nothing is claimed. Named all the same: an environment missing
-            // the registration must not look like one that receives no
-            // third-party reports (C05-R-15).
-            activity?.SetTag(ReportOutcomeTag, "not_composed");
+            activity?.SetTag(RecordThirdPartyReportReading.OutcomeTag, "not_composed");
             return;
         }
 
@@ -480,132 +478,33 @@ public sealed class ProcessIntake(
             // The reader failed or refused the format. The report reading never
             // began, which is a different fact from "this document carries no
             // report signature", and only the tag can tell them apart.
-            activity?.SetTag(ReportOutcomeTag, "source_not_readable");
+            activity?.SetTag(RecordThirdPartyReportReading.OutcomeTag, "source_not_readable");
             return;
         }
 
-        var asset = IntakeFileIdentity.SourceAsset(receipt);
-        if (asset is null)
+        // The same files Mark as original report and recognition consider: the
+        // uploaded file itself or a message's attachments, never an image and
+        // never the message, whose letter prints dates and references of its own.
+        var documents = receipt.AssetRecords
+            .Where(OriginalReportPolicy.IsRecognitionCandidate)
+            .ToArray();
+        if (documents.Length == 0)
         {
-            // Without exactly one retained source asset there is no hash, no
-            // asset identity and therefore no operation key to record under.
-            activity?.SetTag(ReportOutcomeTag, "no_single_source_asset");
+            activity?.SetTag(RecordThirdPartyReportReading.OutcomeTag, "no_document");
             return;
         }
 
-        var extraction = ThirdPartyReportExtraction.Extract(
-            readResult,
-            new(
-                receipt.Id,
-                asset.ContentHash,
-                Occurrence: 0,
-                IntakeAssetId: asset.Id,
-                ReaderVersion: readResult.ReaderVersion,
-                // The retained file's own name, carried as the document-level
-                // locator for a row with no page to point at (a scan-only
-                // source names no page because its text could not be read).
-                // It locates; it is never read as content, so no issuer, family
-                // or field value is taken from it (C05-R-16).
-                SourceLabel: asset.FileName));
-        if (!ThirdPartyReportAnalysis.IsRecordable(extraction))
+        foreach (var asset in documents)
         {
-            // The document was read, carries no report signature and states
-            // nothing about itself that a person has to act on. Saying so is
-            // what makes the silence on the other paths meaningful.
-            activity?.SetTag(ReportOutcomeTag, "no_report_signature");
-            return;
-        }
-
-        var operationKey = $"{ThirdPartyReportAnalysis.PolicyKey}:{asset.Id}";
-        try
-        {
-            var (_, isReplay) = await retainedInstructionAnalysisStore.RecordAsync(
-                new(
-                    Guid.NewGuid(),
-                    receipt.Id,
-                    asset.Id,
-                    asset.ContentHash,
-                    // Derived from the asset, so re-processing the same
-                    // retained bytes leaves the recorded reading standing
-                    // instead of writing a second set of candidates for one
-                    // document. The conflict below — not the replay — is that
-                    // outcome's ordinary path: a re-evaluation always moves the
-                    // receipt version, so a second pass over one asset can
-                    // never satisfy the store's replay check and "replayed" is
-                    // reachable only where the same version is re-recorded
-                    // (C05-R-19).
-                    operationKey,
-                    ThirdPartyReportAnalysis.Outcome(extraction.Selection),
-                    receipt.Version,
-                    timeProvider.GetUtcNow(),
-                    ThirdPartyReportAnalysis.ToCandidates(
-                        extraction,
-                        readResult.ReaderKey,
-                        readResult.ReaderVersion)),
+            await recordThirdPartyReportReading.ExecuteAsync(
+                receipt,
+                asset,
+                ThirdPartyReportDocuments.ForDocument(
+                    readResult,
+                    IntakeOcrOperations.DocumentLabel(receipt, asset)),
+                RecordThirdPartyReportReading.OperationKey(asset),
+                activity,
                 cancellationToken);
-            activity?.SetTag(ReportOutcomeTag, isReplay ? "replayed" : "recorded");
-        }
-        catch (RetainedInstructionAnalysisConflictException)
-        {
-            // The key was already used, and the store raises one exception for
-            // two different facts (IRetainedInstructionAnalysisStore.RecordAsync):
-            // this document was already read at another receipt version — the
-            // recorded reading stands, the bytes have not changed, and
-            // overwriting is exactly what the key exists to prevent — or the key
-            // is bound to another receipt or asset, where nothing was recorded
-            // for this receipt at all. One tag for both would state something
-            // false in the second case, so the stored row decides which is said
-            // (C05-R-18). Named on the span either way, so a conflict is
-            // distinguishable from a reading that was never attempted.
-            activity?.SetTag(
-                ReportOutcomeTag,
-                await ConflictOutcomeAsync(
-                    retainedInstructionAnalysisStore,
-                    operationKey,
-                    receipt.Id,
-                    asset.Id,
-                    cancellationToken));
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            // Source evidence is supplementary. A receipt that has already been
-            // stored must not fail because a report reading could not be
-            // written beside it.
-            //
-            // The failure is named on the span rather than swallowed. The
-            // intake itself succeeded, so the span's own status stays as the
-            // receipt left it: this is a named failure inside work that
-            // otherwise did what it was asked.
-            activity?.SetTag(ReportOutcomeTag, "not_recorded");
-            activity?.SetTag(ReportFailureTag, exception.GetType().Name);
-        }
-    }
-
-    /// <summary>
-    /// Which conflict the analysis store raised, read back from the stored row
-    /// rather than assumed. A probe that itself fails claims neither: an
-    /// unverified conflict is its own outcome, because the point of the tag is
-    /// that no path stays silent and none overstates what it knows.
-    /// </summary>
-    private static async Task<string> ConflictOutcomeAsync(
-        IRetainedInstructionAnalysisStore store,
-        string operationKey,
-        Guid receiptId,
-        Guid assetId,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var stored = await store.FindByOperationKeyAsync(operationKey, cancellationToken);
-            return stored is not null
-                && stored.ReceiptId == receiptId
-                && stored.IntakeAssetId == assetId
-                    ? "recorded_reading_stands"
-                    : "analysis_key_bound_elsewhere";
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            return "recorded_reading_unverified";
         }
     }
 
@@ -870,6 +769,7 @@ public sealed class ProcessIntake(
         IntakeSourceReadResult readResult,
         IntakeSourceIdentity sourceIdentity,
         DateTimeOffset receivedAtUtc,
+        MailClassificationResult? retainedClassification,
         CancellationToken cancellationToken)
     {
         var sourceChannel = sourceIdentity.Channel;
@@ -1003,7 +903,7 @@ public sealed class ProcessIntake(
             : principalContext?.PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
                 ? readResult
                 : readResult with { Content = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult).ToArray() };
-        var mailClassificationDecision = EvaluateMailClassification(
+        var mailClassificationDecision = retainedClassification ?? EvaluateMailClassification(
             readResult,
             conflictingProfile ? null : principalContext?.PrincipalCode,
             instructionSelection.InstructionContent);
@@ -1237,35 +1137,8 @@ public sealed class ProcessIntake(
     /// the detail and by the recorded classification decision itself.
     /// </remarks>
     private static IntakeEvidence? AcceptedTriageMatchEvidence(
-        MailClassificationResult? classification)
-    {
-        // A reply is correspondence about a Triage, not a new assessment
-        // request — FRD-03 begins a Triage from a *Principal request*. The
-        // subject tell is anchored past RE/FW on purpose and the body tell
-        // matches quoted text, so every reply in a Triage thread classifies
-        // as one; and Triage identity is per message, never per claim or
-        // registration, so honouring a reply here would open a second Open
-        // Triage on the same vehicle for ordinary thread traffic. The reply
-        // still leaves case allocation alone and reaches Unidentified, which
-        // is a queue somebody works — today it reaches none.
-        if (classification is not { IsTriageRequest: true }
-            || classification.Category?.IsReplyContext == true)
-        {
-            return null;
-        }
-
-        var matched = string.Join(
-            ", ",
-            classification.Predicates.Where(predicate => predicate.Matched).Select(predicate => predicate.Key));
-        return new(
-            IntakeEvidenceSource.SystemDefault,
-            IntakeEvidenceStrength.Strong,
-            IntakeEvidenceFinding.AcceptedTriageMatch,
-            MailCategory.TriageRequestSubtype,
-            $"The accepted route classification recorded this message as a Triage request (predicates: {matched}).",
-            classification.PolicyKey,
-            classification.PolicyVersion);
-    }
+        MailClassificationResult? classification) =>
+        MailTriageMatch.Evidence(classification);
 
     /// <summary>
     /// Classification belongs to the established Principal — the accepted

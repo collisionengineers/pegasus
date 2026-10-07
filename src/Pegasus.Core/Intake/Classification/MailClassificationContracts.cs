@@ -47,11 +47,11 @@ public static class MailTaxonomy
                 ["audit", "diminution", "inspection", "new-client", "website-enquiry"],
             [ReceivedMailFamily.NonClientRelated] = [],
             [ReceivedMailFamily.InProgressCases] =
-                ["cancellation", "case-update", "client-chasing-for-update", "principal-chasing-for-update", "ongoing-correspondence"],
+                [MailCategory.CancellationSubtype, "case-update", "chasing-for-update", "ongoing-correspondence"],
             [ReceivedMailFamily.PostReportEmails] =
                 ["query", "dispute", "amendment-request"],
             [ReceivedMailFamily.PreInstructionEmails] =
-                [MailCategory.TriageRequestSubtype, "pre-formal-instruction-request", "images-received"],
+                [MailCategory.TriageRequestSubtype, "pre-formal-instruction-request", MailCategory.ImagesReceivedSubtype],
             [ReceivedMailFamily.InternalCc] = []
         }.ToImmutableDictionary();
 
@@ -110,6 +110,8 @@ public sealed record MailCategory
     /// processing, which must not send it to case allocation.
     /// </summary>
     public const string TriageRequestSubtype = "triage-request";
+    public const string CancellationSubtype = "cancellation";
+    public const string ImagesReceivedSubtype = "images-received";
 
     private MailCategory(
         MailDirection direction,
@@ -143,6 +145,24 @@ public sealed record MailCategory
         Direction == MailDirection.Received
         && ReceivedFamily == ReceivedMailFamily.PreInstructionEmails
         && string.Equals(Subtype, TriageRequestSubtype, StringComparison.Ordinal);
+
+    public bool IsNewInstruction =>
+        Direction == MailDirection.Received
+        && ReceivedFamily == ReceivedMailFamily.NewInstructionReceived;
+
+    public bool IsPostReport =>
+        Direction == MailDirection.Received
+        && ReceivedFamily == ReceivedMailFamily.PostReportEmails;
+
+    public bool IsCancellation =>
+        Direction == MailDirection.Received
+        && ReceivedFamily == ReceivedMailFamily.InProgressCases
+        && string.Equals(Subtype, CancellationSubtype, StringComparison.Ordinal);
+
+    public bool IsImagesReceived =>
+        Direction == MailDirection.Received
+        && ReceivedFamily == ReceivedMailFamily.PreInstructionEmails
+        && string.Equals(Subtype, ImagesReceivedSubtype, StringComparison.Ordinal);
 
     public string Name =>
         OtherName

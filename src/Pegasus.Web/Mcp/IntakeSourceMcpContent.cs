@@ -1,9 +1,16 @@
 using ModelContextProtocol;
+using ModelContextProtocol.Protocol;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Web.Mcp;
 
+/// <summary>
+/// The structured half of a retained-source download: identity, size, hash,
+/// whether the content came back as native content blocks, and where the
+/// original bytes are. Content never travels in this record.
+/// </summary>
 internal sealed record IntakeSourceToolResult(
     Guid ReceiptId,
     string FileName,
@@ -11,18 +18,25 @@ internal sealed record IntakeSourceToolResult(
     long ContentLength,
     string Sha256,
     bool ContentIncluded,
-    string? ContentBase64,
+    string ContentUrl,
     string? Notice,
     string CorrelationId);
 
+/// <summary>
+/// The one download of a retained intake source for the Unidentified and
+/// Triage tools: authorised metadata first, then the bytes only when they can
+/// be delivered inline, verified against that metadata before anything is
+/// handed back (<see cref="AutomationFileContent"/>).
+/// </summary>
 internal static class IntakeSourceMcpContent
 {
-    private const int DefaultInlineContentBytes = 64 * 1024;
-    private const int MaximumInlineContentBytes = 10 * 1024 * 1024;
+    public static string ContentUrl(Guid receiptId) => $"/automation/intake-sources/{receiptId:D}";
 
-    public static async Task<IntakeSourceToolResult> DownloadAsync(
+    public static async Task<CallToolResult> DownloadAsync(
         IGetIntakeSourceMetadata getSourceMetadata,
         IDownloadIntakeSource downloadSource,
+        IRenderImageForDelivery images,
+        IExtractPdfPageText pdfText,
         Guid receiptId,
         ActionActor actor,
         int maxInlineBytes,
@@ -30,47 +44,56 @@ internal static class IntakeSourceMcpContent
         CancellationToken cancellationToken)
     {
         AutomationMcpErrors.RequireId(receiptId, "receipt identifier");
-        var inlineLimit = maxInlineBytes == 0 ? DefaultInlineContentBytes : maxInlineBytes;
-        if (inlineLimit is < 1 or > MaximumInlineContentBytes)
-        {
-            throw new McpException(
-                $"maxInlineBytes must be between 1 and {MaximumInlineContentBytes}.");
-        }
+        var inlineLimit = AutomationFileContent.NormalizeInlineLimit(maxInlineBytes);
 
         var metadata = await getSourceMetadata.ExecuteAsync(
             new(receiptId, actor),
             cancellationToken)
             ?? throw new McpException("The retained intake source was not found.");
-        var included = metadata.ContentLength <= inlineLimit;
-        if (!included)
+        var contentUrl = ContentUrl(receiptId);
+        AutomationFileDelivery delivery;
+        if (!AutomationFileContent.CanDeliverInline(metadata.MediaType, metadata.ContentLength, inlineLimit))
         {
-            return new(
+            delivery = AutomationFileContent.Withheld(
+                metadata.FileName,
+                metadata.MediaType,
+                metadata.ContentLength,
+                metadata.Sha256,
+                $"The content ({metadata.ContentLength} bytes, {metadata.MediaType}) exceeds the inline limit of {inlineLimit} bytes or is not an image, PDF or text file; fetch contentUrl with this bearer token.",
+                contentUrl);
+        }
+        else
+        {
+            var download = await downloadSource.ExecuteAsync(
+                new(receiptId, actor),
+                cancellationToken)
+                ?? throw new McpException("The retained intake source was not found.");
+            EnsureMatchesMetadata(receiptId, metadata, download);
+            delivery = await AutomationFileContent.DeliverAsync(
+                images,
+                pdfText,
+                download.FileName,
+                download.ContentType,
+                download.ContentLength,
+                download.Sha256,
+                download.Content,
+                inlineLimit,
+                contentUrl,
+                cancellationToken);
+        }
+
+        return AutomationFileContent.ToResult(
+            delivery,
+            new IntakeSourceToolResult(
                 receiptId,
                 metadata.FileName,
                 metadata.MediaType,
                 metadata.ContentLength,
                 metadata.Sha256,
-                false,
-                null,
-                $"The content ({metadata.ContentLength} bytes) exceeds the inline limit of {inlineLimit} bytes; retry with a larger maxInlineBytes when the client can accept it.",
-                correlationId);
-        }
-
-        var download = await downloadSource.ExecuteAsync(
-            new(receiptId, actor),
-            cancellationToken)
-            ?? throw new McpException("The retained intake source was not found.");
-        EnsureMatchesMetadata(receiptId, metadata, download);
-        return new(
-            receiptId,
-            download.FileName,
-            download.ContentType,
-            download.ContentLength,
-            download.Sha256,
-            included,
-            Convert.ToBase64String(download.Content.Span),
-            null,
-            correlationId);
+                delivery.ContentIncluded,
+                contentUrl,
+                delivery.Notice,
+                correlationId));
     }
 
     private static void EnsureMatchesMetadata(

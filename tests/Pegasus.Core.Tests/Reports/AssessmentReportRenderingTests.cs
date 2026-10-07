@@ -63,44 +63,6 @@ public sealed class AssessmentReportRenderingTests
         Assert.Equal($"{kind}.pdf", result.SuggestedFileName);
     }
 
-    /// <summary>
-    /// R34B: the fee note is packaged with the report only when the frozen
-    /// snapshot says so. The choice is off unless it is made, it travels to
-    /// the renderer with the report, and it never turns one requested kind
-    /// into two renders or two documents.
-    /// </summary>
-    [Fact]
-    public async Task TheFeeNotePackagingChoiceTravelsWithTheReportAndIsOffUnlessMade()
-    {
-        var report = Snapshot(AssessmentReportOutcome.Repairable);
-        Assert.False(report.IncludeFeeNote);
-
-        var renderer = new FakeRenderer();
-        var combined = await new GenerateAssessmentReportDraft(renderer)
-            .ExecuteAsync(report with { IncludeFeeNote = true }, CaseReportArtifactKind.AssessmentReport);
-
-        Assert.True(renderer.Received!.IncludeFeeNote);
-        Assert.Equal([CaseReportArtifactKind.AssessmentReport], renderer.ReceivedKinds);
-        Assert.Equal($"{CaseReportArtifactKind.AssessmentReport}.pdf", combined.SuggestedFileName);
-    }
-
-    /// <summary>
-    /// The separate fee-note document is still exactly itself: asking for it
-    /// renders the fee note kind, whatever the report's packaging choice was.
-    /// </summary>
-    [Fact]
-    public async Task TheSeparateFeeNoteIsUnchangedByTheReportsPackagingChoice()
-    {
-        var renderer = new FakeRenderer();
-        var combined = Snapshot(AssessmentReportOutcome.Repairable) with { IncludeFeeNote = true };
-
-        var result = await new GenerateAssessmentReportDraft(renderer)
-            .ExecuteAsync(combined, CaseReportArtifactKind.FeeNote);
-
-        Assert.Equal([CaseReportArtifactKind.FeeNote], renderer.ReceivedKinds);
-        Assert.Equal($"{CaseReportArtifactKind.FeeNote}.pdf", result.SuggestedFileName);
-    }
-
     [Fact]
     public async Task IncompleteSnapshotFailsBeforeAdapter()
     {
@@ -331,7 +293,7 @@ public sealed class AssessmentReportRenderingTests
     }
 
     [Fact]
-    public void ImagesArePrintedCloseUpFirstOverviewSecondThenSupportingByOrder()
+    public void ImagesArePrintedOverviewFirstCloseUpSecondThenSupportingByOrder()
     {
         var photo = Snapshot(AssessmentReportOutcome.Repairable).Photos.Single();
         var snapshot = Snapshot(AssessmentReportOutcome.Repairable) with
@@ -346,7 +308,7 @@ public sealed class AssessmentReportRenderingTests
         };
 
         Assert.Equal(
-            ["close-up", "overview", "supporting-1", "supporting-2"],
+            ["overview", "close-up", "supporting-1", "supporting-2"],
             snapshot.OrderedPhotos.Select(item => item.CustodyReference));
     }
 

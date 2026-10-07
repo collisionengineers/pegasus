@@ -10,7 +10,7 @@
    page comes back with the chips redrawn. The disclosure is the browser's;
    data-menu gives it the frame's outside-click and Escape closing. *@
 <details class="tag-picker" data-tag-picker data-menu>
-    <summary class="btn btn--small">@TagLabels.Tag</summary>
+    <summary class="icon-button" title="@TagLabels.Tag"><svg class="icon" aria-hidden="true"><use href="#icon-tag" /></svg><span class="sr-only">@TagLabels.Tag</span></summary>
     <div class="tag-picker-body">
         @foreach (var tag in view.Vocabulary)
         {
@@ -26,7 +26,8 @@
                 <input type="hidden" name="expectedVersion" value="@view.CaseVersion" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@view.EditLeaseToken" />
-                <button type="submit"
+                <input type="hidden" name="view" value="@view.View" />
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Tagging"
                         class="tag-option"
                         aria-pressed="@(applied ? "true" : "false")">
                     <span class="tag-swatch tag-swatch--@TagLabels.ColourToken(tag.Colour)" aria-hidden="true"></span>
@@ -47,6 +48,7 @@
             <input type="hidden" name="id" value="@view.CaseId" />
             <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
             <input type="hidden" name="editLeaseToken" value="@view.EditLeaseToken" />
+            <input type="hidden" name="view" value="@view.View" />
             <label class="sr-only" for="tag-name-@slug">@TagLabels.Name</label>
             <input id="tag-name-@slug"
                    name="name"
@@ -59,7 +61,7 @@
                     <option value="@colour">@TagLabels.ColourLabel(colour)</option>
                 }
             </select>
-            <button type="submit" class="btn btn--small">@TagLabels.Create</button>
+            <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--small">@TagLabels.Create</button>
         </form>
     </div>
 </details>

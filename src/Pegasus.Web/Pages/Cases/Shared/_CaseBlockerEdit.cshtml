@@ -18,6 +18,7 @@
     <input type="hidden" name="expectedVersion" value="@owner.CurrentWorkflow!.Version" />
     <input type="hidden" name="operationKey" value="@owner.ClaimLeaseOperationKey" />
     <input type="hidden" name="section" value="estimate" />
+    <input type="hidden" name="view" value="@owner.ViewRoute" />
     <input type="hidden" name="estimate" value="@owner.CurrentSpecification!.SpecificationId" />
-    <button type="submit" class="btn btn--small" data-section-edit="estimate" data-edit-focus="@Model.Focus">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == "estimate").Label</button>
+    <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--small" data-section-edit="estimate" data-edit-focus="@Model.Focus">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == "estimate").Label</button>
 </form>

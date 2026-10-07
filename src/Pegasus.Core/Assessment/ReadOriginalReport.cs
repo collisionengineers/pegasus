@@ -71,6 +71,7 @@ public sealed class ReadOriginalReport(
     IIntakeArtifactStore artifacts,
     IGetCaseDocumentMetadata metadata,
     IReadLogicalDocumentVersion documents,
+    IIntakeOcrOperationStore ocrOperations,
     TimeProvider timeProvider) : IReadOriginalReport
 {
     /// <summary>A report beyond this size is not read; the estimate import's cap.</summary>
@@ -177,7 +178,9 @@ public sealed class ReadOriginalReport(
 
         return extracted switch
         {
-            { Status: StatusHashMismatch } =>
+            // Bytes that could not be matched, or a scan whose text has not
+            // arrived yet, may still be the report: nothing is decided on them.
+            { Status: StatusHashMismatch or StatusAwaitingOcr } =>
                 Recognition(OriginalReportRecognitionOutcome.Unavailable, null, extracted.Status),
             { Candidate: null } =>
                 Recognition(OriginalReportRecognitionOutcome.NotRecognised, null, extracted.Status),
@@ -205,6 +208,7 @@ public sealed class ReadOriginalReport(
     }
 
     private const string StatusHashMismatch = "hash_mismatch";
+    private const string StatusAwaitingOcr = "awaiting_ocr";
     private const string StatusNotReadable = "not_readable";
     private const string StatusNoSignature = "no_signature";
     private const string StatusRead = "read";
@@ -238,6 +242,21 @@ public sealed class ReadOriginalReport(
         if (read.Status != IntakeSourceReadStatus.Readable)
         {
             return new(null, StatusNotReadable);
+        }
+
+        if (read.ScannedPdfPages.Count > 0)
+        {
+            // A scanned page has no text of its own. Intake OCR'd these very
+            // bytes, so the completed reading is found by their hash and merged
+            // in. Until it exists the report cannot be read, which is a different
+            // fact from "this is not a report".
+            var ocr = await ocrOperations.FindCompletedBySourceAsync(sha256, cancellationToken);
+            if (ocr?.Result is not { } ocrResult)
+            {
+                return new(null, StatusAwaitingOcr);
+            }
+
+            read = IntakeOcrText.Merge(read, read.ScannedPdfPages[0].SourceLabel, sha256, ocr.QualifiedPages, ocrResult);
         }
 
         var extraction = ThirdPartyReportExtraction.Extract(

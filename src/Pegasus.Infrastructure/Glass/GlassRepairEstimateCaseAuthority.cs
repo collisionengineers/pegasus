@@ -34,6 +34,23 @@ public interface IGlassRepairEstimateCaseAuthority
         long expectedCaseVersion,
         string editLeaseToken,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Glass's estimate a repair spec belongs to: a live spec of the
+    /// Case's current work that a Glass's return recorded its vehicle on. Any
+    /// other spec, or one of another Case, answers null and starts a new
+    /// estimate.
+    /// </summary>
+    Task<GlassEstimateLink?> FindEstimateAsync(
+        Guid caseId, Guid specificationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The live spec of the Case's current work that belongs to the estimate
+    /// on this stock vehicle, which a return for that vehicle updates; null
+    /// when none does and the return makes one.
+    /// </summary>
+    Task<Guid?> FindSpecificationAsync(
+        Guid caseId, string vehicleId, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -71,6 +88,50 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
         return new(RequireRegistration(fields), RequireMileageMiles(fields));
     }
 
+    public async Task<GlassEstimateLink?> FindEstimateAsync(
+        Guid caseId, Guid specificationId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        var specification = await LiveSpecifications(context, workId)
+            .SingleOrDefaultAsync(item => item.Id == specificationId, cancellationToken);
+        return specification is
+        {
+            GlassVehicleId: { } vehicleId,
+            GlassEstimateId: { } estimateId,
+            GlassNatCode: { } natCode,
+            GlassPlaceholder: { } placeholder,
+            GlassRegistration: { } registration,
+            GlassMileageMiles: { } mileageMiles,
+        }
+            ? new GlassEstimateLink(vehicleId, estimateId, natCode, placeholder, registration, mileageMiles)
+            : null;
+    }
+
+    public async Task<Guid?> FindSpecificationAsync(
+        Guid caseId, string vehicleId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(vehicleId);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        // One live spec of a work stands on a vehicle: a copy drops it, and a
+        // return for the vehicle updates the spec that holds it.
+        return await LiveSpecifications(context, workId)
+            .Where(item => item.GlassVehicleId == vehicleId)
+            .OrderByDescending(item => item.IsCurrent)
+            .ThenByDescending(item => item.Version)
+            .Select(item => (Guid?)item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static IQueryable<CaseRepairSpecificationEntity> LiveSpecifications(
+        PegasusDbContext context, Guid workId)
+    {
+        const string draft = nameof(RepairSpecificationState.Draft);
+        return context.CaseRepairSpecifications.AsNoTracking()
+            .Where(item => item.WorkId == workId && item.State == draft);
+    }
+
     private static string RequireRegistration(IReadOnlyList<CaseDataFieldEntity> fields) =>
         CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleRegistration) is { Length: > 0 } registration
             ? registration
@@ -94,15 +155,9 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
         }
 
         var statedUnit = CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleMileageUnit);
-        var unit = CaseOdometerUnit.Miles;
-        if (statedUnit is { Length: > 0 } && !CaseOdometer.TryParseUnit(statedUnit, out unit))
-        {
-            throw new GlassRepairEstimateRefusalException(
+        return CaseOdometer.TryWholeMiles(mileage, statedUnit, out var miles)
+            ? miles
+            : throw new GlassRepairEstimateRefusalException(
                 "The case records an unrecognized mileage unit, so no Glass's estimate can be started for it.");
-        }
-
-        return (long)Math.Round(
-            CaseOdometer.Display(mileage, unit, CaseOdometerUnit.Miles),
-            MidpointRounding.AwayFromZero);
     }
 }

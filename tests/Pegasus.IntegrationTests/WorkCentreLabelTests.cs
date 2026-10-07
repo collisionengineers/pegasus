@@ -64,7 +64,7 @@ public sealed class WorkCentreLabelTests
         detail,
         "custody_failed",
         NeedsAttentionPriority.Today,
-        Owner: null,
+        Owner: NeedsAttentionPolicy.NoPersonOwner,
         Due: null,
         LastOutcome: null,
         Source: null,

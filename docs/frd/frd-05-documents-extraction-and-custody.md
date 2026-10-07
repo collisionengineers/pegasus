@@ -8,8 +8,11 @@
   and keeps MP4 and MOV video without reading it.
 - Original bytes are saved before anything is extracted from them. Macros and
   active content are never run.
-- Scanned pages go to Azure Document Intelligence OCR. Corrupt, encrypted or
-  readable pages never do.
+- A page that is one big raster with almost no text is a scanned document
+  page when the raster is mostly paper-white, otherwise a photograph that
+  fills the page. Scanned document pages go to Azure Document Intelligence
+  OCR and keep no image. Photographs, corrupt or encrypted files and readable
+  pages never go to OCR.
 - Box is where a Case's files live for good. Staging areas and caches are
   temporary and never prove custody.
 - A gallery never hides an image whose custody is still in progress; it shows
@@ -52,37 +55,55 @@ Pegasus must:
 - never run macros, active content, external relationships or embedded
   instructions;
 - tell scan-like material apart from corrupt, blank, unsupported or encrypted
-  material;
+  material, and a scanned document page from a photograph that fills the
+  page;
 - keep accepted MP4 and MOV evidence without sending it to OCR or image
   cropping, offer a safe preview only for a browser-supported encoding, and
   always offer download.
 
 #### Qualified OCR
 
-Scan-like pages from incoming instructions go to the approved Azure Document
-Intelligence `prebuilt-layout` boundary
-([ADR-0047](../adr/0047-scanned-instruction-ocr-only.md)). Corrupt, encrypted
-and non-renderable inputs are never sent to OCR. Pages with readable embedded
+A page with fewer than 80 embedded characters and one raster covering at
+least 80% of it is a full-page raster. Its colour says what it is
+([ADR-0061](../adr/0061-ocr-every-scanned-document-page.md)): mostly
+paper-white is a scanned document page; anything else is a photograph that
+fills the page. A scanned document page keeps no image and goes to the
+approved Azure Document Intelligence `prebuilt-layout` boundary. A
+photograph page is an ordinary image page and is not sent. The verdict and
+the measured share are recorded on the receipt. Corrupt, encrypted and
+non-renderable inputs are never sent to OCR. Pages with readable embedded
 text stay on the ordinary PDF path and are neither sent nor replaced.
 Estimate imports use their deterministic parsers only. A scan-like,
 ambiguous or unsupported estimate is refused; there is no OCR fallback.
 
+Every scanned document page on a mailbox, manual-upload or Principal API
+receipt is OCR'd, one operation per retained PDF, whether or not the
+Principal was already known from the message. Automation sources are not.
 Each OCR operation is tied to exactly one authorised intake asset, its
 content hash, its length and the selected page numbers. Pegasus keeps the
 provider operation, the pinned API and model, the response hash, page
-coordinates and confidence. Instruction validation still runs afterwards.
-Low confidence or missing structure never silently becomes an accepted
-field. A submission with no provider identity stays visible and is not
-blindly repeated.
+coordinates and confidence. A blank page is a page, not a failure.
 
-An instruction with scan-like pages from more than one retained source needs
-staff review. Pegasus does not combine OCR output from separate sources.
+The OCR text is read two ways. The third-party report reader always reads
+it, document by document, and records what the report says beside the
+retained file; this is how a scanned engineer report fills an Audit
+([FRD-16](frd-16-case-record-workspace.md#original-report)). The
+instruction reader reads it only when the receipt still needs a Principal.
+Instruction validation still runs afterwards. Low confidence or missing
+structure never silently becomes an accepted field. A submission with no
+provider identity stays visible and is not blindly repeated.
 
-The provider operation identity and page output are kept before instruction
-analysis runs. The provider finishing is not the same as the work finishing.
-If analysis fails or the receipt version conflicts, Pegasus retries against
+An instruction with scanned pages from more than one retained source still
+needs staff review for the instruction decision: Pegasus does not combine
+OCR output from separate sources into one identification. Each document's
+report reading stands on its own.
+
+The provider operation identity and page output are kept before any
+reading runs. The provider finishing is not the same as the work finishing.
+If a reading fails or the receipt version conflicts, Pegasus retries against
 the kept output without resubmitting pages. Completion is acknowledged only
-after an analysed, no-profile or ambiguous outcome has been recorded. When
+after the report reading is recorded and, where it ran, an analysed,
+no-profile or ambiguous instruction outcome has been recorded. When
 bounded retries run out, the failure stays visible and the original output
 stays kept.
 
@@ -310,9 +331,10 @@ name ignoring case, with one of six fixed design tints. An occurrence may
 carry any number of tags.
 
 Tags carry meaning for the report (operator, 26 September 2026). A new
-image is in the report. The first image in the
-report tagged Close-up prints as the Close-up and the first other one tagged
-Overview as the Overview; the rest print as supporting images. Tagging an
+image is in the report. The first image in the report tagged Overview prints
+as the Overview, at place 1, and the first other one tagged Close-up as the
+Close-up, at place 2; the rest print as supporting images (operator,
+7 October 2026). Tagging an
 image Third party or Reflection takes it out of the report; staff may put it
 back in ([FRD-06](frd-06-vehicle-and-engineering-evidence.md)).
 

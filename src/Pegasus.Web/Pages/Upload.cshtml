@@ -96,7 +96,7 @@
                     @* A native reset empties the file input with no script at
                        all; upload.js also empties its own roster on reset. *@
                     <button type="reset" class="btn">@Labels.Clear</button>
-                    <button type="submit" class="btn btn--primary" data-select-submit>
+                    <button type="submit" class="btn btn--primary" data-select-submit data-busy-label="@OperatorLabels.Busy.Uploading">
                         <span data-select-submit-label>@Labels.UploadFiles(1)</span>
                         <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
                     </button>

@@ -14,7 +14,7 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public static class CaseWorkspaceLabels
 {
-    public const string HandToEngineer = "Hand to Engineer";
+    public const string AssignEngineer = "Assign Engineer";
 
     /// <summary>
     /// The v26 frame's own words: the ribbon controls, the Actions menu, the
@@ -23,7 +23,6 @@ public static class CaseWorkspaceLabels
     public static class Frame
     {
         public const string EditCase = "Edit Case";
-        public const string EditingExpired = "Editing expired · changes are not kept";
         public const string Edit = "Edit";
         /// <summary>
         /// Save as you go (operator, 29 September 2026): Done ends the session,
@@ -40,20 +39,15 @@ public static class CaseWorkspaceLabels
         public const string Tabs = "Tabs";
         public const string CollapseSection = "Collapse section";
         public const string ExpandSection = "Expand section";
-        public const string RenewEditing = "Renew editing";
         public const string TakeOver = "Take over";
         public const string Editing = "Editing";
         public const string Archived = "Archived";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
-        /// <summary>The Inspection view's section heads once the Case has its Audit (v29 P3).</summary>
-        public const string ReadOnlyAuditCreated = "Read-only · Audit created";
         /// <summary>The aside's Views card and its two rows, present once the Case has its Audit (v29 option 4).</summary>
         public const string Views = "Views";
         public const string InspectionView = "Inspection";
         public const string AuditView = "Audit";
         public const string Sent = "Sent";
-        /// <summary>The Audit view's sent Inspection report line links to its own view (v29 P4).</summary>
-        public const string InspectionViewLink = "Inspection view";
         /// <summary>The Create audit dialog's facts (v29 P5).</summary>
         public const string AuditDialogCase = "Case";
         public const string AuditReference = "Audit reference";
@@ -82,13 +76,15 @@ public static class CaseWorkspaceLabels
         public const string ReturnToReview = "Return to Review";
         public const string ReturnToEngineer = "Return to Engineer";
         public const string ArchiveCase = "Archive case";
-        public const string AssignToMe = "Assign to me";
         public const string OriginalCase = "Original case";
         public const string ReplacementCase = "Replacement case";
         public const string OutstandingRequirements = "Outstanding requirements";
         public const string UnlinkReportEvidence = "Unlink report evidence";
+        public const string SendChaser = "Send chaser";
         public const string ReviewEstimate = "Review estimate";
         public const string OpenQuery = "Open query";
+        /// <summary>The Next action row an open Case shows while a linked message is a cancellation (FRD-13).</summary>
+        public const string CancellationReceived = "Cancellation received";
         public const string Review = "Review";
         public const string CaseType = "Case type";
         public const string OurRef = "Our ref";
@@ -181,8 +177,7 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.ReportDiscloseGuideSource] = "Disclose guide source",
             [AssessmentVocabulary.ReportValuationCommentary] = "Valuation commentary",
             [AssessmentVocabulary.ReportValuationCommentaryText] = "Valuation commentary text",
-            [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "Include unrelated damage",
-            [AssessmentVocabulary.ReportDateOverride] = "Override report date"
+            [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "Include unrelated damage"
         };
 
         public static IReadOnlyDictionary<string, string> Damage { get; } = new Dictionary<string, string>
@@ -415,10 +410,25 @@ public static class CaseWorkspaceLabels
                     or CaseReportReadiness.RepairerVatRequirement
             } => "estimate",
             {
-                Requirement: CaseReportReadiness.CloseUpImageRequirement
-                    or CaseReportReadiness.OverviewImageRequirement
+                Requirement: CaseReportReadiness.OverviewImageRequirement
                     or CaseReportReadiness.ImageSourceRequirement
             } => "files",
+            _ => null
+        };
+
+        /// <summary>
+        /// The tab inside <see cref="BlockerSection"/> that clears the blocker
+        /// (operator, 1 October 2026): Images for an image the report needs,
+        /// Fee for the agreed fee and its description lines; null when the
+        /// section's first tab does.
+        /// </summary>
+        public static string? BlockerTab(AssessmentReadinessItem item) => item switch
+        {
+            { Field: AssessmentVocabulary.AgreedFee or AssessmentVocabulary.FeeDescriptionLines } => "fee",
+            {
+                Requirement: CaseReportReadiness.OverviewImageRequirement
+                    or CaseReportReadiness.ImageSourceRequirement
+            } => "images",
             _ => null
         };
 
@@ -432,6 +442,58 @@ public static class CaseWorkspaceLabels
             item == CaseReportReadiness.RepairerVatStatusUnknown ? "#estimate-vat-status"
             : item == CaseReportReadiness.RepairerVatHandPicked ? "[data-vat-reset]"
             : null;
+
+        /// <summary>
+        /// The report blockers in the order the Case page shows what clears
+        /// them (operator, 2 October 2026), so working down the list moves
+        /// down the page: by <see cref="BlockerSection"/> in section order,
+        /// then by <see cref="PageFieldOrder"/> within it. A blocker naming no
+        /// field follows its section's fields; one no section clears comes
+        /// last. Ties keep Core's order.
+        /// </summary>
+        public static IReadOnlyList<AssessmentReadinessItem> InPageOrder(IReadOnlyList<AssessmentReadinessItem> items) =>
+        [
+            // A rank is the count of entries before a match, so no match
+            // (no section, no field) ranks after every entry.
+            .. items
+                .OrderBy(item => OperatorLabels.CaseWorkspace.Sections
+                    .TakeWhile(section => section.Key != BlockerSection(item)).Count())
+                .ThenBy(item => PageFieldOrder.TakeWhile(field => field != item.Field).Count())
+        ];
+
+        /// <summary>
+        /// Every field a report blocker names, in the order the Case
+        /// sections draw the control that records it. Only the order within
+        /// one section is read.
+        /// </summary>
+        internal static readonly IReadOnlyList<string> PageFieldOrder =
+        [
+            CaseDataFieldNames.ClaimNumber,
+            CaseDataFieldNames.IncidentDate,
+            CaseDataFieldNames.ClaimantName,
+            CaseDataFieldNames.InspectionDate,
+            CaseDataFieldNames.InspectionMode,
+            CaseDataFieldNames.InspectionAddress,
+            CaseDataFieldNames.VehicleRegistration,
+            AssessmentVocabulary.VehicleType,
+            AssessmentVocabulary.VehicleCondition,
+            AssessmentVocabulary.HistoryCheck,
+            AssessmentVocabulary.ImpactLocation,
+            AssessmentVocabulary.ImpactSeverity,
+            AssessmentVocabulary.DamageUnrelated,
+            AssessmentVocabulary.ValueRetail,
+            AssessmentVocabulary.ValueTrade,
+            AssessmentVocabulary.ValueEngineer,
+            AssessmentVocabulary.Outcome,
+            AssessmentVocabulary.SalvageCategory,
+            AssessmentVocabulary.SalvageValue,
+            AssessmentVocabulary.LegalStatus,
+            AssessmentVocabulary.UnroadworthyReason,
+            AssessmentVocabulary.SettlementContractSum,
+            AssessmentVocabulary.ReportDate,
+            AssessmentVocabulary.ReportValuationCommentaryText,
+            AssessmentVocabulary.AgreedFee
+        ];
     }
 
     /// <summary>
@@ -703,6 +765,14 @@ public static class CaseWorkspaceLabels
             SourceLabel(source) + " valuation is unavailable. Contact an administrator or ";
         public const string ReportAProblem = "report a problem";
         public static string Unavailable(ValuationSource source) => UnavailableLead(source) + ReportAProblem + ".";
+
+        /// <summary>
+        /// Get valuation when Glass's answers that it does not value a vehicle
+        /// of this age (operator-approved wording, 2 October 2026), shown as
+        /// information with no Report a problem: nothing is broken.
+        /// </summary>
+        public const string VehicleAgeNotValued =
+            "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.";
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.
@@ -722,16 +792,25 @@ public static class CaseWorkspaceLabels
         public const string ClaimantVatRegistered = "Claimant is VAT registered";
         public const string ValueIncreases = "Value increases";
         public const string OtherAddition = "Other…";
-        public const string AppliedEngineersValue = "Applied Engineer's Value";
         public const string NoneYet = "None yet";
-        public const string AppliedBy = "Applied by";
-        public const string Adjustments = "Adjustments";
-        public const string NoAdjustments = "None";
         public const string Applied = "Applied";
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
-        public const string GuideRetail = "Guide retail";
-        public const string ProposedEngineersValue = "Proposed Engineer's Value";
+
+        /// <summary>
+        /// What an adjustment comes to, shown in its own cell's label line
+        /// (operator, 6 October 2026): the commercial VAT added and the
+        /// previous total loss taken off, each empty where it does not apply.
+        /// </summary>
+        public static string VatAmount(ValuationCalculation calculation) =>
+            calculation.CommercialVatApplied
+                ? "+ " + ValuationCalculationPolicy.FormatMoney(calculation.CommercialVatAmount)
+                : string.Empty;
+
+        public static string PriorTotalLossAmount(ValuationCalculation calculation) =>
+            calculation.PriorTotalLossPercentage is null
+                ? string.Empty
+                : "− " + ValuationCalculationPolicy.FormatMoney(calculation.PriorTotalLossAmount);
 
         // Use this value (operator, 28 September 2026): the visible action that
         // says "use this card's figure". The Save records it on the one Case Save.
@@ -739,7 +818,7 @@ public static class CaseWorkspaceLabels
         public const string UsingThisValue = "Using this value";
         public const string UseNeedsRetail = "Enter the retail value on this card to use it.";
 
-        // The calculation lines say why they cannot show a figure, never "None yet".
+        // The calculation says why it cannot be worked out, never "None yet".
         public const string PreviewFailed = "The calculation could not be updated. Change a figure to try again.";
         public const string PresetChanged = "A value increase changed since the page opened. Refresh the page.";
         public const string BasisGone = "The chosen card is no longer on the Case. Refresh the page.";
@@ -863,7 +942,7 @@ public static class CaseWorkspaceLabels
     /// The report-image preparation surface (B06): where each image sits in
     /// the generated report. Named "Report position" rather than "Report
     /// images" because an image's own classification is now its tags; this
-    /// vocabulary is composition — one Close-up, one Overview, ordered
+    /// vocabulary is composition — one Overview, one Close-up, ordered
     /// Supporting.
     /// </summary>
     /// <summary>
@@ -921,17 +1000,13 @@ public static class CaseWorkspaceLabels
     public static class ReportDelivery
     {
         public const string GenerateReport = "Generate report";
-        public const string GenerateFeeNote = "Generate fee note";
         public const string ReportGenerated = "The report was generated.";
-        public const string FeeNoteGenerated = "The fee note was generated.";
         public const string ReportNotGenerated = "The report could not be generated.";
         public const string FeeNoteNotGenerated = "The fee note could not be generated.";
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
-        public const string IncludeFeeNote = "Include fee note";
         public const string OpenReport = "Open report";
-        public const string OpenReportWithFeeNote = "Open report with fee note";
         public const string OpenFeeNote = "Open fee note";
         public const string DownloadFeeNote = "Fee note";
         public const string GenerationStaleNotice =
@@ -974,9 +1049,7 @@ public static class CaseWorkspaceLabels
         public static string MessageRefused =>
             $"Enter the message, at most {Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength} characters.";
 
-        public const string PrepareDelivery = "Prepare delivery";
-        public const string DeliveryPrepared = "Delivery prepared";
-        public const string SendPreparedReport = "Send prepared report";
+        public const string SendReport = "Send report";
         public const string SendObservedSent = "The report send was observed as sent.";
         public const string SendAccepted = "The report send was accepted.";
         public const string SendInProgress = "The report send is in progress.";
@@ -1019,7 +1092,6 @@ public static class CaseWorkspaceLabels
     public static class GlassSession
     {
         public const string Launch = "Glass's";
-        public const string Resume = "Resume";
         public const string Close = "Close session";
         public const string CloseReason = "Reason";
         public const string ExternalClosedConfirmation = "Glass's is closed and no estimate remains open";

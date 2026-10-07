@@ -38,7 +38,12 @@
                     {
                         <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-view="@DetailsModel.InspectionViewKey">@inspectionName</a>
                     }
-                    <span class="status status--plain status--green">@Frame.Sent</span>
+                    @if (Model.Works?.Primary.ReportSentEvidence is not null)
+                    {
+                        @* No chip when the Audit was created before the Inspection
+                           report was sent (operator, 1 October 2026). *@
+                        <span class="status status--plain status--green">@Frame.Sent</span>
+                    }
                 </div>
                 <div class="next-row" data-case-view-row="audit">
                     @if (Model.IsInspectionView)
@@ -83,6 +88,17 @@
                     }
                 </div>
             }
+            @* FRD-13 "Cancellation messages": while a linked message is currently
+               classified a cancellation and the Case is open, the Next action
+               names it and opens the message. Hold and Principal cancelled stay
+               in the Actions menu; nothing changes by itself. *@
+            @if (Model.Case!.CancellationMessageId is { } cancellationMessageId)
+            {
+                <div class="next-row" data-cancellation-received="@cancellationMessageId">
+                    <span>@Frame.CancellationReceived</span>
+                    <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@cancellationMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a>
+                </div>
+            }
             @if (staleGeneration)
             {
                 <div class="notice notice--warning" role="status" data-dismissable data-report-stale>
@@ -91,11 +107,37 @@
                     <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
                 </div>
             }
+            @* The step is the viewed work's and its link stays in that view
+               (operator, 2 October 2026). Create audit opens the Actions
+               menu's own dialog, greyed with its reason as the menu item is.
+               Assign Engineer opens the Actions menu's own dialog too (issue
+               1025); where the menu does not offer it, the step is its words
+               alone. *@
             @if (next is { } nextRow)
             {
                 <div class="next-row">
                     <span data-next-label>@nextRow.Label</span>
-                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@(Model.IsInspectionView ? null : nextRow.SectionKey)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == nextRow.SectionKey).Label</a>
+                    @if (nextRow.OpensAssignEngineer)
+                    {
+                        if (Model.CanAssignEngineer)
+                        {
+                            <button type="button" class="btn btn--small" data-dialog-open="case-handoff-dialog" data-next-assign-engineer>@CaseWorkspaceLabels.AssignEngineer</button>
+                        }
+                    }
+                    else if (!nextRow.OpensCreateAudit)
+                    {
+                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@nextRow.SectionKey">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == nextRow.SectionKey).Label</a>
+                    }
+                    else if (Model.CreateAuditCondition is { } createAuditCondition)
+                    {
+                        <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
+                            <button type="button" class="btn btn--small" disabled aria-disabled="true" data-next-create-audit>@Frame.CreateAudit</button>
+                        </span>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn--small" data-dialog-open="case-create-audit-dialog" data-next-create-audit>@Frame.CreateAudit</button>
+                    }
                 </div>
             }
             @if (reportBlockers.Count > 0)
@@ -130,8 +172,9 @@
                                 {
                                     <div class="blocker-actions">
                                         <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
-                                           asp-route-section="@blockerSection" asp-fragment="section-@blockerSection"
-                                           data-section-jump="@blockerSection">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == blockerSection).Label</a>
+                                           asp-route-section="@blockerSection" asp-route-view="@Model.ViewRoute" asp-fragment="section-@blockerSection"
+                                           data-section-jump="@blockerSection"
+                                           data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(reason)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == blockerSection).Label</a>
                                     </div>
                                 }
                                 else if (Model.BlockerOpensAccounts(reason))

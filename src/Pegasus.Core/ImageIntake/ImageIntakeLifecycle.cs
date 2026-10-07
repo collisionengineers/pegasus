@@ -173,6 +173,22 @@ public static class ImageIntakeLifecycleRules
                 == MailOperationalDestination.Unidentified;
     }
 
+    /// <summary>
+    /// The staff registration route: the automatic route, or image-only material a
+    /// member of staff has classified as images received (FRD-08) that no Case and
+    /// no Triage request holds. Automation never widens to it; staff offer and run it.
+    /// </summary>
+    public static bool IsImageRegistrationEligible(IntakeReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        return IsImageAutomationEligible(receipt)
+            || (IsImageOnlyMaterial(receipt)
+                && receipt.CurrentCaseId is null
+                && !ProcessIntake.IsTriageRequest(receipt)
+                && IsSupportedImageEvidenceSource(receipt.MediaType)
+                && receipt.MailClassificationDecision?.Category is { IsImagesReceived: true });
+    }
+
     private static bool IsSupportedImageEvidenceSource(string mediaType) =>
         InstructionEvidenceImages.IsImage(mediaType)
         || mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)

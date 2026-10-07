@@ -44,6 +44,10 @@
     var commitInFlight = false;
     var commitWaiters = [];
     var commitStatus = null;
+    // System work (custody, a lookup, a filing) moves the Case under the
+    // lease without ending it (operator, 6 October 2026); the page catches up
+    // with it once nothing is in flight.
+    var catchUpWanted = false;
     // One editor: the record's Save form. The Repair Spec and the valuation
     // calculator are controls of it.
     var editorLabels = {
@@ -130,7 +134,15 @@
             host.classList.toggle('is-active', ownerKey(key) === activeKey);
         });
     }
-    function selectTab(key) {
+    // A report blocker names the tab inside its section that clears it
+    // (operator, 1 October 2026): Files opens on Images, Report on Fee. The
+    // tab's own button is pressed, so the tab binders stay the one owner.
+    function openSubTab(host, tab) {
+        if (!host || !tab) { return; }
+        var button = host.querySelector('[data-file-tab="' + tab + '"], [data-report-tab="' + tab + '"]');
+        if (button && button.getAttribute('aria-selected') !== 'true') { button.click(); }
+    }
+    function selectTab(key, tab) {
         navigationVersion += 1;
         pendingAnchor = null;
         key = ownerKey(key);
@@ -142,9 +154,10 @@
         applyTabState();
         main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
             if (ownerKey(placeholder.getAttribute('data-lazy')) === activeKey) {
-                mount(placeholder, function () { applyTabState(); });
+                mount(placeholder, function (host) { applyTabState(); openSubTab(host, tab); });
             }
         });
+        openSubTab(sectionFor(key), tab);
         window.scrollTo({ top: 0, behavior: 'auto' });
     }
     function setLayout(value, persist) {
@@ -336,10 +349,10 @@
         }
         land(target);
     }
-    function jumpTo(key, focus) {
+    function jumpTo(key, focus, tab) {
         var navigation = ++navigationVersion;
         if (layout === 'tabs') {
-            selectTab(key);
+            selectTab(key, tab);
             return;
         }
         var target = sectionFor(key);
@@ -351,12 +364,14 @@
         if (target.hasAttribute('data-lazy')) {
             mount(target, function (host) {
                 if (navigation !== navigationVersion || layout !== 'scroll') { return; }
+                openSubTab(host, tab);
                 scrollSectionIntoView(host);
                 mountApproaching();
                 if (focus) { focusSection(host); }
             });
             return;
         }
+        openSubTab(target, tab);
         scrollSectionIntoView(target);
         mountApproaching();
         if (focus) { focusSection(target); }
@@ -422,13 +437,13 @@
         selectTab(all[nextIndex].getAttribute('data-section-link'));
     });
     document.addEventListener('click', function (event) {
-        // An empty jump (the Inspection view's Next action) is an ordinary link.
+        // An empty jump is an ordinary link.
         var jump = event.target.closest('[data-section-jump]:not([data-section-jump=""])');
         if (!jump || !record.contains(jump)) {
             return;
         }
         event.preventDefault();
-        jumpTo(jump.getAttribute('data-section-jump'), true);
+        jumpTo(jump.getAttribute('data-section-jump'), true, jump.getAttribute('data-section-tab'));
     });
     layoutButtons.forEach(function (button) {
         button.addEventListener('click', function () { setLayout(button.getAttribute('data-case-layout'), true); });
@@ -463,7 +478,7 @@
         new ResizeObserver(measure).observe(block);
     }
 
-    // ---- the edit session: save as you go, heartbeat, expiry ---------------
+    // ---- the edit session: save as you go, heartbeat, catching up ---------
     function caseForm() { return document.getElementById('case-edit-form'); }
     function editorFor(control) {
         var form = control.form || (control.closest ? control.closest('form') : null);
@@ -519,6 +534,7 @@
         if (submitting) { return; }
         if (commitPending) { commitPending = false; commitNow(); return; }
         if (commitTimer !== null) { return; }
+        if (catchUpWanted) { catchUp(); return; }
         var waiters = commitWaiters;
         commitWaiters = [];
         waiters.forEach(function (waiter) { waiter.run(); });
@@ -568,7 +584,7 @@
     }
     function paintCommitStatus() {
         var line = record.querySelector('[data-lease-line]');
-        if (!line || line.classList.contains('is-expiring')) { return; }
+        if (!line) { return; }
         line.classList.remove('is-refused');
         if (!commitStatus) { line.hidden = true; line.textContent = ''; return; }
         var words = commitStatus.kind === 'saving' ? line.getAttribute('data-lease-saving-text')
@@ -608,8 +624,6 @@
     function bindHeartbeat() {
         stopHeartbeat();
         var form = record.querySelector('[data-case-heartbeat]');
-        var renew = record.querySelector('[data-case-renew]');
-        var line = record.querySelector('[data-lease-line]');
         if (!form) {
             return;
         }
@@ -617,21 +631,9 @@
         if (!(seconds > 0)) {
             return;
         }
-        if (renew) {
-            renew.hidden = true;
-        }
         var generation = heartbeatGeneration;
-        function expired() {
-            stopHeartbeat();
-            if (line) {
-                line.textContent = line.getAttribute('data-lease-expired-text') || '';
-                line.classList.add('is-expiring');
-                line.hidden = false;
-            }
-            if (renew) {
-                renew.hidden = false;
-            }
-        }
+        // Editing never expires while the page is open: a beat keeps the
+        // lease, and picks up one that lapsed while nobody claimed it.
         function beat() {
             if (!heartbeat || generation !== heartbeatGeneration) {
                 return;
@@ -641,15 +643,30 @@
                 body: new FormData(form),
                 credentials: 'same-origin'
             }).then(function (response) {
-                if (generation !== heartbeatGeneration || response.status === 204) {
+                if (generation !== heartbeatGeneration) {
                     return;
                 }
-                // 409 and 403 are the server refusing the lease itself, and 404 is
-                // a Case that no longer exists (a stale tab after a wipe). Anything
-                // else - a faulted request, a replica restarting - says nothing
-                // about the lease, and the next beat settles it.
-                if (response.status === 409 || response.status === 403 || response.status === 404) {
-                    expired();
+                // The answer is the Case's version: system work that moved it
+                // is drawn as the page catches up.
+                if (response.ok) {
+                    return response.json().then(function (answer) {
+                        if (generation === heartbeatGeneration && answer
+                            && Number(answer.version) > Number(record.getAttribute('data-case-version'))) {
+                            requestCatchUp();
+                        }
+                    });
+                }
+                // 409 is the lease held by someone else now: the page draws
+                // the Case as it stands, keeping what the operator typed. 403
+                // and 404 (a Case that no longer exists, a stale tab after a
+                // wipe) end the beat. Anything else - a faulted request, a
+                // replica restarting - says nothing about the lease, and the
+                // next beat settles it.
+                if (response.status === 409) {
+                    stopHeartbeat();
+                    requestCatchUp();
+                } else if (response.status === 403 || response.status === 404) {
+                    stopHeartbeat();
                 }
             }).catch(function () {
                 // One failed beat is not a lost lease; the next beat settles it.
@@ -662,6 +679,102 @@
             }
         };
         document.addEventListener('visibilitychange', heartbeatOnVisible);
+    }
+
+    // A control holds a value not yet sent while it differs from its
+    // default: the value it was drawn with, or, for a Case control, the one
+    // its last landed commit sent. Script-filled hidden controls belong to a
+    // composite, which holds the queue until its commit lands.
+    function unsentControl(control) {
+        if (control.type === 'checkbox' || control.type === 'radio') { return control.checked !== control.defaultChecked; }
+        if (control.tagName === 'SELECT') {
+            return Array.prototype.some.call(control.options, function (option) { return option.selected !== option.defaultSelected; });
+        }
+        if (control.type === 'hidden' || control.type === 'file' || typeof control.defaultValue !== 'string') { return false; }
+        return control.value !== control.defaultValue;
+    }
+    function holdsUnsent(host) {
+        return Array.prototype.some.call(host.querySelectorAll('input, select, textarea'), unsentControl);
+    }
+    function sendingState(form) {
+        return Array.prototype.map.call(form.elements, function (control) {
+            return {
+                control: control,
+                value: control.value,
+                checked: control.checked,
+                selected: control.tagName === 'SELECT'
+                    ? Array.prototype.map.call(control.options, function (option) { return option.selected; })
+                    : null
+            };
+        });
+    }
+    // A landed commit makes what it sent each control's default; a control
+    // changed since it was sent keeps its difference, still to be sent.
+    function markSent(sent) {
+        (sent || []).forEach(function (state) {
+            var control = state.control;
+            if (control.type === 'checkbox' || control.type === 'radio') {
+                if (control.checked === state.checked) { control.defaultChecked = state.checked; }
+            } else if (control.tagName === 'SELECT') {
+                var same = Array.prototype.every.call(control.options, function (option, index) {
+                    return option.selected === state.selected[index];
+                });
+                if (same) {
+                    Array.prototype.forEach.call(control.options, function (option) { option.defaultSelected = option.selected; });
+                }
+            } else if (control.type !== 'hidden' && control.type !== 'file' && typeof control.defaultValue === 'string'
+                && control.value === state.value) {
+                control.defaultValue = state.value;
+            }
+        });
+    }
+    function requestCatchUp() {
+        catchUpWanted = true;
+        if (!queueBusy()) { settleQueue(); }
+    }
+    // The control the operator is in keeps its place and what they have
+    // typed into it.
+    function focusedControl() {
+        var control = document.activeElement;
+        if (!control || !control.id || !main || !main.contains(control)) { return null; }
+        return {
+            id: control.id,
+            typed: typeof control.defaultValue === 'string' && control.type !== 'hidden' && control.value !== control.defaultValue,
+            value: control.value,
+            start: control.selectionStart,
+            end: control.selectionEnd
+        };
+    }
+    function refocus(saved) {
+        if (!saved) { return; }
+        var control = document.getElementById(saved.id);
+        if (!control || control === document.activeElement) { return; }
+        if (saved.typed) { control.value = saved.value; }
+        control.focus({ preventScroll: true });
+        try {
+            if (saved.start !== null && saved.start !== undefined) { control.setSelectionRange(saved.start, saved.end); }
+        } catch (_) { /* Not every control has a selection. */ }
+    }
+    // The page drawn again as the Case now stands, holding the queue so no
+    // commit or action reads a half-drawn record. A section holding a value
+    // not yet sent stays as the operator has it.
+    function catchUp() {
+        catchUpWanted = false;
+        submitting = true;
+        var focused = focusedControl();
+        fetch(window.location.href, {
+            credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
+        }).then(function (response) {
+            if (!response.ok || !samePage(response.url || window.location.href)) { throw new Error('catch up: ' + response.status); }
+            return response.text();
+        }).then(function (html) {
+            if (swap(html, null, null, { catchUp: true })) { refocus(focused); }
+        }).catch(function () {
+            // The next beat or commit catches up again.
+        }).finally(function () {
+            submitting = false;
+            settleQueue();
+        });
     }
 
     // ---- in-place actions: every form in the record posts by fetch and the
@@ -730,21 +843,28 @@
         var owned = '#' + id + ' [data-carry-forward], [data-carry-forward][form="' + id + '"]';
         Array.prototype.forEach.call(parsed.querySelectorAll(owned), function (input) {
             var current = form.elements.namedItem(input.name);
-            if (current && current.hasAttribute && current.hasAttribute('data-carry-forward')) { current.value = input.value; }
+            if (current && current.hasAttribute && current.hasAttribute('data-carry-forward')) {
+                current.value = input.value;
+                // A section that draws from what was carried redraws now.
+                current.dispatchEvent(new CustomEvent('pegasus:carried-forward', { bubbles: true }));
+            }
         });
     }
-    function swap(html, command, preferred) {
+    function swap(html, command, preferred, options) {
         glassRefreshGeneration += 1;
         var parsed = new DOMParser().parseFromString(html, 'text/html');
         var incoming = parsed.querySelector('[data-case-record]');
         if (!incoming) {
             return false;
         }
+        var incomingVersion = incoming.getAttribute('data-case-version');
         var commit = null;
         try { commit = JSON.parse(incoming.getAttribute('data-editor-commit') || 'null'); } catch (_) { /* An unrecognised response cannot confirm a commit. */ }
         var confirmed = command && commit && commit.editor === command.editor
             && commit.operationKey === command.operationKey && String(commit.expectedVersion) === command.expectedVersion;
-        var mayAdvance = confirmed && String(commit.version) === incoming.getAttribute('data-case-version')
+        // The Case may stand past the commit's own version: system work moved
+        // it under the lease, and the page catches up with that next.
+        var mayAdvance = confirmed && Number(incomingVersion) >= Number(commit.version)
             && incoming.getAttribute('data-case-editing') === 'true';
         var isCommit = !!command && command.editor === 'case-edit-form'
             && record.getAttribute('data-case-editing') === 'true';
@@ -756,7 +876,12 @@
         // the server now draws it.
         var commitLanded = isCommit && mayAdvance;
         var commitRefused = isCommit && !confirmed;
-        var keepSections = commitLanded || commitRefused;
+        // Catching up redraws each section that holds nothing unsent. A
+        // session that ended (a colleague took the Case over) keeps every
+        // section, so what the operator typed stays to copy (FRD-14).
+        var catchingUp = !!(options && options.catchUp);
+        var editingEnded = catchingUp && incoming.getAttribute('data-case-editing') !== 'true';
+        var keepSections = commitLanded || commitRefused || catchingUp;
         // The section a head Edit was pressed on keeps its place; any other
         // swap keeps the section at the reading line.
         var saved = preferred || anchor();
@@ -770,10 +895,11 @@
                 if (lease && newLease && lease.value === command.editLeaseToken
                     && (!version || version.value === command.expectedVersion)) {
                     lease.value = newLease.value;
-                    if (version) { version.value = String(commit.version); }
+                    if (version) { version.value = incomingVersion; }
                 }
             });
             carryForward(parsed);
+            markSent(command.sent);
             // Staged crops and rotations are recorded now: Files is drawn
             // afresh from the response, and holds no typed control to lose.
             var form = caseForm();
@@ -794,9 +920,9 @@
         swapRoots.forEach(function (selector) {
             if (keepSections && (selector === '#case-main' || selector === '[data-case-viewer-host]')) { return; }
             if (commitRefused && selector !== '[data-case-notices]' && selector !== '[data-case-aside]') { return; }
-            // A dialog the operator has open stays open across a commit; its
-            // forms already carry the new authority.
-            if (commitLanded && selector === '[data-case-dialogs]' && openDialog) { return; }
+            // A dialog the operator has open stays open across a commit or a
+            // catch up; its forms already carry the new authority.
+            if ((commitLanded || catchingUp) && selector === '[data-case-dialogs]' && openDialog) { return; }
             var current = document.querySelector(selector);
             var next = parsed.querySelector(selector);
             if (!current || !next) {
@@ -813,6 +939,32 @@
             // The ribbon's status word says it; the notice would say it again.
             var confirmation = document.querySelector('[data-case-notices] [data-confirmation]');
             if (confirmation) { confirmation.remove(); }
+        }
+        var lazyRedrawn = [];
+        if (catchingUp && !editingEnded) {
+            // Each section that holds nothing unsent is drawn as the Case now
+            // stands. A nested section moves with its parent; one under a
+            // parent that stays is weighed on its own.
+            Array.prototype.forEach.call(parsed.querySelectorAll('#case-main .record-section[id]'), function (next) {
+                if (document.contains(next)) { return; }
+                var current = document.getElementById(next.id);
+                if (!current || !main.contains(current) || holdsUnsent(current)) { return; }
+                current.replaceWith(next);
+                if (next.hasAttribute('data-lazy')) { lazyRedrawn.push(next); }
+            });
+            // The forms kept as the operator has them, the Save form among
+            // them, take the Case's current authority.
+            var currentLease = incoming.querySelector('[name="editLeaseToken"]');
+            if (currentLease) {
+                Array.prototype.forEach.call(document.querySelectorAll('form'), function (form) {
+                    var lease = form.querySelector('[name="editLeaseToken"]');
+                    var version = form.querySelector('[name="expectedVersion"], [name="expectedCaseVersion"]');
+                    if (!lease) { return; }
+                    lease.value = currentLease.value;
+                    if (version) { version.value = incomingVersion; }
+                });
+            }
+            carryForward(parsed);
         }
         (commitRefused ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current', 'data-case-view']).forEach(function (name) {
             var value = incoming.getAttribute(name);
@@ -832,15 +984,25 @@
                 if (selected && selected.hasAttribute('data-lazy')) { mount(selected, applyTabState); }
             } else { applyScrollState(); }
         }
+        // A section that was loaded is loaded again as the Case now stands.
+        lazyRedrawn.forEach(function (placeholder) { mount(placeholder); });
+        if (catchingUp && !editingEnded) {
+            if (layout === 'tabs') { applyTabState(); } else { spy(); }
+        }
         updateSectionFields();
         measure();
         if (!keepSections) { keep(saved); }
         if (commitLanded) {
             setCommitStatus('saved', clockNow());
+            // Past the commit's own version: system work landed alongside it.
+            if (Number(incomingVersion) !== Number(command.expectedVersion) + 1) { catchUpWanted = true; }
         } else if (commitRefused) {
             var refusal = document.querySelector('[data-case-notices] [role="alert"]');
             setCommitStatus('refused', refusal ? refusal.textContent.trim() : 'The change was not saved.');
             abandonWaiters();
+            // The refusal drew only the notices and the aside: the rest of
+            // the Case, and the ribbon's authority, catch up next.
+            catchUpWanted = true;
         } else if (incoming.getAttribute('data-case-editing') !== 'true') {
             setCommitStatus(null);
         }
@@ -863,6 +1025,44 @@
             return false;
         }
     }
+    // Choosing a repair spec (a spec tab, New repair spec, Compare's From and
+    // To) changes only what the Repair Spec section draws: the section and
+    // the dialogs drawn after it. Only those are redrawn from the page the
+    // choice addresses, so nothing above them moves and the page stays where
+    // it is. A choice that cannot be redrawn takes the navigation it replaced.
+    function estimatePart(section) {
+        var part = [section];
+        for (var next = section.nextElementSibling; next && next.hasAttribute('data-dialog'); next = next.nextElementSibling) {
+            part.push(next);
+        }
+        return part;
+    }
+    function showEstimate(href) {
+        glassRefreshGeneration += 1;
+        return fetch(href, {
+            credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
+        }).then(function (response) {
+            if (!response.ok || !samePage(response.url || href)) { throw new Error('section estimate: ' + response.status); }
+            return response.text();
+        }).then(function (html) {
+            var section = sectionFor('estimate');
+            var next = new DOMParser().parseFromString(html, 'text/html').getElementById('section-estimate');
+            if (!section || !next) { throw new Error('section estimate: not returned'); }
+            var incoming = estimatePart(next);
+            estimatePart(section).slice(1).forEach(function (dialog) {
+                if (!dialog.hidden && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
+                dialog.remove();
+            });
+            section.replaceWith.apply(section, incoming);
+            bindMounted(main);
+            measure();
+            if (layout === 'tabs') { applyTabState(); } else { spy(); }
+            window.history.replaceState(null, '', href);
+        }).catch(function () {
+            window.location.assign(href);
+        });
+    }
+
     // The shared Refresh control (site.js) marks itself busy on submit and
     // expects the navigation to end that. An intercepted refresh never
     // navigates, so every way out of one ends it here.
@@ -870,6 +1070,25 @@
         if (form.hasAttribute('data-refresh-form') && typeof window.pegasusResetRefresh === 'function') {
             window.pegasusResetRefresh(form);
         }
+    }
+    // An action answered in place never navigates, so it shows and ends its
+    // own busy state (site.js pegasusBusy). A commit nobody pressed (an idle,
+    // leaving a cell) has the ribbon's Saving word as its feedback; a button
+    // that commits, such as Save wording to the bank, shows busy itself. A
+    // Refresh has its own. An import is pressed on its picker.
+    function busy(form, submitter) {
+        if (!window.pegasusBusy || form.hasAttribute('data-refresh-form')
+            || (!submitter && editorLabels[form.getAttribute('id')])) {
+            return;
+        }
+        var control = submitter
+            || (form.hasAttribute('data-estimate-import-form') ? form.querySelector('[data-estimate-import-picker]') : null);
+        window.pegasusBusy.start(control, form);
+    }
+    // done: the action succeeded and the Case stayed on screen, so the pressed
+    // button (or the one drawn in its place) shows its tick for a moment.
+    function idle(form, done) {
+        if (window.pegasusBusy) { window.pegasusBusy.end(form, done ? { done: true } : undefined); }
     }
     function submitInPlace(form, submitter) {
         // A section-head Edit keeps its own section where it is on screen.
@@ -885,7 +1104,8 @@
         } : null;
         var isCommit = !!command && command.editor === 'case-edit-form'
             && record.getAttribute('data-case-editing') === 'true';
-        if (isCommit) { commitInFlight = true; setCommitStatus('saving'); }
+        if (isCommit) { commitInFlight = true; setCommitStatus('saving'); command.sent = sendingState(form); }
+        var done = false;
         var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
         var method = ((submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get').toUpperCase();
         var request = { method: method, credentials: 'same-origin', redirect: 'follow', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' } };
@@ -893,6 +1113,17 @@
             var url = new URL(action, window.location.href);
             new URLSearchParams(body).forEach(function (value, key) { url.searchParams.set(key, value); });
             action = url.toString();
+            if (form.hasAttribute('data-estimate-compare-form')) {
+                form.setAttribute('aria-busy', 'true');
+                busy(form, submitter);
+                return showEstimate(action).finally(function () {
+                    form.removeAttribute('aria-busy');
+                    form.removeAttribute('data-inplace-submitting');
+                    idle(form);
+                    submitting = false;
+                    settleQueue();
+                });
+            }
         } else {
             request.body = body;
         }
@@ -926,19 +1157,28 @@
             if (!swap(html, command, preferred)) {
                 throw new Error('The server did not return the Case.');
             }
+            done = true;
             if (editKey && editFocus) { focusControl(editKey, editFocus); }
             if (form.hasAttribute('data-glass-close-form')) { return refreshGlassControls(); }
         }).catch(function (error) {
+            done = false;
             var failure = isImport
                 ? error.message + ' Import completion was not confirmed. Reload the Case before retrying. If the source was already stored, it will be reused.'
                 : isCommit
                     ? error.message + ' Your last change was not saved; it is still on the page.'
                     : error.message + ' Your last change is still on the page.';
-            if (isCommit) { setCommitStatus('refused', error.message); abandonWaiters(); }
+            if (isCommit) {
+                setCommitStatus('refused', error.message);
+                abandonWaiters();
+                // Whether it landed or not, the page reads the Case's
+                // authority again; the change stays on the page unsent.
+                catchUpWanted = true;
+            }
             showActionError(failure);
         }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
+            idle(form, done);
             resetRefresh(form);
             if (importSection && importSection.isConnected) {
                 importSection.removeAttribute('data-estimate-importing');
@@ -984,6 +1224,7 @@
         var tileId = tile ? tile.getAttribute('data-image-tile') : null;
         var toReport = form.hasAttribute('data-image-in-report-form');
         form.setAttribute('aria-busy', 'true');
+        var done = false;
         var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
         return fetch(action, {
             method: 'POST', body: body, credentials: 'same-origin', redirect: 'follow',
@@ -1011,11 +1252,14 @@
                 if (changesTile) { redrawImageTile(parsed, tileId, toReport); } else { redrawTagPickers(parsed, tileId); }
             }
             announceNotices();
+            done = true;
         }).catch(function (error) {
+            done = false;
             showActionError(error.message + ' Your last change is still on the page.');
         }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
+            idle(form, done);
             submitting = false;
             settleQueue();
         });
@@ -1042,20 +1286,26 @@
         });
         if (nextVersion !== null) { record.setAttribute('data-case-version', nextVersion); }
     }
+    // A tag or In report can move every image's place (operator, 7 October
+    // 2026), so the whole grid is drawn again in the order and with the
+    // places the server now holds; staged rotation and crop stay on the form.
     function redrawImageTile(parsed, id, focusInReport) {
         var current = document.querySelector('[data-image-tile="' + id + '"]');
-        var next = parsed.querySelector('[data-image-tile="' + id + '"]');
-        if (!current || !next) { return; }
-        var grid = current.parentElement;
+        var grid = current ? current.closest('[data-image-grid]') : null;
+        var nextGrid = parsed.querySelector('[data-image-grid]');
+        if (!grid || !nextGrid || !nextGrid.querySelector('[data-image-tile="' + id + '"]')) { return; }
         if (window.pegasusCasePreparation && window.pegasusCasePreparation.adopt) {
-            window.pegasusCasePreparation.adopt(id, next);
+            Array.prototype.forEach.call(nextGrid.querySelectorAll('[data-preparation-card]'), function (tile) {
+                window.pegasusCasePreparation.adopt(tile.getAttribute('data-preparation-occurrence'), tile);
+            });
         }
-        current.replaceWith(next);
-        bindMounted(grid);
+        grid.replaceWith(nextGrid);
+        bindMounted(nextGrid.parentElement);
         var count = document.querySelector('[data-image-report-count]');
         var nextCount = parsed.querySelector('[data-image-report-count]');
         if (count && nextCount) { count.textContent = nextCount.textContent; }
-        var target = next.querySelector(focusInReport ? '[data-image-in-report]' : 'details.tag-picker > summary');
+        var next = nextGrid.querySelector('[data-image-tile="' + id + '"]');
+        var target = next && next.querySelector(focusInReport ? '[data-image-in-report]' : 'details.tag-picker > summary');
         if (target) { target.focus(); }
     }
     // A new tag joins the vocabulary every picker offers. The picker it was
@@ -1222,13 +1472,6 @@
         if (form.hasAttribute('data-glass-window')) {
             return false;
         }
-        // A write lands on the default view (v29), so one posted from the
-        // Inspection view navigates rather than swapping that view in place.
-        // Razor renders the attribute empty on every other Case, so its value
-        // decides, not its presence.
-        if (record.getAttribute('data-case-view') && (form.getAttribute('method') || 'get').toLowerCase() === 'post') {
-            return false;
-        }
         var dialogs = document.querySelector('[data-case-dialogs]');
         return record.contains(form) || (dialogs && dialogs.contains(form));
     }
@@ -1250,20 +1493,26 @@
         var name = submitter ? submitter.name : '';
         var value = submitter ? submitter.value : '';
         var formaction = submitter ? submitter.getAttribute('formaction') : null;
+        // A refused commit drops what waited on it; the press is idle again.
+        function abandon() { idle(form); resetRefresh(form); }
         function proceed() {
             // A form that waited on a commit is found again: the ribbon's and
             // the dialogs' forms are drawn afresh with the Case's new authority.
             var next = refind(form);
-            if (!next || next.dataset.inplaceSubmitting === 'true') { return; }
+            if (!next || next.dataset.inplaceSubmitting === 'true') { idle(form); return; }
             // Waiters run together once the queue empties; the first to post
             // holds it, and the next follows that post.
-            if (submitting) { commitWaiters.push({ run: proceed }); return; }
+            if (submitting) { commitWaiters.push({ run: proceed, abandon: abandon }); return; }
             var button = submitter && next !== form ? Array.prototype.find.call(next.elements, function (element) {
                 return element.type === 'submit' && element.name === name && element.value === value
                     && element.getAttribute('formaction') === formaction;
             }) || null : submitter;
             submitting = true;
             next.dataset.inplaceSubmitting = 'true';
+            // The press shows at once, even while it waits behind a commit;
+            // a form drawn afresh in the meantime takes the state over.
+            if (next !== form) { idle(form); }
+            busy(next, button);
             // A document action (tag, untag, new tag, In report) while editing
             // is not an edit of the Case: it posts at once and redraws only
             // its own tile, so the sections stay as the operator has them.
@@ -1282,23 +1531,33 @@
             // flight (F5 bypasses the disabled button) stays busy until its
             // own response lands.
             if (isCommit) { commitPending = true; }
-            else if (commitInFlight && !form.hasAttribute('data-refresh-form')) { afterCommit(proceed); }
+            else if (commitInFlight && !form.hasAttribute('data-refresh-form')) { busy(form, submitter); afterCommit(proceed, abandon); }
             else { resetRefresh(form); }
             return;
         }
         // Every other post (an action, Done, a refresh) follows the change
         // not yet sent, so it reads the Case as the operator has it.
-        if (isCommit) { proceed(); } else { afterCommit(proceed); }
+        if (isCommit) { proceed(); } else { busy(form, submitter); afterCommit(proceed, abandon); }
     });
     function refind(form) {
         if (form.isConnected) { return form; }
         var id = form.getAttribute('id');
         if (id && document.getElementById(id)) { return document.getElementById(id); }
         var action = form.getAttribute('action');
+        // Every image tile's In report and tag forms share their actions, so
+        // the form found again names the same image and tag: the first match
+        // by action alone would act on another image.
+        function names(candidate, field) {
+            var own = form.elements.namedItem(field);
+            var theirs = candidate.elements.namedItem(field);
+            return !own || (theirs && theirs.value === own.value);
+        }
         var dialogs = document.querySelector('[data-case-dialogs]');
         var candidates = Array.prototype.slice.call(record.querySelectorAll('form[action]'))
             .concat(dialogs ? Array.prototype.slice.call(dialogs.querySelectorAll('form[action]')) : []);
-        return candidates.find(function (candidate) { return candidate.getAttribute('action') === action; }) || null;
+        return candidates.find(function (candidate) {
+            return candidate.getAttribute('action') === action && names(candidate, 'occurrenceId') && names(candidate, 'tagId');
+        }) || null;
     }
 
     // The frame owns this shortcut even inside a field; site.js handles it on
@@ -1341,6 +1600,18 @@
             || link.hasAttribute('target') || link.hasAttribute('download') || link.hasAttribute('data-section-link')
             || link.getAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
             || link.getAttribute('href').startsWith('#')) { return; }
+        if (link.matches('[data-estimate-tab], [data-estimate-new]')) {
+            // A change not yet sent lands first, then the spec is redrawn.
+            event.preventDefault();
+            afterCommit(function () {
+                submitting = true;
+                showEstimate(link.href).finally(function () {
+                    submitting = false;
+                    settleQueue();
+                });
+            });
+            return;
+        }
         if (!queueBusy()) {
             releaseOnLeaving(link);
             return;
@@ -1362,7 +1633,14 @@
     function finishGlassOpening() {
         glassOpening = false;
         if (glassWindowWatch) { window.clearInterval(glassWindowWatch); glassWindowWatch = null; }
-        record.querySelectorAll('[data-glass-window]').forEach(function (form) { form.removeAttribute('aria-busy'); });
+        record.querySelectorAll('[data-glass-window]').forEach(function (form) {
+            form.removeAttribute('aria-busy');
+            idle(form);
+            form.querySelectorAll('[data-busy-aside]').forEach(function (button) {
+                button.removeAttribute('aria-disabled');
+                button.removeAttribute('data-busy-aside');
+            });
+        });
     }
     function cancelGlassOpening() {
         if (glassWindow && !glassWindow.closed) { glassWindow.close(); }
@@ -1446,6 +1724,7 @@
         if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }
         glassOpening = true;
         form.setAttribute('aria-busy', 'true');
+        busy(form, event.submitter || null);
         glassWindowWatch = window.setInterval(function () {
             if (glassWindow.closed) { finishGlassOpening(); }
         }, 500);
@@ -1463,6 +1742,14 @@
             }
             next.target = windowName;
             next.setAttribute('aria-busy', 'true');
+            // Opening ends as the launch reaches the pop-up; the controls
+            // stand aside while Glass's is open there.
+            idle(form);
+            idle(next);
+            next.querySelectorAll('button[type="submit"]').forEach(function (button) {
+                button.setAttribute('aria-disabled', 'true');
+                button.setAttribute('data-busy-aside', '');
+            });
             HTMLFormElement.prototype.submit.call(next);
         }, cancelGlassOpening);
     });
@@ -2137,20 +2424,27 @@
 
 
 // --- valuation -----------------------------------------------------------------
-// --- Valuation: the calculator's preview, basis cards and additions -----------
-// The lines are Core's arithmetic: every change posts the selection to the
-// PreviewValuation handler and the returned partial replaces the lines. The
-// calculator's controls and the Basis radios belong to the Case form, so the
-// ribbon Save records a changed calculation (one Save, 23 September 2026).
-// Choosing a card fills the Retail and Trade boxes in place, and each
-// calculation fills the Engineer's Value box; the operator may overtype any
-// of them (operator, 26 September 2026).
+// --- Valuation: the calculator's preview, source rows and additions -----------
+// The figures are Core's arithmetic: every change posts the selection to the
+// PreviewValuation handler. The proposal it answers fills the Engineer's Value
+// box, which is the one place the figure stands, and the commercial VAT and
+// previous total loss amounts go to their cells' label lines (operator,
+// 6 October 2026). The calculator's controls and the Basis radios belong to
+// the Case form, so the Case's save records a changed calculation (one Save,
+// 23 September 2026). Choosing a source fills the Retail and Trade boxes in
+// place and moves the calculation under its row; the operator may overtype
+// any of the three boxes (operator, 26 September 2026).
 //
 // The preview shows what the Save will use (operator, 28 September 2026): it
 // posts the chosen card's retail as typed and the claimant's VAT position as
 // the form holds it, so an unsaved figure is calculated, not the recorded one.
-// While a preview is pending the lines are dimmed, and a failed one says so;
+// While a preview is pending the amounts are dimmed, and a failed one says so;
 // a calculation Core cannot work out shows its own reason.
+//
+// The section head's figure and the recorded source's word on the Engineer's
+// Value label are the Case as saved: each commit carries them forward and
+// they are redrawn then, with no reload. The word shows only while the box
+// holds the recorded calculation's figure.
 //
 // Use this value on a card is the visible decision to use that card's figure:
 // it chooses the card as the basis, fills the boxes, and switches on the
@@ -2182,8 +2476,10 @@
             }
             calc.dataset.valuationBound = 'true';
             var section = calc.closest('.record-section') || document;
-            var host = section.querySelector('[data-valuation-lines-host]');
+            var host = section.querySelector('[data-valuation-preview-host]');
             var basisName = section.querySelector('[data-valuation-basis-name]');
+            var open = section.querySelector('[data-valuation-open]');
+            var savedInput = section.querySelector('[data-valuation-recorded-state]');
             var sourceInput = section.querySelector('[data-valuation-source-input]');
             var useInput = section.querySelector('[data-valuation-use-input]');
             var previewUrl = calc.getAttribute('data-preview-url');
@@ -2211,26 +2507,56 @@
             }
 
             function busy(on) {
-                if (!host) { return; }
-                if (on) { host.setAttribute('aria-busy', 'true'); } else { host.removeAttribute('aria-busy'); }
+                if (on) { calc.setAttribute('aria-busy', 'true'); } else { calc.removeAttribute('aria-busy'); }
             }
 
-            // The lines could not be refreshed: say so where the figure was,
-            // rather than leaving the last figure standing as if it were current.
+            // What each adjustment comes to, in its own cell's label line:
+            // Core's amounts from the preview, or nothing where there are none.
+            function paintAmounts(proposal) {
+                ['vat', 'ptl'].forEach(function (name) {
+                    var cell = section.querySelector('[data-valuation-amount="' + name + '"]');
+                    if (cell) {
+                        cell.textContent = proposal ? (proposal.getAttribute('data-valuation-' + name + '-amount') || '') : '';
+                    }
+                });
+            }
+
+            // The calculation could not be refreshed: say so, rather than
+            // leaving the last amounts standing as if they were current.
             function showFailure() {
                 if (!host) { return; }
-                var lines = document.createElement('div');
-                lines.className = 'lines';
-                lines.setAttribute('data-valuation-lines', '');
                 var notice = document.createElement('div');
                 notice.className = 'notice notice--danger';
                 notice.setAttribute('role', 'alert');
                 notice.setAttribute('data-valuation-error', '');
                 notice.textContent = calc.getAttribute('data-text-preview-failed')
                     || 'The calculation could not be updated.';
-                lines.appendChild(notice);
                 host.textContent = '';
-                host.appendChild(lines);
+                host.appendChild(notice);
+                paintAmounts(null);
+            }
+
+            // The Case as saved: the section head's figure, and the recorded
+            // source's word on the Engineer's Value label while the box holds
+            // the recorded calculation's figure. A commit carries the saved
+            // state forward, so both follow it with no reload; a figure typed
+            // over the calculation takes the word away at once.
+            function paintSaved(landed) {
+                var state = null;
+                try { state = savedInput ? JSON.parse(savedInput.value) : null; } catch (_) { /* An unreadable state redraws nothing. */ }
+                if (!state) { return; }
+                var head = section.querySelector('[data-valuation-head]');
+                if (landed && head && state.head) { head.textContent = state.head; }
+                var word = section.querySelector('[data-valuation-recorded-word]');
+                var box = section.querySelector('[data-valuation-value="engineer"]');
+                if (!word || !box) { return; }
+                var holds = state.value !== null && state.word
+                    && parseFloat(box.value) === parseFloat(state.value);
+                word.hidden = !holds;
+                if (holds) {
+                    word.textContent = state.word;
+                    word.classList.toggle('src-tag--ai', !!state.research);
+                }
             }
 
             // The Engineer's Value box holds the last calculated figure until
@@ -2282,6 +2608,7 @@
                     busy(false);
                     host.innerHTML = html;
                     var proposal = host.querySelector('[data-valuation-proposal]');
+                    paintAmounts(proposal);
                     if (proposal) {
                         lastProposal = proposal.getAttribute('data-valuation-proposal');
                         fill(section, '[data-valuation-value="engineer"]', lastProposal);
@@ -2308,11 +2635,16 @@
                 timer = window.setTimeout(preview, 250);
             }
 
-            // The chosen card is drawn selected and named in the calculator's head.
+            // The chosen source is drawn selected, named in the calculator's
+            // head, and opens: the calculation and the three values move to
+            // stand under its row.
             function markChosen(card, name) {
                 section.querySelectorAll('[data-valuation-card]').forEach(function (other) {
                     other.classList.toggle('sel', other === card);
                 });
+                if (open && card && open.previousElementSibling !== card) {
+                    card.after(open);
+                }
                 if (basisName) {
                     basisName.textContent = 'from ' + (name || 'guide') + ' retail';
                 }
@@ -2371,7 +2703,16 @@
                 }
                 schedule();
             });
+            section.addEventListener('pegasus:carried-forward', function (event) {
+                if (event.target === savedInput) { paintSaved(true); }
+            });
             section.addEventListener('input', function (event) {
+                if (event.target && event.target.matches
+                    && event.target.matches('[data-valuation-value="engineer"]')) {
+                    // Typed or filled: the recorded source's word stands only
+                    // beside the recorded calculation's own figure.
+                    paintSaved(false);
+                }
                 if (event.isTrusted && event.target && event.target.matches
                     && event.target.matches('[data-valuation-value="engineer"]')) {
                     // Typed over by the Engineer: that figure is their own, so
@@ -2517,7 +2858,7 @@
                 var card = button.closest('[data-valuation-entry]');
                 var caseForm = document.getElementById('case-edit-form');
                 var url = button.getAttribute('data-valuation-url');
-                if (!card || !caseForm || !url || button.disabled) {
+                if (!card || !caseForm || !url || button.hasAttribute('data-busy')) {
                     return;
                 }
                 var notice = card.querySelector('[data-valuation-notice]');
@@ -2528,7 +2869,8 @@
                     body.append('guideMonth', month.value);
                 }
                 showNotice(notice, false);
-                button.disabled = true;
+                if (window.pegasusBusy) { window.pegasusBusy.start(button); }
+                var done = false;
                 fetch(url, {
                     method: 'POST',
                     body: body,
@@ -2549,13 +2891,20 @@
                         if (basis && basis.checked) {
                             basis.dispatchEvent(new CustomEvent('pegasus:valuation-basis-refilled', { bubbles: true }));
                         }
+                        done = true;
+                        return;
+                    }
+                    // A source that does not value a vehicle of this age says
+                    // so as information: nothing is broken (operator, 2 October 2026).
+                    if (answer && answer.status === 'vehicle_age') {
+                        showNotice(notice, true, answer.message, 'info');
                         return;
                     }
                     showNotice(notice, true, answer && answer.status === 'refused' ? answer.message : null);
                 }).catch(function () {
                     showNotice(notice, true, null);
                 }).then(function () {
-                    button.disabled = false;
+                    if (window.pegasusBusy) { window.pegasusBusy.end(button, { done: done }); }
                 });
             });
         });
@@ -2575,12 +2924,17 @@
     // The card's notice: the approved unavailable sentence, or a refusal's own
     // words in its place when the server gave some. A source known to have no
     // provider keeps its notice standing, and it returns to the sentence when
-    // the words go.
-    function showNotice(notice, visible, message) {
+    // the words go. A connected source's notice is a danger notice unless the
+    // tone says the words are information.
+    function showNotice(notice, visible, message, tone) {
         if (!notice) {
             return;
         }
         var standing = notice.hasAttribute('data-valuation-not-connected');
+        if (!standing) {
+            notice.classList.toggle('notice--info', tone === 'info');
+            notice.classList.toggle('notice--danger', tone !== 'info');
+        }
         var unavailable = notice.querySelector('[data-valuation-unavailable]');
         var refused = notice.querySelector('[data-valuation-refused]');
         if (refused) {
@@ -2622,6 +2976,12 @@
         NotRegistered: ['Parts', 'Materials'],
         Unknown: []
     };
+
+    // Full screen is the operator's, not one drawing of the section's: a
+    // redrawn Repair Spec (Glass's return, a spec tab, a catch up) opens as
+    // the one it replaced, at the same place.
+    var expanded = false;
+    var expandedTop = 0;
 
     function bindGrid(form) {
         var body = form.querySelector('[data-estimate-grid-body]');
@@ -2667,6 +3027,28 @@
                 quantity.value = '1';
             }
             appendPhantom();
+        });
+
+        // Every save writes the spec's lines afresh, so a landed commit's
+        // answer carries each line's new id by the row it was posted from, and
+        // the rows the operator keeps typing in take it here: the next commit
+        // names lines the Case still has. Rows added since sit after the ones
+        // the commit posted, so the indexes it answers with still hold.
+        var identitiesHost = form.closest('[data-estimate-section]') || form;
+        identitiesHost.addEventListener('pegasus:carried-forward', function (event) {
+            var carrier = event.target;
+            if (!carrier || !carrier.matches || !carrier.matches('[data-estimate-line-ids]') || !carrier.value) {
+                return;
+            }
+            var rows = body.querySelectorAll('tr[data-estimate-line]');
+            carrier.value.split(' ').forEach(function (entry) {
+                var parts = entry.split(':');
+                var row = rows[parseInt(parts[0], 10)];
+                var identity = row ? row.querySelector('input[name="lineId"]') : null;
+                if (identity && parts[1]) {
+                    identity.value = parts[1];
+                }
+            });
         });
 
         // The no-script Add line posts a redraw; with script a line is one
@@ -3115,6 +3497,7 @@
         }
         var use = button.querySelector('use');
         function apply(on) {
+            expanded = on;
             section.classList.toggle('is-expanded', on);
             document.body.classList.toggle('has-expanded', on);
             var label = on ? button.getAttribute('data-label-close') : button.getAttribute('data-label-expand');
@@ -3124,13 +3507,20 @@
             if (use) {
                 use.setAttribute('href', on ? '#icon-x' : '#icon-external-link');
             }
-            if (on) {
-                section.scrollTop = 0;
-            }
         }
         button.addEventListener('click', function () {
-            apply(!section.classList.contains('is-expanded'));
+            var on = !section.classList.contains('is-expanded');
+            apply(on);
+            if (on) {
+                section.scrollTop = 0;
+                expandedTop = 0;
+            }
         });
+        section.addEventListener('scroll', function () {
+            if (section.classList.contains('is-expanded')) {
+                expandedTop = section.scrollTop;
+            }
+        }, { passive: true });
         function onKeydown(event) {
             if (event.key === 'Escape' && section.isConnected && section.classList.contains('is-expanded')) {
                 event.preventDefault();
@@ -3138,15 +3528,22 @@
             }
         }
         document.addEventListener('keydown', onKeydown);
-        // A section swapped out of the page must not leave the body expanded.
+        // A section swapped out of the page must not leave the body expanded,
+        // unless the section drawn in its place has taken full screen on.
         var observer = new MutationObserver(function () {
             if (!section.isConnected) {
-                document.body.classList.remove('has-expanded');
+                if (!document.querySelector('[data-estimate-section].is-expanded')) {
+                    document.body.classList.remove('has-expanded');
+                }
                 document.removeEventListener('keydown', onKeydown);
                 observer.disconnect();
             }
         });
         observer.observe(document.body, { childList: true, subtree: true });
+        if (expanded) {
+            apply(true);
+            section.scrollTop = expandedTop;
+        }
     }
 
     function bindRange(root) {
@@ -3244,10 +3641,12 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();
 
-// --- images: the grid's own acts (v28 P41 drag, P27 click to include) --------
-// Drag writes through the order controls the preparation binder already owns,
-// so the tile, the viewer and the Case Save cannot disagree; a click on the
-// image presses the tile's own In report button, posted at once.
+// --- images: the grid's own acts (v28 P41 drag, typed order) -----------------
+// Drag and a typed order both move the tile and write through the order
+// controls the preparation binder already owns, so the tile, the viewer and
+// the Case Save cannot disagree. The Overview and the Close-up hold places 1
+// and 2 by their tags (operator, 7 October 2026): nothing moves them or lands
+// above them. A click on the image opens the viewer.
 (function () {
     'use strict';
 
@@ -3259,20 +3658,44 @@
             grid.dataset.imageGridBound = 'true';
             var dragging = null;
 
+            var renumbering = false;
+
             function tileOf(element) {
                 return element ? element.closest('[data-image-tile][data-preparation-card]') : null;
             }
+            function inReport() {
+                return Array.prototype.filter.call(
+                    grid.querySelectorAll('[data-image-tile][data-preparation-card]'),
+                    function (tile) { return tile.getAttribute('data-preparation-in-report') === 'true'; });
+            }
+            function isFixed(tile) {
+                return tile.getAttribute('data-preparation-fixed') === 'true';
+            }
+            // Puts a movable tile at a place among the images in the report,
+            // never above the fixed ones.
+            function place(tile, at) {
+                var tiles = inReport();
+                var fixedCount = tiles.filter(isFixed).length;
+                var movable = tiles.filter(function (other) { return !isFixed(other) && other !== tile; });
+                var index = Math.min(Math.max(at - fixedCount - 1, 0), movable.length);
+                if (index < movable.length) {
+                    grid.insertBefore(tile, movable[index]);
+                } else if (movable.length) {
+                    movable[movable.length - 1].after(tile);
+                } else if (fixedCount) {
+                    tiles.filter(isFixed)[fixedCount - 1].after(tile);
+                }
+            }
             function renumber() {
-                var at = 0;
-                grid.querySelectorAll('[data-image-tile][data-preparation-card]').forEach(function (tile) {
+                renumbering = true;
+                inReport().forEach(function (tile, index) {
                     var order = tile.querySelector('[data-preparation-order]');
-                    if (!order || tile.getAttribute('data-preparation-in-report') !== 'true') { return; }
-                    at += 1;
-                    if (order.value !== String(at)) {
-                        order.value = String(at);
+                    if (order && order.value !== String(index + 1)) {
+                        order.value = String(index + 1);
                         order.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                 });
+                renumbering = false;
             }
 
             grid.addEventListener('dragstart', function (event) {
@@ -3298,7 +3721,11 @@
                 if (!dragging || !over || over === dragging) { return; }
                 event.preventDefault();
                 over.classList.remove('is-drop');
-                grid.insertBefore(dragging, over);
+                if (isFixed(over)) {
+                    place(dragging, 1);
+                } else {
+                    grid.insertBefore(dragging, over);
+                }
                 renumber();
             });
             grid.addEventListener('dragend', function () {
@@ -3307,19 +3734,15 @@
                 grid.querySelectorAll('.is-drop').forEach(function (tile) { tile.classList.remove('is-drop'); });
             });
 
-            // P27: while the tile carries its report controls, clicking the
-            // image itself toggles whether the report uses it.
-            grid.addEventListener('click', function (event) {
-                if (event.target.closest('[data-image-report], .image-tile-actions')) { return; }
-                var link = event.target.closest('a[data-evidence-item]');
-                var tile = tileOf(link);
-                if (!link || !tile || !tile.querySelector('[data-image-in-report]')) { return; }
-                event.preventDefault();
-                event.stopPropagation();
-                window.pegasusCasePreparation.toggleInReport(
-                    tile.getAttribute('data-preparation-occurrence'),
-                    tile.getAttribute('data-preparation-in-report') !== 'true');
-            }, true);
+            // A typed order moves the tile to that place, and every image in
+            // the report is numbered again in the order the tiles then stand.
+            grid.addEventListener('change', function (event) {
+                var order = event.target.closest('[data-preparation-order]');
+                var tile = tileOf(order);
+                if (renumbering || !order || !tile || order.readOnly || order.value === '') { return; }
+                place(tile, Math.floor(Number(order.value)) || 1);
+                renumber();
+            });
         });
     }
 
@@ -3754,7 +4177,7 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();
 
-// --- report: content switches, the fee-note choice and the draft preview ------
+// --- report: content switches ------------------------------------------------
 (function () {
     'use strict';
 
@@ -3788,37 +4211,8 @@
         });
     }
 
-    function bindReport(root) {
-        root.querySelectorAll('[data-report]').forEach(function (section) {
-            if (section.dataset.reportPreviewBound === 'true') {
-                return;
-            }
-            section.dataset.reportPreviewBound = 'true';
-
-            // The preview follows the Include fee note choice beside Generate
-            // report, and opens in the page's document viewer when one is present.
-            var preview = section.querySelector('[data-report-preview]');
-            var feeNote = section.querySelector('[data-include-fee-note]');
-            function previewHref() {
-                if (!preview) {
-                    return '';
-                }
-                var url = new URL(preview.getAttribute('href'), window.location.href);
-                url.searchParams.set('includeFeeNote', feeNote && feeNote.checked ? 'True' : 'False');
-                return url.toString();
-            }
-            if (preview && feeNote) {
-                feeNote.addEventListener('change', function () { preview.setAttribute('href', previewHref()); });
-            }
-        });
-    }
-
-    function bind(root) {
-        bindContent(root);
-        bindReport(root);
-    }
-    bind(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+    bindContent(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindContent);
 })();
 
 // --- saved document previews -------------------------------------------------
@@ -3859,6 +4253,11 @@
     async function openInViewer(trigger, viewer) {
         var menu = trigger.closest('details[data-menu]');
         if (menu) { menu.open = false; }
+        // A preview renders on demand. The press shows on the link, or on its
+        // menu's button once the menu has closed, until the document opens.
+        var shown = menu ? menu.querySelector('summary') : trigger;
+        if (shown && shown.hasAttribute('data-busy')) { return; }
+        if (window.pegasusBusy) { window.pegasusBusy.start(shown, null, trigger.getAttribute('data-busy-label')); }
         var response;
         var message = 'Preview unavailable';
         try {
@@ -3882,6 +4281,8 @@
         } catch (error) {
             if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
             else { window.alert(message); }
+        } finally {
+            if (window.pegasusBusy) { window.pegasusBusy.end(shown); }
         }
     }
 
@@ -3993,110 +4394,6 @@
         }
         img.style.transform = 'rotate(' + rot + 'deg) ' + (zoom ? 'scale(2)' : 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px) scale(' + k.toFixed(4) + ')');
     }
-
-    // ---- Files tabs --------------------------------------------------------------
-    // Both panels are rendered, so with no script the section is the lists one
-    // after the other; script turns the strip on and shows one at a time. The
-    // chosen tab rides in the URL hash (`#case-files-<tab>`), which the Custody
-    // redirects name too, so a tag/untag/create lands back on Images.
-    function bindFileTabs(root) {
-        all(root, '[data-file-tabs-wrap]').forEach(function (wrap) {
-            if (wrap.dataset.fileTabsBound === 'true') { return; }
-            var strip = wrap.querySelector('[data-file-tabs]');
-            var panels = all(wrap, '[data-file-tab-panel]');
-            var buttons = strip ? all(strip, '[data-file-tab]') : [];
-            if (!strip || !panels.length || !buttons.length) { return; }
-            wrap.dataset.fileTabsBound = 'true';
-            function show(name, remember) {
-                panels.forEach(function (panel) { panel.hidden = panel.getAttribute('data-file-tab-panel') !== name; });
-                buttons.forEach(function (button) { button.setAttribute('aria-selected', button.getAttribute('data-file-tab') === name ? 'true' : 'false'); });
-                wrap.setAttribute('data-file-tabs-active', name);
-                if (remember && window.history && window.history.replaceState) {
-                    window.history.replaceState(null, '', '#case-files-' + name);
-                }
-            }
-            buttons.forEach(function (button) {
-                button.addEventListener('click', function () { show(button.getAttribute('data-file-tab'), true); });
-            });
-            strip.hidden = false;
-            wrap.classList.add('is-tabbed');
-            var fromHash = (window.location.hash || '').replace('#case-files-', '');
-            show(buttons.some(function (button) { return button.getAttribute('data-file-tab') === fromHash; })
-                ? fromHash
-                : buttons[0].getAttribute('data-file-tab'), false);
-        });
-    }
-
-    // ---- Correspondence: a message in a dialog -----------------------------------
-    // Open message opens its row's dialog through the shell's dialog binding;
-    // the first open fetches the message from the Inbox record's Content
-    // handler, and the record's Reply, Reply all and Forward, where it offers
-    // them, join the dialog's foot. A failure says so and the next open tries
-    // again. Both listeners are on the document, so a lazily mounted or
-    // swapped Files section needs no binding of its own.
-    function messageSpinner() {
-        var spinner = document.createElement('div');
-        spinner.className = 'spinner';
-        spinner.setAttribute('aria-hidden', 'true');
-        return spinner;
-    }
-    document.addEventListener('pegasus:dialog-open', function (event) {
-        var dialog = event.target;
-        if (!(dialog instanceof Element) || !dialog.matches('[data-case-message-dialog]')) { return; }
-        var state = dialog.dataset.caseMessageState;
-        var body = dialog.querySelector('[data-case-message-body]');
-        var url = dialog.getAttribute('data-case-message-url');
-        if (state === 'loading' || state === 'loaded' || !body || !url) { return; }
-        dialog.dataset.caseMessageState = 'loading';
-        body.setAttribute('aria-busy', 'true');
-        body.replaceChildren(messageSpinner());
-        fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
-            .then(function (response) {
-                if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
-                    throw new Error('message: ' + response.status);
-                }
-                return response.text();
-            })
-            .then(function (html) {
-                var fragment = new DOMParser().parseFromString(html, 'text/html');
-                var content = fragment.querySelector('[data-message-content]');
-                if (!content) { throw new Error('message: no content'); }
-                body.replaceChildren(document.importNode(content, true));
-                var actions = fragment.querySelector('[data-message-actions]');
-                var foot = dialog.querySelector('[data-case-message-foot]');
-                if (actions && foot) { foot.prepend(document.importNode(actions, true)); }
-                body.removeAttribute('aria-busy');
-                dialog.dataset.caseMessageState = 'loaded';
-            })
-            .catch(function () {
-                var status = document.createElement('p');
-                status.className = 'muted';
-                status.setAttribute('role', 'status');
-                status.textContent = 'Preview unavailable';
-                body.replaceChildren(status);
-                body.removeAttribute('aria-busy');
-                delete dialog.dataset.caseMessageState;
-            });
-    });
-    // Capture, ahead of the shell's dialog opener and the edit session's
-    // unsaved-changes guard. A modified click on Open message stays a link
-    // click (a new tab or window) rather than opening the dialog. A link to
-    // the record (Open full message, Reply, Reply all, Forward) closes the
-    // dialog first, so that question is not left behind this dialog's inert
-    // backdrop.
-    document.addEventListener('click', function (event) {
-        var target = event.target instanceof Element ? event.target : null;
-        if (!target) { return; }
-        var modified = event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey;
-        if (modified && target.closest('[data-correspondence] a[data-dialog-open]')) {
-            event.stopPropagation();
-            return;
-        }
-        var link = target.closest('[data-case-message-record]');
-        if (!link || modified) { return; }
-        var dialog = link.closest('[data-case-message-dialog]');
-        if (dialog && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
-    }, true);
 
     // ---- preparation staging ------------------------------------------------------
     // One state per image occurrence, seeded from the [data-preparation-card]
@@ -4263,17 +4560,16 @@
         return value;
     }
     // In report is posted at once through the tile's own form (operator, 26
-    // September 2026), so the tile, the viewer and a click on the image all
-    // press the same button.
+    // September 2026), so the tile and the viewer press the same button.
     function toggleInReport(id, on) {
         var value = get(id);
         var form = document.querySelector('[data-image-in-report-form="' + id + '"]');
         if (!value || !form || value.inReport === on) { return; }
         form.requestSubmit();
     }
-    // A document action (a tag, In report) changed the image on the server while
-    // the Case form holds unsaved changes: take the preparation version, the
-    // report flag and the order the server now holds, and keep the staged
+    // A document action (a tag, In report) changed the images on the server
+    // while the Case form holds unsaved changes: take the preparation version,
+    // the report flag and the place the server now holds, and keep the staged
     // rotation and crop.
     function adopt(id, tile) {
         var store = staged();
@@ -4283,9 +4579,11 @@
         var inReport = tile.getAttribute('data-preparation-in-report') === 'true';
         if (inReport !== value.inReport) {
             value.inReport = inReport;
-            value.order = tile.getAttribute('data-preparation-order') ? number(tile.getAttribute('data-preparation-order'), null) : null;
             if (!inReport) { value.fullPage = false; }
         }
+        // A document action waits for staged edits to commit, so the place
+        // the server now holds already counts any order staged here.
+        value.order = tile.getAttribute('data-preparation-order') ? number(tile.getAttribute('data-preparation-order'), null) : null;
         if (value.changed) { writeHidden(); }
     }
     window.pegasusCasePreparation = {
@@ -4302,8 +4600,7 @@
             card.dataset.preparationBound = 'true';
             var value = seed(card);
             if (!value) { return; }
-            var enhanced = card.querySelector('[data-image-report]');
-            if (enhanced) { enhanced.hidden = false; }
+            all(card, '[data-image-report]').forEach(function (enhanced) { enhanced.hidden = false; });
             sync(value.id);
             var order = card.querySelector('[data-preparation-order]');
             if (order) { order.addEventListener('change', function () { set(value.id, { order: order.value === '' ? null : order.value }); }); }
@@ -4882,7 +5179,6 @@
 
     function bind(root) {
         bindViewer(root);
-        bindFileTabs(root);
         bindPreparationCards(root);
     }
     bind(document);

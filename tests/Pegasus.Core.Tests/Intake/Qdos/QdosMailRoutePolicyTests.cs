@@ -332,6 +332,25 @@ public sealed class PrincipalMailRoutePolicyTests
             predicate => predicate.Key == "forward.original-exactly-one" && !predicate.Matched);
     }
 
+    /// <summary>
+    /// Issue 1042: a reply to a Collision Engineers staff forward answers the
+    /// proven original sender; a forward inside the Principal's own
+    /// organisation, or one that could not be unwrapped, answers its own sender.
+    /// </summary>
+    [Theory]
+    [InlineData("staff", "desk@collisionengineers.co.uk", "randerson@qdosassist.co.uk", "randerson@qdosassist.co.uk")]
+    [InlineData("staff-case", "Desk@CollisionEngineers.co.uk", "randerson@qdosassist.co.uk", "randerson@qdosassist.co.uk")]
+    [InlineData("principal", "colleague@qdosassist.co.uk", "colleague@qdosassist.co.uk", null)]
+    [InlineData("unwrapped", "desk@collisionengineers.co.uk", null, null)]
+    [InlineData("internal", "desk@collisionengineers.co.uk", "alex@collisionengineers.co.uk", null)]
+    [InlineData("direct", "randerson@qdosassist.co.uk", null, null)]
+    public void AStaffForwardIsAnsweredToItsOriginalSender(
+        string row, string transport, string? effective, string? expected)
+    {
+        Assert.NotEmpty(row);
+        Assert.Equal(expected, PrincipalMailRoutePolicy.StaffForwardOriginalSender(transport, effective));
+    }
+
     private static IntakeSourceReadResult Readable(
         IReadOnlyList<IntakeTransportEvidence>? transport = null) =>
         new(

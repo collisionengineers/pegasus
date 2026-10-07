@@ -128,7 +128,7 @@ public sealed class CaseClosureWebTests
         Assert.Contains("data-dialog-open=\"case-close-dialog\"", adverse, StringComparison.Ordinal);
         Assert.Contains("btn--danger", adverse, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.CloseCase, adverse, StringComparison.Ordinal);
-        foreach (var progression in new[] { "Hand to Engineer", "Mark completed", "Return to Engineer", "Place on Hold", "Correct principal" })
+        foreach (var progression in new[] { "Assign Engineer", "Mark completed", "Return to Engineer", "Place on Hold", "Correct principal" })
         {
             Assert.DoesNotContain(progression, adverse, StringComparison.Ordinal);
         }

@@ -431,21 +431,31 @@ public sealed partial class TriageCaseWebTests
         Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.NoCase, ribbon, StringComparison.Ordinal);
         Assert.DoesNotContain("triage-source-title", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Source</h2>", html, StringComparison.Ordinal);
-        Assert.Contains($">{Pegasus.Web.Presentation.OperatorLabels.Triage.Determinations}</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("data-triage-finding", html, StringComparison.Ordinal);
+        // The page's actions are one Actions menu (v31); Await information,
+        // Open message and the record bar are gone.
+        Assert.DoesNotContain("await_information", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-triage-action=\"open-message\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("record-bar", html, StringComparison.Ordinal);
+        var mutable = state is not (TriageState.Completed or TriageState.Cancelled);
+        Assert.Equal(mutable, ribbon.Contains("data-dialog-open=\"triage-cancel-dialog\"", StringComparison.Ordinal));
+        Assert.Equal(!mutable, ribbon.Contains("data-dialog-open=\"triage-reopen-dialog\"", StringComparison.Ordinal));
+        Assert.Equal(
+            state is TriageState.Open or TriageState.AwaitingInformation or TriageState.FindingRecorded,
+            html.Contains("data-dialog=\"triage-finding-dialog\"", StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// Complete and Await information post once each, with no reason and no
-    /// prior claim; Complete needs no response evidence. Each writes its fixed
-    /// history text and shows its own notice.
+    /// Complete posts once, with no reason and no prior claim; Complete needs
+    /// no response evidence. It writes its fixed history text and shows its
+    /// own notice.
     /// </summary>
     [Fact]
-    public async Task CompleteAndAwaitInformationEachPostOnceWithNoReason()
+    public async Task CompletePostsOnceWithNoReason()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var completing = await CreateManualTriageAsync(factory.Services, "one-post-complete");
-        var awaiting = await CreateManualTriageAsync(factory.Services, "one-post-await");
         var antiforgery = AntiforgeryValue(await GetHtmlAsync(client, $"/Cases/{completing.CaseId:D}"));
 
         var recorded = await PostTriageActionAsync(
@@ -468,14 +478,51 @@ public sealed partial class TriageCaseWebTests
         Assert.Equal("triage_state_completed", completedDetail.History[^1].EventType);
         Assert.Equal(CompleteTriage.Reason, completedDetail.History[^1].Reason);
 
-        var awaited = await PostTriageActionAsync(client, awaiting.CaseId, antiforgery, 0, "await_information");
-        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.AwaitingInformation, awaited, StringComparison.Ordinal);
-        var awaitingDetail = await GetTriageAsync(factory.Services, awaiting.CaseId);
-        Assert.Equal(TriageState.AwaitingInformation, awaitingDetail.Record.State);
-        Assert.Equal(AwaitTriageInformation.Reason, awaitingDetail.History[^1].Reason);
-
         await AssertNoLiveScopeAsync(factory.Services, completing.CaseId);
-        await AssertNoLiveScopeAsync(factory.Services, awaiting.CaseId);
+    }
+
+    /// <summary>
+    /// Record finding with Complete Triage ticked records the finding and
+    /// completes on the version it left, in one post (operator, 5 October
+    /// 2026). The same post again replays both saves: nothing is recorded or
+    /// completed twice.
+    /// </summary>
+    [Fact]
+    public async Task RecordFindingWithCompleteTriageTickedCompletesInOnePost()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "record-and-complete");
+        var page = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
+        var dialog = FindingDialog(page);
+        Assert.Contains($"<h2 id=\"triage-finding-dialog-title\" tabindex=\"-1\">{Pegasus.Web.Presentation.OperatorLabels.Triage.RecordFinding}</h2>", dialog, StringComparison.Ordinal);
+        Assert.Contains("name=\"completeTriage\" value=\"true\"", dialog, StringComparison.Ordinal);
+        // A Triage staff created directly came by no e-mail: no reply to tick.
+        Assert.DoesNotContain("name=\"replyWithFinding\"", dialog, StringComparison.Ordinal);
+        var antiforgery = AntiforgeryValue(page);
+        var operationKey = Guid.NewGuid().ToString("N");
+        (string, string)[] fields =
+        [
+            ("reason", "Reviewed the request images."),
+            ("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)),
+            ("completeTriage", "true")
+        ];
+
+        var completed = await PostTriageActionAsync(client, triage.CaseId, antiforgery, 0, "record_finding", operationKey, fields);
+
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, completed, StringComparison.Ordinal);
+        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
+        Assert.Equal(TriageState.Completed, detail.Record.State);
+        Assert.Single(detail.Findings);
+        Assert.Equal("triage_state_completed", detail.History[^1].EventType);
+        var historyCount = detail.History.Count;
+
+        _ = await PostTriageActionAsync(client, triage.CaseId, antiforgery, 0, "record_finding", operationKey, fields);
+        var replayed = await GetTriageAsync(factory.Services, triage.CaseId);
+        Assert.Equal(TriageState.Completed, replayed.Record.State);
+        Assert.Single(replayed.Findings);
+        Assert.Equal(historyCount, replayed.History.Count);
+        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
     }
 
     /// <summary>
@@ -496,7 +543,7 @@ public sealed partial class TriageCaseWebTests
         var page = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
         var ribbon = TriageRibbon(page);
         Assert.Contains("data-dialog-open=\"triage-assign-dialog\"", ribbon, StringComparison.Ordinal);
-        Assert.Contains(">Assign</button>", ribbon, StringComparison.Ordinal);
+        Assert.Contains("<span>Assign</span>", ribbon, StringComparison.Ordinal);
         var options = AssigneeOptions(page);
         Assert.Equal(string.Empty, options[0].Value);
         Assert.Equal(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), options[1].Value);
@@ -515,7 +562,7 @@ public sealed partial class TriageCaseWebTests
             Pegasus.Web.Presentation.OperatorLabels.Triage.AssignedTo("aaron-engineer"),
             assigned,
             StringComparison.Ordinal);
-        Assert.Contains(">Reassign</button>", TriageRibbon(assigned), StringComparison.Ordinal);
+        Assert.Contains("<span>Reassign</span>", TriageRibbon(assigned), StringComparison.Ordinal);
         Assert.Contains("data-triage-unassign", assigned, StringComparison.Ordinal);
         Assert.Equal(colleague, (await GetTriageAsync(factory.Services, triage.CaseId)).Record.AssigneeId);
 
@@ -525,34 +572,6 @@ public sealed partial class TriageCaseWebTests
         Assert.Null(detail.Record.AssigneeId);
         Assert.Equal("triage_unassigned", detail.History[^1].EventType);
         Assert.Equal(UnassignTriage.Reason, detail.History[^1].Reason);
-        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
-    }
-
-    /// <summary>
-    /// Work Centre Assign to me on a Triage claims the Triage hold for its one
-    /// save, so it assigns (F10).
-    /// </summary>
-    [Fact]
-    public async Task WorkCentreAssignToMeAssignsATriage()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var triage = await CreateManualTriageAsync(factory.Services, "work-centre-assign-to-me");
-        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-
-        using var response = await client.PostAsync(
-            "/?handler=AssignTriageToMe",
-            Form(
-                antiforgery,
-                ("triageId", triage.CaseId.ToString("D")),
-                ("operationKey", Guid.NewGuid().ToString("N")),
-                ("returnUrl", "/")));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
-        Assert.Equal(DevelopmentOfflineIdentity.AdministratorId, detail.Record.AssigneeId);
-        Assert.Equal(1, detail.Record.Version);
-        Assert.Equal("triage_assigned", detail.History[^1].EventType);
         await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
     }
 
@@ -673,48 +692,13 @@ public sealed partial class TriageCaseWebTests
     }
 
     /// <summary>
-    /// Work Centre Assign to me on a Triage an Automation session holds names
-    /// the holder, as the Triage page does, instead of the catch-all refusal.
-    /// </summary>
-    [Fact]
-    public async Task WorkCentreAssignToMeNamesWhoHoldsTheTriage()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var triage = await CreateManualTriageAsync(factory.Services, "work-centre-automation-holds-triage");
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-                new(EditScopeKind.Triage, triage.CaseId, 0, ActionActor.Automation("triage-test-client"), "work-centre-automation-holds-triage-edit"),
-                CancellationToken.None);
-        }
-        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-
-        using var response = await client.PostAsync(
-            "/?handler=AssignTriageToMe",
-            Form(
-                antiforgery,
-                ("triageId", triage.CaseId.ToString("D")),
-                ("operationKey", Guid.NewGuid().ToString("N")),
-                ("returnUrl", "/")));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var workCentre = await GetHtmlAsync(client, "/");
-        Assert.Contains("AI is editing this Triage record.", workCentre, StringComparison.Ordinal);
-        Assert.DoesNotContain(Pegasus.Web.Presentation.OperatorLabels.WorkCentre.TriageAssignRefused, workCentre, StringComparison.Ordinal);
-        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
-        Assert.Null(detail.Record.AssigneeId);
-        Assert.Equal(0, detail.Record.Version);
-    }
-
-    /// <summary>
-    /// On a Completed Triage the determinations are greyed boxes with the
-    /// recorded values, and Record correction opens the same form in a
+    /// On a Completed Triage the finding reads its recorded values, Record
+    /// finding is gone, and Record correction opens the same fields in a
     /// dialog; the correction supersedes the finding and returns the Triage
     /// to Finding recorded.
     /// </summary>
     [Fact]
-    public async Task ACompletedTriageShowsGreyedDeterminationsAndOffersRecordCorrection()
+    public async Task ACompletedTriageShowsTheFindingAndOffersRecordCorrection()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -732,12 +716,11 @@ public sealed partial class TriageCaseWebTests
         var finding = Assert.Single((await GetTriageAsync(factory.Services, triage.CaseId)).Findings);
         var completed = await PostTriageActionAsync(client, triage.CaseId, antiforgery, 1, "complete");
 
-        var panel = DeterminationsPanel(completed);
-        Assert.DoesNotContain("data-triage-determinations", panel, StringComparison.Ordinal);
-        Assert.Contains("<div class=\"fc ro\">", panel, StringComparison.Ordinal);
-        Assert.Contains(">Roadworthy</div>", panel, StringComparison.Ordinal);
-        Assert.Contains(">Repairable</div>", panel, StringComparison.Ordinal);
-        Assert.Contains("data-dialog-open=\"triage-correction-dialog\"", panel, StringComparison.Ordinal);
+        var readOut = FindingReadOut(completed);
+        Assert.Contains(">Roadworthy</dd>", readOut, StringComparison.Ordinal);
+        Assert.Contains(">Repairable</dd>", readOut, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"triage-finding-dialog\"", completed, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"triage-correction-dialog\"", TriageRibbon(completed), StringComparison.Ordinal);
         var dialog = CorrectionDialog(completed);
         Assert.Contains("data-triage-determinations", dialog, StringComparison.Ordinal);
         Assert.Contains("value=\"supersede_finding\"", dialog, StringComparison.Ordinal);
@@ -913,23 +896,30 @@ public sealed partial class TriageCaseWebTests
         return user.Id;
     }
 
-    /// <summary>The Triage ribbon, from its facts to its state chip.</summary>
+    /// <summary>The Triage ribbon, from its facts to the end of its Actions menu.</summary>
     private static string TriageRibbon(string html)
     {
         var start = html.IndexOf("class=\"ribbon triage-ribbon\"", StringComparison.Ordinal);
         Assert.True(start >= 0, "The Triage ribbon is not rendered.");
-        var end = html.IndexOf("class=\"ribbon-chips\"", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The Triage ribbon has no state chip.");
+        var end = html.IndexOf("class=\"triage-tabrow\"", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Triage ribbon has no tab row after it.");
         return html[start..end];
     }
 
-    /// <summary>The Determinations panel, from its head to its end.</summary>
-    private static string DeterminationsPanel(string html)
+    /// <summary>The finding the tab row reads out.</summary>
+    private static string FindingReadOut(string html)
     {
-        var start = html.IndexOf("id=\"triage-determinations-title\"", StringComparison.Ordinal);
-        Assert.True(start >= 0, "The Determinations panel is not rendered.");
+        var start = html.IndexOf("data-triage-finding", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The finding is not rendered.");
+        var end = html.IndexOf("</dl>", start, StringComparison.Ordinal);
+        return html[start..end];
+    }
+
+    private static string FindingDialog(string html)
+    {
+        var start = html.IndexOf("data-dialog=\"triage-finding-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Record finding dialog is not rendered.");
         var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The Determinations panel is not closed.");
         return html[start..end];
     }
 

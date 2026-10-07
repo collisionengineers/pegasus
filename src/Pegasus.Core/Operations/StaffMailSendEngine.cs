@@ -36,11 +36,6 @@ public interface IApprovedStaffSendMailboxQueries
     Task<ApprovedStaffSendMailbox?> GetAsync(Guid mailboxId, CancellationToken cancellationToken);
 }
 
-public interface IStaffMailEvidenceReconciler
-{
-    Task ReconcileAsync(Guid approvedMailboxId, CancellationToken cancellationToken);
-}
-
 public interface IStaffMailExecutionLock
 {
     Task<IAsyncDisposable> AcquireAsync(Guid operationId, CancellationToken cancellationToken);
@@ -153,8 +148,7 @@ public sealed class StaffMailSend(
     IReadLogicalDocumentVersion contentReader,
     IStaffMailTransport transport,
     TimeProvider timeProvider,
-    IStaffMailExecutionLock executionLock,
-    IStaffMailEvidenceReconciler? evidenceReconciler = null) : IStaffMailSend
+    IStaffMailExecutionLock executionLock) : IStaffMailSend
 {
     public async Task<StaffMailOperation> SendAsync(
         StaffMailSendCommand command, CancellationToken cancellationToken)
@@ -249,22 +243,24 @@ public sealed class StaffMailSend(
             await MarkUnknownAsync(command.Actor.SubjectId, operation, CancellationToken.None);
             throw;
         }
+        // A known refusal is an outcome, not a fault: the operation is
+        // recorded Failed with its exact code and returned, so every caller
+        // shows the failure through the same state mapping as Submitted or
+        // Sent. Only an ambiguous provider outcome, recorded Unknown, is
+        // re-thrown: it must be reconciled, never read as a plain failure.
         catch (StaffMailTransportRejectedException exception)
         {
-            await MarkFailedAsync(command.Actor.SubjectId, operation, exception.FailureCode, cancellationToken);
-            throw;
+            return await MarkFailedAsync(command.Actor.SubjectId, operation, exception.FailureCode, cancellationToken);
         }
         catch (UnauthorizedAccessException)
         {
-            await MarkFailedAsync(
+            return await MarkFailedAsync(
                 command.Actor.SubjectId, operation, "staff_send_authorization_lost", cancellationToken);
-            throw;
         }
         catch (InvalidDataException)
         {
-            await MarkFailedAsync(command.Actor.SubjectId, operation,
+            return await MarkFailedAsync(command.Actor.SubjectId, operation,
                 "staff_send_content_invalid", cancellationToken);
-            throw;
         }
         catch
         {
@@ -299,55 +295,6 @@ public sealed class StaffMailSend(
         await store.RequireCurrentStaffAsync(actor.SubjectId, cancellationToken);
         return await store.GetLatestForOriginalAsync(
             actor.SubjectId, retainedMessageId, cancellationToken);
-    }
-
-    public async Task<StaffMailOperation> ReconcileAsync(
-        ActionActor actor, Guid operationId, long expectedVersion,
-        CancellationToken cancellationToken)
-    {
-        RequireStaff(actor);
-        var execution = await store.GetExecutionAsync(actor.SubjectId, operationId, cancellationToken)
-            ?? throw new KeyNotFoundException("The staff mail operation was not found.");
-        if (execution.Operation.Version != expectedVersion)
-        {
-            throw new InvalidOperationException("The staff mail operation changed concurrently.");
-        }
-        if (execution.Operation.State == StaffMailState.Unknown
-            && execution.Operation.AttemptStage == StaffMailAttemptStage.CreateDraft)
-        {
-            await store.RequireCurrentStaffAsync(actor.SubjectId, cancellationToken);
-            var mailbox = await mailboxes.GetAsync(
-                execution.Operation.ApprovedMailboxId, cancellationToken)
-                ?? throw new InvalidOperationException("The approved staff mailbox is unavailable.");
-            if (mailbox.Generation != execution.Operation.MailboxGeneration)
-                throw new InvalidOperationException("The approved staff mailbox generation changed.");
-            var lookup = await transport.FindDraftAsync(mailbox, execution.Operation, cancellationToken);
-            var operation = execution.Operation;
-            if (!string.Equals(operation.ReconciliationContinuation, lookup.Continuation,
-                    StringComparison.Ordinal))
-            {
-                operation = await store.SetReconciliationContinuationAsync(
-                    actor.SubjectId, operation.Id, operation.Version,
-                    lookup.Continuation, cancellationToken);
-            }
-            if (!lookup.Complete || lookup.Draft is null)
-                return operation;
-            return await store.TransitionAsync(
-                actor.SubjectId, operation.Id, operation.Version,
-                StaffMailState.DraftReady, StaffMailAttemptStage.Attach,
-                lookup.Draft.ImmutableDraftId, null, null, null, cancellationToken);
-        }
-        if (execution.Operation.State is StaffMailState.Sending or StaffMailState.Submitted or StaffMailState.Unknown)
-        {
-            if (evidenceReconciler is null)
-            {
-                throw new InvalidOperationException("Retained Sent-evidence reconciliation is unavailable.");
-            }
-            await evidenceReconciler.ReconcileAsync(
-                execution.Operation.ApprovedMailboxId, cancellationToken);
-        }
-        return (await store.GetExecutionAsync(actor.SubjectId, operationId, cancellationToken)
-            ?? throw new KeyNotFoundException("The staff mail operation was not found.")).Operation;
     }
 
     public async Task<StaffMailOperation> CancelAsync(
@@ -455,11 +402,11 @@ public sealed class StaffMailSend(
             operation.ObservedSentAtUtc, "provider_outcome_unknown", cancellationToken);
     }
 
-    private async Task MarkFailedAsync(
+    private async Task<StaffMailOperation> MarkFailedAsync(
         string actorSubjectId, StaffMailOperation operation, string failureCode,
         CancellationToken cancellationToken)
     {
-        await store.TransitionAsync(
+        return await store.TransitionAsync(
             actorSubjectId, operation.Id, operation.Version, StaffMailState.Failed,
             operation.AttemptStage, null, operation.SubmittedAtUtc,
             operation.ObservedSentAtUtc, failureCode, cancellationToken);

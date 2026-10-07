@@ -8,14 +8,16 @@
   `Query` is a return trip from Completed. `Held` is a pause.
 - Not ready becomes Review by itself when every required instruction item
   and image is present. Nobody ticks a "reviewed" box.
-- **Hand to Engineer** is the only way from Review to With Engineer. Sending
+- **Assign Engineer** is the only way from Review to With Engineer. Sending
   work to EVA never moves a Case.
 - **Mark report sent** needs a real Sent email item. **Mark completed** can be
   undone. A Case is never permanently closed.
 - **Close case** records a cancellation or a rejection with a reason.
   **Archive** hides a closed Case from queues. Nothing is ever deleted.
-- **Create audit** adds the Audit to an Inspection + Audit Case once its
-  report is sent, and returns the Case to With Engineer for the Audit.
+- **Create audit** adds the Audit to an Inspection + Audit Case in work,
+  whether or not its report is sent, and returns the Case to With Engineer
+  for the Audit. It is always listed on such a Case; when refused it is
+  greyed out and states why on hover.
 
 ## Purpose
 
@@ -63,12 +65,13 @@ from, why it is required, and what would clear it. Pegasus never shows an
 overall score, a percentage, or a summary such as "3 items outstanding". On
 the Case record each report blocker links to the section that clears it. A
 recorded value is never a blocker because of who recorded it: there is no
-per-field review, and Hand to Engineer is the only review (operator, 25
+per-field review, and Assign Engineer is the only review (operator, 25
 September 2026). Once the Case is With Engineer, while the report is not ready the
 Next action lists every report blocker, each linking to its section, and the
 Report section's head keeps the one **Not ready** availability label (in Not
-ready and Review the Next action names the outstanding requirement or Hand to
-Engineer, and the report blockers follow it) ([FRD-16](frd-16-case-record-workspace.md#case-workspace),
+ready and Review the Next action names the outstanding requirement or Assign
+Engineer, which opens the Actions menu's dialog, and the report blockers
+follow it) ([FRD-16](frd-16-case-record-workspace.md#case-workspace),
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 
 **Required items are configuration.** Instruction completeness and image
@@ -103,15 +106,14 @@ saved as it is made, so the blocker goes, the state moves and the action
 appears within the round trip
 ([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
 
-### Hand to Engineer
+### Assign Engineer
 
-In Review, staff choose **Hand to Engineer** and pick an eligible enabled
+In Review, staff choose **Assign Engineer** and pick an eligible enabled
 staff account. In one operation, under a Case edit lease — the session's, or
 one claimed for the action ([FRD-16](frd-16-case-record-workspace.md#actions-menu))
 — and the current version, Pegasus assigns the Engineer, sets the Sign-off
 Engineer, and moves the Case
-to With Engineer. Any enabled staff member may use **Assign to me** wherever the same
-assignment would be accepted. A headless start command can hand a Review Case
+to With Engineer. A headless start command can hand a Review Case
 to its already-assigned eligible staff member; it is not a second screen step.
 
 Replaying the same request does not hand off twice. A request that is
@@ -141,9 +143,11 @@ received or assigned anything.
   A generated file, an export, a draft, a queue result or a manual statement
   is not enough. Report sent moves the Case into its post-report phase,
   which screens still show as With Engineer. Sent evidence belongs to the
-  report it proves: after Create audit it must be of the Audit report and
-  sent after the Audit was created, and the Inspection's Sent evidence stays
-  with the Inspection.
+  report it proves: after Create audit, the Case's own Mark report sent takes
+  the Audit report's evidence, sent after the Audit was created, while the
+  Inspection view's Mark report sent takes the Inspection report's, on the
+  Inspection's own work and without changing the Case's state (operator,
+  1 October 2026).
 - **Mark completed** records that the current work is complete. It is a
   reversible work state, not a closure. It needs no Audit.
 - **Create audit** adds the Audit to an Inspection + Audit Case
@@ -187,6 +191,10 @@ association never links new material to an archived Case.
 The Engineer answers queries and disputes from the Principal, a third-party
 insurer or the claimant. When a query is received for, or attached to, a
 Completed Case, the Case moves to Query. Replying moves it back to Completed.
+Correcting a linked message's classification to a post-report family attaches
+a query in the same way. Correcting it away, or unlinking it, before any reply
+was sent, while no other post-report message is linked, returns the Case to
+Completed. Both transitions are recorded as Case history.
 A draft or an acknowledgement is not a reply. Pegasus keeps the received
 query and the actual reply as Case correspondence. Neither transition erases
 earlier completion or query history. Further engineering edits go through
@@ -194,13 +202,21 @@ Return to Engineer.
 
 ### Create audit
 
-**When it is offered.** Create audit is offered only on an Inspection +
-Audit Case, in the Actions menu inside an edit session, once its Inspection
-report is sent: in With Engineer after the report, Completed or Query. It is
-never offered on a Held Case, a Case with a closed disposition (Created in
-error included), an archived Case, or a Case that already has its Audit. A
-Case held after its report was sent is offered it again after Release Hold.
-It uses the same staff authorisation as the other Actions-menu progressions.
+**When it is offered.** Create audit is listed in the Actions menu of every
+Inspection + Audit Case, in every state, in and out of an edit session
+(operator, 1 October 2026); no other Case type lists it. It is live while
+the Case is in work: Not ready, Review, With Engineer before or after the
+report, Completed or Query. Whether the Inspection report has been sent does
+not matter. It is refused, and the item is greyed out with the refusal as
+its hover text, on a Held Case ("A held case cannot have an audit created
+from it."), a Case with a closed disposition ("A closed case cannot have an
+audit created from it."; Created in error keeps its own refusal), an
+archived Case, a Case that already has its Audit, and while a colleague
+holds the edit lease (the sections' own editing wording). A held Case is
+live again after Release Hold. It uses the same staff authorisation as the
+other Actions-menu progressions. Once the Inspection report is sent, Create
+audit is the Case's Next action, stated in the aside and the Cases quick
+detail with the same control (operator, 2 October 2026).
 With no assigned Engineer it is refused with Return to Engineer's refusal,
 "Report preparation requires an assigned Engineer.", and the assigned
 Engineer must still be eligible, as for Return to Engineer. It asks for no
@@ -214,8 +230,10 @@ or one claimed for the action) and the current version, Create audit:
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity));
 - moves the Case to With Engineer before the report, keeping the assigned
   Engineer and the Sign-off Engineer;
-- keeps the Inspection's report approval and Sent evidence with the
-  Inspection;
+- keeps the Inspection's report approval and Sent evidence, where they
+  exist, with the Inspection; the Inspection report is still generated,
+  sent and marked sent from the Inspection view afterwards, again if
+  needed ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md));
 - starts the creation of the `a.` Box subfolder
   ([FRD-05](frd-05-documents-extraction-and-custody.md#custody-and-derived-reads));
 - records one history line, "Audit {Audit reference} created by {name}".
@@ -224,9 +242,14 @@ There is no separate success message. Replaying the same request creates no
 second Audit, and an edit prepared before Create audit is refused as stale.
 
 **After it.** The Audit drives the Case: its state, queues, Actions menu and
-Next action follow the Audit's report, and report generation, approval, Mark
-report sent and Mark completed act on the Audit report. The Inspection's
-values and its sent report stay read-only. While the Audit report is being
+the Audit view's Next action follow the Audit's report, and the Case's report
+generation, approval, Mark report sent and Mark completed act on the Audit
+report. The Inspection's values are edited from the Inspection view, on the
+Inspection's own work and without any effect on the Case's state, due date,
+completeness or matching; its report is generated, sent and marked
+sent from that view, again when needed, and that view's Next action states
+the Inspection report's own step (operator, 2 October 2026). While the Audit
+report is being
 prepared, image intake association and evidence promotion are open again, as
 for any Case before its report is sent.
 
@@ -264,6 +287,18 @@ delivered. Each chaser keeps its recipient, channel, prepared draft or draft
 reference, staff disposition and timestamps. Free-text notes may sit beside a
 chaser without implying it was sent or answered.
 
+**Send chaser** on the Case record opens the composer with the Case chaser
+template ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) and
+the Case's recorded addresses, and staff send it
+([FRD-16](frd-16-case-record-workspace.md#actions-menu)). When that send's
+exact Sent evidence is observed and the Case is Not ready with a chase
+scheduled, Pegasus records the chase itself — channel E-mail, the addresses
+sent to, outcome Sent, at the provider's sent time, by the staff member who
+sent it — and schedules the next chase at the interval; in any other state
+the Sent item is correspondence evidence and no chase is recorded (operator,
+5 October 2026). Submitted is not Sent: nothing is recorded until the
+evidence exists.
+
 **What staff see.** For each item awaiting material, the work view shows the
 missing-material reason, Due by, the next chase, the most recent channel and
 outcome, an optional note, and the next permitted action. Prepared or copied
@@ -294,19 +329,25 @@ Release needs the message recategorised, unlinked or reassociated first. Every
 original and corrected classification, with actor, time, reason and evidence,
 stays in history.
 
+While a linked message's current classification is a cancellation and the
+Case is open, the Case page's Next action names it, **Cancellation received**,
+with **Open message**, and the Case's Engineer is told through the bell
+([FRD-12](frd-12-operator-experience.md#the-shell)). Correcting the message
+away clears the row. The Case's state still changes only by a staff action.
+
 ## States and transitions
 
 | From | To | Trigger |
 | --- | --- | --- |
 | Not ready | Review | Every required item present (automatic) |
-| Review | With Engineer | Hand to Engineer, Assign to me, or the headless start command |
+| Review | With Engineer | Assign Engineer, or the headless start command |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
 | With Engineer | Completed | Mark completed |
-| Completed | Query | Query received or attached |
-| Query | Completed | Reply sent |
+| Completed | Query | Query received, attached, or corrected onto a linked message |
+| Query | Completed | Reply sent, or the last post-report message unlinked or corrected away before any reply |
 | Completed, Query | With Engineer | Return to Engineer (reason) |
-| With Engineer after the report, Completed, Query | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
+| Not ready, Review, With Engineer, Completed, Query | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
 | pre-report states | Principal cancelled, Collision Engineers rejected | Close case (reason) |
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |
@@ -322,8 +363,9 @@ stays in history.
 - A second archive on an archived Case is refused.
 - A chase already calculated keeps its date when the interval changes.
 - A cancellation message never changes state without a staff action.
-- Create audit before the Inspection report is sent, on a Held, closed or
-  archived Case, without an assigned Engineer, or a second time, is refused.
+- Create audit on a Held, closed or archived Case, without an assigned
+  Engineer, or a second time, is refused; the listed item is greyed out and
+  states the refusal on hover.
 - Sent evidence for the Audit report that predates the Audit, or that proves
   the Inspection report, is refused.
 
@@ -331,8 +373,8 @@ stays in history.
 
 Core tests cover every transition in the table above, readiness from stored
 facts, chase scheduling across the Held boundary, the four dispositions, and
-Create audit's offer and refusal in each state. Integration tests cover Hand
-to Engineer under a lease, Mark report sent against retained Sent evidence,
+Create audit's offer and refusal in each state. Integration tests cover Assign
+Engineer under a lease, Mark report sent against retained Sent evidence,
 Create audit with its replay and refusals, and Archive. Deployment and live
 acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).

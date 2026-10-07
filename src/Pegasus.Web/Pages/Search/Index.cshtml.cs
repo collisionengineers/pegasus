@@ -179,7 +179,8 @@ public sealed partial class IndexModel(
                         Claimant,
                         ClaimNumber,
                         Principal,
-                        State,
+                        // The State filter is a stage: With Engineer finds both of its states (D3).
+                        State is { } state ? OperatorLabels.CaseStageStates(state) : null,
                         EngineerId,
                         ReceivedDate,
                         FromDate,

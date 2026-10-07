@@ -59,7 +59,7 @@ public sealed class CaseWorkflowWebTests
             services.RemoveAll<ISubmitCaseToEva>();
         }, StaffRole.User);
         var html = await workspace.GetWorkspaceAsync();
-        Assert.Contains("Hand to Engineer", RecordBar(html), StringComparison.Ordinal);
+        Assert.Contains("Assign Engineer", RecordBar(html), StringComparison.Ordinal);
         var dialog = Section(html, "case-handoff-dialog-title");
         Assert.Contains("handler=AssignEngineer", dialog, StringComparison.Ordinal);
         Assert.Contains(engineerId.ToString("D"), dialog, StringComparison.Ordinal);
@@ -85,10 +85,10 @@ public sealed class CaseWorkflowWebTests
                 ("evidenceReference", InputValue(dialog, "evidenceReference"))));
         AssertPrg(response, store.CaseId);
         var handoff = Assert.Single(store.EngineerAssignments);
-        AssertLeasedMutation(workspace, handoff, InputValue(dialog, "operationKey"), "Hand to Engineer");
+        AssertLeasedMutation(workspace, handoff, InputValue(dialog, "operationKey"), "Assign Engineer");
         Assert.Equal(engineerId, handoff.EngineerId);
         Assert.Empty(store.Transitions);
-        Assert.Contains("The case was handed to the Engineer.",
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.WorkCentre.Assigned,
             await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
 
@@ -140,7 +140,7 @@ public sealed class CaseWorkflowWebTests
         Assert.Equal(expectedReadiness, transition.Readiness);
 
         var assignment = Assert.Single(store.EngineerAssignments);
-        AssertLeasedMutation(workspace, assignment, "assign-engineer", "Hand to Engineer");
+        AssertLeasedMutation(workspace, assignment, "assign-engineer", "Assign Engineer");
         Assert.Equal(engineerId, assignment.EngineerId);
         Assert.Equal(expectedReadiness, assignment.Readiness);
 
@@ -374,7 +374,7 @@ public sealed class CaseWorkflowWebTests
         Assert.Equal("hold-case", hold.OperationKey);
         Assert.Equal("release-case", release.OperationKey);
         Assert.Equal("native-handoff", handoff.OperationKey);
-        Assert.Equal("Hand to Engineer", handoff.Reason);
+        Assert.Equal("Assign Engineer", handoff.Reason);
         Assert.Equal(engineerId, handoff.EngineerId);
         Assert.Empty(store.Transitions);
     }

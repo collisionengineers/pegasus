@@ -33,7 +33,7 @@ public sealed class CaseReportGenerationTests
         Assert.Empty(result.Reasons);
         Assert.Equal(SignatoryId, result.Signatory!.StaffId);
         Assert.Equal(
-            [CaseAssetReportRole.CloseUp, CaseAssetReportRole.Overview],
+            [CaseAssetReportRole.Overview, CaseAssetReportRole.CloseUp],
             result.Images.Select(image => image.Role));
     }
 
@@ -291,15 +291,20 @@ public sealed class CaseReportGenerationTests
         Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
     }
 
+    /// <summary>
+    /// The one image a report needs is its Overview; the Close-up is optional
+    /// (operator, 7 October 2026).
+    /// </summary>
     [Fact]
-    public void AMissingCloseUpBlocksGeneration()
+    public void AMissingCloseUpDoesNotBlockGeneration()
     {
         var result = CaseReportReadiness.Evaluate(ReadyInput() with
         {
             Preparations = [Preparation(OverviewOccurrence, CaseAssetReportRole.Overview)],
         });
 
-        AssertBlocked(result, CaseReportReadiness.CloseUpImageRequirement);
+        Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
+        Assert.Equal(CaseAssetReportRole.Overview, Assert.Single(result.Images).Role);
     }
 
     [Fact]
@@ -417,20 +422,6 @@ public sealed class CaseReportGenerationTests
         AssertBlocked(result, CaseReportReadiness.ImageSourceRequirement);
     }
 
-    [Fact]
-    public void AnOverriddenReportDateWithoutADateBlocksGeneration()
-    {
-        var input = ReadyInput();
-        var fields = input.Assessment.Fields
-            .Append(Field(AssessmentVocabulary.ReportDateOverride, "true"))
-            .ToArray();
-
-        var result = CaseReportReadiness.Evaluate(
-            input with { Assessment = input.Assessment with { Fields = fields } });
-
-        AssertBlocked(result, "Report date");
-    }
-
     /// <summary>
     /// The report prints the trade value beside the Engineer's Value, so a
     /// Case without one is not generated; it is entered on Valuation
@@ -485,7 +476,6 @@ public sealed class CaseReportGenerationTests
         AssessmentFieldValue[] fields =
         [
             .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.DamageUnrelated),
-            Field(AssessmentVocabulary.ReportDateOverride, "true"),
             Field(AssessmentVocabulary.ReportValuationCommentary, "true"),
             Field(AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),
         ];
@@ -508,12 +498,10 @@ public sealed class CaseReportGenerationTests
             AssessmentVocabulary.ReportValuationCommentaryText,
             FieldOf(CaseReportReadiness.ValuationCommentaryRequirement));
         Assert.Equal(AssessmentVocabulary.DamageUnrelated, FieldOf(CaseReportReadiness.UnrelatedDamageRequirement));
-        Assert.Equal(AssessmentVocabulary.ReportDate, FieldOf("Report date"));
         foreach (var requirement in new[]
         {
             CaseReportReadiness.SignatoryRequirement,
             CaseReportReadiness.CurrentEstimateRequirement,
-            CaseReportReadiness.CloseUpImageRequirement,
             CaseReportReadiness.OverviewImageRequirement,
         })
         {
@@ -557,10 +545,6 @@ public sealed class CaseReportGenerationTests
         // The post-review Engineer's Value item is the one blocker for the missing value.
         var engineerValue = Assert.Single(reasons, reason => reason.Field == AssessmentVocabulary.ValueEngineer);
         Assert.Contains("the Valuation section", engineerValue.HowToResolve, StringComparison.Ordinal);
-        Assert.Contains(
-            "the Files section",
-            HowToResolve(CaseReportReadiness.CloseUpImageRequirement),
-            StringComparison.Ordinal);
         Assert.Contains(
             "the Files section",
             HowToResolve(CaseReportReadiness.OverviewImageRequirement),
@@ -659,23 +643,14 @@ public sealed class CaseReportGenerationTests
     }
 
     [Fact]
-    public void AReportDateDefaultsOnlyAtGenerationAndAnOverrideIsFrozen()
+    public void AReportDateDefaultsOnlyAtGenerationAndARecordedDateWins()
     {
         var generatedOn = new DateOnly(2026, 9, 6);
 
+        Assert.Equal(generatedOn, CaseReportReadiness.ResolveReportDate(null, generatedOn));
         Assert.Equal(
-            (generatedOn, false),
-            CaseReportReadiness.ResolveReportDate(null, overridden: false, generatedOn));
-        Assert.Equal(
-            (generatedOn, false),
-            CaseReportReadiness.ResolveReportDate(
-                new DateOnly(2026, 7, 4), overridden: false, generatedOn));
-        Assert.Equal(
-            (new DateOnly(2026, 7, 4), true),
-            CaseReportReadiness.ResolveReportDate(
-                new DateOnly(2026, 7, 4), overridden: true, generatedOn));
-        Assert.Throws<InvalidDataException>(() =>
-            CaseReportReadiness.ResolveReportDate(null, overridden: true, generatedOn));
+            new DateOnly(2026, 7, 4),
+            CaseReportReadiness.ResolveReportDate(new DateOnly(2026, 7, 4), generatedOn));
     }
 
     [Fact]
@@ -684,7 +659,7 @@ public sealed class CaseReportGenerationTests
         var store = new FakeStore
         {
             Freeze = new(CaseReportFreezeOutcome.NotReady, null, null,
-                [new AssessmentReadinessItem("Close-up image", "Case files", "why", "how")]),
+                [new AssessmentReadinessItem("Overview image", "Case files", "why", "how")]),
         };
         var renderer = new RecordingRenderer();
         var custody = new RecordingCustody();
@@ -692,7 +667,7 @@ public sealed class CaseReportGenerationTests
         var result = await Use(store, renderer, custody).ExecuteAsync(Request(), default);
 
         Assert.Equal(CaseReportGenerationOutcome.NotReady, result.Outcome);
-        Assert.Equal("Close-up image", Assert.Single(result.Reasons).Requirement);
+        Assert.Equal("Overview image", Assert.Single(result.Reasons).Requirement);
         Assert.Empty(renderer.Kinds);
         Assert.Equal(0, custody.Calls);
     }
@@ -740,36 +715,33 @@ public sealed class CaseReportGenerationTests
     }
 
     /// <summary>
-    /// R34B: the operator's packaging choice reaches the freeze, so it is
-    /// frozen with the snapshot rather than decided again at render time.
-    /// A separate fee-note document never carries it.
+    /// The report freezes fresh facts; a separate fee note names the
+    /// generation it extends, so it is made from that report's frozen facts.
     /// </summary>
     [Fact]
-    public async Task TheFeeNotePackagingChoiceIsCarriedIntoTheFreeze()
+    public async Task ASeparateFeeNoteNamesTheGenerationItExtends()
     {
         var store = new FakeStore();
         var targetGenerationId = Guid.NewGuid();
 
         await Use(store, new RecordingRenderer(), new RecordingCustody())
-            .ExecuteAsync(Request() with { IncludeFeeNote = true }, default);
+            .ExecuteAsync(Request(), default);
         await Use(store, new RecordingRenderer(), new RecordingCustody())
             .ExecuteAsync(
                 Request(CaseReportArtifactKind.FeeNote) with { TargetGenerationId = targetGenerationId },
                 default);
 
-        Assert.Equal([true, false], store.Freezes.Select(freeze => freeze.IncludeFeeNote));
+        Assert.Null(store.Freezes[0].TargetGenerationId);
         Assert.Equal(targetGenerationId, store.Freezes[1].TargetGenerationId);
-        Assert.False(Request().IncludeFeeNote);
     }
 
     /// <summary>
-    /// The fee facts the fee note prints are already a report readiness
-    /// requirement, so a Case without an agreed fee is refused for the
-    /// combined report with exactly the reason the fee note is refused with.
-    /// Nothing about the packaging choice adds a second fee policy.
+    /// The fee facts the fee note prints are a report readiness requirement,
+    /// because every report ends with its fee note: a Case without an agreed
+    /// fee is refused.
     /// </summary>
     [Fact]
-    public void AMissingAgreedFeeBlocksGenerationHoweverTheFeeNoteIsPackaged()
+    public void AMissingAgreedFeeBlocksGeneration()
     {
         var input = ReadyInput();
         var withoutFee = input.Assessment.Fields
@@ -1254,6 +1226,10 @@ public sealed class CaseReportGenerationTests
             return Task.FromResult(Record(CaseReportArtifactKind.AssessmentReport));
         }
 
+        public Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+            SendCaseReportRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<CaseReportGenerationRecord?> GetAsync(
             ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportGenerationRecord?>(Record(CaseReportArtifactKind.AssessmentReport));
@@ -1302,7 +1278,7 @@ public sealed class CaseReportGenerationTests
                 SignatoryId, Sha256Of([1, 2, 3]), "image/png",
                 estimate.SpecificationId, estimate.Version, ReportRepairCosts.For(estimate), 5_000m, Guid.NewGuid(),
                 CaseReportContentSwitches.None, ReportGuideSources.None,
-                new DateOnly(2026, 9, 6), false, 120m, ["Engineering assessment"], [], [],
+                new DateOnly(2026, 9, 6), 120m, ["Engineering assessment"], [], [],
                 AssessmentReportContract.TemplateVersion, "fake",
                 AssessmentReportRenderingTests.Snapshot(AssessmentReportOutcome.Repairable))
             {

@@ -8,7 +8,6 @@
 .case-record .ribbon-ref .ribbon-value{display:block}
 .case-record .ribbon-chips .status .icon{width:12px;height:12px}
 .case-record .lease-line{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
-.case-record .lease-line.is-expiring{color:var(--amber);font-weight:700}
 .case-record .lease-line.is-refused{color:var(--red);font-weight:700}
 .case-record .case-edit-badge{margin-right:2px}
 .case-record .ribbon-actions form{display:contents}
@@ -40,6 +39,8 @@
 .next-row+.next-row{margin-top:8px}
 .next-row.ai-next{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
 .next-row .src-tag{margin-right:4px}
+/* Create audit as the next step, greyed with its reason as the Actions menu's item is. */
+.next-row .menu-gated{cursor:not-allowed}
 /* Views (v29 option 4): the aside's first card once the Case has its Audit;
    the current view reads plain and strong, the other is a link. */
 [data-case-views] .next-row{gap:8px}
@@ -160,45 +161,48 @@
 
 
 /* ==== valuation ==== */
-/* ---- Valuation (v26): tools row, guide cards, calculator, applied history ---- */
-#section-valuation .val-tools{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
-#section-valuation .val-tools form{display:contents}
-#section-valuation .val-tools .val-month{flex:0 0 170px;min-width:0}
-#section-valuation .val-tools .val-month .fi{display:block}
-#section-valuation .val-tools .val-get{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-bottom:1px}
-#section-valuation .val-tools .val-get .lbl{font:600 10.5px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-right:2px}
-#section-valuation .val-tools .spacer{flex:1}
-#section-valuation .guides{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-#section-valuation .valuation-card{position:relative;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;background:#fff;cursor:default;min-width:0}
-.case-record.is-editing #section-valuation .valuation-card:not(.seam):not(.is-pending){cursor:pointer}
-#section-valuation .valuation-card.sel{outline:2px solid var(--navy);outline-offset:-1px}
-.case-record.is-editing #section-valuation .valuation-card[tabindex="0"]:focus-visible{outline:2px solid var(--red);outline-offset:2px}
-#section-valuation .valuation-card.is-pending{opacity:.65}
-#section-valuation .valuation-card h3{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:12.5px;font-weight:700;min-width:0}
-#section-valuation .valuation-card .pick{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);font-weight:500;cursor:pointer}
-#section-valuation .valuation-card .pick input{accent-color:var(--navy);margin:0}
-/* A source card (23 September 2026): the figures are the record's own .fc
-   cells, greyed boxes while reading and inputs while editing, a little more
-   compact than a section's fields so five cards fit their row. */
-#section-valuation .valuation-card .fg{gap:6px 8px}
-#section-valuation .valuation-card .fg.meta{margin-top:6px}
-#section-valuation .valuation-card .fc .fv,#section-valuation .valuation-card .fc .fi{min-height:28px;padding:3px 7px;font-size:12.5px}
-#section-valuation .valuation-card .meta{margin-top:6px;font-size:11px;color:var(--muted)}
-#section-valuation .valuation-card .notice{margin-top:8px;padding:6px 8px;font-size:12px}
-#section-valuation .valuation-card .notice .link-button{color:inherit;text-decoration:underline}
-#section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:8px}
-#section-valuation [data-valuation-lines-host][aria-busy="true"]{opacity:.65}
-#section-valuation .valuation-card.is-pending .meta::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:valspin .8s linear infinite}
-@keyframes valspin{to{transform:rotate(360deg)}}
-#section-valuation .valuation-card .gated{margin-left:0}
-#section-valuation .calc{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);grid-template-rows:auto 1fr;gap:14px;align-items:start}
-/* The calculation runs down its column beside the report switches and the lines. */
-#section-valuation .calc>.calc-inputs{grid-row:span 2}
+/* ---- Valuation (v33 design D, 6 October 2026): the sources as rows; under the chosen one, the calculation and the three values ---- */
+#section-valuation .valuation-sources{border:1px solid var(--line);border-radius:var(--radius);background:#fff;min-width:0}
+/* A source row: its name, its three boxes under the column heads, and while
+   editing its two buttons. Reading keeps no column for the buttons. */
+#section-valuation .valuation-source{display:grid;grid-template-columns:118px minmax(0,1fr) minmax(0,1fr) 150px;gap:6px 10px;align-items:start;padding:7px 10px;border-top:1px solid var(--line);min-width:0}
+.case-record.is-editing #section-valuation:not(.is-locked) .valuation-source{grid-template-columns:118px minmax(0,1fr) minmax(0,1fr) 150px 106px 116px}
+#section-valuation .valuation-source--head{padding:7px 10px 0;border-top:0}
+#section-valuation .valuation-source--head+.valuation-source{border-top:0;padding-top:4px}
+#section-valuation .valuation-source--head .lbl{font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding-left:9px}
+#section-valuation .valuation-source h3{margin:0;padding-top:6px;min-height:30px;font-size:12.5px;font-weight:700;line-height:1.35;min-width:0}
+#section-valuation .valuation-source h3 .src-tag{margin-left:2px}
+/* The column heads name the boxes; each box's own label is kept for a screen
+   reader and shown once the columns fold. */
+#section-valuation .valuation-source>.fc>label,#section-valuation .valuation-source>.fc>.lbl{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0)}
+#section-valuation .valuation-source .fc .fv,#section-valuation .valuation-source .fc .fi{min-height:30px;padding:3px 8px;font-size:12.5px}
+#section-valuation .valuation-source.sel{outline:2px solid var(--navy);outline-offset:-2px}
+.case-record.is-editing #section-valuation .valuation-source[tabindex="0"]{cursor:pointer}
+.case-record.is-editing #section-valuation .valuation-source[tabindex="0"]:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
+#section-valuation .valuation-source-get{grid-column:5;grid-row:1;justify-self:end}
+#section-valuation .valuation-source-use{grid-column:6;grid-row:1;justify-self:end}
+#section-valuation .valuation-source-get .btn,#section-valuation .valuation-source-use .btn{white-space:nowrap}
+#section-valuation .valuation-source-note{grid-column:2/-1;min-width:0;margin:0;font-size:12px}
+#section-valuation .valuation-source .notice{padding:5px 8px}
+#section-valuation .valuation-source .notice .link-button{color:inherit;text-decoration:underline}
+#section-valuation .valuation-source-note.meta{font-size:11px;color:var(--muted)}
+#section-valuation .valuation-source.is-pending .fv.derived{opacity:.65}
+#section-valuation .valuation-source-note.researching{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+#section-valuation .valuation-source-note.researching>span:first-child::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:pegasus-spin .8s linear infinite}
+/* The chosen source opens: the calculation, then the three values it ends in.
+   With no source chosen the same block closes the list. */
+#section-valuation .valuation-open{display:grid;gap:10px;padding:10px 12px 12px;border-top:1px solid var(--line);border-left:3px solid var(--navy);background:var(--surface-2)}
+#section-valuation .valuation-open .calc-inputs{background:#fff}
+#section-valuation .valuation-sources+.valuation-open{border:1px solid var(--line);border-radius:var(--radius)}
+/* What an adjustment comes to, in its own cell's label line. */
+#section-valuation .calc-amount{float:right;margin-left:8px;font:600 11px var(--mono);letter-spacing:0;text-transform:none;color:var(--ink)}
+#section-valuation .calc-inputs[aria-busy="true"] .calc-amount{opacity:.65}
+#section-valuation [data-valuation-preview-host] .notice{margin-top:10px}
+#section-valuation [data-valuation-none]{padding-top:6px;font-size:12.5px}
 #section-valuation .adds-head{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;margin:12px 0 6px}
 #section-valuation .adds-head.none{display:none}
-#section-valuation .adds{display:grid;gap:4px}
+#section-valuation .adds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 14px}
 #section-valuation .add{display:grid;grid-template-columns:20px 1fr 110px;gap:8px;align-items:center;min-height:32px;font-size:12.5px}
-#section-valuation .add.add--custom{grid-template-columns:20px 1fr 110px}
 #section-valuation .add input[type=checkbox]{width:15px;height:15px;min-height:0;margin:0;accent-color:var(--red)}
 #section-valuation .add input[type=number],#section-valuation .add input[type=text]{min-height:30px;padding:3px 8px;font-size:12px;border:1px solid var(--line-strong);border-radius:var(--radius);width:100%;min-width:0}
 #section-valuation .add .amt{text-align:right;font-family:var(--mono)}
@@ -210,21 +214,26 @@
 #section-valuation .fc .fi.chk.choice{border:0;padding-left:0;display:none;align-items:center;gap:7px;min-height:var(--control);font-size:12.5px}
 .case-record.is-editing #section-valuation .fc .fi.chk.choice{display:inline-flex}
 #section-valuation .fc .fi.chk.choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
-#section-valuation .lines{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);padding:8px 12px;font-size:12.5px}
-#section-valuation .lines .ln{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dashed var(--line)}
-#section-valuation .lines .ln:last-child{border-bottom:0}
-#section-valuation .lines .ln b{font-family:var(--mono);font-weight:600;white-space:nowrap}
-#section-valuation .lines .ln.tot{border-top:2px solid var(--ink);margin-top:4px;padding-top:6px}
-#section-valuation .lines .ln.tot b{font-size:15px;color:var(--red)}
-#section-valuation .hist{margin-top:10px}
-#section-valuation .hist .definition-list{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
-#section-valuation .hist .definition--wide{grid-column:auto}
-#section-valuation .hist .definition{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;font-size:12.5px;margin:0}
-#section-valuation .hist .definition dt{color:var(--quiet);font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;align-self:center}
-#section-valuation .hist .definition dd{margin:0;min-width:0;overflow-wrap:anywhere}
-#section-valuation .hist .definition dd.derived{color:var(--quiet)}
-@media(max-width:1180px){#section-valuation .guides{grid-template-columns:repeat(2,1fr)}#section-valuation .calc{grid-template-columns:1fr;grid-template-rows:none}#section-valuation .calc>.calc-inputs{grid-row:auto}}
-@media(max-width:760px){#section-valuation .guides{grid-template-columns:1fr}#section-valuation .val-tools .val-month{flex-basis:100%}}
+/* Narrower: Use this value keeps its column; the provider's part, Get
+   valuation or the notice, takes the second line. */
+@media(max-width:1180px){
+  .case-record.is-editing #section-valuation:not(.is-locked) .valuation-source{grid-template-columns:104px minmax(0,1fr) minmax(0,1fr) 128px 116px}
+  #section-valuation .valuation-source-use{grid-column:5}
+  #section-valuation .valuation-source-get{grid-column:2;grid-row:2;justify-self:start}
+  #section-valuation .valuation-source:has(.valuation-source-get) .valuation-source-note{grid-column:3/-1;grid-row:2;align-self:center}
+  #section-valuation .adds{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+/* Narrowest: the column heads go and each box shows its own label. */
+@media(max-width:760px){
+  #section-valuation .valuation-source,.case-record.is-editing #section-valuation:not(.is-locked) .valuation-source{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  #section-valuation .valuation-source--head{display:none}
+  #section-valuation .valuation-source h3{grid-column:1/-1}
+  #section-valuation .valuation-source>.fc>label,#section-valuation .valuation-source>.fc>.lbl{position:static;width:auto;height:auto;margin:0 0 3px 9px;clip:auto}
+  #section-valuation .valuation-source>div.fc:nth-of-type(3){grid-column:1/-1}
+  #section-valuation .valuation-source-get,#section-valuation .valuation-source-use{grid-column:auto;grid-row:auto;justify-self:start}
+  #section-valuation .valuation-source-note,#section-valuation .valuation-source:has(.valuation-source-get) .valuation-source-note{grid-column:1/-1;grid-row:auto}
+  #section-valuation .adds{grid-template-columns:minmax(0,1fr)}
+}
 
 
 #section-settlement select.fi.is-driven{display:none}
@@ -246,7 +255,7 @@
 #section-settlement .salvage-share .snaps button{min-height:24px;padding:0 7px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;font:600 11px var(--mono);color:var(--muted);cursor:pointer}
 #section-settlement .salvage-share .snaps button.on{border-color:var(--navy);color:var(--navy);background:#f4f7fa}
 #section-settlement .salvage-share .read{font-size:11.5px;color:var(--muted)}
-#section-settlement .reason-bank{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+#section-settlement .reason-bank{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;grid-column:-2/-1}
 #section-settlement .reason-bank .btn{font-size:11.5px;text-align:left}
 #section-settlement [data-settlement-computed-reserve] .fv{font-size:12px}
 
@@ -257,15 +266,33 @@
 #section-report .report-tab:focus-visible{outline:2px solid var(--navy);outline-offset:-2px}
 #section-report [data-report-fee-note] dd.empty{color:var(--quiet)}
 
-.image-tile-report{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px;padding:6px 0 0}
-.image-tile-report .fc{margin:0;min-width:0;flex:1 1 92px}
-.image-tile-report .fc .fi{min-height:28px;padding:2px 6px;font-size:12px}
-.image-tile-report .fc .fi.num{width:64px;flex:none}
+/* The image tile's tool panel while editing: it hangs from the thumbnail as
+   one bordered block, the report decision and its order first, then one
+   toolbar of same-size icon buttons. */
+.image-tile--tools{row-gap:0}
+.image-tile--tools>.th{border-radius:3px 3px 0 0}
+.image-tile--tools>.tag-chips{margin-top:6px}
+.image-tile-panel{border:1px solid var(--line);border-top:0;border-radius:0 0 3px 3px;background:#fff;min-width:0;container-type:inline-size}
+.image-tile-row{display:flex;align-items:center;gap:4px;min-height:34px;padding:3px 4px;min-width:0}
+.image-tile-row+.image-tile-row{border-top:1px solid var(--line)}
+.image-tile-row>form{display:contents}
+.image-tile-toggle{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:2px 4px;border:1px solid transparent;border-radius:3px;background:none;color:var(--ink);font:600 11.5px var(--font);white-space:nowrap;cursor:pointer}
+.image-tile-toggle:hover{border-color:var(--line);background:var(--surface-3)}
+.image-tile-toggle .icon{width:16px;height:16px;color:var(--muted)}
+.image-tile-toggle[aria-pressed="true"] .icon{color:var(--green)}
+.image-tile-order{display:inline-flex;align-items:center;gap:4px;margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap}
+.image-tile-order .fi.num{width:42px;min-height:28px;padding:2px 5px;font-size:12px;text-align:right}
 .image-tile-tools{display:inline-flex;gap:2px;align-items:center}
-.image-tile-tools .grip{display:inline-grid;place-items:center;width:22px;height:22px;color:var(--quiet);cursor:grab}
-.image-tile-tools .icon-button{display:inline-grid;place-items:center;width:22px;height:22px;border:1px solid transparent;border-radius:3px;background:none;color:var(--muted);cursor:pointer}
-.image-tile-tools .icon-button:hover{border-color:var(--line);color:var(--navy)}
-.image-tile-tools .icon-button[aria-pressed="true"]{border-color:var(--navy);color:var(--navy);background:#f4f7fa}
+/* A narrow tile keeps the order box and names it on hover instead. */
+@container (max-width:175px){.image-tile-order>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}}
+.image-tile-toolbar .icon-button,.image-tile-toolbar .tag-picker>summary{display:inline-grid;place-items:center;width:28px;height:28px;min-width:28px;min-height:28px;padding:0;border:1px solid transparent;border-radius:3px;background:none;color:var(--muted);cursor:pointer}
+.image-tile-toolbar .icon-button:hover,.image-tile-toolbar .tag-picker>summary:hover,.image-tile-toolbar .tag-picker[open]>summary{border-color:var(--line);background:var(--surface-3);color:var(--navy)}
+.image-tile-toolbar .icon-button[aria-pressed="true"]{border-color:var(--navy);color:var(--navy);background:#f4f7fa}
+.image-tile-toolbar .icon{width:16px;height:16px}
+.image-tile-toolbar .grip{display:inline-grid;place-items:center;width:22px;height:28px;margin-left:auto;color:var(--quiet);cursor:grab}
+.image-tile-status{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;margin:6px 0 0;font-size:11.5px;color:var(--muted)}
+.image-tile-status-in{font-weight:600;color:var(--navy)}
+.image-tile .tag-chips{display:flex;flex-wrap:wrap;gap:4px}
 .image-tile.is-dragging{opacity:.5}
 .image-tile.is-drop{outline:2px solid var(--navy);outline-offset:2px}
 .image-grid-count{margin:6px 0 0;font-size:12px}
@@ -427,8 +454,8 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 @media(max-width:760px){#section-settlement .metric-strip{grid-template-columns:repeat(2,1fr)}#section-settlement .metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 
 /* ---- Report (v26): preview card, generation, recipients, image strip -------- */
-#section-report .panel-actions .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
-#section-report .panel-actions .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+#section-report .panel-actions .choice,#section-report .recip-form .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
+#section-report .panel-actions .choice input,#section-report .recip-form .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
 #section-report .pv{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;flex-wrap:wrap}
 #section-report .pv-thumb{width:56px;height:76px;border-radius:2px;background:#fdfcfa;border:1px solid #e4dfd8;position:relative;flex-shrink:0}
 #section-report .pv-thumb::before{content:"";position:absolute;inset:7px 7px auto;height:6px;background:var(--red)}
@@ -437,9 +464,6 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-report .pv-meta .pt{font-weight:700}
 #section-report .pv-meta .ps{font-size:12px;color:var(--muted);margin-top:2px}
 #section-report .pv .cluster{display:flex;gap:6px;flex-wrap:wrap}
-/* v29 P4: the Inspection's sent report above the Audit's, its view link at the row's end. */
-#section-report [data-inspection-report]{align-items:center}
-#section-report [data-inspection-report]>.btn{margin-left:auto;flex:none}
 #section-report .detail-list{display:grid;gap:4px;margin:0}
 #section-report .detail-list>div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;font-size:12.5px;margin:0}
 #section-report .detail-list dt{color:var(--quiet);font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;align-self:center}
@@ -447,7 +471,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-report .recip-form{display:grid;gap:8px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
 #section-report .recip-form .lg,#section-report .recip-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
 #section-report .recip-form .stack{gap:4px}
-#section-report .recip-form input{min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
+#section-report .recip-form input:not([type=checkbox]){min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
 #section-report .recip-form .btn{justify-self:start}
 #section-report .thumbs{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
 #section-report .th{aspect-ratio:4/3;border-radius:3px;position:relative;cursor:zoom-in;overflow:hidden;border:1px solid var(--line);display:flex;align-items:flex-end;padding:5px;font:600 9.5px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);background:var(--surface-3);text-decoration:none}
@@ -469,8 +493,6 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-files .tab{flex:0 0 auto;min-height:36px;padding:7px 11px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--ink);font-size:11px;font-weight:760;cursor:pointer}
 #section-files .tab[aria-selected="true"]{border-bottom-color:var(--red);color:var(--red)}
 #section-files .tab-panel-title{margin:4px 0 0;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-#section-files [data-file-tabs-wrap].is-tabbed .tab-panel-title,
-[data-file-tabs-wrap].is-tabbed .tab-panel-title{display:none}
 .doc-list{gap:6px}
 .doc-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto auto;gap:9px;align-items:center;padding:7px 9px;border:1px solid var(--line);border-radius:3px;font-size:12px}
 .doc-row>.icon{color:var(--muted);width:18px;height:18px}
@@ -479,7 +501,6 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .doc-row small{color:var(--muted);font-size:10.5px}
 .doc-row-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .doc-row-actions{display:flex;align-items:center;gap:4px}
-.correspondence{display:grid;gap:8px}
 
 /* Image tiles, shared by Files and the Report strip. */
 .thumbs{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;list-style:none;margin:0;padding:0}
@@ -487,7 +508,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .thumbs.image-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));align-items:start}
 .image-tile{display:grid;gap:4px;min-width:0}
 .th{position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;width:100%;border-radius:3px;overflow:hidden;border:1px solid var(--line);background:var(--surface-3);color:#fff;text-decoration:none;cursor:pointer;padding:0}
-.th img{display:block;width:100%;height:100%;object-fit:cover;transform-origin:center center}
+.th img{display:block;width:100%;height:100%;object-fit:contain;transform-origin:center center}
 .th.is-staged img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;transition:none}
 .th .th-name{position:absolute;left:0;right:0;bottom:0;padding:4px 5px;font:600 9.5px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6);background:linear-gradient(transparent,rgba(0,0,0,.45));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
 .th .inc{position:absolute;top:4px;right:5px;width:17px;height:17px;border-radius:3px;background:var(--green);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;z-index:1}
@@ -503,7 +524,6 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .th.th--placeholder .gallery-caption{display:grid;gap:1px;background:rgba(255,255,255,.9);padding:3px 5px;border-radius:3px;width:100%}
 .th.th--placeholder strong{font:600 9.5px var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .th.th--placeholder small{color:var(--muted)}
-.image-tile-actions{display:flex;flex-wrap:wrap;align-items:center;gap:4px;position:relative}
 .image-tile-source{font-size:10.5px}
 .image-tile-source a{color:var(--navy);font-weight:600}
 .intake-group h3 a{color:var(--navy);font-weight:700;text-transform:none;letter-spacing:0;font-size:12px}
@@ -566,7 +586,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .case-viewer-stage.is-cropping img{transition:none}
 .case-viewer-stage iframe{width:100%;height:100%;border:0;background:#fff;border-radius:2px}
 .case-viewer-stage video{max-width:100%;max-height:100%}
-.case-viewer-stage[aria-busy="true"]::after{content:"";position:absolute;width:2rem;height:2rem;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .9s linear infinite;pointer-events:none}
+.case-viewer-stage[aria-busy="true"]::after{content:"";position:absolute;width:2rem;height:2rem;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:pegasus-spin .9s linear infinite;pointer-events:none}
 .case-viewer-strip{grid-column:1/-1;display:flex;gap:6px;padding:12px 14px;overflow-x:auto;border-top:1px solid rgba(255,255,255,.1)}
 .case-viewer-strip[hidden]{display:none}
 .case-viewer-strip button{flex:0 0 84px;height:63px;border:2px solid transparent;border-radius:3px;background:rgba(255,255,255,.06);opacity:.5;cursor:pointer;padding:0;overflow:hidden;color:#fff;font:600 9px var(--mono)}

@@ -205,12 +205,6 @@
                                     <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
                                 </a>
                             }
-                            else if (Model.IsUploadGroup && Model.SubmissionGroup is { } registerGroup)
-                            {
-                                <a class="btn" asp-page="/UploadGroupStatus" asp-route-id="@registerGroup.Id" data-unidentified-action="register">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
-                                </a>
-                            }
                             @if (Model.CanOpenTriage)
                             {
                                 <a class="btn" href="?dialog=@Record.TriageDialog" data-dialog-open="unidentified-triage-dialog" data-unidentified-action="triage">
@@ -219,7 +213,7 @@
                             }
                             <form method="post" asp-page-handler="SendToAi" asp-route-id="@Model.Item.Id">
                                 <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
-                                <button type="submit" class="btn" data-unidentified-action="send-to-ai">
+                                <button type="submit" class="btn" data-unidentified-action="send-to-ai" data-busy-label="@OperatorLabels.Busy.Sending">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>@OperatorLabels.AiJobs.SendUnidentified</span>
                                 </button>
                             </form>
@@ -279,7 +273,7 @@
                                                 <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
                                                 <label class="req" for="dismiss-reason-@reading.Id">Reason</label>
                                                 <input id="dismiss-reason-@reading.Id" name="reason" maxlength="500" required />
-                                                <button type="submit" class="btn btn--small btn--dark">Dismiss reading</button>
+                                                <button type="submit" class="btn btn--small btn--dark" data-busy-label="@OperatorLabels.Busy.Dismissing">Dismiss reading</button>
                                             </form>
                                         </details>
                                     }
@@ -356,7 +350,7 @@
                                             <input type="hidden" name="caseId" value="@candidate.CaseId" />
                                             <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
                                             <input type="hidden" name="caseQuery" value="@Model.CaseQuery" />
-                                            <button type="submit" class="btn btn--small btn--dark">Link</button>
+                                            <button type="submit" class="btn btn--small btn--dark" data-busy-label="@OperatorLabels.Busy.Linking">Link</button>
                                         </form>
                                     </td>
                                 </tr>
@@ -391,7 +385,7 @@
             </form>
             <div class="dialog-foot">
                 <button type="button" class="btn" data-dialog-close>Cancel</button>
-                <button type="submit" form="unidentified-register-form" class="btn btn--primary">Register images</button>
+                <button type="submit" form="unidentified-register-form" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Registering">Register images</button>
             </div>
         </section>
     </div>
@@ -414,7 +408,7 @@
             </form>
             <div class="dialog-foot">
                 <button type="button" class="btn" data-dialog-close>Cancel</button>
-                <button type="submit" form="unidentified-triage-form" class="btn btn--primary">Open the Triage</button>
+                <button type="submit" form="unidentified-triage-form" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Opening">Open the Triage</button>
             </div>
         </section>
     </div>
@@ -438,7 +432,7 @@
             </form>
             <div class="dialog-foot">
                 <button type="button" class="btn" data-dialog-close>Cancel</button>
-                <button type="submit" form="unidentified-close-form" class="btn btn--danger-solid">Close with reason</button>
+                <button type="submit" form="unidentified-close-form" class="btn btn--danger-solid" data-busy-label="@OperatorLabels.Busy.Closing">Close with reason</button>
             </div>
         </section>
     </div>
@@ -461,7 +455,7 @@ else
             </form>
             <div class="dialog-foot">
                 <button type="button" class="btn" data-dialog-close>Cancel</button>
-                <button type="submit" form="unidentified-reopen-form" class="btn btn--primary">Reopen</button>
+                <button type="submit" form="unidentified-reopen-form" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Reopening">Reopen</button>
             </div>
         </section>
     </div>

@@ -31,10 +31,12 @@ for browsing mail live in [FRD-20](frd-20-mailbox-workspace.md).
 Report-sent evidence links one exact, immutable Outlook Sent item to exactly
 one Case. The mailbox must be on the Administrator's allowlist. On an
 Inspection + Audit Case the evidence belongs to one report: the Inspection's
-stays with the Inspection when Create audit runs, and the Audit report's
-must be of that report and sent after the Audit was created. Automatic
-matching links only a Sent item of the report the Case is currently
-preparing
+stays with the Inspection when Create audit runs, an Inspection report sent
+afterwards links to the Inspection's own work from the Inspection view, and
+the Audit report's must be of that report and sent after the Audit was
+created. Automatic matching reads which report Pegasus's own send carried
+and links the Sent item to that work; a send of the Inspection report after
+Create audit never moves the Case's state (operator, 1 October 2026)
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)).
 
 The record keeps:
@@ -65,7 +67,7 @@ evidence of sending. A staff note that says "sent" stays an assertion unless
 the exact external evidence is retained.
 
 Triage completion is based on the recorded outcome, under
-[FRD-03](frd-03-triage.md). Its optional Reply with outcome is a staff send
+[FRD-03](frd-03-triage.md). Its optional Reply with finding is a staff send
 with purpose `TriageOutcomeReply`: a reply to the Triage's origin message
 that opens with a preset outcome body. Its Sent item links to the Triage
 Case as response evidence, like any exact reply to that message, when the
@@ -88,11 +90,15 @@ settles it.
 
 **Submitted is not Sent.** Graph `202 Accepted` means Submitted. Sent needs
 the retained-MIME pipeline to match the immutable item, the operation marker,
-the mailbox generation and the attachment hashes. The provider's sent time
+the mailbox generation and the attachment hashes. The operation marker is the
+Message-ID Pegasus assigns to every send (`<operation id>@pegasus.invalid`),
+or the X-Pegasus headers where the provider keeps them; the mailbox and its
+generation are the ones the Sent item was read from. The provider's sent time
 and the time Pegasus observed the item stay separate facts. Each enabled Sent
 mailbox has its own cursor and activation boundary. Old items move the cursor
 forward but are not backfilled. One failing mailbox does not block the
-others.
+others. The composer shows Submitted until the Worker's Sent-evidence poll
+observes the item; there is no staff action that re-checks or re-sends.
 
 **Report sends are rechecked at the last moment.** Immediately before the
 provider call, Pegasus revalidates the Case's persisted report readiness, the
@@ -119,15 +125,27 @@ default, or removing a capability it needs, requires choosing a replacement
 first. With no default configured, a new Compose explains what is missing
 and cannot send. It never silently picks the first mailbox.
 
-**What the composer carries.** To, Subject, Message, Case and From
-(read-only). Reply and Forward keep the retained message's reply chain and
-conversation identity. Case defaults to the Case whose correspondence the
+**What the composer carries.** To, Subject, Message, Case / PO and From
+(read-only). The one Case / PO field searches as staff type, by Case / PO,
+registration, claimant, claim number or Principal; choosing a Case from its
+list is the server action that fixes the Case and its version for the send,
+and a Case / PO reference typed in full sends against that Case as it stands.
+Reply and Forward keep the retained message's reply
+chain and conversation identity. Case defaults to the Case whose correspondence the
 Reply or Forward started from, otherwise to the message's current
 association, and may be changed before sending. A Triage outcome reply's
 Message opens with the Triage outcome template from Administration, rendered
 from the Triage's registration and finding
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)); staff edit it
-before Send.
+before Send. A Case chaser opened from the Case's Actions menu is a staff
+send with purpose `CaseChaser`: To is the sender of the Case's instruction,
+the sender of each image-intake e-mail paired to the Case and the repairer's
+directory e-mail, each once; Subject is the registration and claimant; Message
+is the Case chaser template rendered from the Case
+([FRD-16](frd-16-case-record-workspace.md#actions-menu)). Staff edit all
+three before Send. Its exact Sent evidence is recorded like any other send,
+and on a Not ready Case it records the chase
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is
@@ -136,14 +154,26 @@ The reply screen shows the retained targets and the chosen recipients so
 staff can confirm them. If the retained metadata is missing or the target
 list is empty, Reply and Reply all are refused. The transport Sender, To and
 Cc are never used as substitutes. Starting a new message instead is a
-deliberate staff choice.
+deliberate staff choice. The Triage Case composer
+([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)) has
+one exception: when its request is a Collision Engineers staff forward (the
+transport sender is on the staff domain) and the forward names one external
+original sender, To is that original sender, not the forwarding desk, and
+the forward's leading "FW:" or "Fwd:" is dropped before "Re:". A forward
+inside the Principal's own organisation is not unwrapped and answers its own
+Reply-To or From (operator, issue 1042, 7 October 2026).
 
 **What is retained.** The immutable Sent item that Graph writes is the
 evidence. The Sent-evidence poll retains it under the rules in
-[Outbound correspondence evidence](#outbound-correspondence-evidence) and
-links it to the Case named at send time. Draft text is not evidence until
-that Sent item exists. A send that Graph refuses leaves no evidence and shows
-as a failure on the composer, never as sent.
+[Outbound correspondence evidence](#outbound-correspondence-evidence), lists
+it under the Inbox's Sent Items scope
+([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) and links it
+to the Case named at send time: the Case's Correspondence shows it as a Sent
+item and, for a general correspondence send, its Notes record that the
+correspondence was sent, with the subject
+([FRD-16](frd-16-case-record-workspace.md#files)). Draft text is not evidence
+until that Sent item exists. A send that Graph refuses leaves no evidence and
+shows as a failure on the composer, never as sent.
 
 **No Flag, no Delete.** There is no flag control, no delete control and no
 move to Deleted Items on any surface. No surface, action or tool removes a
@@ -222,7 +252,7 @@ document never moves a Case by itself.
   (inbound mail and classification),
   [FRD-20](frd-20-mailbox-workspace.md) (mail screens),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md) (Case states),
-  [FRD-03](frd-03-triage.md) (Reply with outcome),
+  [FRD-03](frd-03-triage.md) (Reply with finding),
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md) (EVA handoff).
 - Technical constraints:
   [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md) (outbound

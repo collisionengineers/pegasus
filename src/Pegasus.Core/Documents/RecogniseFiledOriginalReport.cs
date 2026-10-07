@@ -36,12 +36,24 @@ public sealed class RecogniseFiledOriginalReport(
         }
 
         // Nothing is read unless the Case awaits its report and the receipt's
-        // files are on it.
-        var filed = await store.FindAwaitingCandidatesAsync(caseId, receipt.Id, assets.Keys, cancellationToken);
-        if (filed.Count == 0)
+        // files are on it. The files are found by the hash of their bytes,
+        // whichever route filed them: acceptance, a matched follow-up, the fold.
+        var found = await store.FindAwaitingCandidatesAsync(
+            caseId,
+            receipt.Id,
+            [.. assets.Values.Select(asset => new FiledOriginalReportLookup(asset.Id, asset.ContentHash))],
+            cancellationToken);
+        if (!found.CaseAwaitsReport)
         {
             return Result(OriginalReportRecognitionResult.NotApplicable);
         }
+
+        if (found.Filed.Count == 0)
+        {
+            return Result(OriginalReportRecognitionResult.AwaitingFiling);
+        }
+
+        var filed = found.Filed;
 
         var recognised = new List<(FiledOriginalReportCandidate Filed, OriginalReportReading Reading)>();
         foreach (var candidate in filed)
@@ -100,6 +112,9 @@ public enum OriginalReportRecognitionResult
     NoneRecognised,
     SeveralRecognised,
     Unreadable,
+
+    /// <summary>The Case awaits its report, but none of the receipt's documents is filed on it yet.</summary>
+    AwaitingFiling,
     Recorded
 }
 

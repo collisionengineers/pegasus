@@ -28,7 +28,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-10](frd-10-mcp-automation-and-actor-boundary.md) | Automation Actor boundary, direct-write model, tool inventory | MCP |
 | [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md) | Report outcomes, Audit parity, renderer, generation, correction and finality, estimate VAT | RPT |
 | [FRD-12](frd-12-operator-experience.md) | Shell, navigation, display labels and the page contract | UI |
-| [FRD-13](frd-13-case-lifecycle-and-workflow.md) | Case states, readiness, Hand to Engineer, actions, Create audit, Close case, Archive, chasing, Completed and Query | CASE |
+| [FRD-13](frd-13-case-lifecycle-and-workflow.md) | Case states, readiness, Assign Engineer, actions, Create audit, Close case, Archive, chasing, Completed and Query | CASE |
 | [FRD-14](frd-14-record-edit-leases.md) | Edit leases and record edit scopes, Take over, refusals | CASE, TRI, ACC |
 | [FRD-15](frd-15-work-centre-queues-and-search.md) | Work Centre, Cases queues, pre-Case records, the Triage Case page, Search, freshness | UI |
 | [FRD-16](frd-16-case-record-workspace.md) | The Case record page, its Inspection and Audit views, and the Engineer workbench | UI, ENG |
