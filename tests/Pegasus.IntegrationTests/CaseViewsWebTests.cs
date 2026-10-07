@@ -71,6 +71,53 @@ public sealed class CaseViewsWebTests
         Assert.DoesNotContain("name=\"view\" value=\"inspection\"", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Linked cases (operator, 7 October 2026): a linked Triage Case is listed
+    /// in its own aside card, after Views and before Figures, as its t. Case/PO
+    /// link, its state chip and its current finding. A Case with nothing linked
+    /// has no card.
+    /// </summary>
+    [Fact]
+    public async Task LinkedTriageCasesAreListedInTheirOwnAsideCard()
+    {
+        var unlinked = new RecordingCaseDetailsStore { SummaryCaseType = CaseType.InspectionAndAudit };
+        using (var unlinkedHost = new ReadingHost(unlinked))
+        {
+            Assert.DoesNotContain(
+                "data-case-linked-triage",
+                await unlinkedHost.ReadAsync($"/Cases/{unlinked.CaseId:D}"),
+                StringComparison.Ordinal);
+        }
+
+        var triageId = Guid.NewGuid();
+        var store = AuditedCase();
+        store.LinkedTriage =
+        [
+            new(triageId, "t.QDOS3100041", Pegasus.Core.Triage.TriageState.Completed,
+                Pegasus.Core.Triage.RoadworthinessFinding.Roadworthy,
+                Pegasus.Core.Triage.AssessmentFinding.Repairable)
+        ];
+        using var host = new ReadingHost(store);
+
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+
+        var cardAt = html.IndexOf("<section class=\"panel context-card\" data-case-linked-triage>", StringComparison.Ordinal);
+        Assert.True(cardAt > html.IndexOf("data-case-views>", StringComparison.Ordinal), "Linked cases must follow Views.");
+        Assert.True(cardAt < html.IndexOf("data-figures>", StringComparison.Ordinal), "Linked cases must precede Figures.");
+        var card = html[cardAt..html.IndexOf("</section>", cardAt, StringComparison.Ordinal)];
+        Assert.Contains($"<h2>{Frame.LinkedCases}</h2>", card, StringComparison.Ordinal);
+        Assert.Contains($"<a href=\"/Cases/{triageId:D}\">t.QDOS3100041</a>", card, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Pages.Cases.TriageCaseView.StateLabel(Pegasus.Core.Triage.TriageState.Completed),
+            card,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span>{Pegasus.Web.Pages.Cases.TriageCaseView.RoadworthinessLabel(Pegasus.Core.Triage.RoadworthinessFinding.Roadworthy)}"
+            + $" · {Pegasus.Web.Pages.Cases.TriageCaseView.AssessmentLabel(Pegasus.Core.Triage.AssessmentFinding.Repairable)}</span>",
+            card,
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AStandaloneAuditHasOneViewAndKeepsItsOriginalReport()
     {

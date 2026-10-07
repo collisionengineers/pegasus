@@ -42,7 +42,10 @@ and AI job states by
 The Collision Engineers Engineer report is definitive for the Case.
 Roadworthiness (`Roadworthy` or `Unroadworthy`) and Assessment
 (`Repairable` or `Total loss`) are separate professional findings. Neither is
-derived from the other, and Triage findings never fill or change either one.
+derived from the other. A linked Triage's finding fills either one only where
+the Case holds nothing, once
+([FRD-03](frd-03-triage.md#triage-findings-on-the-linked-case)); a value staff
+entered is never replaced.
 Every enabled human staff role may record or correct these findings under the
 existing state, lease and version rules. On an Inspection + Audit Case with
 an Audit, the Audit's findings, damage, valuation and settlement are
@@ -63,9 +66,9 @@ on a source or an estimate version are evidence only. No finding, figure,
 outcome, deduction or settlement meaning is derived from them. They are shown
 as recorded.
 
-**No money effects.** Triage findings and their corrections have no effect
-on a linked instruction Case or on any report, Audit reference, fee or
-invoice. Invoicing is deferred
+**No money effects.** Beyond that one fill, Triage findings and their
+corrections have no effect on a linked instruction Case, and none on any
+report, Audit reference, fee or invoice. Invoicing is deferred
 separately: a finding correction must not create, alter, credit or void an
 invoice. Any later financial consequence needs the separately accepted,
 versioned finance contract.

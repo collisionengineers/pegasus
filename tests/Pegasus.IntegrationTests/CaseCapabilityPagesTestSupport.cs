@@ -951,7 +951,8 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments,
                 AvailableReportSentEvidence,
                 RecordNotes,
-                DataOverride ?? CreateData()));
+                DataOverride ?? CreateData(),
+                LinkedTriage: LinkedTriage));
         }
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(

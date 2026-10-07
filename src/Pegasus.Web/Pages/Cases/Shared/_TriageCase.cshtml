@@ -214,6 +214,7 @@
                 <div class="ribbon-facts">
                     <div class="ribbon-item ribbon-ref"><span class="ribbon-label">@OperatorLabels.TriageReference</span><span class="ribbon-value mono">@reference</span></div>
                     <div class="ribbon-item"><span class="ribbon-label">Registration</span><span class="ribbon-value mono">@record.NormalizedVehicleRegistration</span></div>
+                    <div class="ribbon-item"><span class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonClaimant</span><span class="ribbon-value" data-triage-claimant>@(string.IsNullOrWhiteSpace(view.Triage.ClaimantName) ? OperatorLabels.CaseWorkspace.AbsentValue : view.Triage.ClaimantName)</span></div>
                     <div class="ribbon-item"><span class="ribbon-label">@OperatorLabels.Principal</span><span class="ribbon-value">@(view.Triage.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</span></div>
                     <div class="ribbon-item"><span class="ribbon-label">Source</span><span class="ribbon-value">@view.SourceLabel</span></div>
                     <div class="ribbon-item"><span class="ribbon-label">Opened</span><span class="ribbon-value">@OperatorLabels.OfficeTime(view.Triage.CreatedAtUtc)</span></div>

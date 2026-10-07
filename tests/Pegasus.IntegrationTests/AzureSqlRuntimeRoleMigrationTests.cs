@@ -12,19 +12,43 @@ using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.IntegrationTests.Support;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
 public sealed class AzureSqlRuntimeRoleMigrationTests
 {
+    /// <summary>
+    /// The Worker links a Triage that already holds a finding and fills the
+    /// linked Case's empty findings from it (operator, 7 October 2026), under
+    /// its own runtime role: the link and the fill each advance the Case once.
+    /// </summary>
     [Fact]
-    public async Task WorkerRuntimeAutomaticallyLinksTriageAndReplaysWithoutFindingsPermission()
+    public async Task WorkerRuntimeAutomaticallyLinksTriageFillsTheCaseAndReplays()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-worker-recovery.eml");
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        await using (var findingScope = factory.Services.CreateAsyncScope())
+        {
+            var services = findingScope.ServiceProvider;
+            var staff = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+            var triageId = (await services.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None))
+                .Single().CaseId;
+            var editLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+                new(EditScopeKind.Triage, triageId, 0, staff, "worker-fill-finding-edit"),
+                CancellationToken.None);
+            await services.GetRequiredService<IRecordTriageFinding>().ExecuteAsync(
+                new RecordTriageFindingRequest(
+                    triageId, 0, staff, "worker-fill-finding", "Seen in the images",
+                    RoadworthinessFinding.Roadworthy, AssessmentFinding.Repairable, null)
+                {
+                    EditLeaseToken = editLease.Token
+                },
+                CancellationToken.None);
+        }
         var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(factory.Services, receiptId);
         await factory.Database.ExecuteAsync($"""
             CREATE USER [pegasus_test_triage_pairing_worker] WITHOUT LOGIN;
@@ -54,8 +78,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
         var triage = await context.Triage.AsNoTracking().SingleAsync(item => item.OriginReceiptId == receiptId);
         Assert.Equal(caseId, triage.LinkedInstructionCaseId);
-        Assert.Equal("open", triage.State);
-        Assert.Equal(1, triage.Version);
+        Assert.Equal("finding_recorded", triage.State);
+        Assert.Equal(2, triage.Version);
         var triageCase = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == triage.CaseId);
         Assert.StartsWith("t.", triageCase.Reference, StringComparison.Ordinal);
         var history = await context.TriageHistory.AsNoTracking().SingleAsync(item =>
@@ -66,7 +90,24 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             item.CaseId == caseId && item.EventType == history.EventType));
         // The instructed Case and the Triage Case, which is a Case too.
         Assert.Equal(2, await context.Cases.CountAsync());
-        Assert.Equal(1, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+        Assert.Equal(2, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+        var filled = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(item => item.WorkId == caseId)
+            .OrderBy(item => item.FieldPath)
+            .ToListAsync();
+        Assert.Equal(
+            [
+                (AssessmentVocabulary.LegalStatus, "roadworthy"),
+                (AssessmentVocabulary.Outcome, "repairable")
+            ],
+            filled.Select(item => (item.FieldPath, item.Value)).ToArray());
+        Assert.All(filled, item =>
+        {
+            Assert.Equal(nameof(ActorKind.Automation), item.RecordedByKind);
+            Assert.Equal(TriageFindingFill.RecorderId, item.RecordedBy);
+        });
+        Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
+            item.CaseId == caseId && item.EventType == "triage_finding_filled"));
     }
 
     private const string PreRuntimeRoleMigration = "20260729175000_CaseEvidenceAndReplacement";
@@ -1101,6 +1142,26 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 .Where(value => value.StartsWith("CaseManualChases:", StringComparison.Ordinal))
                 .ToArray());
         Assert.Contains("CaseManualChases", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+    }
+
+    // 20261007180000_GrantWorkerTriageFindings: the automatic Triage link runs
+    // as the Worker and now reads the Triage's current finding to fill the
+    // linked Case's empty findings.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerTheTriageFindingRead()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        Assert.Equal(
+            ["TriageFindings:SELECT"],
+            granted
+                .Where(value => value.StartsWith("TriageFindings:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Contains("TriageFindings", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
     // 20260929091000_GrantWebRetainedMailDismissal: Inbox Dismiss and Restore

@@ -7,6 +7,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Tasks;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Vehicle;
 
@@ -239,7 +240,8 @@ public sealed record CasePageFrame(
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
     CaseDataProjection Data,
-    Guid? CancellationMessageId = null)
+    Guid? CancellationMessageId = null,
+    IReadOnlyList<CaseLinkedTriage>? LinkedTriage = null)
 {
     public CaseSearchItem Summary => Frame.Summary;
     public CaseWorkflowRecord Workflow => Frame.Workflow;
@@ -257,7 +259,20 @@ public sealed record CasePageFrameData(
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
-    Guid? LinkedCancellationMessageId = null);
+    Guid? LinkedCancellationMessageId = null,
+    IReadOnlyList<CaseLinkedTriage>? LinkedTriage = null);
+
+/// <summary>
+/// A Triage Case linked to this Case (FRD-03 "Linking"), as the Case aside
+/// lists it: its <c>t.</c> Case/PO, state and current finding, whose two
+/// dimensions are each null until recorded.
+/// </summary>
+public sealed record CaseLinkedTriage(
+    Guid CaseId,
+    string Reference,
+    TriageState State,
+    RoadworthinessFinding? Roadworthiness,
+    AssessmentFinding? Assessment);
 
 /// <summary>
 /// The cancellation an open Case shows in its Next action (FRD-13 "Cancellation
@@ -564,7 +579,8 @@ public sealed class GetCasePageFrame(
             frame.AvailableReportSentEvidence,
             frame.RecordNotes,
             data,
-            CaseCancellationNotice.Applies(frame.Frame.Workflow) ? frame.LinkedCancellationMessageId : null);
+            CaseCancellationNotice.Applies(frame.Frame.Workflow) ? frame.LinkedCancellationMessageId : null,
+            frame.LinkedTriage);
     }
 }
 

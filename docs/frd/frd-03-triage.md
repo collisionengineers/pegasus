@@ -214,6 +214,21 @@ Case/PO, findings and state, and allocates nothing. Recovery never reverses a
 deliberate staff unlink or reassignment. Manual linking keeps its staff
 authority, reason and current Case edit lease.
 
+#### Triage findings on the linked Case
+
+A Triage's finding fills the linked Case's Roadworthiness and repair outcome
+once (operator, 7 October 2026). The fill happens when a Triage is linked with
+a finding, automatically or by staff, or when a linked Triage records its first
+finding. Each value fills only a cell the Case's current work holds nothing
+in, and never one on a closed or archived Case. It reads the source tag
+`Triage`. A superseding finding, a later link and an unlink change nothing on
+the Case. The fill is system work: an editor keeps their session and a Save
+prepared before it keeps the filled values.
+
+The Case page's aside lists every linked Triage Case in a **Linked cases**
+card: its `t.` Case/PO as a link, its state and its current finding
+([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
+
 ## States and transitions
 
 | From | To | Trigger |

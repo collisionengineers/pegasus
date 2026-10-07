@@ -324,6 +324,15 @@ public sealed partial class QdosTriageIntegrationTests
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(caseId, triage.Record.LinkedInstructionCaseId);
         Assert.Equal(6, triage.Record.Version);
+        // The staff link fills the Case's empty findings from the current finding.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            Assert.NotEmpty(await context.CaseAssessmentFields.AsNoTracking()
+                .Where(item => item.WorkId == caseId && item.RecordedBy == TriageFindingFill.RecorderId)
+                .ToListAsync());
+        }
         _ = await PostActionAsync(
             client,
             triageId,

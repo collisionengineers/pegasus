@@ -235,7 +235,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             + Environment.NewLine + saveDescription);
     }
 
-    private const int CasePageCommands = 47;
+    // 47 once a host with no Glass's composed reads no Glass's credential (#1086), 48 with the
+    // frame's linked-Triage read (the aside's Linked cases card, #1087), one statement.
+    private const int CasePageCommands = 48;
 
     private const int CaseSaveCommands = 35;
 
@@ -343,9 +345,10 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// the frame and the workspace, the report's readiness and current generation, the Case's
     /// AI jobs and the workflow configuration, the valuation opening, and the workspace extras.
     /// The report snapshot takes the Case's works from the frame, as the page's does. The
-    /// frame includes the Next action's linked-cancellation read, one statement.
+    /// frame includes the Next action's linked-cancellation read and the Linked cases card's
+    /// linked-Triage read, one statement each.
     /// </summary>
-    private const int CommitAnswerCommands = 32;
+    private const int CommitAnswerCommands = 33;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,
