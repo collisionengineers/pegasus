@@ -247,7 +247,21 @@ try {
                 if (!filed) { await delay(5000); }
             }
             expect(filed, 'The uploaded file was not listed on the Case within 90 s');
-            detail += flags.has('boxCustody') ? '; uploaded document filed through Box custody' : '; uploaded document filed through local custody';
+            detail += '; uploaded document listed';
+        }
+        if (flags.has('boxCustody')) {
+            // Filing is the Worker's: wait for the Case folder to be confirmed
+            // in Box (green custody chip and the Open in Box link), not merely
+            // for the document to be listed.
+            let folder = null;
+            for (let i = 0; i < 30 && !folder; i++) {
+                await navigate(`/Cases/${caseId}`);
+                folder = await evaluate("(function () { const chip = document.querySelector('#section-files [data-custody-chip]'); const link = document.querySelector('#section-files [data-open-in-box]'); return chip && chip.classList.contains('status--green') && link ? link.getAttribute('href') : null; })()");
+                if (!folder) { await delay(5000); }
+            }
+            const chip = await evaluate("document.querySelector('#section-files [data-custody-chip]')?.textContent.trim()");
+            expect(folder, `The Case folder was not confirmed in Box within 150 s (custody chip: ${chip})`);
+            detail += `; Case folder confirmed in Box (${folder})`;
         }
         return detail;
     });
