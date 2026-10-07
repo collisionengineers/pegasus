@@ -301,14 +301,17 @@ shown as a failed send.
 
 **Report and fee note.** Every report ends with its fee note: one file under
 the report's name, the fee note's pages last (operator, 6 October 2026). The
-separate fee note is its own file in custody and can always be generated. A
-Principal that wants it separately is sent both: the report with its fee note,
-and the separate fee note attached beside it. A request for the separate fee
-note names the current confirmed, non-stale generation and adds the fee note
-from that generation's frozen date and fee facts. It does not re-freeze the
-report. The request is refused when there is no current generation or the
-generation is stale. Fee facts, readiness and accepted fee terms are the same
-in both files.
+separate fee note is its own file in custody. Generate report makes both: the
+report, then, once the report is confirmed, the separate fee note from the same
+generation (operator, 7 October 2026). A report still being filed to Box makes
+its separate fee note on the next Generate report, which replays the confirmed
+report rather than freezing it again. A Principal that wants the fee note
+separately is sent both: the report with its fee note, and the separate fee
+note attached beside it. A request for the separate fee note names the current
+confirmed, non-stale generation and adds the fee note from that generation's
+frozen date and fee facts. It does not re-freeze the report. The request is
+refused when there is no current generation or the generation is stale. Fee
+facts, readiness and accepted fee terms are the same in both files.
 
 **Staleness.** One Core rule over normalised effective values marks a
 generation stale only when an accepted report fact changes. Notes, no-op
@@ -357,10 +360,13 @@ handler claims the Case's edit lease for the one generation and releases it;
 a colleague's live lease refuses it. In edit mode Generate saves the Case
 first. It uses the accepted saved facts and the snapshot above, and retains
 versioned report and fee-note files, their custody outcome and history. A
-generated file is not approval, sending or receipt. Generate for a companion
-document of the confirmed generation — the separate fee note, the Repair Spec
-and the images — is offered the same way, in or out of edit mode, with the
-same one-off lease (operator, 28 September 2026, issue 912).
+generated file is not approval, sending or receipt. Generate report makes the
+separate fee note under the same lease once the report is confirmed, and is
+offered again for a confirmed report whose separate fee note is not (operator,
+7 October 2026). Generate for the other companion documents of the confirmed
+generation — the Repair Spec and the images — is offered the same way, in or
+out of edit mode, with the same one-off lease (operator, 28 September 2026,
+issue 912).
 
 **After Generate report** (operator, 27 September 2026). A report that was
 generated and stored opens in the Case page's document viewer by itself,

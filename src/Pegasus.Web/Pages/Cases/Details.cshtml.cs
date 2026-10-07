@@ -2327,32 +2327,22 @@ public sealed partial class DetailsModel(
     /// store's short transaction and renders through the registered
     /// renderer, one artifact per request. The draft handlers above stay for
     /// the labelled ungenerated working preview; this is the real report.
-    /// The report always ends with its fee note; a Principal that wants the
-    /// fee note on its own as well is sent the separate document
-    /// <see cref="OnPostGenerateFeeNoteAsync"/> produces beside it.
+    /// The report always ends with its fee note, and the same button makes
+    /// the separate fee note from the same frozen snapshot once the report is
+    /// confirmed (operator, 7 October 2026). A report still being filed to
+    /// Box makes its fee note on the next Generate report.
     /// </summary>
     public Task<IActionResult> OnPostGenerateReportAsync(
         Guid id,
         string operationKey,
+        string feeNoteOperationKey,
         string? editLeaseToken,
         long expectedCaseVersion,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
             CaseReportArtifactKind.AssessmentReport,
-            targetGenerationId: null, cancellationToken);
-
-    public Task<IActionResult> OnPostGenerateFeeNoteAsync(
-        Guid id,
-        string operationKey,
-        string? editLeaseToken,
-        long expectedCaseVersion,
-        Guid targetGenerationId,
-        CancellationToken cancellationToken) =>
-        GenerateArtifactAsync(
-            id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.FeeNote,
-            targetGenerationId, cancellationToken);
+            targetGenerationId: null, cancellationToken, feeNoteOperationKey);
 
     /// <summary>
     /// The two companion documents a delivery may attach (v28 P22). Each is a
@@ -2389,7 +2379,8 @@ public sealed partial class DetailsModel(
     /// September 2026) and its companion documents (issue 912, 28 September
     /// 2026). Without a lease the handler claims one for the generation.
     /// Posted from the Inspection view, it makes the Inspection report of a
-    /// Case that has its Audit (operator, 1 October 2026).
+    /// Case that has its Audit (operator, 1 October 2026). The report's
+    /// separate fee note runs under the same lease.
     /// </summary>
     private async Task<IActionResult> GenerateArtifactAsync(
         Guid id,
@@ -2398,13 +2389,14 @@ public sealed partial class DetailsModel(
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
         Guid? targetGenerationId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? feeNoteOperationKey = null)
     {
         if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             return await GenerateWithOneOffLeaseAsync(
                 id, operationKey, expectedCaseVersion, kind,
-                targetGenerationId, cancellationToken);
+                targetGenerationId, feeNoteOperationKey, cancellationToken);
         }
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
@@ -2417,7 +2409,7 @@ public sealed partial class DetailsModel(
         }
         return await GenerateAsync(
             actor, id, operationKey, editLeaseToken, expectedCaseVersion,
-            kind, targetGenerationId, cancellationToken);
+            kind, targetGenerationId, feeNoteOperationKey, cancellationToken);
     }
 
     /// <summary>
@@ -2433,6 +2425,7 @@ public sealed partial class DetailsModel(
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
         Guid? targetGenerationId,
+        string? feeNoteOperationKey,
         CancellationToken cancellationToken)
     {
         var guard = await GuardSectionCommandAsync(
@@ -2469,7 +2462,7 @@ public sealed partial class DetailsModel(
         {
             return await GenerateAsync(
                 actor, id, operationKey, lease.Token, expectedCaseVersion,
-                kind, targetGenerationId, cancellationToken);
+                kind, targetGenerationId, feeNoteOperationKey, cancellationToken);
         }
         finally
         {
@@ -2478,8 +2471,63 @@ public sealed partial class DetailsModel(
         }
     }
 
-    /// <summary>The generation itself, once guarded: the request, and how each outcome reads back.</summary>
+    /// <summary>
+    /// The generation itself, once guarded. The report goes on to make its
+    /// separate fee note from the generation it confirmed (operator, 7 October
+    /// 2026); a report not yet confirmed leaves the fee note to the next
+    /// Generate report, which replays the report's operation key.
+    /// </summary>
     private async Task<IActionResult> GenerateAsync(
+        ActionActor actor,
+        Guid id,
+        string operationKey,
+        string editLeaseToken,
+        long expectedCaseVersion,
+        CaseReportArtifactKind kind,
+        Guid? targetGenerationId,
+        string? feeNoteOperationKey,
+        CancellationToken cancellationToken)
+    {
+        var (result, outcome) = await GenerateOneAsync(
+            actor, id, operationKey, editLeaseToken, expectedCaseVersion,
+            kind, targetGenerationId, cancellationToken);
+        if (outcome is not null)
+        {
+            return outcome;
+        }
+        if (kind == CaseReportArtifactKind.AssessmentReport
+            && !string.IsNullOrWhiteSpace(feeNoteOperationKey)
+            && result!.Generation is { State: CaseReportGenerationState.Confirmed } generation
+            && generation.Artifacts.Any(artifact => artifact is
+            {
+                Kind: CaseReportArtifactKind.AssessmentReport,
+                Status: CaseReportArtifactStatus.Confirmed,
+            })
+            && !generation.Artifacts.Any(artifact => artifact is
+            {
+                Kind: CaseReportArtifactKind.FeeNote,
+                Status: CaseReportArtifactStatus.Confirmed,
+            }))
+        {
+            // The report stands whatever the fee note's outcome; a fee note
+            // that is not generated says so beside the report's confirmation.
+            var (_, feeNoteOutcome) = await GenerateOneAsync(
+                actor, id, feeNoteOperationKey, editLeaseToken, expectedCaseVersion,
+                CaseReportArtifactKind.FeeNote, generation.Id, cancellationToken);
+            if (feeNoteOutcome is ForbidResult or NotFoundResult)
+            {
+                return feeNoteOutcome;
+            }
+        }
+        return RedirectToReport(id);
+    }
+
+    /// <summary>
+    /// One artifact's generation: the request, and how each outcome reads
+    /// back. A generated artifact answers its result and no action; every
+    /// other outcome answers the action that ends the request.
+    /// </summary>
+    private async Task<(CaseReportGenerationResult? Result, IActionResult? Outcome)> GenerateOneAsync(
         ActionActor actor,
         Guid id,
         string operationKey,
@@ -2515,7 +2563,7 @@ public sealed partial class DetailsModel(
         }
         catch (StaffAuthorizationException)
         {
-            return Forbid();
+            return (null, Forbid());
         }
         catch (Exception exception) when (IsGenerationFailure(exception))
         {
@@ -2530,27 +2578,27 @@ public sealed partial class DetailsModel(
                     Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.NotStoredInBox(kind),
                 _ => MutationRefusalMessage(exception, NotGenerated(kind)),
             };
-            return RedirectToReport(id);
+            return (null, RedirectToReport(id));
         }
 
         switch (result.Outcome)
         {
             case CaseReportGenerationOutcome.NotFound:
-                return NotFound();
+                return (result, NotFound());
             case CaseReportGenerationOutcome.NotReady:
                 TempData["CaseError"] = string.Join(
                     " ",
                     Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationNotReady + ":",
                     string.Join("; ", result.Reasons.Select(reason =>
                         $"{reason.Requirement}: {reason.WhyOutstanding}")));
-                return RedirectToReport(id);
+                return (result, RedirectToReport(id));
             case CaseReportGenerationOutcome.Pending:
                 // Not yet stored is not success: the page says so in amber.
                 TempData["CaseWarning"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationPending;
-                return RedirectToReport(id);
+                return (result, RedirectToReport(id));
             case CaseReportGenerationOutcome.Failed:
                 TempData["CaseError"] = NotGenerated(kind);
-                return RedirectToReport(id);
+                return (result, RedirectToReport(id));
             default:
                 ClearLeaseState();
                 if (kind == CaseReportArtifactKind.AssessmentReport
@@ -2562,17 +2610,19 @@ public sealed partial class DetailsModel(
                 {
                     TempData[OpenReportKey] = stored.Id.ToString("D");
                 }
-                TempData["CaseStatus"] = kind switch
+                // The fee note follows its report, whose confirmation stands.
+                if (kind != CaseReportArtifactKind.FeeNote)
                 {
-                    CaseReportArtifactKind.AssessmentReport =>
-                        Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportGenerated,
-                    CaseReportArtifactKind.FeeNote =>
-                        Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FeeNoteGenerated,
-                    CaseReportArtifactKind.RepairSpecification =>
-                        Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RepairSpecGenerated,
-                    _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ImagesGenerated,
-                };
-                return RedirectToReport(id);
+                    TempData["CaseStatus"] = kind switch
+                    {
+                        CaseReportArtifactKind.AssessmentReport =>
+                            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportGenerated,
+                        CaseReportArtifactKind.RepairSpecification =>
+                            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RepairSpecGenerated,
+                        _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ImagesGenerated,
+                    };
+                }
+                return (result, null);
         }
     }
 
