@@ -118,7 +118,7 @@ public sealed class EfTriageStore(
         });
         AppendHistory(context, triage, AutomaticLinkEvent, actor, operationKey, reason, requestHash);
         await FillFromCurrentFindingAsync(
-            context, workflow, beforeCaseVersion, triage.CaseId, operationKey, UtcNow(), cancellationToken);
+            context, workflow, triage.CaseId, operationKey, UtcNow(), cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
@@ -126,13 +126,12 @@ public sealed class EfTriageStore(
 
     /// <summary>
     /// A Triage linked with a finding fills the Case's empty findings from its
-    /// current one, the finding no later one supersedes, sharing the link's
-    /// version (<see cref="TriageFindingFill"/>).
+    /// current one, the finding no later one supersedes
+    /// (<see cref="TriageFindingFill"/>).
     /// </summary>
     private static async Task FillFromCurrentFindingAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
-        long beforeCaseVersion,
         Guid triageCaseId,
         string operationKey,
         DateTimeOffset now,
@@ -151,7 +150,6 @@ public sealed class EfTriageStore(
         await TriageFindingFillWriter.ApplyAsync(
             context,
             workflow,
-            beforeCaseVersion,
             finding.Roadworthiness is null ? null : ParseRoadworthiness(finding.Roadworthiness),
             finding.Assessment is null ? null : ParseAssessment(finding.Assessment),
             operationKey,
@@ -1205,7 +1203,6 @@ public sealed class EfTriageStore(
             await TriageFindingFillWriter.ApplyAsync(
                 context,
                 linkedWorkflow,
-                beforeVersion: null,
                 request.Roadworthiness,
                 request.Assessment,
                 request.OperationKey.Trim(),
@@ -1396,7 +1393,7 @@ public sealed class EfTriageStore(
         if (linking)
         {
             await FillFromCurrentFindingAsync(
-                context, workflow, beforeCaseVersion, triage.CaseId, operationKey, now, cancellationToken);
+                context, workflow, triage.CaseId, operationKey, now, cancellationToken);
         }
         EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
         await context.SaveChangesAsync(cancellationToken);
