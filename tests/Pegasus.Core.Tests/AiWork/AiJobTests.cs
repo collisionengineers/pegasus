@@ -50,18 +50,59 @@ public sealed class AiJobTests
             AiJobPolicy.EffectiveState(AiJobState.DraftReady, Now, Now, Now));
     }
 
-    [Fact]
-    public void TheAutomationActorCreatesOnlyQueuePasses()
+    /// <summary>
+    /// ADR-0064: a job is how an external agent picks up work, so the
+    /// Automation Actor creates any kind, as staff do; a system worker or a
+    /// Principal still creates none.
+    /// </summary>
+    [Theory]
+    [InlineData(AiJobKind.QueryResponse)]
+    [InlineData(AiJobKind.UnidentifiedResolution)]
+    [InlineData(AiJobKind.UnidentifiedQueuePass)]
+    [InlineData(AiJobKind.MarketResearch)]
+    public void TheAutomationActorCreatesAnyKind(AiJobKind kind)
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            AiJobPolicy.ValidateNew(NewJob(AiJobKind.QueryResponse, Client)));
-        Assert.Contains("Unidentified-queue pass", exception.Message, StringComparison.Ordinal);
-        AiJobPolicy.ValidateNew(NewJob(AiJobKind.UnidentifiedQueuePass, Client));
+        AiJobPolicy.ValidateNew(NewJob(kind, Client));
+        AiJobPolicy.ValidateNew(NewJob(kind, Staff));
         Assert.Throws<StaffAuthorizationException>(() =>
-            AiJobPolicy.ValidateNew(NewJob(
-                AiJobKind.UnidentifiedQueuePass,
-                ActionActor.SystemWorker("worker"))));
+            AiJobPolicy.ValidateNew(NewJob(kind, ActionActor.SystemWorker("worker"))));
+        Assert.Throws<StaffAuthorizationException>(() =>
+            AiJobPolicy.ValidateNew(NewJob(kind, ActionActor.Principal(Guid.NewGuid()))));
     }
+
+    [Fact]
+    public void TheAutomationActorCreatesAnEstimateJobUnderTheSameRules()
+    {
+        var caseId = Guid.NewGuid();
+        AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Client, caseId, target: 40, engineerValue: 5000m));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Client, caseId, target: 81, engineerValue: 5000m)));
+        Assert.Throws<InvalidOperationException>(() =>
+            AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Client, caseId, target: null, engineerValue: null)));
+    }
+
+    [Fact]
+    public async Task AnEstimateJobWithoutADirectionNamesItsCase()
+    {
+        var harness = new Harness { EngineerValue = "4200.00" };
+        var created = await harness.Create.ExecuteAsync(
+            new(AiJobKind.Estimate, harness.CaseId, null, "  ", null, Client, "op-estimate-default"),
+            CancellationToken.None);
+        Assert.Equal("Draft an estimate for case CE-QDOS-31-00001.", created.Instruction);
+        Assert.Equal(ActorKind.Automation, created.CreatedByKind);
+    }
+
+    [Theory]
+    [InlineData(AiJobKind.QueryResponse, AiJobState.DraftReady, true)]
+    [InlineData(AiJobKind.UnidentifiedQueuePass, AiJobState.DraftReady, true)]
+    [InlineData(AiJobKind.Estimate, AiJobState.DraftReady, false)]
+    [InlineData(AiJobKind.UnidentifiedResolution, AiJobState.DraftReady, false)]
+    [InlineData(AiJobKind.QueryResponse, AiJobState.Taken, false)]
+    public void OnlyADraftReadyQueryResponseOrQueuePassCompletesByHand(
+        AiJobKind kind,
+        AiJobState state,
+        bool byHand) =>
+        Assert.Equal(byHand, AiJobPolicy.CompletesByHand(JobRecord(kind) with { State = state }));
 
     [Fact]
     public void AnEstimateJobNeedsAnEngineerValueAndAllowsAnOptionalTargetUpToEighty()
@@ -77,15 +118,32 @@ public sealed class AiJobTests
         AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Staff, caseId, target: 60, engineerValue: 5000m));
     }
 
+    /// <summary>
+    /// The client transitions stay the Automation Actor's alone; cancelling
+    /// and confirming are casework that staff and the Automation Actor both
+    /// perform (ADR-0064), and a system worker or Principal performs neither.
+    /// </summary>
     [Fact]
-    public void ClientTransitionsAreAutomationOnlyAndStaffTransitionsAreStaffOnly()
+    public void ClientTransitionsAreAutomationOnlyAndCancelAndConfirmAreCasework()
     {
         Assert.Throws<InvalidOperationException>(() =>
             AiJobPolicy.ValidateTransition(new(
                 Guid.NewGuid(), 0, AiJobState.Taken, Staff, "op", LeaseExpiresAtUtc: Now)));
-        Assert.Throws<InvalidOperationException>(() =>
+        AiJobPolicy.ValidateTransition(new(
+            Guid.NewGuid(), 0, AiJobState.Cancelled, Client, "op", "reason"));
+        AiJobPolicy.ValidateTransition(new(
+            Guid.NewGuid(), 0, AiJobState.Completed, Client, "op"));
+        AiJobPolicy.ValidateTransition(new(
+            Guid.NewGuid(), 0, AiJobState.Completed, Staff, "op"));
+        Assert.Throws<ArgumentException>(() =>
             AiJobPolicy.ValidateTransition(new(
-                Guid.NewGuid(), 0, AiJobState.Cancelled, Client, "op", "reason")));
+                Guid.NewGuid(), 0, AiJobState.Cancelled, Client, "op")));
+        Assert.Throws<StaffAuthorizationException>(() =>
+            AiJobPolicy.ValidateTransition(new(
+                Guid.NewGuid(), 0, AiJobState.Cancelled, ActionActor.SystemWorker("worker"), "op", "reason")));
+        Assert.Throws<StaffAuthorizationException>(() =>
+            AiJobPolicy.ValidateTransition(new(
+                Guid.NewGuid(), 0, AiJobState.Completed, ActionActor.Principal(Guid.NewGuid()), "op")));
         Assert.Throws<ArgumentException>(() =>
             AiJobPolicy.ValidateTransition(new(
                 Guid.NewGuid(), 0, AiJobState.Cancelled, Staff, "op")));

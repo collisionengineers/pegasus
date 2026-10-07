@@ -2,8 +2,12 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -359,6 +363,68 @@ public sealed class AutomationIntakeParityIngressTests
             _ = await ReadErrorTextAsync(unlinkUnknown);
         }
 
+        // Assignment and notes are the staff acts too (ADR-0064). The assignee
+        // is chosen from the enabled staff, never the acting client.
+        using (var unassigned = await PostMcpAsync(client, token,
+            ToolCallPayload(40, "pegasus_triage_assign", new
+            {
+                caseId = triageId,
+                expectedVersion = version,
+                action = "Unassign",
+                operationKey = "mcp:triage-unassign-nobody"
+            })))
+        {
+            Assert.Contains("not assigned", await ReadErrorTextAsync(unassigned), StringComparison.Ordinal);
+        }
+        using (var stranger = await PostMcpAsync(client, token,
+            ToolCallPayload(41, "pegasus_triage_assign", new
+            {
+                caseId = triageId,
+                expectedVersion = version,
+                action = "Assign",
+                assigneeId = Guid.NewGuid(),
+                operationKey = "mcp:triage-assign-stranger"
+            })))
+        {
+            Assert.Contains("enabled member of staff", await ReadErrorTextAsync(stranger), StringComparison.Ordinal);
+        }
+
+        var assigneeId = await CreateStaffAccountAsync(mcpFactory.Services, "triage.assignee");
+        detail = await MutateAsync(client, token, 42, "pegasus_triage_assign", new
+        {
+            caseId = triageId,
+            expectedVersion = version,
+            action = "Assign",
+            assigneeId,
+            operationKey = "mcp:triage-assign"
+        });
+        Assert.Equal(assigneeId, detail.GetProperty("record").GetProperty("assigneeId").GetGuid());
+        version = Version(detail);
+
+        detail = await MutateAsync(client, token, 43, "pegasus_triage_assign", new
+        {
+            caseId = triageId,
+            expectedVersion = version,
+            action = "Unassign",
+            operationKey = "mcp:triage-unassign"
+        });
+        Assert.True(
+            !detail.GetProperty("record").TryGetProperty("assigneeId", out var cleared)
+            || cleared.ValueKind == JsonValueKind.Null);
+        version = Version(detail);
+
+        detail = await MutateAsync(client, token, 44, "pegasus_triage_note_add", new
+        {
+            caseId = triageId,
+            expectedVersion = version,
+            note = "Repairer says the vehicle is off the road.",
+            operationKey = "mcp:triage-note"
+        });
+        Assert.Contains(detail.GetProperty("history").EnumerateArray(),
+            entry => entry.GetProperty("reason").GetString() == "Repairer says the vehicle is off the road."
+                && entry.GetProperty("actor").GetString() == ClientId);
+        version = Version(detail);
+
         // Linking the Triage to an instruction Case changes both records, so
         // both leases are held for the one command and both versions checked.
         // Accepting the instruction may itself touch the Triage (the system
@@ -439,6 +505,22 @@ public sealed class AutomationIntakeParityIngressTests
     {
         using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId, tool, arguments));
         return (await ReadStructuredContentAsync(response)).GetProperty("detail");
+    }
+
+    private static async Task<Guid> CreateStaffAccountAsync(IServiceProvider services, string userName)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var user = new PegasusIdentityUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = userName,
+            IsEnabled = true,
+            MustChangePassword = false
+        };
+        Assert.True((await users.CreateAsync(user)).Succeeded);
+        Assert.True((await users.AddToRoleAsync(user, StaffRole.Engineer.ToString())).Succeeded);
+        return user.Id;
     }
 
     private static string State(JsonElement detail) =>

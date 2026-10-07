@@ -241,8 +241,9 @@ versioned, retained and gated on readiness. Generation, approval, issue,
 sending, external receipt and Case closure are separate recorded events.
 Generation returns draft assessment and fee-note files with bytes, hashes,
 page counts, template version and engine version. It is not approval, issue,
-sending, receipt, reference allocation or correction custody. A human must
-approve before issue.
+sending, receipt, reference allocation or correction custody. Staff or the
+Automation actor approve before issue
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#reports)).
 
 **What a generation freezes.** The Case version, signatory account and
 signature digest, Current estimate identity, version and breakdown, the
@@ -366,7 +367,9 @@ offered again for a confirmed report whose separate fee note is not (operator,
 7 October 2026). Generate for the other companion documents of the confirmed
 generation — the Repair Spec and the images — is offered the same way, in or
 out of edit mode, with the same one-off lease (operator, 28 September 2026,
-issue 912).
+issue 912). The Automation Actor generates the report and its companion
+documents through the same command
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#reports)).
 
 **After Generate report** (operator, 27 September 2026). A report that was
 generated and stored opens in the Case page's document viewer by itself,

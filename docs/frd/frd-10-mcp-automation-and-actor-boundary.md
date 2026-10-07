@@ -17,9 +17,11 @@
 - A write presented without a lease token holds the record's edit lease for
   that one command. The explicit lease tools remain for multi-step work.
 - The Actor does the casework a staff member does: Unidentified items, Triage
-  Cases, Case details and notes, findings, valuation, estimates and AI jobs.
-  It never puts an estimate in use, never runs a Glass's session and never
-  touches Glass's credentials. Sending mail is not yet delivered.
+  Cases, received items and direct Case creation, Case details and notes,
+  findings, valuation, estimates, the Case's lifecycle acts, reports and their
+  approval, the Case's documents, AI jobs, mail dismiss and folder moves, and
+  Work Centre dismiss. It never puts an estimate in use, never runs a Glass's
+  session and never touches Glass's credentials. Sending is not yet delivered.
 - A tool counts as delivered only after a real caller has proved success,
   authorisation failure, validation failure and history.
 
@@ -46,9 +48,10 @@ with `PerformCasework` can, with two exceptions: it never puts an estimate in
 use (**Use repair spec**), and it never runs a Glass's session, which signs in
 with the staff member's own Glass's account (operator, 7 October 2026;
 [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). The
-`Manage*` rights stay with staff Administrators. Case lifecycle, report and
-document, queue and job, and outward-sending tools are later deliveries;
-until each lands, those acts stay with staff.
+`Manage*` rights stay with staff Administrators. The Case lifecycle, report
+and document tools, report approval among them, and the queue and job tools
+are delivered (operator, 7 October 2026). Outward-sending tools are a later
+delivery; until they land, sending stays with staff.
 
 **Grants.** Each connector grant has its own durable identity. History keeps
 the grant identity, the shared client ID and the human approver separately.
@@ -131,7 +134,7 @@ DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry) are
 refused. `pegasus_vocabulary_get` lists every assessment field path with its
 type, accepted codes, staff label and whether the tool may write it, with the
 estimate line types and evidence labels, the repairer VAT statuses and VAT
-categories, and the valuation sources.
+categories, the valuation sources and the shared image tags.
 
 **Valuation.** `pegasus_valuation_list` returns the Case's valuation cards:
 each guide card, the Engineer's Value card and any AI market research card.
@@ -146,13 +149,46 @@ value is unchanged, an empty string clears a text or date value, and a value
 the call does not name never changes. It edits the claimant, claim, contact,
 accident, VAT status and repairer; the Principal, Claim source and Client
 notes; the due by date and the Claim source contact; the vehicle's identity,
-year and mileage; the inspection; and the Sign-off Engineer.
+year and mileage; the inspection; and the Sign-off Engineer. As on the Case
+page, it links the repairer to an active directory Repairer and records the
+Claim source from the active Claim source records, each copied onto the Case
+so a later directory edit never rewrites it; `pegasus_directory_search`
+lists them.
 `pegasus_assessment_get` returns Case facts under `caseOwned`. The Case's
 Received date, which is its instruction date, is read-only:
 `caseOwned.receivedDate` and the Case summary's `receivedAtUtc` carry it, and
 no tool accepts an instruction date. `pegasus_case_note_add` adds an
 append-only note to the Case timeline, attributed to the Actor, as staff add
 one; it changes no Case value and needs no version or lease.
+
+**Case lifecycle.** <a id="case-lifecycle"></a> `pegasus_case_action` takes
+one Actions-menu act through the same Core command as the staff Case page:
+place on Hold, with an optional review date, and release it; return to
+Review; assign the Engineer; return to Engineer; close with a named outcome;
+complete; reopen to a named destination; archive; create the linked
+replacement of a Case created in error; Create audit; request the vehicle
+lookup; and record a manual chase. Each needs the reason staff give for it.
+Core alone decides which act the Case's state allows
+([FRD-13](frd-13-case-lifecycle-and-workflow.md)). A Case is never deleted.
+
+**Reports.** <a id="reports"></a> `pegasus_report_list` returns a work's
+report generations with their artifacts, filing state and SHA-256, the
+recorded report approval, the linked report-Sent evidence and the retained
+Sent evidence available to link. `pegasus_report_action` generates the report,
+which goes on to make its separate fee note, and the Repair Spec and images
+documents of a confirmed generation; records report approval of one stored
+artifact; and links or unlinks report-Sent evidence, each through the staff
+command ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+Report approval is by staff or the Automation actor (operator, 7 October
+2026). A report that is not ready answers with its readiness reasons and
+records nothing. An approval, archive or evidence link the Actor records is
+attributed to it and reads back as the Automation actor.
+
+**Document acts.** `pegasus_document_action` tags and untags an image, puts
+it in the report or takes it out, marks the Audit's original report, removes
+a document occurrence while custody content and history are kept, retries
+failed custody, and adds a word to the shared image-tag vocabulary, through
+the staff Custody commands.
 
 Estimates go through the named estimate tools, with the same actor, lease,
 version and replay checks as the Case UI
@@ -204,6 +240,49 @@ session hold it for a multi-step change, and staff actions on it are refused
 while it does.
 
 Assignment names a selected staff assignee, separate from the acting principal.
+`pegasus_triage_assign` takes an `action` of Assign, naming an enabled member
+of staff from the roster the Triage page offers, or Unassign; neither takes a
+reason. `pegasus_triage_note_add` appends a note to the Triage history, as
+staff add one. Both hold the Triage for their one command, as the other
+Triage changes do.
+
+### Queue and intake tools
+
+The queue acts a staff member performs on received items, Unidentified
+items, mail and the Work Centre (operator, 7 October 2026;
+[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). Each calls
+the same Core command as the staff page, records the Actor's own history and
+replays by its operation key.
+
+- `pegasus_intake_get` reads one received item as the Create case page
+  reviews it: version, decision, existing Case, classified case type, draft,
+  missing identity-critical fields, allocation attempt and inspection
+  address state.
+- `pegasus_intake_action` with `accept` turns a received item into a Case
+  as **Create case** does: the reviewed draft is recorded (named draft fields
+  replace the item's), then the Case is allocated for the Principal and case
+  type. An Audit is accepted only for an item classified as one. With
+  `allocate` it retries a failed allocation with a reason, naming the
+  attempt, as the Intake log's **Retry allocation** does.
+- Settling an inspection address stays a staff act: its record names the
+  member of staff, so `accept` is refused while the address still needs a
+  staff decision. A Principal that inspects by images needs none.
+- `pegasus_case_create` creates a Case directly, as staff **Add case** does
+  ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)): an
+  Inspection or Inspection and Audit Case with its identity-critical facts,
+  or a Triage Case from its Principal and registration. An Audit is never
+  created by hand.
+- `pegasus_unidentified_resolve` with `targetKind` Closed is **Close with
+  reason**: it names no destination. `pegasus_unidentified_reopen` withdraws
+  a resolution or closure with a reason.
+- `pegasus_mail_action` with `move_folder` confirms the move to the folder
+  the classification recommends, with the classification, recommendation
+  and mailbox versions `pegasus_mail_get` returns; `dismiss` and `restore`
+  change the message's Pegasus scope only
+  ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
+- `pegasus_work_centre_dismiss` dismisses a Case, Unidentified item or AI
+  job from the Work Centre for everyone, as a row's **Dismiss** does
+  ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)).
 
 ### AI job and estimate tools
 
@@ -219,8 +298,8 @@ stopped automation client is refused before any tool runs.
 | Tool | Scope | Action |
 | --- | --- | --- |
 | `pegasus_ai_job_list` | `automation.jobs` | List jobs by state and kind; a client sees every queued job and its own taken jobs |
-| `pegasus_ai_job_create` | `automation.jobs` | Create an Unidentified-queue pass job, the only kind an external scheduler may start |
-| `pegasus_ai_job_transition` | `automation.jobs` | One tool with an `action`: Take claims a queued job under a bounded lease held by the client's name (refused when the job is not queued or the kill switch is on); Progress renews the lease and records a short note (refused after cancellation, lease expiry or while the kill switch is on); Complete marks a non-MarketResearch job `Draft ready`, naming its result kind; Fail marks it `Failed` with a reason; Release returns a taken job to `Queued` before the lease ends |
+| `pegasus_ai_job_create` | `automation.jobs` | Create a job of any kind with the subject the staff action names: Estimate (a Case, optional direction and target), MarketResearch (a Case and guide month; a pending job for the Case is returned instead), QueryResponse (a retained post-report query linked to its Case), UnidentifiedResolution (an open U-reference) or UnidentifiedQueuePass (an instruction). Jobs are how external agents on automated runs hand work to each other (operator, 7 October 2026) |
+| `pegasus_ai_job_transition` | `automation.jobs` | One tool with an `action`: Take claims a queued job under a bounded lease held by the client's name (refused when the job is not queued or the kill switch is on); Progress renews the lease and records a short note (refused after cancellation, lease expiry or while the kill switch is on); Complete marks a non-MarketResearch job `Draft ready`, naming its result kind; Fail marks it `Failed` with a reason; Release returns a taken job to `Queued` before the lease ends. Those five act only on the client's own job. Cancel stops any queued, taken or `Draft ready` job with a reason, as an Administrator's Stop does; Confirm marks a `Draft ready` QueryResponse or UnidentifiedQueuePass `Completed`, as the Work Centre's **Complete job** does |
 | `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document and one AI market research card and mark the client's MarketResearch job `Draft ready`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or completed Case (operator, 28 September 2026) |
 | `pegasus_estimate_save` | `automation.assessment` | Create an estimate on a Case, which lands as an AI-draft `Draft`, or edit any live estimate in place, the Current one included; citing the Estimate job it fulfils is optional |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
@@ -272,7 +351,7 @@ tranche rule above.
 
 ### Tool inventory
 
-The Actor's whole inventory, 42 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 55 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -283,23 +362,35 @@ its one command when none is given.
 | `automation.cases` | `pegasus_case_get` | One Case with its paged documents (occurrence and version ids for download) and history | none |
 | `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
 | `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
-| `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources | none |
+| `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, complete, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, manual_chase | one-command lease |
+| `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to | none |
+| `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags | none |
+| `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item or AI job from the Work Centre | key only |
 | `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` takes a lease a staff member holds | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
 | `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |
+| `automation.intake` | `pegasus_intake_get` | One received item as the Create case page reviews it | none |
+| `automation.intake` | `pegasus_intake_action` | `accept` a received item as a Case, or `allocate` (retry) a failed allocation | item version and key |
+| `automation.intake` | `pegasus_case_create` | Create a Case or Triage Case directly | key only |
 | `automation.intake` | `pegasus_unidentified_list`, `pegasus_unidentified_get` | The open Unidentified queue; one item by U-reference with its sources and history | none |
 | `automation.intake` | `pegasus_unidentified_source_download` | A retained source as native content | none |
-| `automation.intake` | `pegasus_unidentified_resolve` | Resolve an item through the Core command | version and key |
+| `automation.intake` | `pegasus_unidentified_resolve` | Resolve an item to a destination, or Close with reason | version and key |
+| `automation.intake` | `pegasus_unidentified_reopen` | Reopen a resolved or closed item with a reason | version and key |
 | `automation.intake` | `pegasus_triage_list`, `pegasus_triage_get` | Triage records; one Triage with findings, evidence, candidates and history | none |
 | `automation.intake` | `pegasus_triage_source_download` | The Triage's retained origin source as native content | none |
 | `automation.intake` | `pegasus_triage_await_information`, `pegasus_triage_record_finding`, `pegasus_triage_response_evidence`, `pegasus_triage_complete`, `pegasus_triage_cancel`, `pegasus_triage_reopen` | The Triage contract above | one-command lease |
 | `automation.intake` | `pegasus_triage_case_link` | Link or unlink the Triage and an instruction Case; both records' versions and leases | one-command lease on each record |
+| `automation.intake` | `pegasus_triage_assign`, `pegasus_triage_note_add` | Assign or unassign the Triage; add a Triage note | one-command lease |
 | `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced | one-command lease |
 | `automation.documents` | `pegasus_document_download` | One exact document version as native content | none |
+| `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
+| `automation.documents` | `pegasus_report_list` | A work's report generations and artifacts, its report approval and its report-Sent evidence | none |
+| `automation.documents` | `pegasus_report_action` | Generate the report, Repair Spec or images; record report approval; link or unlink report-Sent evidence | one-command lease |
 | `automation.assessment` | `pegasus_assessment_get`, `pegasus_estimate_list`, `pegasus_estimate_get`, `pegasus_valuation_list` | The recorded assessment surface; a Case's estimate headers; one estimate in full; the valuation cards | none |
 | `automation.assessment` | `pegasus_assessment_update`, `pegasus_valuation_save`, `pegasus_estimate_save`, `pegasus_estimate_act`, `pegasus_estimate_import` | The assessment, valuation and estimate writes above | one-command lease |
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification through the staff command | version and key |
+| `automation.mail` | `pegasus_mail_action` | `move_folder` to the recommended Outlook folder; `dismiss` or `restore` in Pegasus | versions and key for a move; key for dismiss and restore |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 
 ## States and transitions
@@ -325,6 +416,18 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
   fact only the vehicle lookup records, or a field no Case section records is
   refused, naming the field, and writes nothing.
 - No tool puts an estimate in use or runs a Glass's session.
+- A lifecycle, report or document act the Case's state does not allow is
+  refused with Core's reason and writes nothing; an act missing an input it
+  needs is refused before any lease is claimed.
+- A report that is not ready is not generated: the answer names each
+  readiness reason and nothing is recorded.
+- Recording report approval sends nothing and claims nothing was sent.
+- `pegasus_intake_action accept` is refused while the item's inspection
+  address needs a staff decision; the Actor does not settle an address.
+- Confirm is refused for a job that is not a `Draft ready` QueryResponse or
+  UnidentifiedQueuePass; those others complete through their record's own
+  act.
+- A subject field a job kind does not take is refused, not ignored.
 - Staff cannot take over an Automation lease; it lapses within five minutes.
 - Missing production signing or encryption keys fail closed.
 

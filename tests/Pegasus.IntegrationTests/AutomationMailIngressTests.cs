@@ -467,6 +467,86 @@ public sealed class AutomationMailIngressTests
     }
 
     /// <summary>
+    /// Dismiss and Restore are the staff acts on a message (ADR-0064): the
+    /// Automation Actor takes a message out of the incoming scopes and brings
+    /// it back, in its own name, and a move's confirmations are refused on
+    /// them.
+    /// </summary>
+    [Fact]
+    public async Task TheActorDismissesAndRestoresAMessageInItsOwnName()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var ids = await SeedRetainedAsync(mcpFactory, count: 1);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, "automation.mail");
+
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(1, "pegasus_mail_action", new
+            {
+                messageId = ids[0],
+                action = "dismiss",
+                reason = "Not ours.",
+                operationKey = "mcp:mail-dismiss-with-reason"
+            })))
+        {
+            Assert.Contains("move_folder", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(2, "pegasus_mail_action", new
+            {
+                messageId = ids[0],
+                action = "archive",
+                operationKey = "mcp:mail-unknown-action"
+            })))
+        {
+            Assert.Contains("move_folder, dismiss or restore", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(3, "pegasus_mail_action", new
+            {
+                messageId = ids[0],
+                action = "dismiss",
+                operationKey = "mcp:mail-dismiss"
+            })))
+        {
+            var dismissed = await ReadStructuredContentAsync(response);
+            Assert.True(dismissed.GetProperty("isDismissed").GetBoolean());
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(4, "pegasus_mail_action", new
+            {
+                messageId = ids[0],
+                action = "restore",
+                operationKey = "mcp:mail-restore"
+            })))
+        {
+            var restored = await ReadStructuredContentAsync(response);
+            Assert.False(restored.GetProperty("isDismissed").GetBoolean());
+        }
+
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation'
+              AND AggregateType = N'automation_mcp'
+              AND EventKind = N'pegasus_mail_action'
+              AND Outcome = N'Succeeded'
+            """));
+    }
+
+    /// <summary>
     /// Seeds retained inbox messages exactly as the poller's retention path
     /// writes them, plus the poll state the freshness read model consumes —
     /// the same fixture shape as <see cref="MailWorkspaceWebTests"/>.
