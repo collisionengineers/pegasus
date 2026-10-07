@@ -672,8 +672,9 @@ internal sealed class EfVehicleLookupWorkStore(
     private sealed record MotTestEnvelope(int Version, MotTestObservation[] Observations);
 
     /// <summary>
-    /// The assessment values lookups and Glass's VIN fills
-    /// (<see cref="GlassVinFillWriter"/>) filled on the Case since
+    /// The assessment values lookups, Glass's VIN fills
+    /// (<see cref="GlassVinFillWriter"/>) and linked Triage findings
+    /// (<see cref="TriageFindingFillWriter"/>) filled on the Case since
     /// <paramref name="sinceVersion"/>, each with its value before the first of
     /// them: what a Save prepared at that version shows for those fields.
     /// </summary>
@@ -686,7 +687,9 @@ internal sealed class EfVehicleLookupWorkStore(
         var outcomes = await context.CaseWorkflowEvents.AsNoTracking()
             .Where(item => item.CaseId == caseId
                 && item.AfterVersion > sinceVersion
-                && (item.EventType.StartsWith("vehicle_lookup_") || item.EventType == GlassVinFillWriter.EventType)
+                && (item.EventType.StartsWith("vehicle_lookup_")
+                    || item.EventType == GlassVinFillWriter.EventType
+                    || item.EventType == TriageFindingFillWriter.EventType)
                 && item.ResultJson != null)
             .OrderBy(item => item.AfterVersion)
             .Select(item => item.ResultJson!)

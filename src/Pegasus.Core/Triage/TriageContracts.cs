@@ -420,6 +420,12 @@ public sealed record TriageDetail(
     /// </summary>
     string? PrincipalCode = null)
 {
+    /// <summary>
+    /// The claimant read from the request the Triage Case was opened from (its
+    /// receipt's instruction draft), as Search shows it; null when none was read.
+    /// </summary>
+    public string? ClaimantName { get; init; }
+
     /// <summary>The Triage Case's files: its standard Case documents.</summary>
     public IReadOnlyList<CaseDocument> Documents { get; init; } = [];
 

@@ -380,7 +380,45 @@ public sealed class EfCaseQueryStore(
             // and only while the Case can show one.
             CaseCancellationNotice.Applies(frame.Workflow)
                 ? await ReadLinkedCancellationMessageIdAsync(context, caseId, cancellationToken)
-                : null);
+                : null,
+            await ReadLinkedTriageAsync(context, caseId, cancellationToken));
+    }
+
+    /// <summary>
+    /// The Triage Cases linked to this Case, oldest first, each with its
+    /// current finding: the one no later finding supersedes.
+    /// </summary>
+    private static async Task<IReadOnlyList<CaseLinkedTriage>> ReadLinkedTriageAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from triage in context.Triage.AsNoTracking()
+            where triage.LinkedInstructionCaseId == caseId
+            join caseRow in context.Cases.AsNoTracking() on triage.CaseId equals caseRow.Id
+            let finding = context.TriageFindings
+                .Where(item => item.TriageCaseId == triage.CaseId
+                    && !context.TriageFindings.Any(later => later.SupersedesFindingId == item.Id))
+                .OrderByDescending(item => item.RecordedAtUtc)
+                .FirstOrDefault()
+            orderby triage.CreatedAtUtc, triage.CaseId
+            select new
+            {
+                triage.CaseId,
+                caseRow.Reference,
+                triage.State,
+                Roadworthiness = finding == null ? null : finding.Roadworthiness,
+                Assessment = finding == null ? null : finding.Assessment
+            })
+            .ToListAsync(cancellationToken);
+        return rows.Select(row => new CaseLinkedTriage(
+                row.CaseId,
+                row.Reference,
+                EfTriageStore.ParseState(row.State),
+                row.Roadworthiness is null ? null : EfTriageStore.ParseRoadworthiness(row.Roadworthiness),
+                row.Assessment is null ? null : EfTriageStore.ParseAssessment(row.Assessment)))
+            .ToArray();
     }
 
     /// <summary>
