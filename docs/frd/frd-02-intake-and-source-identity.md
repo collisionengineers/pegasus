@@ -269,10 +269,9 @@ and is offered only where it applies:
   processing failure.
 
 Each records the actor, reason, time, and before and after state, and
-replays by operation key. The Automation Actor retries an allocation, and
-turns a received item into a Case as **Create case** does, through
-`pegasus_intake_action`; an item whose inspection address still needs a
-staff decision stays with staff
+replays by operation key. The Automation Actor retries an allocation,
+settles a received item's inspection address, and turns the item into a Case
+as **Create case** does, through `pegasus_intake_action`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
 
 A retained message's attachments each state their own outcome in operator

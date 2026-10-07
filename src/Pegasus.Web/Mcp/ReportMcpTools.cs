@@ -87,8 +87,8 @@ internal sealed record ReportActionToolResult(
 /// documents, recording report approval, and linking or unlinking retained
 /// report-Sent evidence — through the same Core commands, lease and version
 /// guards as the Case page. The operator approved report generation and
-/// approval for the Automation Actor (7 October 2026). Sending stays with
-/// staff: nothing here sends anything.
+/// approval for the Automation Actor (7 October 2026). Nothing here sends:
+/// sending is <c>pegasus_report_send</c>, under <c>automation.send</c>.
 /// </summary>
 [McpServerToolType]
 internal sealed class ReportMcpTools(
@@ -185,7 +185,7 @@ internal sealed class ReportMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Takes one report act a member of staff takes on the Case page, through the same Core command and guards: generate_report (freezes the Case's accepted facts and renders the immutable report, filed to the Case; once it is confirmed the separate fee note is made from the same generation), generate_repair_spec or generate_image_pack (a companion document of a confirmed generation, generationId defaulting to the work's current one), record_approval (records approval of one stored generated artifact, artifactId from pegasus_report_list; while the Case is With Engineer, or on the Inspection report of a Case that has its Audit; this is not a send), link_sent_evidence (links retained report-Sent evidence, evidenceId from pegasus_report_list; the current work's report moves the Case to Post report) or unlink_sent_evidence (reason; the currently linked evidence unless evidenceId names it). Nothing here sends a report. A generation that is not ready answers outcome NotReady with the reasons and records nothing. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). A generation keeps the lease; approval and the evidence acts end it.")]
+    [Description("Takes one report act a member of staff takes on the Case page, through the same Core command and guards: generate_report (freezes the Case's accepted facts and renders the immutable report, filed to the Case; once it is confirmed the separate fee note is made from the same generation), generate_repair_spec or generate_image_pack (a companion document of a confirmed generation, generationId defaulting to the work's current one), record_approval (records approval of one stored generated artifact, artifactId from pegasus_report_list; while the Case is With Engineer, or on the Inspection report of a Case that has its Audit; this is not a send), link_sent_evidence (links retained report-Sent evidence, evidenceId from pegasus_report_list; the current work's report moves the Case to Post report) or unlink_sent_evidence (reason; the currently linked evidence unless evidenceId names it). Nothing here sends a report; pegasus_report_send does. A generation that is not ready answers outcome NotReady with the reasons and records nothing. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). A generation keeps the lease; approval and the evidence acts end it.")]
     public async Task<ReportActionToolResult> ActAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -447,7 +447,7 @@ internal sealed class ReportMcpTools(
             ? throw new McpException($"The {verb} action needs a reason.")
             : reason;
 
-    private static CaseWorkSelector ParseWork(string? work) => work?.Trim() switch
+    internal static CaseWorkSelector ParseWork(string? work) => work?.Trim() switch
     {
         null or "" or "current" => CaseWorkSelector.Current,
         "inspection" => CaseWorkSelector.Primary,

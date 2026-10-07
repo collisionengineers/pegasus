@@ -2180,6 +2180,7 @@ public static class OperatorLabels
             "automation.assessment" => "Assessment",
             "automation.mail" => "Mail",
             "automation.jobs" => "AI jobs",
+            "automation.send" => "Sending",
             _ => key
         };
     }

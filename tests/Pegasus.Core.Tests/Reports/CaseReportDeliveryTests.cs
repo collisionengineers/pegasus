@@ -187,18 +187,42 @@ public sealed class CaseReportDeliveryTests
     }
 
     [Fact]
-    public async Task DeliveryIsAStaffActAndRefusesOtherActors()
+    public async Task DeliveryIsACaseworkActAndRefusesOtherActors()
     {
         var generations = new FixedGenerations(Generation());
         var send = new RecordingSend();
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => Use(generations, send)
-            .ExecuteAsync(
-                Request() with { Actor = ActionActor.SystemWorker("delivery-test") },
-                CancellationToken.None));
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => new ReportSendReadiness(generations)
-            .RequireReadyAsync(ReadyRequest(ActionActor.SystemWorker("delivery-test")), CancellationToken.None));
+        foreach (var actor in new[] { ActionActor.SystemWorker("delivery-test"), ActionActor.Principal(Guid.NewGuid()) })
+        {
+            await Assert.ThrowsAsync<StaffAuthorizationException>(() => Use(generations, send)
+                .ExecuteAsync(Request() with { Actor = actor }, CancellationToken.None));
+            await Assert.ThrowsAsync<StaffAuthorizationException>(() => new ReportSendReadiness(generations)
+                .RequireReadyAsync(ReadyRequest(actor), CancellationToken.None));
+        }
         Assert.Empty(send.Commands);
         Assert.Empty(generations.Deliveries);
+    }
+
+    /// <summary>
+    /// The Automation Actor sends the report as staff do (ADR-0064 phase 4,
+    /// operator 7 October 2026): the same readiness, the same one command,
+    /// carrying the Automation Actor as its sender.
+    /// </summary>
+    [Fact]
+    public async Task TheAutomationActorSendsTheReportAsStaffDo()
+    {
+        var automation = ActionActor.Automation("pegasus-automation");
+        var generations = new FixedGenerations(Generation());
+        var send = new RecordingSend();
+
+        await Use(generations, send).ExecuteAsync(Request() with { Actor = automation }, CancellationToken.None);
+        await new ReportSendReadiness(generations).RequireReadyAsync(ReadyRequest(automation), CancellationToken.None);
+
+        var command = Assert.Single(send.Commands);
+        Assert.Same(automation, command.Mail.Actor);
+        Assert.Same(automation, command.Report.Actor);
+        Assert.Equal(StaffMailPurpose.CaseReport, command.Mail.Purpose);
+        Assert.Single(generations.Deliveries);
+        CaseReportDeliveryPolicy.RequireSender(automation);
     }
 
     [Fact]

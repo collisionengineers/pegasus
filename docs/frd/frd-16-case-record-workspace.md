@@ -710,8 +710,9 @@ on Documents.
 
 Notes merges Case notes, business events, chase outcomes and AI events,
 newest first, each with date, time and actor. A general correspondence send
-appears here once its Sent item is observed, as the staff sender,
-**Correspondence sent** and the subject; the message body is never history
+appears here once its Sent item is observed, as its sender (the member of
+staff, or Automation for the Automation Actor), **Correspondence sent** and
+the subject; the message body is never history
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 **Add Case note** sits at the top and needs no edit session. **Record chase** is a dialog, offered while a
 chase is scheduled and the lease is held

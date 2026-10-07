@@ -18,6 +18,9 @@ internal sealed class UserExternalCredentialEntity : IApplicationManagedConcurre
 internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }
+
+    /// <summary>Who sent it: a member of staff or the Automation Actor (ADR-0064).</summary>
+    public Pegasus.Core.Identity.ActorKind ActorKind { get; set; }
     public required string ActorSubjectId { get; set; }
     public Guid MailboxId { get; set; }
     public long MailboxGeneration { get; set; }

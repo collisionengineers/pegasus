@@ -638,7 +638,7 @@ public sealed class EfCaseReportGenerationStore(
         SendCaseReportRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        CaseReportDeliveryPolicy.RequireStaff(request.Actor);
+        CaseReportDeliveryPolicy.RequireSender(request.Actor);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var generation = await LoadRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
             .ConfigureAwait(false)

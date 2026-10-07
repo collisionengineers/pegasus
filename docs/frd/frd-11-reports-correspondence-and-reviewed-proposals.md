@@ -283,6 +283,10 @@ the report's name and the covering message, and its one **Send report** sends
 them. There is no separate preparation and no second confirmation. The
 staff-send operation is the record of what was sent. The form stays offered
 after a send, whatever its outcome, so the same report can be sent again.
+The Automation Actor sends a report through the same command with
+`pegasus_report_send`, choosing what the form holds; its send records the
+Automation actor as the sender (operator, 7 October 2026;
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).
 
 **What a delivery is called (v28 P23).** The attached report is named for the
 people who read it — the Case's reference, the vehicle's registration and the
@@ -296,7 +300,8 @@ that it supersedes the report dated the day the superseded generation carried.
 Before Send report, staff read the message in an editable box and may
 change it. The text they submit is what is sent; it cannot be blank
 or longer than 5000 characters. Custody keeps its own name for the same bytes.
-A send is a staff send that actually left the approved mailbox. The subject
+A send, by staff or the Automation actor, is a staff-mail send that actually
+left the approved mailbox. The subject
 stays the Case or Audit reference. A send the mailbox provider refuses is
 shown as a failed send.
 
@@ -347,10 +352,10 @@ recipient settings can include the original instruction sender and any
 number of extra addresses. The original sender comes from the originating
 instruction, never the latest reply; an unresolved sender adds no invented
 address. Claim Source is never copied implicitly. The settings only suggest:
-the human staff member sending the report may edit To and Cc, and what they
-submit is what the delivery is addressed to.
-Every delivery still needs a staff-controlled send. Default report dates and
-displayed times use Europe/London.
+whoever sends the report, staff or the Automation actor, may edit To and Cc,
+and what they submit is what the delivery is addressed to. Every delivery is
+a deliberate send by staff or the Automation actor; nothing sends a report on
+its own. Default report dates and displayed times use Europe/London.
 
 ### Report generation entry point
 

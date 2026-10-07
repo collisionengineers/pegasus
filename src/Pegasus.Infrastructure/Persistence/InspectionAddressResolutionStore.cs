@@ -13,7 +13,15 @@ public sealed class InspectionAddressResolutionStore(
     : IInspectionAddressResolutionStore
 {
     private const int JsonVersion = 1;
-    private const string ResolutionSignalPrefix = "ext18-address-resolution/v1/";
+    private const string ResolutionSignalFamily = "ext18-address-resolution/";
+
+    /// <summary>
+    /// v2 records the settler as its actor kind and subject (ADR-0064): a
+    /// member of staff or the Automation actor. Migration
+    /// 20261007181000_InspectionAddressSettlerKind rewrote every v1 resolution,
+    /// which named a staff identifier only, so no v1 signal remains to read.
+    /// </summary>
+    private const string ResolutionSignalPrefix = ResolutionSignalFamily + "v2/";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<InspectionAddressResolutionSnapshot?> GetAsync(
@@ -115,7 +123,8 @@ public sealed class InspectionAddressResolutionStore(
             resolvedAtUtc = resolvedAtUtc.ToUniversalTime();
         }
 
-        var staffId = Guid.Parse(request.Actor.SubjectId);
+        var settler = InspectionAddressResolutionPolicy.RequireSettler(request.Actor);
+        var settledBy = InspectionAddressResolutionPolicy.SettlerWord(settler.Kind);
         var state = request.Decision switch
         {
             InspectionAddressStaffDecision.AcceptSuggestion =>
@@ -128,20 +137,22 @@ public sealed class InspectionAddressResolutionStore(
             ToStateCode(state),
             resolvedValue,
             suggestion?.Fingerprint ?? string.Empty,
-            staffId,
+            settler.Kind.ToString(),
+            settler.Subject,
             resolvedAtUtc,
             request.OperationId);
         var humanDetail = state switch
         {
             InspectionAddressResolutionState.Accepted =>
-                "Inspection address accepted by staff from extracted intake evidence.",
+                $"Inspection address accepted by {settledBy} from extracted intake evidence.",
             InspectionAddressResolutionState.Corrected =>
-                "Inspection address corrected by staff from extracted intake evidence.",
-            _ => "Inspection address supplied by staff; no address evidence was extracted from the source."
+                $"Inspection address corrected by {settledBy} from extracted intake evidence.",
+            _ => $"Inspection address supplied by {settledBy}; no address evidence was extracted from the source."
         };
         evidence.Add(new(
             // A supplied address has no extracted provenance to name, because
-            // there was none; the staff member who typed it is the source.
+            // there was none; whoever keyed it is the source. The settler's
+            // own kind is in the resolution itself.
             IntakeEvidenceSourceCodes.ToCode(suggestion is null
                 ? IntakeEvidenceSource.StaffCorrection
                 : suggestion.Provenance[0].Source),
@@ -224,7 +235,8 @@ public sealed class InspectionAddressResolutionStore(
             state,
             evaluation,
             current?.Value,
-            current?.StaffId,
+            current is null ? null : ParseSettlerKind(current.ResolvedByKind),
+            current?.ResolvedBy,
             current?.OccurredAtUtc);
     }
 
@@ -360,12 +372,7 @@ public sealed class InspectionAddressResolutionStore(
             }
         }
         ArgumentNullException.ThrowIfNull(request.Actor);
-        if (request.Actor.Kind != ActorKind.Staff
-            || !Guid.TryParse(request.Actor.SubjectId, out var staffId)
-            || staffId == Guid.Empty)
-        {
-            throw new ArgumentException("Inspection-address resolution requires a staff actor.", nameof(request));
-        }
+        _ = InspectionAddressResolutionPolicy.RequireSettler(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.CorrelationId);
         if (request.CorrelationId.Length > 100)
         {
@@ -416,9 +423,13 @@ public sealed class InspectionAddressResolutionStore(
 
     private static PersistedResolution? TryReadResolution(PersistedEvidence evidence)
     {
-        if (!evidence.Signal.StartsWith(ResolutionSignalPrefix, StringComparison.Ordinal))
+        if (!evidence.Signal.StartsWith(ResolutionSignalFamily, StringComparison.Ordinal))
         {
             return null;
+        }
+        if (!evidence.Signal.StartsWith(ResolutionSignalPrefix, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The persisted inspection-address resolution version is unsupported.");
         }
 
         try
@@ -427,9 +438,14 @@ public sealed class InspectionAddressResolutionStore(
                 .Replace('-', '+')
                 .Replace('_', '/');
             encoded = encoded.PadRight(encoded.Length + ((4 - encoded.Length % 4) % 4), '=');
-            return JsonSerializer.Deserialize<PersistedResolution>(
+            var resolution = JsonSerializer.Deserialize<PersistedResolution>(
                 Convert.FromBase64String(encoded),
                 JsonOptions);
+            return resolution is null
+                || string.IsNullOrWhiteSpace(resolution.ResolvedByKind)
+                || string.IsNullOrWhiteSpace(resolution.ResolvedBy)
+                ? throw new InvalidDataException("The persisted inspection-address resolution names no settler.")
+                : resolution;
         }
         catch (Exception exception) when (exception is FormatException or JsonException)
         {
@@ -444,6 +460,13 @@ public sealed class InspectionAddressResolutionStore(
         InspectionAddressResolutionState.Supplied => "supplied",
         _ => throw new InvalidOperationException(
             $"Inspection-address resolution state '{state}' is not persistable.")
+    };
+
+    private static ActorKind ParseSettlerKind(string kind) => kind switch
+    {
+        nameof(ActorKind.Staff) => ActorKind.Staff,
+        nameof(ActorKind.Automation) => ActorKind.Automation,
+        _ => throw new InvalidDataException($"Unknown inspection-address settler kind '{kind}'.")
     };
 
     private static InspectionAddressResolutionState ParseState(string state) => state switch
@@ -506,7 +529,8 @@ public sealed class InspectionAddressResolutionStore(
         string State,
         string Value,
         string SuggestionFingerprint,
-        Guid StaffId,
+        string ResolvedByKind,
+        string ResolvedBy,
         DateTimeOffset OccurredAtUtc,
         Guid OperationId);
     private sealed record AddressHistoryValue(
