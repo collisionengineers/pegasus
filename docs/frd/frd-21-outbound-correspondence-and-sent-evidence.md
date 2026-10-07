@@ -12,7 +12,8 @@
   can send.
 - Every send is one durable operation. Graph saying "accepted" means
   submitted, not sent. The Sent item that Graph later writes is the evidence.
-- A report sent through EVA is detected from the Sent mailbox, not asserted.
+- A report sent outside Pegasus is detected from the Sent mailbox, not
+  asserted.
   If the match is unclear, the item waits for staff to link it.
 - Nothing here deletes or flags a mailbox item.
 
@@ -187,9 +188,9 @@ production is a separately approved live write. It also requires the
 Sent-evidence poll to be enabled for the sending mailbox, so every send has
 its evidence.
 
-### EVA-sent report detection
+### Externally sent report detection
 
-A report sent through EVA rather than from Pegasus is detected, not
+A report sent from the approved mailbox outside Pegasus is detected, not
 asserted. The Sent-evidence poll recognises a report mail in the approved
 mailbox when the exact Sent item matches one Case reference and carries a
 PDF attachment classified as a report. On that match Pegasus:
@@ -253,7 +254,7 @@ document never moves a Case by itself.
   [FRD-20](frd-20-mailbox-workspace.md) (mail screens),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md) (Case states),
   [FRD-03](frd-03-triage.md) (Reply with finding),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md) (EVA handoff).
+  [FRD-07](frd-07-case-export.md) (Case export).
 - Technical constraints:
   [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md) (outbound
   mail via an approved mailbox),

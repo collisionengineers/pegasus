@@ -32,12 +32,9 @@ public sealed class OrganizationAdministrationPersistenceTests
         await using var context = await contextFactory.CreateDbContextAsync();
         var principal = await context.Principals.AsNoTracking()
             .Where(item => item.Code == QdosPrincipal.Code)
-            .Select(item => new { item.Id, item.Version, item.OrganizationId, item.ReportGenerationPolicy, ContactVersion = item.Organization.Version })
+            .Select(item => new { item.Id, item.Version, item.OrganizationId, ContactVersion = item.Organization.Version })
             .SingleAsync();
         var update = services.GetRequiredService<IUpdatePrincipalReportSettings>();
-        var changedPolicy = principal.ReportGenerationPolicy == PrincipalReportGenerationPolicy.Pegasus.ToString()
-            ? PrincipalReportGenerationPolicy.EvaManualApi
-            : PrincipalReportGenerationPolicy.Pegasus;
 
         UpdatePrincipalReportSettingsRequest Request(long principalVersion, long contactVersion, string operationKey) => new(
             principal.Id,
@@ -45,7 +42,6 @@ public sealed class OrganizationAdministrationPersistenceTests
             Administrator,
             operationKey,
             "Confirm contact-owned report settings",
-            changedPolicy,
             PrincipalReportRecipientSettings.None,
             205.00m,
             contactVersion);

@@ -150,7 +150,8 @@ item taken outside one runs under a lease claimed for it, and nothing that needs
 offered while a colleague holds it. Typical entries include:
 
 - Assign Engineer;
-- Send to EVA;
+- Export case, on every standard Case in every state: a direct download form, no dialog,
+  no lease, no reason;
 - Mark report sent;
 - Mark completed;
 - Return to Review / Return to Engineer;

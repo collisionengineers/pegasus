@@ -113,7 +113,7 @@ Pegasus supports a reproducible `Offline` profile on Windows or Linux with
 PowerShell 7.6.3 or later, .NET SDK 10.0.302, Python 3.11+, Node 24/npm 11, the
 repository-pinned Azurite 3.36.0, Functions Core Tools 4.12.1, the platform's
 supported SQL Server, and a Development HTTPS certificate. It requires no
-Azure, Graph, Box, DVLA/DVSA, EVA, Infisical, cloud login, or vendor
+Azure, Graph, Box, DVLA/DVSA, Infisical, cloud login, or vendor
 authentication. Package restoration may use package feeds; an initialized
 run's Start and Smoke paths do not.
 
@@ -735,7 +735,7 @@ replica tests do not claim that operator run occurred.
 
 A releasable implementation requires correlated Web/Worker telemetry and
 alerts for dependency readiness, ingestion and processing, Box custody,
-matching, chasing, EVA, authentication anomalies, availability, cost, terminal
+matching, chasing, authentication anomalies, availability, cost, terminal
 failures, and bounded retry exhaustion.
 
 Local telemetry must be content-safe and prove correlation, attributes,

@@ -1763,19 +1763,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     CompletenessPolicyVersion = 1,
                     CompletenessPolicySatisfied = true,
                     AcceptedAtUtc = FixedUtcNow,
-                },
-                // The Assessment gate opens on the first hand-off, which this
-                // Case is past; no export is performed by these tests.
-                new EvaFirstHandoffProxyEntity
-                {
-                    CaseId = caseId,
-                    AdapterKey = "glass-web-test",
-                    AdapterVersion = "1",
-                    RecordedAtUtc = FixedUtcNow,
-                    LatestExportedWorkflowVersion = 1,
-                    ActorSubjectId = actor,
-                    ClaimsExternalDelivery = false,
-                    ClaimsEngineerAssignment = false,
                 });
             await context.SaveChangesAsync();
 

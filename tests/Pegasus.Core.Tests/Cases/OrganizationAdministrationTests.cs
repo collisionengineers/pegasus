@@ -293,7 +293,6 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            reportGenerationPolicy: current.ReportGenerationPolicy,
             reportRecipients: PrincipalReportRecipientSettings.None,
             defaultFee: 200.00m);
 
@@ -302,7 +301,6 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(4, OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             updated,
             expectedVersion: 4,
-            reportGenerationPolicy: updated.ReportGenerationPolicy,
             reportRecipients: PrincipalReportRecipientSettings.None,
             defaultFee: 200m).Version);
     }
@@ -319,7 +317,7 @@ public sealed class OrganizationAdministrationTests
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var request = new UpdatePrincipalReportSettingsRequest(
-            Guid.NewGuid(), 1, actor, "fee-op", null, PrincipalReportGenerationPolicy.Pegasus,
+            Guid.NewGuid(), 1, actor, "fee-op", null,
             PrincipalReportRecipientSettings.None,
             decimal.Parse(fee, System.Globalization.CultureInfo.InvariantCulture), 1);
 
@@ -328,7 +326,6 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3),
                 expectedVersion: 3,
-                reportGenerationPolicy: PrincipalReportGenerationPolicy.Pegasus,
                 reportRecipients: PrincipalReportRecipientSettings.None,
                 defaultFee: request.DefaultFee));
     }
@@ -342,7 +339,7 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(Matrix(2m), set.SalvageMatrix);
         Assert.Equal(4, set.Version);
         Assert.Equal(current.Code, set.Code);
-        Assert.Equal(current.ReportGenerationPolicy, set.ReportGenerationPolicy);
+        Assert.Equal(current.ReportRecipients, set.ReportRecipients);
 
         var unchanged = OrganizationAdministrationPolicy.PlanPrincipalSalvageMatrixUpdate(set, 4, Matrix(2m));
         Assert.Equal(4, unchanged.Version);
@@ -417,16 +414,16 @@ public sealed class OrganizationAdministrationTests
     [Fact]
     public void ReportSettingsChangeInPlaceAndMoveTheVersion()
     {
-        var current = Principal(version: 3);
+        var current = Principal(version: 3) with { ReportRecipients = PrincipalReportRecipientSettings.None };
+        var recipients = new PrincipalReportRecipientSettings(true, []);
 
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
-            reportRecipients: PrincipalReportRecipientSettings.None,
+            reportRecipients: recipients,
             defaultFee: PrincipalDefaultFeePolicy.Standard);
 
-        Assert.Equal(PrincipalReportGenerationPolicy.EvaManualApi, updated.ReportGenerationPolicy);
+        Assert.Equal(recipients, updated.ReportRecipients);
         Assert.Equal(4, updated.Version);
         Assert.Equal(current.Id, updated.Id);
         Assert.Equal(current.Code, updated.Code);
@@ -441,12 +438,11 @@ public sealed class OrganizationAdministrationTests
     [Fact]
     public void SavingUnchangedReportSettingsLeavesTheVersionAlone()
     {
-        var current = Principal(version: 3) with { ReportGenerationPolicy = PrincipalReportGenerationPolicy.EvaManualApi, ReportRecipients = PrincipalReportRecipientSettings.None };
+        var current = Principal(version: 3) with { ReportRecipients = PrincipalReportRecipientSettings.None };
 
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
             reportRecipients: PrincipalReportRecipientSettings.None,
             defaultFee: PrincipalDefaultFeePolicy.Standard);
 
@@ -461,7 +457,6 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            reportGenerationPolicy: current.ReportGenerationPolicy,
             reportRecipients: PrincipalReportRecipientSettings.None,
             defaultFee: PrincipalDefaultFeePolicy.Standard,
             notesOnEveryCase: "Always copy the fleet manager.");
@@ -472,7 +467,6 @@ public sealed class OrganizationAdministrationTests
         var unchanged = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             updated,
             expectedVersion: 4,
-            reportGenerationPolicy: updated.ReportGenerationPolicy,
             reportRecipients: PrincipalReportRecipientSettings.None,
             defaultFee: PrincipalDefaultFeePolicy.Standard,
             notesOnEveryCase: "Always copy the fleet manager.");
@@ -484,7 +478,7 @@ public sealed class OrganizationAdministrationTests
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var request = new UpdatePrincipalReportSettingsRequest(
-            Guid.NewGuid(), 1, actor, "notes-op", null, PrincipalReportGenerationPolicy.Pegasus,
+            Guid.NewGuid(), 1, actor, "notes-op", null,
             PrincipalReportRecipientSettings.None, PrincipalDefaultFeePolicy.Standard, 1, "  Always copy the fleet manager.  ");
 
         Assert.Equal("Always copy the fleet manager.", OrganizationAdministrationPolicy.Normalize(request).NotesOnEveryCase);
@@ -500,7 +494,6 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 4),
                 expectedVersion: 3,
-                reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
                 reportRecipients: PrincipalReportRecipientSettings.None,
                 defaultFee: PrincipalDefaultFeePolicy.Standard));
 
@@ -518,7 +511,6 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3) with { IsActive = false },
                 expectedVersion: 3,
-                reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
                 reportRecipients: PrincipalReportRecipientSettings.None,
                 defaultFee: PrincipalDefaultFeePolicy.Standard));
 
@@ -558,7 +550,6 @@ public sealed class OrganizationAdministrationTests
                 true,
                 request.ExpectedVersion + 1,
                 CaseInspectionMode.PhysicalAddress,
-                request.ReportGenerationPolicy,
                 request.ReportRecipients,
                 DefaultFee: request.DefaultFee));
         }
@@ -601,7 +592,6 @@ public sealed class OrganizationAdministrationTests
                 request.ExpectedVersion + 1,
                 0,
                 CaseInspectionMode.PhysicalAddress,
-                ReportGenerationPolicy: PrincipalReportGenerationPolicy.Pegasus,
                 ReportRecipients: PrincipalReportRecipientSettings.None,
                 request.Label,
                 request.Address,

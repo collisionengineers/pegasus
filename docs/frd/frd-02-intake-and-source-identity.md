@@ -79,7 +79,7 @@ its Principal and registration, starts `Open` and follows the Triage states
 A staff-created Case, and any other staff acceptance with no accepted mail
 route or Principal API credential to name the Principal, records
 `principal_code` as a Confirmed value from the accepted Principal with
-source kind case acceptance. Match indexing and EVA export then name the
+source kind case acceptance. Match indexing and the Case export then name the
 Principal instead of an empty value.
 
 **Image-only material** with a usable registration becomes an

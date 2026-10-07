@@ -327,8 +327,6 @@ public sealed class EfCaseWorkspaceStore(
                 if (enteringReview)
                 {
                     workflow.StateEnteredAtUtc = now;
-                    AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                        context, workflow, checked(workflow.Version + 1), now);
                 }
             }
             else

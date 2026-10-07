@@ -4,11 +4,10 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
-using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -255,9 +254,6 @@ public static class DependencyInjection
         // Infrastructure.
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IPrincipalInspectionModeStore, EfPrincipalInspectionModeStore>();
-        services.AddScoped<IEvaSubmissionModeStore, EfEvaSubmissionModeStore>();
-        services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
-        services.AddScoped<IAutomaticEvaReviewSubmissionStore, EfAutomaticEvaReviewSubmissionStore>();
         services.AddScoped<IReportRecipientSuggestionQueries, EfReportRecipientSuggestionQueries>();
         services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
         services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
@@ -596,7 +592,6 @@ public static class DependencyInjection
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
         services.AddScoped<ICaseEngineerEligibility, EfCaseEngineerEligibility>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
-        services.AddScoped<ISetCaseSignOffEngineer, SetCaseSignOffEngineer>();
         services.AddScoped<IStartCaseWork, StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();
         services.AddScoped<IReleaseCase, ReleaseCase>();
@@ -611,7 +606,7 @@ public static class DependencyInjection
         services.AddScoped<IArchiveCase, ArchiveCase>();
         services.AddScoped<IRecordManualCaseChase, RecordManualCaseChase>();
 
-        // The document, EVA and custody surface is composed for every profile that
+        // The document, export and custody surface is composed for every profile that
         // has durable content storage. Only the implementations differ; a profile
         // must never silently resolve a different service set.
         var composesDocumentSurface = localArtifactRootFactory is not null || documentStorage is not null;
@@ -641,7 +636,6 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfCaseArtifactCustody>());
             services.AddScoped<ICaseArtifactCustodyStatus>(provider =>
                 provider.GetRequiredService<EfCaseArtifactCustody>());
-            services.AddSingleton<IEvaHandoffProxy, LocalEvaHandoffProxy>();
             services.AddSingleton<ICaseCustody>(provider =>
                 new LocalCaseCustody(
                     Path.Combine(localArtifactRootFactory(provider), "custody"),
@@ -650,7 +644,6 @@ public static class DependencyInjection
         else if (documentStorage is not null)
         {
             documentStorage(services);
-            services.AddSingleton<IEvaHandoffProxy, LocalEvaHandoffProxy>();
         }
         else
         {
@@ -670,12 +663,10 @@ public static class DependencyInjection
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
             services.AddScoped<ProcessIntake>();
 
-            // Shared by both EVA routes so the archive and the API submission
-            // cannot state the same case differently.
-            services.AddScoped<EvaCaseImageReader>();
-            services.AddScoped<EvaHandoffStore>();
+            services.AddScoped<CaseExportImageReader>();
+            services.AddScoped<EfCaseExportStore>();
             services.AddScoped<IExportCaseBundle>(provider =>
-                provider.GetRequiredService<EvaHandoffStore>());
+                provider.GetRequiredService<EfCaseExportStore>());
 
             services.AddScoped<EfDocumentCustodyStore>();
             services.AddScoped<IAddCaseDocument>(provider =>
@@ -903,48 +894,12 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// EXT-04: the EVA API submission route.
-    ///
-    /// Composed separately from the document surface and from the other
-    /// external adapters, because it is the one route that is switched on per
-    /// principal rather than per deployment. A host that does not call this
-    /// has no <see cref="ISubmitCaseToEva"/> at all, which is the honest
-    /// shape: the case page then offers only the export, and a principal's
-    /// toggles are unreachable rather than half-working.
-    ///
-    /// The options come through a factory rather than a value so they are
-    /// parsed at first use. Parsing at host build is what crash-looped the
-    /// worker when the platform handed over an unresolved Key Vault reference,
-    /// and EVA's credentials arrive by exactly that route.
-    /// </summary>
-    public static IServiceCollection AddEvaApiSubmission(
-        this IServiceCollection services,
-        Func<IServiceProvider, EvaApiOptions> optionsFactory)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(optionsFactory);
-
-        services.AddSingleton(optionsFactory);
-        services.AddSingleton(provider =>
-            provider.GetRequiredService<EvaApiOptions>().Instruction);
-        services.AddHttpClient(nameof(EvaApiTransport), client =>
-            client.Timeout = TimeSpan.FromSeconds(100));
-        services.AddSingleton<IEvaApiTransport>(provider => new EvaApiTransport(
-            provider.GetRequiredService<EvaApiOptions>(),
-            provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(EvaApiTransport)),
-            provider.GetRequiredService<TimeProvider>()));
-        services.AddScoped<EvaSubmissionStore>();
-        services.AddScoped<ISubmitCaseToEva>(provider =>
-            provider.GetRequiredService<EvaSubmissionStore>());
-        return services;
-    }
-
-    /// <summary>
     /// Connects Glass's as a guide valuation source (ADR-0060). A host that
     /// does not call this has no Glass's provider, so the Case's Glass's card
     /// says it is unavailable and offers no Get valuation. The account comes
-    /// through a factory and is read on each valuation, for the same
-    /// unresolved-Key-Vault-reference reason as EVA's options; the Glass's
+    /// through a factory and is read on each valuation, because the
+    /// platform can hand over an unresolved Key Vault reference, which must
+    /// not fail the host at build; the Glass's
     /// origin and request timeout are the estimate adapter's own.
     /// </summary>
     public static IServiceCollection AddGlassGuideValuation(

@@ -9,7 +9,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Worker;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 using Pegasus.Web.Pages.Cases;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
@@ -452,23 +452,20 @@ public sealed class DependencyDirectionTests
     }
 
     [Fact]
-    public void CustodyAndEvaPoliciesHaveOneCoreOwnerAndAdaptersRemainAtBoundaries()
+    public void CustodyAndCaseExportPoliciesHaveOneCoreOwnerAndAdaptersRemainAtBoundaries()
     {
-        // The EVA hand-off use cases and the policy-authority
-        // capability they carried into persistence are gone with the act.
-        // The export reaches Core policy directly, so what has to hold now is
+        // The export reaches Core policy directly, so what has to hold is
         // that the port and the policy are Core's and the store is not.
         Assert.Equal(typeof(IRetryCaseCustody).Assembly, typeof(RetryCaseCustody).Assembly);
-        Assert.Equal(typeof(IExportCaseBundle).Assembly, typeof(EvaHandoffPolicy).Assembly);
-        Assert.Equal(typeof(IEvaHandoffProxy).Assembly, typeof(EvaHandoffPolicy).Assembly);
-        Assert.NotEqual(typeof(IExportCaseBundle).Assembly, typeof(EvaHandoffStore).Assembly);
+        Assert.Equal(typeof(IExportCaseBundle).Assembly, typeof(CaseExportPolicy).Assembly);
+        Assert.NotEqual(typeof(IExportCaseBundle).Assembly, typeof(EfCaseExportStore).Assembly);
 
-        Assert.Equal(typeof(DependencyInjection).Assembly, typeof(EvaHandoffStore).Assembly);
+        Assert.Equal(typeof(DependencyInjection).Assembly, typeof(EfCaseExportStore).Assembly);
         var boxAdapter = Assert.Single(
             typeof(DependencyInjection).Assembly.GetTypes(),
             type => type.FullName == "Pegasus.Infrastructure.Custody.BoxCaseCustody");
         Assert.Equal(typeof(DependencyInjection).Assembly, boxAdapter.Assembly);
-        Assert.Contains(typeof(IExportCaseBundle), typeof(EvaHandoffStore).GetInterfaces());
+        Assert.Contains(typeof(IExportCaseBundle), typeof(EfCaseExportStore).GetInterfaces());
         Assert.Contains(typeof(ICaseCustody), boxAdapter.GetInterfaces());
         Assert.Contains(
             typeof(ICustodyRecoveryPersistence).GetMethod("RetryAsync")!.GetParameters(),
@@ -476,34 +473,18 @@ public sealed class DependencyDirectionTests
         Assert.Empty(typeof(CustodyRetryPolicyAuthority).GetConstructors());
 
         var repositoryRoot = FindRepositoryRoot();
-        var evaPersistence = File.ReadAllText(Path.Combine(
+        var exportPersistence = File.ReadAllText(Path.Combine(
             repositoryRoot,
             "src",
             "Pegasus.Infrastructure",
             "Persistence",
-            "EvaHandoffStore.cs"));
-        var evaImageReader = File.ReadAllText(Path.Combine(
+            "EfCaseExportStore.cs"));
+        var exportImageReader = File.ReadAllText(Path.Combine(
             repositoryRoot,
             "src",
             "Pegasus.Infrastructure",
             "Persistence",
-            "EvaCaseImageReader.cs"));
-        var evaMapping = File.ReadAllText(Path.Combine(
-            repositoryRoot,
-            "src",
-            "Pegasus.Core",
-            "Eva",
-            "CaseEvaMapping.cs"));
-        var webComposition = File.ReadAllText(Path.Combine(
-            repositoryRoot,
-            "src",
-            "Pegasus.Web",
-            "Program.cs"));
-        var platform = File.ReadAllText(Path.Combine(
-            repositoryRoot,
-            "infra",
-            "modules",
-            "platform.bicep"));
+            "CaseExportImageReader.cs"));
         var custodyPersistence = File.ReadAllText(Path.Combine(
             repositoryRoot,
             "src",
@@ -513,46 +494,33 @@ public sealed class DependencyDirectionTests
         // Image eligibility and the field mapping stay Core's; the store
         // calls them and owns neither.
         // Image eligibility is selected in exactly one place, and it is the
-        // Core policy that selects it. EXT-04 gave the case a second route to
-        // EVA, so the reader moved out of the export store to be shared by
-        // both; what must not happen is a second copy of the rule.
+        // Core policy that selects it; what must not happen is a second copy
+        // of the rule.
         Assert.Contains(
-            "EvaHandoffPolicy.SelectEligibleImages",
-            evaImageReader,
+            "CaseExportPolicy.SelectEligibleImages",
+            exportImageReader,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
-            "EvaHandoffPolicy.SelectEligibleImages",
-            evaPersistence,
+            "CaseExportPolicy.SelectEligibleImages",
+            exportPersistence,
             StringComparison.Ordinal);
         Assert.Contains(
-            "CaseEvaMapping.MapForOperatorExport",
-            evaPersistence,
+            "CaseExportMapping.MapForOperatorExport",
+            exportPersistence,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("EvaMappingAcceptance", evaMapping, StringComparison.Ordinal);
-        Assert.DoesNotContain("EVA hand-off is not switched on", evaMapping, StringComparison.Ordinal);
-        Assert.DoesNotContain("Eva:AcceptedMapping", webComposition, StringComparison.Ordinal);
-        Assert.DoesNotContain("Eva__AcceptedMapping", platform, StringComparison.Ordinal);
         // A case's photographs are read in one batch, not one call
         // per image, because a remote store resolves the case folder per call.
-        // The read moved into the shared reader with EXT-04; the rule is the
-        // same and now covers both EVA routes at once.
         Assert.Contains(
             "contentStore.ReadVersionsAsync",
-            evaImageReader,
+            exportImageReader,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
             "contentStore.OpenReadVersionAsync",
-            evaImageReader,
-            StringComparison.Ordinal);
-        // The once-per-case proxy is a Core port the store calls, never an
-        // adapter the store manufactures.
-        Assert.Contains(
-            "proxy.RecordFirstGenerationAsync",
-            evaPersistence,
+            exportImageReader,
             StringComparison.Ordinal);
         Assert.Contains("policy.Decide", custodyPersistence, StringComparison.Ordinal);
         Assert.DoesNotContain(
-            typeof(EvaHandoffStore).Assembly.GetReferencedAssemblies(),
+            typeof(EfCaseExportStore).Assembly.GetReferencedAssemblies(),
             reference => reference.Name is "Pegasus.Web" or "Pegasus.Worker");
     }
 

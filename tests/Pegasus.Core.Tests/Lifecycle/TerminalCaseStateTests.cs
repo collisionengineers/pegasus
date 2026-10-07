@@ -6,7 +6,7 @@ namespace Pegasus.Core.Tests.Lifecycle;
 
 /// <summary>
 /// The terminal-state vocabulary used to be written out three times — in
-/// <see cref="CaseLifecycleRules.IsTerminal"/>, in the EVA hand-off store and
+/// <see cref="CaseLifecycleRules.IsTerminal"/>, in the case export store and
 /// in the vehicle-work sweep — so a state added to one was silently
 /// non-terminal for the others. These guard the single owner and the one
 /// derived view of it.

@@ -107,7 +107,7 @@ must not move the others.
 
 ## Links
 
-- [FRD-07 — Direct EVA API submission](../frd/frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission)
+- [FRD-07 — Direct EVA API submission](../frd/frd-07-case-export.md#direct-eva-api-submission)
 - [ADR-0018 — Provider inspection mode as a database setting](0018-provider-inspection-mode-database-setting.md)
 - [ADR-0008 — Direct provider and intermediary email policies](0008-separate-direct-provider-and-intermediary-email-policies.md)
 - [ADR-0038 — Manual-only EVA API submission](0038-manual-only-eva-api-submission.md)

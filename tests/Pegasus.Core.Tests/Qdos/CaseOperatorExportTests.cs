@@ -3,15 +3,14 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 
 namespace Pegasus.Core.Tests.Qdos;
 
 /// <summary>
-/// The operator export is the one act over the EVA
-/// archive. These tests hold what that bar admits — a case the deleted
-/// hand-off would have refused still exports, with its gaps named rather
-/// than blocking.
+/// The operator export is the one act over the case export archive. These
+/// tests hold what that bar admits — a case with gaps still exports, with its
+/// gaps named rather than blocking.
 /// </summary>
 public sealed class CaseOperatorExportTests
 {
@@ -20,66 +19,58 @@ public sealed class CaseOperatorExportTests
     [Fact]
     public void AFieldTheCaseDoesNotHoldIsExportedBlankAndNamed()
     {
-        var export = CaseEvaMapping.MapForOperatorExport(Evidence(vatStatus: null), Today);
+        var export = CaseExportMapping.MapForOperatorExport(Evidence(vatStatus: null), Today);
 
         Assert.Equal(["VAT Status"], export.UnrecordedFields);
         // Null in the record means "the case does not hold this"; the archive
         // writes it as an empty string, asserted below.
         Assert.Null(export.Source.Fields.VatStatus);
         var vat = Assert.Single(export.Source.Provenance, field => field.Name == "VAT Status");
-        Assert.Equal(EvaEvidenceStatus.Unrecorded, vat.Status);
+        Assert.Equal(CaseExportEvidenceStatus.Unrecorded, vat.Status);
     }
 
     [Fact]
     public void AnAbsentInspectionDateBecomesTodayAndSaysSo()
     {
-        var export = CaseEvaMapping.MapForOperatorExport(
+        var export = CaseExportMapping.MapForOperatorExport(
             Evidence(inspectionDate: null),
             Today);
 
         Assert.Equal("22/08/2026", export.Source.Fields.InspectionDate);
         Assert.DoesNotContain("Inspection Date", export.UnrecordedFields);
         var inspection = Assert.Single(export.Source.Provenance, field => field.Name == "Inspection Date");
-        Assert.Equal(CaseEvaMapping.ExportDateSource, inspection.Source);
+        Assert.Equal(CaseExportMapping.ExportDateSource, inspection.Source);
     }
 
     [Fact]
     public void TheInstructionDateIsTheCasesReceivedDate()
     {
-        var export = CaseEvaMapping.MapForOperatorExport(Evidence(), Today);
+        var export = CaseExportMapping.MapForOperatorExport(Evidence(), Today);
         Assert.Equal("22/08/2026", export.Source.Fields.InstructionDate);
         var field = Assert.Single(export.Source.Provenance, item => item.Name == "Instruction Date");
-        Assert.Equal(CaseEvaMapping.ReceivedDateSource, field.Source);
-        Assert.Equal(EvaEvidenceStatus.Accepted, field.Status);
+        Assert.Equal(CaseExportMapping.ReceivedDateSource, field.Source);
+        Assert.Equal(CaseExportEvidenceStatus.Accepted, field.Status);
         Assert.DoesNotContain("Instruction Date", export.UnrecordedFields);
     }
 
     [Fact]
     public void ASuggestedValueTravelsAsSuggestedRatherThanAccepted()
     {
-        var export = CaseEvaMapping.MapForOperatorExport(
-            Evidence(mileage: new("121823", EvaEvidenceStatus.Suggested, "vehicle-lookup", "latest-mot-observation/v2")),
+        var export = CaseExportMapping.MapForOperatorExport(
+            Evidence(mileage: new("121823", CaseExportEvidenceStatus.Suggested, "vehicle-lookup", "latest-mot-observation/v2")),
             Today);
 
         var mileage = Assert.Single(export.Source.Provenance, field => field.Name == "Mileage");
-        Assert.Equal(EvaEvidenceStatus.Suggested, mileage.Status);
+        Assert.Equal(CaseExportEvidenceStatus.Suggested, mileage.Status);
         Assert.Equal("121823", mileage.Value);
-    }
-
-    [Fact]
-    public void ExportDoesNotRequireASeparateEvaActivation()
-    {
-        var export = CaseEvaMapping.MapForOperatorExport(Evidence(), Today);
-
-        Assert.NotNull(export.Source);
     }
 
     [Fact]
     public void TheArchiveCarriesAllThirteenKeysEvenWhenOneIsBlank()
     {
-        var export = CaseEvaMapping.MapForOperatorExport(Evidence(vatStatus: null), Today);
+        var export = CaseExportMapping.MapForOperatorExport(Evidence(vatStatus: null), Today);
 
-        var bundle = EvaBundleSchema.CreateOfflineReplay(
+        var bundle = CaseExportArchive.Create(
             export.Source,
             new([Photograph()]));
 
@@ -89,14 +80,12 @@ public sealed class CaseOperatorExportTests
         Assert.Equal("VAT Status", properties[10].Name);
         Assert.Equal(JsonValueKind.String, properties[10].Value.ValueKind);
         Assert.Equal(string.Empty, properties[10].Value.GetString());
-        Assert.Equal("EVA-QDOS26011.zip", bundle.FileName);
+        Assert.Equal("QDOS26011.zip", bundle.FileName);
 
-        // The export and the hand-off are one packaging, not two.
-        // Whatever the hand-off ships, this ships -- the indented JSON and
-        // Images/, with no companion file on either path.
+        // The indented JSON and Images/, with no companion file.
         using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
         Assert.Equal(
-            ["EVA-QDOS26011.json", "Images/002 1_CLVoffside-V1.jpg"],
+            ["QDOS26011.json", "Images/002 1_CLVoffside-V1.jpg"],
             archive.Entries.Select(entry => entry.FullName));
         Assert.StartsWith(
             "{\n  \"Work Provider\": ",
@@ -104,10 +93,10 @@ public sealed class CaseOperatorExportTests
             StringComparison.Ordinal);
     }
 
-    private static EvaAcceptedCaseEvidence Evidence(
+    private static CaseExportEvidence Evidence(
         string? vatStatus = "No",
         string? inspectionDate = "03/05/2031",
-        EvaEvidenceValue? mileage = null) =>
+        CaseExportEvidenceValue? mileage = null) =>
         new(
             Guid.Parse("266e5afa-5d66-4623-9136-abe21016df3b"),
             7,
@@ -122,19 +111,19 @@ public sealed class CaseOperatorExportTests
             Value("19/08/2026"),
             new DateOnly(2026, 8, 22),
             inspectionDate is null ? Missing() : Value(inspectionDate),
-            new(EvaInspectionMode.ImageBasedAssessment, Value(CaseEvaMapping.ImageBasedAssessment)),
+            new(CaseExportInspectionMode.ImageBasedAssessment, Value(CaseExportMapping.ImageBasedAssessment)),
             Value("Rear-end collision on a slip road."),
             vatStatus is null ? Missing() : Value(vatStatus),
             mileage ?? Value("121823"),
             Value("miles"));
 
-    private static EvaEvidenceValue Value(string value) =>
-        new(value, EvaEvidenceStatus.Accepted, "accepted-case-data", "case-data/v1");
+    private static CaseExportEvidenceValue Value(string value) =>
+        new(value, CaseExportEvidenceStatus.Accepted, "accepted-case-data", "case-data/v1");
 
-    private static EvaEvidenceValue Missing() =>
-        new(null, EvaEvidenceStatus.Unrecorded, "unrecorded", "unrecorded");
+    private static CaseExportEvidenceValue Missing() =>
+        new(null, CaseExportEvidenceStatus.Unrecorded, "unrecorded", "unrecorded");
 
-    private static EvaBundleImage Photograph()
+    private static CaseExportImage Photograph()
     {
         var content = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x01, 0x02, 0x03 };
         return new(

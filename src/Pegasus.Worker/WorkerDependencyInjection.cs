@@ -9,7 +9,6 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
-using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
@@ -77,11 +76,6 @@ public static class WorkerDependencyInjection
                     // the whole worker process whenever the platform handed over an
                     // unresolved Key Vault reference.
                     _ => CreateBoxCustodyOptions(configuration)));
-        // Automatic Review intents use the same validated EVA API owner as
-        // the manual case action. The options are still parsed on first use,
-        // so an inactive automatic policy cannot make the Worker host fail.
-        services.AddEvaApiSubmission(
-            _ => EvaApiOptions.Create(key => configuration[key]));
         services.AddScoped<EfIdentityAuditStore>();
         services.AddScoped<IActionHistoryWriter>(serviceProvider =>
             serviceProvider.GetRequiredService<EfIdentityAuditStore>());
@@ -166,7 +160,6 @@ public static class WorkerDependencyInjection
         services.AddScoped<DispatchPendingWork>();
         // Composed in both profiles: it does nothing when no Graph adapter is present.
         services.AddScoped<MaintainMailboxChangeSubscriptions>();
-        services.AddScoped<ProcessAutomaticEvaReviewSubmissions>();
         return services;
     }
 

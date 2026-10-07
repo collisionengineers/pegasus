@@ -14,6 +14,9 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbContext> contextFactory)
     : IWorkCentreActivityQueries
 {
+    /// <summary>The workflow event that moves a Case into With Engineer.</summary>
+    private const string FirstSentToEngineerEvent = "state_ReportPreparation";
+
     /// <summary>
     /// The workflow events that put a Case into Complete: Complete itself, a
     /// reply to a post-report query, and a query withdrawn by correction or
@@ -41,12 +44,15 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
                 item => item.CreatedAtUtc >= dayStartUtc && item.Type != CaseTypeCodes.Triage,
                 cancellationToken);
 
-        // The first-handoff proxy is the recorded fact that a Case reached an
-        // Engineer, once per Case (item E).
-        var sentToEngineer = await context.EvaFirstHandoffProxies
+        // First sent to Engineer is a Case's first entry into With Engineer,
+        // counted once per Case (item E): a later return to the Engineer is
+        // not a second send.
+        var sentToEngineer = await context.CaseWorkflowEvents
             .AsNoTracking()
-            .Where(item => item.RecordedAtUtc >= weekStartUtc)
-            .Select(item => item.RecordedAtUtc)
+            .Where(item => item.EventType == FirstSentToEngineerEvent)
+            .GroupBy(item => item.CaseId)
+            .Select(group => group.Min(item => item.OccurredAtUtc))
+            .Where(instant => instant >= weekStartUtc)
             .ToArrayAsync(cancellationToken);
 
         // Reports sent counts sent report e-mails as the Engineer activity

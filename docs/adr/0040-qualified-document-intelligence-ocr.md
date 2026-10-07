@@ -69,6 +69,6 @@ upload limits nor supported document formats.
 ## Links
 
 - [Document behavior](../frd/frd-05-documents-extraction-and-custody.md)
-- [Engineering handoff](../frd/frd-07-eva-and-external-engineering-handoff.md)
+- [Engineering handoff](../frd/frd-07-case-export.md)
 - [Microsoft layout model](https://learn.microsoft.com/azure/ai-services/document-intelligence/prebuilt/layout?view=doc-intel-4.0.0)
 - [Microsoft API and authentication](https://learn.microsoft.com/azure/ai-services/document-intelligence/quickstarts/get-started-sdks-rest-api?view=doc-intel-4.0.0)

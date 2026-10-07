@@ -96,22 +96,6 @@
         toggleContactFields();
     }
 
-    var reportRoute = document.querySelector('[data-report-generation-route]');
-    var reportEvaMode = document.querySelector('[data-report-generation-eva-mode]');
-    var reportEvaField = document.querySelector('[data-report-generation-eva-delivery]');
-    var reportValue = document.querySelector('[data-report-generation-value]');
-    if (reportRoute && reportEvaMode && reportEvaField && reportValue) {
-        var syncReportGeneration = function () {
-            var isEva = reportRoute.value === 'Eva';
-            reportEvaField.hidden = !isEva;
-            reportEvaMode.disabled = !isEva;
-            reportValue.value = isEva ? reportEvaMode.value : 'Pegasus';
-        };
-        reportRoute.addEventListener('change', syncReportGeneration);
-        reportEvaMode.addEventListener('change', syncReportGeneration);
-        syncReportGeneration();
-    }
-
     var imageBased = document.getElementById('LocationIsImageBasedAssessment');
     if (!imageBased) {
         return;

@@ -980,9 +980,6 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.NotNull(nativeAccess);
         Assert.True(nativeAccess.CanOpen);
         Assert.False(nativeAccess.IsReadOnly);
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.False(await context.EvaFirstHandoffProxies.AnyAsync(
-            item => item.CaseId == harness.CaseId));
         Assert.Null((await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, actor), default))?.ActiveEditLease);
 
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
@@ -1007,47 +1004,6 @@ public sealed class CaseWorkflowPersistenceTests
                 "Retained Sent item after handoff", sentLease.Token, later.EvidenceId), default);
         Assert.Equal(CaseLifecycleState.PostReport, linked.State);
         Assert.Equal(later.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
-    }
-
-    [Fact]
-    public async Task SignOffEngineerSelectionPersistsWithHistoryAndExactReplay()
-    {
-        await using var harness = await WorkflowHarness.CreateAsync();
-        var signOffEngineerId = Guid.NewGuid();
-        await harness.SeedStaffAccountAsync(
-            signOffEngineerId,
-            true,
-            StaffRole.Engineer,
-            isSignOffEngineer: true,
-            isDefaultSignOffEngineer: true);
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        var lease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, 0, actor, "claim-sign-off-selection"),
-            default);
-        var request = new SetCaseSignOffEngineerRequest(
-            harness.CaseId,
-            0,
-            actor,
-            "select-sign-off-engineer",
-            "Select report signatory",
-            lease.Token,
-            signOffEngineerId);
-        var sut = new SetCaseSignOffEngineer(
-            harness.Store,
-            new EfStaffAccountQueries(harness.Factory));
-
-        var selected = await sut.ExecuteAsync(request, default);
-        var replay = await sut.ExecuteAsync(request, default);
-
-        Assert.Equal(signOffEngineerId, selected.SignOffEngineerId);
-        Assert.Equal(selected, replay);
-        Assert.Equal(1L, await harness.WorkflowEventCountAsync(request.OperationKey));
-        await using var historyContext = await harness.Factory.CreateDbContextAsync();
-        var history = await historyContext.ActionHistory.SingleAsync(item =>
-            item.AggregateType == "Case"
-            && item.AggregateId == harness.CaseId.ToString("D")
-            && item.EventKind == "case_sign_off_engineer_selected");
-        Assert.Contains(signOffEngineerId.ToString("D"), history.AfterJson, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

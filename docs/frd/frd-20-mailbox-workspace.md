@@ -39,7 +39,7 @@ received first. Folder, mailbox, queue and search views are explicit
 refinements of that view. Sent mail and read-only Deleted Items search are
 separate folder scopes. Sent Items lists every Sent item the Sent-evidence
 poll ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md)) has read
-from an approved mailbox, newest sent first, whether Pegasus, EVA or Outlook
+from an approved mailbox, newest sent first, whether Pegasus or Outlook
 sent it; a row opens the message record the same way a received one does.
 
 There is no historical backfill. The workspace shows retained mail from each

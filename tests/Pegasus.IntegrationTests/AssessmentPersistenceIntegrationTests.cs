@@ -404,8 +404,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 item => item.CaseId == outcome.Identity.CaseId);
             workflow.State = state.ToString();
             await context.SaveChangesAsync();
-            Assert.False(await context.EvaFirstHandoffProxies.AnyAsync(
-                item => item.CaseId == outcome.Identity.CaseId));
         }
 
         var access = Assert.IsType<AssessmentAccessState>(

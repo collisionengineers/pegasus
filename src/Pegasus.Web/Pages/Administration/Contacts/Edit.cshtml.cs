@@ -59,7 +59,6 @@ public sealed class EditModel(
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
 
     [BindProperty] public long PrincipalExpectedVersion { get; set; }
-    [BindProperty] public PrincipalReportGenerationPolicy ReportGenerationPolicy { get; set; }
     [BindProperty] public bool IncludeOriginalInstructionSender { get; set; }
     [BindProperty] public string[] AdditionalReportRecipients { get; set; } = [];
     [BindProperty] public decimal? DefaultFee { get; set; }
@@ -142,7 +141,6 @@ public sealed class EditModel(
         if (id == Guid.Empty) return BadRequest();
         ContactId = id;
         ClearModelStatePreservingErrors(
-            nameof(ReportGenerationPolicy),
             nameof(IncludeOriginalInstructionSender),
             nameof(AdditionalReportRecipients),
             nameof(DefaultFee),
@@ -152,7 +150,6 @@ public sealed class EditModel(
         var expectedVersion = PrincipalExpectedVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
         if (!IsOperationKeyValid(ReportSettingsOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        if (!Enum.IsDefined(ReportGenerationPolicy)) ModelState.AddModelError(nameof(ReportGenerationPolicy), "Select a report generation route.");
         if (ModelState.IsValid)
         {
             try
@@ -161,7 +158,7 @@ public sealed class EditModel(
                     IncludeOriginalInstructionSender, AdditionalReportRecipients);
                 await updatePrincipalReportSettings.ExecuteAsync(new(
                     Principal!.Id, expectedVersion, actor, ReportSettingsOperationKey!,
-                    "Updated report settings", ReportGenerationPolicy, recipients,
+                    "Updated report settings", recipients,
                     DefaultFee ?? 0m,
                     ExpectedVersion,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Principal.NotesOnEveryCase), cancellationToken);
@@ -393,7 +390,6 @@ public sealed class EditModel(
         PrincipalInspectionMode = Principal.InspectionMode;
         PrincipalExpectedVersion = Principal.Version;
         ReplacementExpectedVersion = Principal.Version;
-        ReportGenerationPolicy = Principal.ReportGenerationPolicy;
         IncludeOriginalInstructionSender = (Principal.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender;
         AdditionalReportRecipients = (Principal.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses.ToArray();
         DefaultFee = Principal.DefaultFee;

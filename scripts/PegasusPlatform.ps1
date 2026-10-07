@@ -200,7 +200,6 @@ function Get-PegasusWorkerDisabledSettingNames {
     #>
     return @(
         'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
-        'AzureWebJobs.AutomaticEvaReviewSubmissionFunction.Disabled',
         'AzureWebJobs.UnifiedWorkFunction.Disabled',
         'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
         'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',

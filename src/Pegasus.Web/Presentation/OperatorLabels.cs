@@ -1199,7 +1199,6 @@ public static class OperatorLabels
         ServiceHealthArea.Mail => "Mail",
         ServiceHealthArea.Intake => "Receiving",
         ServiceHealthArea.Custody => "Box",
-        ServiceHealthArea.Eva => "EVA",
         ServiceHealthArea.Ai => "AI",
         ServiceHealthArea.Automation => "Automation",
         _ => Humanise(area.ToString())
@@ -1221,7 +1220,6 @@ public static class OperatorLabels
         ServiceHealthDependency.MicrosoftGraph => "Microsoft Graph",
         ServiceHealthDependency.Worker => "Worker",
         ServiceHealthDependency.Box => "Box",
-        ServiceHealthDependency.EvaApi => "EVA API",
         ServiceHealthDependency.AiConnector => "AI",
         ServiceHealthDependency.AutomationClient => "Automation client",
         _ => Humanise(dependency.ToString())
@@ -1234,7 +1232,7 @@ public static class OperatorLabels
     /// Two Core service names contain words banned from operator-facing copy
     /// ("Intake dispatch", "Automation ingress"); they are renamed here and
     /// only here. Everything else — mailbox addresses, "Sent evidence",
-    /// "External work", "EVA submissions", "AI jobs" — is already the
+    /// "External work", "AI jobs" — is already the
     /// operator's own word and passes through, as do external-work kind codes
     /// via <see cref="Humanise"/>.
     /// </remarks>
@@ -2295,17 +2293,9 @@ public static class OperatorLabels
         /// </summary>
         public const string AbsentValue = "Not recorded";
 
-        // Sign-off Engineer / Send to EVA labels
         public const string SignOffEngineer = "Sign-off Engineer";
         public const string Unassigned = "Unassigned";
         public const string ReasonForAction = "Reason for action";
-        public const string SetSignOffEngineer = "Set Sign-off Engineer";
-        public const string SendToEva = "Send to EVA";
-        public const string EvaHandoff = "EVA handoff";
-        public const string SendViaApi = "Send via API";
-        public const string EvaApiNotEnabled =
-            "EVA API submission is not enabled for this principal.";
-        // End of the Sign-off Engineer / Send to EVA labels.
 
         // Review point 12: the adverse disposition, named apart from the
         // progression actions it must never sit among.

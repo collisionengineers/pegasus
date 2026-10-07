@@ -1,4 +1,3 @@
-using Pegasus.Core.Eva;
 using Pegasus.Core.Assessment;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

@@ -96,7 +96,7 @@ removed clause maps to its owner:
 - [FRD-06 — Vehicle and engineering evidence](../frd/frd-06-vehicle-and-engineering-evidence.md):
   the deferred `AI-05` advisory image-readiness assessment that neither changes
   Case state nor creates an AI Proposal (clause 9).
-- [FRD-07 — EVA and external engineering handoff](../frd/frd-07-eva-and-external-engineering-handoff.md):
+- [FRD-07 — EVA and external engineering handoff](../frd/frd-07-case-export.md):
   the focused EVA bundle exporting every eligible custody-confirmed Case-vehicle
   image with no alpha image-selection control (clause 8).
 - [FRD-08 — Email, mailbox, and background processing](../frd/frd-08-email-mailbox-and-background-processing.md):

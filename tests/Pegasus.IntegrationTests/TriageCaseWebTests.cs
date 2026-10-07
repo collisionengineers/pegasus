@@ -35,8 +35,7 @@ public sealed partial class TriageCaseWebTests
         "Vehicle",
         "Workflow",
         "Closure",
-        "Documents/Export",
-        "Eva/Send"
+        "Documents/Export"
     ];
 
     [Theory]

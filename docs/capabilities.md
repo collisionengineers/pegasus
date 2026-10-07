@@ -78,14 +78,14 @@ exclusion.
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-20 | General Case tasks (back end only, no screen; deferred) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
-| CASE-21 | Replay-safe EVA export history and First sent to Engineer | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) |
+| CASE-21 | Replay-safe Case export history | [Export case](frd/frd-07-case-export.md#export-case) |
 | CASE-24 | Post-report completion, Principal cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |
 | CASE-26 | Archive without permanent case deletion | [Archive](frd/frd-13-case-lifecycle-and-workflow.md#archive) |
 | CASE-27 | Exclusive edit lease and stale-write protection | [Case edit lease](frd/frd-14-record-edit-leases.md#case-edit-lease) |
 | CASE-28 | Independent Roadworthiness and Assessment findings with reasoned correction | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
 | CASE-29 | Principal inspection mode autofills Image Based Assessment or requires an address | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
-| CASE-30 | Track native inspection/report work with optional EVA handoff | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) |
+| CASE-30 | Export any standard Case from its Actions menu | [Export case](frd/frd-07-case-export.md#export-case) |
 | CASE-32 | Sign-off Engineer field, default and signature tuple | [Sign-off Engineer](frd/frd-13-case-lifecycle-and-workflow.md#sign-off-engineer); [Staff accounts](frd/frd-04-parties-accounts-and-access.md#staff-accounts) |
 | CASE-34 | Inspect at fast-update choices and Case storage location | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | UI-02 | Case queues for Not ready, Review, and Held | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
@@ -116,7 +116,7 @@ exclusion.
 | DOC-08 | Private transient file staging for Worker processing | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) |
 | EXT-01 | DVLA/DVSA vehicle data, MOT chronology and confirmed reconciliation | [Vehicle data and MOT enrichment](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment) |
 | EXT-02 | MOT chronology and mileage evidence with supplied-versus-external-versus-estimated classification | [Vehicle data and MOT enrichment](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment) |
-| EXT-03 | Deterministic EVA export: ordered 13-key JSON and eligible images | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) |
+| EXT-03 | Deterministic Case export: ordered 13-key JSON and eligible images | [Export case](frd/frd-07-case-export.md#export-case) |
 | EXT-14 | Manual addition of relevant WhatsApp material | [Staging and custody](frd/frd-05-documents-extraction-and-custody.md#staging-and-custody) |
 | EXT-18 | Operator-confirmed inspection address, never inferred | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | MCP-01 | Controlled MCP ingress for one named Automation Actor | [MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) |
@@ -180,10 +180,9 @@ exclusion.
 | AI-04 | AI-assisted document extraction and operator review | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
 | AI-06 | Ranked inspection-address suggestions, never chosen automatically | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | MAIL-17 | Idempotent report and fee-note send with Box filing | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
-| CASE-22 | Replace EVA inspection and report-preparation work inside Pegasus | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
-| EXT-04 | Principal-selected report route: Pegasus, EVA ZIP or EVA API | [EVA handoff routes](frd/frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes) |
-| EXT-05 | Replace EVA Engineer assignment | [Assign Engineer](frd/frd-13-case-lifecycle-and-workflow.md#assign-engineer) |
-| EXT-06 | Replace EVA estimating without moving repair-specification authority out of Pegasus Core | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
+| CASE-22 | Native inspection and report-preparation work inside Pegasus | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
+| EXT-05 | Native Engineer assignment | [Assign Engineer](frd/frd-13-case-lifecycle-and-workflow.md#assign-engineer) |
+| EXT-06 | Native estimating without moving repair-specification authority out of Pegasus Core | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
 | EXT-07 | Dated valuation source evidence with explicit human staff selection | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
 | EXT-08 | Deterministic report generation from accepted Core data | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
 | EXT-09 | Versioned repair-estimate lines and source versions | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
@@ -261,3 +260,4 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 | INT-21 | Human-reviewed extraction cohort and accuracy reporting | 2026-09-18, operator decision |
 | UI-01 | Operations dashboard/cockpit: the `/Operations` page and its rail row | 2026-09-28, operator decision |
 | AI-09 | Send to AI push hand-off to a channel, with its work-request record and connector settings; the AI Job List (`AI-10`) is the only route | 2026-09-28, operator decision |
+| EXT-04 | Principal-selected report route to an external engineering system (ZIP export or API send); every standard Case now has the Case export ([ADR-0064](adr/0064-case-export-replaces-eva-routes.md)) | 2026-10-07, operator decision |

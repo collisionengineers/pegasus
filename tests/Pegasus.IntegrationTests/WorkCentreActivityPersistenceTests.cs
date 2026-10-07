@@ -37,12 +37,16 @@ public sealed class WorkCentreActivityPersistenceTests
             context.AddRange(today, todayToo, thisWeek, lastWeek, triage);
             context.AddRange(Workflow(today.Id), Workflow(todayToo.Id), Workflow(thisWeek.Id), Workflow(lastWeek.Id));
 
-            // Sent to Engineer: the first-export proxy, one per Case (item E):
-            // one today, one earlier this week, one last week.
+            // Sent to Engineer: a Case's first entry into With Engineer, once
+            // per Case (item E): one today, one earlier this week, one last
+            // week. A later return to the Engineer is not a second send, so
+            // the second entries below count for nothing.
             context.AddRange(
-                Proxy(today.Id, DayStart.AddHours(3)),
-                Proxy(thisWeek.Id, WeekStart.AddHours(12)),
-                Proxy(lastWeek.Id, WeekStart.AddDays(-1)));
+                Event(today.Id, "state_ReportPreparation", DayStart.AddHours(3)),
+                Event(today.Id, "state_ReportPreparation", DayStart.AddHours(9)),
+                Event(thisWeek.Id, "state_ReportPreparation", WeekStart.AddHours(12)),
+                Event(lastWeek.Id, "state_ReportPreparation", WeekStart.AddDays(-1)),
+                Event(lastWeek.Id, "state_ReportPreparation", DayStart.AddHours(2)));
 
             // Reports sent: sent report e-mails as MI-01 counts them (item F).
             // A sent general e-mail and a failed report send are not reports sent.
@@ -119,18 +123,6 @@ public sealed class WorkCentreActivityPersistenceTests
         CaseId = caseId,
         State = "Review",
         ConcurrencyToken = Guid.NewGuid()
-    };
-
-    private static EvaFirstHandoffProxyEntity Proxy(Guid caseId, DateTimeOffset recordedAtUtc) => new()
-    {
-        CaseId = caseId,
-        AdapterKey = "activity-test",
-        AdapterVersion = "1",
-        RecordedAtUtc = recordedAtUtc,
-        LatestExportedWorkflowVersion = 1,
-        ActorSubjectId = "activity-test",
-        ClaimsExternalDelivery = false,
-        ClaimsEngineerAssignment = false
     };
 
     private static StaffMailSendOperationEntity Mail(StaffMailPurpose purpose, StaffMailState state, DateTimeOffset? sentAtUtc) => new()

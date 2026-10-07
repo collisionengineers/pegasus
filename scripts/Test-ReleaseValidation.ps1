@@ -238,7 +238,7 @@ function Assert-CensusRejected {
 
     $result = Invoke-WorkerSmoke -Settings $Settings -ExpectedActivation 'disabled'
     Assert-True ($result.ExitCode -ne 0) $Case 'should fail.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('census differs from the exact six-function release contract')) $Case 'did not report the census.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('census differs from the exact five-function release contract')) $Case 'did not report the census.' $result.Diagnostic
     # The rejection names no live setting: the diagnostic must not echo what
     # the production Worker carries.
     Assert-True (-not $result.Output.Contains($ProtectedSettingName)) $Case 'echoed a live setting name.' $result.Diagnostic

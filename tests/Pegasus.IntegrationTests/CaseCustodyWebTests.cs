@@ -8,7 +8,6 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Reports;
@@ -606,14 +605,12 @@ public sealed class CaseCustodyWebTests
     public async Task CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        // Capture Review with an eligible native handoff and optional EVA
-        // delivery. No external action is required to assign the Engineer.
+        // Capture Review with an eligible native handoff. No external action
+        // is required to assign the Engineer.
         var store = new RecordingCaseDetailsStore
         {
             State = CaseLifecycleState.Review
         };
-        var evaStores = new StubEvaSubmissionStores(
-            new EvaSubmissionModes(PrincipalReportGenerationPolicy.EvaZip));
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -624,8 +621,6 @@ public sealed class CaseCustodyWebTests
                 Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IStaffAccountQueries>(services,
                     new StubStaffAccounts(Guid.NewGuid(), "Engineer", StaffRole.Engineer));
-                Substitute<IEvaSubmissionQueries>(services, evaStores);
-                Substitute<IEvaSubmissionModeStore>(services, evaStores);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -649,14 +644,12 @@ public sealed class CaseCustodyWebTests
         Assert.Contains("name=\"reason\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(store.CaseId.ToString("D"), VisibleText(html), StringComparison.OrdinalIgnoreCase);
 
-        // The export must post, because it records the once-per-case
-        // First sent to Engineer proxy and a prefetched or refreshed GET must
-        // not be able to fire it.
-        //
-        // EXT-04 moved the control: the handoff dialog carries the export as a
-        // posted form and no link to it exists anywhere, and the export route
-        // answers a GET with a redirect rather than a package (asserted below).
-        Assert.Contains("Send to EVA", VisibleText(html), StringComparison.Ordinal);
+        // The export must post, because it records an action-history row and
+        // a prefetched or refreshed GET must not be able to fire it. The
+        // Actions menu carries the export as a posted form and no link to it
+        // exists anywhere, and the export route answers a GET with a redirect
+        // rather than a package (asserted below).
+        Assert.Contains("Export case", VisibleText(html), StringComparison.Ordinal);
         Assert.DoesNotContain(
             $"href=\"/Cases/{store.CaseId:D}/Documents/Export",
             html,
@@ -669,27 +662,6 @@ public sealed class CaseCustodyWebTests
                 new FormUrlEncodedContent([]));
             Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
         }
-
-        // The hand-off's own page is gone, not merely unlinked. 405 rather
-        // than 404 is this app's existing answer to a POST at a path with no
-        // page: the 404 is re-executed at /status/{code} by
-        // UseStatusCodePagesWithReExecute, and that page has only an OnGet.
-        using var downloadGone = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}/Eva/Download",
-            Form(AntiforgeryValue(html)));
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, downloadGone.StatusCode);
-
-        // The generate handler is gone too, but its page survives for the
-        // vehicle actions, and Razor Pages answers an unrecognised handler name
-        // by running no handler at all rather than by refusing the request. So
-        // the honest assertion is not 404: it is that a stale form or bookmark
-        // now does nothing -- no redirect back to the workspace, which is what
-        // every real handler on these pages ends with.
-        using var handlerGone = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}/Vehicle?handler=GenerateEvaHandoff",
-            Form(AntiforgeryValue(html)));
-        Assert.NotEqual(HttpStatusCode.Redirect, handlerGone.StatusCode);
-        Assert.Null(handlerGone.Headers.Location);
 
         // A GET on the export route cannot produce the package: there is no GET
         // that exports, only one that returns a stale bookmark to the case.

@@ -68,24 +68,6 @@
     "dvsaClientSecretSecretUri": {
       "value": "${DVSA_CLIENT_SECRET_SECRET_URI}"
     },
-    "evaClientIdSecretUri": {
-      "value": "${EVA_CLIENT_ID_SECRET_URI}"
-    },
-    "evaClientSecretSecretUri": {
-      "value": "${EVA_CLIENT_SECRET_SECRET_URI}"
-    },
-    "evaBaseUri": {
-      "value": "${EVA_BASE_URI=https://sentry.evasoftware.co.uk/api/}"
-    },
-    "evaRequestFrom": {
-      "value": "${EVA_REQUEST_FROM}"
-    },
-    "evaInspectionType": {
-      "value": "${EVA_INSPECTION_TYPE=Vehicle Damage Inspection}"
-    },
-    "evaInstructionEmail": {
-      "value": "${EVA_INSTRUCTION_EMAIL}"
-    },
     "glassMarketValueAssessorBaseUri": {
       "value": "${GLASS_MARKET_VALUE_ASSESSOR_BASE_URI=https://www.marketvalueassessor.jdpower.com/}"
     },

@@ -5,9 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
@@ -47,7 +45,7 @@ public sealed class CaseWorkflowWebTests
     }
 
     [Fact]
-    public async Task NativeHandoffDialogCanAssignAnEnabledUserWithoutEvaOrASeparateReviewAction()
+    public async Task NativeHandoffDialogCanAssignAnEnabledUserWithoutASeparateReviewAction()
     {
         var engineerId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
@@ -56,7 +54,6 @@ public sealed class CaseWorkflowWebTests
             Substitute<IAssignCaseEngineer>(services, store);
             Substitute<IStaffAccountQueries>(services,
                 new StubStaffAccounts(engineerId, "User", StaffRole.User));
-            services.RemoveAll<ISubmitCaseToEva>();
         }, StaffRole.User);
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains("Assign Engineer", RecordBar(html), StringComparison.Ordinal);
@@ -67,8 +64,6 @@ public sealed class CaseWorkflowWebTests
         Assert.DoesNotContain("reviewed", dialog, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("handler=StartWork", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Start report preparation", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"eva-handoff-dialog-title\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Send via API", html, StringComparison.Ordinal);
 
         using var denied = await workspace.PostAsync("Workflow?handler=AssignEngineer",
             new FormUrlEncodedContent([]));
@@ -100,11 +95,9 @@ public sealed class CaseWorkflowWebTests
         {
             Substitute<ITransitionCase>(services, store);
             Substitute<IAssignCaseEngineer>(services, store);
-            Substitute<ISetCaseSignOffEngineer>(services, store);
             Substitute<ICreateLinkedReplacement>(services, store);
         });
         var engineerId = Guid.NewGuid();
-        var signOffEngineerId = Guid.NewGuid();
         (string Name, string Value)[] readiness =
         [
             ("instructionsComplete", "true"),
@@ -118,19 +111,12 @@ public sealed class CaseWorkflowWebTests
         using var assigned = await workspace.PostAsync(
             "Workflow?handler=AssignEngineer",
             workspace.MutationForm("assign-engineer", "Engineer available", [("engineerId", engineerId.ToString("D")), .. readiness]));
-        using var signOffSet = await workspace.PostAsync(
-            "Workflow?handler=SetSignOffEngineer",
-            workspace.MutationForm(
-                "set-sign-off-engineer",
-                "Signatory selected",
-                ("signOffEngineerId", signOffEngineerId.ToString("D"))));
         using var replaced = await workspace.PostAsync(
             "Workflow?handler=CreateLinkedReplacement",
             workspace.MutationForm("create-replacement", "Wrong principal", ("replacementPrincipalCode", "ACME")));
 
         AssertPrg(returned, store.CaseId);
         AssertPrg(assigned, store.CaseId);
-        AssertPrg(signOffSet, store.CaseId);
         AssertPrg(replaced, store.CaseId);
         var expectedReadiness = new CaseReadinessEvidence(true, true, "review-evidence-1");
 
@@ -144,14 +130,6 @@ public sealed class CaseWorkflowWebTests
         Assert.Equal(engineerId, assignment.EngineerId);
         Assert.Equal(expectedReadiness, assignment.Readiness);
 
-        var signOffSelection = Assert.Single(store.SignOffSelections);
-        AssertLeasedMutation(
-            workspace,
-            signOffSelection,
-            "set-sign-off-engineer",
-            "Signatory selected");
-        Assert.Equal(signOffEngineerId, signOffSelection.SignOffEngineerId);
-
         var replacement = Assert.Single(store.LinkedReplacements);
         AssertLeasedMutation(workspace, replacement, "create-replacement", "Wrong principal");
         Assert.Equal("ACME", replacement.ReplacementPrincipalCode);
@@ -160,11 +138,8 @@ public sealed class CaseWorkflowWebTests
 
         await AssertRefusalKeepsEditModeAsync(
             workspace,
-            "Workflow?handler=SetSignOffEngineer",
-            workspace.MutationForm(
-                "set-sign-off-engineer-2",
-                "Second look",
-                ("signOffEngineerId", signOffEngineerId.ToString("D"))));
+            "Workflow?handler=CreateLinkedReplacement",
+            workspace.MutationForm("create-replacement-2", "Second look", ("replacementPrincipalCode", "ACME")));
         await AssertLostLeaseClearsEditModeAsync(
             workspace,
             "Workflow?handler=ReturnToReview",
@@ -172,21 +147,20 @@ public sealed class CaseWorkflowWebTests
     }
 
     /// <summary>
-    /// FRD-07: the EVA handoff is available in Review,
-    /// Report Preparation and Post Report. Not Ready offers no EVA control and
-    /// draws no disabled handoff.
+    /// FRD-07: Export case is an Actions menu item on every standard Case in
+    /// every state. It posts the export form straight to the download route;
+    /// there is no dialog and no separate send page.
     /// </summary>
     [Theory]
-    [InlineData(CaseLifecycleState.NotReady, false)]
-    [InlineData(CaseLifecycleState.ReportPreparation, true)]
-    [InlineData(CaseLifecycleState.PostReport, true)]
-    [InlineData(CaseLifecycleState.Review, true)]
-    public async Task SendToEvaRendersInReviewAndWithEngineer(CaseLifecycleState state, bool offersHandoff)
+    [InlineData(CaseLifecycleState.NotReady)]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    [InlineData(CaseLifecycleState.PostReport)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
+    public async Task ExportCaseIsOfferedInEveryState(CaseLifecycleState state)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore { State = state };
-        var evaStores = new StubEvaSubmissionStores(
-            new EvaSubmissionModes(PrincipalReportGenerationPolicy.EvaZip));
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -197,8 +171,6 @@ public sealed class CaseWorkflowWebTests
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
-                Substitute<IEvaSubmissionQueries>(services, evaStores);
-                Substitute<IEvaSubmissionModeStore>(services, evaStores);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -208,79 +180,15 @@ public sealed class CaseWorkflowWebTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
 
-        Assert.Equal(offersHandoff, RecordBar(html).Contains("Send to EVA", StringComparison.Ordinal));
-        Assert.Equal(
-            offersHandoff,
-            html.Contains("data-dialog=\"eva-handoff-dialog\"", StringComparison.Ordinal));
-        // The trigger is a real link to the fallback page the
-        // dialog's own form posts to, so the handoff stays reachable without
-        // JavaScript rather than being a dead button with no static target.
-        Assert.Equal(
-            offersHandoff,
-            html.Contains(
-                $"href=\"/Cases/{store.CaseId:D}/Eva/Send\"",
-                StringComparison.OrdinalIgnoreCase));
-        // The handoff's own routes come with it: the export posts from the
-        // dialog, so the route is present exactly when the control is.
-        Assert.Equal(
-            offersHandoff,
-            html.Contains(
-                $"/Cases/{store.CaseId:D}/Documents/Export",
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Theory]
-    [InlineData(CaseLifecycleState.Review, PrincipalReportGenerationPolicy.EvaManualApi, "Send via API")]
-    [InlineData(CaseLifecycleState.ReportPreparation, PrincipalReportGenerationPolicy.EvaManualApi, "Send via API")]
-    [InlineData(CaseLifecycleState.Review, PrincipalReportGenerationPolicy.EvaZip, "Export EVA ZIP")]
-    [InlineData(CaseLifecycleState.ReportPreparation, PrincipalReportGenerationPolicy.EvaZip, "Export EVA ZIP")]
-    public async Task SendPageRendersItsChoiceInReviewAndWithEngineer(
-        CaseLifecycleState state,
-        PrincipalReportGenerationPolicy policy,
-        string expectedAction)
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore { CaseState = state, State = state };
-        var evaStores = new StubEvaSubmissionStores(
-            new EvaSubmissionModes(policy));
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                Substitute<ICaseDataQueries>(services, store);
-                Substitute<ICaseWorkflowQueries>(services, store);
-                Substitute<IEvaSubmissionQueries>(services, evaStores);
-                Substitute<IEvaSubmissionModeStore>(services, evaStores);
-                // A composed transport is required for the manual API policy.
-                Substitute<ISubmitCaseToEva>(services, new StubSubmitCaseToEva());
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        // EXT-04: the send page for a case still in Review — the one place the
-        // operator gets the principal's configured EVA route.
-        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Eva/Send");
-
-        // The page's own copy, as the workspace redesign restyled it: the handoff heading,
-        // the case it is for, and its configured route out.
-        Assert.Contains("<h1>EVA handoff</h1>", html, StringComparison.Ordinal);
+        var recordBar = RecordBar(html);
+        Assert.Contains("<span>Export case</span>", recordBar, StringComparison.Ordinal);
+        Assert.Contains("data-case-export", recordBar, StringComparison.Ordinal);
         Assert.Contains(
-            "<h2 id=\"eva-handoff-title\">QDOS3100042</h2>",
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains($"<span>{expectedAction}</span>", html, StringComparison.Ordinal);
-        if (policy == PrincipalReportGenerationPolicy.EvaManualApi)
-        {
-            Assert.Contains($"/Cases/{store.CaseId:D}/Eva/Send", html, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("Export EVA ZIP", html, StringComparison.Ordinal);
-        }
-        else
-        {
-            Assert.Contains($"/Cases/{store.CaseId:D}/Documents/Export", html, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("Send via API", html, StringComparison.Ordinal);
-        }
+            $"/Cases/{store.CaseId:D}/Documents/Export?handler=Bundle",
+            recordBar,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Send to EVA", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("eva-handoff", html, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -10,7 +10,7 @@ These are requirements, not a claim of deployment or operator acceptance.
 
 Use the accepted interface requirements and current FRD-12 interactions. One
 Case record supports the refined Scroll/Tabs display choice. Native
-engineering and reports remain independent of optional EVA. Prototype behavior
+engineering and reports are owned by Pegasus. Prototype behavior
 is reference evidence; it does not overrule current requirements.
 
 Record the actual scope of rendered/operator evidence. A screenshot,
@@ -23,7 +23,7 @@ Pegasus-v2-Refined-Pack as its visual reference: compact 13.5px body text,
 dialogs. The private prototype and its customer-derived fixtures must not be
 published. Current operator requirements override conflicting prototype
 behaviour: keep one Case Notes timeline, exactly one staff role, equal ordinary
-casework powers for enabled staff accounts, and the agreed EVA retry behaviour. Prototype
+casework powers for enabled staff accounts. Prototype
 handlers and illustrative figures are not application policy. Review actual
 routed pages and their error/edit states against the reference at 1580×1000
 and a smaller desktop width; shared-layout changes also need a 760px capture.
@@ -187,13 +187,13 @@ Images, Files (Documents and Correspondence) and Notes tabs with the finding
 read-only, Record finding in a dialog and the composer for replies.
 
 The **Actions** menu holds exactly the progressions the state permits — Assign
-Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
+Engineer, Export case, Mark report sent, Mark completed, Return to Review
 or Engineer, Archive, Place on Hold or Release Hold, Correct principal — and,
 on an Inspection + Audit Case, Create audit in every state: a disabled
 `.btn` inside a `.menu-gated` span whose `title` states Core's refusal on
 hover when it is not permitted (operator, 1 October 2026) — then, after a
-separator and in red, Close case. Outside an edit
-session the menu appears only when Send to EVA is available. Damage uses the
+separator and in red, Close case. Export case is
+listed on every standard Case, in and out of an edit session. Damage uses the
 **plan** only: a top-down drawing of the recorded vehicle (car, van or
 motorbike), one yellow comic burst per recorded damage sized and placed by
 dragging and kept as drawn (no wider than half the vehicle, unnumbered and
@@ -604,14 +604,14 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `calendar` | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date filters, due |
 | `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel |
 | `copy` | `copy` | `10CBC775CD0ACEBBB15F863348821192DBD4A2858380CC295BEB020AB4144DCB` | Copy reference |
-| `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download ZIP in the Send to EVA dialog |
+| `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Export case in the Actions menu |
 | `folder` | `folder` | `6E9E30D6DB22DC0118AC8C8466659342AFAE90784EFD65B5E2929BE1BA7B0C16` | Folder scopes, Case Files |
 | `info` | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Informational notice |
 | `car` | `car` | `36AE3DC22866D02D1159AB8D6256BB09E91B2D98C03BC7126EE576437BECF0C5` | Vehicle section |
 | `person` | `user` | (as `user`) | Claimant, parties |
 | `task` | `check-square` | `D84CA64CC54CFF1C150D4D31618203F054470D80DFD59989B3EE52009574CE31` | Work items, checks |
 | `archive` | `archive` | `37BA14C8285BE494749A4DA9E213B37048ABCEF5DB0D65B1C65DE959A135AD84` | Archive, Deleted Items |
-| `send` | `send` | `63B04BD6FA6A68DEC5F9492B1D0926D00EE28C3F1332E10F47565AF49FB4649D` | Send, Send to EVA, **Send to AI** (the prototype's `btn(…,'primary','send')`) |
+| `send` | `send` | `63B04BD6FA6A68DEC5F9492B1D0926D00EE28C3F1332E10F47565AF49FB4649D` | Send, **Send to AI** (the prototype's `btn(…,'primary','send')`) |
 | `paperclip` | `paperclip` | `65E2F64F2264077A89E3D0DB428C3DF5E3C175BAB1A1C05561209B023EC2CED8` | Attachments |
 | `home` | `home` | `7ABDB2720CEBD3A9AFBFAC581DCC7807C6E7A8E3229621EC5AA5B9583B060BDF` | Work Centre tab |
 | `map` | `map-pin` | `93DF1DF4794C821825D59FC9550292FAB3504802B3EC767B9246E057CE499F29` | Inspection address |
