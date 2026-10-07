@@ -62,7 +62,7 @@ function Get-MigrationPermissionMatrix {
         '20260924180000_CaseWorksAndTriageCases.cs',
         '20260929090000_RetireUnusedTables.cs',
         '20261006150000_DropCaseReportDeliveryIntents.cs',
-        '20261007180000_RemoveEva.cs'
+        '20261007184000_RemoveEva.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -361,7 +361,7 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|ApprovedMailboxSubscriptions')
     # 20260827143200_GrantEvaSubmissions granted both roles SELECT/INSERT on
-    # EvaSubmissions; 20261007180000_RemoveEva dropped the table, and SQL
+    # EvaSubmissions; 20261007184000_RemoveEva dropped the table, and SQL
     # Server drops a table's permission rows with it, so the matrix expects
     # nothing. The migration is named here because it still carries a GRANT,
     # which Test-AzureDeploymentPlan.ps1 requires this script to account for.
@@ -414,7 +414,7 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("pegasus_web_runtime_role|G|$permission|EditScopes")
     }
     # 20260909144000_PrincipalReportGenerationPolicies granted the runtime
-    # roles on AutomaticEvaReviewSubmissions; 20261007180000_RemoveEva dropped
+    # roles on AutomaticEvaReviewSubmissions; 20261007184000_RemoveEva dropped
     # that table with its permission rows, so the matrix expects nothing.
     # 20260904210022_EngineerNotes grants are absent because
     # 20260909145000_GuidanceAndRemoveEngineerNotes retires and drops that table.
@@ -594,7 +594,7 @@ function Get-MigrationPermissionMatrix {
     # chaser's chase when the Sent poll observes the send. It never deletes one.
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseManualChases')
     $expected.Add('pegasus_worker_runtime_role|G|INSERT|CaseManualChases')
-    # 20261007180000_GrantWorkerTriageFindings: the Worker's automatic Triage
+    # 20261007183000_GrantWorkerTriageFindings: the Worker's automatic Triage
     # link reads the Triage's current finding to fill the Case's empty findings.
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|TriageFindings')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier

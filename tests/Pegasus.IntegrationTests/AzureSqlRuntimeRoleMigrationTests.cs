@@ -1138,7 +1138,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Contains("CaseManualChases", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
-    // 20261007180000_GrantWorkerTriageFindings: the automatic Triage link runs
+    // 20261007183000_GrantWorkerTriageFindings: the automatic Triage link runs
     // as the Worker and now reads the Triage's current finding to fill the
     // linked Case's empty findings.
     [Fact]

@@ -14,7 +14,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// generations it writes with it are already granted. DELETE stays denied.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
-[Migration("20261007180000_GrantWorkerTriageFindings")]
+[Migration("20261007183000_GrantWorkerTriageFindings")]
 public partial class GrantWorkerTriageFindings : Migration
 {
     private const string WorkerRole = "pegasus_worker_runtime_role";

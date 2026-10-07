@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
-/// Removes EVA (operator, 7 October 2026; ADR-0064). The API submissions, the
+/// Removes EVA (operator, 7 October 2026; ADR-0065). The API submissions, the
 /// automatic Review queue and the first-handoff proxy go, and so does the
 /// Principal's report-generation route; the Case export is a plain download
 /// and "Sent to Engineer" is read from the workflow events. SQL Server drops a
@@ -14,7 +14,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// and forward-only.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
-[Migration("20261007180000_RemoveEva")]
+[Migration("20261007184000_RemoveEva")]
 public partial class RemoveEva : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
