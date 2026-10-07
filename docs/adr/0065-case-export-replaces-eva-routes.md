@@ -1,5 +1,5 @@
 ---
-id: ADR-0064
+id: ADR-0065
 status: accepted
 date: 2026-10-07
 supersedes: [ADR-0048]
@@ -9,7 +9,7 @@ related_frd: [frd-04, frd-07, frd-13, frd-15, frd-16]
 tags: [export, principals, work-centre, migration]
 ---
 
-# ADR-0064: The Case export replaces the EVA routes
+# ADR-0065: The Case export replaces the EVA routes
 
 ## Status
 
@@ -50,7 +50,7 @@ export's move duplicated it.
 4. **Sent to Engineer is a workflow fact.** The Work Centre counts each Case
    once, at its first `state_ReportPreparation` workflow event, which Assign
    Engineer writes.
-5. **Destructive migration.** `20261007180000_RemoveEva` drops
+5. **Destructive migration.** `20261007184000_RemoveEva` drops
    `EvaSubmissions`, `AutomaticEvaReviewSubmissions` and
    `EvaFirstHandoffProxies`, and the `Principals.ReportGenerationPolicy`
    column. Their grants go with them. The estate's test data is disposable,

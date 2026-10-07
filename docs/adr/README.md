@@ -65,7 +65,7 @@ never renumbered or reused.
 | [ADR-0045](0045-document-custody-and-derived-caches.md) | Document custody and derived caches | accepted | — | — |
 | [ADR-0046](0046-destructive-migration-runtime-shutdown.md) | Destructive migration runtime shutdown | accepted | — | — |
 | [ADR-0047](0047-scanned-instruction-ocr-only.md) | OCR only for incoming scanned instructions | superseded | ADR-0061 | INT-16 |
-| [ADR-0048](0048-principal-report-generation-policies.md) | Principal report-generation policies | accepted | ADR-0064 (all but recipient settings) | EXT-04 |
+| [ADR-0048](0048-principal-report-generation-policies.md) | Principal report-generation policies | accepted | ADR-0065 (all but recipient settings) | EXT-04 |
 | [ADR-0049](0049-host-web-on-app-service-code-deploy.md) | Host Pegasus Web on an App Service Web App by code deployment | accepted | — | EXT-08 |
 | [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02 |
 | [ADR-0051](0051-linked-audit-case-identity-and-custody.md) | Linked Audit Case identity and custody | superseded | ADR-0056 | — |
@@ -82,7 +82,7 @@ never renumbered or reused.
 | [ADR-0062](0062-glass-placeholder-vehicle-for-unknown-plates.md) | A plate Glass's does not know launches its estimate on a placeholder vehicle | accepted | — | EXT-06 |
 | [ADR-0063](0063-glass-estimate-belongs-to-its-repair-spec.md) | A Glass's estimate belongs to its repair spec, by its stock vehicle | accepted | — | EXT-06, ENG-01 |
 | [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | — | MCP-01, MCP-02, MCP-06 |
-| [ADR-0064](0064-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03 |
+| [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
