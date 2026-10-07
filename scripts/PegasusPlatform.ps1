@@ -941,7 +941,13 @@ function Test-PegasusDatabaseReady {
         [Parameter(Mandatory)]
         [string]$Command,
         [string]$ContainerName,
-        [int]$Port
+        [int]$Port,
+        # When a run database already exists, ready means that database itself
+        # accepts a login: after a container restart the engine answers on
+        # master, and even reports the database ONLINE, a moment before it
+        # admits connections to it. A migration that cannot open it in that
+        # window concludes it is absent and tries to create it over itself.
+        [string]$Database
     )
 
     if ((Get-PegasusDatabaseEngineKind) -eq 'LocalDb') {
@@ -973,6 +979,30 @@ function Test-PegasusDatabaseReady {
     # database in that window would try to create it over the existing one.
     $probe = 'exec 2>/dev/null; /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -l 5 -Q "SET NOCOUNT ON; IF EXISTS (SELECT 1 FROM sys.databases WHERE name LIKE N''PegasusDevelopment[_]%'' AND state_desc <> N''ONLINE'') RAISERROR(N''A run database is still recovering.'', 16, 1); SELECT 1"'
     & $Command exec $ContainerName bash -c $probe *> $null
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+    if ([string]::IsNullOrWhiteSpace($Database)) {
+        return $true
+    }
+    if ($Database -notmatch '^PegasusDevelopment_[0-9a-f]{32}$') {
+        throw "Unexpected run database name '$Database'."
+    }
+
+    # A run whose database the migration has not created yet is ready once the
+    # engine answers; one whose database exists is ready only when that
+    # database admits a login.
+    $existsProbe = 'exec 2>/dev/null; /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -l 5 -h -1 -W -Q "SET NOCOUNT ON; SELECT CASE WHEN DB_ID(N''' + $Database + ''') IS NULL THEN 0 ELSE 1 END"'
+    $exists = (& $Command exec $ContainerName bash -c $existsProbe 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+    if ($exists -eq '0') {
+        return $true
+    }
+
+    $databaseProbe = 'exec 2>/dev/null; /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -l 5 -d "' + $Database + '" -Q "SET NOCOUNT ON; SELECT 1"'
+    & $Command exec $ContainerName bash -c $databaseProbe *> $null
     return $LASTEXITCODE -eq 0
 }
 
