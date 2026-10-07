@@ -307,9 +307,10 @@ public sealed class AssessmentReportTemplateConformanceTests(RenderedTemplateSam
 
         // The image page: six images, two across and three down, each slot 80.4 by 48 mm.
         var grid = Slots(template[4], GridSlotHeight);
+        // Each image is centred in its slot, so a row's images share a middle, not a top.
         var images = report[4].Images
             .Where(image => image.Top > BodyTop)
-            .OrderBy(image => Math.Round(image.Top))
+            .OrderBy(image => Math.Round((image.Top + image.Bottom) / 2))
             .ThenBy(image => image.Left)
             .ToArray();
         Assert.Equal(6, grid.Count);

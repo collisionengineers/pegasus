@@ -2618,10 +2618,10 @@ public sealed class CaseReportGenerationPersistenceTests
                 Signatory = new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", SignatureBytes, "image/png"),
                 Photos =
                 [
-                    Photo(closeUp, CaseAssetReportRole.CloseUp),
-                    Photo(overview, CaseAssetReportRole.Overview),
+                    Photo(overview, CaseAssetReportRole.Overview, 1),
+                    Photo(closeUp, CaseAssetReportRole.CloseUp, 2),
                     .. supporting.Select((document, index) =>
-                        Photo(document, CaseAssetReportRole.Supporting, index + 1)),
+                        Photo(document, CaseAssetReportRole.Supporting, index + 3)),
                 ],
                 Sources = EfAssessmentReportProjectionSource.ReportSources(confirmed),
             };
