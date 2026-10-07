@@ -144,10 +144,13 @@ it has landed; a Refresh pressed during a save is declined. A save that is
 refused or lost stops what waited on it. A value the browser cannot accept
 is not sent: the status word says so. The page never redraws what the
 operator is typing in: after a save the notices, the ribbon, the aside and
-the dialogs are drawn afresh and every section stays as it is, so a blocker
-clears, the state chip moves and a newly permitted action appears within the
-round trip. The server answers a save with those parts alone, and the page is
-not reloaded (operator, 29 September 2026). The answer also carries the
+the dialogs are drawn afresh, so a blocker clears, the state chip moves and a
+newly permitted action appears within the round trip. The server answers a
+save with those parts alone, and the page is not reloaded (operator, 29
+September 2026). A section that shows another's value (the Engineer's Value
+and the salvage share in Settlement, a registration in the Report title)
+follows the save: once nothing waits on it, the page catches up, below, and
+Files and Notes stay as loaded (operator, 7 October 2026). The answer also carries the
 version, the lease and the key the next save sends, and the Files section
 when a crop or rotation was recorded. A save that ends editing redirects to
 the page, as every other command does. A refusal refuses the whole save, keeps
@@ -161,10 +164,11 @@ a save refusal, so each field saves as it is left (operator, 6 October 2026).
 it ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). When a save's
 answer, or the minute heartbeat's, shows the Case past the version the page
 holds, or a save is refused or not confirmed, the page catches up once
-nothing is in flight: it reads the Case again and draws afresh the ribbon,
-the notices, the aside, the dialogs (unless one is open) and each section
-that holds no value not yet sent, keeping the place, the focused control and
-what is typed in it. A section holding a value not yet sent stays as the
+nothing is in flight; after a save that landed it catches up once nothing
+waits on the queue either. It reads the Case again and draws afresh the
+ribbon, the notices, the aside, the dialogs (unless one is open) and each
+section that holds no value not yet sent and no open dialog, keeping the
+place, the focused control and what is typed in it. A section holding a value not yet sent stays as the
 operator has it. When a colleague now holds the Case, every section stays as
 it is, so what the operator typed remains to copy. The ribbon has **Done**, which ends editing and releases
 the lease; there is no Save and no Cancel, because nothing is unsaved: a
