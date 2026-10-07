@@ -454,12 +454,17 @@ internal sealed class ReportMcpTools(
         _ => throw new McpException("The work must be current or inspection."),
     };
 
-    /// <summary>The selected work's recorded approval and linked Sent evidence.</summary>
+    /// <summary>
+    /// The selected work's recorded approval and linked Sent evidence. The
+    /// Case's current work keeps them on the Case's workflow; only the
+    /// Inspection work of a Case that has its Audit, a past work, keeps its
+    /// own, as the workflow store records them.
+    /// </summary>
     private static (ReportApprovalEvidence? Approval, ApprovedMailboxReportSentEvidence? Sent) WorkEvidence(
         CaseHeader header,
         CaseWorkSelector selector) =>
-        header.Works?.Select(selector) is { } selected
-            ? (selected.ReportApproval, selected.ReportSentEvidence)
+        selector == CaseWorkSelector.Primary && header.Works is { HasAudit: true } works
+            ? (works.Primary.ReportApproval, works.Primary.ReportSentEvidence)
             : (header.Workflow.ReportApproval, header.Workflow.ReportSentEvidence);
 
     private static ReportGenerationToolItem MapGeneration(

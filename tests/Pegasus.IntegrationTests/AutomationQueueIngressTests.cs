@@ -43,6 +43,8 @@ public sealed class AutomationQueueIngressTests
 
         // A physical-address Principal needs a staff decision on the address,
         // which the Automation actor cannot record: nothing is written.
+        await factory.Database.ExecuteAsync(
+            $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.PhysicalAddressCode}' WHERE Code = N'{QdosPrincipal.Code}'");
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
