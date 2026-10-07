@@ -493,7 +493,7 @@ public sealed class PrincipalApiSubmissionTests
 
     [Theory]
     [InlineData("inspection", null, "")]
-    [InlineData("audit", "a.")]
+    [InlineData("audit", "repairable", "a.")]
     public async Task AnInstructionWithNoFilesIsAcceptedAndAllocatesItsCase(
         string caseType,
         string? originalReportVerdict,
