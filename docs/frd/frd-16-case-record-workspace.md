@@ -797,15 +797,16 @@ is owned by
 The Report section's More menu offers the three documents as previews (v28
 P42) — the report, the Repair Spec and the images — each opening the document
 the Case would actually produce rather than a picture of one, and offers
-Generate for a companion document the confirmed generation does not yet hold,
-in or out of edit mode as Generate report is. Generate fee note is offered for
-every confirmed report, and once the separate fee note is confirmed the report
-card offers Open fee note beside Open report (issue 912).
+Generate for the Repair Spec or the images when the confirmed generation does
+not yet hold it, in or out of edit mode as Generate report is. Generate report
+makes the separate fee note with the report (operator, 7 October 2026), and
+once the separate fee note is confirmed the report card offers Open fee note
+beside Open report (issue 912).
 The delivery form offers the Case's known addresses on every recipient field
-(v28 P21), the documents to attach (v28 P22), and states the name the report
-will be attached under (v28 P23) and the covering message it will carry, in an
-editable box pre-filled from the Case report delivery template, before Prepare
-delivery is pressed.
+(v28 P21), the documents to attach (v28 P22), with Report and Fee note ticked,
+and states the name the report will be attached under (v28 P23) and the
+covering message it will carry, in an editable box pre-filled from the Case
+report delivery template, before Send report is pressed.
 
 Report-draft generation and preview sit
 on the Report section
