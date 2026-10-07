@@ -255,6 +255,75 @@ These checks prove the local process graph and the exercised health/diagnostic
 paths only. They do not prove a business caller, durable cloud behavior,
 managed identity, RBAC, external delivery, deployment, or acceptance.
 
+### Local live-integration run
+
+A hosted local test instance keeps the Offline lifecycle and opts selected
+real integrations in through an ignored settings file. The opt-ins are owned by
+the [configuration reference](engineering/configuration.md#local-opt-in-features);
+what each row proves is owned by the
+[local live-integration verification matrix](engineering/local-live-verification.md).
+
+The file is `artifacts/local-development/local.settings.env`: `KEY=VALUE`
+lines with double-underscore keys, `#` comments, mode `0600` on Linux. `Start`
+reads it on every attempt, splits it by host prefix (Web: `Features__`,
+`Box__`, `Glass__`, `GitHub__`, `DevelopmentOffline__`, `AutomationMcp__`;
+Worker: `Features__`, `Box__`, `Dvla__`, `Dvsa__`), refuses any key the run
+owns itself (`Runtime__Profile`, the connection string, URLs, storage,
+`Features__LocalIntake`, `Features__LocalDocumentCustody`,
+`Glass__CallbackBaseUri`, the mailbox roots and the timer schedules), and hands
+the values to the processes through their environment only. The manifest
+records which integrations are on as booleans; no value reaches the manifest,
+a launcher script, a log or a command line. With `Features__LiveGlass=true`
+the lifecycle sets `Glass__CallbackBaseUri` to the run's own HTTPS origin, and
+with `Features__LiveBoxCustody=true` it omits `Features__LocalDocumentCustody`.
+
+```powershell
+pwsh ./scripts/New-LocalLiveSettings.ps1 -BoxHoldingFolderId <id>
+pwsh ./scripts/New-LocalLiveSettings.ps1 -BoxHoldingFolderId <id> -AdministratorPassword (Read-Host -AsSecureString) -Approve
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -WebPort 7139
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Status
+pwsh ./scripts/Invoke-LocalSeed.ps1 -CorpusRoot <path> -RunId <run-id> -Email '*.eml'
+pwsh ./scripts/Invoke-LocalVerification.ps1 -RunId <run-id> -User development-offline-administrator
+```
+
+Without `-Approve` the first command prints the exact Key Vault secret names
+it would read and stops. With it, the operator's own `az` sign-in reads
+`box-config-json`, `box-client-secret`, `dvla-api-key`, `dvsa-client-id`,
+`dvsa-client-secret` and `dvsa-api-key` from `pegasusprodkv252ow37g` into the
+file beside the non-secret literals that `infra/modules/platform.bicep` owns,
+with the Box root fixed to the local-test folder `425169015650` recorded in
+[operations](operations.md#approved-box-custody-root). The read is a live
+operation under the [operational authority](runbook.md#operational-authority)
+rule: the current task grant names it. The holding folder is created by the
+operator beneath that root; the script's read-only preflight proves the app's
+service account can see both folders before any Case folder is written.
+`-IncludeProblemReports` is off by default because a real token files issues
+in the production repository.
+
+`-WebPort` fixes the Web HTTPS port so the Glass's callback origin and
+bookmarks survive restarts; a run keeps the port it was created with. Status
+prints `LiveIntegrations` and Smoke records the same flags; neither probes a
+vendor. Glass's logins are per staff account ([ADR-0043](adr/0043-per-engineer-vendor-credential-protection.md))
+and are entered in Administration > Accounts on the local instance.
+
+From a Windows browser, `https://localhost:7139` reaches the WSL run through
+localhost forwarding; the WSL development certificate is not trusted there
+until exported (`dotnet dev-certs https --export-path <pfx> -p <password>`)
+and imported into the Windows trusted root store. The Glass's return needs
+that trust, because the provider navigates the same browser back.
+
+The seed script copies selected `.eml` files into `<run>/mailbox/inbox` and
+`*.sent.json` files into `<run>/mailbox/sent`, reading the supplied corpus
+immutably under the [corpus safety rules](runbook.md#safety-rules) and writing
+only beneath the run and `artifacts/local-verification/<run-id>/`. Documents
+and photographs enter through the Upload page, which the verification walk
+drives when files are supplied.
+
+What the instance cannot prove, even with every opt-in on, is listed in the
+matrix: EVA (no route by decision), staff mail send and Graph mailbox
+behaviour (until a test mailbox is approved), OCR, and the problem-report
+sink.
+
 ### Isolated runs and failure controls
 
 Parallel starts use distinct generated run IDs, ports, LocalDB databases,
