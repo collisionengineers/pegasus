@@ -4,8 +4,9 @@
 
 ## Short version
 
-- AI never decides anything. Its output is a proposal until a staff member
-  accepts or rejects it.
+- An AI job's result is a draft or proposal until a staff member uses or
+  rejects it. What the Automation Actor records directly is the Case's value,
+  as a staff member's is.
 - `Send to AI` queues a named AI job for one Case or Unidentified item. The
   job names the record and gives a short instruction, never Case content. An
   external client claims it and writes back through the same Core commands as
@@ -48,18 +49,18 @@ operation-key replay and version guards as a staff save
 attributed and recorded like any human action. What the automation records is the Case's value, attributed to it
 and shown with its AI source tag; it writes only fields staff can record on
 the Case, so staff can change or clear each value on its section
-([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)),
-and it never writes a professional finding. Recording a professional finding
-is for every enabled human staff role. There is no per-field review
-(operator, 25 September 2026).
-Report approval and sending stay human acts. No model, skill, prompt or
-external source ever issues an accepted Case, engineering, financial, legal
-or report outcome.
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)).
+It records professional findings as staff do (operator, 7 October 2026). There
+is no per-field review (operator, 25 September 2026).
+Report approval and sending stay human acts until later deliveries add them.
+No model, skill, prompt or external source ever issues an accepted legal or
+report outcome.
 
 Durable Send to AI work has stable job and disposition identities. Stale work
 cannot overwrite a newer Case or evidence version. Duplicate, expired or
 cancelled jobs are inert, recorded outcomes that never change accepted data.
-No AI caller confirms, approves or sends on its own.
+No AI caller approves or sends a report; automation sending is not yet
+delivered.
 
 ### AI Job List
 
@@ -79,7 +80,7 @@ and in the table below).
 
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
-| Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An enabled human staff member uses the draft (**Use repair spec**), which makes it the Current repair spec |
+| Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, which may cite the job; state `Draft` | An enabled human staff member uses the draft (**Use repair spec**), which makes it the Current repair spec |
 | Unidentified resolution | The Unidentified record's `Send Unidentified to AI` for that item's U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool; Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item examined | As Unidentified resolution, per item |

@@ -34,17 +34,22 @@ public sealed class AddCaseNoteTests
                 CancellationToken.None));
 
     /// <summary>
-    /// The rule this asserts is unchanged: the Automation Actor holds casework
-    /// rights and records what it does under its own events, so it may not also
-    /// author an operator note. The Principal API widened the guard by exactly one kind
-    /// (below) and left this one denied.
+    /// The Automation Actor holds casework rights like staff, and does
+    /// anything a staff member can (operator, 7 October 2026): it notes the
+    /// Case as staff do.
     /// </summary>
     [Fact]
-    public async Task AnAutomationActorCannotWriteAnOperatorNote() =>
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            Command(new RecordingStore()).ExecuteAsync(
-                new(Guid.NewGuid(), ActionActor.Automation("automation"), "note-4", "A note."),
-                CancellationToken.None));
+    public async Task AnAutomationActorMayWriteANote()
+    {
+        var store = new RecordingStore();
+
+        await Command(store).ExecuteAsync(
+            new(Guid.NewGuid(), ActionActor.Automation("automation"), "note-4", "A note."),
+            CancellationToken.None);
+
+        Assert.Equal(ActorKind.Automation, store.Last?.Actor.Kind);
+        Assert.Equal("A note.", store.Last?.Note);
+    }
 
     /// <summary>
     /// The one kind admitted beside Staff (operator decision, 2026-08-28): the

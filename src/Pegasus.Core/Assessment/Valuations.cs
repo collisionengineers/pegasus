@@ -222,24 +222,14 @@ public static class ValuationPolicy
     }
 
     /// <summary>
-    /// Recording or correcting a valuation is ordinary casework. An
-    /// Engineer's Value row carries the <c>assessment.values.engineer</c>
-    /// professional finding, so every staff actor who records it passes that
-    /// field's finding-authority rule.
+    /// Recording or correcting a valuation, the Engineer's Value included, is
+    /// ordinary casework for staff and the Automation actor alike (operator,
+    /// 7 October 2026).
     /// </summary>
     private static void RequireActor(ActionActor actor, ValuationDetails details)
     {
         ArgumentNullException.ThrowIfNull(details);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (actor.Kind != ActorKind.Staff)
-        {
-            throw new InvalidOperationException(
-                "A guide card is recorded by a staff actor.");
-        }
-        if (details.Source == ValuationSource.EngineersValue)
-        {
-            AssessmentPolicy.RequireFindingAuthority(actor);
-        }
     }
 
     /// <summary>

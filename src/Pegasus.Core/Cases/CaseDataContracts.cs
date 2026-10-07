@@ -225,16 +225,12 @@ public sealed record CaseEditableData(
     DateOnly? InspectionDeadline = null,
     string? InspectionAddress = null,
     CaseInspectionMode? InspectionMode = null,
-    // Appended, never inserted: this record is constructed positionally
-    // (AssessmentMcpTools), so an inserted parameter would silently shift every
-    // value after it.
     string? ClaimantContactNumber = null,
     string? ClaimantAddress = null,
     string? StorageLocation = null,
-    // Appended for the v1 Case workspace: the claim source
-    // snapshot, the storage business, the report-address treatment and its
-    // provenance, the inspection values and the repairer address. Same rule
-    // as above — appended, never inserted.
+    // The v1 Case workspace: the claim source snapshot, the storage
+    // business, the report-address treatment and its provenance, the
+    // inspection values and the repairer address.
     string? RepairerAddress = null,
     Guid? ClaimSourceId = null,
     long? ClaimSourceVersion = null,
@@ -284,31 +280,9 @@ public sealed record CaseEditableData(
     string? ClaimSourceOverrideContactTelephone = null,
     string? ClaimSourceOverrideContactEmailAddress = null);
 
-public sealed record SaveCaseRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    CaseEditableData Data)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
 public interface ICaseDataQueries
 {
     Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 }
 
-public interface ICaseDataStore : ICaseDataQueries
-{
-    Task<CaseDataProjection> SaveAsync(
-        SaveCaseRequest request,
-        CancellationToken cancellationToken);
-}
 
-public interface ISaveCase
-{
-    Task<CaseDataProjection> ExecuteAsync(
-        SaveCaseRequest request,
-        CancellationToken cancellationToken);
-}

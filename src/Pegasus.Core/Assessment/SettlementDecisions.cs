@@ -129,8 +129,9 @@ public interface ISaveUnroadworthyReason
 }
 
 /// <summary>
-/// Saving a wording to the firm's bank (v28 P15): an Engineer's act. A
-/// wording the bank already offers is not saved twice, and answers null.
+/// Saving a wording to the firm's bank (v28 P15): a casework act, staff's or
+/// the Automation actor's. A wording the bank already offers is not saved
+/// twice, and answers null.
 /// </summary>
 public sealed class SaveUnroadworthyReason(IUnroadworthyReasonBankStore store) : ISaveUnroadworthyReason
 {
@@ -138,7 +139,7 @@ public sealed class SaveUnroadworthyReason(IUnroadworthyReasonBankStore store) :
         SaveUnroadworthyReasonRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PrincipalCode);
         var normalized = UnroadworthyReasonBank.Normalize(request.Text);
         var saved = await store.ListAsync(request.PrincipalCode, cancellationToken);

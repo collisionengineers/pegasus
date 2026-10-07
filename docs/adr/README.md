@@ -38,7 +38,7 @@ never renumbered or reused.
 | [ADR-0018](0018-provider-inspection-mode-database-setting.md) | Provider-determined inspection mode as a database setting | accepted | — | — |
 | [ADR-0019](0019-in-process-onnx-vrm-recognition.md) | In-process ONNX VRM recognition engine | accepted | — | — |
 | [ADR-0020](0020-accepted-qdos-case-association-predicates.md) | Accepted QDOS automatic case-association predicates | superseded | — | — |
-| [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md) | Automation Actor direct-write assessment contract and the Send to AI transport slice | superseded | ADR-0031 | — |
+| [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md) | Automation Actor direct-write assessment contract and the Send to AI transport slice | superseded | ADR-0031, ADR-0064 | — |
 | [ADR-0022](0022-approved-mailbox-identity-and-enablement-database-setting.md) | Approved-mailbox identity and enablement as an administrator-editable database setting | superseded | ADR-0024 | — |
 | [ADR-0023](0023-restructure-repository-documentation-and-reference-evidence.md) | Restructure repository documentation and reference evidence | superseded | — | — |
 | [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) | Stable approved-mailbox identity and per-mailbox fresh start | accepted | ADR-0044 | — |
@@ -48,7 +48,7 @@ never renumbered or reused.
 | [ADR-0028](0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | superseded | ADR-0049, ADR-0050 | EXT-08, RPT-01, RPT-02 |
 | [ADR-0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | accepted | ADR-0045 | INT-17, INT-28 |
 | [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted | ADR-0046 (partial) | — |
-| [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | accepted | — | MCP-06, AI-09 |
+| [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | accepted | ADR-0064 (professional findings) | MCP-06, AI-09 |
 | [ADR-0032](0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | superseded | ADR-0033 | INT-33 |
 | [ADR-0033](0033-warm-unified-work-queue-for-five-second-intake.md) | Warm unified work queue for five-second intake | accepted | — | INT-33 |
 | [ADR-0034](0034-per-principal-eva-api-submission-settings.md) | Per-Principal EVA API submission settings | superseded | ADR-0038 | EXT-04 |
@@ -81,6 +81,7 @@ never renumbered or reused.
 | [ADR-0061](0061-ocr-every-scanned-document-page.md) | OCR every scanned document page; a full-page raster is a document or a photograph by its colour | accepted | — | INT-16, AI-04 |
 | [ADR-0062](0062-glass-placeholder-vehicle-for-unknown-plates.md) | A plate Glass's does not know launches its estimate on a placeholder vehicle | accepted | — | EXT-06 |
 | [ADR-0063](0063-glass-estimate-belongs-to-its-repair-spec.md) | A Glass's estimate belongs to its repair spec, by its stock vehicle | accepted | — | EXT-06, ENG-01 |
+| [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | — | MCP-01, MCP-02, MCP-06 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

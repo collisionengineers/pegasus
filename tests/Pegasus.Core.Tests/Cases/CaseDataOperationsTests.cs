@@ -1,6 +1,5 @@
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Cases;
@@ -260,45 +259,13 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
-    public async Task SaveCaseNormalizesExplicitConfirmedValuesWithoutAnIdentityField()
+    public void TheCaseRecordCollapsesANameAndCanonicalizesARegistration()
     {
-        var store = new RecordingStore();
-        var command = new SaveCase(store);
-        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var request = new SaveCaseRequest(
-            Guid.NewGuid(),
-            4,
-            staff,
-            "save-case",
-            "Confirmed reviewed values",
-            "lease",
-            new(
-                ClaimantName: "  Jane   Example ",
-                VehicleRegistration: " ab 12 cde "));
+        var normalized = CaseDataPolicy.Normalize(new(
+            ClaimantName: "  Jane   Example ",
+            VehicleRegistration: " ab 12 cde "));
 
-        await Assert.ThrowsAsync<NotSupportedException>(
-            () => command.ExecuteAsync(request, CancellationToken.None));
-
-        Assert.NotNull(store.SavedRequest);
-        Assert.Equal("Jane Example", store.SavedRequest.Data.ClaimantName);
-        Assert.Equal("AB12CDE", store.SavedRequest.Data.VehicleRegistration);
-        Assert.Equal(request.CaseId, store.SavedRequest.CaseId);
-    }
-
-    private sealed class RecordingStore : ICaseDataStore
-    {
-        public SaveCaseRequest? SavedRequest { get; private set; }
-
-        public Task<CaseDataProjection?> GetAsync(
-            Guid caseId,
-            CaseWorkSelector work, CancellationToken cancellationToken) => Task.FromResult<CaseDataProjection?>(null);
-
-        public Task<CaseDataProjection> SaveAsync(
-            SaveCaseRequest request,
-            CancellationToken cancellationToken)
-        {
-            SavedRequest = request;
-            throw new NotSupportedException();
-        }
+        Assert.Equal("Jane Example", normalized.ClaimantName);
+        Assert.Equal("AB12CDE", normalized.VehicleRegistration);
     }
 }

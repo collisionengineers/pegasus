@@ -188,7 +188,7 @@ public sealed class ReportRequirementOwnershipTests
     {
         var failures = new List<string>();
         var accepted = new List<string>();
-        foreach (var (path, definition) in AssessmentVocabulary.Definitions)
+        foreach (var path in AssessmentVocabulary.Definitions.Keys)
         {
             if (AssessmentVocabulary.DerivedPaths.Contains(path)
                 || AssessmentVocabulary.LookupDerivedPaths.Contains(path))
@@ -197,7 +197,7 @@ public sealed class ReportRequirementOwnershipTests
             }
 
             var automationWrites = AutomationRefusal(path) is null;
-            var staffEdits = !definition.IsFinding && CaseWorkspaceLabels.Editors.HasStaffEditor(path);
+            var staffEdits = CaseWorkspaceLabels.Editors.HasStaffEditor(path);
             if (automationWrites != staffEdits)
             {
                 failures.Add(automationWrites
@@ -214,11 +214,14 @@ public sealed class ReportRequirementOwnershipTests
         Assert.Contains(
             "no staff editor", McpRefusal(AssessmentVocabulary.RateCard)!.Message, StringComparison.Ordinal);
         Assert.Null(AutomationRefusal(AssessmentVocabulary.CostRecoveryCharge));
-        // The 20 non-finding Decisions editors, 4 original report, 7 Report,
-        // 14 Damage and 4 Vehicle editors, the vehicle history and condition,
-        // and the 5 typed Case-save paths. A new editor changes this count on
-        // purpose: it widens what automation may write.
-        Assert.Equal(56, accepted.Count);
+        Assert.Null(AutomationRefusal(AssessmentVocabulary.Outcome));
+        Assert.Null(AutomationRefusal(AssessmentVocabulary.ValueEngineer));
+        // The 25 Decisions editors (the outcome, roadworthiness and salvage
+        // findings included since 7 October 2026), 3 Valuation, 4 original
+        // report, 7 Report, 14 Damage and 4 Vehicle editors, the vehicle
+        // history and condition, and the 5 typed Case-save paths. A new editor
+        // changes this count on purpose: it widens what automation may write.
+        Assert.Equal(64, accepted.Count);
     }
 
     [Theory]

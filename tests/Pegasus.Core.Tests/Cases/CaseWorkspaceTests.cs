@@ -140,8 +140,8 @@ public sealed class CaseWorkspaceTests
 
     /// <summary>
     /// A calculation the Case save adopts (one Save, 23 September 2026) passes
-    /// the rules the calculator's preview applies, and is a professional
-    /// finding only staff record.
+    /// the rules the calculator's preview applies, whoever adopts it: the
+    /// Automation actor adopts one as staff do (operator, 7 October 2026).
     /// </summary>
     [Fact]
     public void AnAdoptedCalculationIsCheckedByTheValuationRules()
@@ -158,10 +158,11 @@ public sealed class CaseWorkspaceTests
             {
                 Valuation = new([], calculation with { PriorTotalLossPercentage = 0.15m })
             })));
-        Assert.Throws<InvalidOperationException>(() =>
-            CaseWorkspacePolicy.ValidateAndNormalize(Request(
-                request => request with { Valuation = new([], calculation) },
-                ActionActor.Automation("case-save"))));
+
+        var automated = CaseWorkspacePolicy.ValidateAndNormalize(Request(
+            request => request with { Valuation = new([], calculation) },
+            ActionActor.Automation("case-save")));
+        Assert.Equal(0.10m, automated.Valuation!.Adoption!.PriorTotalLossPercentage);
     }
 
     [Fact]
@@ -198,8 +199,10 @@ public sealed class CaseWorkspaceTests
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public void EveryStaffRoleCanWriteAWorkspaceFinding(StaffRole role)
+    [InlineData(null)]
+    public void EveryCaseworkActorCanWriteAWorkspaceFinding(StaffRole? role)
     {
+        // A null role is the Automation actor (operator, 7 October 2026).
         var normalized = CaseWorkspacePolicy.ValidateAndNormalize(
             Request(
                 request => request with
@@ -209,7 +212,9 @@ public sealed class CaseWorkspaceTests
                         [AssessmentVocabulary.Outcome] = "repairable"
                     })
                 },
-                ActionActor.Staff(Guid.NewGuid(), [role])));
+                role is { } staffRole
+                    ? ActionActor.Staff(Guid.NewGuid(), [staffRole])
+                    : ActionActor.Automation("case-save")));
 
         Assert.Equal(
             "repairable",
@@ -489,15 +494,21 @@ public sealed class CaseWorkspaceTests
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public void EveryStaffRoleMaySubmitTheEstimateSection(StaffRole role)
+    [InlineData(null)]
+    public void EveryCaseworkActorMaySubmitTheEstimateSection(StaffRole? role)
     {
+        // A null role is the Automation actor (operator, 7 October 2026),
+        // whose estimate section lands on the AI-draft route.
+        var actor = role is { } staffRole
+            ? ActionActor.Staff(Guid.NewGuid(), [staffRole])
+            : ActionActor.Automation("case-save");
         var normalized = CaseWorkspacePolicy.ValidateAndNormalize(
             Request(
                 request => request with
                 {
                     Estimate = new(null, new EstimateDetails("Estimate 1", null, null, 20m), [])
                 },
-                ActionActor.Staff(Guid.NewGuid(), [role])));
+                actor));
 
         Assert.NotNull(normalized.Estimate);
         Assert.Empty(normalized.Estimate.Lines);

@@ -363,12 +363,14 @@ itself, never the e-mail it arrived in:
 - when staff **Mark as original report**, from that document.
 
 A filled cell is tagged **Extracted** until staff change it. A fill lands
-only on a cell staff have not recorded and never clears one, so a
-staff-entered value is never overwritten. A cell stays blank for staff when
-the report prints no value for it, prints two different values, or prints a
-word the cell's list does not hold. Roadworthiness reads a printed Yes/No or
-Roadworthy/Unroadworthy. Repairable status reads a printed Repairable,
-Repair or Total loss; the report never fills Cash in lieu or Contract repair.
+only on a cell neither staff nor the Automation Actor has recorded, and never
+clears one, so their values are never overwritten; a value another fill
+recorded takes the newer reading (operator, 7 October 2026). A cell stays
+blank for staff when the report prints no value for it, prints two different
+values, or prints a word the cell's list does not hold. Roadworthiness reads
+a printed Yes/No or Roadworthy/Unroadworthy. Repairable status reads a
+printed Repairable, Repair or Total loss; the report never fills Cash in lieu
+or Contract repair.
 
 Repairable status alone falls back to the Audit's intake verdict — the
 report's literal repairable or total-loss wording, or the Principal API's
@@ -405,8 +407,9 @@ Transmission keeps its place among them and is edited in place, picked from
 Manual, Automatic, Semi-automatic, CVT or Unknown, because no approved lookup
 returns it (operator, 24 September 2026). One **Look up DVLA & MOT** action
 (`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
-that staff have not recorded, and records the lookup's own facts. It never
-overwrites an extracted or staff-entered value. There is no checks panel and
+that neither staff nor the Automation Actor has recorded, and records the
+lookup's own facts. It never overwrites an extracted, staff-entered or
+Automation-recorded value. There is no checks panel and
 no suggestion table. Run Experian check stays the disabled seam. A labelled
 Vehicle history area holds the history-check narrative as read-only text,
 editable in edit mode

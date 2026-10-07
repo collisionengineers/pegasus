@@ -296,7 +296,7 @@ public sealed record CaseWorkspaceEstimate(
             EstimateId,
             Details,
             Lines,
-            new(RepairSpecificationSourceRoute.Manual, null, null, null),
+            new(RepairSpecificationPolicy.EditorRoute(owner.Actor), null, null, null),
             ExistingLineIds: ExistingLineIds)
         {
             SelectedRateCardId = SelectedRateCardId,
@@ -633,8 +633,8 @@ public static class CaseWorkspacePolicy
                 nameof(request));
         }
 
-        // Every assessment path passes the field gate (finding authority
-        // included) before the transaction opens.
+        // Every assessment path passes the field gate before the transaction
+        // opens.
         _ = AssessmentFields(request);
 
         if (request.Inspection is { } inspection)
@@ -663,12 +663,10 @@ public static class CaseWorkspacePolicy
             };
         }
 
-        // Recording a calculation against its basis card is a professional
-        // finding: the same authority and the same selection rules the
-        // calculator's preview checks.
+        // Recording a calculation against its basis card follows the same
+        // selection rules the calculator's preview checks.
         if (validated.Valuation is { Adoption: { } adoption } adopting)
         {
-            AssessmentPolicy.RequireFindingAuthority(validated.Actor);
             validated = validated with
             {
                 Valuation = adopting with
@@ -989,7 +987,6 @@ public static class CaseWorkspacePolicy
         CaseWorkspaceEstimate estimate,
         SaveCaseWorkspaceRequest request)
     {
-        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         var validated = EstimatePolicy.ValidateContent(estimate.ToSaveEstimateRequest(request));
         return estimate with
         {

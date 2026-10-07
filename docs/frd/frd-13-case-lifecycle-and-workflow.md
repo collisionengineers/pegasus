@@ -135,7 +135,8 @@ received or assigned anything.
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
   viewed. Staff with `PerformCasework` may edit them in Not ready, Review and
   With Engineer under the normal edit authority. They are read-only in Held
-  and Completed. Only staff record the Engineer's Value.
+  and Completed. Staff and the Automation Actor record the Engineer's Value
+  ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#assessment-writes)).
 - **Report approval** names one immutable report file and the staff member
   who approved it.
 - **Mark report sent** needs exact retained Sent evidence

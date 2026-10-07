@@ -293,9 +293,10 @@ sweep, which remains the recovery path if the creation-time attempt fails or
 is unavailable. The outcome shows on the Case whichever trigger produced it:
 looked up and current, or a stated failure reason, separately from whether
 any field was filled. The automatic trigger fills only an empty Make, Model,
-Year or Mileage and a Vehicle type staff have not recorded, and records the
-lookup's own facts, under the rules above. It never overwrites a value staff
-recorded.
+Year or Mileage and a Vehicle type neither staff nor the Automation Actor has
+recorded, and records the lookup's own facts, under the rules above. It never
+overwrites a value staff or the Automation Actor recorded (operator, 7
+October 2026).
 
 **A 404 is classified first.** Only a 404 whose body is that provider's own
 vehicle-not-found error counts as `NotFound`. Any other 404 (a gateway, route
